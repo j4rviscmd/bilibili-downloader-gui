@@ -11,6 +11,8 @@
 
 ```plain text
 /src
+  /app
+      store.ts
   /components
     /ui                    ← animate‑ui由来の共通UI
       button.tsx
