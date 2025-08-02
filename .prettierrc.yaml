@@ -1,0 +1,11 @@
+tabWidth: 2
+useSpaces: true
+reformat: true
+semi: false
+singleQuote: true
+trailingComma: all
+printWidth: 80
+plugins:
+  - prettier-plugin-organize-imports
+  - prettier-plugin-tailwindcss
+organizeImportsSkipDestructiveCodeActions: false # 未使用importの削除
