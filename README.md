@@ -26,7 +26,10 @@
         index.ts
   /features                ← ドメイン単位のロジックと連携UI
     /auth
-      useAuth.ts
+      authSlice.ts         ← Redux slice / state
+      useAuth.ts           ← カスタムhook
+      types.ts
+      LoginForm.test.tsx   ← テスト(Jest / Testing Library)
     /player
       PlayerView.tsx
       usePlayer.ts
