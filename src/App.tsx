@@ -1,11 +1,11 @@
 import { Button } from '@/components/ui/button'
-import { useState } from 'react'
+import { useCount } from '@/features/count/useCount'
 import './App.css'
 import reactLogo from './assets/react.svg'
 import viteLogo from '/vite.svg'
 
 function App() {
-  const [count, setCount] = useState(0)
+  const { value, setAbsoluteCount } = useCount()
 
   return (
     <>
@@ -20,8 +20,8 @@ function App() {
       </div>
       <h1>Vite + React</h1>
       <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
+        <button onClick={() => setAbsoluteCount(value + 1)}>
+          count is {value}
         </button>
         <p>
           Edit <code>src/App.tsx</code> and save to test HMR
