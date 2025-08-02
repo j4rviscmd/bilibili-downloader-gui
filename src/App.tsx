@@ -20,7 +20,10 @@ function App() {
       </div>
       <h1>Vite + React</h1>
       <div className="card">
-        <button onClick={() => setAbsoluteCount(value + 1)}>
+        <button
+          className="text-white"
+          onClick={() => setAbsoluteCount(value + 1)}
+        >
           count is {value}
         </button>
         <p>
