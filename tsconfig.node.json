@@ -13,6 +13,7 @@
     "moduleDetection": "force",
     "noEmit": false,
     "composite": true,
+    "types": ["node"],
 
     /* Linting */
     "strict": true,
