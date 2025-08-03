@@ -42,7 +42,8 @@
   /pages                   ← ルートビュー（React Router etc.）
     index.tsx
     settings.tsx
-  /utils
+  /lib
+    utils.ts               ← shadcn utils(自動生成)
     date.ts
   /styles
     globals.css
