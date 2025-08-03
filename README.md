@@ -9,6 +9,8 @@
 
 ### Directory structures
 
+#### Frontend
+
 ```plain text
 /src
   /app
@@ -28,8 +30,7 @@
         index.ts
   /features                ← ドメイン単位のロジックと連携UI
     /auth
-      authSlice.ts         ← Redux slice / state
-      useAuth.ts           ← カスタムhook
+      authSlice.ts         ← Redux slice / state useAuth.ts           ← カスタムhook
       types.ts
       LoginForm.test.tsx   ← テスト(Jest / Testing Library)
     /player
@@ -48,4 +49,19 @@
   /styles
     globals.css
   index.tsx
+```
+
+#### Backend
+
+```plain text
+src-tauri/src/
+  main.rs            ← エントリポイント、できるだけ薄く保つ
+  lib.rs             ← アプリ本体の root module（サービスの統括）,各APIのエンドポイント定義
+  handlers/          ← handler関数たち（実際のロジック）
+  services/          ← ビジネスロジック（DB操作、外部API呼び出しなど）
+  models/            ← データ構造（リクエスト/レスポンス/DB構造）
+  db/                ← DB接続、マイグレーション、クエリラッパーなど
+  config.rs          ← 設定読み込み（dotenvなど）
+  errors.rs          ← 共通エラーハンドリング
+  utils.rs           ← 補助ツール
 ```
