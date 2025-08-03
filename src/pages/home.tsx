@@ -2,19 +2,16 @@ import { useInit } from '@/features/init/useInit'
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router'
 
-function IndexPage() {
+function HomePage() {
   const { initiated } = useInit()
   const navigate = useNavigate()
 
   useEffect(() => {
-    if (initiated) {
-      navigate('/home')
-    } else {
-      navigate('/init')
-    }
+    if (initiated) return
+    navigate('/init')
   }, [initiated, navigate])
 
-  return null
+  return <div>home</div>
 }
 
-export default IndexPage
+export default HomePage
