@@ -19,9 +19,9 @@ function InitPage() {
 
   return (
     <div className="flex h-full w-full items-center justify-center">
-      <div className="relative">
+      <div className="flex flex-col items-center">
         <CircleIndicator />
-        <div className="text-muted-foreground sticky text-center text-xl font-bold">
+        <div className="text-muted-foreground text-center text-xl font-bold">
           初期化中...
         </div>
         <div className="text-muted-foreground text-sm">{processingFnc}</div>
