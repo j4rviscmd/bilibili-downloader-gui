@@ -1,4 +1,9 @@
+use tauri::AppHandle;
+
+use crate::handlers::ffmpeg::handle_validate_ffmpeg;
+
 pub mod handlers;
+pub mod paths;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -14,9 +19,11 @@ pub fn run() {
 }
 
 #[tauri::command]
-async fn validate_ffmpeg() -> bool {
+async fn validate_ffmpeg(app: AppHandle) -> bool {
     // ffmpegの有効性チェック処理
-    true
+    let res = handle_validate_ffmpeg(&app);
+
+    res
 }
 
 #[tauri::command]
