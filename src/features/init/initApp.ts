@@ -5,8 +5,9 @@ import { invoke } from '@tauri-apps/api/core'
 export const initApp = async () => {
   console.log('Application initialization started')
 
-  store.dispatch(setProcessingFnc('ffmpegの有効性チェック'))
+  store.dispatch(setProcessingFnc('ffmpegの存在チェック'))
   const isValidFfmpeg = await invoke<boolean>('validate_ffmpeg')
+  console.log('isValidFfmpeg:', isValidFfmpeg)
   if (!isValidFfmpeg) {
     store.dispatch(setProcessingFnc('ffmpegをダウンロードします'))
     // await invoke('download_ffmpeg')
