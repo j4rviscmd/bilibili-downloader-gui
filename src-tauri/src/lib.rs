@@ -1,6 +1,6 @@
 use tauri::AppHandle;
 
-use crate::handlers::ffmpeg::handle_validate_ffmpeg;
+use crate::handlers::ffmpeg::{handle_download_ffmpeg, handle_validate_ffmpeg};
 
 pub mod handlers;
 pub mod paths;
@@ -27,7 +27,11 @@ async fn validate_ffmpeg(app: AppHandle) -> bool {
 }
 
 #[tauri::command]
-async fn download_ffmpeg() -> Result<(), String> {
+async fn download_ffmpeg(app: AppHandle) -> Result<(), String> {
     // ffmpegバイナリのダウンロード処理
+    let _ = handle_download_ffmpeg(&app)
+        .await
+        .map_err(|e| e.to_string());
+
     Ok(())
 }
