@@ -2,6 +2,7 @@ use tauri::AppHandle;
 
 use crate::handlers::ffmpeg::{handle_install_ffmpeg, handle_validate_ffmpeg};
 
+pub mod emits;
 pub mod handlers;
 pub mod paths;
 
