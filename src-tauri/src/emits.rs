@@ -18,6 +18,9 @@ pub struct Progress {
     pub percentage: f64,
     #[serde(rename = "deltaTime")]
     pub delta_time: f64,
+    // 累計の経過時間（秒）
+    #[serde(rename = "elapsedTime")]
+    pub elapsed_time: f64,
     #[serde(rename = "isComplete")]
     pub is_complete: bool,
 }
@@ -25,6 +28,7 @@ pub struct Progress {
 pub struct Emits {
     app: AppHandle,
     progress: Progress,
+    start_instant: Instant,
     last_instant: Instant,
     last_downloaded_mb: f64,
     current_downloaded_mb: f64,
@@ -33,6 +37,7 @@ pub struct Emits {
 impl Emits {
     pub fn new(app: AppHandle, download_id: String, filesize_bytes: u64) -> Self {
         let filesize_mb: f64 = filesize_bytes as f64 / 1024.0 / 1024.0; // Convert bytes to MB
+        let now = Instant::now();
         Emits {
             app: app,
             progress: Progress {
@@ -42,9 +47,11 @@ impl Emits {
                 transfer_rate: 0.0,
                 percentage: 0.0,
                 delta_time: 0.0,
+                elapsed_time: 0.0,
                 is_complete: false,
             },
-            last_instant: Instant::now(),
+            start_instant: now,
+            last_instant: now,
             last_downloaded_mb: 0.0,
             current_downloaded_mb: 0.0,
         }
@@ -59,6 +66,10 @@ impl Emits {
         return;
     }
     pub fn complete(&mut self) {
+        // 完了時点の累計経過時間を更新
+        let now = Instant::now();
+        let elapsed = now.duration_since(self.start_instant).as_secs_f64();
+        self.progress.elapsed_time = round_to(elapsed, 1);
         self.progress.is_complete = true;
         // Emitterを使用してイベントを送信
         let _ = self.app.emit("progress", self.progress.clone());
@@ -69,6 +80,8 @@ impl Emits {
         // 差分時間（秒）
         let now = Instant::now();
         let delta_time = now.duration_since(self.last_instant).as_secs_f64();
+        // 累計経過時間（秒）
+        let elapsed_time = now.duration_since(self.start_instant).as_secs_f64();
 
         // 進捗率を計算
         if self.progress.filesize > 0.0 {
@@ -85,11 +98,13 @@ impl Emits {
         }
         // 差分時間を更新
         prg.delta_time = delta_time;
+        // 累計経過時間を更新（丸め）
+        prg.elapsed_time = round_to(elapsed_time, 1);
 
-        // 表示用の値に丸め（filesize/downloaded: 1桁, percentage: 1桁, transfer_rate: 2桁）
+        // 表示用の値に丸め（filesize/downloaded: 1桁, percentage: 0桁, transfer_rate: 2桁）
         prg.filesize = round_to(self.progress.filesize, 1);
         prg.downloaded = round_to(self.current_downloaded_mb, 1);
-        prg.percentage = round_to(prg.percentage, 1);
+        prg.percentage = round_to(prg.percentage, 0);
         prg.transfer_rate = round_to(prg.transfer_rate, 2);
 
         // 内部状態を更新

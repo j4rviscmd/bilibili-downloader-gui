@@ -1,3 +1,6 @@
+import { store } from '@/app/store'
+import { setProgress } from '@/components/lib/Progress/progressSlice'
+import type { Progress } from '@/shared/progress'
 import { listen } from '@tauri-apps/api/event'
 import { createContext, useEffect, type FC, type ReactNode } from 'react'
 
@@ -9,8 +12,7 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     console.log('ListenerProvider mounted')
     listen('progress', (event) => {
       console.log('Progress event received:', event.payload)
-
-      // Handle the progress event here
+      store.dispatch(setProgress(event.payload as Progress))
     })
 
     return () => {

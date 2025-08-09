@@ -16,11 +16,13 @@
   /app
       store.ts
   /components
-    /ui                    ← animate‑ui由来の共通UI
+    /animate-ui/           ← animate‑ui由来の共通UI
+    /ui                    ← shadcn由来の共通UI
       button.tsx
       dialog.tsx
       index.ts
-    /lib                   ← プロジェクト内共通コンポーネント
+    /lib                   ← プロジェクト内共通コンポーネント(Redux直接接続NG)
+      Progress/
       FeedCard/
         FeedCard.tsx
         FeedCard.module.css
@@ -28,13 +30,15 @@
       Avatar/
         Avatar.tsx
         index.ts
+  /shared                  ← 共通ロジックと連携UI(features同様)
   /features                ← ドメイン単位のロジックと連携UI
     /auth
       authSlice.ts         ← Redux slice / state useAuth.ts           ← カスタムhook
       types.ts
       LoginForm.test.tsx   ← テスト(Jest / Testing Library)
     /player
-      PlayerView.tsx
+      /ui
+        PlayerView.tsx     ← ドメイン固有コンポーネント
       usePlayer.ts
       player.css
     /downloader
