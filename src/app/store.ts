@@ -1,6 +1,6 @@
-import progressReducer from '@/components/lib/Progress/progressSlice'
 import countReducer from '@/features/count/countSlice'
 import initReducer from '@/features/init/initSlice'
+import progressReducer from '@/shared/progress/progressSlice'
 import { configureStore } from '@reduxjs/toolkit'
 
 export const store = configureStore({
