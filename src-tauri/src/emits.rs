@@ -105,7 +105,7 @@ impl Emits {
         prg.filesize = round_to(self.progress.filesize, 1);
         prg.downloaded = round_to(self.current_downloaded_mb, 1);
         prg.percentage = round_to(prg.percentage, 0);
-        prg.transfer_rate = round_to(prg.transfer_rate, 2);
+        prg.transfer_rate = round_to(prg.transfer_rate, 1);
 
         // 内部状態を更新
         self.last_instant = now;
