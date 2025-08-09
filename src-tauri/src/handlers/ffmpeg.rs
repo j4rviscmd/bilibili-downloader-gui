@@ -185,6 +185,7 @@ async fn download_url(
         emits.send_progress();
         downloaded += chunk.len() as u64;
     }
+    emits.complete();
 
     Ok(filepath)
 }
