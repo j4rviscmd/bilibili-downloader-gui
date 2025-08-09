@@ -8,7 +8,7 @@ use tauri::{AppHandle, Emitter};
 pub struct Progress {
     #[serde(rename = "downloadId")]
     pub download_id: String,
-    #[serde(rename = "fileSize")]
+    #[serde(rename = "filesize")]
     pub filesize: f64,
     #[serde(rename = "downloaded")]
     pub downloaded: f64,
