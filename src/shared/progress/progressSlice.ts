@@ -8,7 +8,6 @@ const initialState: Progress = {
   downloaded: 0,
   transferRate: 0,
   percentage: 0,
-  deltaTime: 0,
   elapsedTime: 0,
   isComplete: false,
 }
