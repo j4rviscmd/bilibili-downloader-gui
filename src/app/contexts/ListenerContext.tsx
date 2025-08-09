@@ -1,6 +1,6 @@
 import { store } from '@/app/store'
-import { setProgress } from '@/components/lib/Progress/progressSlice'
 import type { Progress } from '@/shared/progress'
+import { setProgress } from '@/shared/progress/progressSlice'
 import { listen } from '@tauri-apps/api/event'
 import { createContext, useEffect, type FC, type ReactNode } from 'react'
 
