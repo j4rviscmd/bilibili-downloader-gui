@@ -17,7 +17,7 @@ function ProgressStatusBar({ progress }: Props) {
     >
       <div className="flex items-center justify-between">
         <ProgressLabel className="flex w-full items-center justify-between text-sm">
-          <div>経過時間: {progress.elapsedTime}秒</div>
+          <div>経過: {progress.elapsedTime}s</div>
           <div>速度: {progress.transferRate}MB/s</div>
           <div>
             {progress.downloaded}mb/{progress.filesize}mb
