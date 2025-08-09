@@ -24,10 +24,9 @@ pub fn handle_validate_ffmpeg(app: &AppHandle) -> bool {
         return false;
     }
 
-    // ffmpeg --versionを実行して終了コードを確認
-    let cmd = Command::new(ffmpeg_path).arg("--version").output();
-    if let Err(e) = cmd {
-        println!("FFmpegの実行に失敗: {}", e);
+    // ffmpeg --helpを実行して終了コードを確認
+    let is_valid_cmd = validate_command(&ffmpeg_path);
+    if !is_valid_cmd {
         // エラーが発生した場合は無効とみなし、lib直下のffmpegを削除 & falseを返す
         if ffmpeg_root.is_dir() {
             fs::remove_dir_all(&ffmpeg_root).ok();
@@ -62,6 +61,23 @@ pub async fn handle_install_ffmpeg(app: &AppHandle) -> Result<bool> {
                 println!("FFmpegのアーカイブを展開しました: {:?}", ffmpeg_root);
                 // アーカイブの展開が成功したら、アーカイブファイルを削除
                 fs::remove_file(archive_path).ok();
+
+                // NOTE: ffmpegに実行権限付与
+                if cfg!(target_os = "macos") {
+                    let err_msg = format!(
+                        "FFmpegの実行権限付与に失敗: {:?}",
+                        ffmpeg_root.join("ffmpeg").to_str().unwrap()
+                    );
+                    let res = Command::new("chmod")
+                        .arg("+x")
+                        .arg(ffmpeg_root.join("ffmpeg").to_str().unwrap())
+                        .output()
+                        .expect(&err_msg);
+
+                    if !res.status.success() {
+                        return Ok(false);
+                    };
+                }
             } else {
                 println!("FFmpegのアーカイブの展開に失敗しました: {:?}", archive_path);
                 return Ok(false);
@@ -160,4 +176,20 @@ async fn download_url(url: &str, dest: &PathBuf, filename: &str) -> Result<PathB
     }
 
     Ok(filepath)
+}
+
+fn validate_command(path: &PathBuf) -> bool {
+    // pathの存在チェック
+    if !path.exists() {
+        return false;
+    }
+
+    // {path} --helpを実行して終了コードを確認
+    let cmd = Command::new(path).arg("--help").output();
+    if let Err(e) = cmd {
+        println!("`{} --help`の実行に失敗: {}", path.to_string_lossy(), e);
+        return false;
+    }
+
+    true
 }

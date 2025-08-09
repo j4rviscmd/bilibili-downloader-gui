@@ -13,7 +13,7 @@ pub fn get_ffmpeg_path(app: &AppHandle) -> PathBuf {
         ffmpeg.set_extension("exe");
         ffmpeg.clone()
     } else {
-        lib.join("ffmpeg").clone()
+        lib.join("ffmpeg").join("ffmpeg").clone()
     };
     println!("FFmpeg path: {:?}", ffmpeg);
 
