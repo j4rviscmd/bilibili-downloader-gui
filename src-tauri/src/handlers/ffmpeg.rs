@@ -1,3 +1,4 @@
+use crate::emits::Emits;
 use crate::paths::{get_ffmpeg_path, get_ffmpeg_root_path};
 use anyhow::Result;
 use std::fs::File;
