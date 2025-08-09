@@ -1,3 +1,4 @@
+import progressReducer from '@/components/lib/Progress/progressSlice'
 import countReducer from '@/features/count/countSlice'
 import initReducer from '@/features/init/initSlice'
 import { configureStore } from '@reduxjs/toolkit'
@@ -6,7 +7,7 @@ export const store = configureStore({
   reducer: {
     count: countReducer,
     init: initReducer,
-    // 他の feature slice も同様に追加可能
+    progress: progressReducer,
   },
   devTools: process.env.NODE_ENV !== 'production',
 })

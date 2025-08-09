@@ -4,6 +4,7 @@ import { useSelector } from 'react-redux'
 
 export const useInit = () => {
   const initiated = useSelector((state: RootState) => state.init.initiated)
+  const progress = useSelector((state: RootState) => state.progress)
   const processingFnc = useSelector(
     (state: RootState) => state.init.processingFnc,
   )
@@ -14,6 +15,7 @@ export const useInit = () => {
 
   return {
     initiated,
+    progress,
     processingFnc,
     setInitiated,
   }
