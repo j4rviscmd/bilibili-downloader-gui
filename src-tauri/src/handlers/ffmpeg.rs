@@ -55,7 +55,7 @@ pub async fn handle_install_ffmpeg(app: &AppHandle) -> Result<bool> {
     // ダウンロードするファイル名
     let filename = "ffmpeg.zip";
     // ~/bilibili-downloader-gui/src-tauri/target/debug/lib/ffmpeg
-    if let Ok(archive_path) = download_url(url, &ffmpeg_root, filename).await {
+    if let Ok(archive_path) = download_url(app, url, &ffmpeg_root, filename).await {
         println!("FFmpegのダウンロードが完了しました: {:?}", ffmpeg_root);
         if let Ok(is_unpacked) = unpack_archive(&archive_path, &ffmpeg_root).await {
             if is_unpacked {
@@ -151,7 +151,12 @@ async fn unpack_archive(archive_path: &PathBuf, dest: &PathBuf) -> Result<bool> 
     Ok(true)
 }
 
-async fn download_url(url: &str, dest: &PathBuf, filename: &str) -> Result<PathBuf> {
+async fn download_url(
+    app: &AppHandle,
+    url: &str,
+    dest: &PathBuf,
+    filename: &str,
+) -> Result<PathBuf> {
     let mut res = reqwest::get(url).await?;
     let filepath = dest.join(filename);
     let mut file = tokio::fs::File::create(&filepath).await?;
@@ -159,6 +164,9 @@ async fn download_url(url: &str, dest: &PathBuf, filename: &str) -> Result<PathB
     let total_size = res
         .content_length()
         .ok_or_else(|| anyhow::anyhow!("Content-Length not found"))?;
+
+    // Frontendへのイベント送信のためのEmitsインスタンスを作成
+    let mut emits = Emits::new(app.clone(), filename.to_string(), total_size);
     let mut downloaded: u64 = 0;
 
     println!("Starting download from: {}", url);
@@ -173,6 +181,8 @@ async fn download_url(url: &str, dest: &PathBuf, filename: &str) -> Result<PathB
             total_size,
             downloaded * 100 / total_size
         );
+        emits.update_progress(downloaded);
+        emits.send_progress();
         downloaded += chunk.len() as u64;
     }
 
