@@ -10,7 +10,7 @@ export const initApp = async () => {
   console.log('isValidFfmpeg:', isValidFfmpeg)
   if (!isValidFfmpeg) {
     store.dispatch(setProcessingFnc('ffmpegをダウンロードします'))
-    await invoke('download_ffmpeg')
+    await invoke('install_ffmpeg')
   }
 
   store.dispatch(setInitiated(true))

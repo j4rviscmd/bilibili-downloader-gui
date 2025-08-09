@@ -31,7 +31,7 @@ pub fn handle_validate_ffmpeg(app: &AppHandle) -> bool {
     true
 }
 
-pub async fn handle_download_ffmpeg(app: &AppHandle) -> Result<()> {
+pub async fn handle_install_ffmpeg(app: &AppHandle) -> Result<()> {
     // ffmpegバイナリのダウンロード処理
     // let ffmpeg_path = get_ffmpeg_path(app);
     let ffmpeg_root = get_ffmpeg_root_path(app);
@@ -43,7 +43,11 @@ pub async fn handle_download_ffmpeg(app: &AppHandle) -> Result<()> {
 
     let url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-lgpl-shared.tar.xz";
     // ~/bilibili-downloader-gui/src-tauri/target/debug/lib/ffmpeg
-    download_url(url, &ffmpeg_root).await?;
+    if let Ok(ok) = download_url(url, &ffmpeg_root).await {
+        println!("FFmpegのダウンロードが完了しました: {:?}", ffmpeg_root);
+    } else {
+        println!("FFmpegのダウンロードに失敗しました: {:?}", ffmpeg_root);
+    }
 
     Ok(())
 }

@@ -1,6 +1,6 @@
 use tauri::AppHandle;
 
-use crate::handlers::ffmpeg::{handle_download_ffmpeg, handle_validate_ffmpeg};
+use crate::handlers::ffmpeg::{handle_install_ffmpeg, handle_validate_ffmpeg};
 
 pub mod handlers;
 pub mod paths;
@@ -12,7 +12,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             validate_ffmpeg,
             //
-            download_ffmpeg,
+            install_ffmpeg,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -27,11 +27,9 @@ async fn validate_ffmpeg(app: AppHandle) -> bool {
 }
 
 #[tauri::command]
-async fn download_ffmpeg(app: AppHandle) -> Result<(), String> {
+async fn install_ffmpeg(app: AppHandle) -> Result<(), String> {
     // ffmpegバイナリのダウンロード処理
-    let _ = handle_download_ffmpeg(&app)
-        .await
-        .map_err(|e| e.to_string());
+    let _ = handle_install_ffmpeg(&app).await.map_err(|e| e.to_string());
 
     Ok(())
 }
