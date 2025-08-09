@@ -6,17 +6,28 @@ use tauri::{AppHandle, Emitter};
 // Frontendへのイベントを送信するためのモジュール
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct Progress {
+    #[serde(rename = "downloadId")]
     pub download_id: String,
-    pub filesize: u64,
-    pub downloaded: u64,
+    #[serde(rename = "fileSize")]
+    pub filesize: f64,
+    #[serde(rename = "downloaded")]
+    pub downloaded: f64,
+    #[serde(rename = "transferRate")]
     pub transfer_rate: f64,
+    #[serde(rename = "percentage")]
     pub percentage: f64,
+    #[serde(rename = "deltaTime")]
     pub delta_time: f64,
+    #[serde(rename = "isComplete")]
+    pub is_complete: bool,
 }
 
 pub struct Emits {
     app: AppHandle,
     progress: Progress,
+    last_instant: Instant,
+    last_downloaded_mb: f64,
+    current_downloaded_mb: f64,
 }
 
 impl Emits {
@@ -26,50 +37,75 @@ impl Emits {
             app: app,
             progress: Progress {
                 download_id,
-                filesize: filesize_mb as u64,
-                downloaded: 0,
+                filesize: filesize_mb,
+                downloaded: 0.0,
                 transfer_rate: 0.0,
                 percentage: 0.0,
                 delta_time: 0.0,
+                is_complete: false,
             },
+            last_instant: Instant::now(),
+            last_downloaded_mb: 0.0,
+            current_downloaded_mb: 0.0,
         }
     }
 
     pub fn update_progress(&mut self, downloaded_bytes: u64) {
-        // Byte to MB
+        // Byte -> MB（小数維持）
         let downloaded_mb: f64 = downloaded_bytes as f64 / 1024.0 / 1024.0;
-        // f64 to u64
-        self.progress.downloaded = downloaded_mb as u64;
+        // 内部保持（小数）
+        self.current_downloaded_mb = downloaded_mb;
 
         return;
+    }
+    pub fn complete(&mut self) {
+        self.progress.is_complete = true;
+        // Emitterを使用してイベントを送信
+        let _ = self.app.emit("progress", self.progress.clone());
     }
 
     pub fn send_progress(&mut self) {
         let mut prg = self.progress.clone();
-        // 現在の時間を取得
+        // 差分時間（秒）
         let now = Instant::now();
-        // 前回の時間との差分を計算
-        let delta_time = now.elapsed().as_secs_f64();
+        let delta_time = now.duration_since(self.last_instant).as_secs_f64();
 
         // 進捗率を計算
-        if prg.filesize > 0 {
-            prg.percentage = (prg.downloaded as f64 / prg.filesize as f64) * 100.0;
+        if self.progress.filesize > 0.0 {
+            prg.percentage = (self.current_downloaded_mb / self.progress.filesize) * 100.0;
         } else {
             prg.percentage = 0.0;
         }
-        // 転送速度を計算
+        // 転送速度（MB/s）= ΔMB / Δsec
         if delta_time > 0.0 {
-            prg.transfer_rate = prg.downloaded as f64 / delta_time;
+            let delta_mb = (self.current_downloaded_mb - self.last_downloaded_mb).max(0.0);
+            prg.transfer_rate = delta_mb / delta_time;
         } else {
             prg.transfer_rate = 0.0;
         }
         // 差分時間を更新
         prg.delta_time = delta_time;
 
-        // Update instance variables
+        // 表示用の値に丸め（filesize/downloaded: 1桁, percentage: 1桁, transfer_rate: 2桁）
+        prg.filesize = round_to(self.progress.filesize, 1);
+        prg.downloaded = round_to(self.current_downloaded_mb, 1);
+        prg.percentage = round_to(prg.percentage, 1);
+        prg.transfer_rate = round_to(prg.transfer_rate, 2);
+
+        // 内部状態を更新
+        self.last_instant = now;
+        self.last_downloaded_mb = self.current_downloaded_mb;
         self.progress = prg;
 
         // Emitterを使用してイベントを送信
         let _ = self.app.emit("progress", self.progress.clone());
     }
+}
+
+fn round_to(v: f64, places: i32) -> f64 {
+    if !v.is_finite() {
+        return 0.0;
+    }
+    let p = 10f64.powi(places.max(0));
+    (v * p).round() / p
 }
