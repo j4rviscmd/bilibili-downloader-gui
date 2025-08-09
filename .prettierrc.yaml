@@ -9,3 +9,8 @@ plugins:
   - prettier-plugin-organize-imports
   - prettier-plugin-tailwindcss
 organizeImportsSkipDestructiveCodeActions: false # 未使用importの削除
+
+overrides:
+  - files: '*.rs'
+    options:
+      tabWidth: 4

@@ -25,4 +25,7 @@ serde_json = "1"
 anyhow = "1.0.98"
 reqwest = "0.12.22"
 tokio = "1.47.1"
+xz2 = "0.1.7"
+tar = "0.4.44"
+zip = "2.2.3"
 
