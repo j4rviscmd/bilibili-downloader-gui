@@ -1,14 +1,9 @@
-import { useAppDispatch, useAppSelector } from '@/app/hooks'
-import {
-  decrement,
-  increment,
-  selectCount,
-  setCount,
-} from '@/features/count/countSlice'
+import { useAppDispatch, useSelector } from '@/app/store'
+import { decrement, increment, setCount } from '@/features/count/countSlice'
 
 export function useCount() {
   const dispatch = useAppDispatch()
-  const value = useAppSelector(selectCount)
+  const value = useSelector((state) => state.count.value)
 
   const incrementCount = () => dispatch(increment())
   const decrementCount = () => dispatch(decrement())
