@@ -32,6 +32,14 @@
         index.ts
   /shared                  ← 共通ロジックと連携UI(features同様)
   /features                ← ドメイン単位のロジックと連携UI
+    /video
+      /api
+        fetchVideoInfo.ts
+      types.ts
+      videoSlice.ts
+      VideoForm.tsx
+      useVideoInfo.ts
+      index.ts
     /auth
       authSlice.ts         ← Redux slice / state useAuth.ts           ← カスタムhook
       types.ts
