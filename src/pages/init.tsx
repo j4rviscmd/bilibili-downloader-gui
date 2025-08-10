@@ -27,7 +27,7 @@ function InitPage() {
         <div className="text-muted-foreground text-center text-xl font-bold">
           初期化中...
         </div>
-        <div className="text-muted-foreground text-sm">ℹ️{processingFnc}</div>
+        <div className="text-muted-foreground text-sm">{processingFnc}</div>
         {progress.downloadId && (
           <div className="w-full max-w-[20rem] p-3">
             <ProgressStatusBar progress={progress} />
