@@ -11,7 +11,11 @@ function HomePage() {
     navigate('/init')
   }, [initiated, navigate])
 
-  return <div>home</div>
+  return (
+    <div className="bg-background flex h-full w-full items-center justify-center">
+      <div className="text-primary">home</div>
+    </div>
+  )
 }
 
 export default HomePage

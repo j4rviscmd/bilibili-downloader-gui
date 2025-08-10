@@ -13,7 +13,7 @@ function InitPage() {
     ;(async () => {
       const res = await initApp()
       if (res) {
-        // navigate('/home')
+        navigate('/home')
       } else {
         // TODO: 初期化エラーハンドリング
       }
