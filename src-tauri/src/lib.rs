@@ -28,9 +28,11 @@ async fn validate_ffmpeg(app: AppHandle) -> bool {
 }
 
 #[tauri::command]
-async fn install_ffmpeg(app: AppHandle) -> Result<(), String> {
+async fn install_ffmpeg(app: AppHandle) -> Result<bool, String> {
     // ffmpegバイナリのダウンロード処理
-    let _ = handle_install_ffmpeg(&app).await.map_err(|e| e.to_string());
+    let res = handle_install_ffmpeg(&app)
+        .await
+        .map_err(|e| e.to_string())?;
 
-    Ok(())
+    Ok(res)
 }

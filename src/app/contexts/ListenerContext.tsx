@@ -1,6 +1,7 @@
 import { store } from '@/app/store'
+import { sleep } from '@/lib/utils'
 import type { Progress } from '@/shared/progress'
-import { setProgress } from '@/shared/progress/progressSlice'
+import { clearProgress, setProgress } from '@/shared/progress/progressSlice'
 import { listen } from '@tauri-apps/api/event'
 import { createContext, useEffect, type FC, type ReactNode } from 'react'
 
@@ -12,7 +13,14 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     console.log('ListenerProvider mounted')
     listen('progress', (event) => {
       console.log('Progress event received:', event.payload)
-      store.dispatch(setProgress(event.payload as Progress))
+      const payload: Progress = event.payload as Progress
+      if (payload.isComplete) {
+        sleep(500).then(() => {
+          store.dispatch(clearProgress())
+        })
+      } else {
+        store.dispatch(setProgress(event.payload as Progress))
+      }
     })
 
     return () => {
