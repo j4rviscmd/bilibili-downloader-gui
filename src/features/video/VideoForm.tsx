@@ -9,7 +9,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { setUrl } from '@/features/inputFields/inputSlice'
+import { setUrl } from '@/features/video/inputSlice'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
@@ -38,14 +38,17 @@ const formSchema = z.object({
     }),
 })
 
-function InputFields() {
+function VideoForm() {
   const url = useSelector((state) => state.input.url)
   useEffect(() => {
     form.setValue('url', url)
   }, [])
 
-  function onSubmit(data: z.infer<typeof formSchema>) {
+  async function onSubmit(data: z.infer<typeof formSchema>) {
+    console.log(data)
     store.dispatch(setUrl(data.url))
+
+    // 動画愛情報を抽出
   }
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -85,4 +88,4 @@ function InputFields() {
   )
 }
 
-export default InputFields
+export default VideoForm

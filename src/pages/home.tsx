@@ -1,5 +1,5 @@
 import { useInit } from '@/features/init/useInit'
-import InputFields from '@/features/inputFields'
+import InputFields from '@/features/video'
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router'
 
