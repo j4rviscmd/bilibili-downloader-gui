@@ -24,6 +24,5 @@ export const initApp = async () => {
   store.dispatch(setInitiated(true))
   console.log('Application initialization completed')
 
-  // 初期化処理に失敗
   return isInitialized
 }
