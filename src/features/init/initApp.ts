@@ -29,3 +29,6 @@ export const initApp = async () => {
 
   return isInitialized
 }
+
+const checkFfmpeg = async () => {}
+const checkFirefoxCookie = async () => {}
