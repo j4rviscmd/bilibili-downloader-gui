@@ -1,4 +1,3 @@
-import { store, useSelector } from '@/app/store'
 import {
   Form,
   FormControl,
@@ -9,7 +8,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { setUrl } from '@/features/video/inputSlice'
+import type { Input as FormType } from '@/features/video/types'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
@@ -38,15 +37,19 @@ const formSchema = z.object({
     }),
 })
 
-function VideoForm() {
-  const url = useSelector((state) => state.input.url)
+type Props = {
+  input: FormType
+  onChange: (_: FormType) => void
+}
+
+function VideoForm({ input, onChange }: Props) {
   useEffect(() => {
-    form.setValue('url', url)
+    form.setValue('url', input.url)
   }, [])
 
   async function onSubmit(data: z.infer<typeof formSchema>) {
     console.log(data)
-    store.dispatch(setUrl(data.url))
+    onChange(data)
 
     // 動画愛情報を抽出
   }
