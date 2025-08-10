@@ -12,6 +12,8 @@
   },
   "dependencies": {
     "@base-ui-components/react": "^1.0.0-beta.2",
+    "@hookform/resolvers": "^5.2.1",
+    "@radix-ui/react-label": "^2.1.7",
     "@radix-ui/react-slot": "^1.2.3",
     "@reduxjs/toolkit": "^2.8.2",
     "@tailwindcss/vite": "^4.1.11",
@@ -22,10 +24,12 @@
     "motion": "^12.23.12",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-hook-form": "^7.62.0",
     "react-redux": "^9.2.0",
     "react-router": "^7.7.1",
     "tailwind-merge": "^3.3.1",
-    "tailwindcss": "^4.1.11"
+    "tailwindcss": "^4.1.11",
+    "zod": "^4.0.17"
   },
   "devDependencies": {
     "@eslint/js": "^9.30.1",

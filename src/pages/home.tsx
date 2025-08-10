@@ -14,7 +14,7 @@ function HomePage() {
 
   return (
     <div className="bg-background flex h-full w-full items-center justify-center">
-      <div className="text-primary">
+      <div className="w-4/5">
         <InputFields />
       </div>
     </div>
