@@ -1,5 +1,5 @@
 import { useInit } from '@/features/init/useInit'
-import InputUrl from '@/features/inputField'
+import InputFields from '@/features/inputFields'
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router'
 
@@ -15,7 +15,7 @@ function HomePage() {
   return (
     <div className="bg-background flex h-full w-full items-center justify-center">
       <div className="text-primary">
-        <InputUrl />
+        <InputFields />
       </div>
     </div>
   )
