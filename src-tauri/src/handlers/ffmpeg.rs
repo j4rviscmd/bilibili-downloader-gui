@@ -182,6 +182,7 @@ async fn download_url(
             total_size,
             downloaded * 100 / total_size
         );
+        // TODO: 0.1sに1回の割合でイベントを送信
         emits.update_progress(downloaded);
         emits.send_progress();
         downloaded += chunk.len() as u64;
