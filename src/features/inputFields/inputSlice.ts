@@ -2,7 +2,10 @@ import type { Input } from '@/features/inputFields/types'
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 
-const initialState: Input = { url: '' }
+// TODO: remove debug
+const initialState: Input = {
+  url: 'https://www.bilibili.com/video/BV1pJ411E7Eb',
+}
 
 export const inputSlice = createSlice({
   name: 'input',
