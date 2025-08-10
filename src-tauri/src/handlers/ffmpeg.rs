@@ -51,6 +51,7 @@ pub async fn handle_install_ffmpeg(app: &AppHandle) -> Result<bool> {
     }
 
     // TODO: os判定
+    // TODO: Windows環境で動確
     let url = "https://evermeet.cx/ffmpeg/getrelease/zip";
     // ダウンロードするファイル名
     let filename = "ffmpeg.zip";
