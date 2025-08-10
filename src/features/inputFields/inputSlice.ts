@@ -1,4 +1,4 @@
-import type { Input } from '@/features/inputField/types'
+import type { Input } from '@/features/inputFields/types'
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 
