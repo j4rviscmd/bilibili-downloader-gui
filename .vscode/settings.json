@@ -1,3 +1,11 @@
 {
-  "cSpell.words": ["bilibili", "filesize", "flate", "Fncs", "outpath"]
+  "cSpell.words": [
+    "bilibili",
+    "cookiefile",
+    "filesize",
+    "flate",
+    "Fncs",
+    "outpath",
+    "rusqlite"
+  ]
 }

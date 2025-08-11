@@ -1,3 +1,3 @@
-export const fetchVideoInfo = async (url: string) => {
+export const fetchVideoInfo = async () => {
   // TODO: Call backend
 }
