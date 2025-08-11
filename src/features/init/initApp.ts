@@ -11,6 +11,8 @@ export const initApp = async () => {
     const isValidCookie = await checkCookie()
     if (isValidCookie) {
       isInitialized = true
+    } else {
+      isInitialized = false
     }
   }
 
@@ -24,20 +26,20 @@ export const initApp = async () => {
 const checkFfmpeg = async (): Promise<boolean> => {
   let res = false
 
-  store.dispatch(setProcessingFnc('ℹ️ ffmpegの有効性チェック'))
+  setMessage('ℹ️ ffmpegの有効性チェック中...')
   const isValidFfmpeg = await invoke<boolean>('validate_ffmpeg')
   if (isValidFfmpeg) {
-    store.dispatch(setProcessingFnc('✅ ffmpegの有効性チェックに成功しました'))
+    setMessage('✅ ffmpegの有効性チェックに成功しました')
     res = true
   } else {
-    store.dispatch(setProcessingFnc('ℹ️ ffmpegをインストールしています'))
+    setMessage('ℹ️ ffmpegをインストールしています')
     const isInstalled = await invoke('install_ffmpeg')
     if (isInstalled) {
-      store.dispatch(setProcessingFnc('✅ ffmpegのインストールに成功しました'))
+      setMessage('✅ ffmpegのインストールに成功しました')
       await sleep(1000)
       res = true
     } else {
-      store.dispatch(setProcessingFnc('😫 ffmpegのインストール失敗しました'))
+      setMessage('😫 ffmpegのインストール失敗しました')
     }
   }
 
@@ -45,12 +47,22 @@ const checkFfmpeg = async (): Promise<boolean> => {
 }
 
 const checkCookie = async (): Promise<boolean> => {
+  let res = false
+
   // Cookieの有効性チェック
-  // 有効な場合、アプリメモリに保存(by backend)
+  // 有効な場合、アプリメモリに保存(By backend)
   const isValid = await invoke('get_cookie')
   if (isValid) {
-    //
+    setMessage('✅ Cookieの取得に成功しました')
+    res = true
+  } else {
+    setMessage('😫 Cookieの取得に失敗しました')
+    res = true
   }
 
-  return true
+  return res
+}
+
+const setMessage = (message: string) => {
+  store.dispatch(setProcessingFnc(message))
 }
