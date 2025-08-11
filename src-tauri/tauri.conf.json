@@ -13,7 +13,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "bilibili-downloader-gui",
+        "title": "bilibili Downloader GUI",
         "width": 800,
         "height": 600
       }
