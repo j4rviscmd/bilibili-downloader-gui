@@ -1,4 +1,4 @@
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
 use crate::handlers::{
     cookie::handle_get_cookie,
@@ -21,6 +21,16 @@ pub fn run() {
             install_ffmpeg,
             get_cookie,
         ])
+        .setup(|app| {
+            // 開発環境の場合は、開発者コンソールを有効化
+            #[cfg(debug_assertions)]
+            {
+                let window = app.get_webview_window("main").unwrap();
+                window.open_devtools();
+
+                Ok(())
+            }
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
