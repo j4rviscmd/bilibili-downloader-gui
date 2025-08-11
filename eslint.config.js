@@ -24,6 +24,7 @@ export default tseslint.config([
       'react-hooks/exhaustive-deps': 'off',
       // Keep core hooks rules enabled for safety
       'react-hooks/rules-of-hooks': 'error',
+      'react-refresh/only-export-components': 'off',
     },
   },
 ])
