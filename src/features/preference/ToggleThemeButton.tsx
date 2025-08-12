@@ -2,7 +2,7 @@ import { Switch } from '@/components/animate-ui/radix/switch'
 import { Moon, Sun } from 'lucide-react'
 
 type Props = {
-  theme: 'light' | 'dark'
+  theme: 'light' | 'dark' | 'system'
   setTheme: (theme: 'light' | 'dark') => void
 }
 

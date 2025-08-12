@@ -2,6 +2,7 @@ import countReducer from '@/features/count/countSlice'
 import initReducer from '@/features/init/initSlice'
 import inputReducer from '@/features/video/inputSlice'
 import progressReducer from '@/shared/progress/progressSlice'
+import userReducer from '@/shared/user/userSlice'
 import { configureStore } from '@reduxjs/toolkit'
 import {
   useSelector as rawUseSelector,
@@ -13,6 +14,7 @@ export const store = configureStore({
   reducer: {
     count: countReducer,
     init: initReducer,
+    user: userReducer,
     progress: progressReducer,
     input: inputReducer,
   },

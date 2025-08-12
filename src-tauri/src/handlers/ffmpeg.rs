@@ -9,7 +9,7 @@ use tokio::io::AsyncWriteExt;
 /**
  * FFmpegの有効性チェック処理
  */
-pub fn handle_validate_ffmpeg(app: &AppHandle) -> bool {
+pub fn validate_ffmpeg(app: &AppHandle) -> bool {
     let ffmpeg_root = get_ffmpeg_root_path(app);
     let ffmpeg_path = get_ffmpeg_path(app);
     // ffmpeg rootの存在チェック処理
@@ -40,7 +40,7 @@ pub fn handle_validate_ffmpeg(app: &AppHandle) -> bool {
     true
 }
 
-pub async fn handle_install_ffmpeg(app: &AppHandle) -> Result<bool> {
+pub async fn install_ffmpeg(app: &AppHandle) -> Result<bool> {
     // ffmpegバイナリのダウンロード処理
     // let ffmpeg_path = get_ffmpeg_path(app);
     let ffmpeg_root = get_ffmpeg_root_path(app);

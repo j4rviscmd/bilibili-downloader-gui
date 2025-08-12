@@ -14,7 +14,7 @@ export const useVideoInfo = () => {
     const id = extractId(input.url)
     if (id) {
       console.log(`Extracted video ID: ${id}`)
-      await fetchVideoInfo()
+      await fetchVideoInfo(id)
     }
   }
 
