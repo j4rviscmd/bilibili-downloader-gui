@@ -6,6 +6,20 @@ use tauri::Manager;
 
 use crate::models::{CookieCache, CookieEntry};
 
+pub fn read_cookie(app: &AppHandle) -> Result<Option<HashMap<String, String>>, String> {
+    // キャッシュを参照する場合は、app.state::<CookieCache>().cookies.lock() から取出
+    if let Some(cache) = app.try_state::<CookieCache>() {
+        if let Ok(guard) = cache.cookies.lock() {
+            let mut map = HashMap::new();
+            for entry in guard.iter() {
+                map.insert(entry.name.clone(), entry.value.clone());
+            }
+            return Ok(Some(map));
+        }
+    }
+    Ok(None)
+}
+
 // Firefox の cookies.sqlite を探す（macOS 想定。必要なら他OS分岐を追加）
 fn find_firefox_cookie_file(app: &AppHandle) -> Option<PathBuf> {
     #[cfg(target_os = "macos")]
@@ -32,7 +46,7 @@ fn find_firefox_cookie_file(app: &AppHandle) -> Option<PathBuf> {
     }
 }
 
-pub async fn handle_get_cookie(app: &AppHandle) -> Result<bool, String> {
+pub async fn get_cookie(app: &AppHandle) -> Result<bool, String> {
     // 1) ローカルの Firefox cookie DB を探索
     let Some(cookiefile) = find_firefox_cookie_file(&app) else {
         return Ok(false);

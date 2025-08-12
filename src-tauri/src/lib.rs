@@ -1,9 +1,9 @@
 use tauri::{AppHandle, Manager};
 
-use crate::handlers::{
-    cookie::handle_get_cookie,
-    ffmpeg::{handle_install_ffmpeg, handle_validate_ffmpeg},
-};
+use crate::handlers::bilibili;
+use crate::handlers::cookie;
+use crate::handlers::ffmpeg;
+use crate::models::User;
 
 pub mod emits;
 pub mod handlers;
@@ -13,6 +13,7 @@ pub mod paths;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_process::init())
         // Cookie のメモリキャッシュをグローバルステートとして管理
         .manage(models::CookieCache::default())
         .plugin(tauri_plugin_opener::init())
@@ -20,6 +21,8 @@ pub fn run() {
             validate_ffmpeg,
             install_ffmpeg,
             get_cookie,
+            fetch_user,
+            fetch_video_info,
         ])
         .setup(|app| {
             // 開発環境の場合は、開発者コンソールを有効化
@@ -38,7 +41,7 @@ pub fn run() {
 #[tauri::command]
 async fn validate_ffmpeg(app: AppHandle) -> bool {
     // ffmpegの有効性チェック処理
-    let res = handle_validate_ffmpeg(&app);
+    let res = ffmpeg::validate_ffmpeg(&app);
 
     res
 }
@@ -46,7 +49,7 @@ async fn validate_ffmpeg(app: AppHandle) -> bool {
 #[tauri::command]
 async fn install_ffmpeg(app: AppHandle) -> Result<bool, String> {
     // ffmpegバイナリのダウンロード処理
-    let res = handle_install_ffmpeg(&app)
+    let res = ffmpeg::install_ffmpeg(&app)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -56,7 +59,26 @@ async fn install_ffmpeg(app: AppHandle) -> Result<bool, String> {
 #[tauri::command]
 async fn get_cookie(app: AppHandle) -> Result<bool, String> {
     // firefoxのCookie取得処理
-    let res = handle_get_cookie(&app).await.map_err(|e| e.to_string())?;
+    let res = cookie::get_cookie(&app).await.map_err(|e| e.to_string())?;
+
+    Ok(res)
+}
+
+#[tauri::command]
+async fn fetch_user(app: AppHandle) -> Result<Option<User>, String> {
+    // firefoxのCookie取得処理
+    let user = bilibili::fetch_user_info(&app)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(user)
+}
+
+#[tauri::command]
+async fn fetch_video_info(app: AppHandle) -> Result<bool, String> {
+    let res = bilibili::fetch_video_info(&app)
+        .await
+        .map_err(|e| e.to_string())?;
 
     Ok(res)
 }

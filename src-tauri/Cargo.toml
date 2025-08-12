@@ -29,4 +29,5 @@ xz2 = "0.1.7"
 tar = "0.4.44"
 zip = "2.2.3"
 rusqlite = { version = "0.31" }
+tauri-plugin-process = "2"
 

@@ -1,4 +1,5 @@
 import IndexPage from '@/pages'
+import ErrorPage from '@/pages/error'
 import HomePage from '@/pages/home'
 import InitPage from '@/pages/init'
 import '@/styles/global.css'
@@ -10,6 +11,7 @@ function App() {
       <Route path="/" element={<IndexPage />} />
       <Route path="/init" element={<InitPage />} />
       <Route path="/home" element={<HomePage />} />
+      <Route path="/error" element={<ErrorPage />} />
     </Routes>
   )
 }

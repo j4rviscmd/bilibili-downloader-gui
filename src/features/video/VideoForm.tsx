@@ -49,9 +49,8 @@ function VideoForm({ input, onChange }: Props) {
 
   async function onSubmit(data: z.infer<typeof formSchema>) {
     console.log(data)
+    // ステート更新 & 動画愛情報を抽出
     onChange(data)
-
-    // 動画愛情報を抽出
   }
 
   const form = useForm<z.infer<typeof formSchema>>({

@@ -1,21 +1,33 @@
 import CircleIndicator from '@/components/lib/CircleIndicator'
 import ProgressStatusBar from '@/components/lib/Progress'
-import { initApp } from '@/features/init/initApp'
 import { useInit } from '@/features/init/useInit'
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router'
 
 function InitPage() {
   const navigate = useNavigate()
-  const { progress, processingFnc } = useInit()
+  const { progress, processingFnc, initApp } = useInit()
 
   useEffect(() => {
     ;(async () => {
-      const res = await initApp()
-      if (res) {
+      const resCode = await initApp()
+      if (resCode === 0) {
         navigate('/home')
+      } else if (resCode === 1) {
+        // ffmpegチェックエラー
+        navigate('/error', { state: { errorCode: 1 }, replace: true })
+      } else if (resCode === 2) {
+        // Cookieチェックエラー
+        navigate('/error', { state: { errorCode: 2 }, replace: true })
+      } else if (resCode === 3) {
+        // ユーザ情報取得エラー
+        navigate('/error', { state: { errorCode: 3 }, replace: true })
+      } else if (resCode === 4) {
+        // ユーザ情報取得エラー(未ログイン以外)
+        navigate('/error', { state: { errorCode: 4 }, replace: true })
       } else {
-        // TODO: 初期化エラーハンドリング
+        // 想定外エラー
+        navigate('/error', { state: { errorCode: 255 }, replace: true })
       }
     })()
   }, [])
