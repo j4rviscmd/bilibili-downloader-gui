@@ -12,8 +12,8 @@ export const useUser = () => {
   const getUserInfo = async (): Promise<User | null> => {
     const res = await fetchUser()
     if (res) {
-      console.log('user')
-      console.log(JSON.stringify(res, null, 2))
+      // console.log('user')
+      // console.log(JSON.stringify(res, null, 2))
       onChangeUser(res)
 
       return res
