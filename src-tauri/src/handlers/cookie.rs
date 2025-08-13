@@ -4,17 +4,15 @@ use rusqlite::{Connection, Result as SqlResult};
 use tauri::AppHandle;
 use tauri::Manager;
 
-use crate::models::{CookieCache, CookieEntry};
+use crate::models::cookie::CookieCache;
+use crate::models::cookie::CookieEntry;
 
-pub fn read_cookie(app: &AppHandle) -> Result<Option<HashMap<String, String>>, String> {
+pub fn read_cookie(app: &AppHandle) -> Result<Option<Vec<CookieEntry>>, String> {
     // キャッシュを参照する場合は、app.state::<CookieCache>().cookies.lock() から取出
     if let Some(cache) = app.try_state::<CookieCache>() {
         if let Ok(guard) = cache.cookies.lock() {
-            let mut map = HashMap::new();
-            for entry in guard.iter() {
-                map.insert(entry.name.clone(), entry.value.clone());
-            }
-            return Ok(Some(map));
+            let cookies = guard.clone();
+            return Ok(Some(cookies));
         }
     }
     Ok(None)

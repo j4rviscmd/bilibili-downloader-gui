@@ -3,8 +3,11 @@ use tauri::{AppHandle, Manager};
 use crate::handlers::bilibili;
 use crate::handlers::cookie;
 use crate::handlers::ffmpeg;
-use crate::models::User;
+use crate::models::cookie::CookieCache;
+use crate::models::frontend_dto::User;
+use crate::models::frontend_dto::Video;
 
+pub mod constants;
 pub mod emits;
 pub mod handlers;
 pub mod models;
@@ -15,7 +18,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
         // Cookie のメモリキャッシュをグローバルステートとして管理
-        .manage(models::CookieCache::default())
+        .manage(CookieCache::default())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             validate_ffmpeg,
@@ -75,8 +78,8 @@ async fn fetch_user(app: AppHandle) -> Result<Option<User>, String> {
 }
 
 #[tauri::command]
-async fn fetch_video_info(app: AppHandle) -> Result<bool, String> {
-    let res = bilibili::fetch_video_info(&app)
+async fn fetch_video_info(app: AppHandle, video_id: String) -> Result<Video, String> {
+    let res = bilibili::fetch_video_info(&app, &video_id)
         .await
         .map_err(|e| e.to_string())?;
 
