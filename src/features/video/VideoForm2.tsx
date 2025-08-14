@@ -74,7 +74,10 @@ function VideoForm2() {
               <FormItem>
                 <FormLabel>タイトル</FormLabel>
                 <FormControl>
-                  <Input {...field} />
+                  <Input
+                    placeholder="URLを入力するとタイトルが自動で入力されます"
+                    {...field}
+                  />
                 </FormControl>
                 <FormDescription>
                   BiliBili動画のタイトルを入力してください。
