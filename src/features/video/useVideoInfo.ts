@@ -1,5 +1,6 @@
 import { store, useSelector } from '@/app/store'
 import { fetchVideoInfo } from '@/features/video/api/fetchVideoInfo'
+import { formSchema1, formSchema2 } from '@/features/video/formSchema'
 import { setQuality, setTitle, setUrl } from '@/features/video/inputSlice'
 import { setVideo } from '@/features/video/videoSlice'
 
@@ -25,7 +26,7 @@ export const useVideoInfo = () => {
     if (id) {
       console.log(`Extracted video ID: ${id}`)
       const video = await fetchVideoInfo(id)
-      if (video) {
+      if (video && video.cid !== 0) {
         console.log(`Fetched video info:`, video)
         store.dispatch(setVideo(video))
       }
@@ -39,6 +40,12 @@ export const useVideoInfo = () => {
   return {
     video,
     input,
+    // フォームのバリデーション状態（store上の値をZodで検証）
+    isForm1Valid: formSchema1.safeParse({ url: input.url }).success,
+    isForm2Valid: formSchema2.safeParse({
+      title: input.title,
+      quality: input.quality,
+    }).success,
     onValid1,
     onValid2,
     download,
