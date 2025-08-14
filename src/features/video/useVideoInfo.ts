@@ -32,10 +32,15 @@ export const useVideoInfo = () => {
     }
   }
 
+  const download = async () => {
+    //
+  }
+
   return {
     video,
     input,
     onValid1,
     onValid2,
+    download,
   }
 }
