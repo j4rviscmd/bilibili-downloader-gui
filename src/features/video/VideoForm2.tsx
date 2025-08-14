@@ -26,10 +26,22 @@ function VideoForm2() {
   const { video, onValid2 } = useVideoInfo()
 
   useEffect(() => {
-    if (video) {
-      form.setValue('title', video.title)
-      form.setValue('quality', (video.qualities[0]?.id || 80).toString())
-    }
+    ;(async () => {
+      if (video && video.cid !== 0) {
+        // 値をフォームに反映
+        form.setValue('title', video.title, { shouldValidate: true })
+        form.setValue('quality', (video.qualities[0]?.id || 80).toString(), {
+          shouldValidate: true,
+        })
+        // 値セット後にバリデーションを実行
+        const ok = await form.trigger()
+        // バリデーション成功時にReduxへ反映（ダウンロードボタン活性のため）
+        if (ok) {
+          const vals = form.getValues()
+          onValid2(vals.title, vals.quality)
+        }
+      }
+    })()
   }, [video])
 
   async function onSubmit(data: z.infer<typeof formSchema2>) {
