@@ -74,7 +74,6 @@ pub async fn get_cookie(app: &AppHandle) -> Result<bool, String> {
                 count += 1;
             }
         }
-        println!("total cookies fetched: {count}");
         Ok(count > 0)
     })();
 
