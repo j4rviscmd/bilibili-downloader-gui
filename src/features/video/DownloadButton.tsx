@@ -1,7 +1,10 @@
 import { RippleButton } from '@/components/animate-ui/buttons/ripple'
+import { useVideoInfo } from '@/features/video/useVideoInfo'
 
 function DownloadButton() {
-  return <RippleButton>はじめる</RippleButton>
+  const { download } = useVideoInfo()
+
+  return <RippleButton onClick={download}>はじめる</RippleButton>
 }
 
 export default DownloadButton
