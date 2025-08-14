@@ -1,6 +1,7 @@
 import { useTheme } from '@/app/contexts/ThemeContext'
 import AppBar from '@/components/lib/AppBar/AppBar'
 import { useInit } from '@/features/init/useInit'
+import DownloadButton from '@/features/video/DownloadButton'
 import VideoForm1 from '@/features/video/VideoForm1'
 import VideoForm2 from '@/features/video/VideoForm2'
 import { useUser } from '@/shared/user/useUser'
@@ -28,6 +29,9 @@ function HomePage() {
           </div>
           <div className="block">
             <VideoForm2 />
+          </div>
+          <div className="flex w-full justify-center p-6">
+            <DownloadButton />
           </div>
         </div>
       </div>
