@@ -22,8 +22,8 @@ function HomePage() {
   return (
     <div className="flex h-full w-full flex-col">
       <AppBar user={user} theme={theme} setTheme={setTheme} />
-      <div className="flex w-full flex-1 items-center justify-center">
-        <div className="flex w-4/5 flex-col gap-12">
+      <div className="flex w-full flex-1 items-center justify-center overflow-auto p-3">
+        <div className="flex h-full w-4/5 flex-col gap-12">
           <div className="block">
             <VideoForm1 />
           </div>
