@@ -1,5 +1,6 @@
 import { useTheme } from '@/app/contexts/ThemeContext'
 import AppBar from '@/components/lib/AppBar/AppBar'
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
 import { useInit } from '@/features/init/useInit'
 import DownloadButton from '@/features/video/DownloadButton'
 import VideoForm1 from '@/features/video/VideoForm1'
@@ -20,21 +21,24 @@ function HomePage() {
   }, [initiated, navigate])
 
   return (
-    <div className="flex h-full w-full flex-col">
+    <div className="n flex h-full w-full flex-col">
       <AppBar user={user} theme={theme} setTheme={setTheme} />
-      <div className="flex w-full flex-1 items-center justify-center overflow-auto p-3">
-        <div className="flex h-full w-4/5 flex-col gap-12">
-          <div className="block">
-            <VideoForm1 />
-          </div>
-          <div className="block">
-            <VideoForm2 />
-          </div>
-          <div className="flex w-full justify-center p-6">
-            <DownloadButton />
+      <ScrollArea className="flex size-full">
+        <div className="box-border flex w-full flex-col items-center justify-center px-3 py-12">
+          <div className="flex h-full w-4/5 flex-col justify-center gap-12">
+            <div className="block">
+              <VideoForm1 />
+            </div>
+            <div className="block">
+              <VideoForm2 />
+            </div>
+            <div className="box-border flex w-full justify-center p-6">
+              <DownloadButton />
+            </div>
           </div>
         </div>
-      </div>
+        <ScrollBar />
+      </ScrollArea>
     </div>
   )
 }
