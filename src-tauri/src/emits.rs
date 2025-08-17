@@ -69,6 +69,10 @@ impl Emits {
         // 完了時点の累計経過時間を更新
         let now = Instant::now();
         let elapsed = now.duration_since(self.start_instant).as_secs_f64();
+        // 完了時はファイルサイズに設定
+        // -> 0.1sごとにemitしているのでタイミングによっては100%にならずに終了することがあることを考慮
+        self.progress.downloaded = self.progress.filesize;
+        self.progress.percentage = 100.0; // 完了時は100%
         self.progress.elapsed_time = round_to(elapsed, 1);
         self.progress.is_complete = true;
         // Emitterを使用してイベントを送信

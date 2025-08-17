@@ -11,6 +11,7 @@ const extractId = (url: string) => {
 }
 
 export const useVideoInfo = () => {
+  const progress = useSelector((state) => state.progress)
   const video = useSelector((state) => state.video)
   const input = useSelector((state) => state.input)
   const onValid2 = (title: string, quality: string) => {
@@ -43,6 +44,7 @@ export const useVideoInfo = () => {
   }
 
   return {
+    progress,
     video,
     input,
     // フォームのバリデーション状態（store上の値をZodで検証）
