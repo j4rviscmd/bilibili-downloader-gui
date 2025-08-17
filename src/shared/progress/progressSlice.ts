@@ -18,12 +18,8 @@ export const progressSlice = createSlice({
         state[idx] = payload
       }
     },
-    clearProgress(state, action: PayloadAction<string>) {
-      const id = action.payload
-      const idx = state.findIndex((p) => p.downloadId === id)
-      if (idx !== -1) {
-        state.splice(idx, 1)
-      }
+    clearProgress() {
+      return []
     },
   },
 })

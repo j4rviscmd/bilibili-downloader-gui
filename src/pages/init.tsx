@@ -15,7 +15,7 @@ function InitPage() {
     progress.forEach((p) => {
       if (p.isComplete) {
         sleep(500).then(() => {
-          store.dispatch(clearProgress(p.downloadId))
+          store.dispatch(clearProgress())
         })
       }
     })

@@ -1,3 +1,4 @@
+import { store } from '@/app/store'
 import {
   Dialog,
   DialogContent,
@@ -5,8 +6,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/animate-ui/radix/dialog'
+import CircleIndicator from '@/components/lib/CircleIndicator'
 import ProgressStatusBar from '@/components/lib/Progress'
+import { Button } from '@/components/ui/button'
 import { useVideoInfo } from '@/features/video/useVideoInfo'
+import { clearProgress } from '@/shared/progress/progressSlice'
 import { Download, Music, Video } from 'lucide-react'
 
 const getBarLabel = (id: string) => {
@@ -33,9 +37,13 @@ const getBarLabelIcon = (id: string) => {
 
 function DownloadingDialog() {
   const { progress } = useVideoInfo()
+  const onClick = () => {
+    store.dispatch(clearProgress())
+  }
+  const isDownloading = progress.length > 0
 
   return (
-    <Dialog modal open={progress.length > 0}>
+    <Dialog modal open={isDownloading}>
       <DialogContent
         disableOutsideClick
         onEscapeKeyDown={(e) => e.preventDefault()}
@@ -48,7 +56,7 @@ function DownloadingDialog() {
           </DialogTitle>
           <DialogDescription hidden />
         </DialogHeader>
-        {progress.length > 0 &&
+        {isDownloading &&
           progress.map((p) => {
             return (
               <div
@@ -67,6 +75,11 @@ function DownloadingDialog() {
               </div>
             )
           })}
+        <div>
+          <Button disabled={isDownloading} onClick={onClick}>
+            {isDownloading ? <CircleIndicator r={8} /> : 'ダウンロード完了'}
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   )
