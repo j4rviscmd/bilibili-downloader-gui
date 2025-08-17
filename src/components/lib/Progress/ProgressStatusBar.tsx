@@ -19,7 +19,9 @@ function ProgressStatusBar({ progress }: Props) {
         <>
           <div className="flex items-center justify-between">
             <ProgressLabel className="flex w-full items-center text-sm">
-              <div className="w-1/3">経過: {progress.elapsedTime}s</div>
+              <div className="w-1/3">
+                経過: {Math.round(progress.elapsedTime)}s
+              </div>
               <div className="w-1/3">
                 速度: {progress.transferRate.toFixed(1)}MB/s
               </div>
