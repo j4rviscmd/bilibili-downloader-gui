@@ -40,6 +40,6 @@ pub fn get_ffmpeg_root_path(app: &AppHandle) -> PathBuf {
 //         .expect("failed to resolve lib path")
 // }
 
-fn get_lib_path(app: &AppHandle) -> PathBuf {
+pub fn get_lib_path(app: &AppHandle) -> PathBuf {
     app.path().resource_dir().unwrap().join("lib")
 }
