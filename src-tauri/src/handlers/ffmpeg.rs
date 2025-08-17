@@ -1,3 +1,4 @@
+use crate::emits::Emits;
 use crate::utils::downloads::download_url;
 use crate::utils::paths::{get_ffmpeg_path, get_ffmpeg_root_path};
 use anyhow::Result;
@@ -169,10 +170,13 @@ fn validate_command(path: &PathBuf) -> bool {
 }
 
 pub async fn merge_av(
+    app: &AppHandle,
     video_path: &PathBuf,
     audio_path: &PathBuf,
     output_path: &PathBuf,
 ) -> Result<(), String> {
+    let filename = output_path.file_stem().unwrap().to_str().unwrap();
+    let emits = Emits::new(app.clone(), filename.to_string(), None);
     // ffmpeg コマンド実行
     let status = Command::new("ffmpeg")
         .args([
@@ -193,6 +197,7 @@ pub async fn merge_av(
     if !status.success() {
         return Err("ffmpeg failed to merge video and audio".into());
     }
+    emits.complete().await;
 
     Ok(())
 }
