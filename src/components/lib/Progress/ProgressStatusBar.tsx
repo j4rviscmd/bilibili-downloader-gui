@@ -25,7 +25,7 @@ function ProgressStatusBar({ progress }: Props) {
         </ProgressLabel>
       </div>
       <div className="flex items-center">
-        <ProgressTrack />
+        <ProgressTrack className={progress.isComplete ? 'bg-chart-2' : ''} />
         <div className="mx-0.5" />
         <div className="text-sm font-semibold">{progress.percentage}%</div>
       </div>

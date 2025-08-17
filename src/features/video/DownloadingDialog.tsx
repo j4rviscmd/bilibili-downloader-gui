@@ -63,7 +63,7 @@ function DownloadingDialog() {
             return (
               <div
                 key={p.downloadId}
-                className="text-accent-foreground box-border w-full p-3"
+                className="text-accent-foreground box-border w-full px-3"
               >
                 <div className="flex items-center">
                   <span className="mr-0.5">
