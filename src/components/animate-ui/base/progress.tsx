@@ -64,7 +64,10 @@ function ProgressTrack({
     >
       <MotionProgressIndicator
         data-slot="progress-indicator"
-        className="bg-primary h-full w-full flex-1 rounded-full"
+        className={cn(
+          'bg-primary h-full w-full flex-1 rounded-full',
+          className,
+        )}
         animate={{ width: `${value}%` }}
         transition={transition}
       />
