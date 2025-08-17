@@ -7,7 +7,7 @@ use crate::models::bilibili_api::{
 use crate::models::cookie::CookieEntry;
 use crate::models::frontend_dto::{Quality, UserData, Video};
 use crate::utils::downloads::download_url;
-use crate::utils::paths::get_output_path;
+use crate::utils::paths::{get_lib_path, get_output_path};
 use crate::{constants::USER_AGENT, models::frontend_dto::User};
 use futures::future::join_all;
 use reqwest::{
@@ -17,6 +17,7 @@ use reqwest::{
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use tauri::AppHandle;
+use tokio::fs;
 
 pub async fn download_video(
     app: &AppHandle,
@@ -74,20 +75,20 @@ pub async fn download_video(
         .base_url
         .clone();
     let audio_url = res_body2.data.dash.audio.first().unwrap().clone().base_url;
-    let dir_path = output_path.parent().unwrap();
 
     #[derive(Clone)]
     struct DlReq {
         url: String,
         path: PathBuf,
     }
+    let lib_path = get_lib_path(app);
     let video_req = DlReq {
         url: video_url,
-        path: dir_path.join("temp_video.m4s"),
+        path: lib_path.join("temp_video.m4s"),
     };
     let audio_req = DlReq {
         url: audio_url,
-        path: dir_path.join("temp_audio.m4s"),
+        path: lib_path.join("temp_audio.m4s"),
     };
 
     let download_reqs: Vec<DlReq> = vec![video_req.clone(), audio_req.clone()];
@@ -116,6 +117,10 @@ pub async fn download_video(
 
     // audio & videoファイルをffmpegで結合
     merge_av(app, &video_req.path, &audio_req.path, &output_path).await?;
+
+    // tempファイル削除
+    let _ = fs::remove_file(lib_path.join("temp_video.m4s")).await;
+    let _ = fs::remove_file(lib_path.join("temp_audio.m4s")).await;
 
     Ok(())
 }
