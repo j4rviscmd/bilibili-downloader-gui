@@ -40,10 +40,12 @@ function DownloadingDialog() {
   const onClick = () => {
     store.dispatch(clearProgress())
   }
-  const isDownloading = progress.length > 0
+  const hasDlQue = progress.length > 0
+  const isDownloading =
+    progress.length > 0 && !progress.every((p) => p.isComplete)
 
   return (
-    <Dialog modal open={isDownloading}>
+    <Dialog modal open={hasDlQue}>
       <DialogContent
         disableOutsideClick
         onEscapeKeyDown={(e) => e.preventDefault()}
@@ -56,7 +58,7 @@ function DownloadingDialog() {
           </DialogTitle>
           <DialogDescription hidden />
         </DialogHeader>
-        {isDownloading &&
+        {hasDlQue &&
           progress.map((p) => {
             return (
               <div
