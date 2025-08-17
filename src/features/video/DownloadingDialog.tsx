@@ -7,7 +7,7 @@ import {
 } from '@/components/animate-ui/radix/dialog'
 import ProgressStatusBar from '@/components/lib/Progress'
 import { useVideoInfo } from '@/features/video/useVideoInfo'
-import { Music, Video } from 'lucide-react'
+import { Download, Music, Video } from 'lucide-react'
 
 const getBarLabel = (id: string) => {
   let label = ''
@@ -42,8 +42,9 @@ function DownloadingDialog() {
         className="flex flex-col items-center justify-center [&>button]:hidden"
       >
         <DialogHeader className="w-full">
-          <DialogTitle className="text-primary w-full text-left">
-            ダウンロード進行状況
+          <DialogTitle className="text-primary flex w-full items-center">
+            <Download size={16} className="mr-0.5" />
+            <span>ダウンロード進行状況</span>
           </DialogTitle>
           <DialogDescription hidden />
         </DialogHeader>
@@ -55,7 +56,7 @@ function DownloadingDialog() {
                 className="text-accent-foreground box-border w-full p-3"
               >
                 <div className="flex items-center">
-                  <span className="pr-0.5">
+                  <span className="mr-0.5">
                     {getBarLabelIcon(p.downloadId)}
                   </span>
                   <span>{getBarLabel(p.downloadId)}</span>
