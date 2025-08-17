@@ -116,10 +116,9 @@ pub async fn download_video(
     }
 
     // audio & videoファイルをffmpegで結合
-    let mut emits = Emits::new(app.clone(), filename.to_string(), None);
-    emits.send_progress();
+    let emits = Emits::new(app.clone(), filename.to_string(), None);
     merge_av(&video_req.path, &audio_req.path, &output_path).await?;
-    emits.complete();
+    emits.complete().await;
 
     Ok(())
 }
