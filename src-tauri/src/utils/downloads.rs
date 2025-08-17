@@ -1,7 +1,10 @@
 use crate::{constants::USER_AGENT, emits::Emits};
 use anyhow::Result;
 use reqwest::header;
-use std::path::PathBuf;
+use std::{
+    path::PathBuf,
+    time::{Duration, Instant},
+};
 use tauri::AppHandle;
 use tokio::io::AsyncWriteExt;
 
@@ -35,23 +38,27 @@ pub async fn download_url(
     // Frontendへのイベント送信のためのEmitsインスタンスを作成
     let mut emits = Emits::new(app.clone(), filename.to_string(), total_size);
     let mut downloaded: u64 = 0;
+    // 最後にフロントへemitした時間（0.1s以上の間隔でemitする）
+    let mut last_emit = Instant::now() - Duration::from_millis(100);
 
     println!("Starting download from: {}", url);
     println!("Destination: {:?}", output_path);
     println!("Total size: {} bytes", total_size);
     while let Some(chunk) = res.chunk().await? {
         file.write_all(&*chunk).await?;
-        // println!("Downloaded {} bytes", downloaded);
-        println!(
-            "Downloaded {} bytes / {} bytes ({}%)",
-            downloaded,
-            total_size,
-            downloaded * 100 / total_size
-        );
-        // TODO: 0.1sに1回の割合でイベントを送信
-        emits.update_progress(downloaded);
-        emits.send_progress();
         downloaded += chunk.len() as u64;
+        // println!(
+        //     "Downloaded {} bytes / {} bytes ({}%)",
+        //     downloaded,
+        //     total_size,
+        //     downloaded * 100 / total_size
+        // );
+        // 0.1sに1回の割合でイベントを送信
+        if last_emit.elapsed() >= Duration::from_millis(100) {
+            emits.update_progress(downloaded);
+            emits.send_progress();
+            last_emit = Instant::now();
+        }
     }
     emits.complete();
 
