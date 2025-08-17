@@ -53,12 +53,15 @@ pub struct XPlayerApiResponseData {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct XPlayerApiResponseDash {
     pub video: Vec<XPlayerApiResponseVideo>,
+    pub audio: Vec<XPlayerApiResponseVideo>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct XPlayerApiResponseVideo {
-    pub id: i8,
+    pub id: i32,
     pub codecid: i16,
     pub bandwidth: i64,
     pub width: i16,
     pub height: i16,
+    #[serde(rename = "baseUrl")]
+    pub base_url: String,
 }

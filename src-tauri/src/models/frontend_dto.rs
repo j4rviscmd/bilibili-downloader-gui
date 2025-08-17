@@ -19,11 +19,13 @@ pub struct Video {
     pub title: String,
     pub bvid: String,
     pub cid: i64,
-    pub qualities: Vec<VideoQuality>,
+    #[serde(rename = "qualities")]
+    pub video_qualities: Vec<Quality>,
+    pub audio_qualities: Vec<Quality>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VideoQuality {
-    pub id: i8,
+pub struct Quality {
+    pub id: i32,
     pub codecid: i16,
 }

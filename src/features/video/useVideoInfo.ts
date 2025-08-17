@@ -1,4 +1,5 @@
 import { store, useSelector } from '@/app/store'
+import { downloadVideo } from '@/features/video/api/downloadVideo'
 import { fetchVideoInfo } from '@/features/video/api/fetchVideoInfo'
 import { formSchema1, formSchema2 } from '@/features/video/formSchema'
 import { setQuality, setTitle, setUrl } from '@/features/video/inputSlice'
@@ -34,7 +35,11 @@ export const useVideoInfo = () => {
   }
 
   const download = async () => {
-    //
+    await downloadVideo(
+      extractId(input.url) ?? '',
+      input.title,
+      parseInt(input.quality, 10),
+    )
   }
 
   return {

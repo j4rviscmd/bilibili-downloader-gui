@@ -11,7 +11,7 @@ pub mod constants;
 pub mod emits;
 pub mod handlers;
 pub mod models;
-pub mod paths;
+pub mod utils;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -26,6 +26,7 @@ pub fn run() {
             get_cookie,
             fetch_user,
             fetch_video_info,
+            download_video,
         ])
         .setup(|app| {
             // 開発環境の場合は、開発者コンソールを有効化
@@ -80,6 +81,20 @@ async fn fetch_user(app: AppHandle) -> Result<Option<User>, String> {
 #[tauri::command]
 async fn fetch_video_info(app: AppHandle, video_id: String) -> Result<Video, String> {
     let res = bilibili::fetch_video_info(&app, &video_id)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(res)
+}
+
+#[tauri::command]
+async fn download_video(
+    app: AppHandle,
+    video_id: String,
+    filename: String,
+    quality: i32,
+) -> Result<(), String> {
+    let res = bilibili::download_video(&app, &video_id, &filename, &quality)
         .await
         .map_err(|e| e.to_string())?;
 

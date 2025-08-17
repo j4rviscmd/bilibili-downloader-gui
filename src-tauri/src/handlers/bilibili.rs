@@ -1,17 +1,84 @@
-use std::collections::{BTreeMap, HashMap};
-
 use crate::handlers::cookie::read_cookie;
 use crate::models::bilibili_api::{
     UserApiResponse, WebInterfaceApiResponse, XPlayerApiResponse, XPlayerApiResponseVideo,
 };
 use crate::models::cookie::CookieEntry;
-use crate::models::frontend_dto::{UserData, Video, VideoQuality};
+use crate::models::frontend_dto::{Quality, UserData, Video};
+use crate::utils::downloads::download_url;
+use crate::utils::paths::get_output_path;
 use crate::{constants::USER_AGENT, models::frontend_dto::User};
 use reqwest::{
     header::{self},
     Client,
 };
+use std::collections::BTreeMap;
 use tauri::AppHandle;
+
+pub async fn download_video(
+    app: &AppHandle,
+    id: &str,
+    filename: &str,
+    quality: &i32,
+) -> Result<(), String> {
+    let output_path = get_output_path(app, filename);
+    // すでに同名ファイルが存在する場合はエラー
+    if output_path.exists() {
+        return Err("ファイルがすでに存在しています".into());
+    }
+
+    // Get cookies from cache.
+    let cookies = read_cookie(&app)?;
+    if cookies.is_none() {
+        return Err("Cookieが見つかりません".into());
+    }
+    let cookies = &cookies.unwrap();
+    let cookie_header = build_cookie_header(cookies);
+
+    // baseUrlの抽出
+    let mut video = Video {
+        title: filename.to_string(),
+        bvid: id.to_string(),
+        cid: 0,
+        video_qualities: Vec::new(),
+        audio_qualities: Vec::new(),
+    };
+    // TODO:
+    let res_body1 = fetch_video_title(&video, &cookies).await?;
+    video.cid = res_body1.data.cid;
+
+    let res_body2 = fetch_video_details(&video, &cookies).await?;
+    let video_qualities = convert_qualities(&res_body2.data.dash.video);
+    let audio_qualities = convert_qualities(&res_body2.data.dash.audio);
+    video.video_qualities = video_qualities;
+    video.audio_qualities = audio_qualities;
+
+    // // qualityが一致するアイテムを探す
+    let item = video
+        .video_qualities
+        .iter()
+        .find(|q| q.id == *quality)
+        .ok_or_else(|| format!("指定された画質({})が見つかりません", quality))?;
+
+    let url = res_body2
+        .data
+        .dash
+        .video
+        .iter()
+        .find(|v| v.id == item.id)
+        .ok_or_else(|| format!("指定された画質({})の動画が見つかりません", item.id))?
+        .base_url
+        .clone();
+
+    // TODO: call download_url func.
+    // TODO: video, audioの両方を並行DL
+    if let Ok(()) = download_url(app, &url, &output_path, Some(&cookie_header)).await {
+        println!("Video downloaded successfully");
+    } else {
+        println!("Failed to download video: {}", &url);
+    };
+
+    Ok(())
+}
 
 pub async fn fetch_user_info(app: &AppHandle) -> Result<Option<User>, String> {
     let mut result: Option<User> = None;
@@ -76,11 +143,12 @@ fn build_cookie_header(cookies: &[CookieEntry]) -> String {
 }
 
 pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String> {
-    let video = Video {
+    let mut video = Video {
         title: String::new(),
         bvid: id.to_string(),
         cid: 0,
-        qualities: Vec::new(),
+        video_qualities: Vec::new(),
+        audio_qualities: Vec::new(),
     };
 
     let cookies = read_cookie(&app)?;
@@ -89,13 +157,52 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
     }
     let cookies = cookies.unwrap();
 
-    let video = fetch_video_title(video, &cookies).await?;
-    let video = fetch_video_details(video, &cookies).await?;
+    let res_body_1 = fetch_video_title(&video, &cookies).await?;
+    video.title = res_body_1.data.title;
+    video.cid = res_body_1.data.cid;
+
+    let res_body_2 = fetch_video_details(&video, &cookies).await?;
+    let video_qualities = convert_qualities(&res_body_2.data.dash.video);
+    video.video_qualities = video_qualities;
+    // NOTE: Frontendには音質は不要なのでセットしない
+    // let audio_qualities = convert_qualities(&res_body2.data.dash.audio);
+    // video.audio_qualities = audio_qualities;
 
     Ok(video)
 }
 
-async fn fetch_video_title(mut video: Video, cookies: &[CookieEntry]) -> Result<Video, String> {
+fn convert_qualities(video: &Vec<XPlayerApiResponseVideo>) -> Vec<Quality> {
+    let mut res = Vec::<Quality>::new();
+
+    // id(= quality)毎でグルーピングして、 各アイテムの`codecid`が一番大きいものを選択
+    // BTreeMapはキー(id)を常に昇順ソートする
+    let mut id_groups: BTreeMap<i32, Vec<XPlayerApiResponseVideo>> = BTreeMap::new();
+    for item in video {
+        id_groups.entry(item.id).or_default().push(item.clone())
+    }
+
+    // id毎に最大の codecid を選択
+    let mut qualities = BTreeMap::new();
+    for (id, items) in id_groups {
+        if let Some(max_item) = items.into_iter().max_by_key(|it| it.codecid) {
+            qualities.insert(id, max_item);
+        }
+    }
+    // id値の降順で配列格納
+    for item in qualities.iter().rev() {
+        res.push(Quality {
+            id: item.0.clone(),
+            codecid: item.1.codecid,
+        });
+    }
+
+    res
+}
+
+async fn fetch_video_title(
+    video: &Video,
+    cookies: &[CookieEntry],
+) -> Result<WebInterfaceApiResponse, String> {
     let client = Client::builder()
         .user_agent(USER_AGENT)
         .build()
@@ -127,13 +234,13 @@ async fn fetch_video_title(mut video: Video, cookies: &[CookieEntry]) -> Result<
         return Err(format!("WebInterfaceApi error: {}", body.message));
     }
 
-    video.title = body.data.title;
-    video.cid = body.data.cid;
-
-    return Ok(video);
+    return Ok(body);
 }
 
-async fn fetch_video_details(mut video: Video, cookies: &[CookieEntry]) -> Result<Video, String> {
+async fn fetch_video_details(
+    video: &Video,
+    cookies: &[CookieEntry],
+) -> Result<XPlayerApiResponse, String> {
     // response codeより利用可能な画質を取得取得し、video.qualitiesに格納
     // quality_dict: dict = {
     //     "1080p60": 116,
@@ -177,40 +284,30 @@ async fn fetch_video_details(mut video: Video, cookies: &[CookieEntry]) -> Resul
         .map_err(|e| format!("XPlayerApi Failed to fetch video info: {e}"))?;
 
     let status = res.status();
-    println!("PlayerApiResponse status: {}", status);
+    println!("XPlayerApiResponse status: {}", status);
+
+    // // レスポンスをテキストとして全取得
+    // let body_text = res
+    //     .text()
+    //     .await
+    //     .map_err(|e| format!("XPlayerApi Failed to read response body: {e}"))?;
+    // let body: XPlayerApiResponse = serde_json::from_str(&body_text).unwrap();
+
+    // // JSONを型なしでパース（レスポンスをそのまま持つ）
+    // let body_all: serde_json::Value = serde_json::from_str(&body_text)
+    //     .map_err(|e| format!("XPlayerApi Failed to parse response JSON: {e}"))?;
+    // // 整形して表示
+    // let json_str = serde_json::to_string_pretty(&body_all).unwrap();
+    // println!("PlayerApiResponse body: \n{}", json_str);
+
     let body: XPlayerApiResponse = res
         .json::<XPlayerApiResponse>()
         .await
         .map_err(|e| format!("XPlayerApi Failed to parse response JSON: {e}"))?;
-    // let json_str = serde_json::to_string_pretty(&body).unwrap();
-    // println!("PlayerApiResponse body: {}", json_str);
 
     if body.code != 0 {
         return Err(format!("XPlayerApi error: {}", body.message));
     }
 
-    // id(= quality)毎でグルーピングして、 各アイテムの`codecid`が一番大きいものを選択
-    // BTreeMapはキー(id)を常に昇順ソートする
-    let mut id_groups: BTreeMap<i8, Vec<XPlayerApiResponseVideo>> = BTreeMap::new();
-    for item in &body.data.dash.video {
-        id_groups.entry(item.id).or_default().push(item.clone())
-    }
-
-    // id毎に最大の codecid を選択
-    let mut qualities = BTreeMap::new();
-    for (id, items) in id_groups {
-        if let Some(max_item) = items.into_iter().max_by_key(|it| it.codecid) {
-            qualities.insert(id, max_item);
-        }
-    }
-
-    // id値の降順で配列格納
-    for item in qualities.iter().rev() {
-        video.qualities.push(VideoQuality {
-            id: item.0.clone(),
-            codecid: item.1.codecid,
-        });
-    }
-
-    return Ok(video);
+    return Ok(body);
 }
