@@ -11,28 +11,23 @@ import ProgressStatusBar from '@/components/lib/Progress'
 import { Button } from '@/components/ui/button'
 import { useVideoInfo } from '@/features/video/useVideoInfo'
 import { clearProgress } from '@/shared/progress/progressSlice'
-import { Download, Music, Video } from 'lucide-react'
+import { Download, Music, Play, Video } from 'lucide-react'
 
-const getBarLabel = (id: string) => {
+const getBarInfo = (id: string) => {
   let label = ''
-  if (id === 'temp_audio') {
-    label = '音声データ'
-  } else {
-    label = '動画データ'
-  }
-
-  return label
-}
-
-const getBarLabelIcon = (id: string) => {
   let icon = <></>
   if (id === 'temp_audio') {
-    icon = <Music className="h-full" size={14} />
+    label = '音声データ'
+    icon = <Music size={13} />
+  } else if (id === 'temp_video') {
+    label = '動画データ'
+    icon = <Video size={13} />
   } else {
-    icon = <Video className="h-full" size={14} />
+    label = '動画の生成'
+    icon = <Play size={13} />
   }
 
-  return icon
+  return [label, icon]
 }
 
 function DownloadingDialog() {
@@ -60,16 +55,17 @@ function DownloadingDialog() {
         </DialogHeader>
         {hasDlQue &&
           progress.map((p) => {
+            const barInfo = getBarInfo(p.downloadId)
+            const barLabel = barInfo[0]
+            const barIcon = barInfo[1]
             return (
               <div
                 key={p.downloadId}
                 className="text-accent-foreground box-border w-full px-3"
               >
                 <div className="flex items-center">
-                  <span className="mr-0.5">
-                    {getBarLabelIcon(p.downloadId)}
-                  </span>
-                  <span>{getBarLabel(p.downloadId)}</span>
+                  <span className="mr-1">{barIcon}</span>
+                  <span>{barLabel}</span>
                 </div>
                 <div className="px-3">
                   <ProgressStatusBar progress={p} />

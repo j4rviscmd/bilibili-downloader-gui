@@ -9,9 +9,9 @@ pub struct Progress {
     #[serde(rename = "downloadId")]
     pub download_id: String,
     #[serde(rename = "filesize")]
-    pub filesize: f64,
+    pub filesize: Option<f64>,
     #[serde(rename = "downloaded")]
-    pub downloaded: f64,
+    pub downloaded: Option<f64>,
     #[serde(rename = "transferRate")]
     pub transfer_rate: f64,
     #[serde(rename = "percentage")]
@@ -35,15 +35,19 @@ pub struct Emits {
 }
 
 impl Emits {
-    pub fn new(app: AppHandle, download_id: String, filesize_bytes: u64) -> Self {
-        let filesize_mb: f64 = filesize_bytes as f64 / 1024.0 / 1024.0; // Convert bytes to MB
+    pub fn new(app: AppHandle, download_id: String, filesize_bytes: Option<u64>) -> Self {
+        let filesize_mb: Option<f64> = if let Some(filesize_bytes) = filesize_bytes {
+            Some(filesize_bytes as f64 / 1024.0 / 1024.0)
+        } else {
+            None
+        };
         let now = Instant::now();
         Emits {
             app: app,
             progress: Progress {
                 download_id,
                 filesize: filesize_mb,
-                downloaded: 0.0,
+                downloaded: None,
                 transfer_rate: 0.0,
                 percentage: 0.0,
                 delta_time: 0.0,
@@ -88,8 +92,10 @@ impl Emits {
         let elapsed_time = now.duration_since(self.start_instant).as_secs_f64();
 
         // 進捗率を計算
-        if self.progress.filesize > 0.0 {
-            prg.percentage = (self.current_downloaded_mb / self.progress.filesize) * 100.0;
+        if self.progress.filesize.is_none() {
+            prg.percentage = 0.0;
+        } else if self.progress.filesize.unwrap() > 0.0 {
+            prg.percentage = (self.current_downloaded_mb / self.progress.filesize.unwrap()) * 100.0;
         } else {
             prg.percentage = 0.0;
         }
@@ -106,10 +112,12 @@ impl Emits {
         prg.elapsed_time = round_to(elapsed_time, 1);
 
         // 表示用の値に丸め（filesize/downloaded: 1桁, percentage: 0桁, transfer_rate: 2桁）
-        prg.filesize = round_to(self.progress.filesize, 1);
-        prg.downloaded = round_to(self.current_downloaded_mb, 1);
-        prg.percentage = round_to(prg.percentage, 0);
-        prg.transfer_rate = round_to(prg.transfer_rate, 1);
+        if self.progress.filesize.is_some() {
+            prg.filesize = Some(round_to(self.progress.filesize.unwrap(), 1));
+            prg.downloaded = Some(round_to(self.current_downloaded_mb, 1));
+            prg.percentage = round_to(prg.percentage, 0);
+            prg.transfer_rate = round_to(prg.transfer_rate, 1);
+        }
 
         // 内部状態を更新
         self.last_instant = now;

@@ -1,4 +1,7 @@
-use crate::{constants::USER_AGENT, emits::Emits};
+use crate::{
+    constants::{REFERER, USER_AGENT},
+    emits::Emits,
+};
 use anyhow::Result;
 use reqwest::header;
 use std::{
@@ -34,6 +37,7 @@ pub async fn download_url(
             .build()?
             .get(url)
             .header(header::COOKIE, cookie)
+            .header(reqwest::header::REFERER, REFERER)
             .send()
             .await?
     } else {
@@ -41,6 +45,7 @@ pub async fn download_url(
             .user_agent(USER_AGENT)
             .build()?
             .get(url)
+            .header(reqwest::header::REFERER, REFERER)
             .send()
             .await?
     };
@@ -59,7 +64,7 @@ pub async fn download_url(
     println!("Total size: {} bytes", total_size);
 
     // Frontendへのイベント送信のためのEmitsインスタンスを作成
-    let mut emits = Emits::new(app.clone(), filename.to_string(), total_size);
+    let mut emits = Emits::new(app.clone(), filename.to_string(), Some(total_size));
     let mut downloaded: u64 = 0;
     // 最後にフロントへemitした時間（0.1s以上の間隔でemitする）
     let mut last_emit = Instant::now() - Duration::from_millis(100);
@@ -83,6 +88,7 @@ pub async fn download_url(
             last_emit = Instant::now();
         }
     }
+    file.flush().await?;
     emits.complete();
 
     Ok(())
