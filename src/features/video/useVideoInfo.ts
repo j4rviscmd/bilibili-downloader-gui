@@ -1,6 +1,7 @@
 import { store, useSelector } from '@/app/store'
 import { downloadVideo } from '@/features/video/api/downloadVideo'
 import { fetchVideoInfo } from '@/features/video/api/fetchVideoInfo'
+import { VIDEO_URL_KEY } from '@/features/video/constants'
 import { formSchema1, formSchema2 } from '@/features/video/formSchema'
 import { setQuality, setTitle, setUrl } from '@/features/video/inputSlice'
 import { setVideo } from '@/features/video/videoSlice'
@@ -20,6 +21,7 @@ export const useVideoInfo = () => {
   }
   const onValid1 = async (url: string) => {
     store.dispatch(setUrl(url))
+    localStorage.setItem(VIDEO_URL_KEY, url)
 
     // videoId取得
     // e.g. https://www.bilibili.com/video/BV1pJ411E7Eb
