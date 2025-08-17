@@ -1,10 +1,9 @@
-use crate::emits::Emits;
-use crate::paths::{get_ffmpeg_path, get_ffmpeg_root_path};
+use crate::utils::downloads::download_url;
+use crate::utils::paths::{get_ffmpeg_path, get_ffmpeg_root_path};
 use anyhow::Result;
 use std::fs::File;
 use std::{fs, path::PathBuf, process::Command};
 use tauri::AppHandle;
-use tokio::io::AsyncWriteExt;
 
 /**
  * FFmpegの有効性チェック処理
@@ -56,7 +55,8 @@ pub async fn install_ffmpeg(app: &AppHandle) -> Result<bool> {
     // ダウンロードするファイル名
     let filename = "ffmpeg.zip";
     // ~/bilibili-downloader-gui/src-tauri/target/debug/lib/ffmpeg
-    if let Ok(archive_path) = download_url(app, url, &ffmpeg_root, filename).await {
+    let archive_path = ffmpeg_root.join(filename);
+    if let Ok(()) = download_url(app, url, &archive_path, None).await {
         println!("FFmpegのダウンロードが完了しました: {:?}", ffmpeg_root);
         if let Ok(is_unpacked) = unpack_archive(&archive_path, &ffmpeg_root).await {
             if is_unpacked {
@@ -150,46 +150,6 @@ async fn unpack_archive(archive_path: &PathBuf, dest: &PathBuf) -> Result<bool> 
     }
 
     Ok(true)
-}
-
-async fn download_url(
-    app: &AppHandle,
-    url: &str,
-    dest: &PathBuf,
-    filename: &str,
-) -> Result<PathBuf> {
-    let mut res = reqwest::get(url).await?;
-    let filepath = dest.join(filename);
-    let mut file = tokio::fs::File::create(&filepath).await?;
-
-    let total_size = res
-        .content_length()
-        .ok_or_else(|| anyhow::anyhow!("Content-Length not found"))?;
-
-    // Frontendへのイベント送信のためのEmitsインスタンスを作成
-    let mut emits = Emits::new(app.clone(), filename.to_string(), total_size);
-    let mut downloaded: u64 = 0;
-
-    println!("Starting download from: {}", url);
-    println!("Destination: {:?}", dest);
-    println!("Total size: {} bytes", total_size);
-    while let Some(chunk) = res.chunk().await? {
-        file.write_all(&*chunk).await?;
-        // println!("Downloaded {} bytes", downloaded);
-        println!(
-            "Downloaded {} bytes / {} bytes ({}%)",
-            downloaded,
-            total_size,
-            downloaded * 100 / total_size
-        );
-        // TODO: 0.1sに1回の割合でイベントを送信
-        emits.update_progress(downloaded);
-        emits.send_progress();
-        downloaded += chunk.len() as u64;
-    }
-    emits.complete();
-
-    Ok(filepath)
 }
 
 fn validate_command(path: &PathBuf) -> bool {

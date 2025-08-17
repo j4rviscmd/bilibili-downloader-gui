@@ -10,7 +10,7 @@ import { exit } from '@tauri-apps/plugin-process'
 import { useSelector } from 'react-redux'
 
 export const useInit = () => {
-  const { onChangeUser, getUserInfo } = useUser()
+  const { getUserInfo } = useUser()
   const initiated = useSelector((state: RootState) => state.init.initiated)
   const progress = useSelector((state: RootState) => state.progress)
   const processingFnc = useSelector(

@@ -1,5 +1,6 @@
 import { useTheme } from '@/app/contexts/ThemeContext'
 import AppBar from '@/components/lib/AppBar/AppBar'
+import ProgressStatusBar from '@/components/lib/Progress'
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
 import { useInit } from '@/features/init/useInit'
 import DownloadButton from '@/features/video/DownloadButton'
@@ -10,7 +11,7 @@ import { useEffect } from 'react'
 import { useNavigate } from 'react-router'
 
 function HomePage() {
-  const { initiated } = useInit()
+  const { initiated, progress } = useInit()
   const navigate = useNavigate()
   const { user } = useUser()
   const { theme, setTheme } = useTheme()
@@ -39,6 +40,11 @@ function HomePage() {
         </div>
         <ScrollBar />
       </ScrollArea>
+      {progress.downloadId && (
+        <div className="w-full max-w-[20rem] p-3">
+          <ProgressStatusBar progress={progress} />
+        </div>
+      )}
     </div>
   )
 }
