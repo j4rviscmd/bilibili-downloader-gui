@@ -43,7 +43,7 @@ function VideoForm1() {
     },
   })
 
-  const placeholder = 'https://www.bilibili.com/video/BV1xxxxxx'
+  const placeholder = 'e.g. https://www.bilibili.com/video/BV1xxxxxx'
   return (
     <Form {...form}>
       <form
@@ -60,9 +60,7 @@ function VideoForm1() {
               <FormControl>
                 <Input required placeholder={placeholder} {...field} />
               </FormControl>
-              <FormDescription>
-                BiliBili動画のURLを入力してください。
-              </FormDescription>
+              <FormDescription>動画のURLを入力してください。</FormDescription>
               <FormMessage />
             </FormItem>
           )}
