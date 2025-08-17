@@ -15,20 +15,43 @@ function ProgressStatusBar({ progress }: Props) {
       value={progress.percentage}
       className="text-muted-foreground w-full"
     >
-      <div className="flex items-center justify-between">
-        <ProgressLabel className="flex w-full items-center justify-between text-sm">
-          <div>経過: {progress.elapsedTime}s</div>
-          <div>速度: {progress.transferRate.toFixed(1)}MB/s</div>
-          <div>
-            {progress.downloaded.toFixed(1)}mb/{progress.filesize.toFixed(1)}mb
+      {progress.filesize ? (
+        <>
+          <div className="flex items-center justify-between">
+            <ProgressLabel className="flex w-full items-center justify-between text-sm">
+              <div>経過: {progress.elapsedTime}s</div>
+              <div>速度: {progress.transferRate.toFixed(1)}MB/s</div>
+              <div>
+                {progress.downloaded.toFixed(1)}mb/
+                {progress.filesize.toFixed(1)}mb
+              </div>
+            </ProgressLabel>
           </div>
-        </ProgressLabel>
-      </div>
-      <div className="flex items-center">
-        <ProgressTrack className={progress.isComplete ? 'bg-chart-2' : ''} />
-        <div className="mx-0.5" />
-        <div className="text-sm font-semibold">{progress.percentage}%</div>
-      </div>
+          <div className="flex items-center">
+            <ProgressTrack
+              className={progress.isComplete ? 'bg-chart-2' : ''}
+            />
+            <div className="mx-0.5" />
+            <div className="text-sm font-semibold">{progress.percentage}%</div>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="flex items-center justify-between">
+            <ProgressLabel className="flex w-full items-center justify-between text-sm">
+              <div>経過: {progress.elapsedTime}s</div>
+              <div></div>
+            </ProgressLabel>
+          </div>
+          <div className="flex items-center">
+            <ProgressTrack
+              className={progress.isComplete ? 'bg-chart-2' : ''}
+            />
+            <div className="mx-0.5" />
+            <div className="text-sm font-semibold">{progress.percentage}%</div>
+          </div>
+        </>
+      )}
     </Progress>
   )
 }

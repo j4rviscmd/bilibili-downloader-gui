@@ -167,3 +167,32 @@ fn validate_command(path: &PathBuf) -> bool {
 
     true
 }
+
+pub async fn merge_av(
+    video_path: &PathBuf,
+    audio_path: &PathBuf,
+    output_path: &PathBuf,
+) -> Result<(), String> {
+    // ffmpeg コマンド実行
+    let status = Command::new("ffmpeg")
+        .args([
+            "-i",
+            video_path.to_str().unwrap(),
+            "-i",
+            audio_path.to_str().unwrap(),
+            "-c:v",
+            "copy", // 再エンコードせずコピー
+            "-c:a",
+            "aac",
+            "-y", // 上書き許可
+            output_path.to_str().unwrap(),
+        ])
+        .status()
+        .map_err(|e| format!("Failed to run ffmpeg: {e}"))?;
+
+    if !status.success() {
+        return Err("ffmpeg failed to merge video and audio".into());
+    }
+
+    Ok(())
+}

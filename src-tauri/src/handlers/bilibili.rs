@@ -1,4 +1,7 @@
+use crate::constants::REFERER;
+use crate::emits::Emits;
 use crate::handlers::cookie::read_cookie;
+use crate::handlers::ffmpeg::merge_av;
 use crate::models::bilibili_api::{
     UserApiResponse, WebInterfaceApiResponse, XPlayerApiResponse, XPlayerApiResponseVideo,
 };
@@ -22,7 +25,9 @@ pub async fn download_video(
     filename: &str,
     quality: &i32,
 ) -> Result<(), String> {
-    let output_path = get_output_path(app, filename);
+    let mut output_path = get_output_path(app, filename);
+    output_path.set_extension("mp4");
+
     // すでに同名ファイルが存在する場合はエラー
     if output_path.exists() {
         return Err("ファイルがすでに存在しています".into());
@@ -44,7 +49,6 @@ pub async fn download_video(
         video_qualities: Vec::new(),
         audio_qualities: Vec::new(),
     };
-    // TODO:
     let res_body1 = fetch_video_title(&video, &cookies).await?;
     video.cid = res_body1.data.cid;
 
@@ -71,8 +75,9 @@ pub async fn download_video(
         .base_url
         .clone();
     let audio_url = res_body2.data.dash.audio.first().unwrap().clone().base_url;
-
     let dir_path = output_path.parent().unwrap();
+
+    #[derive(Clone)]
     struct DlReq {
         url: String,
         path: PathBuf,
@@ -86,7 +91,7 @@ pub async fn download_video(
         path: dir_path.join("temp_audio.m4s"),
     };
 
-    let download_reqs: Vec<DlReq> = vec![video_req, audio_req];
+    let download_reqs: Vec<DlReq> = vec![video_req.clone(), audio_req.clone()];
     let download_tasks = download_reqs.into_iter().map(|req| {
         download_url(
             app,
@@ -97,15 +102,24 @@ pub async fn download_video(
         )
     });
 
-    // TODO: call download_url func.
-    // TODO: video, audioの両方を並行DL
+    // video, audioの両方を並行DL
     let results: Vec<anyhow::Result<()>> = join_all(download_tasks).await;
     for res in results.iter() {
         match res {
             Ok(()) => println!("Download successful"),
-            Err(e) => println!("Download failed: {}", e),
+            Err(e) => {
+                let msg = format!("Download failed: {}", e);
+                println!("{}", msg);
+                return Err(msg.to_string());
+            }
         }
     }
+
+    // audio & videoファイルをffmpegで結合
+    let mut emits = Emits::new(app.clone(), filename.to_string(), None);
+    emits.send_progress();
+    merge_av(&video_req.path, &audio_req.path, &output_path).await?;
+    emits.complete();
 
     Ok(())
 }
@@ -136,6 +150,7 @@ pub async fn fetch_user_info(app: &AppHandle) -> Result<Option<User>, String> {
     let res: reqwest::Response = client
         .get("https://api.bilibili.com/x/web-interface/nav")
         .header(header::COOKIE, cookie_header)
+        .header(reqwest::header::REFERER, REFERER)
         .send()
         .await
         .map_err(|e| format!("Failed to fetch user info: {e}"))?;
@@ -245,6 +260,7 @@ async fn fetch_video_title(
             video.bvid
         ))
         .header(header::COOKIE, cookie_header)
+        .header(reqwest::header::REFERER, REFERER)
         .send()
         .await
         .map_err(|e| format!("WebInterface Api Failed to fetch video info: {e}"))?;
