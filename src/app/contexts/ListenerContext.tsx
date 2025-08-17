@@ -16,7 +16,7 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
       const payload: Progress = event.payload as Progress
       if (payload.isComplete) {
         sleep(500).then(() => {
-          store.dispatch(clearProgress())
+          store.dispatch(clearProgress(payload.downloadId))
         })
       } else {
         store.dispatch(setProgress(event.payload as Progress))
