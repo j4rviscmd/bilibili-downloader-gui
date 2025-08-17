@@ -13,6 +13,7 @@
     "KHTML",
     "outpath",
     "REFERER",
+    "reqs",
     "rusqlite"
   ]
 }

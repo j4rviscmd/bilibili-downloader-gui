@@ -7,11 +7,13 @@ use crate::models::frontend_dto::{Quality, UserData, Video};
 use crate::utils::downloads::download_url;
 use crate::utils::paths::get_output_path;
 use crate::{constants::USER_AGENT, models::frontend_dto::User};
+use futures::future::join_all;
 use reqwest::{
     header::{self},
     Client,
 };
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 use tauri::AppHandle;
 
 pub async fn download_video(
@@ -59,7 +61,7 @@ pub async fn download_video(
         .find(|q| q.id == *quality)
         .ok_or_else(|| format!("指定された画質({})が見つかりません", quality))?;
 
-    let url = res_body2
+    let video_url = res_body2
         .data
         .dash
         .video
@@ -68,14 +70,42 @@ pub async fn download_video(
         .ok_or_else(|| format!("指定された画質({})の動画が見つかりません", item.id))?
         .base_url
         .clone();
+    let audio_url = res_body2.data.dash.audio.first().unwrap().clone().base_url;
+
+    let dir_path = output_path.parent().unwrap();
+    struct DlReq {
+        url: String,
+        path: PathBuf,
+    }
+    let video_req = DlReq {
+        url: video_url,
+        path: dir_path.join("temp_video.m4s"),
+    };
+    let audio_req = DlReq {
+        url: audio_url,
+        path: dir_path.join("temp_audio.m4s"),
+    };
+
+    let download_reqs: Vec<DlReq> = vec![video_req, audio_req];
+    let download_tasks = download_reqs.into_iter().map(|req| {
+        download_url(
+            app,
+            req.url,
+            req.path,
+            Some(cookie_header.to_string()),
+            true,
+        )
+    });
 
     // TODO: call download_url func.
     // TODO: video, audioの両方を並行DL
-    if let Ok(()) = download_url(app, &url, &output_path, Some(&cookie_header)).await {
-        println!("Video downloaded successfully");
-    } else {
-        println!("Failed to download video: {}", &url);
-    };
+    let results: Vec<anyhow::Result<()>> = join_all(download_tasks).await;
+    for res in results.iter() {
+        match res {
+            Ok(()) => println!("Download successful"),
+            Err(e) => println!("Download failed: {}", e),
+        }
+    }
 
     Ok(())
 }

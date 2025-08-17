@@ -6,21 +6,44 @@ use std::{
     time::{Duration, Instant},
 };
 use tauri::AppHandle;
-use tokio::io::AsyncWriteExt;
+use tokio::{fs, io::AsyncWriteExt};
 
 pub async fn download_url(
     app: &AppHandle,
-    url: &str,
-    output_path: &PathBuf,
-    cookie: Option<&str>,
+    url: String,
+    output_path: PathBuf,
+    cookie: Option<String>,
+    is_override: bool,
 ) -> Result<()> {
-    let mut res = reqwest::Client::builder()
-        .user_agent(USER_AGENT)
-        .build()?
-        .get(url)
-        .header(header::COOKIE, cookie.unwrap_or_else(|| ""))
-        .send()
-        .await?;
+    let output_path = &output_path;
+    if output_path.exists() {
+        if is_override {
+            fs::remove_file(output_path).await?;
+            println!("Removed existing file: {:?}", output_path);
+        } else {
+            let msg = format!("ファイルがすでに存在しています: {:?}", output_path);
+            return Err(anyhow::anyhow!(msg));
+        }
+    }
+
+    let url = &url;
+
+    let mut res = if let Some(cookie) = &cookie {
+        reqwest::Client::builder()
+            .user_agent(USER_AGENT)
+            .build()?
+            .get(url)
+            .header(header::COOKIE, cookie)
+            .send()
+            .await?
+    } else {
+        reqwest::Client::builder()
+            .user_agent(USER_AGENT)
+            .build()?
+            .get(url)
+            .send()
+            .await?
+    };
 
     let filepath = output_path.parent().unwrap();
     // 拡張子を含まないファイル名を取得

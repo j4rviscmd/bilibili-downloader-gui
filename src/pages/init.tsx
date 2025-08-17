@@ -1,12 +1,25 @@
+import { store } from '@/app/store'
 import CircleIndicator from '@/components/lib/CircleIndicator'
 import ProgressStatusBar from '@/components/lib/Progress'
 import { useInit } from '@/features/init/useInit'
+import { sleep } from '@/lib/utils'
+import { clearProgress } from '@/shared/progress/progressSlice'
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router'
 
 function InitPage() {
   const navigate = useNavigate()
   const { progress, processingFnc, initApp } = useInit()
+
+  useEffect(() => {
+    progress.forEach((p) => {
+      if (p.isComplete) {
+        sleep(500).then(() => {
+          store.dispatch(clearProgress(p.downloadId))
+        })
+      }
+    })
+  }, [progress])
 
   useEffect(() => {
     ;(async () => {
