@@ -8,3 +8,5 @@ export const VIDEO_QUALITIES_MAP: Record<number, string> = {
   32: '480p',
   16: '360p',
 }
+
+export const VIDEO_URL_KEY: string = 'inputUrl'

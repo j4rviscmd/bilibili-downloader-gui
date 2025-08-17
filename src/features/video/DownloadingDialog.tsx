@@ -1,4 +1,3 @@
-import { store } from '@/app/store'
 import {
   Dialog,
   DialogContent,
@@ -9,8 +8,8 @@ import {
 import CircleIndicator from '@/components/lib/CircleIndicator'
 import ProgressStatusBar from '@/components/lib/Progress'
 import { Button } from '@/components/ui/button'
+import { VIDEO_URL_KEY } from '@/features/video/constants'
 import { useVideoInfo } from '@/features/video/useVideoInfo'
-import { clearProgress } from '@/shared/progress/progressSlice'
 import { Download, Music, Play, Video } from 'lucide-react'
 
 const getBarInfo = (id: string) => {
@@ -33,7 +32,11 @@ const getBarInfo = (id: string) => {
 function DownloadingDialog() {
   const { progress } = useVideoInfo()
   const onClick = () => {
-    store.dispatch(clearProgress())
+    localStorage.setItem(VIDEO_URL_KEY, '')
+    // NOTE: ページリロードによりリセットするのでコメントアウト
+    // store.dispatch(clearProgress())
+    // ページをリロードして状態をリセット
+    window.location.reload()
   }
   const hasDlQue = progress.length > 0
   const isDownloading =
