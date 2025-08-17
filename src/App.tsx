@@ -1,3 +1,5 @@
+import { useTheme } from '@/app/contexts/ThemeContext'
+import { Toaster } from '@/components/ui/sonner'
 import IndexPage from '@/pages'
 import ErrorPage from '@/pages/error'
 import HomePage from '@/pages/home'
@@ -6,13 +8,17 @@ import '@/styles/global.css'
 import { Route, Routes } from 'react-router'
 
 function App() {
+  const { theme } = useTheme()
   return (
-    <Routes>
-      <Route path="/" element={<IndexPage />} />
-      <Route path="/init" element={<InitPage />} />
-      <Route path="/home" element={<HomePage />} />
-      <Route path="/error" element={<ErrorPage />} />
-    </Routes>
+    <>
+      <Routes>
+        <Route path="/" element={<IndexPage />} />
+        <Route path="/init" element={<InitPage />} />
+        <Route path="/home" element={<HomePage />} />
+        <Route path="/error" element={<ErrorPage />} />
+      </Routes>
+      <Toaster richColors theme={theme} />
+    </>
   )
 }
 

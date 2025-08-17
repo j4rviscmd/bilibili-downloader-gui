@@ -5,6 +5,7 @@ import { VIDEO_URL_KEY } from '@/features/video/constants'
 import { formSchema1, formSchema2 } from '@/features/video/formSchema'
 import { setQuality, setTitle, setUrl } from '@/features/video/inputSlice'
 import { setVideo } from '@/features/video/videoSlice'
+import { toast } from 'sonner'
 
 const extractId = (url: string) => {
   const match = url.match(/\/video\/([a-zA-Z0-9]+)/)
@@ -38,11 +39,20 @@ export const useVideoInfo = () => {
   }
 
   const download = async () => {
-    await downloadVideo(
-      extractId(input.url) ?? '',
-      input.title,
-      parseInt(input.quality, 10),
-    )
+    try {
+      await downloadVideo(
+        extractId(input.url) ?? '',
+        input.title,
+        parseInt(input.quality, 10),
+      )
+    } catch (e) {
+      toast.error('ダウンロードに失敗しました', {
+        duration: 10000,
+        description: String(e),
+        closeButton: true,
+      })
+      console.error('Download failed:', e)
+    }
   }
 
   return {
