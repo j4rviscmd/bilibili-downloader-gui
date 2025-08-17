@@ -40,11 +40,14 @@ function InitPage() {
           初期化中...
         </div>
         <div className="text-muted-foreground text-sm">{processingFnc}</div>
-        {progress.downloadId && (
-          <div className="w-full max-w-[20rem] p-3">
-            <ProgressStatusBar progress={progress} />
-          </div>
-        )}
+        {progress.length > 0 &&
+          progress.map((p) => {
+            return (
+              <div key={p.downloadId} className="w-full max-w-[20rem] p-3">
+                <ProgressStatusBar progress={p} />
+              </div>
+            )
+          })}
       </div>
     </div>
   )
