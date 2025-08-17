@@ -5,6 +5,7 @@ use anyhow::Result;
 use std::fs::File;
 use std::{fs, path::PathBuf, process::Command};
 use tauri::AppHandle;
+use tokio::process::Command as AsyncCommand;
 
 /**
  * FFmpegの有効性チェック処理
@@ -177,8 +178,8 @@ pub async fn merge_av(
 ) -> Result<(), String> {
     let filename = output_path.file_stem().unwrap().to_str().unwrap();
     let emits = Emits::new(app.clone(), filename.to_string(), None);
-    // ffmpeg コマンド実行
-    let status = Command::new("ffmpeg")
+    // ffmpeg コマンド実行（非同期）
+    let status = AsyncCommand::new("ffmpeg")
         .args([
             "-i",
             video_path.to_str().unwrap(),
@@ -192,6 +193,7 @@ pub async fn merge_av(
             output_path.to_str().unwrap(),
         ])
         .status()
+        .await
         .map_err(|e| format!("Failed to run ffmpeg: {e}"))?;
 
     if !status.success() {
