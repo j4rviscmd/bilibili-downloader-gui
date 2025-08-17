@@ -19,13 +19,7 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
           store.dispatch(clearProgress())
         })
       } else {
-        let progress = event.payload as Progress
-        progress = {
-          ...progress,
-          // 経過時間(s)を四捨五入して整数にする
-          elapsedTime: Math.round(progress.elapsedTime),
-        }
-        store.dispatch(setProgress(progress))
+        store.dispatch(setProgress(event.payload as Progress))
       }
     })
 
