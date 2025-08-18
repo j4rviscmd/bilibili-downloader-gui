@@ -4,42 +4,42 @@
 ![Built with Tauri](https://img.shields.io/badge/Built%20with-Tauri-24C8DB)
 ![React + Vite + TS](https://img.shields.io/badge/React%20%2B%20Vite-TypeScript-2ea44f)
 
-クロスプラットフォーム対応の Bilibili 動画ダウンローダー GUI。フロントエンドは React + Vite、デスクトップは Tauri（Rust）で実装しています。
+Cross-platform Bilibili video downloader GUI. Frontend is built with React + Vite; the desktop app is powered by Tauri (Rust).
 
-> 注意: 本アプリは学術・個人利用を想定しています。各サービスの利用規約・著作権法を遵守し、権利者の許可なくコンテンツをダウンロード・再配布しないでください。
+> Notice: This app is intended for educational and personal use. Respect the terms of service and copyright laws. Do not download or redistribute content without permission from rights holders.
 
 ![App Icon](public/icon.png)
 
-## 主な機能
+## Features
 
-- Bilibili の動画情報取得とダウンロード補助
-- 軽量・高速な Tauri 製デスクトップアプリ
-- ダーク/ライトテーマ切り替え（shadcn/ui ベース）
-- 進捗表示・トースト通知
+- Fetch Bilibili video info and assist downloads
+- Lightweight and fast desktop app built with Tauri
+- Light/Dark theme toggle (shadcn/ui based)
+- Progress indicator and toast notifications
 
-## 動作環境
+## Requirements
 
-- Node.js 18 以上（推奨 LTS）
-- Rust（stable）
-- Tauri のビルド前提ツール一式（macOS は Xcode Command Line Tools 等）
+- Node.js 18+ (LTS recommended)
+- Rust (stable)
+- Toolchain required by Tauri builds (e.g., Xcode Command Line Tools on macOS)
 
-参考: [公式サイト（環境準備）](https://tauri.app/)
+See: [Tauri official docs](https://tauri.app/)
 
-## クイックスタート（開発）
+## Quick Start (Development)
 
-1. 依存関係のインストール
+1. Install dependencies
    - `npm i`
-2. 開発サーバー（Tauri）起動
+2. Start the Tauri development server
    - `npm run tauri dev`
 
-## ビルド（配布用バイナリ）
+## Build (Distributable Binaries)
 
 - `npm run tauri build`
-  - 成果物は通常、`src-tauri/target/release/`（OSにより異なる）に生成されます。
+  - Artifacts are typically generated under `src-tauri/target/release/` (varies by OS).
 
-## ディレクトリ構成（抜粋）
+## Project Structure (Excerpt)
 
-プロジェクト全体（簡略）:
+Top-level overview:
 
 ```plain text
 components.json
@@ -77,50 +77,50 @@ src-tauri/
     utils/
 ```
 
-フロントエンド（React + Vite）:
+Frontend (React + Vite):
 
 ```plain text
 /src
-  /app                  ← Redux store / React context など
-  /components           ← 共通 UI（animate‑ui / shadcn/ui）とプロジェクト共通コンポーネント
-  /features             ← ドメイン単位のロジック + 連携 UI（Redux slice, hooks, UI）
-  /shared               ← 横断的なロジック/状態（進捗やユーザーなど）
-  /pages                ← ルーティングされるページ
-  /styles               ← グローバルスタイル
+  /app                  ← Redux store / React context
+  /components           ← Shared UI (animate‑ui / shadcn/ui) and project-level components
+  /features             ← Domain logic + connected UI (Redux slices, hooks, UI)
+  /shared               ← Cross-cutting logic/state (progress, user, etc.)
+  /pages                ← Routed pages
+  /styles               ← Global styles
 ```
 
-バックエンド（Tauri / Rust）:
+Backend (Tauri / Rust):
 
 ```plain text
 src-tauri/src/
-  main.rs            ← エントリポイント（できるだけ薄く）
-  lib.rs             ← アプリ本体の root module / コマンド定義
-  handlers/          ← 実際の処理（コマンドの実装）
-  models/            ← データ構造（リクエスト/レスポンス等）
-  utils/             ← 補助ツール
+  main.rs            ← Entry point (kept thin)
+  lib.rs             ← App root module / command definitions
+  handlers/          ← Implementations of commands
+  models/            ← Data structures (requests/responses, etc.)
+  utils/             ← Utilities
 ```
 
-（既存 README の開発手順と構成の説明は上記に統合・反映しています）
+(The prior README’s development steps and structure notes are integrated above.)
 
-## スクリプト
+## Scripts
 
-- 開発: `npm run tauri dev`
-- ビルド: `npm run tauri build`
+- Dev: `npm run tauri dev`
+- Build: `npm run tauri build`
 
-## 技術スタック
+## Tech Stack
 
 - Frontend: React, Vite, TypeScript, Redux Toolkit, shadcn/ui, animate‑ui
 - Desktop: Tauri (Rust)
 
-## 貢献ガイド
+## Contributing
 
-Issue / Pull Request 歓迎です。小さな修正（ドキュメント、typo、UI 微調整）も大歓迎。大きな変更は事前に Issue でディスカッションしてください。
+Issues and PRs are welcome. For large changes, please start a discussion in an Issue first. Small fixes (docs, typos, minor UI tweaks) are appreciated.
 
-## ライセンス
+## License
 
-MIT License — 詳細は [LICENSE](./LICENSE) を参照してください。
+MIT License — see [LICENSE](./LICENSE) for details.
 
-## 謝辞
+## Acknowledgements
 
-- Tauri チームとコミュニティ
-- shadcn/ui, Radix UI, sonner などの OSS
+- The Tauri team and community
+- OSS such as shadcn/ui, Radix UI, sonner
