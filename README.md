@@ -1,79 +1,126 @@
 # BILIBILI-DOWNLOADER-GUI
 
-## Development
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+![Built with Tauri](https://img.shields.io/badge/Built%20with-Tauri-24C8DB)
+![React + Vite + TS](https://img.shields.io/badge/React%20%2B%20Vite-TypeScript-2ea44f)
 
-### Local startup
+クロスプラットフォーム対応の Bilibili 動画ダウンローダー GUI。フロントエンドは React + Vite、デスクトップは Tauri（Rust）で実装しています。
 
-1. `npm i`
-2. `npm run tauri dev`
+> 注意: 本アプリは学術・個人利用を想定しています。各サービスの利用規約・著作権法を遵守し、権利者の許可なくコンテンツをダウンロード・再配布しないでください。
 
-### Directory structures
+![App Icon](public/icon.png)
 
-#### Frontend
+## 主な機能
+
+- Bilibili の動画情報取得とダウンロード補助
+- 軽量・高速な Tauri 製デスクトップアプリ
+- ダーク/ライトテーマ切り替え（shadcn/ui ベース）
+- 進捗表示・トースト通知
+
+## 動作環境
+
+- Node.js 18 以上（推奨 LTS）
+- Rust（stable）
+- Tauri のビルド前提ツール一式（macOS は Xcode Command Line Tools 等）
+
+参考: [公式サイト（環境準備）](https://tauri.app/)
+
+## クイックスタート（開発）
+
+1. 依存関係のインストール
+   - `npm i`
+2. 開発サーバー（Tauri）起動
+   - `npm run tauri dev`
+
+## ビルド（配布用バイナリ）
+
+- `npm run tauri build`
+  - 成果物は通常、`src-tauri/target/release/`（OSにより異なる）に生成されます。
+
+## ディレクトリ構成（抜粋）
+
+プロジェクト全体（簡略）:
+
+```plain text
+components.json
+eslint.config.js
+index.html
+package.json
+vite.config.ts
+public/
+  icon.png
+src/
+  App.tsx
+  main.tsx
+  app/
+    store.ts
+    contexts/
+  components/
+    animate-ui/
+    ui/
+    lib/
+  features/
+    video/
+    init/
+    count/
+  pages/
+  shared/
+  styles/
+src-tauri/
+  Cargo.toml
+  tauri.conf.json
+  src/
+    main.rs
+    lib.rs
+    handlers/
+    models/
+    utils/
+```
+
+フロントエンド（React + Vite）:
 
 ```plain text
 /src
-  /app
-      store.ts
-  /components
-    /animate-ui/           ← animate‑ui由来の共通UI
-    /ui                    ← shadcn由来の共通UI
-      button.tsx
-      dialog.tsx
-      index.ts
-    /lib                   ← プロジェクト内共通コンポーネント(Redux直接接続NG)
-      Progress/
-      FeedCard/
-        FeedCard.tsx
-        FeedCard.module.css
-        index.ts
-      Avatar/
-        Avatar.tsx
-        index.ts
-  /shared                  ← 共通ロジックと連携UI(features同様)
-  /features                ← ドメイン単位のロジックと連携UI
-    /video
-      /api
-        fetchVideoInfo.ts
-      types.ts
-      videoSlice.ts
-      VideoForm.tsx
-      useVideoInfo.ts
-      index.ts
-    /auth
-      authSlice.ts         ← Redux slice / state useAuth.ts           ← カスタムhook
-      types.ts
-      LoginForm.test.tsx   ← テスト(Jest / Testing Library)
-    /player
-      /ui
-        PlayerView.tsx     ← ドメイン固有コンポーネント
-      usePlayer.ts
-      player.css
-    /downloader
-      DownloaderForm.tsx
-      useDownload.ts
-  /pages                   ← ルートビュー（React Router etc.）
-    index.tsx
-    settings.tsx
-  /lib
-    utils.ts               ← shadcn utils(自動生成)
-    date.ts
-  /styles
-    globals.css
-  index.tsx
+  /app                  ← Redux store / React context など
+  /components           ← 共通 UI（animate‑ui / shadcn/ui）とプロジェクト共通コンポーネント
+  /features             ← ドメイン単位のロジック + 連携 UI（Redux slice, hooks, UI）
+  /shared               ← 横断的なロジック/状態（進捗やユーザーなど）
+  /pages                ← ルーティングされるページ
+  /styles               ← グローバルスタイル
 ```
 
-#### Backend
+バックエンド（Tauri / Rust）:
 
 ```plain text
 src-tauri/src/
-  main.rs            ← エントリポイント、できるだけ薄く保つ
-  lib.rs             ← アプリ本体の root module（サービスの統括）,各APIのエンドポイント定義
-  handlers/          ← handler関数たち（実際のロジック）
-  services/          ← ビジネスロジック（DB操作、外部API呼び出しなど）
-  models/            ← データ構造（リクエスト/レスポンス/DB構造）
-  db/                ← DB接続、マイグレーション、クエリラッパーなど
-  config.rs          ← 設定読み込み（dotenvなど）
-  errors.rs          ← 共通エラーハンドリング
-  utils.rs           ← 補助ツール
+  main.rs            ← エントリポイント（できるだけ薄く）
+  lib.rs             ← アプリ本体の root module / コマンド定義
+  handlers/          ← 実際の処理（コマンドの実装）
+  models/            ← データ構造（リクエスト/レスポンス等）
+  utils/             ← 補助ツール
 ```
+
+（既存 README の開発手順と構成の説明は上記に統合・反映しています）
+
+## スクリプト
+
+- 開発: `npm run tauri dev`
+- ビルド: `npm run tauri build`
+
+## 技術スタック
+
+- Frontend: React, Vite, TypeScript, Redux Toolkit, shadcn/ui, animate‑ui
+- Desktop: Tauri (Rust)
+
+## 貢献ガイド
+
+Issue / Pull Request 歓迎です。小さな修正（ドキュメント、typo、UI 微調整）も大歓迎。大きな変更は事前に Issue でディスカッションしてください。
+
+## ライセンス
+
+MIT License — 詳細は [LICENSE](./LICENSE) を参照してください。
+
+## 謝辞
+
+- Tauri チームとコミュニティ
+- shadcn/ui, Radix UI, sonner などの OSS
