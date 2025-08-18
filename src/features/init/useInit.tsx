@@ -6,7 +6,8 @@ import {
 import { sleep } from '@/lib/utils'
 import { useUser } from '@/shared/user/useUser'
 import { invoke } from '@tauri-apps/api/core'
-import { exit } from '@tauri-apps/plugin-process'
+import { exit, relaunch } from '@tauri-apps/plugin-process'
+import { check as checkUpdate } from '@tauri-apps/plugin-updater'
 import { useSelector } from 'react-redux'
 
 export const useInit = () => {
@@ -35,25 +36,31 @@ export const useInit = () => {
      *  2: Cookieのチェック失敗
      *  3: ユーザ情報の取得失敗(未ログイン)
      *  4: ユーザ情報の取得失敗(未ログイン以外)
+     *  5: アプリバージョンのチェック失敗
      *  255: 想定外エラー
      */
     let resCode = 255
-    const isValidFfmpeg = await checkFfmpeg()
-    if (isValidFfmpeg) {
-      const isValidCookie = await checkCookie()
-      if (isValidCookie) {
-        // Cookieよりユーザ情報を取得
-        const user = await getUserInfo()
-        if (user && user.data.isLogin) {
-          resCode = 0
+    const isValidVersion = await checkVersion()
+    if (isValidVersion) {
+      const isValidFfmpeg = await checkFfmpeg()
+      if (isValidFfmpeg) {
+        const isValidCookie = await checkCookie()
+        if (isValidCookie) {
+          // Cookieよりユーザ情報を取得
+          const user = await getUserInfo()
+          if (user && user.data.isLogin) {
+            resCode = 0
+          } else {
+            resCode = 3
+          }
         } else {
-          resCode = 3
+          resCode = 2
         }
       } else {
-        resCode = 2
+        resCode = 1
       }
     } else {
-      resCode = 1
+      resCode = 5
     }
 
     await sleep(500)
@@ -84,6 +91,39 @@ export const useInit = () => {
     }
 
     return res
+  }
+
+  /**
+   * アプリバージョンのチェック
+   * すでに最新である場合、0.5sほど「お使いのアプリは最新です」を表示される
+   * 最新ではない場合、強制アップデートを行う
+   * @returns {Promise<void>}
+   */
+  const checkVersion = async (): Promise<boolean> => {
+    setMessage('ℹ️ バージョンチェック中...')
+    try {
+      const update = await checkUpdate()
+      if (!update) {
+        // すでに最新
+        setMessage('✅ お使いのアプリは最新です')
+        await sleep(500)
+        return true
+      }
+
+      // 強制アップデートを実施
+      const ver = update.version ?? 'latest'
+      setMessage(`⬇️ アップデートをダウンロードしています (${ver})...`)
+      await update.downloadAndInstall()
+
+      setMessage('✅ アップデートが完了しました。アプリを再起動します...')
+      await sleep(1500)
+      await relaunch()
+      return false
+    } catch (e) {
+      console.error('Version check/update failed:', e)
+      setMessage('😫 アップデートの確認または適用に失敗しました')
+      return false
+    }
   }
 
   const checkCookie = async (): Promise<boolean> => {

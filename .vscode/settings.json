@@ -15,6 +15,7 @@
     "libappindicator",
     "librsvg",
     "libwebkit",
+    "NSIS",
     "outpath",
     "patchelf",
     "REFERER",
