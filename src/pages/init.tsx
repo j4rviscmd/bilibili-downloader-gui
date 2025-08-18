@@ -38,6 +38,9 @@ function InitPage() {
       } else if (resCode === 4) {
         // ユーザ情報取得エラー(未ログイン以外)
         navigate('/error', { state: { errorCode: 4 }, replace: true })
+      } else if (resCode === 5) {
+        // アップデートチェックエラー
+        navigate('/error', { state: { errorCode: 5 }, replace: true })
       } else {
         // 想定外エラー
         navigate('/error', { state: { errorCode: 255 }, replace: true })
