@@ -1,3 +1,4 @@
+# https://github.com/tauri-apps/tauri-action
 name: 'publish'
 
 on:
@@ -75,4 +76,8 @@ jobs:
           releaseDraft: false
           prerelease: false
           generateReleaseNotes: true
+          # アップデータ用 JSON をリリースにアップロードするか（デフォルト true）
+          includeUpdaterJson: true
+          # Windows で NSIS の setup.exe を優先するか（将来 v2 では true になる可能性）
+          updaterJsonPreferNsis: true
           args: ${{ matrix.args }}
