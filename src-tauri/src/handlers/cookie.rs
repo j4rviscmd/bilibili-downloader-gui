@@ -20,28 +20,31 @@ pub fn read_cookie(app: &AppHandle) -> Result<Option<Vec<CookieEntry>>, String> 
 
 // Firefox の cookies.sqlite を探す（macOS 想定。必要なら他OS分岐を追加）
 fn find_firefox_cookie_file(app: &AppHandle) -> Option<PathBuf> {
-    #[cfg(target_os = "macos")]
-    {
+    let filepath = if cfg!(target_os = "windows") {
+        // Windows の場合は AppData フォルダを参照
+        let appdata = app.path().data_dir().unwrap();
+        appdata.join("Mozilla/Firefox/Profiles")
+    } else if cfg!(target_os = "macos") {
+        // macOS の場合はホームディレクトリを参照
         let home = app.path().home_dir().unwrap();
-        let profiles_root = home.join("Library/Application Support/Firefox/Profiles");
-        if !profiles_root.exists() {
-            return None;
-        }
-        // プロファイル配下を走査して最初に見つかった cookies.sqlite を返す
-        if let Ok(entries) = fs::read_dir(&profiles_root) {
-            for entry in entries.flatten() {
-                let p = entry.path().join("cookies.sqlite");
-                if p.is_file() {
-                    return Some(p);
-                }
+        home.join("Library/Application Support/Firefox/Profiles")
+    } else {
+        PathBuf::new()
+    };
+
+    if !filepath.exists() {
+        return None;
+    }
+    // プロファイル配下を走査して最初に見つかった cookies.sqlite を返す
+    if let Ok(entries) = fs::read_dir(&filepath) {
+        for entry in entries.flatten() {
+            let p = entry.path().join("cookies.sqlite");
+            if p.is_file() {
+                return Some(p);
             }
         }
-        None
     }
-    #[cfg(not(target_os = "macos"))]
-    {
-        None
-    }
+    None
 }
 
 pub async fn get_cookie(app: &AppHandle) -> Result<bool, String> {
