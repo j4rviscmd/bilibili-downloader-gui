@@ -11,7 +11,6 @@
     "allowImportingTsExtensions": false,
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",
-    "noEmit": false,
     "composite": true,
     "types": ["node"],
 
