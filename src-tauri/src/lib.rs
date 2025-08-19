@@ -1,4 +1,6 @@
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
+#[cfg(debug_assertions)]
+use tauri::Manager;
 
 use crate::handlers::bilibili;
 use crate::handlers::cookie;
@@ -35,9 +37,8 @@ pub fn run() {
             {
                 let window = app.get_webview_window("main").unwrap();
                 window.open_devtools();
-
-                Ok(())
             }
+            Ok(())
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
