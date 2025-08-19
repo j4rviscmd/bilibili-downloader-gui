@@ -1,4 +1,6 @@
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
+#[cfg(debug_assertions)]
+use tauri::Manager;
 
 use crate::handlers::bilibili;
 use crate::handlers::cookie;
@@ -29,15 +31,16 @@ pub fn run() {
             fetch_video_info,
             download_video,
         ])
-        .setup(|app| {
+        // 開発環境以外で`app`宣言ではBuildに失敗するため、`_app`を使用
+        .setup(|_app| {
             // 開発環境の場合は、開発者コンソールを有効化
             #[cfg(debug_assertions)]
             {
+                let app = _app;
                 let window = app.get_webview_window("main").unwrap();
                 window.open_devtools();
-
-                Ok(())
             }
+            Ok(())
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
