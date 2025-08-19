@@ -7,6 +7,7 @@ const initialState: User = {
   message: '',
   ttl: 0,
   data: {
+    uname: '',
     isLogin: false,
     wbiImg: {
       imgUrl: '',
