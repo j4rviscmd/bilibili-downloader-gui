@@ -12,8 +12,8 @@ export const inputSlice = createSlice({
   name: 'input',
   initialState,
   reducers: {
-    setInput: (state, action: PayloadAction<Input>) => {
-      return (state = action.payload)
+    setInput: (_, action: PayloadAction<Input>) => {
+      return action.payload
     },
     setUrl: (state, action: PayloadAction<string>) => {
       state.url = action.payload
