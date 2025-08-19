@@ -189,8 +189,9 @@ pub async fn merge_av(
 ) -> Result<(), String> {
     let filename = output_path.file_stem().unwrap().to_str().unwrap();
     let emits = Emits::new(app.clone(), filename.to_string(), None);
+    let ffmpeg_path = get_ffmpeg_path(app);
     // ffmpeg コマンド実行（非同期）
-    let status = AsyncCommand::new("ffmpeg")
+    let status = AsyncCommand::new(ffmpeg_path)
         .args([
             "-i",
             video_path.to_str().unwrap(),
