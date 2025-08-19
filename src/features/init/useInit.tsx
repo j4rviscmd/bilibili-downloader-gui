@@ -100,6 +100,13 @@ export const useInit = () => {
    * @returns {Promise<void>}
    */
   const checkVersion = async (): Promise<boolean> => {
+    // 開発環境ではアップデートチェックをスキップ
+    if (import.meta.env.DEV) {
+      setMessage('🛠️ 開発モードのためバージョンチェックをスキップ')
+      await sleep(300)
+      return true
+    }
+
     setMessage('ℹ️ バージョンチェック中...')
     try {
       const update = await checkUpdate()

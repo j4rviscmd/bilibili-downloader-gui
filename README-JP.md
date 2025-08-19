@@ -4,7 +4,7 @@
 ![Built with Tauri](https://img.shields.io/badge/Built%20with-Tauri-24C8DB)
 ![React + Vite + TS](https://img.shields.io/badge/React%20%2B%20Vite-TypeScript-2ea44f)
 
-クロスプラットフォーム対応の Bilibili 動画ダウンローダー GUI。フロントエンドは React + Vite、デスクトップは Tauri（Rust）で実装しています。
+Windows / macOS 対応の Bilibili 動画ダウンローダー GUI。フロントエンドは React + Vite、デスクトップは Tauri（Rust）で実装しています。
 
 > 注意: 本アプリは学術・個人利用を想定しています。各サービスの利用規約・著作権法を遵守し、権利者の許可なくコンテンツをダウンロード・再配布しないでください。
 
@@ -24,6 +24,11 @@
 - Tauri のビルド前提ツール一式（macOS は Xcode Command Line Tools 等）
 
 参考: [公式サイト（環境準備）](https://tauri.app/)
+
+## 対応 OS
+
+- Windows 10/11
+- macOS 12 以降（Intel / Apple Silicon）
 
 ## クイックスタート（開発）
 

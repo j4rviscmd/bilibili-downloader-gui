@@ -51,11 +51,22 @@ pub async fn install_ffmpeg(app: &AppHandle) -> Result<bool> {
         fs::create_dir_all(&ffmpeg_root).unwrap();
     }
 
-    // TODO: os判定
-    // TODO: Windows環境で動確
-    let url = "https://evermeet.cx/ffmpeg/getrelease/zip";
+    // let url = "https://evermeet.cx/ffmpeg/getrelease/zip";
+    let url = if cfg!(target_os = "windows") {
+        "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-lgpl-shared.zip"
+    } else if cfg!(target_os = "macos") {
+        "https://evermeet.cx/ffmpeg/getrelease/zip"
+    } else {
+        ""
+    };
     // ダウンロードするファイル名
-    let filename = "ffmpeg.zip";
+    let filename = if cfg!(target_os = "windows") {
+        "ffmpeg-master-latest-win64-lgpl-shared.zip"
+    } else if cfg!(target_os = "macos") {
+        "ffmpeg.zip"
+    } else {
+        return Ok(false); // 対応していないOSの場合は終了
+    };
     // ~/bilibili-downloader-gui/src-tauri/target/debug/lib/ffmpeg
     let archive_path = ffmpeg_root.join(filename);
     if let Ok(()) = download_url(app, url.to_string(), archive_path.clone(), None, true).await {
@@ -178,8 +189,9 @@ pub async fn merge_av(
 ) -> Result<(), String> {
     let filename = output_path.file_stem().unwrap().to_str().unwrap();
     let emits = Emits::new(app.clone(), filename.to_string(), None);
+    let ffmpeg_path = get_ffmpeg_path(app);
     // ffmpeg コマンド実行（非同期）
-    let status = AsyncCommand::new("ffmpeg")
+    let status = AsyncCommand::new(ffmpeg_path)
         .args([
             "-i",
             video_path.to_str().unwrap(),
