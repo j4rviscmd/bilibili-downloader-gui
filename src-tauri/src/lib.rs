@@ -31,10 +31,12 @@ pub fn run() {
             fetch_video_info,
             download_video,
         ])
-        .setup(|app| {
+        // 開発環境以外で`app`宣言ではBuildに失敗するため、`_app`を使用
+        .setup(|_app| {
             // 開発環境の場合は、開発者コンソールを有効化
             #[cfg(debug_assertions)]
             {
+                let app = _app;
                 let window = app.get_webview_window("main").unwrap();
                 window.open_devtools();
             }
