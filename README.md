@@ -4,7 +4,7 @@
 ![Built with Tauri](https://img.shields.io/badge/Built%20with-Tauri-24C8DB)
 ![React + Vite + TS](https://img.shields.io/badge/React%20%2B%20Vite-TypeScript-2ea44f)
 
-Cross-platform Bilibili video downloader GUI. Frontend is built with React + Vite; the desktop app is powered by Tauri (Rust).
+Windows and macOS Bilibili video downloader GUI. Frontend is built with React + Vite; the desktop app is powered by Tauri (Rust).
 
 > Notice: This app is intended for educational and personal use. Respect the terms of service and copyright laws. Do not download or redistribute content without permission from rights holders.
 
@@ -24,6 +24,11 @@ Cross-platform Bilibili video downloader GUI. Frontend is built with React + Vit
 - Toolchain required by Tauri builds (e.g., Xcode Command Line Tools on macOS)
 
 See: [Tauri official docs](https://tauri.app/)
+
+## Supported OS
+
+- Windows 10/11
+- macOS 12+ (Intel and Apple Silicon)
 
 ## Quick Start (Development)
 

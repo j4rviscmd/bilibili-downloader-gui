@@ -11,6 +11,7 @@ pub fn get_ffmpeg_path(app: &AppHandle) -> PathBuf {
     let ffmpeg = if cfg!(target_os = "windows") {
         let mut ffmpeg = lib
             .join("ffmpeg-master-latest-win64-lgpl-shared")
+            .join("ffmpeg-master-latest-win64-lgpl-shared")
             .join("bin")
             .join("ffmpeg")
             .clone();
