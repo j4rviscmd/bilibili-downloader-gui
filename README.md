@@ -42,6 +42,22 @@ See: [Tauri official docs](https://tauri.app/)
 - `npm run tauri build`
   - Artifacts are typically generated under `src-tauri/target/release/` (varies by OS).
 
+## macOS: First Launch of Unsigned Builds
+
+If you run a build that is not notarized/signed with an Apple Developer certificate (e.g., CI artifacts), macOS Gatekeeper may block the app. You can either:
+
+- Right-click the app → Open → Open, or
+- Remove the quarantine/extended attributes:
+
+```bash
+# Replace the path with your actual installed app name/location
+xattr -dr com.apple.quarantine "/Applications/bilibili-downloader-gui.app"
+# or clear all extended attributes
+xattr -c "/Applications/bilibili-downloader-gui.app"
+```
+
+If you installed the app outside /Applications, adjust the path accordingly.
+
 ## Project Structure (Excerpt)
 
 Top-level overview:
