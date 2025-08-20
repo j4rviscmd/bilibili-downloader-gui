@@ -42,6 +42,26 @@ Windows / macOS 対応の Bilibili 動画ダウンローダー GUI。フロン�
 - `npm run tauri build`
   - 成果物は通常、`src-tauri/target/release/`（OSにより異なる）に生成されます。
 
+## インストール
+
+最新版のリリースページからダウンロードしてください：
+[Releases › Latest](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest)
+
+- Windows (x64)
+  - インストーラー（推奨）:
+  - EXE: [bilibili-downloader-gui_0.1.0_x64-setup.exe](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_0.1.0_x64-setup.exe)
+  - MSI（代替）:
+  - MSI: [bilibili-downloader-gui_0.1.0_x64_en-US.msi](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_0.1.0_x64_en-US.msi)
+
+- macOS（Intel x64 / Apple Silicon aarch64）
+  - DMG（Intel x64）: [bilibili-downloader-gui_0.1.0_x64.dmg](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_0.1.0_x64.dmg)
+  - DMG（Apple Silicon aarch64）: [bilibili-downloader-gui_0.1.0_aarch64.dmg](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_0.1.0_aarch64.dmg)
+  - アプリ一式（未署名の代替）:
+    - TAR.GZ（Intel x64）: [bilibili-downloader-gui_x64.app.tar.gz](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_x64.app.tar.gz)
+    - TAR.GZ（Apple Silicon aarch64）: [bilibili-downloader-gui_aarch64.app.tar.gz](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_aarch64.app.tar.gz)
+
+未署名ビルドの macOS での初回起動手順は、下の Gatekeeper 回避の説明を参照してください。
+
 ## macOS で自己署名/未署名ビルドを起動する場合の注意
 
 Apple Developer Program の証明書で署名・公証していないビルドは、Gatekeeper により起動がブロックされることがあります。以下のいずれかで回避できます。

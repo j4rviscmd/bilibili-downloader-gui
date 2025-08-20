@@ -42,6 +42,25 @@ See: [Tauri official docs](https://tauri.app/)
 - `npm run tauri build`
   - Artifacts are typically generated under `src-tauri/target/release/` (varies by OS).
 
+## Installation
+
+Download from the latest release: [Releases › Latest](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest)
+
+- Windows (x64)
+  - Installer (recommended):
+  - EXE: [bilibili-downloader-gui_0.1.0_x64-setup.exe](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_0.1.0_x64-setup.exe)
+  - MSI (alternative):
+  - MSI: [bilibili-downloader-gui_0.1.0_x64_en-US.msi](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_0.1.0_x64_en-US.msi)
+
+- macOS (Intel x64 and Apple Silicon aarch64)
+  - DMG (Intel x64): [bilibili-downloader-gui_0.1.0_x64.dmg](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_0.1.0_x64.dmg)
+  - DMG (Apple Silicon aarch64): [bilibili-downloader-gui_0.1.0_aarch64.dmg](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_0.1.0_aarch64.dmg)
+  - App archive (unsigned alternative):
+    - TAR.GZ (Intel x64): [bilibili-downloader-gui_x64.app.tar.gz](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_x64.app.tar.gz)
+    - TAR.GZ (Apple Silicon aarch64): [bilibili-downloader-gui_aarch64.app.tar.gz](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_aarch64.app.tar.gz)
+
+Note: For unsigned builds on macOS, see the section below about Gatekeeper and xattr.
+
 ## macOS: First Launch of Unsigned Builds
 
 If you run a build that is not notarized/signed with an Apple Developer certificate (e.g., CI artifacts), macOS Gatekeeper may block the app. You can either:
