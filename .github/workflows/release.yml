@@ -7,7 +7,71 @@ on:
       - main
 
 jobs:
+  preflight:
+    name: Preflight — ensure tag/release does not exist
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Check for existing tag/release v__VERSION__
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const core = require('@actions/core');
+            // Read version primarily from Tauri config, fallback to package.json
+            const cfgPath = path.join(process.cwd(), 'src-tauri', 'tauri.conf.json');
+            let version = '';
+            try {
+              const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+              version = cfg.version || '';
+            } catch (e) {
+              core.info(`Failed reading ${cfgPath}: ${e.message}`);
+            }
+            if (!version) {
+              try {
+                const pkg = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'));
+                version = pkg.version || '';
+              } catch (e) {
+                core.info(`Failed reading package.json: ${e.message}`);
+              }
+            }
+            if (!version) {
+              core.setFailed('Unable to determine version from src-tauri/tauri.conf.json or package.json');
+              return;
+            }
+            const tagName = `v${version}`;
+            core.info(`Checking if tag or release exists for ${tagName} ...`);
+            // Check tag
+            try {
+              await github.rest.git.getRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: `tags/${tagName}`,
+              });
+              core.setFailed(`Tag ${tagName} already exists.`);
+              return;
+            } catch (e) {
+              if (e.status !== 404) throw e;
+            }
+            // Check release
+            const releases = await github.rest.repos.listReleases({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100,
+            });
+            const found = releases.data.find(r => r.tag_name === tagName);
+            if (found) {
+              core.setFailed(`Release with tag ${tagName} already exists.`);
+              return;
+            }
+            core.info(`OK: ${tagName} does not exist.`);
   publish-tauri:
+    needs: preflight
     permissions:
       contents: write
     strategy:
