@@ -172,7 +172,16 @@ fn validate_command(path: &PathBuf) -> bool {
     }
 
     // {path} --helpを実行して終了コードを確認
-    let cmd = Command::new(path).arg("--help").output();
+    let mut cmd_builder = Command::new(path);
+    cmd_builder.arg("--help");
+    // Windowsでコンソールウィンドウが開かないようにする
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd_builder.creation_flags(CREATE_NO_WINDOW);
+    }
+    let cmd = cmd_builder.output();
     if let Err(e) = cmd {
         println!("`{} --help`の実行に失敗: {}", path.to_string_lossy(), e);
         return false;
@@ -191,19 +200,28 @@ pub async fn merge_av(
     let emits = Emits::new(app.clone(), filename.to_string(), None);
     let ffmpeg_path = get_ffmpeg_path(app);
     // ffmpeg コマンド実行（非同期）
-    let status = AsyncCommand::new(ffmpeg_path)
-        .args([
-            "-i",
-            video_path.to_str().unwrap(),
-            "-i",
-            audio_path.to_str().unwrap(),
-            "-c:v",
-            "copy", // 再エンコードせずコピー
-            "-c:a",
-            "aac",
-            "-y", // 上書き許可
-            output_path.to_str().unwrap(),
-        ])
+    let mut cmd = AsyncCommand::new(ffmpeg_path);
+    cmd.args([
+        "-i",
+        video_path.to_str().unwrap(),
+        "-i",
+        audio_path.to_str().unwrap(),
+        "-c:v",
+        "copy", // 再エンコードせずコピー
+        "-c:a",
+        "aac",
+        "-y", // 上書き許可
+        output_path.to_str().unwrap(),
+    ]);
+
+    // Windowsでコンソールウィンドウが開かないようにする
+    #[cfg(target_os = "windows")]
+    {
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let status = cmd
         .status()
         .await
         .map_err(|e| format!("Failed to run ffmpeg: {e}"))?;
