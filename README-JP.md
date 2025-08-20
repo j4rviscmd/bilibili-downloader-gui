@@ -10,6 +10,8 @@ Windows / macOS 対応の Bilibili 動画ダウンローダー GUI。フロン�
 
 ![App Icon](public/icon.png)
 
+![アプリ イメージ](public/app-image.png)
+
 ## 主な機能
 
 - Bilibili の動画情報取得とダウンロード補助

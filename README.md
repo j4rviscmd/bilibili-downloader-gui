@@ -10,6 +10,8 @@ Windows and macOS Bilibili video downloader GUI. Frontend is built with React + 
 
 ![App Icon](public/icon.png)
 
+![App Image](public/app-image.png)
+
 ## Features
 
 - Fetch Bilibili video info and assist downloads
