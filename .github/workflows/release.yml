@@ -22,7 +22,6 @@ jobs:
           script: |
             const fs = require('fs');
             const path = require('path');
-            const core = require('@actions/core');
             // Read version primarily from Tauri config, fallback to package.json
             const cfgPath = path.join(process.cwd(), 'src-tauri', 'tauri.conf.json');
             let version = '';
@@ -46,6 +45,7 @@ jobs:
             }
             const tagName = `v${version}`;
             core.info(`Checking if tag or release exists for ${tagName} ...`);
+
             // Check tag
             try {
               await github.rest.git.getRef({
