@@ -177,3 +177,7 @@ MIT License — 詳細は [LICENSE](./LICENSE) を参照してください。
 
 - Tauri チームとコミュニティ
 - shadcn/ui, Radix UI, sonner などの OSS
+
+---
+
+本プロジェクトがお役に立ちましたら、リポジトリにスターをいただけると継続的な開発の大きな励みになります。

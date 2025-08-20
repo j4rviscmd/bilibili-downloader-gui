@@ -176,3 +176,7 @@ MIT License — see [LICENSE](./LICENSE) for details.
 
 - The Tauri team and community
 - OSS such as shadcn/ui, Radix UI, sonner
+
+---
+
+If you find this project useful, please consider starring the repo — it really helps motivate continued development.
