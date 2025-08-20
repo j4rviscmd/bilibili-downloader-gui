@@ -42,6 +42,22 @@ Windows / macOS 対応の Bilibili 動画ダウンローダー GUI。フロン�
 - `npm run tauri build`
   - 成果物は通常、`src-tauri/target/release/`（OSにより異なる）に生成されます。
 
+## macOS で自己署名/未署名ビルドを起動する場合の注意
+
+Apple Developer Program の証明書で署名・公証していないビルドは、Gatekeeper により起動がブロックされることがあります。以下のいずれかで回避できます。
+
+- アプリを右クリック → 開く → 再度「開く」を選ぶ
+- もしくは拡張属性（隔離フラグ）を削除する:
+
+```bash
+# 実際のインストール先/アプリ名に置き換えてください
+xattr -dr com.apple.quarantine "/Applications/bilibili-downloader-gui.app"
+# または拡張属性をすべて削除
+xattr -c "/Applications/bilibili-downloader-gui.app"
+```
+
+アプリを /Applications 以外に配置した場合は、パスを読み替えてください。
+
 ## ディレクトリ構成（抜粋）
 
 プロジェクト全体（簡略）:
