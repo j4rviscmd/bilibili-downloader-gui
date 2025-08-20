@@ -154,6 +154,16 @@ src-tauri/src/
 - Frontend: React, Vite, TypeScript, Redux Toolkit, shadcn/ui, animate‑ui
 - Desktop: Tauri (Rust)
 
+## Future
+
+- [ ] Multi-language support (en)
+- [ ] Switch frontend directory structure to FSD (Feature‑Sliced Design)
+- [ ] Download selected videos from playback history
+- [ ] Settings
+  - [ ] Select download destination
+  - [ ] Allow overwriting existing files
+- [ ] Output `app.log`
+
 ## Contributing
 
 Issues and PRs are welcome. For large changes, please start a discussion in an Issue first. Small fixes (docs, typos, minor UI tweaks) are appreciated.
