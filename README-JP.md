@@ -10,6 +10,8 @@ Windows / macOS 対応の Bilibili 動画ダウンローダー GUI。フロン�
 
 ![App Icon](public/icon.png)
 
+![アプリ イメージ](public/app-image.png)
+
 ## 主な機能
 
 - Bilibili の動画情報取得とダウンロード補助
@@ -41,6 +43,26 @@ Windows / macOS 対応の Bilibili 動画ダウンローダー GUI。フロン�
 
 - `npm run tauri build`
   - 成果物は通常、`src-tauri/target/release/`（OSにより異なる）に生成されます。
+
+## インストール
+
+最新版のリリースページからダウンロードしてください：
+[Releases › Latest](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest)
+
+- Windows (x64)
+  - インストーラー（推奨）:
+  - EXE: [bilibili-downloader-gui_0.1.0_x64-setup.exe](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_0.1.0_x64-setup.exe)
+  - MSI（代替）:
+  - MSI: [bilibili-downloader-gui_0.1.0_x64_en-US.msi](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_0.1.0_x64_en-US.msi)
+
+- macOS（Intel x64 / Apple Silicon aarch64）
+  - DMG（Intel x64）: [bilibili-downloader-gui_0.1.0_x64.dmg](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_0.1.0_x64.dmg)
+  - DMG（Apple Silicon aarch64）: [bilibili-downloader-gui_0.1.0_aarch64.dmg](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_0.1.0_aarch64.dmg)
+  - アプリ一式（未署名の代替）:
+    - TAR.GZ（Intel x64）: [bilibili-downloader-gui_x64.app.tar.gz](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_x64.app.tar.gz)
+    - TAR.GZ（Apple Silicon aarch64）: [bilibili-downloader-gui_aarch64.app.tar.gz](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_aarch64.app.tar.gz)
+
+未署名ビルドの macOS での初回起動手順は、下の Gatekeeper 回避の説明を参照してください。
 
 ## macOS で自己署名/未署名ビルドを起動する場合の注意
 
@@ -132,6 +154,16 @@ src-tauri/src/
 
 - Frontend: React, Vite, TypeScript, Redux Toolkit, shadcn/ui, animate‑ui
 - Desktop: Tauri (Rust)
+
+## 今後の予定（Future）
+
+- [ ] 多言語対応（en）
+- [ ] Frontend のディレクトリ構成を FSD（Feature‑Sliced Design）へ変更
+- [ ] 再生履歴から選択した動画のダウンロード
+- [ ] 設定機能
+  - [ ] ダウンロード先の指定
+  - [ ] 既存ファイルの上書き許可
+- [ ] `app.log` の出力
 
 ## 貢献ガイド
 
