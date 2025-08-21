@@ -1,0 +1,28 @@
+{
+  "app": {
+    "title": "Bilibili Downloader",
+    "subtitle": "Lightweight desktop app to assist downloads"
+  },
+  "nav": {
+    "home": "Home",
+    "init": "Init",
+    "error": "Error"
+  },
+  "actions": {
+    "submit": "Submit",
+    "cancel": "Cancel",
+    "download": "Download",
+    "close": "Close"
+  },
+  "video": {
+    "url_placeholder": "Paste Bilibili URL",
+    "fetch_info": "Fetch info",
+    "downloading": "Downloading...",
+    "completed": "Completed",
+    "failed": "Failed"
+  },
+  "toast": {
+    "success": "Success",
+    "error": "Something went wrong"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "app": {
+    "title": "Bilibili ダウンローダー",
+    "subtitle": "軽量なデスクトップアプリでダウンロードを支援"
+  },
+  "nav": {
+    "home": "ホーム",
+    "init": "初期化",
+    "error": "エラー"
+  },
+  "actions": {
+    "submit": "送信",
+    "cancel": "キャンセル",
+    "download": "ダウンロード",
+    "close": "閉じる"
+  },
+  "video": {
+    "url_placeholder": "Bilibili のURLを貼り付け",
+    "fetch_info": "情報を取得",
+    "downloading": "ダウンロード中...",
+    "completed": "完了",
+    "failed": "失敗"
+  },
+  "toast": {
+    "success": "成功",
+    "error": "問題が発生しました"
+  }
+}
