@@ -158,19 +158,13 @@ src-tauri/src/
 
 ## 今後の予定（Future）
 
-<<<<<<< HEAD
-
-- [ ] # 多言語対応（en）
 - [x] 多言語対応（en, ja, fr, es, zh, ko）
-  > > > > > > > dev
 - [ ] Frontend のディレクトリ構成を FSD（Feature‑Sliced Design）へ変更
 - [ ] 再生履歴から選択した動画のダウンロード
 - [ ] 設定機能
   - [ ] ダウンロード先の指定
   - [ ] 既存ファイルの上書き許可
 - [ ] `app.log` の出力
-
-# <<<<<<< HEAD
 
 ## ローカライズ (i18n)
 
@@ -186,8 +180,6 @@ src-tauri/src/
 追加の言語や改善提案は歓迎です。不自然 / こなれていない表現を見つけた場合は、遠慮なく Pull Request を送ってください。
 
 If you notice any awkward Japanese/English phrasing, feel free to open a PR.
-
-> > > > > > > dev
 
 ## 貢献ガイド
 

@@ -157,19 +157,13 @@ src-tauri/src/
 
 ## Future
 
-<<<<<<< HEAD
-
-- [ ] # Multi-language support (en)
 - [x] Multi-language support (en, ja, fr, es, zh, ko)
-  > > > > > > > dev
 - [ ] Switch frontend directory structure to FSD (Feature‑Sliced Design)
 - [ ] Download selected videos from playback history
 - [ ] Settings
   - [ ] Select download destination
   - [ ] Allow overwriting existing files
 - [ ] Output `app.log`
-
-# <<<<<<< HEAD
 
 ## Localization (i18n)
 
@@ -185,8 +179,6 @@ Current supported languages:
 Contributions welcome for additional languages. If you find an unnatural or awkward phrase, please open a Pull Request.
 
 不自然な言い回しや表現を見つけた場合は、遠慮なく Pull Request を送ってください。
-
-> > > > > > > dev
 
 ## Contributing
 
