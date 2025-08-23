@@ -46,23 +46,23 @@ export const useInit = () => {
      *  255: 想定外エラー
      */
     let resCode = 255
-    const settings = await getAppSettings()
-    // 設定言語適用（main.tsx 初期化後に遅延適用する）
-    if (settings?.language) {
-      try {
-        if ((await import('@/i18n')).default.language !== settings.language) {
-          setMessage(t('init.applying_language', { lang: settings.language }))
-          await changeLanguage(settings.language)
-          setMessage(t('init.applied_language', { lang: settings.language }))
-          // 言語は即反映したいので`sleep`させない
-          // await sleep(500)
-        }
-      } catch (e) {
-        console.warn('Failed to apply language setting', e)
-      }
-    }
     const isValidVersion = await checkVersion()
     if (isValidVersion) {
+      const settings = await getAppSettings()
+      // 設定言語適用（main.tsx 初期化後に遅延適用する）
+      if (settings?.language) {
+        try {
+          if ((await import('@/i18n')).default.language !== settings.language) {
+            setMessage(t('init.applying_language', { lang: settings.language }))
+            await changeLanguage(settings.language)
+            setMessage(t('init.applied_language', { lang: settings.language }))
+            // 言語は即反映したいので`sleep`させない
+            // await sleep(500)
+          }
+        } catch (e) {
+          console.warn('Failed to apply language setting', e)
+        }
+      }
       const isValidFfmpeg = await checkFfmpeg()
       if (isValidFfmpeg) {
         const isValidCookie = await checkCookie()
