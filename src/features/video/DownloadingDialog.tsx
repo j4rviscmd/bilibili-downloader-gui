@@ -11,18 +11,19 @@ import { Button } from '@/components/ui/button'
 import { VIDEO_URL_KEY } from '@/features/video/constants'
 import { useVideoInfo } from '@/features/video/useVideoInfo'
 import { Download, Music, Play, Video } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
-const getBarInfo = (id: string) => {
+const getBarInfo = (id: string, t: (k: string) => string) => {
   let label = ''
   let icon = <></>
   if (id === 'temp_audio') {
-    label = '音声データ'
+    label = t('video.bar_audio')
     icon = <Music size={13} />
   } else if (id === 'temp_video') {
-    label = '動画データ'
+    label = t('video.bar_video')
     icon = <Video size={13} />
   } else {
-    label = '動画の生成'
+    label = t('video.bar_merge')
     icon = <Play size={13} />
   }
 
@@ -31,6 +32,7 @@ const getBarInfo = (id: string) => {
 
 function DownloadingDialog() {
   const { progress } = useVideoInfo()
+  const { t } = useTranslation()
   const onClick = () => {
     localStorage.setItem(VIDEO_URL_KEY, '')
     // NOTE: ページリロードによりリセットするのでコメントアウト
@@ -52,13 +54,13 @@ function DownloadingDialog() {
         <DialogHeader className="w-full">
           <DialogTitle className="text-primary flex w-full items-center">
             <Download size={16} className="mr-0.5" />
-            <span>ダウンロード進行状況</span>
+            <span>{t('video.progress_title')}</span>
           </DialogTitle>
           <DialogDescription hidden />
         </DialogHeader>
         {hasDlQue &&
           progress.map((p) => {
-            const barInfo = getBarInfo(p.downloadId)
+            const barInfo = getBarInfo(p.downloadId, t)
             const barLabel = barInfo[0]
             const barIcon = barInfo[1]
             return (
@@ -78,7 +80,11 @@ function DownloadingDialog() {
           })}
         <div>
           <Button disabled={isDownloading} onClick={onClick}>
-            {isDownloading ? <CircleIndicator r={8} /> : 'ダウンロード完了'}
+            {isDownloading ? (
+              <CircleIndicator r={8} />
+            ) : (
+              t('video.download_completed')
+            )}
           </Button>
         </div>
       </DialogContent>

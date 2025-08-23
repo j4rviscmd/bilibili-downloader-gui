@@ -44,3 +44,10 @@ pub fn get_ffmpeg_root_path(app: &AppHandle) -> PathBuf {
 pub fn get_lib_path(app: &AppHandle) -> PathBuf {
     app.path().resource_dir().unwrap().join("lib")
 }
+
+pub fn get_settings_path(app: &AppHandle) -> PathBuf {
+    let lib = get_lib_path(app);
+    let settings = lib.join("settings.json");
+
+    settings
+}

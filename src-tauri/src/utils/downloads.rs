@@ -21,8 +21,8 @@ pub async fn download_url(
             fs::remove_file(output_path).await?;
             println!("Removed existing file: {:?}", output_path);
         } else {
-            let msg = format!("ファイルがすでに存在しています: {:?}", output_path);
-            return Err(anyhow::anyhow!(msg));
+            // Return standardized error code so frontend can localize
+            return Err(anyhow::anyhow!("ERR::FILE_EXISTS"));
         }
     }
 

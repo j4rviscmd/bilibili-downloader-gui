@@ -30,7 +30,7 @@ pub async fn download_video(
 
     // すでに同名ファイルが存在する場合はエラー
     if output_path.exists() {
-        return Err("ファイルがすでに存在しています".into());
+        return Err("ERR::FILE_EXISTS".into());
     }
 
     // Get cookies from cache.
