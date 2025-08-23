@@ -5,11 +5,13 @@ import { useInit } from '@/features/init/useInit'
 import { sleep } from '@/lib/utils'
 import { clearProgress } from '@/shared/progress/progressSlice'
 import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
 function InitPage() {
   const navigate = useNavigate()
   const { progress, processingFnc, initApp } = useInit()
+  const { t } = useTranslation()
 
   useEffect(() => {
     progress.forEach((p) => {
@@ -53,7 +55,7 @@ function InitPage() {
       <div className="flex w-full flex-col items-center">
         <CircleIndicator />
         <div className="text-muted-foreground text-center text-xl font-bold">
-          初期化中...
+          {t('init.initializing')}
         </div>
         <div className="text-muted-foreground text-sm">{processingFnc}</div>
         {progress.length > 0 &&
