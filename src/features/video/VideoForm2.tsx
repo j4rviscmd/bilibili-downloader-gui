@@ -19,11 +19,13 @@ import { useVideoInfo } from '@/features/video/useVideoInfo'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
 import { z } from 'zod'
 import { cn } from '../../lib/utils'
 
 function VideoForm2() {
   const { video, onValid2 } = useVideoInfo()
+  const { t } = useTranslation()
 
   useEffect(() => {
     ;(async () => {
@@ -72,16 +74,18 @@ function VideoForm2() {
             name="title"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>タイトル</FormLabel>
+                <FormLabel>{t('video.title_label')}</FormLabel>
                 <FormControl>
                   <Input
-                    placeholder="URLを入力するとタイトルが自動で入力されます"
+                    placeholder={
+                      t('video.title_placeholder') ||
+                      'URLを入力するとタイトルが自動で入力されます'
+                    }
                     {...field}
                   />
                 </FormControl>
                 <FormDescription>
-                  BiliBili動画のタイトルを入力してください。
-                  ダウンロードしたファイル名になります。
+                  {t('video.title_description')}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -92,7 +96,7 @@ function VideoForm2() {
             name="quality"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>画質</FormLabel>
+                <FormLabel>{t('video.quality_label')}</FormLabel>
                 <FormControl>
                   <RadioGroup
                     {...field}
@@ -128,10 +132,9 @@ function VideoForm2() {
                   </RadioGroup>
                 </FormControl>
                 <FormDescription>
-                  ダウンロードする動画の画質を選択してください。
+                  {t('video.quality_description')}
                   <br />
-                  ※
-                  720p60や1080p60などの高画質は、ログイン状態や地域によっては選択できない場合があります。
+                  {t('video.quality_note')}
                   <br />
                 </FormDescription>
                 <FormMessage />
