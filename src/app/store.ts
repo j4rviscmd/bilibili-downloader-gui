@@ -3,6 +3,7 @@ import initReducer from '@/features/init/initSlice'
 import inputReducer from '@/features/video/inputSlice'
 import videoReducer from '@/features/video/videoSlice'
 import progressReducer from '@/shared/progress/progressSlice'
+import settingReducer from '@/shared/settings/settingsSlice'
 import userReducer from '@/shared/user/userSlice'
 import { configureStore } from '@reduxjs/toolkit'
 import {
@@ -19,6 +20,7 @@ export const store = configureStore({
     progress: progressReducer,
     input: inputReducer,
     video: videoReducer,
+    settings: settingReducer,
   },
   devTools: process.env.NODE_ENV !== 'production',
 })

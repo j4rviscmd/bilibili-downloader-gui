@@ -4,6 +4,7 @@ import {
   setInitiated as setValue,
 } from '@/features/init/initSlice'
 import { sleep } from '@/lib/utils'
+import { useSettings } from '@/shared/settings/useSettings'
 import { useUser } from '@/shared/user/useUser'
 import { invoke } from '@tauri-apps/api/core'
 import { exit, relaunch } from '@tauri-apps/plugin-process'
@@ -12,6 +13,8 @@ import { useSelector } from 'react-redux'
 
 export const useInit = () => {
   const { getUserInfo } = useUser()
+  const { getSettings } = useSettings()
+
   const initiated = useSelector((state: RootState) => state.init.initiated)
   const progress = useSelector((state: RootState) => state.progress)
   const processingFnc = useSelector(
@@ -40,6 +43,8 @@ export const useInit = () => {
      *  255: 想定外エラー
      */
     let resCode = 255
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const _settings = await getAppSettings()
     const isValidVersion = await checkVersion()
     if (isValidVersion) {
       const isValidFfmpeg = await checkFfmpeg()
@@ -93,6 +98,13 @@ export const useInit = () => {
     return res
   }
 
+  const getAppSettings = async () => {
+    setMessage('🛠️ アプリ設定の取得中...')
+    await sleep(500)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const _settings = await getSettings()
+  }
+
   /**
    * アプリバージョンのチェック
    * すでに最新である場合、0.5sほど「お使いのアプリは最新です」を表示される
@@ -103,7 +115,7 @@ export const useInit = () => {
     // 開発環境ではアップデートチェックをスキップ
     if (import.meta.env.DEV) {
       setMessage('🛠️ 開発モードのためバージョンチェックをスキップ')
-      await sleep(300)
+      await sleep(500)
       return true
     }
 

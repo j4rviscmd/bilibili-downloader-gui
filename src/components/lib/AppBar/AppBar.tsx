@@ -1,4 +1,5 @@
 import ToggleThemeButton from '@/features/preference/ToggleThemeButton'
+import LanguagesDropdown from '@/shared/settings/LanguagesDropdown'
 import type { User } from '@/shared/user'
 
 type Props = {
@@ -16,7 +17,11 @@ function AppBar({ user, theme, setTheme }: Props) {
         <span className="text-muted-foreground">ログインユーザ:</span>
         <span className="px-3">{userName}</span>
       </div>
-      <ToggleThemeButton theme={theme} setTheme={setTheme} />
+      <div className="flex items-center">
+        <LanguagesDropdown />
+        <div className="mx-1.5" />
+        <ToggleThemeButton theme={theme} setTheme={setTheme} />
+      </div>
     </div>
   )
 }

@@ -5,9 +5,11 @@ use tauri::Manager;
 use crate::handlers::bilibili;
 use crate::handlers::cookie;
 use crate::handlers::ffmpeg;
+use crate::handlers::settings;
 use crate::models::cookie::CookieCache;
 use crate::models::frontend_dto::User;
 use crate::models::frontend_dto::Video;
+use crate::models::settings::Settings;
 
 pub mod constants;
 pub mod emits;
@@ -30,6 +32,8 @@ pub fn run() {
             fetch_user,
             fetch_video_info,
             download_video,
+            get_settings,
+            set_settings
         ])
         // 開発環境以外で`app`宣言ではBuildに失敗するため、`_app`を使用
         .setup(|_app| {
@@ -99,6 +103,24 @@ async fn download_video(
     quality: i32,
 ) -> Result<(), String> {
     let res = bilibili::download_video(&app, &video_id, &filename, &quality)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(res)
+}
+
+#[tauri::command]
+async fn get_settings(app: AppHandle) -> Result<Settings, String> {
+    let res = settings::get_settings(&app)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(res)
+}
+
+#[tauri::command]
+async fn set_settings(app: AppHandle, settings: Settings) -> Result<(), String> {
+    let res = settings::set_settings(&app, &settings)
         .await
         .map_err(|e| e.to_string())?;
 
