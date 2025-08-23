@@ -18,6 +18,7 @@ Windows / macOS 対応の Bilibili 動画ダウンローダー GUI。フロン�
 - 軽量・高速な Tauri 製デスクトップアプリ
 - ダーク/ライトテーマ切り替え（shadcn/ui ベース）
 - 進捗表示・トースト通知
+- 多言語 UI 対応（英語 / 日本語）
 
 ## 動作環境
 
@@ -157,13 +158,24 @@ src-tauri/src/
 
 ## 今後の予定（Future）
 
-- [ ] 多言語対応（en）
+- [x] 多言語対応（en, ja）
 - [ ] Frontend のディレクトリ構成を FSD（Feature‑Sliced Design）へ変更
 - [ ] 再生履歴から選択した動画のダウンロード
 - [ ] 設定機能
   - [ ] ダウンロード先の指定
   - [ ] 既存ファイルの上書き許可
 - [ ] `app.log` の出力
+
+## ローカライズ (i18n)
+
+現在サポートしている言語:
+
+- 英語 (en)
+- 日本語 (ja)
+
+追加の言語や改善提案は歓迎です。不自然 / こなれていない表現を見つけた場合は、遠慮なく Pull Request を送ってください。
+
+If you notice any awkward Japanese/English phrasing, feel free to open a PR.
 
 ## 貢献ガイド
 
