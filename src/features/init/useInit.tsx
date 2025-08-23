@@ -4,6 +4,7 @@ import {
   setInitiated as setValue,
 } from '@/features/init/initSlice'
 import { sleep } from '@/lib/utils'
+import { changeLanguage } from '@/shared/i18n'
 import { useSettings } from '@/shared/settings/useSettings'
 import { useUser } from '@/shared/user/useUser'
 import { invoke } from '@tauri-apps/api/core'
@@ -43,8 +44,20 @@ export const useInit = () => {
      *  255: 想定外エラー
      */
     let resCode = 255
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const _settings = await getAppSettings()
+    const settings = await getAppSettings()
+    // 設定言語適用（main.tsx 初期化後に遅延適用する）
+    if (settings?.language) {
+      try {
+        if ((await import('@/i18n')).default.language !== settings.language) {
+          setMessage(`🌐 言語を適用中 (${settings.language})...`)
+          await changeLanguage(settings.language)
+          setMessage(`✅ 言語を ${settings.language} に切り替えました`)
+          await sleep(200)
+        }
+      } catch (e) {
+        console.warn('Failed to apply language setting', e)
+      }
+    }
     const isValidVersion = await checkVersion()
     if (isValidVersion) {
       const isValidFfmpeg = await checkFfmpeg()
@@ -100,9 +113,9 @@ export const useInit = () => {
 
   const getAppSettings = async () => {
     setMessage('🛠️ アプリ設定の取得中...')
-    await sleep(500)
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const _settings = await getSettings()
+    await sleep(300)
+    const settings = await getSettings()
+    return settings
   }
 
   /**
