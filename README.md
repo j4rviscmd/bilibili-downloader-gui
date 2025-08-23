@@ -10,7 +10,7 @@ Windows and macOS Bilibili video downloader GUI. Frontend is built with React + 
 
 ![App Icon](public/icon.png)
 
-![App Image](public/app-image.png)
+![App Image](public/app-image_en.png)
 
 ## Features
 
@@ -18,6 +18,7 @@ Windows and macOS Bilibili video downloader GUI. Frontend is built with React + 
 - Lightweight and fast desktop app built with Tauri
 - Light/Dark theme toggle (shadcn/ui based)
 - Progress indicator and toast notifications
+- Multi-language UI (English / 日本語 / Français / Español / 中文 / 한국어)
 
 ## Requirements
 
@@ -156,13 +157,36 @@ src-tauri/src/
 
 ## Future
 
-- [ ] Multi-language support (en)
+<<<<<<< HEAD
+
+- [ ] # Multi-language support (en)
+- [x] Multi-language support (en, ja, fr, es, zh, ko)
+  > > > > > > > dev
 - [ ] Switch frontend directory structure to FSD (Feature‑Sliced Design)
 - [ ] Download selected videos from playback history
 - [ ] Settings
   - [ ] Select download destination
   - [ ] Allow overwriting existing files
 - [ ] Output `app.log`
+
+# <<<<<<< HEAD
+
+## Localization (i18n)
+
+Current supported languages:
+
+- English (en)
+- 日本語 (ja)
+- Français (fr)
+- Español (es)
+- 中文 (zh)
+- 한국어 (ko)
+
+Contributions welcome for additional languages. If you find an unnatural or awkward phrase, please open a Pull Request.
+
+不自然な言い回しや表現を見つけた場合は、遠慮なく Pull Request を送ってください。
+
+> > > > > > > dev
 
 ## Contributing
 
@@ -176,3 +200,7 @@ MIT License — see [LICENSE](./LICENSE) for details.
 
 - The Tauri team and community
 - OSS such as shadcn/ui, Radix UI, sonner
+
+---
+
+If you find this project useful, please consider starring the repo — it really helps motivate continued development.
