@@ -38,6 +38,11 @@
     "download_failed": "Failed to download",
     "file_exists": "A file with the same name already exists"
   },
+  "progress": {
+    "elapsed": "Elapsed",
+    "speed": "Speed",
+    "downloaded": "Downloaded"
+  },
   "toast": {
     "success": "Success",
     "error": "Something went wrong"

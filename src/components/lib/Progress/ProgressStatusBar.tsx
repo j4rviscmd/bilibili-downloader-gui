@@ -4,12 +4,14 @@ import {
   ProgressTrack,
 } from '@/components/animate-ui/base/progress'
 import type { Progress as ProgressType } from '@/shared/progress'
+import { useTranslation } from 'react-i18next'
 
 type Props = {
   progress: ProgressType
 }
 
 function ProgressStatusBar({ progress }: Props) {
+  const { t } = useTranslation()
   return (
     <Progress
       value={progress.percentage}
@@ -20,10 +22,10 @@ function ProgressStatusBar({ progress }: Props) {
           <div className="flex items-center justify-between">
             <ProgressLabel className="flex w-full items-center text-sm">
               <div className="w-1/3">
-                経過: {Math.round(progress.elapsedTime)}s
+                {t('progress.elapsed')}: {Math.round(progress.elapsedTime)}s
               </div>
               <div className="w-1/3">
-                速度: {progress.transferRate.toFixed(1)}MB/s
+                {t('progress.speed')}: {progress.transferRate.toFixed(1)}MB/s
               </div>
               <div className="w-1/3">
                 {progress.downloaded.toFixed(1)}mb/
@@ -43,8 +45,10 @@ function ProgressStatusBar({ progress }: Props) {
         <>
           <div className="flex items-center justify-between">
             <ProgressLabel className="flex w-full items-center justify-between text-sm">
-              <div>経過: {progress.elapsedTime}s</div>
-              <div></div>
+              <div>
+                {t('progress.elapsed')}: {progress.elapsedTime}s
+              </div>
+              <div />
             </ProgressLabel>
           </div>
           <div className="flex items-center">

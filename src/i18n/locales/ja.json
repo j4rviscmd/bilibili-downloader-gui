@@ -38,6 +38,11 @@
     "download_failed": "ダウンロードに失敗しました",
     "file_exists": "同名のファイルが既に存在します"
   },
+  "progress": {
+    "elapsed": "経過",
+    "speed": "速度",
+    "downloaded": "ダウンロード量"
+  },
   "toast": {
     "success": "成功",
     "error": "問題が発生しました"
