@@ -1,7 +1,8 @@
 {
   "app": {
     "title": "Téléchargeur Bilibili",
-    "subtitle": "Application de bureau légère pour aider aux téléchargements"
+    "subtitle": "Application de bureau légère pour aider aux téléchargements",
+    "logged_in_user": "Utilisateur connecté"
   },
   "nav": { "home": "Accueil", "init": "Initialisation", "error": "Erreur" },
   "actions": {

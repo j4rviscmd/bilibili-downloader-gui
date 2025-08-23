@@ -1,7 +1,8 @@
 {
   "app": {
     "title": "Bilibili ダウンローダー",
-    "subtitle": "軽量なデスクトップアプリでダウンロードを支援"
+    "subtitle": "軽量なデスクトップアプリでダウンロードを支援",
+    "logged_in_user": "ログインユーザ"
   },
   "nav": {
     "home": "ホーム",

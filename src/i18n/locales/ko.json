@@ -1,7 +1,8 @@
 {
   "app": {
     "title": "Bilibili 다운로더",
-    "subtitle": "가벼운 데스크톱 앱으로 다운로드 지원"
+    "subtitle": "가벼운 데스크톱 앱으로 다운로드 지원",
+    "logged_in_user": "로그인 사용자"
   },
   "nav": { "home": "홈", "init": "초기화", "error": "오류" },
   "actions": {

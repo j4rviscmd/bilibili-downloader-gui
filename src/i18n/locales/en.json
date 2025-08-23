@@ -1,7 +1,8 @@
 {
   "app": {
     "title": "Bilibili Downloader",
-    "subtitle": "Lightweight desktop app to assist downloads"
+    "subtitle": "Lightweight desktop app to assist downloads",
+    "logged_in_user": "Logged-in user"
   },
   "nav": {
     "home": "Home",

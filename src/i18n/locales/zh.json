@@ -1,5 +1,9 @@
 {
-  "app": { "title": "Bilibili 下载器", "subtitle": "轻量级桌面应用，辅助下载" },
+  "app": {
+    "title": "Bilibili 下载器",
+    "subtitle": "轻量级桌面应用，辅助下载",
+    "logged_in_user": "登录用户"
+  },
   "nav": { "home": "主页", "init": "初始化", "error": "错误" },
   "actions": {
     "submit": "提交",
