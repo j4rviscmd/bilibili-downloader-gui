@@ -1,0 +1,50 @@
+{
+  "app": {
+    "title": "Bilibili 다운로더",
+    "subtitle": "가벼운 데스크톱 앱으로 다운로드 지원"
+  },
+  "nav": { "home": "홈", "init": "초기화", "error": "오류" },
+  "actions": {
+    "submit": "제출",
+    "cancel": "취소",
+    "download": "다운로드",
+    "close": "닫기"
+  },
+  "video": {
+    "url_placeholder": "Bilibili URL 붙여넣기",
+    "url_label": "URL",
+    "url_description": "비디오 URL을 입력하세요.",
+    "url_placeholder_example": "예: https://www.bilibili.com/video/BV1xxxxxx",
+    "title_label": "제목",
+    "title_placeholder": "URL 입력 후 자동으로 채워집니다",
+    "title_description": "BiliBili 영상 제목을 입력하세요. 파일명으로 사용됩니다.",
+    "quality_label": "화질",
+    "quality_description": "다운로드할 영상 화질을 선택하세요.",
+    "quality_note": "* 720p60 / 1080p60 등의 고화질은 로그인 상태나 지역에 따라 선택할 수 없습니다.",
+    "progress_title": "다운로드 진행 상황",
+    "bar_audio": "오디오 데이터",
+    "bar_video": "비디오 데이터",
+    "bar_merge": "비디오 생성",
+    "download_completed": "다운로드 완료",
+    "fetch_info": "정보 가져오기",
+    "downloading": "다운로드 중...",
+    "completed": "완료",
+    "failed": "실패"
+  },
+  "toast": { "success": "성공", "error": "문제가 발생했습니다" },
+  "init": { "initializing": "초기화 중..." },
+  "errorPage": {
+    "title": "오류가 발생했습니다",
+    "cannot_continue": "애플리케이션을 계속 실행할 수 없습니다",
+    "message_label": "오류 메시지:",
+    "code_label": "오류 코드:",
+    "ffmpeg_not_found": "ffmpeg 를 찾을 수 없습니다.",
+    "cookie_invalid": "쿠키가 유효하지 않습니다.",
+    "user_info_failed": "사용자 정보를 가져올 수 없습니다.",
+    "user_info_failed_other": "사용자 정보를 가져올 수 없습니다(로그인 문제 제외).",
+    "version_check_failed": "앱 버전 확인에 실패했습니다.",
+    "unexpected": "예기치 않은 오류가 발생했습니다.",
+    "visit_and_login": "에 로그인되어 있는지 확인하세요",
+    "quit_app": "앱 종료"
+  }
+}

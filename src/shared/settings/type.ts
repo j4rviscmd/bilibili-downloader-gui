@@ -7,7 +7,7 @@ export type Settings = {
   // theme: 'light' | 'dark'
 }
 
-export type SupportedLang = 'en' | 'ja'
+export type SupportedLang = 'en' | 'ja' | 'fr' | 'es' | 'zh' | 'ko'
 export type Language = {
   label: string
   id: SupportedLang

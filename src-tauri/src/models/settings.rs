@@ -21,6 +21,10 @@ pub enum Theme {
 pub enum Language {
     En,
     Ja,
+    Fr,
+    Es,
+    Zh,
+    Ko,
 }
 
 /// ------------

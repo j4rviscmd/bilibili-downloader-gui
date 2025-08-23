@@ -1,0 +1,50 @@
+{
+  "app": {
+    "title": "Téléchargeur Bilibili",
+    "subtitle": "Application de bureau légère pour aider aux téléchargements"
+  },
+  "nav": { "home": "Accueil", "init": "Initialisation", "error": "Erreur" },
+  "actions": {
+    "submit": "Envoyer",
+    "cancel": "Annuler",
+    "download": "Télécharger",
+    "close": "Fermer"
+  },
+  "video": {
+    "url_placeholder": "Coller l'URL Bilibili",
+    "url_label": "URL",
+    "url_description": "Entrez l'URL de la vidéo.",
+    "url_placeholder_example": "ex: https://www.bilibili.com/video/BV1xxxxxx",
+    "title_label": "Titre",
+    "title_placeholder": "Le titre sera rempli automatiquement après l'URL",
+    "title_description": "Saisissez le titre de la vidéo BiliBili. Il sera utilisé comme nom de fichier.",
+    "quality_label": "Qualité",
+    "quality_description": "Sélectionnez la qualité de la vidéo à télécharger.",
+    "quality_note": "* Certaines qualités élevées comme 720p60 / 1080p60 peuvent ne pas être disponibles selon l'état de connexion ou la région.",
+    "progress_title": "Progression du téléchargement",
+    "bar_audio": "Données audio",
+    "bar_video": "Données vidéo",
+    "bar_merge": "Génération de la vidéo",
+    "download_completed": "Téléchargement terminé",
+    "fetch_info": "Récupérer les infos",
+    "downloading": "Téléchargement...",
+    "completed": "Terminé",
+    "failed": "Échec"
+  },
+  "toast": { "success": "Succès", "error": "Une erreur est survenue" },
+  "init": { "initializing": "Initialisation..." },
+  "errorPage": {
+    "title": "Une erreur est survenue",
+    "cannot_continue": "L'application ne peut pas continuer",
+    "message_label": "Message d'erreur:",
+    "code_label": "Code d'erreur:",
+    "ffmpeg_not_found": "ffmpeg introuvable.",
+    "cookie_invalid": "Cookie invalide.",
+    "user_info_failed": "Impossible d'obtenir les informations utilisateur.",
+    "user_info_failed_other": "Impossible d'obtenir les informations utilisateur (autre qu'absence de connexion).",
+    "version_check_failed": "Échec de la vérification de la version de l'application.",
+    "unexpected": "Une erreur inattendue est survenue.",
+    "visit_and_login": "Assurez-vous d'être connecté à",
+    "quit_app": "Quitter l'application"
+  }
+}

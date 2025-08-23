@@ -1,16 +1,21 @@
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 import en from './locales/en.json'
+import es from './locales/es.json'
+import fr from './locales/fr.json'
 import ja from './locales/ja.json'
+import ko from './locales/ko.json'
+import zh from './locales/zh.json'
 
-export type SupportedLang = 'en' | 'ja'
+export type SupportedLang = 'en' | 'ja' | 'fr' | 'es' | 'zh' | 'ko'
 
 // Resolve preferred language from localStorage or the browser/OS; default to 'en'
 const DEFAULT_LANG = ((): SupportedLang => {
   try {
     const stored =
       typeof localStorage !== 'undefined' ? localStorage.getItem('lang') : null
-    if (stored === 'en' || stored === 'ja') return stored
+    if (['en', 'ja', 'fr', 'es', 'zh', 'ko'].includes(stored || ''))
+      return stored as SupportedLang
   } catch {
     // ignore storage errors
   }
@@ -21,6 +26,10 @@ const DEFAULT_LANG = ((): SupportedLang => {
     'en'
   ).toLowerCase()
   if (lang.startsWith('ja')) return 'ja'
+  if (lang.startsWith('fr')) return 'fr'
+  if (lang.startsWith('es')) return 'es'
+  if (lang.startsWith('zh')) return 'zh'
+  if (lang.startsWith('ko')) return 'ko'
   return 'en'
 })()
 
@@ -30,6 +39,10 @@ export function setupI18n(initialLang?: SupportedLang) {
       resources: {
         en: { translation: en },
         ja: { translation: ja },
+        fr: { translation: fr },
+        es: { translation: es },
+        zh: { translation: zh },
+        ko: { translation: ko },
       },
       lng: initialLang ?? DEFAULT_LANG,
       fallbackLng: 'en',
@@ -53,7 +66,8 @@ export function changeLanguage(lang: SupportedLang) {
 
 export function getCurrentLanguage(): SupportedLang {
   const lng = i18n.language as SupportedLang | undefined
-  if (lng === 'en' || lng === 'ja') return lng
+  if (['en', 'ja', 'fr', 'es', 'zh', 'ko'].includes(lng || ''))
+    return lng as SupportedLang
   return DEFAULT_LANG
 }
 

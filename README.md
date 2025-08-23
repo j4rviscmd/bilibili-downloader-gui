@@ -18,7 +18,7 @@ Windows and macOS Bilibili video downloader GUI. Frontend is built with React + 
 - Lightweight and fast desktop app built with Tauri
 - Light/Dark theme toggle (shadcn/ui based)
 - Progress indicator and toast notifications
-- Multi-language UI (English / 日本語)
+- Multi-language UI (English / 日本語 / Français / Español / 中文 / 한국어)
 
 ## Requirements
 
@@ -157,7 +157,7 @@ src-tauri/src/
 
 ## Future
 
-- [x] Multi-language support (en, ja)
+- [x] Multi-language support (en, ja, fr, es, zh, ko)
 - [ ] Switch frontend directory structure to FSD (Feature‑Sliced Design)
 - [ ] Download selected videos from playback history
 - [ ] Settings
@@ -171,6 +171,10 @@ Current supported languages:
 
 - English (en)
 - 日本語 (ja)
+- Français (fr)
+- Español (es)
+- 中文 (zh)
+- 한국어 (ko)
 
 Contributions welcome for additional languages. If you find an unnatural or awkward phrase, please open a Pull Request.
 

@@ -1,0 +1,47 @@
+{
+  "app": { "title": "Bilibili 下载器", "subtitle": "轻量级桌面应用，辅助下载" },
+  "nav": { "home": "主页", "init": "初始化", "error": "错误" },
+  "actions": {
+    "submit": "提交",
+    "cancel": "取消",
+    "download": "下载",
+    "close": "关闭"
+  },
+  "video": {
+    "url_placeholder": "粘贴 Bilibili 链接",
+    "url_label": "链接",
+    "url_description": "请输入视频链接。",
+    "url_placeholder_example": "例如: https://www.bilibili.com/video/BV1xxxxxx",
+    "title_label": "标题",
+    "title_placeholder": "输入链接后自动填充",
+    "title_description": "输入 BiliBili 视频标题。它会作为文件名。",
+    "quality_label": "清晰度",
+    "quality_description": "选择要下载的视频清晰度。",
+    "quality_note": "* 部分高码率清晰度（如 720p60 / 1080p60）可能因登录状态或地区不可用。",
+    "progress_title": "下载进度",
+    "bar_audio": "音频数据",
+    "bar_video": "视频数据",
+    "bar_merge": "合成视频",
+    "download_completed": "下载完成",
+    "fetch_info": "获取信息",
+    "downloading": "下载中...",
+    "completed": "完成",
+    "failed": "失败"
+  },
+  "toast": { "success": "成功", "error": "发生错误" },
+  "init": { "initializing": "初始化中..." },
+  "errorPage": {
+    "title": "发生错误",
+    "cannot_continue": "应用无法继续运行",
+    "message_label": "错误信息:",
+    "code_label": "错误代码:",
+    "ffmpeg_not_found": "未找到 ffmpeg。",
+    "cookie_invalid": "Cookie 无效。",
+    "user_info_failed": "无法获取用户信息。",
+    "user_info_failed_other": "无法获取用户信息（非未登录原因）。",
+    "version_check_failed": "应用版本检查失败。",
+    "unexpected": "发生意外错误。",
+    "visit_and_login": "请确认已登录",
+    "quit_app": "退出应用"
+  }
+}
