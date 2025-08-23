@@ -33,7 +33,25 @@
     "failed": "Fallido"
   },
   "toast": { "success": "Éxito", "error": "Ocurrió un error" },
-  "init": { "initializing": "Inicializando..." },
+  "init": {
+    "initializing": "Inicializando...",
+    "fetch_settings": "Obteniendo configuración de la app...",
+    "applying_language": "Aplicando idioma ({{lang}})...",
+    "applied_language": "Idioma cambiado a {{lang}}",
+    "checking_ffmpeg": "Verificando ffmpeg...",
+    "ffmpeg_ok": "Verificación de ffmpeg correcta",
+    "installing_ffmpeg": "Instalando ffmpeg...",
+    "ffmpeg_install_ok": "ffmpeg instalado correctamente",
+    "ffmpeg_install_failed": "Error al instalar ffmpeg",
+    "dev_skip_version": "Omitiendo verificación de versión (dev)",
+    "checking_version": "Verificando versión...",
+    "latest_version": "Ya tienes la última versión",
+    "downloading_update": "Descargando actualización ({{ver}})...",
+    "update_done_restart": "Actualización completada. Reiniciando...",
+    "update_failed": "Error en la actualización",
+    "cookie_success": "Cookie obtenida correctamente",
+    "cookie_failed": "Error al obtener cookie"
+  },
   "errorPage": {
     "title": "Ocurrió un error",
     "cannot_continue": "La aplicación no puede continuar",

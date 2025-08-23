@@ -41,7 +41,23 @@
     "error": "Something went wrong"
   },
   "init": {
-    "initializing": "Initializing..."
+    "initializing": "Initializing...",
+    "fetch_settings": "Fetching app settings...",
+    "applying_language": "Applying language ({{lang}})...",
+    "applied_language": "Language switched to {{lang}}",
+    "checking_ffmpeg": "Checking ffmpeg availability...",
+    "ffmpeg_ok": "ffmpeg check succeeded",
+    "installing_ffmpeg": "Installing ffmpeg...",
+    "ffmpeg_install_ok": "ffmpeg installed successfully",
+    "ffmpeg_install_failed": "Failed to install ffmpeg",
+    "dev_skip_version": "Skipping version check in development mode",
+    "checking_version": "Checking app version...",
+    "latest_version": "You're running the latest version",
+    "downloading_update": "Downloading update ({{ver}})...",
+    "update_done_restart": "Update finished. Restarting...",
+    "update_failed": "Failed to check or apply update",
+    "cookie_success": "Cookie retrieval succeeded",
+    "cookie_failed": "Cookie retrieval failed"
   },
   "errorPage": {
     "title": "An error occurred",

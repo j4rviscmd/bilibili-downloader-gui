@@ -33,7 +33,25 @@
     "failed": "실패"
   },
   "toast": { "success": "성공", "error": "문제가 발생했습니다" },
-  "init": { "initializing": "초기화 중..." },
+  "init": {
+    "initializing": "초기화 중...",
+    "fetch_settings": "앱 설정을 불러오는 중...",
+    "applying_language": "언어 적용 중 ({{lang}})...",
+    "applied_language": "언어가 {{lang}}(으)로 변경되었습니다",
+    "checking_ffmpeg": "ffmpeg 확인 중...",
+    "ffmpeg_ok": "ffmpeg 확인 성공",
+    "installing_ffmpeg": "ffmpeg 설치 중...",
+    "ffmpeg_install_ok": "ffmpeg 설치 성공",
+    "ffmpeg_install_failed": "ffmpeg 설치 실패",
+    "dev_skip_version": "개발 모드: 버전 확인 건너뜀",
+    "checking_version": "버전 확인 중...",
+    "latest_version": "최신 버전을 사용 중입니다",
+    "downloading_update": "업데이트 다운로드 중 ({{ver}})...",
+    "update_done_restart": "업데이트 완료. 재시작 중...",
+    "update_failed": "업데이트 실패",
+    "cookie_success": "쿠키 가져오기 성공",
+    "cookie_failed": "쿠키 가져오기 실패"
+  },
   "errorPage": {
     "title": "오류가 발생했습니다",
     "cannot_continue": "애플리케이션을 계속 실행할 수 없습니다",

@@ -33,7 +33,25 @@
     "failed": "Échec"
   },
   "toast": { "success": "Succès", "error": "Une erreur est survenue" },
-  "init": { "initializing": "Initialisation..." },
+  "init": {
+    "initializing": "Initialisation...",
+    "fetch_settings": "Récupération des paramètres...",
+    "applying_language": "Application de la langue ({{lang}})...",
+    "applied_language": "Langue changée en {{lang}}",
+    "checking_ffmpeg": "Vérification de ffmpeg...",
+    "ffmpeg_ok": "Vérification ffmpeg réussie",
+    "installing_ffmpeg": "Installation de ffmpeg...",
+    "ffmpeg_install_ok": "ffmpeg installé avec succès",
+    "ffmpeg_install_failed": "Échec de l'installation de ffmpeg",
+    "dev_skip_version": "Vérification de version ignorée (dev)",
+    "checking_version": "Vérification de la version...",
+    "latest_version": "Dernière version déjà installée",
+    "downloading_update": "Téléchargement de la mise à jour ({{ver}})...",
+    "update_done_restart": "Mise à jour terminée. Redémarrage...",
+    "update_failed": "Échec de la mise à jour",
+    "cookie_success": "Récupération du cookie réussie",
+    "cookie_failed": "Échec de la récupération du cookie"
+  },
   "errorPage": {
     "title": "Une erreur est survenue",
     "cannot_continue": "L'application ne peut pas continuer",
