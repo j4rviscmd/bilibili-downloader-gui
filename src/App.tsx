@@ -9,6 +9,7 @@ import { Route, Routes } from 'react-router'
 
 function App() {
   const { theme } = useTheme()
+
   return (
     <>
       <Routes>

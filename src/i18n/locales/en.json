@@ -1,0 +1,78 @@
+{
+  "app": {
+    "title": "Bilibili Downloader",
+    "subtitle": "Lightweight desktop app to assist downloads",
+    "logged_in_user": "Logged-in user"
+  },
+  "nav": {
+    "home": "Home",
+    "init": "Init",
+    "error": "Error"
+  },
+  "actions": {
+    "submit": "Submit",
+    "cancel": "Cancel",
+    "download": "Download",
+    "close": "Close"
+  },
+  "video": {
+    "url_placeholder": "Paste Bilibili URL",
+    "url_label": "URL",
+    "url_description": "Enter the video URL.",
+    "url_placeholder_example": "e.g. https://www.bilibili.com/video/BV1xxxxxx",
+    "title_label": "Title",
+    "title_placeholder": "The title will be auto-filled after entering a URL",
+    "title_description": "Enter the BiliBili video title. It will be used as the file name.",
+    "quality_label": "Quality",
+    "quality_description": "Select the quality of the video to download.",
+    "quality_note": "* Some high qualities like 720p60 / 1080p60 may not be selectable depending on login state or region.",
+    "progress_title": "Download Progress",
+    "bar_audio": "Audio Data",
+    "bar_video": "Video Data",
+    "bar_merge": "Generating Video",
+    "download_completed": "Download Completed",
+    "fetch_info": "Fetch info",
+    "downloading": "Downloading...",
+    "completed": "Completed",
+    "failed": "Failed",
+    "download_failed": "Failed to download",
+    "file_exists": "A file with the same name already exists"
+  },
+  "toast": {
+    "success": "Success",
+    "error": "Something went wrong"
+  },
+  "init": {
+    "initializing": "Initializing...",
+    "fetch_settings": "Fetching app settings...",
+    "applying_language": "Applying language ({{lang}})...",
+    "applied_language": "Language switched to {{lang}}",
+    "checking_ffmpeg": "Checking ffmpeg availability...",
+    "ffmpeg_ok": "ffmpeg check succeeded",
+    "installing_ffmpeg": "Installing ffmpeg...",
+    "ffmpeg_install_ok": "ffmpeg installed successfully",
+    "ffmpeg_install_failed": "Failed to install ffmpeg",
+    "dev_skip_version": "Skipping version check in development mode",
+    "checking_version": "Checking app version...",
+    "latest_version": "You're running the latest version",
+    "downloading_update": "Downloading update ({{ver}})...",
+    "update_done_restart": "Update finished. Restarting...",
+    "update_failed": "Failed to check or apply update",
+    "cookie_success": "Cookie retrieval succeeded",
+    "cookie_failed": "Cookie retrieval failed"
+  },
+  "errorPage": {
+    "title": "An error occurred",
+    "cannot_continue": "The application cannot continue",
+    "message_label": "Error message:",
+    "code_label": "Error code:",
+    "ffmpeg_not_found": "ffmpeg was not found.",
+    "cookie_invalid": "Cookie is invalid.",
+    "user_info_failed": "Failed to obtain user information.",
+    "user_info_failed_other": "Failed to obtain user information (not login related).",
+    "version_check_failed": "Failed to check application version.",
+    "unexpected": "An unexpected error occurred.",
+    "visit_and_login": "Make sure you are logged in to",
+    "quit_app": "Quit App"
+  }
+}

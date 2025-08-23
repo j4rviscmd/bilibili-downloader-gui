@@ -1,12 +1,14 @@
 import { Button } from '@/components/ui/button'
 import { useInit } from '@/features/init/useInit'
 import { openUrl } from '@tauri-apps/plugin-opener'
+import { useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router'
 
 function ErrorPage() {
   const location = useLocation()
   const { errorCode } = location.state || { errorCode: 0 }
   const { quitApp } = useInit()
+  const { t } = useTranslation()
   const onClickUri = async () => {
     console.log('on click')
     await openUrl('https://www.bilibili.com')
@@ -17,25 +19,25 @@ function ErrorPage() {
       <div className="text-muted-foreground text-center text-2xl font-bold">
         <div>
           <span className="text-red-500">🚨</span>
-          <span>エラーが発生しました</span>
+          <span>{t('errorPage.title')}</span>
         </div>
         <div>
-          <span>アプリを続行することができません</span>
+          <span>{t('errorPage.cannot_continue')}</span>
         </div>
       </div>
       <div className="flex flex-col items-center">
         <div className="text-muted-foreground text-md">
-          <span>エラーメッセージ: </span>
+          <span>{t('errorPage.message_label')} </span>
           <span>
             {errorCode === 1 ? (
-              'ffmpegが見つかりません。'
+              t('errorPage.ffmpeg_not_found')
             ) : errorCode === 2 ? (
-              'Cookieが無効です。'
+              t('errorPage.cookie_invalid')
             ) : errorCode === 3 ? (
               <>
-                <span>ユーザ情報が取得できませんでした</span>
+                <span>{t('errorPage.user_info_failed')}</span>
                 <div>
-                  Firefoxで
+                  {t('errorPage.visit_and_login')}{' '}
                   <Button
                     asChild
                     className="mx-1 h-6 p-1 hover:cursor-pointer"
@@ -43,24 +45,23 @@ function ErrorPage() {
                   >
                     <a target="_black">bilibili.com</a>
                   </Button>
-                  にログインしていることを確認してください
                 </div>
               </>
             ) : errorCode === 4 ? (
-              'ユーザ情報が取得できません（未ログイン以外）。'
+              t('errorPage.user_info_failed_other')
             ) : errorCode === 5 ? (
-              'アプリバージョンのチェックに失敗しました。'
+              t('errorPage.version_check_failed')
             ) : (
-              '想定外のエラーが発生しました。'
+              t('errorPage.unexpected')
             )}
           </span>
         </div>
         <div className="text-muted-foreground text-sm">
-          エラーコード: {errorCode}
+          {t('errorPage.code_label')} {errorCode}
         </div>
       </div>
       <Button onClick={quitApp} variant={'destructive'} className="m-3 p-3">
-        アプリを終了する
+        {t('errorPage.quit_app')}
       </Button>
     </div>
   )

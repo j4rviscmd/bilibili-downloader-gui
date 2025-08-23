@@ -1,0 +1,78 @@
+{
+  "app": {
+    "title": "Bilibili ダウンローダー",
+    "subtitle": "軽量なデスクトップアプリでダウンロードを支援",
+    "logged_in_user": "ログインユーザ"
+  },
+  "nav": {
+    "home": "ホーム",
+    "init": "初期化",
+    "error": "エラー"
+  },
+  "actions": {
+    "submit": "送信",
+    "cancel": "キャンセル",
+    "download": "ダウンロード",
+    "close": "閉じる"
+  },
+  "video": {
+    "url_placeholder": "Bilibili のURLを貼り付け",
+    "url_label": "URL",
+    "url_description": "動画のURLを入力してください。",
+    "url_placeholder_example": "例: https://www.bilibili.com/video/BV1xxxxxx",
+    "title_label": "タイトル",
+    "title_placeholder": "URL入力後に自動入力されます",
+    "title_description": "BiliBili動画のタイトルを入力してください。ダウンロードしたファイル名になります。",
+    "quality_label": "画質",
+    "quality_description": "ダウンロードする動画の画質を選択してください。",
+    "quality_note": "※ 720p60や1080p60などの高画質は、ログイン状態や地域によっては選択できない場合があります。",
+    "progress_title": "ダウンロード進行状況",
+    "bar_audio": "音声データ",
+    "bar_video": "動画データ",
+    "bar_merge": "動画の生成",
+    "download_completed": "ダウンロード完了",
+    "fetch_info": "情報を取得",
+    "downloading": "ダウンロード中...",
+    "completed": "完了",
+    "failed": "失敗",
+    "download_failed": "ダウンロードに失敗しました",
+    "file_exists": "同名のファイルが既に存在します"
+  },
+  "toast": {
+    "success": "成功",
+    "error": "問題が発生しました"
+  },
+  "init": {
+    "initializing": "初期化中...",
+    "fetch_settings": "🛠️ アプリ設定の取得中...",
+    "applying_language": "🌐 言語を適用中 ({{lang}})...",
+    "applied_language": "✅ 言語を {{lang}} に切り替えました",
+    "checking_ffmpeg": "ℹ️ ffmpegの有効性チェック中...",
+    "ffmpeg_ok": "✅ ffmpegの有効性チェックに成功しました",
+    "installing_ffmpeg": "ℹ️ ffmpegをインストールしています",
+    "ffmpeg_install_ok": "✅ ffmpegのインストールに成功しました",
+    "ffmpeg_install_failed": "😫 ffmpegのインストール失敗しました",
+    "dev_skip_version": "🛠️ 開発モードのためバージョンチェックをスキップ",
+    "checking_version": "ℹ️ バージョンチェック中...",
+    "latest_version": "✅ お使いのアプリは最新です",
+    "downloading_update": "⬇️ アップデートをダウンロードしています ({{ver}})...",
+    "update_done_restart": "✅ アップデートが完了しました。アプリを再起動します...",
+    "update_failed": "😫 アップデートの確認または適用に失敗しました",
+    "cookie_success": "✅ Cookieの取得に成功しました",
+    "cookie_failed": "😫 Cookieの取得に失敗しました"
+  },
+  "errorPage": {
+    "title": "エラーが発生しました",
+    "cannot_continue": "アプリを続行することができません",
+    "message_label": "エラーメッセージ:",
+    "code_label": "エラーコード:",
+    "ffmpeg_not_found": "ffmpegが見つかりません。",
+    "cookie_invalid": "Cookieが無効です。",
+    "user_info_failed": "ユーザ情報が取得できませんでした。",
+    "user_info_failed_other": "ユーザ情報が取得できません（未ログイン以外）。",
+    "version_check_failed": "アプリバージョンのチェックに失敗しました。",
+    "unexpected": "想定外のエラーが発生しました。",
+    "visit_and_login": "Firefoxでログインしていることを確認してください",
+    "quit_app": "アプリを終了する"
+  }
+}

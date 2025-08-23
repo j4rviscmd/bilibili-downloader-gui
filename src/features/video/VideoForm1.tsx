@@ -14,10 +14,12 @@ import { useVideoInfo } from '@/features/video/useVideoInfo'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
 import { z } from 'zod'
 
 function VideoForm1() {
   const { input, onValid1 } = useVideoInfo()
+  const { t } = useTranslation()
 
   useEffect(() => {
     const restoreUrl = localStorage.getItem(VIDEO_URL_KEY)
@@ -43,7 +45,9 @@ function VideoForm1() {
     },
   })
 
-  const placeholder = 'e.g. https://www.bilibili.com/video/BV1xxxxxx'
+  const placeholder =
+    t('video.url_placeholder_example') ||
+    'e.g. https://www.bilibili.com/video/BV1xxxxxx'
   return (
     <Form {...form}>
       <form
@@ -56,11 +60,11 @@ function VideoForm1() {
           name="url"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>URL</FormLabel>
+              <FormLabel>{t('video.url_label')}</FormLabel>
               <FormControl>
                 <Input required placeholder={placeholder} {...field} />
               </FormControl>
-              <FormDescription>動画のURLを入力してください。</FormDescription>
+              <FormDescription>{t('video.url_description')}</FormDescription>
               <FormMessage />
             </FormItem>
           )}

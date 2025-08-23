@@ -4,14 +4,20 @@ import {
   setInitiated as setValue,
 } from '@/features/init/initSlice'
 import { sleep } from '@/lib/utils'
+import { changeLanguage } from '@/shared/i18n'
+import { useSettings } from '@/shared/settings/useSettings'
 import { useUser } from '@/shared/user/useUser'
 import { invoke } from '@tauri-apps/api/core'
 import { exit, relaunch } from '@tauri-apps/plugin-process'
 import { check as checkUpdate } from '@tauri-apps/plugin-updater'
+import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 
 export const useInit = () => {
   const { getUserInfo } = useUser()
+  const { getSettings } = useSettings()
+  const { t } = useTranslation()
+
   const initiated = useSelector((state: RootState) => state.init.initiated)
   const progress = useSelector((state: RootState) => state.progress)
   const processingFnc = useSelector(
@@ -40,6 +46,21 @@ export const useInit = () => {
      *  255: 想定外エラー
      */
     let resCode = 255
+    const settings = await getAppSettings()
+    // 設定言語適用（main.tsx 初期化後に遅延適用する）
+    if (settings?.language) {
+      try {
+        if ((await import('@/i18n')).default.language !== settings.language) {
+          setMessage(t('init.applying_language', { lang: settings.language }))
+          await changeLanguage(settings.language)
+          setMessage(t('init.applied_language', { lang: settings.language }))
+          // 言語は即反映したいので`sleep`させない
+          // await sleep(500)
+        }
+      } catch (e) {
+        console.warn('Failed to apply language setting', e)
+      }
+    }
     const isValidVersion = await checkVersion()
     if (isValidVersion) {
       const isValidFfmpeg = await checkFfmpeg()
@@ -73,24 +94,31 @@ export const useInit = () => {
   const checkFfmpeg = async (): Promise<boolean> => {
     let res = false
 
-    setMessage('ℹ️ ffmpegの有効性チェック中...')
+    setMessage(t('init.checking_ffmpeg'))
     const isValidFfmpeg = await invoke<boolean>('validate_ffmpeg')
     if (isValidFfmpeg) {
-      setMessage('✅ ffmpegの有効性チェックに成功しました')
+      setMessage(t('init.ffmpeg_ok'))
       res = true
     } else {
-      setMessage('ℹ️ ffmpegをインストールしています')
+      setMessage(t('init.installing_ffmpeg'))
       const isInstalled = await invoke('install_ffmpeg')
       if (isInstalled) {
-        setMessage('✅ ffmpegのインストールに成功しました')
+        setMessage(t('init.ffmpeg_install_ok'))
         await sleep(1000)
         res = true
       } else {
-        setMessage('😫 ffmpegのインストール失敗しました')
+        setMessage(t('init.ffmpeg_install_failed'))
       }
     }
 
     return res
+  }
+
+  const getAppSettings = async () => {
+    setMessage(t('init.fetch_settings'))
+    await sleep(300)
+    const settings = await getSettings()
+    return settings
   }
 
   /**
@@ -102,33 +130,33 @@ export const useInit = () => {
   const checkVersion = async (): Promise<boolean> => {
     // 開発環境ではアップデートチェックをスキップ
     if (import.meta.env.DEV) {
-      setMessage('🛠️ 開発モードのためバージョンチェックをスキップ')
-      await sleep(300)
+      setMessage(t('init.dev_skip_version'))
+      await sleep(500)
       return true
     }
 
-    setMessage('ℹ️ バージョンチェック中...')
+    setMessage(t('init.checking_version'))
     try {
       const update = await checkUpdate()
       if (!update) {
         // すでに最新
-        setMessage('✅ お使いのアプリは最新です')
+        setMessage(t('init.latest_version'))
         await sleep(500)
         return true
       }
 
       // 強制アップデートを実施
       const ver = update.version ?? 'latest'
-      setMessage(`⬇️ アップデートをダウンロードしています (${ver})...`)
+      setMessage(t('init.downloading_update', { ver }))
       await update.downloadAndInstall()
 
-      setMessage('✅ アップデートが完了しました。アプリを再起動します...')
+      setMessage(t('init.update_done_restart'))
       await sleep(1500)
       await relaunch()
       return false
     } catch (e) {
       console.error('Version check/update failed:', e)
-      setMessage('😫 アップデートの確認または適用に失敗しました')
+      setMessage(t('init.update_failed'))
       return false
     }
   }
@@ -140,10 +168,10 @@ export const useInit = () => {
     // 有効な場合、アプリメモリに保存(By backend) & ログインユーザ名の取得
     const isValid = await invoke('get_cookie')
     if (isValid) {
-      setMessage('✅ Cookieの取得に成功しました')
+      setMessage(t('init.cookie_success'))
       res = true
     } else {
-      setMessage('😫 Cookieの取得に失敗しました')
+      setMessage(t('init.cookie_failed'))
       res = true
     }
 
