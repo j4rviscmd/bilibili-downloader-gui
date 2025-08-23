@@ -48,12 +48,19 @@ export const useVideoInfo = () => {
         parseInt(input.quality, 10),
       )
     } catch (e) {
+      const raw = String(e)
+      // Standardized backend error codes: ERR::<CODE>
+      let messageKey: string | null = null
+      if (raw.includes('ERR::FILE_EXISTS')) {
+        messageKey = 'video.file_exists'
+      }
+      const description = messageKey ? t(messageKey) : raw
       toast.error(t('video.download_failed'), {
         duration: 10000,
-        description: String(e),
+        description,
         closeButton: true,
       })
-      console.error('Download failed:', e)
+      console.error('Download failed:', raw)
     }
   }
 

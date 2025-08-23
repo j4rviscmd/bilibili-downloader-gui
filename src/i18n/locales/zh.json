@@ -30,7 +30,9 @@
     "fetch_info": "获取信息",
     "downloading": "下载中...",
     "completed": "完成",
-    "failed": "失败"
+    "failed": "失败",
+    "download_failed": "下载失败",
+    "file_exists": "已存在同名文件"
   },
   "toast": { "success": "成功", "error": "发生错误" },
   "init": {

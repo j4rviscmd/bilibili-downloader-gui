@@ -30,7 +30,9 @@
     "fetch_info": "정보 가져오기",
     "downloading": "다운로드 중...",
     "completed": "완료",
-    "failed": "실패"
+    "failed": "실패",
+    "download_failed": "다운로드에 실패했습니다",
+    "file_exists": "같은 이름의 파일이 이미 존재합니다"
   },
   "toast": { "success": "성공", "error": "문제가 발생했습니다" },
   "init": {

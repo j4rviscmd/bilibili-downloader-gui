@@ -30,7 +30,9 @@
     "fetch_info": "Obtener info",
     "downloading": "Descargando...",
     "completed": "Completado",
-    "failed": "Fallido"
+    "failed": "Fallido",
+    "download_failed": "Error al descargar",
+    "file_exists": "Ya existe un archivo con el mismo nombre"
   },
   "toast": { "success": "Éxito", "error": "Ocurrió un error" },
   "init": {

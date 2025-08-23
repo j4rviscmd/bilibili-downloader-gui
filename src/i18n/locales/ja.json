@@ -35,7 +35,8 @@
     "downloading": "ダウンロード中...",
     "completed": "完了",
     "failed": "失敗",
-    "download_failed": "ダウンロードに失敗しました"
+    "download_failed": "ダウンロードに失敗しました",
+    "file_exists": "同名のファイルが既に存在します"
   },
   "toast": {
     "success": "成功",
