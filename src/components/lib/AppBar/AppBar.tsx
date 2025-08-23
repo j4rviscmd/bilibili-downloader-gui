@@ -12,6 +12,12 @@ type Props = {
 function AppBar({ user, theme, setTheme }: Props) {
   const userName = user.data.uname
   const { t } = useTranslation()
+  // Mask last 3 characters of the user ID for display
+  const maskedUserName = (() => {
+    if (!userName) return ''
+    if (userName.length <= 3) return '*'.repeat(userName.length)
+    return userName.slice(0, -3) + '***'
+  })()
 
   return (
     <div className="bg-accent box-border flex h-9 w-full items-center justify-between p-3 shadow-md">
@@ -19,7 +25,7 @@ function AppBar({ user, theme, setTheme }: Props) {
         <span className="text-muted-foreground">
           {t('app.logged_in_user')}:
         </span>
-        <span className="px-3">{userName}</span>
+        <span className="px-3">{maskedUserName}</span>
       </div>
       <div className="flex items-center">
         <LanguagesDropdown />
