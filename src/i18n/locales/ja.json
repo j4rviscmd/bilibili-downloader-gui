@@ -34,7 +34,8 @@
     "fetch_info": "情報を取得",
     "downloading": "ダウンロード中...",
     "completed": "完了",
-    "failed": "失敗"
+    "failed": "失敗",
+    "download_failed": "ダウンロードに失敗しました"
   },
   "toast": {
     "success": "成功",

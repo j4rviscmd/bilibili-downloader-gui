@@ -34,7 +34,8 @@
     "fetch_info": "Fetch info",
     "downloading": "Downloading...",
     "completed": "Completed",
-    "failed": "Failed"
+    "failed": "Failed",
+    "download_failed": "Failed to download"
   },
   "toast": {
     "success": "Success",

@@ -5,6 +5,7 @@ import { VIDEO_URL_KEY } from '@/features/video/constants'
 import { formSchema1, formSchema2 } from '@/features/video/formSchema'
 import { setQuality, setTitle, setUrl } from '@/features/video/inputSlice'
 import { setVideo } from '@/features/video/videoSlice'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 const extractId = (url: string) => {
@@ -13,6 +14,7 @@ const extractId = (url: string) => {
 }
 
 export const useVideoInfo = () => {
+  const { t } = useTranslation()
   const progress = useSelector((state) => state.progress)
   const video = useSelector((state) => state.video)
   const input = useSelector((state) => state.input)
@@ -46,7 +48,7 @@ export const useVideoInfo = () => {
         parseInt(input.quality, 10),
       )
     } catch (e) {
-      toast.error('ダウンロードに失敗しました', {
+      toast.error(t('video.download_failed'), {
         duration: 10000,
         description: String(e),
         closeButton: true,
