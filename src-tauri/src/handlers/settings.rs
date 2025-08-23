@@ -31,6 +31,13 @@ pub async fn get_settings(app: &AppHandle) -> Result<Settings, String> {
 async fn validate_settings(filepath: &PathBuf) -> Result<bool> {
     // 存在しない場合は、デフォルトで設定を作成する
     if !filepath.exists() {
+        // 親ディレクトリ(lib)が存在しない場合は作成
+        if let Some(parent) = filepath.parent() {
+            if !parent.exists() {
+                fs::create_dir_all(parent)?;
+                println!("Created settings parent directory: {:?}", parent);
+            }
+        }
         let default_settings = Settings::default();
         let json = serde_json::to_string_pretty(&default_settings)?;
         let mut file = File::create(&filepath).await?;
