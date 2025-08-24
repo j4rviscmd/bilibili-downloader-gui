@@ -16,7 +16,14 @@ import { useForm } from 'react-hook-form'
 import type { z } from 'zod'
 
 // i18n t は useTranslation から取得
+import {
+  RadioGroup,
+  RadioGroupItem,
+} from '@/components/animate-ui/radix/radio-group'
+import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
+import { cn } from '@/lib/utils'
+import { languages } from '@/shared/settings/language/languages'
 import { useTranslation } from 'react-i18next'
 
 function SettingsForm() {
@@ -29,7 +36,7 @@ function SettingsForm() {
       dlOutputPath: settings.dlOutputPath || '',
       language: settings.language || 'en',
     },
-    mode: 'onBlur',
+    mode: 'onBlur', // デフォルトは dlOutputPath 用。language は手動で onChange submit する。
   })
 
   // settings が外部で更新された際にフォームへ反映
@@ -41,50 +48,55 @@ function SettingsForm() {
   }, [settings.dlOutputPath, settings.language])
 
   const onSubmit = async (data: z.infer<typeof formSchema>) => {
-    console.log(data.dlOutputPath, settings.dlOutputPath)
-    if (
-      data.dlOutputPath !== settings.dlOutputPath &&
-      data.language !== settings.language
-    ) {
-      await saveByForm({
-        ...settings,
-        dlOutputPath: data.dlOutputPath,
-        language: data.language,
-      })
+    const changed: Partial<z.infer<typeof formSchema>> = {}
+    if (data.dlOutputPath !== settings.dlOutputPath) {
+      changed.dlOutputPath = data.dlOutputPath
     }
+    if (data.language !== settings.language) {
+      changed.language = data.language
+    }
+    if (Object.keys(changed).length === 0) return
+    await saveByForm({ ...settings, ...changed })
+  }
+
+  // language 変更時に即保存 (onChange トリガ)
+  const handleLanguageChange = (val: string) => {
+    form.setValue('language', val as z.infer<typeof formSchema>['language'], {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    form.handleSubmit(onSubmit)()
   }
 
   return (
     <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit(onSubmit)}
-        onBlur={form.handleSubmit(onSubmit)}
-        className="space-y-4"
-      >
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <FormField
           control={form.control}
-          name="dlOutputPath"
+          name="language"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>
-                {t('settings.output_dir_label', '出力ディレクトリ')}
-              </FormLabel>
+              <FormLabel>{t('settings.output_dir_label', '言語')}</FormLabel>
               <FormControl>
-                <Input
-                  required
-                  placeholder={t(
-                    'settings.output_dir_placeholder',
-                    '例: C\\\\Users\\\\you\\\\Downloads もしくは /Users/you/Downloads',
-                  )}
-                  {...field}
-                />
+                <RadioGroup
+                  value={String(field.value)}
+                  onValueChange={handleLanguageChange}
+                >
+                  {languages.map((lang) => {
+                    const id = `lang-${lang.id}`
+                    return (
+                      <div
+                        key={lang.id}
+                        className={cn('flex items-center space-x-3')}
+                      >
+                        <RadioGroupItem value={lang.id} id={id} />
+                        <Label htmlFor={id}>{lang.label}</Label>
+                      </div>
+                    )
+                  })}
+                </RadioGroup>
               </FormControl>
-              <FormDescription>
-                {t(
-                  'settings.output_dir_description',
-                  '動画ファイルの保存先ディレクトリを入力してください。',
-                )}
-              </FormDescription>
+              <FormDescription></FormDescription>
               <FormMessage />
             </FormItem>
           )}
@@ -106,6 +118,10 @@ function SettingsForm() {
                     '例: C\\\\Users\\\\you\\\\Downloads もしくは /Users/you/Downloads',
                   )}
                   {...field}
+                  onBlur={() => {
+                    field.onBlur()
+                    form.handleSubmit(onSubmit)()
+                  }}
                 />
               </FormControl>
               <FormDescription>
