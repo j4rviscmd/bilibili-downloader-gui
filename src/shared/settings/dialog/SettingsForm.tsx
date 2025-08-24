@@ -16,6 +16,7 @@ import { useForm } from 'react-hook-form'
 import type { z } from 'zod'
 
 // i18n t は useTranslation から取得
+import { Separator } from '@/components/ui/separator'
 import { useTranslation } from 'react-i18next'
 
 function SettingsForm() {
@@ -26,6 +27,7 @@ function SettingsForm() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       dlOutputPath: settings.dlOutputPath || '',
+      language: settings.language || 'en',
     },
     mode: 'onBlur',
   })
@@ -34,15 +36,20 @@ function SettingsForm() {
   useEffect(() => {
     form.reset({
       dlOutputPath: settings.dlOutputPath || '',
+      language: settings.language || 'en',
     })
-  }, [settings.dlOutputPath])
+  }, [settings.dlOutputPath, settings.language])
 
   const onSubmit = async (data: z.infer<typeof formSchema>) => {
     console.log(data.dlOutputPath, settings.dlOutputPath)
-    if (data.dlOutputPath !== settings.dlOutputPath) {
+    if (
+      data.dlOutputPath !== settings.dlOutputPath &&
+      data.language !== settings.language
+    ) {
       await saveByForm({
         ...settings,
         dlOutputPath: data.dlOutputPath,
+        language: data.language,
       })
     }
   }
@@ -82,6 +89,37 @@ function SettingsForm() {
             </FormItem>
           )}
         />
+        <Separator />
+        <FormField
+          control={form.control}
+          name="dlOutputPath"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>
+                {t('settings.output_dir_label', '出力ディレクトリ')}
+              </FormLabel>
+              <FormControl>
+                <Input
+                  required
+                  placeholder={t(
+                    'settings.output_dir_placeholder',
+                    '例: C\\\\Users\\\\you\\\\Downloads もしくは /Users/you/Downloads',
+                  )}
+                  {...field}
+                />
+              </FormControl>
+              <FormDescription>
+                {t(
+                  'settings.output_dir_description',
+                  '動画ファイルの保存先ディレクトリを入力してください。',
+                )}
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <Separator />
+        <div>既存ファイルへの上書き</div>
       </form>
     </Form>
   )
