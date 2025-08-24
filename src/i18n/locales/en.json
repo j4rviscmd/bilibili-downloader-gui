@@ -79,5 +79,32 @@
     "unexpected": "An unexpected error occurred.",
     "visit_and_login": "Make sure you are logged in to",
     "quit_app": "Quit App"
+  },
+  "settings": {
+    "language_label": "Language",
+    "output_dir_label": "Output Directory",
+    "output_dir_placeholder": "e.g. C:\\Users\\you\\Downloads or /Users/you/Downloads",
+    "output_dir_description": "Enter the directory where video files will be saved.",
+    "auto_save_note": "Changes are saved automatically.",
+    "dialog_title": "Settings"
+  },
+  "validation": {
+    "path": {
+      "required": "Please enter an output path.",
+      "too_long": "Path must be at most 1024 characters.",
+      "control_chars": "Control characters are not allowed in the path.",
+      "invalid": "Invalid path.",
+      "invalid_chars": "Disallowed characters: < > \" | ? *",
+      "windows": {
+        "colon": "In Windows paths, a colon is only allowed after the drive letter (e.g. C:\\Downloads).",
+        "invalid_chars": "Contains characters not allowed in Windows paths: < > \" | ? *",
+        "segment_trailing": "Folder names cannot end with a space or dot.",
+        "path_trailing": "Path cannot end with a space or dot.",
+        "reserved": "Reserved device names (CON, PRN, AUX, NUL, COM1.., LPT1..) are not allowed."
+      }
+    },
+    "language": {
+      "required": "Please select a language."
+    }
   }
 }

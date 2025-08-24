@@ -8,7 +8,10 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { formSchema } from '@/shared/settings/dialog/formSchema'
+import {
+  buildSettingsFormSchema,
+  formSchema,
+} from '@/shared/settings/dialog/formSchema'
 import { useSettings } from '@/shared/settings/useSettings'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect } from 'react'
@@ -28,15 +31,18 @@ import { useTranslation } from 'react-i18next'
 
 function SettingsForm() {
   const { t } = useTranslation()
-  const { settings, saveByForm } = useSettings()
+  const { settings, saveByForm, updateLanguage } = useSettings()
+
+  // 言語変更ごとにスキーマを再生成 (バリデーションメッセージの多言語化)
+  const schema = buildSettingsFormSchema(t)
 
   const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(schema),
     defaultValues: {
       dlOutputPath: settings.dlOutputPath || '',
       language: settings.language || 'en',
     },
-    mode: 'onBlur', // デフォルトは dlOutputPath 用。language は手動で onChange submit する。
+    mode: 'onBlur',
   })
 
   // settings が外部で更新された際にフォームへ反映
@@ -53,6 +59,7 @@ function SettingsForm() {
       changed.dlOutputPath = data.dlOutputPath
     }
     if (data.language !== settings.language) {
+      updateLanguage(data.language)
       changed.language = data.language
     }
     if (Object.keys(changed).length === 0) return
@@ -70,14 +77,14 @@ function SettingsForm() {
 
   return (
     <Form {...form}>
-      <FormDescription>変更は自動的に保存されます。</FormDescription>
+      <FormDescription>{t('settings.auto_save_note')}</FormDescription>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <FormField
           control={form.control}
           name="language"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>{t('settings.output_dir_label', '言語')}</FormLabel>
+              <FormLabel>{t('settings.language_label')}</FormLabel>
               <FormControl>
                 <RadioGroup
                   value={String(field.value)}
@@ -108,16 +115,11 @@ function SettingsForm() {
           name="dlOutputPath"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>
-                {t('settings.output_dir_label', '出力ディレクトリ')}
-              </FormLabel>
+              <FormLabel>{t('settings.output_dir_label')}</FormLabel>
               <FormControl>
                 <Input
                   required
-                  placeholder={t(
-                    'settings.output_dir_placeholder',
-                    '例: C\\\\Users\\\\you\\\\Downloads もしくは /Users/you/Downloads',
-                  )}
+                  placeholder={t('settings.output_dir_placeholder')}
                   {...field}
                   onBlur={() => {
                     field.onBlur()
@@ -126,10 +128,7 @@ function SettingsForm() {
                 />
               </FormControl>
               <FormDescription>
-                {t(
-                  'settings.output_dir_description',
-                  '動画ファイルの保存先ディレクトリを入力してください。',
-                )}
+                {t('settings.output_dir_description')}
               </FormDescription>
               <FormMessage />
             </FormItem>
