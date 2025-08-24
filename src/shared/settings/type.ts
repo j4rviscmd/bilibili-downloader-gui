@@ -1,4 +1,4 @@
-export type Settings = {
+export interface Settings {
   // TODO: outputPathをjson管理
   // outputPath: string
   language: SupportedLang
