@@ -6,11 +6,54 @@ import {
   callSetSettings,
 } from '@/shared/settings/api/settingApi'
 import { languages } from '@/shared/settings/language/languages'
-import { setSettings } from '@/shared/settings/settingsSlice'
+import { setOpenDialog, setSettings } from '@/shared/settings/settingsSlice'
 import type { Settings } from '@/shared/settings/type'
+import { t as staticT, t } from 'i18next'
+import { toast } from 'sonner'
 
 export const useSettings = () => {
   const settings = useSelector((state) => state.settings)
+
+  const saveByForm = async (settings: Settings): Promise<void> => {
+    try {
+      const isSuccessful = await updateSettings(settings)
+      if (isSuccessful) {
+        toast.success(staticT('settings.save_success', 'Settings saved'))
+        return
+      }
+    } catch (e) {
+      const raw = String(e)
+      // settings.rs で返されるコード (シングルコロン形式) を優先判定
+      //   ERR:SETTINGS_PATH_NOT_DIRECTORY
+      //   ERR:SETTINGS_PATH_NOT_EXIST
+      // 既存のダブルコロン形式 (将来互換) も一応残す
+      let messageKey: string | null = null
+      if (raw.includes('ERR:SETTINGS_PATH_NOT_DIRECTORY'))
+        messageKey = 'settings.path_not_directory'
+      else if (raw.includes('ERR:SETTINGS_PATH_NOT_EXIST'))
+        messageKey = 'settings.path_not_exist'
+      else if (raw.includes('ERR::SAVE_FAILED'))
+        messageKey = 'settings.save_failed'
+      else if (raw.includes('ERR::PERMISSION'))
+        messageKey = 'settings.permission_denied'
+      else if (raw.includes('ERR::DISK_FULL')) messageKey = 'settings.disk_full'
+
+      console.log(messageKey)
+      const description = messageKey ? staticT(messageKey) : raw
+      console.log(messageKey)
+      console.log(t(messageKey ?? ''))
+      toast.error(t('settings.save_failed_generic'), {
+        duration: 10000,
+        description,
+        closeButton: true,
+      })
+      console.error('Save settings failed:', raw)
+    }
+  }
+
+  const updateOpenDialog = (open: boolean) => {
+    store.dispatch(setOpenDialog(open))
+  }
 
   const updateLanguage = async (lang: SupportedLang) => {
     await changeLanguage(lang)
@@ -23,11 +66,20 @@ export const useSettings = () => {
    * @returns なし
    * @remarks
    */
-  const updateSettings = async (newSettings: Settings): Promise<void> => {
-    store.dispatch(setSettings(newSettings))
-    await callSetSettings(newSettings)
+  const updateSettings = async (newSettings: Settings): Promise<boolean> => {
+    let isSuccessful = false
 
-    return
+    try {
+      store.dispatch(setSettings(newSettings))
+      await callSetSettings(newSettings)
+      isSuccessful = true
+    } catch (e) {
+      isSuccessful = false
+      console.log(e)
+      throw Error(String(e))
+    }
+
+    return isSuccessful
   }
 
   const getSettings = async (): Promise<Settings> => {
@@ -45,7 +97,10 @@ export const useSettings = () => {
 
   return {
     settings,
+    saveByForm,
     updateLanguage,
+    updateOpenDialog,
+    updateSettings,
     getSettings,
     id2Label,
   }

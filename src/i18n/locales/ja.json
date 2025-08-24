@@ -79,5 +79,39 @@
     "unexpected": "想定外のエラーが発生しました。",
     "visit_and_login": "Firefoxでログインしていることを確認してください",
     "quit_app": "アプリを終了する"
+  },
+  "settings": {
+    "language_label": "言語",
+    "output_dir_label": "出力ディレクトリ",
+    "output_dir_placeholder": "例: C\\\\Users\\\\you\\\\Downloads または /Users/you/Downloads",
+    "output_dir_description": "動画ファイルの保存先ディレクトリを入力してください。",
+    "auto_save_note": "変更は自動的に保存されます。",
+    "dialog_title": "設定",
+    "save_success": "設定を保存しました",
+    "save_failed": "設定の保存に失敗しました",
+    "save_failed_generic": "設定の保存に失敗しました",
+    "permission_denied": "権限がありません",
+    "disk_full": "ディスク容量が不足しています",
+    "path_not_directory": "指定されたパスはディレクトリではありません",
+    "path_not_exist": "指定されたディレクトリが存在しません"
+  },
+  "validation": {
+    "path": {
+      "required": "出力先パスを入力してください。",
+      "too_long": "パスは1024文字以内で入力してください。",
+      "control_chars": "制御文字を含むパスは使用できません。",
+      "invalid": "無効なパスです。",
+      "invalid_chars": "使用できない文字: < > \" | ? *",
+      "windows": {
+        "colon": "Windows のパスではコロンはドライブレターの直後のみ使用できます (例: C:\\Downloads)。",
+        "invalid_chars": "Windows のパスに使用できない文字: < > \" | ? *",
+        "segment_trailing": "各フォルダー名は末尾にスペースまたはドットを付けられません。",
+        "path_trailing": "パスは末尾にスペースまたはドットを付けられません。",
+        "reserved": "予約デバイス名 (CON, PRN, AUX, NUL, COM1.., LPT1..) は使用できません。"
+      }
+    },
+    "language": {
+      "required": "言語を選択してください。"
+    }
   }
 }

@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub struct Settings {
+    #[serde(rename = "dlOutputPath")]
+    pub dl_output_path: Option<String>,
     pub language: Language,
     //
     // TODO: 現状は利用していない
