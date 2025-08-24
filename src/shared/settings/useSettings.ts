@@ -6,11 +6,15 @@ import {
   callSetSettings,
 } from '@/shared/settings/api/settingApi'
 import { languages } from '@/shared/settings/language/languages'
-import { setSettings } from '@/shared/settings/settingsSlice'
+import { setOpenDialog, setSettings } from '@/shared/settings/settingsSlice'
 import type { Settings } from '@/shared/settings/type'
 
 export const useSettings = () => {
   const settings = useSelector((state) => state.settings)
+
+  const updateOpenDialog = (open: boolean) => {
+    store.dispatch(setOpenDialog(open))
+  }
 
   const updateLanguage = async (lang: SupportedLang) => {
     await changeLanguage(lang)
@@ -46,6 +50,7 @@ export const useSettings = () => {
   return {
     settings,
     updateLanguage,
+    updateOpenDialog,
     getSettings,
     id2Label,
   }
