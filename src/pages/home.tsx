@@ -37,7 +37,7 @@ function HomePage() {
 
   return (
     <>
-      <SidebarProvider>
+      <SidebarProvider defaultOpen={false}>
         <Sidebar>
           <SidebarHeader>
             {/* <SidebarMenu>
