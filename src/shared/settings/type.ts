@@ -1,6 +1,5 @@
 export interface Settings {
-  // TODO: outputPathをjson管理
-  // outputPath: string
+  dlOutputPath: string
   language: SupportedLang
   // Frontendのみの管理につき、localStorageでのみ保存している
   // TODO: themeをjson管理

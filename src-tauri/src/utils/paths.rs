@@ -1,10 +1,6 @@
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 
-pub fn get_output_path(app: &AppHandle, filename: &str) -> PathBuf {
-    app.path().download_dir().unwrap().join(filename)
-}
-
 /// ffmpegバイナリのパスを取得
 pub fn get_ffmpeg_path(app: &AppHandle) -> PathBuf {
     let lib = get_lib_path(app);

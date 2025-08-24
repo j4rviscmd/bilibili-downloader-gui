@@ -6,7 +6,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/animate-ui/radix/dialog'
-import OutputDirForm from '@/shared/settings/dialog/OutputDirForm'
+import { Separator } from '@/components/ui/separator'
+import OutputDirForm from '@/shared/settings/dialog/SettingsForm'
 import { useSettings } from '@/shared/settings/useSettings'
 
 function SettingsDialog() {
@@ -24,9 +25,9 @@ function SettingsDialog() {
         </DialogHeader>
         <div className="flex flex-col gap-3">
           <OutputDirForm />
-          <div>
-            <div>言語</div>
-          </div>
+          <Separator />
+          <div>言語</div>
+          <Separator />
           <div>ファイルの上書き</div>
         </div>
         <DialogFooter></DialogFooter>
