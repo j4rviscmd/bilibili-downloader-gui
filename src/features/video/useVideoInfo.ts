@@ -5,6 +5,7 @@ import { VIDEO_URL_KEY } from '@/features/video/constants'
 import { formSchema1, formSchema2 } from '@/features/video/formSchema'
 import { setQuality, setTitle, setUrl } from '@/features/video/inputSlice'
 import { setVideo } from '@/features/video/videoSlice'
+import { clearProgress } from '@/shared/progress/progressSlice'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -48,6 +49,9 @@ export const useVideoInfo = () => {
         parseInt(input.quality, 10),
       )
     } catch (e) {
+      // プログレスバーをクリア
+      store.dispatch(clearProgress())
+
       const raw = String(e)
       // Standardized backend error codes: ERR::<CODE>
       let messageKey: string | null = null
