@@ -17,7 +17,6 @@ pub async fn set_settings(app: &AppHandle, settings: &Settings) -> Result<(), St
     //違反している場合はFrontendへコードを返却: ERR::<CODE>
     // DL出力ディレクトリの正常性確認
     // 1. ディレクトリパスであること
-    println!("Settings dl_output_path: {:?}", settings.dl_output_path);
     let dl_output_dir_path = PathBuf::from(settings.dl_output_path.clone().unwrap());
     if !dl_output_dir_path.is_dir() {
         return Err("ERR:SETTINGS_PATH_NOT_DIRECTORY".to_string());
@@ -78,7 +77,6 @@ async fn validate_settings(app: &AppHandle, filepath: &PathBuf) -> Result<bool> 
         let json = serde_json::to_string_pretty(&default_settings)?;
         let mut file = File::create(&filepath).await?;
         file.write_all(json.as_bytes()).await?;
-        println!("Default settings: \n{}", json);
 
         Ok(true)
     } else {
