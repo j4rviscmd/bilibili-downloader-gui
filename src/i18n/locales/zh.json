@@ -67,5 +67,30 @@
     "unexpected": "发生意外错误。",
     "visit_and_login": "请确认已登录",
     "quit_app": "退出应用"
+  },
+  "settings": {
+    "language_label": "语言",
+    "output_dir_label": "输出目录",
+    "output_dir_placeholder": "例如: C\\\\Users\\\\you\\\\Downloads 或 /Users/you/Downloads",
+    "output_dir_description": "请输入保存视频文件的目录。",
+    "auto_save_note": "更改会自动保存。",
+    "dialog_title": "设置"
+  },
+  "validation": {
+    "path": {
+      "required": "请输入输出路径。",
+      "too_long": "路径长度不能超过 1024 个字符。",
+      "control_chars": "路径不能包含控制字符。",
+      "invalid": "无效的路径。",
+      "invalid_chars": "不允许的字符: < > \" | ? *",
+      "windows": {
+        "colon": "在 Windows 路径中，冒号只能出现在盘符后 (例如: C:\\Downloads)。",
+        "invalid_chars": "Windows 路径包含不允许的字符: < > \" | ? *",
+        "segment_trailing": "文件夹名称不能以空格或点结尾。",
+        "path_trailing": "路径不能以空格或点结尾。",
+        "reserved": "不能使用保留设备名 (CON, PRN, AUX, NUL, COM1.., LPT1..)。"
+      }
+    },
+    "language": { "required": "请选择语言。" }
   }
 }

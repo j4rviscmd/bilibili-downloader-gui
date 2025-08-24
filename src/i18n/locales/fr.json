@@ -67,5 +67,30 @@
     "unexpected": "Une erreur inattendue est survenue.",
     "visit_and_login": "Assurez-vous d'être connecté à",
     "quit_app": "Quitter l'application"
+  },
+  "settings": {
+    "language_label": "Langue",
+    "output_dir_label": "Répertoire de sortie",
+    "output_dir_placeholder": "ex: C\\\\Users\\\\you\\\\Downloads ou /Users/you/Downloads",
+    "output_dir_description": "Indiquez le répertoire où les vidéos seront enregistrées.",
+    "auto_save_note": "Les modifications sont enregistrées automatiquement.",
+    "dialog_title": "Paramètres"
+  },
+  "validation": {
+    "path": {
+      "required": "Veuillez saisir un chemin de sortie.",
+      "too_long": "Le chemin doit contenir au maximum 1024 caractères.",
+      "control_chars": "Les caractères de contrôle sont interdits.",
+      "invalid": "Chemin invalide.",
+      "invalid_chars": "Caractères interdits : < > \" | ? *",
+      "windows": {
+        "colon": "Sous Windows, les deux-points ne sont autorisés qu'après la lettre du lecteur (ex: C:\\Downloads).",
+        "invalid_chars": "Caractères non autorisés dans un chemin Windows : < > \" | ? *",
+        "segment_trailing": "Les noms de dossier ne peuvent pas se terminer par un espace ou un point.",
+        "path_trailing": "Le chemin ne peut pas se terminer par un espace ou un point.",
+        "reserved": "Noms réservés interdits (CON, PRN, AUX, NUL, COM1.., LPT1..)."
+      }
+    },
+    "language": { "required": "Veuillez sélectionner une langue." }
   }
 }
