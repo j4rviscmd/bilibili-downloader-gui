@@ -67,5 +67,37 @@
     "unexpected": "Ocurrió un error inesperado.",
     "visit_and_login": "Asegúrate de haber iniciado sesión en",
     "quit_app": "Salir de la aplicación"
+  },
+  "settings": {
+    "language_label": "Idioma",
+    "output_dir_label": "Directorio de salida",
+    "output_dir_placeholder": "ej: C\\\\Users\\\\you\\\\Downloads o /Users/you/Downloads",
+    "output_dir_description": "Introduce el directorio donde se guardarán los videos.",
+    "auto_save_note": "Los cambios se guardan automáticamente.",
+    "dialog_title": "Configuración",
+    "save_success": "Configuración guardada",
+    "save_failed": "Error al guardar la configuración",
+    "save_failed_generic": "Error al guardar la configuración",
+    "permission_denied": "Permiso denegado",
+    "disk_full": "Disco lleno",
+    "path_not_directory": "La ruta especificada no es un directorio",
+    "path_not_exist": "El directorio especificado no existe"
+  },
+  "validation": {
+    "path": {
+      "required": "Introduce una ruta de salida.",
+      "too_long": "La ruta debe tener máximo 1024 caracteres.",
+      "control_chars": "La ruta no puede contener caracteres de control.",
+      "invalid": "Ruta inválida.",
+      "invalid_chars": "Caracteres no permitidos: < > \" | ? *",
+      "windows": {
+        "colon": "En Windows el colon solo va tras la letra de unidad (ej: C:\\Downloads).",
+        "invalid_chars": "La ruta contiene caracteres no permitidos en Windows: < > \" | ? *",
+        "segment_trailing": "Los nombres de carpeta no pueden terminar en espacio o punto.",
+        "path_trailing": "La ruta no puede terminar en espacio o punto.",
+        "reserved": "No se permiten nombres reservados (CON, PRN, AUX, NUL, COM1.., LPT1..)."
+      }
+    },
+    "language": { "required": "Selecciona un idioma." }
   }
 }

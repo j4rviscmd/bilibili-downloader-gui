@@ -1,13 +1,14 @@
 use crate::constants::REFERER;
 use crate::handlers::cookie::read_cookie;
 use crate::handlers::ffmpeg::merge_av;
+use crate::handlers::settings;
 use crate::models::bilibili_api::{
     UserApiResponse, WebInterfaceApiResponse, XPlayerApiResponse, XPlayerApiResponseVideo,
 };
 use crate::models::cookie::CookieEntry;
 use crate::models::frontend_dto::{Quality, UserData, Video};
 use crate::utils::downloads::download_url;
-use crate::utils::paths::{get_lib_path, get_output_path};
+use crate::utils::paths::get_lib_path;
 use crate::{constants::USER_AGENT, models::frontend_dto::User};
 use futures::future::join_all;
 use reqwest::{
@@ -25,7 +26,7 @@ pub async fn download_video(
     filename: &str,
     quality: &i32,
 ) -> Result<(), String> {
-    let mut output_path = get_output_path(app, filename);
+    let mut output_path = get_output_path(app, filename).await.unwrap();
     output_path.set_extension("mp4");
 
     // すでに同名ファイルが存在する場合はエラー
@@ -357,4 +358,13 @@ async fn fetch_video_details(
     }
 
     return Ok(body);
+}
+
+async fn get_output_path(app: &AppHandle, filename: &str) -> anyhow::Result<PathBuf> {
+    if let Ok(settings) = settings::get_settings(app).await {
+        let dir = PathBuf::from(&settings.dl_output_path.unwrap());
+        Ok(dir.join(filename))
+    } else {
+        Err(anyhow::anyhow!("Failed to get settings"))
+    }
 }
