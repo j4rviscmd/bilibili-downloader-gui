@@ -86,7 +86,14 @@
     "output_dir_placeholder": "例: C\\\\Users\\\\you\\\\Downloads または /Users/you/Downloads",
     "output_dir_description": "動画ファイルの保存先ディレクトリを入力してください。",
     "auto_save_note": "変更は自動的に保存されます。",
-    "dialog_title": "設定"
+    "dialog_title": "設定",
+    "save_success": "設定を保存しました",
+    "save_failed": "設定の保存に失敗しました",
+    "save_failed_generic": "設定の保存に失敗しました",
+    "permission_denied": "権限がありません",
+    "disk_full": "ディスク容量が不足しています",
+    "path_not_directory": "指定されたパスはディレクトリではありません",
+    "path_not_exist": "指定されたディレクトリが存在しません"
   },
   "validation": {
     "path": {

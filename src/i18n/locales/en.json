@@ -86,7 +86,14 @@
     "output_dir_placeholder": "e.g. C:\\Users\\you\\Downloads or /Users/you/Downloads",
     "output_dir_description": "Enter the directory where video files will be saved.",
     "auto_save_note": "Changes are saved automatically.",
-    "dialog_title": "Settings"
+    "dialog_title": "Settings",
+    "save_success": "Settings saved",
+    "save_failed": "Failed to save settings",
+    "save_failed_generic": "Failed to save settings",
+    "permission_denied": "Permission denied",
+    "disk_full": "Disk is full",
+    "path_not_directory": "The specified path is not a directory",
+    "path_not_exist": "The specified directory does not exist"
   },
   "validation": {
     "path": {

@@ -74,7 +74,14 @@
     "output_dir_placeholder": "ej: C\\\\Users\\\\you\\\\Downloads o /Users/you/Downloads",
     "output_dir_description": "Introduce el directorio donde se guardarán los videos.",
     "auto_save_note": "Los cambios se guardan automáticamente.",
-    "dialog_title": "Configuración"
+    "dialog_title": "Configuración",
+    "save_success": "Configuración guardada",
+    "save_failed": "Error al guardar la configuración",
+    "save_failed_generic": "Error al guardar la configuración",
+    "permission_denied": "Permiso denegado",
+    "disk_full": "Disco lleno",
+    "path_not_directory": "La ruta especificada no es un directorio",
+    "path_not_exist": "El directorio especificado no existe"
   },
   "validation": {
     "path": {

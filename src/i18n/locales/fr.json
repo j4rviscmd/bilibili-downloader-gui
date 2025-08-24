@@ -74,7 +74,14 @@
     "output_dir_placeholder": "ex: C\\\\Users\\\\you\\\\Downloads ou /Users/you/Downloads",
     "output_dir_description": "Indiquez le répertoire où les vidéos seront enregistrées.",
     "auto_save_note": "Les modifications sont enregistrées automatiquement.",
-    "dialog_title": "Paramètres"
+    "dialog_title": "Paramètres",
+    "save_success": "Paramètres enregistrés",
+    "save_failed": "Échec de l'enregistrement des paramètres",
+    "save_failed_generic": "Échec de l'enregistrement des paramètres",
+    "permission_denied": "Permission refusée",
+    "disk_full": "Disque plein",
+    "path_not_directory": "Le chemin indiqué n'est pas un répertoire",
+    "path_not_exist": "Le répertoire indiqué n'existe pas"
   },
   "validation": {
     "path": {

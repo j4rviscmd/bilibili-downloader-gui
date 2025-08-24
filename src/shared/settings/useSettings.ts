@@ -8,22 +8,46 @@ import {
 import { languages } from '@/shared/settings/language/languages'
 import { setOpenDialog, setSettings } from '@/shared/settings/settingsSlice'
 import type { Settings } from '@/shared/settings/type'
-import { t } from 'i18next'
+import { t as staticT, t } from 'i18next'
 import { toast } from 'sonner'
 
 export const useSettings = () => {
   const settings = useSelector((state) => state.settings)
 
   const saveByForm = async (settings: Settings): Promise<void> => {
-    const isSuccessful = await updateSettings(settings)
-    if (isSuccessful) {
-      toast.success('Settings saved')
-    } else {
-      toast.error(t('設定の保存に失敗しました'), {
+    try {
+      const isSuccessful = await updateSettings(settings)
+      if (isSuccessful) {
+        toast.success(staticT('settings.save_success', 'Settings saved'))
+        return
+      }
+    } catch (e) {
+      const raw = String(e)
+      // settings.rs で返されるコード (シングルコロン形式) を優先判定
+      //   ERR:SETTINGS_PATH_NOT_DIRECTORY
+      //   ERR:SETTINGS_PATH_NOT_EXIST
+      // 既存のダブルコロン形式 (将来互換) も一応残す
+      let messageKey: string | null = null
+      if (raw.includes('ERR:SETTINGS_PATH_NOT_DIRECTORY'))
+        messageKey = 'settings.path_not_directory'
+      else if (raw.includes('ERR:SETTINGS_PATH_NOT_EXIST'))
+        messageKey = 'settings.path_not_exist'
+      else if (raw.includes('ERR::SAVE_FAILED'))
+        messageKey = 'settings.save_failed'
+      else if (raw.includes('ERR::PERMISSION'))
+        messageKey = 'settings.permission_denied'
+      else if (raw.includes('ERR::DISK_FULL')) messageKey = 'settings.disk_full'
+
+      console.log(messageKey)
+      const description = messageKey ? staticT(messageKey) : raw
+      console.log(messageKey)
+      console.log(t(messageKey ?? ''))
+      toast.error(t('settings.save_failed_generic'), {
         duration: 10000,
-        // description,
+        description,
         closeButton: true,
       })
+      console.error('Save settings failed:', raw)
     }
   }
 
@@ -52,6 +76,7 @@ export const useSettings = () => {
     } catch (e) {
       isSuccessful = false
       console.log(e)
+      throw Error(String(e))
     }
 
     return isSuccessful
