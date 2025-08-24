@@ -1,7 +1,7 @@
 import z from 'zod'
 
 export const formSchema = z.object({
-  isOverwrite: z.boolean(),
+  // isOverwrite: z.boolean(),
   dlOutputPath: z
     .string()
     .min(1, { message: '出力先パスを入力してください。' })
