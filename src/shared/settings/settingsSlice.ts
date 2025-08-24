@@ -6,6 +6,7 @@ type SettingsState = Settings & {
   dialogOpen: boolean
 }
 const initialState: SettingsState = {
+  dlOutputPath: '',
   language: 'en',
   dialogOpen: false,
 }
@@ -14,6 +15,9 @@ export const settingsSlice = createSlice({
   name: 'settings',
   initialState,
   reducers: {
+    setDLOutputPath: (state, action: PayloadAction<string>) => {
+      state.dlOutputPath = action.payload
+    },
     setOpenDialog: (state, action: PayloadAction<boolean>) => {
       state.dialogOpen = action.payload
     },
@@ -23,5 +27,6 @@ export const settingsSlice = createSlice({
   },
 })
 
-export const { setSettings, setOpenDialog } = settingsSlice.actions
+export const { setSettings, setOpenDialog, setDLOutputPath } =
+  settingsSlice.actions
 export default settingsSlice.reducer

@@ -8,9 +8,24 @@ import {
 import { languages } from '@/shared/settings/language/languages'
 import { setOpenDialog, setSettings } from '@/shared/settings/settingsSlice'
 import type { Settings } from '@/shared/settings/type'
+import { t } from 'i18next'
+import { toast } from 'sonner'
 
 export const useSettings = () => {
   const settings = useSelector((state) => state.settings)
+
+  const saveByForm = async (settings: Settings): Promise<void> => {
+    const isSuccessful = await updateSettings(settings)
+    if (isSuccessful) {
+      toast.success('Settings saved')
+    } else {
+      toast.error(t('設定の保存に失敗しました'), {
+        duration: 10000,
+        // description,
+        closeButton: true,
+      })
+    }
+  }
 
   const updateOpenDialog = (open: boolean) => {
     store.dispatch(setOpenDialog(open))
@@ -27,11 +42,19 @@ export const useSettings = () => {
    * @returns なし
    * @remarks
    */
-  const updateSettings = async (newSettings: Settings): Promise<void> => {
-    store.dispatch(setSettings(newSettings))
-    await callSetSettings(newSettings)
+  const updateSettings = async (newSettings: Settings): Promise<boolean> => {
+    let isSuccessful = false
 
-    return
+    try {
+      store.dispatch(setSettings(newSettings))
+      await callSetSettings(newSettings)
+      isSuccessful = true
+    } catch (e) {
+      isSuccessful = false
+      console.log(e)
+    }
+
+    return isSuccessful
   }
 
   const getSettings = async (): Promise<Settings> => {
@@ -49,8 +72,10 @@ export const useSettings = () => {
 
   return {
     settings,
+    saveByForm,
     updateLanguage,
     updateOpenDialog,
+    updateSettings,
     getSettings,
     id2Label,
   }
