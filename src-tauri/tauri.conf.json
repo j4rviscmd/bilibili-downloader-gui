@@ -15,7 +15,9 @@
       {
         "title": "bilibili Downloader GUI",
         "width": 800,
-        "height": 600
+        "height": 800,
+        "minHeight": 800,
+        "minWidth": 800
       }
     ],
     "security": {
