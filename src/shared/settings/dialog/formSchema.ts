@@ -96,11 +96,7 @@ export const formSchema = z.object({
         }
       }
     }),
-  language: z
-    .enum(['en', 'ja', 'fr', 'es', 'zh', 'ko'] as const, {
-      error: '言語を選択してください。',
-    })
-    .refine((val) => ['en', 'ja', 'fr', 'es', 'zh', 'ko'].includes(val), {
-      message: 'サポートされていない言語です。',
-    }),
+  language: z.enum(['en', 'ja', 'fr', 'es', 'zh', 'ko'] as const, {
+    message: '言語を選択してください。',
+  }),
 })
