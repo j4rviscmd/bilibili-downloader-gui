@@ -70,6 +70,7 @@ function SettingsForm() {
 
   return (
     <Form {...form}>
+      <FormDescription>変更は自動的に保存されます。</FormDescription>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <FormField
           control={form.control}
@@ -134,8 +135,6 @@ function SettingsForm() {
             </FormItem>
           )}
         />
-        <Separator />
-        <div>既存ファイルへの上書き</div>
       </form>
     </Form>
   )
