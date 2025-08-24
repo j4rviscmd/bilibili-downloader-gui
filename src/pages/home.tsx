@@ -76,7 +76,7 @@ function HomePage() {
             <AppBar user={user} theme={theme} setTheme={setTheme} />
             <SidebarTrigger size={'lg'} className="m-1" />
             <ScrollArea className="flex size-full">
-              <div className="box-border flex w-full flex-col items-center justify-center px-3 py-12">
+              <div className="box-border flex w-full flex-col items-center justify-center p-3">
                 <div className="flex h-full w-4/5 flex-col justify-center gap-12">
                   <div className="block">
                     <VideoForm1 />
@@ -84,7 +84,7 @@ function HomePage() {
                   <div className="block">
                     <VideoForm2 />
                   </div>
-                  <div className="box-border flex w-full justify-center p-6">
+                  <div className="box-border flex w-full justify-center p-3">
                     <DownloadButton />
                   </div>
                 </div>
