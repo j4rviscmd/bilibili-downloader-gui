@@ -124,6 +124,21 @@ impl Emits {
         let _ = self.app.emit("progress", guard.progress.clone());
     }
 
+    // ダウンロード途中で総サイズが後から判明した場合に更新するためのユーティリティ
+    pub async fn update_total(&self, filesize_bytes: u64) {
+        let filesize_mb: f64 = filesize_bytes as f64 / 1024.0 / 1024.0;
+        let mut guard = self.inner.lock().await;
+        // 既に設定済みで値が同じなら何もしない
+        if let Some(existing) = guard.progress.filesize {
+            if (existing - filesize_mb).abs() < f64::EPSILON {
+                return;
+            }
+        }
+        guard.progress.filesize = Some(filesize_mb);
+        // 進捗再計算と即時送信
+        Self::send_progress_locked(&self.app, &mut *guard);
+    }
+
     // 内部用: ミューテックス取得済みで進捗を計算・送信
     fn send_progress_locked(app: &AppHandle, inner: &mut EmitsInner) {
         let mut prg = inner.progress.clone();
