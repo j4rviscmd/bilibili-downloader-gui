@@ -5,6 +5,7 @@
     "codecid",
     "cookiefile",
     "dtolnay",
+    "ENOSPC",
     "Español",
     "filesize",
     "flate",
@@ -23,6 +24,7 @@
     "patchelf",
     "REFERER",
     "reqs",
+    "rsplit",
     "rusqlite"
   ],
   "github-actions.workflows.pinned.workflows": [".github/workflows/release.yml"]
