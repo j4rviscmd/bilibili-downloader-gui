@@ -15,6 +15,11 @@ use tokio::io::AsyncSeekExt;
 use tokio::sync::Semaphore;
 use tokio::{fs, io::AsyncWriteExt};
 
+// Detect if an IO error represents "No space left on device" (ENOSPC)
+fn is_no_space_error(e: &std::io::Error) -> bool {
+    matches!(e.raw_os_error(), Some(code) if code == 28) // Unix/macOS ENOSPC = 28
+}
+
 pub async fn download_url(
     app: &AppHandle,
     url: String,
@@ -133,13 +138,26 @@ pub async fn download_url(
 
     // ---- 3. ファイル確保 ----
     {
-        let f = tokio::fs::OpenOptions::new()
+        let f_res = tokio::fs::OpenOptions::new()
             .create(true)
             .write(true)
             .truncate(true)
             .open(&output_path)
-            .await?;
-        f.set_len(total).await?; // 事前割り当て
+            .await;
+        let f = match f_res {
+            Ok(f) => f,
+            Err(e) if is_no_space_error(&e) => {
+                return Err(anyhow::anyhow!("ERR::DISK_FULL"));
+            }
+            Err(e) => return Err(e.into()),
+        };
+        if let Err(e) = f.set_len(total).await {
+            if is_no_space_error(&e) {
+                return Err(anyhow::anyhow!("ERR::DISK_FULL"));
+            } else {
+                return Err(e.into());
+            }
+        } // 事前割り当て
     }
 
     let emits = Arc::new(Emits::new(app.clone(), filename.to_string(), Some(total)));
@@ -234,9 +252,30 @@ pub async fn download_url(
                         let mut file = tokio::fs::OpenOptions::new()
                             .write(true)
                             .open(&path_c)
-                            .await?;
-                        file.seek(std::io::SeekFrom::Start(s)).await?;
-                        file.write_all(&buf).await?;
+                            .await
+                            .map_err(|e| {
+                                if is_no_space_error(&e) {
+                                    anyhow::anyhow!("ERR::DISK_FULL")
+                                } else {
+                                    e.into()
+                                }
+                            })?;
+                        file.seek(std::io::SeekFrom::Start(s)).await.map_err(|e| {
+                            if is_no_space_error(&e) {
+                                anyhow::anyhow!("ERR::DISK_FULL")
+                            } else {
+                                e.into()
+                            }
+                        })?;
+                        if let Err(e) = file.write_all(&buf).await {
+                            if let Some(code) = e.raw_os_error() {
+                                if code == 28 {
+                                    // ENOSPC
+                                    return Err(anyhow::anyhow!("ERR::DISK_FULL"));
+                                }
+                            }
+                            return Err(e.into());
+                        }
                         let new_total = dl_total_c.fetch_add(size, Ordering::Relaxed) + size;
                         emits_c.update_progress(new_total).await;
                         println!("SEG{} done ({} bytes) total={}", idx, size, new_total);
@@ -314,19 +353,36 @@ async fn single_stream_fallback(
         .and_then(|s| s.to_str())
         .unwrap_or("download");
     let emits = Emits::new(app.clone(), filename.to_string(), total);
-    let mut file = tokio::fs::OpenOptions::new()
+    let mut file = match tokio::fs::OpenOptions::new()
         .create(true)
         .write(true)
         .truncate(true)
         .open(&output_path)
-        .await?;
+        .await
+    {
+        Ok(f) => f,
+        Err(e) if is_no_space_error(&e) => return Err(anyhow::anyhow!("ERR::DISK_FULL")),
+        Err(e) => return Err(e.into()),
+    };
     let mut downloaded: u64 = 0;
     while let Some(chunk) = resp.chunk().await? {
-        file.write_all(&chunk).await?;
+        if let Err(e) = file.write_all(&chunk).await {
+            if is_no_space_error(&e) {
+                return Err(anyhow::anyhow!("ERR::DISK_FULL"));
+            } else {
+                return Err(e.into());
+            }
+        }
         downloaded += chunk.len() as u64;
         emits.update_progress(downloaded).await;
     }
-    file.flush().await?;
+    if let Err(e) = file.flush().await {
+        if is_no_space_error(&e) {
+            return Err(anyhow::anyhow!("ERR::DISK_FULL"));
+        } else {
+            return Err(e.into());
+        }
+    }
     emits.complete().await;
     println!(
         "Fallback single-stream download complete. Size: {} bytes",
