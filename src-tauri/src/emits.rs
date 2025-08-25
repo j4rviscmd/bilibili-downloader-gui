@@ -142,45 +142,46 @@ impl Emits {
         let delta_time = now.duration_since(inner.last_instant).as_secs_f64();
         // 累計経過時間（秒）
         let elapsed_time = now.duration_since(inner.start_instant).as_secs_f64();
-
-        // 進捗率を計算
-        if inner.progress.filesize.is_none() {
-            prg.percentage = 0.0;
-        } else if inner.progress.filesize.unwrap() > 0.0 {
-            // filesize は MB 単位
-            let downloaded_mb = inner.current_downloaded_bytes as f64 / 1024.0 / 1024.0;
-            prg.percentage = (downloaded_mb / inner.progress.filesize.unwrap()) * 100.0;
-        } else {
-            prg.percentage = 0.0;
-        }
-        // 転送速度（平均, KB/s）= 累計ダウンロードバイト / 経過秒 / 1024
-        if elapsed_time > 0.0 {
-            prg.transfer_rate = (inner.current_downloaded_bytes as f64 / elapsed_time) / 1024.0;
-        } else {
-            prg.transfer_rate = 0.0;
+        // バイト量が増えたタイミングのみ速度/進捗を再計算する
+        let bytes_changed = inner.current_downloaded_bytes != inner.last_downloaded_bytes;
+        if bytes_changed {
+            // 進捗率を計算
+            if inner.progress.filesize.is_none() {
+                prg.percentage = 0.0;
+            } else if inner.progress.filesize.unwrap() > 0.0 {
+                // filesize は MB 単位
+                let downloaded_mb = inner.current_downloaded_bytes as f64 / 1024.0 / 1024.0;
+                prg.percentage = (downloaded_mb / inner.progress.filesize.unwrap()) * 100.0;
+            } else {
+                prg.percentage = 0.0;
+            }
+            // 転送速度（平均, KB/s）= 累計ダウンロードバイト / 経過秒 / 1024
+            if elapsed_time > 0.0 {
+                prg.transfer_rate = (inner.current_downloaded_bytes as f64 / elapsed_time) / 1024.0;
+            } else {
+                prg.transfer_rate = 0.0;
+            }
         }
         // 差分時間を更新
         prg.delta_time = delta_time;
         // 累計経過時間を更新（丸め）
         prg.elapsed_time = round_to(elapsed_time, 1);
-
-        // 表示用の値に丸め（filesize/downloaded: 1桁, percentage: 0桁, transfer_rate: 1桁）
-        if inner.progress.filesize.is_some() {
-            // filesize (MB) 丸め
+        // 表示用の丸めは bytes_changed のときだけ進捗値を更新。経過時間は毎回更新。
+        if bytes_changed && inner.progress.filesize.is_some() {
             prg.filesize = Some(round_to(inner.progress.filesize.unwrap(), 1));
-            // downloaded (MB) 丸め
             prg.downloaded = Some(round_to(
                 inner.current_downloaded_bytes as f64 / 1024.0 / 1024.0,
                 1,
             ));
             prg.percentage = round_to(prg.percentage, 0);
-            // transfer_rate (KB/s) 丸め 1桁
             prg.transfer_rate = round_to(prg.transfer_rate, 1);
         }
 
         // 内部状態を更新
         inner.last_instant = now;
-        inner.last_downloaded_bytes = inner.current_downloaded_bytes;
+        if bytes_changed {
+            inner.last_downloaded_bytes = inner.current_downloaded_bytes;
+        }
         inner.progress = prg;
 
         // Emitterを使用してイベントを送信

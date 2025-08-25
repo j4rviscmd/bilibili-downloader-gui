@@ -17,7 +17,7 @@ function ProgressStatusBar({ progress }: Props) {
       value={progress.percentage}
       className="text-muted-foreground w-full"
     >
-      {progress.filesize ? (
+      {progress.filesize != null ? (
         <>
           <div className="flex items-center justify-between">
             <ProgressLabel className="flex w-full items-center text-sm">
@@ -35,8 +35,8 @@ function ProgressStatusBar({ progress }: Props) {
                 })()}
               </div>
               <div className="w-1/3">
-                {progress.downloaded.toFixed(1)}mb/
-                {progress.filesize.toFixed(1)}mb
+                {(progress.downloaded ?? 0).toFixed(1)}mb/
+                {(progress.filesize ?? 0).toFixed(1)}mb
               </div>
             </ProgressLabel>
           </div>
