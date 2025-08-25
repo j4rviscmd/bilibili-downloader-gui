@@ -12,6 +12,18 @@ type Props = {
 
 function ProgressStatusBar({ progress }: Props) {
   const { t } = useTranslation()
+  const formatElapsed = (sec?: number) => {
+    let total = Math.max(0, Math.floor(sec ?? 0))
+    const h = Math.floor(total / 3600)
+    total %= 3600
+    const m = Math.floor(total / 60)
+    const s = total % 60
+    const parts: string[] = []
+    if (h > 0) parts.push(`${h}h`)
+    if (h > 0 || m > 0) parts.push(`${m}m`)
+    parts.push(`${s}s`)
+    return parts.join('')
+  }
   return (
     <Progress
       value={progress.percentage}
@@ -22,7 +34,7 @@ function ProgressStatusBar({ progress }: Props) {
           <div className="flex items-center justify-between">
             <ProgressLabel className="flex w-full items-center text-sm">
               <div className="w-1/3">
-                {t('progress.elapsed')}: {Math.round(progress.elapsedTime)}s
+                {t('progress.elapsed')}: {formatElapsed(progress.elapsedTime)}
               </div>
               <div className="w-1/3">
                 {t('progress.speed')}:{' '}
@@ -53,7 +65,7 @@ function ProgressStatusBar({ progress }: Props) {
           <div className="flex items-center justify-between">
             <ProgressLabel className="flex w-full items-center justify-between text-sm">
               <div>
-                {t('progress.elapsed')}: {progress.elapsedTime}s
+                {t('progress.elapsed')}: {formatElapsed(progress.elapsedTime)}
               </div>
               <div />
             </ProgressLabel>
