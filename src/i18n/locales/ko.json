@@ -32,7 +32,8 @@
     "completed": "완료",
     "failed": "실패",
     "download_failed": "다운로드에 실패했습니다",
-    "file_exists": "같은 이름의 파일이 이미 존재합니다"
+    "file_exists": "같은 이름의 파일이 이미 존재합니다",
+    "disk_full": "디스크 용량이 부족합니다"
   },
   "toast": { "success": "성공", "error": "문제가 발생했습니다" },
   "init": {
