@@ -31,8 +31,8 @@ struct EmitsInner {
     progress: Progress,
     start_instant: Instant,
     last_instant: Instant,
-    last_downloaded_mb: f64,
-    current_downloaded_mb: f64,
+    last_downloaded_bytes: u64,
+    current_downloaded_bytes: u64,
     // 内部タイマーの終了フラグ
     is_complete: bool,
 }
@@ -63,8 +63,8 @@ impl Emits {
             },
             start_instant: now,
             last_instant: now,
-            last_downloaded_mb: 0.0,
-            current_downloaded_mb: 0.0,
+            last_downloaded_bytes: 0,
+            current_downloaded_bytes: 0,
             is_complete: false,
         }));
 
@@ -97,16 +97,9 @@ impl Emits {
     }
 
     pub async fn update_progress(&self, downloaded_bytes: u64) {
-        // Byte -> MB（小数維持）
-        let downloaded_mb: f64 = downloaded_bytes as f64 / 1024.0 / 1024.0;
-        // 内部保持（小数）
         if let Ok(mut guard) = self.inner.try_lock() {
-            guard.current_downloaded_mb = downloaded_mb;
-        } else {
-            // 混雑時は次のtickで反映されるのでスキップ
+            guard.current_downloaded_bytes = downloaded_bytes;
         }
-
-        return;
     }
     pub async fn complete(&self) {
         // 完了時点の累計経過時間を更新
@@ -114,7 +107,9 @@ impl Emits {
         let now = Instant::now();
         let elapsed = now.duration_since(guard.start_instant).as_secs_f64();
         // 完了時はファイルサイズに設定
-        guard.progress.downloaded = guard.progress.filesize;
+        if let Some(fs_mb) = guard.progress.filesize {
+            guard.progress.downloaded = Some(fs_mb);
+        }
         guard.progress.percentage = 100.0; // 完了時は100%
         guard.progress.elapsed_time = round_to(elapsed, 1);
         guard.progress.is_complete = true;
@@ -122,6 +117,21 @@ impl Emits {
         guard.is_complete = true;
         // 最終進捗をemit
         let _ = self.app.emit("progress", guard.progress.clone());
+    }
+
+    // ダウンロード途中で総サイズが後から判明した場合に更新するためのユーティリティ
+    pub async fn update_total(&self, filesize_bytes: u64) {
+        let filesize_mb: f64 = filesize_bytes as f64 / 1024.0 / 1024.0;
+        let mut guard = self.inner.lock().await;
+        // 既に設定済みで値が同じなら何もしない
+        if let Some(existing) = guard.progress.filesize {
+            if (existing - filesize_mb).abs() < f64::EPSILON {
+                return;
+            }
+        }
+        guard.progress.filesize = Some(filesize_mb);
+        // 進捗再計算と即時送信
+        Self::send_progress_locked(&self.app, &mut *guard);
     }
 
     // 内部用: ミューテックス取得済みで進捗を計算・送信
@@ -137,15 +147,15 @@ impl Emits {
         if inner.progress.filesize.is_none() {
             prg.percentage = 0.0;
         } else if inner.progress.filesize.unwrap() > 0.0 {
-            prg.percentage =
-                (inner.current_downloaded_mb / inner.progress.filesize.unwrap()) * 100.0;
+            // filesize は MB 単位
+            let downloaded_mb = inner.current_downloaded_bytes as f64 / 1024.0 / 1024.0;
+            prg.percentage = (downloaded_mb / inner.progress.filesize.unwrap()) * 100.0;
         } else {
             prg.percentage = 0.0;
         }
-        // 転送速度（MB/s）= ΔMB / Δsec
-        if delta_time > 0.0 {
-            let delta_mb = (inner.current_downloaded_mb - inner.last_downloaded_mb).max(0.0);
-            prg.transfer_rate = delta_mb / delta_time;
+        // 転送速度（平均, KB/s）= 累計ダウンロードバイト / 経過秒 / 1024
+        if elapsed_time > 0.0 {
+            prg.transfer_rate = (inner.current_downloaded_bytes as f64 / elapsed_time) / 1024.0;
         } else {
             prg.transfer_rate = 0.0;
         }
@@ -156,15 +166,21 @@ impl Emits {
 
         // 表示用の値に丸め（filesize/downloaded: 1桁, percentage: 0桁, transfer_rate: 1桁）
         if inner.progress.filesize.is_some() {
+            // filesize (MB) 丸め
             prg.filesize = Some(round_to(inner.progress.filesize.unwrap(), 1));
-            prg.downloaded = Some(round_to(inner.current_downloaded_mb, 1));
+            // downloaded (MB) 丸め
+            prg.downloaded = Some(round_to(
+                inner.current_downloaded_bytes as f64 / 1024.0 / 1024.0,
+                1,
+            ));
             prg.percentage = round_to(prg.percentage, 0);
+            // transfer_rate (KB/s) 丸め 1桁
             prg.transfer_rate = round_to(prg.transfer_rate, 1);
         }
 
         // 内部状態を更新
         inner.last_instant = now;
-        inner.last_downloaded_mb = inner.current_downloaded_mb;
+        inner.last_downloaded_bytes = inner.current_downloaded_bytes;
         inner.progress = prg;
 
         // Emitterを使用してイベントを送信

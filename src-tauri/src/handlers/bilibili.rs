@@ -107,11 +107,14 @@ pub async fn download_video(
     let results: Vec<anyhow::Result<()>> = join_all(download_tasks).await;
     for res in results.iter() {
         match res {
-            Ok(()) => println!("Download successful"),
+            Ok(()) => { /* DEBUG: println!("Download successful"); */ }
             Err(e) => {
-                let msg = format!("Download failed: {}", e);
-                println!("{}", msg);
-                return Err(msg.to_string());
+                // 失敗時の詳細デバッグ出力（エラーチェーンを含む）
+                // DEBUG: detailed download failure logging
+                // println!("Download failed: {}", e);
+                // println!("Download error debug: {:#?}", e);
+                // for (i, cause) in e.chain().enumerate() { println!("  cause[{i}]: {cause}"); }
+                return Err(format!("Download failed: {}", e));
             }
         }
     }
@@ -132,7 +135,7 @@ pub async fn fetch_user_info(app: &AppHandle) -> Result<Option<User>, String> {
     // 1) メモリキャッシュから Cookie を取得
     let cookies = read_cookie(app)?;
     if cookies.is_none() {
-        println!("No cookies in cache");
+        // DEBUG: println!("No cookies in cache");
         return Ok(result);
     }
     let cookies = cookies.unwrap();
@@ -140,7 +143,7 @@ pub async fn fetch_user_info(app: &AppHandle) -> Result<Option<User>, String> {
     // 2) bilibili 用 Cookie ヘッダを構築
     let cookie_header = build_cookie_header(&cookies);
     if cookie_header.is_empty() {
-        println!("No bilibili cookies found in cache");
+        // DEBUG: println!("No bilibili cookies found in cache");
         return Ok(result);
     }
 
@@ -157,8 +160,8 @@ pub async fn fetch_user_info(app: &AppHandle) -> Result<Option<User>, String> {
         .await
         .map_err(|e| format!("Failed to fetch user info: {e}"))?;
 
-    let status = res.status();
-    println!("UserApi Response status: {}", status);
+    let _status = res.status();
+    // DEBUG: println!("UserApi Response status: {}", status);
     let body = res
         .json::<UserApiResponse>()
         .await
@@ -267,8 +270,8 @@ async fn fetch_video_title(
         .await
         .map_err(|e| format!("WebInterface Api Failed to fetch video info: {e}"))?;
 
-    let status = res.status();
-    println!("WebInterfaceApiResponse status: {}", status);
+    let _status = res.status();
+    // DEBUG: println!("WebInterfaceApiResponse status: {}", status);
     let text = res
         .text()
         .await
@@ -331,8 +334,8 @@ async fn fetch_video_details(
         .await
         .map_err(|e| format!("XPlayerApi Failed to fetch video info: {e}"))?;
 
-    let status = res.status();
-    println!("XPlayerApiResponse status: {}", status);
+    let _status = res.status();
+    // DEBUG: println!("XPlayerApiResponse status: {}", status);
 
     // // レスポンスをテキストとして全取得
     // let body_text = res

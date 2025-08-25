@@ -34,7 +34,7 @@ pub async fn set_settings(app: &AppHandle, settings: &Settings) -> Result<(), St
 
 pub async fn get_settings(app: &AppHandle) -> Result<Settings, String> {
     let filepath = paths::get_settings_path(app);
-    println!("Loading settings from: {:?}", filepath);
+    // DEBUG: println!("Loading settings from: {:?}", filepath);
     let _ = validate_settings(app, &filepath).await;
 
     let settings_str = fs::read_to_string(&filepath).unwrap_or_default();
@@ -62,7 +62,7 @@ async fn validate_settings(app: &AppHandle, filepath: &PathBuf) -> Result<bool> 
         if let Some(parent) = filepath.parent() {
             if !parent.exists() {
                 fs::create_dir_all(parent)?;
-                println!("Created settings parent directory: {:?}", parent);
+                // DEBUG: println!("Created settings parent directory: {:?}", parent);
             }
         }
         let mut default_settings = Settings::default();

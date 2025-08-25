@@ -32,7 +32,8 @@
     "completed": "Terminé",
     "failed": "Échec",
     "download_failed": "Échec du téléchargement",
-    "file_exists": "Un fichier du même nom existe déjà"
+    "file_exists": "Un fichier du même nom existe déjà",
+    "disk_full": "Le disque est plein"
   },
   "toast": { "success": "Succès", "error": "Une erreur est survenue" },
   "init": {
