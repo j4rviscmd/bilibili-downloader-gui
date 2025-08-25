@@ -168,7 +168,7 @@ pub async fn download_url(
         futs.push(tokio::spawn(async move {
             let _permit = sem_c.acquire().await.unwrap();
             let mut attempt: u8 = 0;
-            let max_seg_retries: u8 = 3;
+            let max_seg_retries: u8 = 10;
             let size = e - s + 1;
             loop {
                 attempt += 1;
