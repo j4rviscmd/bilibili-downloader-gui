@@ -53,7 +53,6 @@ pub async fn download_url(
     // ---- 1. 総サイズ取得 ----
     let mut total_size: Option<u64> = None;
     // まず HEAD
-    let mut supports_range = false;
     let mut head_builder = client.head(&url).header(header::REFERER, REFERER);
     if let Some(ref c) = cookie {
         head_builder = head_builder.header(header::COOKIE, c);
@@ -67,11 +66,6 @@ pub async fn download_url(
                     if let Ok(val) = s.parse::<u64>() {
                         total_size = Some(val);
                     }
-                }
-            }
-            if let Some(ar) = resp.headers().get("accept-ranges") {
-                if let Ok(v) = ar.to_str() {
-                    supports_range = v.to_ascii_lowercase().contains("bytes");
                 }
             }
         }
@@ -102,11 +96,6 @@ pub async fn download_url(
                     }
                 }
             }
-            if let Some(ar) = resp.headers().get("accept-ranges") {
-                if let Ok(v) = ar.to_str() {
-                    supports_range = supports_range || v.to_ascii_lowercase().contains("bytes");
-                }
-            }
         }
     }
 
@@ -119,7 +108,6 @@ pub async fn download_url(
     let total = total_size.unwrap();
     // DEBUG: total size & Accept-Ranges support
     // println!("Total size detected: {} bytes", total);
-    // if !supports_range { println!("Warning: Server did not advertise Accept-Ranges: bytes. Will still attempt segmented download."); }
 
     // ---- 2. セグメント計画 ----
     const DEFAULT_SEGMENT_MB: u64 = 16; // 16MB
@@ -298,12 +286,12 @@ pub async fn download_url(
     while let Some(res) = futs.next().await {
         match res {
             Ok(Ok(())) => {}
-            Ok(Err(e)) => {
+            Ok(Err(_e)) => {
                 // DEBUG: segment task error
                 // println!("Segment task error: {e}");
                 seg_errors += 1;
             }
-            Err(join_e) => {
+            Err(_join_e) => {
                 // DEBUG: join error
                 // println!("Join error: {join_e}");
                 seg_errors += 1;
