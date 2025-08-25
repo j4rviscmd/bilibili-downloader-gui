@@ -109,9 +109,13 @@ pub async fn download_video(
         match res {
             Ok(()) => println!("Download successful"),
             Err(e) => {
-                let msg = format!("Download failed: {}", e);
-                println!("{}", msg);
-                return Err(msg.to_string());
+                // 失敗時の詳細デバッグ出力（エラーチェーンを含む）
+                println!("Download failed: {}", e);
+                println!("Download error debug: {:#?}", e);
+                for (i, cause) in e.chain().enumerate() {
+                    println!("  cause[{i}]: {cause}");
+                }
+                return Err(format!("Download failed: {}", e));
             }
         }
     }
