@@ -32,7 +32,8 @@
     "completed": "完成",
     "failed": "失败",
     "download_failed": "下载失败",
-    "file_exists": "已存在同名文件"
+    "file_exists": "已存在同名文件",
+    "disk_full": "磁盘已满"
   },
   "toast": { "success": "成功", "error": "发生错误" },
   "init": {

@@ -13,6 +13,7 @@
     "fnver",
     "fourk",
     "Français",
+    "futs",
     "KHTML",
     "libappindicator",
     "librsvg",
@@ -23,5 +24,6 @@
     "REFERER",
     "reqs",
     "rusqlite"
-  ]
+  ],
+  "github-actions.workflows.pinned.workflows": [".github/workflows/release.yml"]
 }

@@ -36,7 +36,8 @@
     "completed": "完了",
     "failed": "失敗",
     "download_failed": "ダウンロードに失敗しました",
-    "file_exists": "同名のファイルが既に存在します"
+    "file_exists": "同名のファイルが既に存在します",
+    "disk_full": "ディスク容量が不足しています"
   },
   "progress": {
     "elapsed": "経過",

@@ -36,7 +36,8 @@
     "completed": "Completed",
     "failed": "Failed",
     "download_failed": "Failed to download",
-    "file_exists": "A file with the same name already exists"
+    "file_exists": "A file with the same name already exists",
+    "disk_full": "Disk is full"
   },
   "progress": {
     "elapsed": "Elapsed",

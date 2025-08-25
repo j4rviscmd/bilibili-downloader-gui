@@ -54,6 +54,9 @@ export const useVideoInfo = () => {
       if (raw.includes('ERR::FILE_EXISTS')) {
         messageKey = 'video.file_exists'
       }
+      if (!messageKey && raw.includes('ERR::DISK_FULL')) {
+        messageKey = 'video.disk_full'
+      }
       const description = messageKey ? t(messageKey) : raw
       toast.error(t('video.download_failed'), {
         duration: 10000,
