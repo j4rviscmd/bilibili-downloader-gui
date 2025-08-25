@@ -31,7 +31,8 @@ pub async fn download_url(
     if output_path.exists() {
         if is_override {
             fs::remove_file(&output_path).await?;
-            println!("Removed existing file: {:?}", output_path);
+            // DEBUG: removed existing file (kept for future logging)
+            // println!("Removed existing file: {:?}", output_path);
         } else {
             return Err(anyhow::anyhow!("ERR::FILE_EXISTS"));
         }
@@ -41,7 +42,8 @@ pub async fn download_url(
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("download");
-    println!("Segmented download start: {} -> {:?}", url, output_path);
+    // DEBUG: segmented download start
+    // println!("Segmented download start: {} -> {:?}", url, output_path);
 
     let client = reqwest::Client::builder()
         .user_agent(USER_AGENT)
@@ -58,7 +60,8 @@ pub async fn download_url(
     }
     match head_builder.send().await {
         Ok(resp) => {
-            println!("HEAD status: {}", resp.status());
+            // DEBUG: HEAD response status
+            // println!("HEAD status: {}", resp.status());
             if let Some(len) = resp.headers().get(header::CONTENT_LENGTH) {
                 if let Ok(s) = len.to_str() {
                     if let Ok(val) = s.parse::<u64>() {
@@ -72,8 +75,9 @@ pub async fn download_url(
                 }
             }
         }
-        Err(e) => {
-            println!("HEAD request failed (will fallback to Range probe): {}", e);
+        Err(_e) => {
+            // DEBUG: HEAD request failed (fallback to probe)
+            // println!("HEAD request failed (will fallback to Range probe): {}", e);
         }
     }
     // Fallback: Range: bytes=0-0
@@ -86,7 +90,8 @@ pub async fn download_url(
             probe = probe.header(header::COOKIE, c);
         }
         if let Ok(resp) = probe.send().await {
-            println!("Probe status: {}", resp.status());
+            // DEBUG: Range probe status
+            // println!("Probe status: {}", resp.status());
             if let Some(cr) = resp.headers().get(header::CONTENT_RANGE) {
                 if let Ok(s) = cr.to_str() {
                     // bytes START-END/TOTAL
@@ -107,14 +112,14 @@ pub async fn download_url(
 
     if total_size.is_none() {
         // Range サポート不明/サイズ不明 → 旧方式フォールバック (単一取得)
-        println!("Total size unknown. Fallback to single-stream download.");
+        // DEBUG: total size unknown -> fallback
+        // println!("Total size unknown. Fallback to single-stream download.");
         return single_stream_fallback(app, url, output_path, cookie, is_override).await;
     }
     let total = total_size.unwrap();
-    println!("Total size detected: {} bytes", total);
-    if !supports_range {
-        println!("Warning: Server did not advertise Accept-Ranges: bytes. Will still attempt segmented download.");
-    }
+    // DEBUG: total size & Accept-Ranges support
+    // println!("Total size detected: {} bytes", total);
+    // if !supports_range { println!("Warning: Server did not advertise Accept-Ranges: bytes. Will still attempt segmented download."); }
 
     // ---- 2. セグメント計画 ----
     const DEFAULT_SEGMENT_MB: u64 = 16; // 16MB
@@ -126,15 +131,13 @@ pub async fn download_url(
         segments.push((start, end));
         start = end + 1;
     }
-    println!(
-        "Planned segments: {} (segment_size={}MB)",
-        segments.len(),
-        DEFAULT_SEGMENT_MB
-    );
+    // DEBUG: planned segments count & size
+    // println!("Planned segments: {} (segment_size={}MB)", segments.len(), DEFAULT_SEGMENT_MB);
 
     // 推奨並列度
     let concurrency: usize = if total < 64 * 1024 * 1024 { 1 } else { 3 };
-    println!("Concurrency: {}", concurrency);
+    // DEBUG: concurrency chosen
+    // println!("Concurrency: {}", concurrency);
 
     // ---- 3. ファイル確保 ----
     {
@@ -181,10 +184,8 @@ pub async fn download_url(
             let size = e - s + 1;
             loop {
                 attempt += 1;
-                println!(
-                    "SEG{} range {}-{} ({} bytes) attempt {}",
-                    idx, s, e, size, attempt
-                );
+                // DEBUG: segment attempt start
+                // println!("SEG{} range {}-{} ({} bytes) attempt {}", idx, s, e, size, attempt);
                 let mut req = client_c
                     .get(&url_c)
                     .header(header::RANGE, format!("bytes={}-{}", s, e))
@@ -199,7 +200,8 @@ pub async fn download_url(
                                 && resp.status() == 200
                                 && size == resp.content_length().unwrap_or(size)))
                         {
-                            println!("SEG{} unexpected status: {}", idx, resp.status());
+                            // DEBUG: unexpected segment status
+                            // println!("SEG{} unexpected status: {}", idx, resp.status());
                             if attempt < max_seg_retries {
                                 backoff_sleep(attempt).await;
                                 continue;
@@ -222,10 +224,8 @@ pub async fn download_url(
                                 }
                                 Ok(None) => break,
                                 Err(e) => {
-                                    println!(
-                                        "SEG{} chunk error: {} (received {} / {} bytes)",
-                                        idx, e, received, size
-                                    );
+                                    // DEBUG: segment chunk error
+                                    // println!("SEG{} chunk error: {} (received {} / {} bytes)", idx, e, received, size);
                                     if attempt < max_seg_retries {
                                         backoff_sleep(attempt).await;
                                         continue;
@@ -239,10 +239,8 @@ pub async fn download_url(
                             }
                         }
                         if received != size {
-                            println!(
-                                "SEG{} size mismatch received {} expected {}",
-                                idx, received, size
-                            );
+                            // DEBUG: size mismatch
+                            // println!("SEG{} size mismatch received {} expected {}", idx, received, size);
                             if attempt < max_seg_retries {
                                 backoff_sleep(attempt).await;
                                 continue;
@@ -278,11 +276,13 @@ pub async fn download_url(
                         }
                         let new_total = dl_total_c.fetch_add(size, Ordering::Relaxed) + size;
                         emits_c.update_progress(new_total).await;
-                        println!("SEG{} done ({} bytes) total={}", idx, size, new_total);
+                        // DEBUG: segment done
+                        // println!("SEG{} done ({} bytes) total={}", idx, size, new_total);
                         return Ok::<(), anyhow::Error>(());
                     }
                     Err(e) => {
-                        println!("SEG{} request error: {}", idx, e);
+                        // DEBUG: segment request error
+                        // println!("SEG{} request error: {}", idx, e);
                         if attempt < max_seg_retries {
                             backoff_sleep(attempt).await;
                             continue;
@@ -299,11 +299,13 @@ pub async fn download_url(
         match res {
             Ok(Ok(())) => {}
             Ok(Err(e)) => {
-                println!("Segment task error: {e}");
+                // DEBUG: segment task error
+                // println!("Segment task error: {e}");
                 seg_errors += 1;
             }
             Err(join_e) => {
-                println!("Join error: {join_e}");
+                // DEBUG: join error
+                // println!("Join error: {join_e}");
                 seg_errors += 1;
             }
         }
@@ -323,7 +325,8 @@ pub async fn download_url(
         ));
     }
     emits.complete().await;
-    println!("Segmented download complete: {} bytes", total);
+    // DEBUG: segmented download complete
+    // println!("Segmented download complete: {} bytes", total);
     Ok(())
 }
 
@@ -384,10 +387,8 @@ async fn single_stream_fallback(
         }
     }
     emits.complete().await;
-    println!(
-        "Fallback single-stream download complete. Size: {} bytes",
-        downloaded
-    );
+    // DEBUG: fallback single-stream complete size
+    // println!("Fallback single-stream download complete. Size: {} bytes", downloaded);
     Ok(())
 }
 
