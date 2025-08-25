@@ -25,7 +25,14 @@ function ProgressStatusBar({ progress }: Props) {
                 {t('progress.elapsed')}: {Math.round(progress.elapsedTime)}s
               </div>
               <div className="w-1/3">
-                {t('progress.speed')}: {progress.transferRate.toFixed(1)}MB/s
+                {t('progress.speed')}:{' '}
+                {(() => {
+                  const kb = progress.transferRate || 0
+                  if (kb >= 1000) {
+                    return `${(kb / 1024).toFixed(1)}MB/s`
+                  }
+                  return `${kb.toFixed(0)}KB/s`
+                })()}
               </div>
               <div className="w-1/3">
                 {progress.downloaded.toFixed(1)}mb/
