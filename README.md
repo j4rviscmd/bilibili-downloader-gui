@@ -157,13 +157,10 @@ src-tauri/src/
 
 ## Future
 
-- [x] Multi-language support (en, ja, fr, es, zh, ko)
-- [ ] Switch frontend directory structure to FSD (Feature‑Sliced Design)
-- [ ] Download selected videos from playback history
-- [ ] Settings
-  - [ ] Select download destination
-  - [ ] Allow overwriting existing files
-- [ ] Output `app.log`
+- [ ] Select download destination
+- [ ] Allow overwriting existing files
+- [ ] Queueing multiple items for download
+- [ ] Download history retention
 
 ## Localization (i18n)
 
