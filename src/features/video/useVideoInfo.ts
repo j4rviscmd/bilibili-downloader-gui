@@ -43,8 +43,8 @@ export const useVideoInfo = () => {
   const download = async () => {
     try {
       await downloadVideo(
-        extractId(input.url) ?? '',
-        input.title,
+        (extractId(input.url) ?? '').trim(),
+        input.title.trim(),
         parseInt(input.quality, 10),
       )
     } catch (e) {
