@@ -93,30 +93,42 @@ pub async fn download_video(
     };
 
     let download_reqs: Vec<DlReq> = vec![video_req.clone(), audio_req.clone()];
-    let download_tasks = download_reqs.into_iter().map(|req| {
-        download_url(
-            app,
-            req.url,
-            req.path,
-            Some(cookie_header.to_string()),
-            true,
-        )
-    });
+    // ----- 全体リトライ制御 (最大3回) -----
+    let mut attempt: u8 = 0;
+    let max_attempts: u8 = 3;
+    'outer: loop {
+        attempt += 1;
+        let download_tasks = download_reqs.clone().into_iter().map(|req| {
+            download_url(
+                app,
+                req.url,
+                req.path,
+                Some(cookie_header.to_string()),
+                true,
+            )
+        });
 
-    // video, audioの両方を並行DL
-    let results: Vec<anyhow::Result<()>> = join_all(download_tasks).await;
-    for res in results.iter() {
-        match res {
-            Ok(()) => { /* DEBUG: println!("Download successful"); */ }
-            Err(e) => {
-                // 失敗時の詳細デバッグ出力（エラーチェーンを含む）
-                // DEBUG: detailed download failure logging
-                // println!("Download failed: {}", e);
-                // println!("Download error debug: {:#?}", e);
-                // for (i, cause) in e.chain().enumerate() { println!("  cause[{i}]: {cause}"); }
-                return Err(format!("Download failed: {}", e));
+        let results: Vec<anyhow::Result<()>> = join_all(download_tasks).await;
+        let mut had_error = false;
+        for res in results.iter() {
+            if let Err(e) = res {
+                had_error = true;
+                // 失敗種別が恒久的と思われる場合は即終了
+                let msg = e.to_string();
+                if msg.contains("ERR::FILE_EXISTS") || msg.contains("ERR::DISK_FULL") {
+                    return Err(format!("Download failed: {}", msg));
+                }
             }
         }
+        if !had_error {
+            break 'outer; // 成功
+        }
+        if attempt >= max_attempts {
+            return Err("Download failed after max retries".into());
+        }
+        // シンプルな指数バックオフ (1s, 2s)
+        let backoff_ms = 1000u64 * (1u64 << (attempt as u64 - 1)).min(2);
+        tokio::time::sleep(std::time::Duration::from_millis(backoff_ms)).await;
     }
 
     // audio & videoファイルをffmpegで結合
