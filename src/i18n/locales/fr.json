@@ -111,7 +111,7 @@
         "min": "Le titre doit contenir au moins 2 caractères.",
         "max": "Le titre doit contenir au maximum 100 caractères.",
         "required": "Veuillez saisir un titre.",
-        "invalid_chars": "Le titre contient des caractères interdits (\\ / : * ? \" < > |)."
+        "invalid_chars": "Le titre contient des caractères interdits ({{chars}})."
       },
       "quality": {
         "required": "Veuillez sélectionner une qualité."

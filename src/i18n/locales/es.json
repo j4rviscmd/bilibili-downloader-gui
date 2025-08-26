@@ -111,7 +111,7 @@
         "min": "El título debe tener al menos 2 caracteres.",
         "max": "El título debe tener como máximo 100 caracteres.",
         "required": "Introduce un título.",
-        "invalid_chars": "El título contiene caracteres no permitidos (\\ / : * ? \" < > |)."
+        "invalid_chars": "El título contiene caracteres no permitidos ({{chars}})."
       },
       "quality": {
         "required": "Selecciona una calidad."

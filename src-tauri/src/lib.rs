@@ -33,7 +33,8 @@ pub fn run() {
             fetch_video_info,
             download_video,
             get_settings,
-            set_settings
+            set_settings,
+            get_os
         ])
         // 開発環境以外で`app`宣言ではBuildに失敗するため、`_app`を使用
         .setup(|_app| {
@@ -132,4 +133,11 @@ async fn set_settings(app: AppHandle, settings: Settings) -> Result<(), String> 
         .map_err(|e| e.to_string())?;
 
     Ok(res)
+}
+
+#[tauri::command]
+async fn get_os() -> String {
+    // Returns a normalized OS string used by frontend validation logic
+    // std::env::consts::OS already returns one of: "windows", "macos", "linux", etc.
+    std::env::consts::OS.to_string()
 }

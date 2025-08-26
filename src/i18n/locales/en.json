@@ -125,7 +125,7 @@
         "min": "Title must be at least 2 characters.",
         "max": "Title must be at most 100 characters.",
         "required": "Please enter a title.",
-        "invalid_chars": "Title contains forbidden characters (\\ / : * ? \" < > |)."
+        "invalid_chars": "Title contains forbidden characters ({{chars}})."
       },
       "quality": {
         "required": "Please select a quality."
