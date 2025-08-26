@@ -2,7 +2,7 @@ import { store, useSelector } from '@/app/store'
 import { downloadVideo } from '@/features/video/api/downloadVideo'
 import { fetchVideoInfo } from '@/features/video/api/fetchVideoInfo'
 import { VIDEO_URL_KEY } from '@/features/video/constants'
-import { formSchema1, formSchema2 } from '@/features/video/formSchema'
+import { buildVideoFormSchema2, formSchema1 } from '@/features/video/formSchema'
 import { setQuality, setTitle, setUrl } from '@/features/video/inputSlice'
 import { setVideo } from '@/features/video/videoSlice'
 import { useTranslation } from 'react-i18next'
@@ -74,7 +74,7 @@ export const useVideoInfo = () => {
     input,
     // フォームのバリデーション状態（store上の値をZodで検証）
     isForm1Valid: formSchema1.safeParse({ url: input.url }).success,
-    isForm2Valid: formSchema2.safeParse({
+    isForm2Valid: buildVideoFormSchema2(t).safeParse({
       title: input.title,
       quality: input.quality,
     }).success,

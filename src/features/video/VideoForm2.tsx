@@ -14,10 +14,10 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { VIDEO_QUALITIES_MAP } from '@/features/video/constants'
-import { formSchema2 } from '@/features/video/formSchema'
+import { buildVideoFormSchema2 } from '@/features/video/formSchema'
 import { useVideoInfo } from '@/features/video/useVideoInfo'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { z } from 'zod'
@@ -46,13 +46,15 @@ function VideoForm2() {
     })()
   }, [video])
 
-  async function onSubmit(data: z.infer<typeof formSchema2>) {
+  const schema2 = useMemo(() => buildVideoFormSchema2(t), [t])
+
+  async function onSubmit(data: z.infer<typeof schema2>) {
     // ステート更新 & 動画愛情報を抽出
     onValid2(data.title, data.quality)
   }
 
-  const form = useForm<z.infer<typeof formSchema2>>({
-    resolver: zodResolver(formSchema2),
+  const form = useForm<z.infer<typeof schema2>>({
+    resolver: zodResolver(schema2),
     defaultValues: {
       title: '',
       quality: '80',
