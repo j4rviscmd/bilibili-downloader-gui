@@ -10,7 +10,6 @@ use crate::models::frontend_dto::{Quality, UserData, Video};
 use crate::utils::downloads::download_url;
 use crate::utils::paths::get_lib_path;
 use crate::{constants::USER_AGENT, models::frontend_dto::User};
-use futures::future::join_all;
 use reqwest::{
     header::{self},
     Client,
@@ -92,31 +91,57 @@ pub async fn download_video(
         path: lib_path.join("temp_audio.m4s"),
     };
 
-    let download_reqs: Vec<DlReq> = vec![video_req.clone(), audio_req.clone()];
-    let download_tasks = download_reqs.into_iter().map(|req| {
-        download_url(
+    // ----- 全体リトライ制御 (最大3回) -----
+    let mut attempt: u8 = 0;
+    let max_attempts: u8 = 3;
+    loop {
+        attempt += 1;
+        // 1) Audio を先にDL
+        let audio_res = download_url(
             app,
-            req.url,
-            req.path,
+            audio_req.url.clone(),
+            audio_req.path.clone(),
             Some(cookie_header.to_string()),
             true,
         )
-    });
-
-    // video, audioの両方を並行DL
-    let results: Vec<anyhow::Result<()>> = join_all(download_tasks).await;
-    for res in results.iter() {
-        match res {
-            Ok(()) => { /* DEBUG: println!("Download successful"); */ }
-            Err(e) => {
-                // 失敗時の詳細デバッグ出力（エラーチェーンを含む）
-                // DEBUG: detailed download failure logging
-                // println!("Download failed: {}", e);
-                // println!("Download error debug: {:#?}", e);
-                // for (i, cause) in e.chain().enumerate() { println!("  cause[{i}]: {cause}"); }
-                return Err(format!("Download failed: {}", e));
+        .await;
+        if let Err(e) = audio_res {
+            let msg = e.to_string();
+            if msg.contains("ERR::FILE_EXISTS") || msg.contains("ERR::DISK_FULL") {
+                return Err(format!("Download failed: {}", msg));
             }
+            if attempt >= max_attempts {
+                return Err(format!("Audio download failed after retries: {}", msg));
+            }
+            let backoff_ms = 1000u64 * (1u64 << (attempt as u64 - 1)).min(2);
+            tokio::time::sleep(std::time::Duration::from_millis(backoff_ms)).await;
+            continue; // 次のattempt
         }
+
+        // 2) Audio成功後に Video をDL
+        let video_res = download_url(
+            app,
+            video_req.url.clone(),
+            video_req.path.clone(),
+            Some(cookie_header.to_string()),
+            true,
+        )
+        .await;
+        if let Err(e) = video_res {
+            let msg = e.to_string();
+            if msg.contains("ERR::FILE_EXISTS") || msg.contains("ERR::DISK_FULL") {
+                return Err(format!("Download failed: {}", msg));
+            }
+            if attempt >= max_attempts {
+                return Err(format!("Video download failed after retries: {}", msg));
+            }
+            let backoff_ms = 1000u64 * (1u64 << (attempt as u64 - 1)).min(2);
+            tokio::time::sleep(std::time::Duration::from_millis(backoff_ms)).await;
+            // 次 attempt で audio も再DL (シンプルに全体再試行)
+            continue;
+        }
+        // 両方成功
+        break;
     }
 
     // audio & videoファイルをffmpegで結合
