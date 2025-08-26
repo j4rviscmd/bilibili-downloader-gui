@@ -1,37 +1,56 @@
+import type { TFunction } from 'i18next'
 import z from 'zod'
 
-export const formSchema1 = z.object({
-  url: z
-    .string()
-    .min(2, { message: 'URLは2文字以上で入力してください。' })
-    .max(1000, { message: 'URLは1000文字以内で入力してください。' })
-    .url({ message: '有効なURLを入力してください。' })
-    .superRefine((value, ctx) => {
-      try {
-        const { hostname } = new URL(value)
-        // bilibili.com 直下のみ許可（必要に応じてサブドメインも許可可能）
-        const ok = /^www.bilibili\.com$/i.test(hostname)
-        if (!ok) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: 'bilibili.com のURLのみ有効です。',
-          })
+/**
+ * 動画フォーム (Step1) 用スキーマ (URL 入力) - 多言語対応
+ */
+export const buildVideoFormSchema1 = (t: TFunction) =>
+  z.object({
+    url: z
+      .string()
+      .min(2, { message: t('validation.video.url.min') })
+      .max(1000, { message: t('validation.video.url.max') })
+      .url({ message: t('validation.video.url.invalid') })
+      .superRefine((value, ctx) => {
+        try {
+          const { hostname } = new URL(value)
+          // bilibili.com 直下のみ許可（必要に応じてサブドメインも許可可能）
+          // 将来的にサブドメイン許可: /^(?:[a-z0-9-]+\.)*bilibili\.com$/i
+          const ok = /^www.bilibili\.com$/i.test(hostname)
+          if (!ok) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: t('validation.video.url.domain'),
+            })
+          }
+        } catch {
+          // .url() が既にURL形式の検証とメッセージを担当
         }
-      } catch {
-        // .url() が既にURL形式の検証とメッセージを担当
-      }
-    }),
-})
+      }),
+  })
 
-export const formSchema2 = z.object({
-  title: z
-    .string()
-    .min(2, { message: 'タイトルは2文字以上で入力してください。' })
-    .max(100, { message: 'タイトルは100文字以内で入力してください。' })
-    .nonempty({ message: 'タイトルを入力してください。' })
-    .refine((val) => !/[\\/:*?"<>|]/.test(val), {
-      message:
-        'タイトルに使用できない文字が含まれています（\\ / : * ? " < > |）',
-    }),
-  quality: z.string().nonempty({ message: '画質を選択してください。' }),
-})
+/**
+ * 動画フォーム (Step2) 用スキーマ (タイトル / 画質) - 多言語対応
+ */
+export const buildVideoFormSchema2 = (t: TFunction) =>
+  z.object({
+    title: z
+      .string()
+      .min(2, { message: t('validation.video.title.min') })
+      .max(100, { message: t('validation.video.title.max') })
+      .nonempty({ message: t('validation.video.title.required') })
+      .refine((val) => !/[\\/:*?"<>|]/.test(val), {
+        message: t('validation.video.title.invalid_chars'),
+      }),
+    quality: z
+      .string()
+      .nonempty({ message: t('validation.video.quality.required') }),
+  })
+
+// フォールバック t (settings の実装と同様) - キーそのまま or defaultValue
+const fallbackT: TFunction = ((key: unknown, defaultValue?: unknown) =>
+  typeof defaultValue === 'string' ? defaultValue : String(key)) as TFunction
+
+// 既存の import 互換: 直に schema を import している箇所への後方互換
+export const formSchema1 = buildVideoFormSchema1(fallbackT)
+export const formSchema2 = buildVideoFormSchema2(fallbackT)

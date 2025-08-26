@@ -113,6 +113,23 @@
     },
     "language": {
       "required": "Please select a language."
+    },
+    "video": {
+      "url": {
+        "min": "URL must be at least 2 characters.",
+        "max": "URL must be at most 1000 characters.",
+        "invalid": "Please enter a valid URL.",
+        "domain": "Only bilibili.com URLs are allowed."
+      },
+      "title": {
+        "min": "Title must be at least 2 characters.",
+        "max": "Title must be at most 100 characters.",
+        "required": "Please enter a title.",
+        "invalid_chars": "Title contains forbidden characters (\\ / : * ? \" < > |)."
+      },
+      "quality": {
+        "required": "Please select a quality."
+      }
     }
   }
 }

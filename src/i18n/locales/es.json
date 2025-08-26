@@ -99,6 +99,23 @@
         "reserved": "No se permiten nombres reservados (CON, PRN, AUX, NUL, COM1.., LPT1..)."
       }
     },
-    "language": { "required": "Selecciona un idioma." }
+    "language": { "required": "Selecciona un idioma." },
+    "video": {
+      "url": {
+        "min": "La URL debe tener al menos 2 caracteres.",
+        "max": "La URL debe tener como máximo 1000 caracteres.",
+        "invalid": "Introduce una URL válida.",
+        "domain": "Solo se permiten URL de bilibili.com."
+      },
+      "title": {
+        "min": "El título debe tener al menos 2 caracteres.",
+        "max": "El título debe tener como máximo 100 caracteres.",
+        "required": "Introduce un título.",
+        "invalid_chars": "El título contiene caracteres no permitidos (\\ / : * ? \" < > |)."
+      },
+      "quality": {
+        "required": "Selecciona una calidad."
+      }
+    }
   }
 }

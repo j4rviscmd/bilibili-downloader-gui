@@ -77,10 +77,7 @@ function VideoForm2() {
                 <FormLabel>{t('video.title_label')}</FormLabel>
                 <FormControl>
                   <Input
-                    placeholder={
-                      t('video.title_placeholder') ||
-                      'URLを入力するとタイトルが自動で入力されます'
-                    }
+                    placeholder={t('video.title_placeholder')}
                     {...field}
                   />
                 </FormControl>

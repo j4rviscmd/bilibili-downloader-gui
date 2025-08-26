@@ -99,6 +99,23 @@
         "reserved": "不能使用保留设备名 (CON, PRN, AUX, NUL, COM1.., LPT1..)。"
       }
     },
-    "language": { "required": "请选择语言。" }
+    "language": { "required": "请选择语言。" },
+    "video": {
+      "url": {
+        "min": "链接至少需要 2 个字符。",
+        "max": "链接长度不能超过 1000 个字符。",
+        "invalid": "请输入有效的链接。",
+        "domain": "仅允许 bilibili.com 的链接。"
+      },
+      "title": {
+        "min": "标题至少需要 2 个字符。",
+        "max": "标题长度不能超过 100 个字符。",
+        "required": "请输入标题。",
+        "invalid_chars": "标题包含不允许的字符（\\ / : * ? \" < > |）。"
+      },
+      "quality": {
+        "required": "请选择清晰度。"
+      }
+    }
   }
 }
