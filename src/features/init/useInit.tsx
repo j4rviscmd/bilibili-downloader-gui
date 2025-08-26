@@ -5,6 +5,7 @@ import {
 } from '@/features/init/initSlice'
 import { sleep } from '@/lib/utils'
 import { changeLanguage } from '@/shared/i18n'
+import { getOs } from '@/shared/os/api/getOs'
 import { useSettings } from '@/shared/settings/useSettings'
 import { useUser } from '@/shared/user/useUser'
 import { invoke } from '@tauri-apps/api/core'
@@ -35,6 +36,8 @@ export const useInit = () => {
   // TODO: invokeはapi/へ移動する
   const initApp = async (): Promise<number> => {
     console.log('Application initialization started')
+    // Fire & forget OS detection (don't await)
+    getOs().then((os) => console.log('Detected OS:', os))
     /*
      * 返却コード一覧
      *  0: 正常終了
