@@ -123,7 +123,9 @@ pub async fn download_url(
     // println!("Planned segments: {} (segment_size={}MB)", segments.len(), DEFAULT_SEGMENT_MB);
 
     // 推奨並列度
-    let concurrency: usize = if total < 64 * 1024 * 1024 { 1 } else { 3 };
+    // let concurrency: usize = if total < 64 * 1024 * 1024 { 1 } else { 3 };
+    // NOTE: bilibiliへ並列実行するとHTTPが安定しないため1に固定
+    let concurrency: usize = 1;
     // DEBUG: concurrency chosen
     // println!("Concurrency: {}", concurrency);
 
@@ -168,7 +170,8 @@ pub async fn download_url(
         futs.push(tokio::spawn(async move {
             let _permit = sem_c.acquire().await.unwrap();
             let mut attempt: u8 = 0;
-            let max_seg_retries: u8 = 10;
+            // 最大セグメント再試行回数 (全体リトライ導入に伴い 10 -> 3 に縮小)
+            let max_seg_retries: u8 = 3;
             let size = e - s + 1;
             loop {
                 attempt += 1;

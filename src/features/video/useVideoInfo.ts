@@ -59,7 +59,8 @@ export const useVideoInfo = () => {
       }
       const description = messageKey ? t(messageKey) : raw
       toast.error(t('video.download_failed'), {
-        duration: 10000,
+        // Keep the error toast persistent until user closes it
+        duration: Infinity,
         description,
         closeButton: true,
       })
