@@ -19,7 +19,17 @@ pub mod utils;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            let _ = app
+                .get_webview_window("main")
+                .expect("no main window")
+                .set_focus();
+        }));
+    }
+    builder
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         // Cookie のメモリキャッシュをグローバルステートとして管理
@@ -61,10 +71,9 @@ pub fn run() {
 #[tauri::command]
 async fn validate_ffmpeg(app: AppHandle) -> bool {
     // ffmpegの有効性チェック処理
-    let res = ffmpeg::validate_ffmpeg(&app);
-
-    res
+    ffmpeg::validate_ffmpeg(&app)
 }
+
 
 #[tauri::command]
 async fn install_ffmpeg(app: AppHandle) -> Result<bool, String> {
@@ -109,13 +118,17 @@ async fn download_video(
     video_id: String,
     filename: String,
     quality: i32,
+    download_id: Option<String>,
 ) -> Result<(), String> {
-    let res = bilibili::download_video(&app, &video_id, &filename, &quality)
+    // Call the handler and propagate errors as strings
+    bilibili::download_video(&app, &video_id, &filename, &quality, download_id)
         .await
         .map_err(|e| e.to_string())?;
 
-    Ok(res)
+    Ok(())
 }
+
+
 
 #[tauri::command]
 async fn get_settings(app: AppHandle) -> Result<Settings, String> {
@@ -128,11 +141,12 @@ async fn get_settings(app: AppHandle) -> Result<Settings, String> {
 
 #[tauri::command]
 async fn set_settings(app: AppHandle, settings: Settings) -> Result<(), String> {
-    let res = settings::set_settings(&app, &settings)
+    settings::set_settings(&app, &settings)
         .await
         .map_err(|e| e.to_string())?;
 
-    Ok(res)
+    Ok(())
+
 }
 
 #[tauri::command]

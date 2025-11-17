@@ -293,6 +293,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "futures",
+ "once_cell",
  "reqwest",
  "rusqlite",
  "serde",
@@ -302,6 +303,7 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-opener",
  "tauri-plugin-process",
+ "tauri-plugin-single-instance",
  "tauri-plugin-updater",
  "tokio",
  "xz2",
@@ -4395,6 +4397,21 @@ checksum = "7461c622a5ea00eb9cd9f7a08dbd3bf79484499fd5c21aa2964677f64ca651ab"
 dependencies = [
  "tauri",
  "tauri-plugin",
+]
+
+[[package]]
+name = "tauri-plugin-single-instance"
+version = "2.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "50a0e5a4ce43cb3a733c3aef85e8478bc769dac743c615e26639cbf5d953faf7"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tauri",
+ "thiserror 2.0.12",
+ "tracing",
+ "windows-sys 0.60.2",
+ "zbus",
 ]
 
 [[package]]

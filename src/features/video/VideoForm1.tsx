@@ -8,8 +8,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { VIDEO_URL_KEY } from '@/features/video/constants'
-import { formSchema1 } from '@/features/video/formSchema'
+import { buildVideoFormSchema1, formSchema1 } from '@/features/video/formSchema'
 import { useVideoInfo } from '@/features/video/useVideoInfo'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect } from 'react'
@@ -21,16 +20,14 @@ function VideoForm1() {
   const { input, onValid1 } = useVideoInfo()
   const { t } = useTranslation()
 
+  const schema1 = buildVideoFormSchema1(t)
+
   useEffect(() => {
-    const restoreUrl = localStorage.getItem(VIDEO_URL_KEY)
-    if (restoreUrl) {
-      form.setValue('url', restoreUrl, { shouldValidate: true })
-      // Video情報(form2系)の初期化
-      onValid1(restoreUrl)
-    } else {
-      // 初期値を設定
-      form.setValue('url', input.url, { shouldValidate: false })
-    }
+    // Disabled: restore URL from localStorage at startup.
+    // Previously this read from `localStorage.getItem(VIDEO_URL_KEY)` and
+    // populated the form automatically. To disable automatic restoration,
+    // we now always use the current store value as the initial value.
+    form.setValue('url', input.url, { shouldValidate: false })
   }, [])
 
   async function onSubmit(data: z.infer<typeof formSchema1>) {
@@ -39,7 +36,7 @@ function VideoForm1() {
   }
 
   const form = useForm<z.infer<typeof formSchema1>>({
-    resolver: zodResolver(formSchema1),
+    resolver: zodResolver(schema1),
     defaultValues: {
       url: '',
     },
