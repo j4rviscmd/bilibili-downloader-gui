@@ -87,6 +87,7 @@ function DownloadingDialog() {
                   const barIcon = barInfo[1]
                   const key =
                     (p as any).internalId || `${p.downloadId}:${p.stage}`
+                  if (!p.stage) return
                   return (
                     <div
                       key={key}
