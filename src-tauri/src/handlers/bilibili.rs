@@ -24,6 +24,7 @@ pub async fn download_video(
     id: &str,
     filename: &str,
     quality: &i32,
+    download_id: Option<String>,
 ) -> Result<(), String> {
     let mut output_path = get_output_path(app, filename).await.unwrap();
     output_path.set_extension("mp4");
@@ -34,7 +35,7 @@ pub async fn download_video(
     }
 
     // Get cookies from cache.
-    let cookies = read_cookie(&app)?;
+    let cookies = read_cookie(app)?;
     if cookies.is_none() {
         return Err("Cookieが見つかりません".into());
     }
@@ -49,10 +50,10 @@ pub async fn download_video(
         video_qualities: Vec::new(),
         audio_qualities: Vec::new(),
     };
-    let res_body1 = fetch_video_title(&video, &cookies).await?;
+    let res_body1 = fetch_video_title(&video, cookies).await?;
     video.cid = res_body1.data.cid;
 
-    let res_body2 = fetch_video_details(&video, &cookies).await?;
+    let res_body2 = fetch_video_details(&video, cookies).await?;
     let video_qualities = convert_qualities(&res_body2.data.dash.video);
     let audio_qualities = convert_qualities(&res_body2.data.dash.audio);
     video.video_qualities = video_qualities;
@@ -94,7 +95,9 @@ pub async fn download_video(
     // ----- 全体リトライ制御 (最大3回) -----
     let mut attempt: u8 = 0;
     let max_attempts: u8 = 3;
-    loop {
+
+    // Acquire and hold a video-level permit across video download + merge
+    let video_permit = loop {
         attempt += 1;
         // 1) Audio を先にDL
         let audio_res = download_url(
@@ -103,8 +106,10 @@ pub async fn download_video(
             audio_req.path.clone(),
             Some(cookie_header.to_string()),
             true,
+            download_id.clone(),
         )
         .await;
+
         if let Err(e) = audio_res {
             let msg = e.to_string();
             if msg.contains("ERR::FILE_EXISTS") || msg.contains("ERR::DISK_FULL") {
@@ -119,15 +124,27 @@ pub async fn download_video(
         }
 
         // 2) Audio成功後に Video をDL
+        // Acquire global permit to limit concurrent video downloads
+        let permit = crate::handlers::concurrency::VIDEO_SEMAPHORE
+            .clone()
+            .acquire_owned()
+            .await
+            .map_err(|e| format!("Failed to acquire video semaphore permit: {}", e))?;
+
         let video_res = download_url(
             app,
             video_req.url.clone(),
             video_req.path.clone(),
             Some(cookie_header.to_string()),
             true,
+            download_id.clone(),
         )
         .await;
+
+        // If video failed, release permit and handle retry
         if let Err(e) = video_res {
+            // release permit immediately
+            drop(permit);
             let msg = e.to_string();
             if msg.contains("ERR::FILE_EXISTS") || msg.contains("ERR::DISK_FULL") {
                 return Err(format!("Download failed: {}", msg));
@@ -140,16 +157,28 @@ pub async fn download_video(
             // 次 attempt で audio も再DL (シンプルに全体再試行)
             continue;
         }
-        // 両方成功
-        break;
-    }
+
+        // 両方成功, keep permit across merge/cleanup
+        break permit;
+    };
 
     // audio & videoファイルをffmpegで結合
-    merge_av(app, &video_req.path, &audio_req.path, &output_path).await?;
+    merge_av(
+        app,
+        &video_req.path,
+        &audio_req.path,
+        &output_path,
+        download_id.clone(),
+    )
+    .await?;
 
     // tempファイル削除
     let _ = fs::remove_file(lib_path.join("temp_video.m4s")).await;
     let _ = fs::remove_file(lib_path.join("temp_audio.m4s")).await;
+
+    // Release the video semaphore permit by dropping it
+    // (permit was stored in video_permit)
+    drop(video_permit);
 
     Ok(())
 }
@@ -226,7 +255,7 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
         audio_qualities: Vec::new(),
     };
 
-    let cookies = read_cookie(&app)?;
+    let cookies = read_cookie(app)?;
     if cookies.is_none() {
         return Err("No cookies found".into());
     }
@@ -266,7 +295,7 @@ fn convert_qualities(video: &Vec<XPlayerApiResponseVideo>) -> Vec<Quality> {
     // id値の降順で配列格納
     for item in qualities.iter().rev() {
         res.push(Quality {
-            id: item.0.clone(),
+            id: *item.0,
             codecid: item.1.codecid,
         });
     }
@@ -296,12 +325,10 @@ async fn fetch_video_title(
         .map_err(|e| format!("WebInterface Api Failed to fetch video info: {e}"))?;
 
     let _status = res.status();
-    // DEBUG: println!("WebInterfaceApiResponse status: {}", status);
     let text = res
         .text()
         .await
         .map_err(|e| format!("WebInterface Api Failed to read response text: {e}"))?;
-    // println!("WebInterfaceApiResponse body: {}", text);
 
     let body: WebInterfaceApiResponse =
         serde_json::from_str(&text).map_err(|e| format!("Failed to parse response JSON: {e}"))?;
@@ -310,32 +337,13 @@ async fn fetch_video_title(
         return Err(format!("WebInterfaceApi error: {}", body.message));
     }
 
-    return Ok(body);
+    Ok(body)
 }
 
 async fn fetch_video_details(
     video: &Video,
     cookies: &[CookieEntry],
 ) -> Result<XPlayerApiResponse, String> {
-    // response codeより利用可能な画質を取得取得し、video.qualitiesに格納
-    // quality_dict: dict = {
-    //     "1080p60": 116,
-    //     "720p60": 74,
-    //     "1080p+": 112,
-    //     "1080p": 80,
-    //     "720p": 64,
-    //     "480p": 32,
-    //     "360p": 16,
-    //     "mp3": 0,
-    //     116: "1080p60",
-    //     74: "720p60",
-    //     112: "1080p+",
-    //     80: "1080p",
-    //     64: "720p",
-    //     32: "480p",
-    //     16: "360p",
-    // }
-
     let client = Client::builder()
         .user_agent(USER_AGENT)
         .build()
@@ -360,22 +368,6 @@ async fn fetch_video_details(
         .map_err(|e| format!("XPlayerApi Failed to fetch video info: {e}"))?;
 
     let _status = res.status();
-    // DEBUG: println!("XPlayerApiResponse status: {}", status);
-
-    // // レスポンスをテキストとして全取得
-    // let body_text = res
-    //     .text()
-    //     .await
-    //     .map_err(|e| format!("XPlayerApi Failed to read response body: {e}"))?;
-    // let body: XPlayerApiResponse = serde_json::from_str(&body_text).unwrap();
-
-    // // JSONを型なしでパース（レスポンスをそのまま持つ）
-    // let body_all: serde_json::Value = serde_json::from_str(&body_text)
-    //     .map_err(|e| format!("XPlayerApi Failed to parse response JSON: {e}"))?;
-    // // 整形して表示
-    // let json_str = serde_json::to_string_pretty(&body_all).unwrap();
-    // println!("PlayerApiResponse body: \n{}", json_str);
-
     let body: XPlayerApiResponse = res
         .json::<XPlayerApiResponse>()
         .await
@@ -385,7 +377,7 @@ async fn fetch_video_details(
         return Err(format!("XPlayerApi error: {}", body.message));
     }
 
-    return Ok(body);
+    Ok(body)
 }
 
 async fn get_output_path(app: &AppHandle, filename: &str) -> anyhow::Result<PathBuf> {

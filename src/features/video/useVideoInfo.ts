@@ -1,8 +1,10 @@
 import { store, useSelector } from '@/app/store'
 import { downloadVideo } from '@/features/video/api/downloadVideo'
 import { fetchVideoInfo } from '@/features/video/api/fetchVideoInfo'
-import { VIDEO_URL_KEY } from '@/features/video/constants'
-import { buildVideoFormSchema2, formSchema1 } from '@/features/video/formSchema'
+import {
+  buildVideoFormSchema1,
+  buildVideoFormSchema2,
+} from '@/features/video/formSchema'
 import { setQuality, setTitle, setUrl } from '@/features/video/inputSlice'
 import { setVideo } from '@/features/video/videoSlice'
 import { useTranslation } from 'react-i18next'
@@ -24,7 +26,8 @@ export const useVideoInfo = () => {
   }
   const onValid1 = async (url: string) => {
     store.dispatch(setUrl(url))
-    localStorage.setItem(VIDEO_URL_KEY, url)
+    // Disabled: avoid persisting URL to localStorage
+    // localStorage.setItem(VIDEO_URL_KEY, url)
 
     // videoId取得
     // e.g. https://www.bilibili.com/video/BV1pJ411E7Eb
@@ -73,7 +76,8 @@ export const useVideoInfo = () => {
     video,
     input,
     // フォームのバリデーション状態（store上の値をZodで検証）
-    isForm1Valid: formSchema1.safeParse({ url: input.url }).success,
+    isForm1Valid: buildVideoFormSchema1(t).safeParse({ url: input.url })
+      .success,
     isForm2Valid: buildVideoFormSchema2(t).safeParse({
       title: input.title,
       quality: input.quality,

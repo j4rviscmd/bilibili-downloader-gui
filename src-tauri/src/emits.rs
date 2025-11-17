@@ -7,25 +7,30 @@ use tokio::{spawn, sync::Mutex, time};
 
 // Frontendへのイベントを送信するためのモジュール
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct Progress {
-    #[serde(rename = "downloadId")]
-    pub download_id: String,
-    #[serde(rename = "filesize")]
-    pub filesize: Option<f64>,
-    #[serde(rename = "downloaded")]
-    pub downloaded: Option<f64>,
-    #[serde(rename = "transferRate")]
-    pub transfer_rate: f64,
-    #[serde(rename = "percentage")]
-    pub percentage: f64,
-    #[serde(rename = "deltaTime")]
-    pub delta_time: f64,
-    // 累計の経過時間（秒）
-    #[serde(rename = "elapsedTime")]
-    pub elapsed_time: f64,
-    #[serde(rename = "isComplete")]
-    pub is_complete: bool,
-}
+ pub struct Progress {
+
+    #[serde(rename = "stage")]
+    pub stage: Option<String>,
+
+     #[serde(rename = "downloadId")]
+     pub download_id: String,
+     #[serde(rename = "filesize")]
+     pub filesize: Option<f64>,
+     #[serde(rename = "downloaded")]
+     pub downloaded: Option<f64>,
+     #[serde(rename = "transferRate")]
+     pub transfer_rate: f64,
+     #[serde(rename = "percentage")]
+     pub percentage: f64,
+     #[serde(rename = "deltaTime")]
+     pub delta_time: f64,
+     // 累計の経過時間（秒）
+     #[serde(rename = "elapsedTime")]
+     pub elapsed_time: f64,
+     #[serde(rename = "isComplete")]
+     pub is_complete: bool,
+ }
+
 
 struct EmitsInner {
     progress: Progress,
@@ -44,15 +49,12 @@ pub struct Emits {
 
 impl Emits {
     pub fn new(app: AppHandle, download_id: String, filesize_bytes: Option<u64>) -> Self {
-        let filesize_mb: Option<f64> = if let Some(filesize_bytes) = filesize_bytes {
-            Some(filesize_bytes as f64 / 1024.0 / 1024.0)
-        } else {
-            None
-        };
+        let filesize_mb: Option<f64> = filesize_bytes.map(|filesize_bytes| filesize_bytes as f64 / 1024.0 / 1024.0);
         let now = Instant::now();
         let inner = Arc::new(Mutex::new(EmitsInner {
             progress: Progress {
                 download_id,
+                stage: None,
                 filesize: filesize_mb,
                 downloaded: None,
                 transfer_rate: 0.0,
@@ -75,8 +77,9 @@ impl Emits {
 
         // 生成直後に1回フロントへ送信
         if let Ok(mut guard) = inner.try_lock() {
-            Self::send_progress_locked(&app, &mut *guard);
+            Self::send_progress_locked(&app, &mut guard);
         }
+
 
         // Emitインスタンス生成と同時に0.1s間隔のタイマーを開始
         spawn(async move {
@@ -89,9 +92,10 @@ impl Emits {
                     break;
                 }
                 // 進捗を計算してemit
-                Self::send_progress_locked(&app, &mut *guard);
+                Self::send_progress_locked(&app, &mut guard);
             }
         });
+
 
         this
     }
@@ -101,6 +105,14 @@ impl Emits {
             guard.current_downloaded_bytes = downloaded_bytes;
         }
     }
+
+    pub async fn set_stage(&self, stage: &str) {
+        let mut guard = self.inner.lock().await;
+        guard.progress.stage = Some(stage.to_string());
+        // Send immediate update reflecting stage change
+        Self::send_progress_locked(&self.app, &mut guard);
+    }
+
     pub async fn complete(&self) {
         // 完了時点の累計経過時間を更新
         let mut guard = self.inner.lock().await;
@@ -131,7 +143,7 @@ impl Emits {
         }
         guard.progress.filesize = Some(filesize_mb);
         // 進捗再計算と即時送信
-        Self::send_progress_locked(&self.app, &mut *guard);
+        Self::send_progress_locked(&self.app, &mut guard);
     }
 
     // 内部用: ミューテックス取得済みで進捗を計算・送信

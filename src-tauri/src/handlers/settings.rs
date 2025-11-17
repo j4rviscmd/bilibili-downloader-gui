@@ -65,16 +65,16 @@ async fn validate_settings(app: &AppHandle, filepath: &PathBuf) -> Result<bool> 
                 // DEBUG: println!("Created settings parent directory: {:?}", parent);
             }
         }
-        let mut default_settings = Settings::default();
-        default_settings.dl_output_path = Some(
+        let default_settings = Settings { dl_output_path: Some(
             app.path()
                 .download_dir()
                 .unwrap()
                 .to_str()
                 .unwrap()
                 .to_string(),
-        );
+        ), ..Default::default() };
         let json = serde_json::to_string_pretty(&default_settings)?;
+
         let mut file = File::create(&filepath).await?;
         file.write_all(json.as_bytes()).await?;
 

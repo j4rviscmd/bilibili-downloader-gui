@@ -26,7 +26,9 @@ pub async fn download_url(
     output_path: PathBuf,
     cookie: Option<String>,
     is_override: bool,
+    download_id: Option<String>,
 ) -> Result<()> {
+
     // 基本チェック
     if output_path.exists() {
         if is_override {
@@ -103,7 +105,7 @@ pub async fn download_url(
         // Range サポート不明/サイズ不明 → 旧方式フォールバック (単一取得)
         // DEBUG: total size unknown -> fallback
         // println!("Total size unknown. Fallback to single-stream download.");
-        return single_stream_fallback(app, url, output_path, cookie, is_override).await;
+        return single_stream_fallback(app, url, output_path, cookie, is_override, download_id.clone()).await;
     }
     let total = total_size.unwrap();
     // DEBUG: total size & Accept-Ranges support
@@ -153,7 +155,18 @@ pub async fn download_url(
         } // 事前割り当て
     }
 
-    let emits = Arc::new(Emits::new(app.clone(), filename.to_string(), Some(total)));
+    // Use filename+timestamp as default download id if caller doesn't provide one; the Emits API accepts filename currently.
+    // Use provided download id if available, otherwise fallback to filename
+    // Use provided download id if available, otherwise fallback to filename-based id
+    let id_for_emit = download_id.clone().unwrap_or_else(|| filename.to_string());
+    let emits = Arc::new(Emits::new(app.clone(), id_for_emit, Some(total)));
+    // If filename suggests temp_audio/temp_video, set stage accordingly for UI clarity
+    if filename.starts_with("temp_audio") {
+        let _ = emits.set_stage("audio").await;
+    } else if filename.starts_with("temp_video") {
+        let _ = emits.set_stage("video").await;
+    }
+
     let downloaded_total = Arc::new(AtomicU64::new(0));
     let sem = Arc::new(Semaphore::new(concurrency));
 
@@ -328,6 +341,7 @@ async fn single_stream_fallback(
     output_path: PathBuf,
     cookie: Option<String>,
     is_override: bool,
+    download_id: Option<String>,
 ) -> Result<()> {
     if output_path.exists() && !is_override {
         return Err(anyhow::anyhow!("ERR::FILE_EXISTS"));
@@ -346,7 +360,14 @@ async fn single_stream_fallback(
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("download");
-    let emits = Emits::new(app.clone(), filename.to_string(), total);
+    let id_for_emit = download_id.clone().unwrap_or_else(|| filename.to_string());
+    let emits = Emits::new(app.clone(), id_for_emit, total);
+    // set stage based on filename hints if present
+    if filename.starts_with("temp_audio") {
+        let _ = emits.set_stage("audio").await;
+    } else if filename.starts_with("temp_video") {
+        let _ = emits.set_stage("video").await;
+    }
     let mut file = match tokio::fs::OpenOptions::new()
         .create(true)
         .write(true)

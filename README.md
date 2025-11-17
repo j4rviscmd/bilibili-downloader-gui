@@ -161,6 +161,7 @@ src-tauri/src/
 - [ ] Allow overwriting existing files
 - [ ] Queueing multiple items for download
 - [ ] Download history retention
+- [ ] Single-instance app launch (prevent multiple concurrent launches)
 
 ## Localization (i18n)
 
