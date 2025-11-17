@@ -6,7 +6,7 @@ import {
   DialogTitle,
 } from '@/components/animate-ui/radix/dialog'
 import CircleIndicator from '@/components/lib/CircleIndicator'
-import ProgressStatusBar from '@/components/lib/Progress'
+import ProgressStatusBar, { type Progress } from '@/components/lib/Progress'
 import { Button } from '@/components/ui/button'
 import { useVideoInfo } from '@/features/video/useVideoInfo'
 import { Download, Music, Play, Video } from 'lucide-react'
@@ -46,8 +46,8 @@ function DownloadingDialog() {
   }
   const hasDlQue = progress.length > 0
   // group progress entries by parentId (downloadId)
-  const groups = progress.reduce<Record<string, typeof progress>>((acc, p) => {
-    const parent = (p as any).parentId || p.downloadId
+  const groups = progress.reduce<Record<string, Progress[]>>((acc, p) => {
+    const parent = p.parentId || p.downloadId
     if (!acc[parent]) acc[parent] = []
     acc[parent].push(p)
     return acc
@@ -85,8 +85,7 @@ function DownloadingDialog() {
                   const barInfo = getBarInfo(p.downloadId, p.stage, t)
                   const barLabel = barInfo[0]
                   const barIcon = barInfo[1]
-                  const key =
-                    (p as any).internalId || `${p.downloadId}:${p.stage}`
+                  const key = p.internalId || `${p.downloadId}:${p.stage}`
                   if (!p.stage) return
                   return (
                     <div
