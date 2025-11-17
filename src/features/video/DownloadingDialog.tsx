@@ -55,7 +55,8 @@ function DownloadingDialog() {
 
   const phaseOrder = ['audio', 'video', 'merge']
   const isDownloading =
-    progress.length > 0 && !progress.every((p) => p.isComplete)
+    progress.length > 0 &&
+    !progress.filter((p) => p.stage).every((p) => p.isComplete)
 
   return (
     <Dialog modal open={hasDlQue}>
