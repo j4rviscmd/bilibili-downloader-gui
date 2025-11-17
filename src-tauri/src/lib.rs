@@ -71,11 +71,9 @@ pub fn run() {
 #[tauri::command]
 async fn validate_ffmpeg(app: AppHandle) -> bool {
     // ffmpegの有効性チェック処理
-    let res = ffmpeg::validate_ffmpeg(&app);
-
-    res
-
+    ffmpeg::validate_ffmpeg(&app)
 }
+
 
 #[tauri::command]
 async fn install_ffmpeg(app: AppHandle) -> Result<bool, String> {

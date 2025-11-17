@@ -249,7 +249,7 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
         audio_qualities: Vec::new(),
     };
 
-    let cookies = read_cookie(&app)?;
+    let cookies = read_cookie(app)?;
     if cookies.is_none() {
         return Err("No cookies found".into());
     }
@@ -289,7 +289,7 @@ fn convert_qualities(video: &Vec<XPlayerApiResponseVideo>) -> Vec<Quality> {
     // id値の降順で配列格納
     for item in qualities.iter().rev() {
         res.push(Quality {
-            id: item.0.clone(),
+            id: *item.0,
             codecid: item.1.codecid,
         });
     }
@@ -305,8 +305,7 @@ async fn fetch_video_title(
         .user_agent(USER_AGENT)
         .build()
         .map_err(|e| format!("failed to build client: {e}"))?;
-
-    let cookie_header = build_cookie_header(cookies);
+    let cookie_header = build_cookie_header(cookies);
     let res: reqwest::Response = client
         .get(format!(
             "https://api.bilibili.com/x/web-interface/view?bvid={}",
@@ -317,54 +316,28 @@ async fn fetch_video_title(
         .send()
         .await
         .map_err(|e| format!("WebInterface Api Failed to fetch video info: {e}"))?;
-
-    let _status = res.status();
-    // DEBUG: println!("WebInterfaceApiResponse status: {}", status);
+    let _status = res.status();
     let text = res
         .text()
         .await
         .map_err(|e| format!("WebInterface Api Failed to read response text: {e}"))?;
-    // println!("WebInterfaceApiResponse body: {}", text);
-
-    let body: WebInterfaceApiResponse =
+    let body: WebInterfaceApiResponse =
         serde_json::from_str(&text).map_err(|e| format!("Failed to parse response JSON: {e}"))?;
-
-    if body.code != 0 {
+    if body.code != 0 {
         return Err(format!("WebInterfaceApi error: {}", body.message));
     }
-
-    return Ok(body);
+    Ok(body)
 }
 
 async fn fetch_video_details(
     video: &Video,
     cookies: &[CookieEntry],
 ) -> Result<XPlayerApiResponse, String> {
-    // response codeより利用可能な画質を取得取得し、video.qualitiesに格納
-    // quality_dict: dict = {
-    //     "1080p60": 116,
-    //     "720p60": 74,
-    //     "1080p+": 112,
-    //     "1080p": 80,
-    //     "720p": 64,
-    //     "480p": 32,
-    //     "360p": 16,
-    //     "mp3": 0,
-    //     116: "1080p60",
-    //     74: "720p60",
-    //     112: "1080p+",
-    //     80: "1080p",
-    //     64: "720p",
-    //     32: "480p",
-    //     16: "360p",
-    // }
-
     let client = Client::builder()
         .user_agent(USER_AGENT)
         .build()
         .map_err(|e| format!("XPlayerApi failed to build client: {e}"))?;
-
-    let cookie_header = build_cookie_header(cookies);
+    let cookie_header = build_cookie_header(cookies);
     let res: reqwest::Response = client
         .get("https://api.bilibili.com/x/player/wbi/playurl")
         .header(header::COOKIE, cookie_header)
@@ -381,34 +354,15 @@ async fn fetch_video_details(
         .send()
         .await
         .map_err(|e| format!("XPlayerApi Failed to fetch video info: {e}"))?;
-
-    let _status = res.status();
-    // DEBUG: println!("XPlayerApiResponse status: {}", status);
-
-    // // レスポンスをテキストとして全取得
-    // let body_text = res
-    //     .text()
-    //     .await
-    //     .map_err(|e| format!("XPlayerApi Failed to read response body: {e}"))?;
-    // let body: XPlayerApiResponse = serde_json::from_str(&body_text).unwrap();
-
-    // // JSONを型なしでパース（レスポンスをそのまま持つ）
-    // let body_all: serde_json::Value = serde_json::from_str(&body_text)
-    //     .map_err(|e| format!("XPlayerApi Failed to parse response JSON: {e}"))?;
-    // // 整形して表示
-    // let json_str = serde_json::to_string_pretty(&body_all).unwrap();
-    // println!("PlayerApiResponse body: \n{}", json_str);
-
+    let _status = res.status();
     let body: XPlayerApiResponse = res
         .json::<XPlayerApiResponse>()
         .await
         .map_err(|e| format!("XPlayerApi Failed to parse response JSON: {e}"))?;
-
-    if body.code != 0 {
+    if body.code != 0 {
         return Err(format!("XPlayerApi error: {}", body.message));
     }
-
-    return Ok(body);
+    Ok(body)
 }
 
 async fn get_output_path(app: &AppHandle, filename: &str) -> anyhow::Result<PathBuf> {
