@@ -32,15 +32,15 @@ pub enum Language {
 /// ------------
 /// デフォルト定義
 /// ------------
-
 impl Default for Language {
     fn default() -> Self {
         Language::En
     }
 }
 
-impl Default for Theme {
-    fn default() -> Self {
-        Theme::Dark
-    }
+#[derive(Default)]
+pub enum Theme {
+    Light,
+    #[default]
+    Dark,
 }

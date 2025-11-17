@@ -193,9 +193,9 @@ fn validate_command(path: &PathBuf) -> bool {
 
 pub async fn merge_av(
     app: &AppHandle,
-    video_path: &PathBuf,
-    audio_path: &PathBuf,
-    output_path: &PathBuf,
+    video_path: &std::path::Path,
+    audio_path: &std::path::Path,
+    output_path: &std::path::Path,
 ) -> Result<(), String> {
     let filename = output_path.file_stem().unwrap().to_str().unwrap();
     let emits = Emits::new(app.clone(), filename.to_string(), None);

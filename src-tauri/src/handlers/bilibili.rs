@@ -36,7 +36,7 @@ pub async fn download_video(
     }
 
     // Get cookies from cache.
-    let cookies = read_cookie(&app)?;
+    let cookies = read_cookie(app)?;
     if cookies.is_none() {
         return Err("Cookieが見つかりません".into());
     }

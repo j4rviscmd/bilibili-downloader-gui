@@ -74,6 +74,7 @@ async fn validate_ffmpeg(app: AppHandle) -> bool {
     let res = ffmpeg::validate_ffmpeg(&app);
 
     res
+
 }
 
 #[tauri::command]
@@ -142,11 +143,12 @@ async fn get_settings(app: AppHandle) -> Result<Settings, String> {
 
 #[tauri::command]
 async fn set_settings(app: AppHandle, settings: Settings) -> Result<(), String> {
-    let res = settings::set_settings(&app, &settings)
+    settings::set_settings(&app, &settings)
         .await
         .map_err(|e| e.to_string())?;
 
-    Ok(res)
+    Ok(())
+
 }
 
 #[tauri::command]

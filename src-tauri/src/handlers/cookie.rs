@@ -49,9 +49,10 @@ fn find_firefox_cookie_file(app: &AppHandle) -> Option<PathBuf> {
 
 pub async fn get_cookie(app: &AppHandle) -> Result<bool, String> {
     // 1) ローカルの Firefox cookie DB を探索
-    let Some(cookiefile) = find_firefox_cookie_file(&app) else {
+    let Some(cookiefile) = find_firefox_cookie_file(app) else {
         return Ok(false);
     };
+
 
     // 2) 一時ディレクトリにコピー（Firefox 実行中ロック対策）
     let tmp_dir = std::env::temp_dir();
