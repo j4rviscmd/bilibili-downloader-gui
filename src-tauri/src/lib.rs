@@ -1,5 +1,4 @@
 use tauri::AppHandle;
-#[cfg(debug_assertions)]
 use tauri::Manager;
 
 use crate::handlers::bilibili;
