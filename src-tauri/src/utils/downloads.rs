@@ -160,6 +160,12 @@ pub async fn download_url(
     // Use provided download id if available, otherwise fallback to filename-based id
     let id_for_emit = download_id.clone().unwrap_or_else(|| filename.to_string());
     let emits = Arc::new(Emits::new(app.clone(), id_for_emit, Some(total)));
+    // If filename suggests temp_audio/temp_video, set stage accordingly for UI clarity
+    if filename.starts_with("temp_audio") {
+        let _ = emits.set_stage("audio").await;
+    } else if filename.starts_with("temp_video") {
+        let _ = emits.set_stage("video").await;
+    }
 
     let downloaded_total = Arc::new(AtomicU64::new(0));
     let sem = Arc::new(Semaphore::new(concurrency));
@@ -356,6 +362,12 @@ async fn single_stream_fallback(
         .unwrap_or("download");
     let id_for_emit = download_id.clone().unwrap_or_else(|| filename.to_string());
     let emits = Emits::new(app.clone(), id_for_emit, total);
+    // set stage based on filename hints if present
+    if filename.starts_with("temp_audio") {
+        let _ = emits.set_stage("audio").await;
+    } else if filename.starts_with("temp_video") {
+        let _ = emits.set_stage("video").await;
+    }
     let mut file = match tokio::fs::OpenOptions::new()
         .create(true)
         .write(true)

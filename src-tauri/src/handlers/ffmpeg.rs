@@ -201,6 +201,8 @@ pub async fn merge_av(
     let filename = output_path.file_stem().unwrap().to_str().unwrap();
     let id_for_emit = download_id.clone().unwrap_or_else(|| filename.to_string());
     let emits = Emits::new(app.clone(), id_for_emit, None);
+    // indicate merge stage to frontend
+    let _ = emits.set_stage("merge").await;
     let ffmpeg_path = get_ffmpeg_path(app);
     // ffmpeg コマンド実行（非同期）
     let mut cmd = AsyncCommand::new(ffmpeg_path);

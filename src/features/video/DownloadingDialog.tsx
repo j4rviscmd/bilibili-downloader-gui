@@ -12,16 +12,20 @@ import { useVideoInfo } from '@/features/video/useVideoInfo'
 import { Download, Music, Play, Video } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-const getBarInfo = (id: string, t: (k: string) => string) => {
+const getBarInfo = (
+  id: string | undefined,
+  stage: string | undefined,
+  t: (k: string) => string,
+) => {
   let label = ''
   let icon = <></>
-  if (id === 'temp_audio') {
+  if (stage === 'audio' || id === 'temp_audio') {
     label = t('video.bar_audio')
     icon = <Music size={13} />
-  } else if (id === 'temp_video') {
+  } else if (stage === 'video' || id === 'temp_video') {
     label = t('video.bar_video')
     icon = <Video size={13} />
-  } else {
+  } else if (stage === 'merge') {
     label = t('video.bar_merge')
     icon = <Play size={13} />
   }
@@ -60,7 +64,7 @@ function DownloadingDialog() {
         </DialogHeader>
         {hasDlQue &&
           progress.map((p) => {
-            const barInfo = getBarInfo(p.downloadId, t)
+            const barInfo = getBarInfo(p.downloadId, p.stage, t)
             const barLabel = barInfo[0]
             const barIcon = barInfo[1]
             return (

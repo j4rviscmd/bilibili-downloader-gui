@@ -9,6 +9,9 @@ use tokio::{spawn, sync::Mutex, time};
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
  pub struct Progress {
 
+    #[serde(rename = "stage")]
+    pub stage: Option<String>,
+
      #[serde(rename = "downloadId")]
      pub download_id: String,
      #[serde(rename = "filesize")]
@@ -51,6 +54,7 @@ impl Emits {
         let inner = Arc::new(Mutex::new(EmitsInner {
             progress: Progress {
                 download_id,
+                stage: None,
                 filesize: filesize_mb,
                 downloaded: None,
                 transfer_rate: 0.0,
@@ -101,6 +105,14 @@ impl Emits {
             guard.current_downloaded_bytes = downloaded_bytes;
         }
     }
+
+    pub async fn set_stage(&self, stage: &str) {
+        let mut guard = self.inner.lock().await;
+        guard.progress.stage = Some(stage.to_string());
+        // Send immediate update reflecting stage change
+        Self::send_progress_locked(&self.app, &mut guard);
+    }
+
     pub async fn complete(&self) {
         // 完了時点の累計経過時間を更新
         let mut guard = self.inner.lock().await;
