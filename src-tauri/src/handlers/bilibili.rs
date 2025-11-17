@@ -94,6 +94,10 @@ pub async fn download_video(
     // ----- 全体リトライ制御 (最大3回) -----
     let mut attempt: u8 = 0;
     let max_attempts: u8 = 3;
+
+    // Video-level semaphore permit holder (kept across attempts so we can release after merge)
+    let mut video_permit: Option<tokio::sync::OwnedSemaphorePermit> = None;
+
     loop {
         attempt += 1;
         // 1) Audio を先にDL
@@ -119,6 +123,15 @@ pub async fn download_video(
         }
 
         // 2) Audio成功後に Video をDL
+        // Acquire global permit to limit concurrent video downloads
+        let permit = crate::handlers::concurrency::VIDEO_SEMAPHORE
+            .clone()
+            .acquire_owned()
+            .await
+            .map_err(|e| format!("Failed to acquire video semaphore permit: {}", e))?;
+        // Save owned permit so it survives after this iteration until merge/cleanup
+        video_permit = Some(permit);
+
         let video_res = download_url(
             app,
             video_req.url.clone(),
@@ -127,7 +140,11 @@ pub async fn download_video(
             true,
         )
         .await;
+
+        // If video failed, release permit and handle retry
         if let Err(e) = video_res {
+            // release
+            video_permit = None;
             let msg = e.to_string();
             if msg.contains("ERR::FILE_EXISTS") || msg.contains("ERR::DISK_FULL") {
                 return Err(format!("Download failed: {}", msg));
@@ -141,6 +158,7 @@ pub async fn download_video(
             continue;
         }
         // 両方成功
+        // permit is kept in video_permit until after merge & cleanup
         break;
     }
 
@@ -150,6 +168,10 @@ pub async fn download_video(
     // tempファイル削除
     let _ = fs::remove_file(lib_path.join("temp_video.m4s")).await;
     let _ = fs::remove_file(lib_path.join("temp_audio.m4s")).await;
+
+    // Release the video semaphore permit by dropping it
+    // (permit was stored in video_permit)
+    drop(video_permit);
 
     Ok(())
 }
