@@ -7,4 +7,6 @@ export type Progress = {
   elapsedTime: number // cumulative seconds
   isComplete: boolean
   stage?: string
+  parentId?: string
+  internalId?: string
 }

@@ -45,6 +45,15 @@ function DownloadingDialog() {
     window.location.reload()
   }
   const hasDlQue = progress.length > 0
+  // group progress entries by parentId (downloadId)
+  const groups = progress.reduce<Record<string, typeof progress>>((acc, p) => {
+    const parent = (p as any).parentId || p.downloadId
+    if (!acc[parent]) acc[parent] = []
+    acc[parent].push(p)
+    return acc
+  }, {})
+
+  const phaseOrder = ['audio', 'video', 'merge']
   const isDownloading =
     progress.length > 0 && !progress.every((p) => p.isComplete)
 
@@ -63,22 +72,36 @@ function DownloadingDialog() {
           <DialogDescription hidden />
         </DialogHeader>
         {hasDlQue &&
-          progress.map((p) => {
-            const barInfo = getBarInfo(p.downloadId, p.stage, t)
-            const barLabel = barInfo[0]
-            const barIcon = barInfo[1]
+          Object.entries(groups).map(([parentId, entries]) => {
+            // sort entries by phase order and fallback to existing order
+            const sorted = entries.sort((a, b) => {
+              const ai = a.stage ? phaseOrder.indexOf(a.stage) : -1
+              const bi = b.stage ? phaseOrder.indexOf(b.stage) : -1
+              return ai - bi
+            })
             return (
-              <div
-                key={p.downloadId}
-                className="text-accent-foreground box-border w-full px-3"
-              >
-                <div className="flex items-center">
-                  <span className="mr-1">{barIcon}</span>
-                  <span>{barLabel}</span>
-                </div>
-                <div className="px-3">
-                  <ProgressStatusBar progress={p} />
-                </div>
+              <div key={parentId} className="mb-3 w-full">
+                {sorted.map((p) => {
+                  const barInfo = getBarInfo(p.downloadId, p.stage, t)
+                  const barLabel = barInfo[0]
+                  const barIcon = barInfo[1]
+                  const key =
+                    (p as any).internalId || `${p.downloadId}:${p.stage}`
+                  return (
+                    <div
+                      key={key}
+                      className="text-accent-foreground box-border w-full px-3"
+                    >
+                      <div className="flex items-center">
+                        <span className="mr-1">{barIcon}</span>
+                        <span>{barLabel}</span>
+                      </div>
+                      <div className="px-3">
+                        <ProgressStatusBar progress={p} />
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             )
           })}
