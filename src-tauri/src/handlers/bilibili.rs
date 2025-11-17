@@ -49,10 +49,10 @@ pub async fn download_video(
         video_qualities: Vec::new(),
         audio_qualities: Vec::new(),
     };
-    let res_body1 = fetch_video_title(&video, &cookies).await?;
+    let res_body1 = fetch_video_title(&video, cookies).await?;
     video.cid = res_body1.data.cid;
 
-    let res_body2 = fetch_video_details(&video, &cookies).await?;
+    let res_body2 = fetch_video_details(&video, cookies).await?;
     let video_qualities = convert_qualities(&res_body2.data.dash.video);
     let audio_qualities = convert_qualities(&res_body2.data.dash.audio);
     video.video_qualities = video_qualities;
