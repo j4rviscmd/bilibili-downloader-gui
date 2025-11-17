@@ -196,9 +196,11 @@ pub async fn merge_av(
     video_path: &std::path::Path,
     audio_path: &std::path::Path,
     output_path: &std::path::Path,
+    download_id: Option<String>,
 ) -> Result<(), String> {
     let filename = output_path.file_stem().unwrap().to_str().unwrap();
-    let emits = Emits::new(app.clone(), filename.to_string(), None);
+    let id_for_emit = download_id.clone().unwrap_or_else(|| filename.to_string());
+    let emits = Emits::new(app.clone(), id_for_emit, None);
     let ffmpeg_path = get_ffmpeg_path(app);
     // ffmpeg コマンド実行（非同期）
     let mut cmd = AsyncCommand::new(ffmpeg_path);

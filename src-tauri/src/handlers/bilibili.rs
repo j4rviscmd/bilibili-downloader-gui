@@ -164,7 +164,7 @@ pub async fn download_video(
     };
 
     // audio & videoファイルをffmpegで結合
-    merge_av(app, &video_req.path, &audio_req.path, &output_path).await?;
+    merge_av(app, &video_req.path, &audio_req.path, &output_path, download_id.clone()).await?;
 
     // tempファイル削除
     let _ = fs::remove_file(lib_path.join("temp_video.m4s")).await;
