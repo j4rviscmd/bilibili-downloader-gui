@@ -6,4 +6,5 @@ export type Progress = {
   percentage: number // in %
   elapsedTime: number // cumulative seconds
   isComplete: boolean
+  stage?: string
 }

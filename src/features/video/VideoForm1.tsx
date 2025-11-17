@@ -8,7 +8,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { formSchema1 } from '@/features/video/formSchema'
+import { buildVideoFormSchema1, formSchema1 } from '@/features/video/formSchema'
 import { useVideoInfo } from '@/features/video/useVideoInfo'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect } from 'react'
@@ -19,6 +19,8 @@ import { z } from 'zod'
 function VideoForm1() {
   const { input, onValid1 } = useVideoInfo()
   const { t } = useTranslation()
+
+  const schema1 = buildVideoFormSchema1(t)
 
   useEffect(() => {
     // Disabled: restore URL from localStorage at startup.
@@ -34,7 +36,7 @@ function VideoForm1() {
   }
 
   const form = useForm<z.infer<typeof formSchema1>>({
-    resolver: zodResolver(formSchema1),
+    resolver: zodResolver(schema1),
     defaultValues: {
       url: '',
     },
