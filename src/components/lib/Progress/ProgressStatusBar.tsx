@@ -1,3 +1,4 @@
+import type { RootState } from '@/app/store'
 import {
   Progress,
   ProgressLabel,
@@ -5,6 +6,7 @@ import {
 } from '@/components/animate-ui/base/progress'
 import type { Progress as ProgressType } from '@/shared/progress'
 import { useTranslation } from 'react-i18next'
+import { useSelector } from 'react-redux'
 
 type Props = {
   progress: ProgressType

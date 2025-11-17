@@ -26,7 +26,9 @@ pub async fn download_url(
     output_path: PathBuf,
     cookie: Option<String>,
     is_override: bool,
+    download_id: Option<String>,
 ) -> Result<()> {
+
     // 基本チェック
     if output_path.exists() {
         if is_override {
@@ -153,7 +155,12 @@ pub async fn download_url(
         } // 事前割り当て
     }
 
-    let emits = Arc::new(Emits::new(app.clone(), filename.to_string(), Some(total)));
+    // Use filename+timestamp as default download id if caller doesn't provide one; the Emits API accepts filename currently.
+    // Use provided download id if available, otherwise fallback to filename
+    // Use provided download id if available, otherwise fallback to filename-based id
+    let id_for_emit = download_id.clone().unwrap_or_else(|| filename.to_string());
+    let emits = Arc::new(Emits::new(app.clone(), id_for_emit, Some(total)));
+
     let downloaded_total = Arc::new(AtomicU64::new(0));
     let sem = Arc::new(Semaphore::new(concurrency));
 

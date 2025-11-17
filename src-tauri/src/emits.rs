@@ -7,25 +7,27 @@ use tokio::{spawn, sync::Mutex, time};
 
 // Frontendへのイベントを送信するためのモジュール
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct Progress {
-    #[serde(rename = "downloadId")]
-    pub download_id: String,
-    #[serde(rename = "filesize")]
-    pub filesize: Option<f64>,
-    #[serde(rename = "downloaded")]
-    pub downloaded: Option<f64>,
-    #[serde(rename = "transferRate")]
-    pub transfer_rate: f64,
-    #[serde(rename = "percentage")]
-    pub percentage: f64,
-    #[serde(rename = "deltaTime")]
-    pub delta_time: f64,
-    // 累計の経過時間（秒）
-    #[serde(rename = "elapsedTime")]
-    pub elapsed_time: f64,
-    #[serde(rename = "isComplete")]
-    pub is_complete: bool,
-}
+ pub struct Progress {
+
+     #[serde(rename = "downloadId")]
+     pub download_id: String,
+     #[serde(rename = "filesize")]
+     pub filesize: Option<f64>,
+     #[serde(rename = "downloaded")]
+     pub downloaded: Option<f64>,
+     #[serde(rename = "transferRate")]
+     pub transfer_rate: f64,
+     #[serde(rename = "percentage")]
+     pub percentage: f64,
+     #[serde(rename = "deltaTime")]
+     pub delta_time: f64,
+     // 累計の経過時間（秒）
+     #[serde(rename = "elapsedTime")]
+     pub elapsed_time: f64,
+     #[serde(rename = "isComplete")]
+     pub is_complete: bool,
+ }
+
 
 struct EmitsInner {
     progress: Progress,

@@ -119,13 +119,17 @@ async fn download_video(
     video_id: String,
     filename: String,
     quality: i32,
+    download_id: Option<String>,
 ) -> Result<(), String> {
-    let res = bilibili::download_video(&app, &video_id, &filename, &quality)
+    // Call the handler and propagate errors as strings
+    bilibili::download_video(&app, &video_id, &filename, &quality, download_id)
         .await
         .map_err(|e| e.to_string())?;
 
-    Ok(res)
+    Ok(())
 }
+
+
 
 #[tauri::command]
 async fn get_settings(app: AppHandle) -> Result<Settings, String> {

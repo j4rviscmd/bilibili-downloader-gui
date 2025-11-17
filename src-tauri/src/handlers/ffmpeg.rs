@@ -69,7 +69,8 @@ pub async fn install_ffmpeg(app: &AppHandle) -> Result<bool> {
     };
     // ~/bilibili-downloader-gui/src-tauri/target/debug/lib/ffmpeg
     let archive_path = ffmpeg_root.join(filename);
-    if let Ok(()) = download_url(app, url.to_string(), archive_path.clone(), None, true).await {
+    if let Ok(()) = download_url(app, url.to_string(), archive_path.clone(), None, true, None).await {
+
         println!("FFmpegのダウンロードが完了しました: {:?}", ffmpeg_root);
         if let Ok(is_unpacked) = unpack_archive(&archive_path, &ffmpeg_root).await {
             if is_unpacked {

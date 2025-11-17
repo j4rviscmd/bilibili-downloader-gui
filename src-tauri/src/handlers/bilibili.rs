@@ -24,7 +24,9 @@ pub async fn download_video(
     id: &str,
     filename: &str,
     quality: &i32,
+    download_id: Option<String>,
 ) -> Result<(), String> {
+
     let mut output_path = get_output_path(app, filename).await.unwrap();
     output_path.set_extension("mp4");
 
@@ -95,10 +97,8 @@ pub async fn download_video(
     let mut attempt: u8 = 0;
     let max_attempts: u8 = 3;
 
-    // Video-level semaphore permit holder (kept across attempts so we can release after merge)
-    let mut video_permit: Option<tokio::sync::OwnedSemaphorePermit> = None;
-
-    loop {
+    // Acquire and hold a video-level permit across video download + merge
+    let video_permit = loop {
         attempt += 1;
         // 1) Audio を先にDL
         let audio_res = download_url(
@@ -107,8 +107,10 @@ pub async fn download_video(
             audio_req.path.clone(),
             Some(cookie_header.to_string()),
             true,
+            download_id.clone(),
         )
         .await;
+
         if let Err(e) = audio_res {
             let msg = e.to_string();
             if msg.contains("ERR::FILE_EXISTS") || msg.contains("ERR::DISK_FULL") {
@@ -129,8 +131,6 @@ pub async fn download_video(
             .acquire_owned()
             .await
             .map_err(|e| format!("Failed to acquire video semaphore permit: {}", e))?;
-        // Save owned permit so it survives after this iteration until merge/cleanup
-        video_permit = Some(permit);
 
         let video_res = download_url(
             app,
@@ -138,13 +138,14 @@ pub async fn download_video(
             video_req.path.clone(),
             Some(cookie_header.to_string()),
             true,
+            download_id.clone(),
         )
         .await;
 
         // If video failed, release permit and handle retry
         if let Err(e) = video_res {
-            // release
-            video_permit = None;
+            // release permit immediately
+            drop(permit);
             let msg = e.to_string();
             if msg.contains("ERR::FILE_EXISTS") || msg.contains("ERR::DISK_FULL") {
                 return Err(format!("Download failed: {}", msg));
@@ -157,10 +158,10 @@ pub async fn download_video(
             // 次 attempt で audio も再DL (シンプルに全体再試行)
             continue;
         }
-        // 両方成功
-        // permit is kept in video_permit until after merge & cleanup
-        break;
-    }
+
+        // 両方成功, keep permit across merge/cleanup
+        break permit;
+    };
 
     // audio & videoファイルをffmpegで結合
     merge_av(app, &video_req.path, &audio_req.path, &output_path).await?;
