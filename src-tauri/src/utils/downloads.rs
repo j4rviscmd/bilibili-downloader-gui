@@ -105,7 +105,7 @@ pub async fn download_url(
         // Range サポート不明/サイズ不明 → 旧方式フォールバック (単一取得)
         // DEBUG: total size unknown -> fallback
         // println!("Total size unknown. Fallback to single-stream download.");
-        return single_stream_fallback(app, url, output_path, cookie, is_override).await;
+        return single_stream_fallback(app, url, output_path, cookie, is_override, download_id.clone()).await;
     }
     let total = total_size.unwrap();
     // DEBUG: total size & Accept-Ranges support
@@ -335,6 +335,7 @@ async fn single_stream_fallback(
     output_path: PathBuf,
     cookie: Option<String>,
     is_override: bool,
+    download_id: Option<String>,
 ) -> Result<()> {
     if output_path.exists() && !is_override {
         return Err(anyhow::anyhow!("ERR::FILE_EXISTS"));
@@ -353,7 +354,8 @@ async fn single_stream_fallback(
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("download");
-    let emits = Emits::new(app.clone(), filename.to_string(), total);
+    let id_for_emit = download_id.clone().unwrap_or_else(|| filename.to_string());
+    let emits = Emits::new(app.clone(), id_for_emit, total);
     let mut file = match tokio::fs::OpenOptions::new()
         .create(true)
         .write(true)
