@@ -123,6 +123,8 @@ async fn download_video(
     Ok(())
 }
 
+
+
 #[tauri::command]
 async fn get_settings(app: AppHandle) -> Result<Settings, String> {
     let res = settings::get_settings(&app)
