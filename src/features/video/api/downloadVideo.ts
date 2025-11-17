@@ -5,6 +5,13 @@ export const downloadVideo = async (
   filename: string,
   quality: number,
 ) => {
-  // 動画のダウンロード処理
-  await invoke<void>('download_video', { videoId, filename, quality })
+  // Create a downloadId and enqueue before invoking backend
+  const downloadId = uuidv4()
+  store.dispatch(enqueue({ downloadId, filename }))
+
+  try {
+    await invoke<void>('download_video', { videoId, filename, quality })
+  } finally {
+    // Note: actual dequeue will be handled by progress events; keep this as fallback
+  }
 }

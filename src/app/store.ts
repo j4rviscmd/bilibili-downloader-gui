@@ -21,6 +21,7 @@ export const store = configureStore({
     input: inputReducer,
     video: videoReducer,
     settings: settingReducer,
+    queue: queueReducer,
   },
   devTools: process.env.NODE_ENV !== 'production',
 })

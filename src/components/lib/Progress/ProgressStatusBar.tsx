@@ -24,9 +24,13 @@ function ProgressStatusBar({ progress }: Props) {
     parts.push(`${s}s`)
     return parts.join('')
   }
+  const queued = useSelector((s: RootState) =>
+    s.queue.find((q) => q.downloadId === progress.downloadId),
+  )
+
   return (
     <Progress
-      value={progress.percentage}
+      value={queued ? 0 : progress.percentage}
       className="text-muted-foreground w-full"
     >
       {progress.filesize != null ? (
@@ -34,7 +38,16 @@ function ProgressStatusBar({ progress }: Props) {
           <div className="flex items-center justify-between">
             <ProgressLabel className="flex w-full items-center text-sm">
               <div className="w-1/3">
-                {t('progress.elapsed')}: {formatElapsed(progress.elapsedTime)}
+                {queued ? (
+                  <span className="text-muted-foreground text-sm font-medium">
+                    Queued
+                  </span>
+                ) : (
+                  <>
+                    {t('progress.elapsed')}:{' '}
+                    {formatElapsed(progress.elapsedTime)}
+                  </>
+                )}
               </div>
               <div className="w-1/3">
                 {t('progress.speed')}:{' '}

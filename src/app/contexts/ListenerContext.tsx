@@ -14,14 +14,13 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
       // console.log('Progress event received:', event.payload)
       const payload: Progress = event.payload as Progress
       store.dispatch(setProgress(payload))
-      // NOTE: isComplete:true時のstate揮発は各UI側で行う
-      // if (payload.isComplete) {
-      //   sleep(500).then(() => {
-      //     store.dispatch(clearProgress(payload.downloadId))
-      //   })
-      // } else {
-      //   store.dispatch(setProgress(event.payload as Progress))
-      // }
+      // On first progress event for a downloadId we assume it moved from queued -> in-progress
+      store.dispatch(dequeue(payload.downloadId))
+      // If complete, ensure it's removed from progress later (UI may clear)
+      if (payload.isComplete) {
+        // ensure queue is clean
+        store.dispatch(dequeue(payload.downloadId))
+      }
     })
 
     return () => {
