@@ -25,7 +25,9 @@ function AppBar({ user, theme, setTheme }: Props) {
         <span className="text-muted-foreground">
           {t('app.logged_in_user')}:
         </span>
-        <span className="px-3">{maskedUserName}</span>
+        <span title={userName} className="px-3">
+          {maskedUserName}
+        </span>
       </div>
       <div className="flex items-center">
         <LanguagesDropdown />
