@@ -26,7 +26,6 @@ pub async fn download_video(
     quality: &i32,
     download_id: Option<String>,
 ) -> Result<(), String> {
-
     let mut output_path = get_output_path(app, filename).await.unwrap();
     output_path.set_extension("mp4");
 
@@ -164,7 +163,14 @@ pub async fn download_video(
     };
 
     // audio & videoファイルをffmpegで結合
-    merge_av(app, &video_req.path, &audio_req.path, &output_path, download_id.clone()).await?;
+    merge_av(
+        app,
+        &video_req.path,
+        &audio_req.path,
+        &output_path,
+        download_id.clone(),
+    )
+    .await?;
 
     // tempファイル削除
     let _ = fs::remove_file(lib_path.join("temp_video.m4s")).await;
@@ -305,7 +311,8 @@ async fn fetch_video_title(
         .user_agent(USER_AGENT)
         .build()
         .map_err(|e| format!("failed to build client: {e}"))?;
-    let cookie_header = build_cookie_header(cookies);
+
+    let cookie_header = build_cookie_header(cookies);
     let res: reqwest::Response = client
         .get(format!(
             "https://api.bilibili.com/x/web-interface/view?bvid={}",
@@ -316,17 +323,21 @@ async fn fetch_video_title(
         .send()
         .await
         .map_err(|e| format!("WebInterface Api Failed to fetch video info: {e}"))?;
-    let _status = res.status();
+
+    let _status = res.status();
     let text = res
         .text()
         .await
         .map_err(|e| format!("WebInterface Api Failed to read response text: {e}"))?;
-    let body: WebInterfaceApiResponse =
+
+    let body: WebInterfaceApiResponse =
         serde_json::from_str(&text).map_err(|e| format!("Failed to parse response JSON: {e}"))?;
-    if body.code != 0 {
+
+    if body.code != 0 {
         return Err(format!("WebInterfaceApi error: {}", body.message));
     }
-    Ok(body)
+
+    Ok(body)
 }
 
 async fn fetch_video_details(
@@ -337,7 +348,8 @@ async fn fetch_video_details(
         .user_agent(USER_AGENT)
         .build()
         .map_err(|e| format!("XPlayerApi failed to build client: {e}"))?;
-    let cookie_header = build_cookie_header(cookies);
+
+    let cookie_header = build_cookie_header(cookies);
     let res: reqwest::Response = client
         .get("https://api.bilibili.com/x/player/wbi/playurl")
         .header(header::COOKIE, cookie_header)
@@ -354,15 +366,18 @@ async fn fetch_video_details(
         .send()
         .await
         .map_err(|e| format!("XPlayerApi Failed to fetch video info: {e}"))?;
-    let _status = res.status();
+
+    let _status = res.status();
     let body: XPlayerApiResponse = res
         .json::<XPlayerApiResponse>()
         .await
         .map_err(|e| format!("XPlayerApi Failed to parse response JSON: {e}"))?;
-    if body.code != 0 {
+
+    if body.code != 0 {
         return Err(format!("XPlayerApi error: {}", body.message));
     }
-    Ok(body)
+
+    Ok(body)
 }
 
 async fn get_output_path(app: &AppHandle, filename: &str) -> anyhow::Result<PathBuf> {
