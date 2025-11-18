@@ -84,7 +84,7 @@ function HomePage() {
               style={{
                 height: 'calc(100dvh - 2.3rem)',
               }}
-              className="flex w-full bg-blue-200/10"
+              className="flex w-full"
             >
               <div className="box-border flex w-full flex-col items-center justify-center p-3">
                 <div className="flex h-full w-4/5 flex-col justify-center gap-3">
