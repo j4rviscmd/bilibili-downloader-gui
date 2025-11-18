@@ -156,6 +156,17 @@ src-tauri/src/
 - Frontend: React, Vite, TypeScript, Redux Toolkit, shadcn/ui, animate‑ui
 - Desktop: Tauri (Rust)
 
+## エラーコード
+
+フロント側で i18n マッピングされる戻り値コード:
+
+- `ERR::COOKIE_MISSING` Cookie が見つからない / 無効
+- `ERR::QUALITY_NOT_FOUND` 指定画質 ID が存在しない
+- `ERR::DISK_FULL` 空き容量不足
+- `ERR::FILE_EXISTS` 自動リネーム不能なファイル衝突
+- `ERR::NETWORK::<detail>` リトライ失敗後のネットワークエラー
+- `ERR::MERGE_FAILED` ffmpeg マージ失敗
+
 ## 今後の予定（Future）
 
 - [ ] ダウンロード先の指定

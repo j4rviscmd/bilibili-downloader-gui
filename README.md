@@ -155,6 +155,17 @@ src-tauri/src/
 - Frontend: React, Vite, TypeScript, Redux Toolkit, shadcn/ui, animate‑ui
 - Desktop: Tauri (Rust)
 
+## Error Codes
+
+Returned error codes (mapped to i18n in the frontend):
+
+- `ERR::COOKIE_MISSING` Missing or invalid cookie
+- `ERR::QUALITY_NOT_FOUND` Requested quality ID not available
+- `ERR::DISK_FULL` Insufficient free disk space
+- `ERR::FILE_EXISTS` File conflict not auto-resolvable
+- `ERR::NETWORK::<detail>` Network failure after retries
+- `ERR::MERGE_FAILED` ffmpeg merge process failed
+
 ## Future
 
 - [ ] Select download destination

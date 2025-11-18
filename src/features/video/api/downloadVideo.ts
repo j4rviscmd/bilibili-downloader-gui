@@ -14,7 +14,7 @@ export const downloadVideo = async (
   store.dispatch(enqueue({ downloadId, parentId, filename, status: 'pending' }))
   try {
     await invoke<void>('download_video', {
-      videoId,
+      bvid: videoId,
       cid,
       filename,
       quality,
