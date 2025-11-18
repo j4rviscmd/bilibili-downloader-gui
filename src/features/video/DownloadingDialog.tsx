@@ -34,8 +34,17 @@ const getBarInfo = (
 }
 
 function DownloadingDialog() {
-  const { progress } = useVideoInfo()
+  const { progress, input, video } = useVideoInfo()
   const { t } = useTranslation()
+  const deriveTitle = (p: Progress): string | undefined => {
+    const m = p.downloadId.match(/-p(\d+)$/)
+    if (m) {
+      const idx = parseInt(m[1], 10) - 1
+      return input.partInputs[idx]?.title
+    }
+    return video?.title
+  }
+
   const onClick = () => {
     // Disabled: do not mutate localStorage on download completion
     // localStorage.setItem(VIDEO_URL_KEY, '')
@@ -81,13 +90,32 @@ function DownloadingDialog() {
               return ai - bi
             })
             return (
-              <div key={parentId} className="mb-3 w-full">
+              <div
+                key={parentId}
+                className="mb-3 w-full rounded-md border px-1 py-3"
+              >
+                {(() => {
+                  const first = sorted.find(
+                    (p) => p.stage && p.stage !== 'complete',
+                  )
+                  const groupTitle = first
+                    ? deriveTitle(first)
+                    : video?.title || ''
+                  return groupTitle ? (
+                    <div
+                      className="text-md mb-1 truncate px-3 font-semibold"
+                      title={groupTitle}
+                    >
+                      {groupTitle}
+                    </div>
+                  ) : null
+                })()}
                 {sorted.map((p) => {
                   const barInfo = getBarInfo(p.downloadId, p.stage, t)
                   const barLabel = barInfo[0]
                   const barIcon = barInfo[1]
                   const key = p.internalId || `${p.downloadId}:${p.stage}`
-                  if (!p.stage) return
+                  if (!p.stage || p.stage === 'complete') return
                   return (
                     <div
                       key={key}
