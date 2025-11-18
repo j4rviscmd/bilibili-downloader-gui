@@ -27,8 +27,9 @@ import { cn } from '../../lib/utils'
 type Props = {
   video: Video
   page: number
+  isDuplicate?: boolean
 }
-function VideoForm2({ video, page }: Props) {
+function VideoForm2({ video, page, isDuplicate }: Props) {
   const { onValid2 } = useVideoInfo()
   const { t } = useTranslation()
   const disabled = video.parts.length === 0
@@ -55,7 +56,7 @@ function VideoForm2({ video, page }: Props) {
         // バリデーション成功時にReduxへ反映（ダウンロードボタン活性のため）
         if (ok) {
           const vals = form.getValues()
-          onValid2(vals.title, vals.quality)
+          onValid2(page - 1, vals.title, vals.quality)
         }
       }
     })()
@@ -65,7 +66,7 @@ function VideoForm2({ video, page }: Props) {
 
   async function onSubmit(data: z.infer<typeof schema2>) {
     // ステート更新 & 動画愛情報を抽出
-    onValid2(data.title, data.quality)
+    onValid2(page - 1, data.title, data.quality)
   }
 
   const form = useForm<z.infer<typeof schema2>>({
@@ -172,6 +173,11 @@ function VideoForm2({ video, page }: Props) {
                       <br />
                     </FormDescription>
                     <FormMessage />
+                    {isDuplicate && (
+                      <div className="text-destructive text-sm">
+                        {t('validation.video.title.duplicate')}
+                      </div>
+                    )}
                   </FormItem>
                 )}
               />

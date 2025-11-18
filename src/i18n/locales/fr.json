@@ -33,7 +33,8 @@
     "failed": "Échec",
     "download_failed": "Échec du téléchargement",
     "file_exists": "Un fichier du même nom existe déjà",
-    "disk_full": "Le disque est plein"
+    "disk_full": "Le disque est plein",
+    "duplicate_titles": "Des noms de fichier en double ont été détectés. Veuillez les rendre uniques."
   },
   "toast": { "success": "Succès", "error": "Une erreur est survenue" },
   "init": {

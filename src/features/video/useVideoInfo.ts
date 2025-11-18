@@ -5,8 +5,14 @@ import {
   buildVideoFormSchema1,
   buildVideoFormSchema2,
 } from '@/features/video/formSchema'
-import { setQuality, setTitle, setUrl } from '@/features/video/inputSlice'
+import {
+  initPartInputs,
+  setUrl,
+  updatePartInputByIndex,
+} from '@/features/video/inputSlice'
+import { selectDuplicateIndices } from '@/features/video/selectors'
 import { setVideo } from '@/features/video/videoSlice'
+import { enqueue } from '@/shared/queue/queueSlice'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -20,49 +26,92 @@ export const useVideoInfo = () => {
   const progress = useSelector((state) => state.progress)
   const video = useSelector((state) => state.video)
   const input = useSelector((state) => state.input)
-  const onValid2 = (title: string, quality: string) => {
-    store.dispatch(setTitle(title))
-    store.dispatch(setQuality(quality))
+
+  const initInputsForVideo = (v: typeof video) => {
+    const partInputs = v.parts.map((p) => ({
+      cid: p.cid,
+      page: p.page,
+      title: `${v.title}_${p.part}`,
+      quality: (p.qualities[0]?.id || 80).toString(),
+    }))
+    store.dispatch(initPartInputs(partInputs))
   }
+
+  const onValid2 = (index: number, title: string, quality: string) => {
+    store.dispatch(updatePartInputByIndex({ index, title, quality }))
+  }
+
   const onValid1 = async (url: string) => {
     store.dispatch(setUrl(url))
-    // Disabled: avoid persisting URL to localStorage
-    // localStorage.setItem(VIDEO_URL_KEY, url)
-
-    // videoId取得
-    // e.g. https://www.bilibili.com/video/BV1pJ411E7Eb
-    // -> BV1pJ411E7Eb
     const id = extractId(url)
     if (id) {
-      console.log(`Extracted video ID: ${id}`)
-      const video = await fetchVideoInfo(id)
-      if (video && video.parts.length > 0 && video.parts[0].cid !== 0) {
-        console.log(`Fetched video info:`, video)
-        store.dispatch(setVideo(video))
+      const v = await fetchVideoInfo(id)
+      if (v && v.parts.length > 0 && v.parts[0].cid !== 0) {
+        store.dispatch(setVideo(v))
+        initInputsForVideo(v)
       }
     }
   }
 
+  // Validation
+  const schema1 = buildVideoFormSchema1(t)
+  const schema2 = buildVideoFormSchema2(t)
+  const isForm1Valid = schema1.safeParse({ url: input.url }).success
+
+  const partValidFlags = input.partInputs.map(
+    (pi) => schema2.safeParse({ title: pi.title, quality: pi.quality }).success,
+  )
+  const duplicateIndices = useSelector(selectDuplicateIndices)
+  const hasDuplicates = duplicateIndices.length > 0
+  // Toast throttle with closure state
+  const dupToastRef = (globalThis as any).__dupToastRef || { shown: false }
+  ;(globalThis as any).__dupToastRef = dupToastRef
+  if (hasDuplicates && !dupToastRef.shown) {
+    toast.error(t('video.duplicate_titles'), { duration: 5000 })
+    dupToastRef.shown = true
+  } else if (!hasDuplicates && dupToastRef.shown) {
+    dupToastRef.shown = false
+  }
+  const isForm2ValidAll =
+    input.partInputs.length > 0 &&
+    partValidFlags.every((f) => f) &&
+    !hasDuplicates
+
   const download = async () => {
     try {
-      await downloadVideo(
-        (extractId(input.url) ?? '').trim(),
-        input.title.trim(),
-        parseInt(input.quality, 10),
+      if (!isForm1Valid || !isForm2ValidAll) return
+      const videoId = (extractId(input.url) ?? '').trim()
+      if (!videoId) return
+      // Parent ID
+      const parentId = `${videoId}-${Date.now()}`
+      // Enqueue parent (placeholder filename = video.title)
+      store.dispatch(
+        enqueue({
+          downloadId: parentId,
+          filename: video.title,
+          status: 'pending',
+        }),
       )
+      // Child downloads: sequential order by parts
+      for (let i = 0; i < input.partInputs.length; i++) {
+        const pi = input.partInputs[i]
+        await downloadVideo(
+          videoId,
+          pi.cid,
+          pi.title.trim(),
+          parseInt(pi.quality, 10),
+          `${parentId}-p${i + 1}`,
+          parentId,
+        )
+      }
     } catch (e) {
       const raw = String(e)
-      // Standardized backend error codes: ERR::<CODE>
       let messageKey: string | null = null
-      if (raw.includes('ERR::FILE_EXISTS')) {
-        messageKey = 'video.file_exists'
-      }
-      if (!messageKey && raw.includes('ERR::DISK_FULL')) {
+      if (raw.includes('ERR::FILE_EXISTS')) messageKey = 'video.file_exists'
+      if (!messageKey && raw.includes('ERR::DISK_FULL'))
         messageKey = 'video.disk_full'
-      }
       const description = messageKey ? t(messageKey) : raw
       toast.error(t('video.download_failed'), {
-        // Keep the error toast persistent until user closes it
         duration: Infinity,
         description,
         closeButton: true,
@@ -75,15 +124,11 @@ export const useVideoInfo = () => {
     progress,
     video,
     input,
-    // フォームのバリデーション状態（store上の値をZodで検証）
-    isForm1Valid: buildVideoFormSchema1(t).safeParse({ url: input.url })
-      .success,
-    isForm2Valid: buildVideoFormSchema2(t).safeParse({
-      title: input.title,
-      quality: input.quality,
-    }).success,
     onValid1,
     onValid2,
+    isForm1Valid,
+    isForm2ValidAll,
+    duplicateIndices,
     download,
   }
 }

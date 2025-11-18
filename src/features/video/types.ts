@@ -1,7 +1,13 @@
-export type Input = {
-  url: string
+export type PartInput = {
+  cid: number
+  page: number
   title: string
   quality: string
+}
+
+export type Input = {
+  url: string
+  partInputs: PartInput[]
 }
 
 export type Video = {

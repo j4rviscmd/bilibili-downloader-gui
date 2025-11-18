@@ -33,7 +33,8 @@
     "failed": "Fallido",
     "download_failed": "Error al descargar",
     "file_exists": "Ya existe un archivo con el mismo nombre",
-    "disk_full": "El disco está lleno"
+    "disk_full": "El disco está lleno",
+    "duplicate_titles": "Se detectaron nombres de archivo duplicados. Hazlos únicos."
   },
   "toast": { "success": "Éxito", "error": "Ocurrió un error" },
   "init": {
@@ -111,7 +112,8 @@
         "min": "El título debe tener al menos 2 caracteres.",
         "max": "El título debe tener como máximo 100 caracteres.",
         "required": "Introduce un título.",
-        "invalid_chars": "El título contiene caracteres no permitidos ({{chars}})."
+        "invalid_chars": "El título contiene caracteres no permitidos ({{chars}}).",
+        "duplicate": "Este nombre de archivo ya está usado por otra parte."
       },
       "quality": {
         "required": "Selecciona una calidad."

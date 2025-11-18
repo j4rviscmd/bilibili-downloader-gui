@@ -37,7 +37,8 @@
     "failed": "Failed",
     "download_failed": "Failed to download",
     "file_exists": "A file with the same name already exists",
-    "disk_full": "Disk is full"
+    "disk_full": "Disk is full",
+    "duplicate_titles": "Duplicate filenames detected. Please make them unique."
   },
   "progress": {
     "elapsed": "Elapsed",
@@ -125,7 +126,8 @@
         "min": "Title must be at least 2 characters.",
         "max": "Title must be at most 100 characters.",
         "required": "Please enter a title.",
-        "invalid_chars": "Title contains forbidden characters ({{chars}})."
+        "invalid_chars": "Title contains forbidden characters ({{chars}}).",
+        "duplicate": "This filename is already used by another part."
       },
       "quality": {
         "required": "Please select a quality."

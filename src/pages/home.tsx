@@ -31,7 +31,7 @@ function HomePage() {
   const navigate = useNavigate()
   const { user } = useUser()
   const { theme, setTheme } = useTheme()
-  const { video } = useVideoInfo()
+  const { video, duplicateIndices } = useVideoInfo()
 
   useEffect(() => {
     if (initiated) return
@@ -93,11 +93,14 @@ function HomePage() {
                   </div>
                   <Separator className="my-3" />
                   <div className="block">
-                    {video.parts.map((_v, idx) => {
-                      return (
-                        <VideoForm2 key={idx} video={video} page={idx + 1} />
-                      )
-                    })}
+                    {video.parts.map((_v, idx) => (
+                      <VideoForm2
+                        key={idx}
+                        video={video}
+                        page={idx + 1}
+                        isDuplicate={duplicateIndices.includes(idx)}
+                      />
+                    ))}
                   </div>
                   <div className="box-border flex w-full justify-center p-3">
                     <DownloadButton />

@@ -4,21 +4,24 @@ import { invoke } from '@tauri-apps/api/core'
 
 export const downloadVideo = async (
   videoId: string,
+  cid: number,
   filename: string,
   quality: number,
+  downloadId: string,
+  parentId?: string,
 ) => {
-  // Generate a reasonably unique downloadId and enqueue before invoking backend
-  const downloadId = `${videoId}-${Date.now()}-${Math.floor(Math.random() * 10000)}`
-  store.dispatch(enqueue({ downloadId, filename }))
-
+  // enqueue prior to backend invoke
+  store.dispatch(enqueue({ downloadId, parentId, filename, status: 'pending' }))
   try {
     await invoke<void>('download_video', {
       videoId,
+      cid,
       filename,
       quality,
       downloadId,
+      parentId,
     })
   } finally {
-    // Actual dequeue will be handled by progress events; keep this as a fallback
+    // dequeue handled by progress events
   }
 }
