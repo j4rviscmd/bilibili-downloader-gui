@@ -81,67 +81,70 @@ function DownloadingDialog() {
           </DialogTitle>
           <DialogDescription hidden />
         </DialogHeader>
-        {hasDlQue &&
-          Object.entries(groups).map(([parentId, entries]) => {
-            // sort entries by phase order and fallback to existing order
-            const sorted = entries.sort((a, b) => {
-              const ai = a.stage ? phaseOrder.indexOf(a.stage) : -1
-              const bi = b.stage ? phaseOrder.indexOf(b.stage) : -1
-              return ai - bi
-            })
-            return (
-              <div
-                key={parentId}
-                className="mb-3 w-full rounded-md border px-1 py-3"
-              >
-                {(() => {
-                  const first = sorted.find(
-                    (p) => p.stage && p.stage !== 'complete',
-                  )
-                  const groupTitle = first
-                    ? deriveTitle(first)
-                    : video?.title || ''
-                  return groupTitle ? (
-                    <div
-                      className="text-md mb-1 truncate px-3 font-semibold"
-                      title={groupTitle}
-                    >
-                      {groupTitle}
-                    </div>
-                  ) : null
-                })()}
-                {sorted.map((p) => {
-                  const barInfo = getBarInfo(p.downloadId, p.stage, t)
-                  const barLabel = barInfo[0]
-                  const barIcon = barInfo[1]
-                  const key = p.internalId || `${p.downloadId}:${p.stage}`
-                  if (!p.stage || p.stage === 'complete') return
-                  return (
-                    <div
-                      key={key}
-                      className="text-accent-foreground box-border w-full px-3"
-                    >
-                      <div className="flex items-center">
-                        <span className="mr-1">{barIcon}</span>
-                        <span>{barLabel}</span>
+        <div className="flex h-full w-full flex-col items-center overflow-auto">
+          {hasDlQue &&
+            Object.entries(groups).map(([parentId, entries]) => {
+              // sort entries by phase order and fallback to existing order
+              const sorted = entries.sort((a, b) => {
+                const ai = a.stage ? phaseOrder.indexOf(a.stage) : -1
+                const bi = b.stage ? phaseOrder.indexOf(b.stage) : -1
+                return ai - bi
+              })
+              return (
+                <div
+                  key={parentId}
+                  className="mb-3 w-full rounded-md border px-1 py-3"
+                >
+                  {(() => {
+                    const first = sorted.find(
+                      (p) => p.stage && p.stage !== 'complete',
+                    )
+                    const groupTitle = first
+                      ? deriveTitle(first)
+                      : video?.title || ''
+                    return groupTitle ? (
+                      <div
+                        className="text-md mb-1 truncate px-3 font-semibold"
+                        title={groupTitle}
+                      >
+                        {groupTitle}
                       </div>
-                      <div className="px-3">
-                        <ProgressStatusBar progress={p} />
+                    ) : null
+                  })()}
+                  {sorted.map((p) => {
+                    const barInfo = getBarInfo(p.downloadId, p.stage, t)
+                    const barLabel = barInfo[0]
+                    const barIcon = barInfo[1]
+                    const key = p.internalId || `${p.downloadId}:${p.stage}`
+                    if (!p.stage || p.stage === 'complete') return
+                    return (
+                      <div
+                        key={key}
+                        className="text-accent-foreground box-border w-full px-3"
+                      >
+                        <div className="flex items-center">
+                          <span className="mr-1">{barIcon}</span>
+                          <span>{barLabel}</span>
+                        </div>
+                        <div className="px-3">
+                          <ProgressStatusBar progress={p} />
+                        </div>
                       </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )
-          })}
-        <div>
-          <Button disabled={isDownloading} onClick={onClick}>
-            {isDownloading ? (
-              <CircleIndicator r={8} />
-            ) : (
-              t('video.download_completed')
-            )}
-          </Button>
+                    )
+                  })}
+                </div>
+              )
+            })}
+
+          <div>
+            <Button disabled={isDownloading} onClick={onClick}>
+              {isDownloading ? (
+                <CircleIndicator r={8} />
+              ) : (
+                t('video.download_completed')
+              )}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
