@@ -33,9 +33,18 @@ pub struct WebInterfaceApiResponse {
     pub data: WebInterfaceApiResponseData,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebInterfaceApiResponsePage {
+    pub cid: i64,
+    pub page: i32,
+    pub part: String,
+    pub duration: i64,
+    pub first_frame: String,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WebInterfaceApiResponseData {
     pub title: String,
     pub cid: i64,
+    pub pages: Vec<WebInterfaceApiResponsePage>,
 }
 
 // WebInterface APIレスポンス

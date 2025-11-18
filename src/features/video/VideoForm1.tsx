@@ -50,7 +50,7 @@ function VideoForm1() {
       <form
         onSubmit={form.handleSubmit(onSubmit)}
         onBlur={form.handleSubmit(onSubmit)}
-        className="space-y-8"
+        className="space-y-3"
       >
         <FormField
           control={form.control}

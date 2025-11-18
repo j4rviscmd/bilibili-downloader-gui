@@ -13,7 +13,9 @@ import {
 } from '@/components/animate-ui/radix/sidebar'
 import AppBar from '@/components/lib/AppBar/AppBar'
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
+import { Separator } from '@/components/ui/separator'
 import { useInit } from '@/features/init/useInit'
+import { useVideoInfo } from '@/features/video'
 import DownloadButton from '@/features/video/DownloadButton'
 import DownloadingDialog from '@/features/video/DownloadingDialog'
 import VideoForm1 from '@/features/video/VideoForm1'
@@ -29,6 +31,7 @@ function HomePage() {
   const navigate = useNavigate()
   const { user } = useUser()
   const { theme, setTheme } = useTheme()
+  const { video } = useVideoInfo()
 
   useEffect(() => {
     if (initiated) return
@@ -72,17 +75,29 @@ function HomePage() {
           <SidebarRail />
         </Sidebar>
         <SidebarInset>
-          <div className="n flex h-full w-full flex-col">
-            <AppBar user={user} theme={theme} setTheme={setTheme} />
-            <SidebarTrigger size={'lg'} className="m-1" />
-            <ScrollArea className="flex size-full">
+          <div className="flex h-full w-full flex-col">
+            <header className="bg-accent flex">
+              <SidebarTrigger size={'lg'} className="m-1" />
+              <AppBar user={user} theme={theme} setTheme={setTheme} />
+            </header>
+            <ScrollArea
+              style={{
+                height: 'calc(100dvh - 2.3rem)',
+              }}
+              className="flex w-full bg-blue-200/10"
+            >
               <div className="box-border flex w-full flex-col items-center justify-center p-3">
-                <div className="flex h-full w-4/5 flex-col justify-center gap-12">
+                <div className="flex h-full w-4/5 flex-col justify-center gap-3">
                   <div className="block">
                     <VideoForm1 />
                   </div>
+                  <Separator className="my-3" />
                   <div className="block">
-                    <VideoForm2 />
+                    {video.parts.map((_v, idx) => {
+                      return (
+                        <VideoForm2 key={idx} video={video} page={idx + 1} />
+                      )
+                    })}
                   </div>
                   <div className="box-border flex w-full justify-center p-3">
                     <DownloadButton />

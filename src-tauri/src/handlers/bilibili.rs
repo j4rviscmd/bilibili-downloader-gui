@@ -6,7 +6,7 @@ use crate::models::bilibili_api::{
     UserApiResponse, WebInterfaceApiResponse, XPlayerApiResponse, XPlayerApiResponseVideo,
 };
 use crate::models::cookie::CookieEntry;
-use crate::models::frontend_dto::{Quality, UserData, Video};
+use crate::models::frontend_dto::{Quality, Thumbnail, UserData, Video, VideoPart};
 use crate::utils::downloads::download_url;
 use crate::utils::paths::get_lib_path;
 use crate::{constants::USER_AGENT, models::frontend_dto::User};
@@ -29,158 +29,176 @@ pub async fn download_video(
     let mut output_path = get_output_path(app, filename).await.unwrap();
     output_path.set_extension("mp4");
 
-    // すでに同名ファイルが存在する場合はエラー
-    if output_path.exists() {
-        return Err("ERR::FILE_EXISTS".into());
-    }
+    // TODO:
+    return Ok(());
 
-    // Get cookies from cache.
-    let cookies = read_cookie(app)?;
-    if cookies.is_none() {
-        return Err("Cookieが見つかりません".into());
-    }
-    let cookies = &cookies.unwrap();
-    let cookie_header = build_cookie_header(cookies);
+    // // すでに同名ファイルが存在する場合はエラー
+    // if output_path.exists() {
+    //     return Err("ERR::FILE_EXISTS".into());
+    // }
 
-    // baseUrlの抽出
-    let mut video = Video {
-        title: filename.to_string(),
-        bvid: id.to_string(),
-        cid: 0,
-        video_qualities: Vec::new(),
-        audio_qualities: Vec::new(),
-    };
-    let res_body1 = fetch_video_title(&video, cookies).await?;
-    video.cid = res_body1.data.cid;
+    // // Get cookies from cache.
+    // let cookies = read_cookie(app)?;
+    // if cookies.is_none() {
+    //     return Err("Cookieが見つかりません".into());
+    // }
+    // let cookies = &cookies.unwrap();
+    // let cookie_header = build_cookie_header(cookies);
 
-    let res_body2 = fetch_video_details(&video, cookies).await?;
-    let video_qualities = convert_qualities(&res_body2.data.dash.video);
-    let audio_qualities = convert_qualities(&res_body2.data.dash.audio);
-    video.video_qualities = video_qualities;
-    video.audio_qualities = audio_qualities;
+    // // baseUrlの抽出
+    // let mut video_parts = Vec::<VideoPart>::new();
+    // let mut video = Video {
+    //     title: filename.to_string(),
+    //     bvid: id.to_string(),
+    //     parts: video_parts.clone(),
+    //     // cid: 0,
+    //     // video_qualities: Vec::new(),
+    //     // audio_qualities: Vec::new(),
+    // };
+    // // TODO: fetch_video_infoの呼び出しはしない(Frontendから渡される想定)
+    // let res_body1 = fetch_video_title(&video, cookies).await?;
+    // res_body1.pages.iter().for_each(|page| {
+    //     let mut part = VideoPart {
+    //         cid: page.cid,
+    //         page: page.page,
+    //         part: page.part.clone(),
+    //         duration: page.duration,
+    //         thumbnail: page.first_frame.clone(),
+    //         video_qualities: Vec::new(),
+    //         audio_qualities: Vec::new(),
+    //     };
+    //     video.parts.push(part);
+    // });
 
-    // // qualityが一致するアイテムを探す
-    let item = video
-        .video_qualities
-        .iter()
-        .find(|q| q.id == *quality)
-        .ok_or_else(|| format!("指定された画質({})が見つかりません", quality))?;
+    // // TODO: fetch_video_detailsの呼び出しはしない(Frontendから渡される想定)
+    // let res_body2 = fetch_video_details(&video, cookies).await?;
+    // let video_qualities = convert_qualities(&res_body2.data.dash.video);
+    // let audio_qualities = convert_qualities(&res_body2.data.dash.audio);
+    // // video.video_qualities = video_qualities;
+    // // video.audio_qualities = audio_qualities;
 
-    let video_url = res_body2
-        .data
-        .dash
-        .video
-        .iter()
-        .find(|v| v.id == item.id)
-        .ok_or_else(|| format!("指定された画質({})の動画が見つかりません", item.id))?
-        .base_url
-        .clone();
-    let audio_url = res_body2.data.dash.audio.first().unwrap().clone().base_url;
+    // // // qualityが一致するアイテムを探す
+    // let item = video
+    //     .video_qualities
+    //     .iter()
+    //     .find(|q| q.id == *quality)
+    //     .ok_or_else(|| format!("指定された画質({})が見つかりません", quality))?;
 
-    #[derive(Clone)]
-    struct DlReq {
-        url: String,
-        path: PathBuf,
-    }
-    let lib_path = get_lib_path(app);
-    let video_req = DlReq {
-        url: video_url,
-        path: lib_path.join("temp_video.m4s"),
-    };
-    let audio_req = DlReq {
-        url: audio_url,
-        path: lib_path.join("temp_audio.m4s"),
-    };
+    // let video_url = res_body2
+    //     .data
+    //     .dash
+    //     .video
+    //     .iter()
+    //     .find(|v| v.id == item.id)
+    //     .ok_or_else(|| format!("指定された画質({})の動画が見つかりません", item.id))?
+    //     .base_url
+    //     .clone();
+    // let audio_url = res_body2.data.dash.audio.first().unwrap().clone().base_url;
 
-    // ----- 全体リトライ制御 (最大3回) -----
-    let mut attempt: u8 = 0;
-    let max_attempts: u8 = 3;
+    // #[derive(Clone)]
+    // struct DlReq {
+    //     url: String,
+    //     path: PathBuf,
+    // }
+    // let lib_path = get_lib_path(app);
+    // let video_req = DlReq {
+    //     url: video_url,
+    //     path: lib_path.join("temp_video.m4s"),
+    // };
+    // let audio_req = DlReq {
+    //     url: audio_url,
+    //     path: lib_path.join("temp_audio.m4s"),
+    // };
 
-    // Acquire and hold a video-level permit across video download + merge
-    let video_permit = loop {
-        attempt += 1;
-        // 1) Audio を先にDL
-        let audio_res = download_url(
-            app,
-            audio_req.url.clone(),
-            audio_req.path.clone(),
-            Some(cookie_header.to_string()),
-            true,
-            download_id.clone(),
-        )
-        .await;
+    // // ----- 全体リトライ制御 (最大3回) -----
+    // let mut attempt: u8 = 0;
+    // let max_attempts: u8 = 3;
 
-        if let Err(e) = audio_res {
-            let msg = e.to_string();
-            if msg.contains("ERR::FILE_EXISTS") || msg.contains("ERR::DISK_FULL") {
-                return Err(format!("Download failed: {}", msg));
-            }
-            if attempt >= max_attempts {
-                return Err(format!("Audio download failed after retries: {}", msg));
-            }
-            let backoff_ms = 1000u64 * (1u64 << (attempt as u64 - 1)).min(2);
-            tokio::time::sleep(std::time::Duration::from_millis(backoff_ms)).await;
-            continue; // 次のattempt
-        }
+    // // Acquire and hold a video-level permit across video download + merge
+    // let video_permit = loop {
+    //     attempt += 1;
+    //     // 1) Audio を先にDL
+    //     let audio_res = download_url(
+    //         app,
+    //         audio_req.url.clone(),
+    //         audio_req.path.clone(),
+    //         Some(cookie_header.to_string()),
+    //         true,
+    //         download_id.clone(),
+    //     )
+    //     .await;
 
-        // 2) Audio成功後に Video をDL
-        // Acquire global permit to limit concurrent video downloads
-        let permit = crate::handlers::concurrency::VIDEO_SEMAPHORE
-            .clone()
-            .acquire_owned()
-            .await
-            .map_err(|e| format!("Failed to acquire video semaphore permit: {}", e))?;
+    //     if let Err(e) = audio_res {
+    //         let msg = e.to_string();
+    //         if msg.contains("ERR::FILE_EXISTS") || msg.contains("ERR::DISK_FULL") {
+    //             return Err(format!("Download failed: {}", msg));
+    //         }
+    //         if attempt >= max_attempts {
+    //             return Err(format!("Audio download failed after retries: {}", msg));
+    //         }
+    //         let backoff_ms = 1000u64 * (1u64 << (attempt as u64 - 1)).min(2);
+    //         tokio::time::sleep(std::time::Duration::from_millis(backoff_ms)).await;
+    //         continue; // 次のattempt
+    //     }
 
-        let video_res = download_url(
-            app,
-            video_req.url.clone(),
-            video_req.path.clone(),
-            Some(cookie_header.to_string()),
-            true,
-            download_id.clone(),
-        )
-        .await;
+    //     // 2) Audio成功後に Video をDL
+    //     // Acquire global permit to limit concurrent video downloads
+    //     let permit = crate::handlers::concurrency::VIDEO_SEMAPHORE
+    //         .clone()
+    //         .acquire_owned()
+    //         .await
+    //         .map_err(|e| format!("Failed to acquire video semaphore permit: {}", e))?;
 
-        // If video failed, release permit and handle retry
-        if let Err(e) = video_res {
-            // release permit immediately
-            drop(permit);
-            let msg = e.to_string();
-            if msg.contains("ERR::FILE_EXISTS") || msg.contains("ERR::DISK_FULL") {
-                return Err(format!("Download failed: {}", msg));
-            }
-            if attempt >= max_attempts {
-                return Err(format!("Video download failed after retries: {}", msg));
-            }
-            let backoff_ms = 1000u64 * (1u64 << (attempt as u64 - 1)).min(2);
-            tokio::time::sleep(std::time::Duration::from_millis(backoff_ms)).await;
-            // 次 attempt で audio も再DL (シンプルに全体再試行)
-            continue;
-        }
+    //     let video_res = download_url(
+    //         app,
+    //         video_req.url.clone(),
+    //         video_req.path.clone(),
+    //         Some(cookie_header.to_string()),
+    //         true,
+    //         download_id.clone(),
+    //     )
+    //     .await;
 
-        // 両方成功, keep permit across merge/cleanup
-        break permit;
-    };
+    //     // If video failed, release permit and handle retry
+    //     if let Err(e) = video_res {
+    //         // release permit immediately
+    //         drop(permit);
+    //         let msg = e.to_string();
+    //         if msg.contains("ERR::FILE_EXISTS") || msg.contains("ERR::DISK_FULL") {
+    //             return Err(format!("Download failed: {}", msg));
+    //         }
+    //         if attempt >= max_attempts {
+    //             return Err(format!("Video download failed after retries: {}", msg));
+    //         }
+    //         let backoff_ms = 1000u64 * (1u64 << (attempt as u64 - 1)).min(2);
+    //         tokio::time::sleep(std::time::Duration::from_millis(backoff_ms)).await;
+    //         // 次 attempt で audio も再DL (シンプルに全体再試行)
+    //         continue;
+    //     }
 
-    // audio & videoファイルをffmpegで結合
-    merge_av(
-        app,
-        &video_req.path,
-        &audio_req.path,
-        &output_path,
-        download_id.clone(),
-    )
-    .await?;
+    //     // 両方成功, keep permit across merge/cleanup
+    //     break permit;
+    // };
 
-    // tempファイル削除
-    let _ = fs::remove_file(lib_path.join("temp_video.m4s")).await;
-    let _ = fs::remove_file(lib_path.join("temp_audio.m4s")).await;
+    // // audio & videoファイルをffmpegで結合
+    // merge_av(
+    //     app,
+    //     &video_req.path,
+    //     &audio_req.path,
+    //     &output_path,
+    //     download_id.clone(),
+    // )
+    // .await?;
 
-    // Release the video semaphore permit by dropping it
-    // (permit was stored in video_permit)
-    drop(video_permit);
+    // // tempファイル削除
+    // let _ = fs::remove_file(lib_path.join("temp_video.m4s")).await;
+    // let _ = fs::remove_file(lib_path.join("temp_audio.m4s")).await;
 
-    Ok(())
+    // // Release the video semaphore permit by dropping it
+    // // (permit was stored in video_permit)
+    // drop(video_permit);
+
+    // Ok(())
 }
 
 pub async fn fetch_user_info(app: &AppHandle) -> Result<Option<User>, String> {
@@ -246,13 +264,29 @@ fn build_cookie_header(cookies: &[CookieEntry]) -> String {
     parts.join("; ")
 }
 
+/**
+ * URLからBase64エンコード文字列を取得する
+ * 1. URLから画像データを取得
+ * 2. 画像データをBase64エンコードして返す
+ */
+async fn base64_encode(url: &str) -> Result<String, String> {
+    let resp = reqwest::get(url)
+        .await
+        .map_err(|e| format!("Failed to fetch thumbnail image: {}", e))?;
+    let bytes = resp
+        .bytes()
+        .await
+        .map_err(|e| format!("Failed to read thumbnail image bytes: {}", e))?;
+    let encoded = base64::encode(&bytes);
+    Ok(encoded)
+}
+
 pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String> {
+    let video_parts = Vec::<VideoPart>::new();
     let mut video = Video {
         title: String::new(),
         bvid: id.to_string(),
-        cid: 0,
-        video_qualities: Vec::new(),
-        audio_qualities: Vec::new(),
+        parts: video_parts.clone(),
     };
 
     let cookies = read_cookie(app)?;
@@ -263,11 +297,32 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
 
     let res_body_1 = fetch_video_title(&video, &cookies).await?;
     video.title = res_body_1.data.title;
-    video.cid = res_body_1.data.cid;
+    for page in res_body_1.data.pages.iter() {
+        let thumb_url = page.first_frame.clone();
+        let thumb_base64 = base64_encode(&thumb_url).await.unwrap_or_default();
 
-    let res_body_2 = fetch_video_details(&video, &cookies).await?;
-    let video_qualities = convert_qualities(&res_body_2.data.dash.video);
-    video.video_qualities = video_qualities;
+        let part = VideoPart {
+            cid: page.cid,
+            page: page.page,
+            part: page.part.clone(),
+            duration: page.duration,
+            thumbnail: Thumbnail {
+                url: thumb_url,
+                base64: thumb_base64,
+            },
+            video_qualities: Vec::new(),
+            audio_qualities: Vec::new(),
+        };
+        video.parts.push(part);
+    }
+    video.parts = video.parts.clone();
+    for part in video.parts.iter_mut() {
+        // NOTE: partごとに画質情報を取得する必要がある？
+        let res_body_2 = fetch_video_details(&cookies, &video.bvid, part.cid).await?;
+        let video_qualities = convert_qualities(&res_body_2.data.dash.video);
+        part.video_qualities = video_qualities;
+    }
+
     // NOTE: Frontendには音質は不要なのでセットしない
     // let audio_qualities = convert_qualities(&res_body2.data.dash.audio);
     // video.audio_qualities = audio_qualities;
@@ -341,8 +396,10 @@ async fn fetch_video_title(
 }
 
 async fn fetch_video_details(
-    video: &Video,
     cookies: &[CookieEntry],
+    // video: &Video,
+    vbid: &str,
+    cid: i64,
 ) -> Result<XPlayerApiResponse, String> {
     let client = Client::builder()
         .user_agent(USER_AGENT)
@@ -355,8 +412,8 @@ async fn fetch_video_details(
         .header(header::COOKIE, cookie_header)
         .header(header::REFERER, "https://www.bilibili.com")
         .query(&[
-            ("bvid", video.bvid.as_str()),
-            ("cid", video.cid.to_string().as_str()),
+            ("bvid", vbid),
+            ("cid", cid.to_string().as_str()),
             ("qn", "116"),
             ("fnval", "2064"),
             ("fnver", "0"),

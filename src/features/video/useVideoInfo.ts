@@ -36,7 +36,7 @@ export const useVideoInfo = () => {
     if (id) {
       console.log(`Extracted video ID: ${id}`)
       const video = await fetchVideoInfo(id)
-      if (video && video.cid !== 0) {
+      if (video && video.parts.length > 0 && video.parts[0].cid !== 0) {
         console.log(`Fetched video info:`, video)
         store.dispatch(setVideo(video))
       }
