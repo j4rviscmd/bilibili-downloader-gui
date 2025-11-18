@@ -34,7 +34,11 @@
     "download_failed": "Error al descargar",
     "file_exists": "Ya existe un archivo con el mismo nombre",
     "disk_full": "El disco está lleno",
-    "duplicate_titles": "Se detectaron nombres de archivo duplicados. Hazlos únicos."
+    "duplicate_titles": "Se detectaron nombres de archivo duplicados. Hazlos únicos.",
+    "merge_failed": "Error al generar el video final (etapa de mezcla).",
+    "quality_not_found": "La calidad solicitada no está disponible.",
+    "cookie_missing": "Cookie ausente o inválida.",
+    "network_error": "Error de red durante la descarga."
   },
   "toast": { "success": "Éxito", "error": "Ocurrió un error" },
   "init": {

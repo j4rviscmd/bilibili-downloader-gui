@@ -34,7 +34,11 @@
     "download_failed": "下载失败",
     "file_exists": "已存在同名文件",
     "disk_full": "磁盘已满",
-    "duplicate_titles": "检测到重复的文件名，请修改为唯一。"
+    "duplicate_titles": "检测到重复的文件名，请修改为唯一。",
+    "merge_failed": "生成最终视频（合并阶段）失败。",
+    "quality_not_found": "请求的清晰度不可用。",
+    "cookie_missing": "Cookie 缺失或无效。",
+    "network_error": "下载过程中发生网络错误。"
   },
   "toast": { "success": "成功", "error": "发生错误" },
   "init": {

@@ -34,7 +34,11 @@
     "download_failed": "다운로드에 실패했습니다",
     "file_exists": "같은 이름의 파일이 이미 존재합니다",
     "disk_full": "디스크 용량이 부족합니다",
-    "duplicate_titles": "중복된 파일명이 있습니다. 고유하도록 수정해주세요."
+    "duplicate_titles": "중복된 파일명이 있습니다. 고유하도록 수정해주세요.",
+    "merge_failed": "최종 영상 생성(병합 단계) 실패.",
+    "quality_not_found": "요청한 화질을 사용할 수 없습니다.",
+    "cookie_missing": "쿠키가 없거나 유효하지 않습니다.",
+    "network_error": "다운로드 중 네트워크 오류 발생."
   },
   "toast": { "success": "성공", "error": "문제가 발생했습니다" },
   "init": {

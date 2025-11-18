@@ -38,7 +38,11 @@
     "download_failed": "Failed to download",
     "file_exists": "A file with the same name already exists",
     "disk_full": "Disk is full",
-    "duplicate_titles": "Duplicate filenames detected. Please make them unique."
+    "duplicate_titles": "Duplicate filenames detected. Please make them unique.",
+    "merge_failed": "Failed to generate final video (merge step).",
+    "quality_not_found": "Requested quality not available.",
+    "cookie_missing": "Cookie missing or invalid.",
+    "network_error": "Network error during download."
   },
   "progress": {
     "elapsed": "Elapsed",

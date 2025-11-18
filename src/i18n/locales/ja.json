@@ -38,7 +38,11 @@
     "download_failed": "ダウンロードに失敗しました",
     "file_exists": "同名のファイルが既に存在します",
     "disk_full": "ディスク容量が不足しています",
-    "duplicate_titles": "重複したファイル名があります。ユニークになるよう修正してください。"
+    "duplicate_titles": "重複したファイル名があります。ユニークになるよう修正してください。",
+    "merge_failed": "動画生成 (マージ) に失敗しました。",
+    "quality_not_found": "指定した画質が利用できません。",
+    "cookie_missing": "Cookie が不足または無効です。",
+    "network_error": "ダウンロード中にネットワークエラーが発生しました。"
   },
   "progress": {
     "elapsed": "経過",

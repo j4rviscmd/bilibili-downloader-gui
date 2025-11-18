@@ -34,7 +34,11 @@
     "download_failed": "Échec du téléchargement",
     "file_exists": "Un fichier du même nom existe déjà",
     "disk_full": "Le disque est plein",
-    "duplicate_titles": "Des noms de fichier en double ont été détectés. Veuillez les rendre uniques."
+    "duplicate_titles": "Des noms de fichier en double ont été détectés. Veuillez les rendre uniques.",
+    "merge_failed": "Échec de génération de la vidéo finale (fusion).",
+    "quality_not_found": "Qualité demandée indisponible.",
+    "cookie_missing": "Cookie manquant ou invalide.",
+    "network_error": "Erreur réseau pendant le téléchargement."
   },
   "toast": { "success": "Succès", "error": "Une erreur est survenue" },
   "init": {

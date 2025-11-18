@@ -109,9 +109,22 @@ export const useVideoInfo = () => {
     } catch (e) {
       const raw = String(e)
       let messageKey: string | null = null
-      if (raw.includes('ERR::FILE_EXISTS')) messageKey = 'video.file_exists'
-      if (!messageKey && raw.includes('ERR::DISK_FULL'))
-        messageKey = 'video.disk_full'
+      const errorMap: Record<string, string> = {
+        'ERR::FILE_EXISTS': 'video.file_exists',
+        'ERR::DISK_FULL': 'video.disk_full',
+        'ERR::MERGE_FAILED': 'video.merge_failed',
+        'ERR::QUALITY_NOT_FOUND': 'video.quality_not_found',
+        'ERR::COOKIE_MISSING': 'video.cookie_missing',
+      }
+      for (const code in errorMap) {
+        if (raw.includes(code)) {
+          messageKey = errorMap[code]
+          break
+        }
+      }
+      if (!messageKey && raw.includes('ERR::NETWORK::')) {
+        messageKey = 'video.network_error'
+      }
       const description = messageKey ? t(messageKey) : raw
       toast.error(t('video.download_failed'), {
         duration: Infinity,
