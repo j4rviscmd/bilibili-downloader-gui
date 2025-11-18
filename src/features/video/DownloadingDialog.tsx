@@ -147,16 +147,16 @@ function DownloadingDialog() {
                 </div>
               )
             })}
+        </div>
 
-          <div>
-            <Button disabled={isDownloading} onClick={onClick}>
-              {isDownloading ? (
-                <CircleIndicator r={8} />
-              ) : (
-                t('video.download_completed')
-              )}
-            </Button>
-          </div>
+        <div>
+          <Button disabled={isDownloading} onClick={onClick}>
+            {isDownloading ? (
+              <CircleIndicator r={8} />
+            ) : (
+              t('video.download_completed')
+            )}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
