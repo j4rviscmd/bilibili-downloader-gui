@@ -13,6 +13,7 @@ import {
 import { selectDuplicateIndices } from '@/features/video/selectors'
 import { setVideo } from '@/features/video/videoSlice'
 import { enqueue } from '@/shared/queue/queueSlice'
+import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -63,15 +64,16 @@ export const useVideoInfo = () => {
   )
   const duplicateIndices = useSelector(selectDuplicateIndices)
   const hasDuplicates = duplicateIndices.length > 0
-  // Toast throttle with closure state
-  const dupToastRef = (globalThis as any).__dupToastRef || { shown: false }
-  ;(globalThis as any).__dupToastRef = dupToastRef
-  if (hasDuplicates && !dupToastRef.shown) {
-    toast.error(t('video.duplicate_titles'), { duration: 5000 })
-    dupToastRef.shown = true
-  } else if (!hasDuplicates && dupToastRef.shown) {
-    dupToastRef.shown = false
-  }
+  // Toast throttle local to this hook instance
+  const dupToastRef = useRef(false)
+  useEffect(() => {
+    if (hasDuplicates && !dupToastRef.current) {
+      toast.error(t('video.duplicate_titles'), { duration: 5000 })
+      dupToastRef.current = true
+    } else if (!hasDuplicates && dupToastRef.current) {
+      dupToastRef.current = false
+    }
+  }, [hasDuplicates, t])
   const isForm2ValidAll =
     input.partInputs.length > 0 &&
     partValidFlags.every((f) => f) &&
