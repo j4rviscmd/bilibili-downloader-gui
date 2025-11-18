@@ -17,7 +17,6 @@ use reqwest::{
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use tauri::AppHandle;
-use tokio::fs;
 
 pub async fn download_video(
     app: &AppHandle,
