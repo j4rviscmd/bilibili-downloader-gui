@@ -77,7 +77,10 @@ function HomePage() {
         <SidebarInset>
           <div className="flex h-full w-full flex-col">
             <header className="bg-accent flex">
-              <SidebarTrigger size={'lg'} className="m-1" />
+              <SidebarTrigger
+                size={'lg'}
+                className="h-full cursor-pointer shadow-md"
+              />
               <AppBar user={user} theme={theme} setTheme={setTheme} />
             </header>
             <ScrollArea
