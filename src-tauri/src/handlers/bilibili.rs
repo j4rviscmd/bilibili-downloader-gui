@@ -136,8 +136,7 @@ pub async fn download_video(
     // --------------------------------------------------
     // 7. マージ (merge stage emit)
     // --------------------------------------------------
-    // 進捗ステージ更新 (簡易的に emit)
-    emit_stage(app, &download_id, "merge");
+    // merge stage は ffmpeg::merge_av 内で Emits を1つ生成して送信する (重複防止)
     if let Err(e) = merge_av(
         app,
         &temp_video_path,
@@ -156,8 +155,7 @@ pub async fn download_video(
     let _ = tokio::fs::remove_file(&temp_video_path).await;
     let _ = tokio::fs::remove_file(&temp_audio_path).await;
 
-    // 完了イベント (download_url 内 Emits は個別段階で 100% を送っているため最終ステージ通知のみ)
-    emit_stage(app, &download_id, "complete");
+    // 完了イベントは ffmpeg::merge_av 内で stage=complete + complete() を送信する
 
     Ok(())
 }

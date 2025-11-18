@@ -63,9 +63,11 @@ function DownloadingDialog() {
   }, {})
 
   const phaseOrder = ['audio', 'video', 'merge']
-  const isDownloading =
-    progress.length > 0 &&
-    !progress.filter((p) => p.stage).every((p) => p.isComplete)
+  // active stages limited to audio/video/merge (exclude complete)
+  const activeStages = progress.filter((p) =>
+    ['audio', 'video', 'merge'].includes(p.stage || ''),
+  )
+  const isDownloading = activeStages.some((p) => !p.isComplete)
 
   return (
     <Dialog modal open={hasDlQue}>
@@ -127,7 +129,17 @@ function DownloadingDialog() {
                           <span>{barLabel}</span>
                         </div>
                         <div className="px-3">
-                          <ProgressStatusBar progress={p} />
+                          {p.stage === 'merge' ? (
+                            <div className="flex items-center justify-between text-sm">
+                              <span>{t('video.bar_merge')}</span>
+                              {!p.isComplete && <CircleIndicator r={8} />}
+                              {p.isComplete && (
+                                <span>{t('video.completed')}</span>
+                              )}
+                            </div>
+                          ) : (
+                            <ProgressStatusBar progress={p} />
+                          )}
                         </div>
                       </div>
                     )
