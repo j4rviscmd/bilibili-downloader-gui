@@ -294,6 +294,7 @@ dependencies = [
  "anyhow",
  "base64 0.22.1",
  "futures",
+ "libc",
  "once_cell",
  "reqwest",
  "rusqlite",

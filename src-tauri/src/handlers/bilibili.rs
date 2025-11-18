@@ -26,12 +26,14 @@ pub async fn download_video(
     filename: &str,
     quality: &i32,
     download_id: String,
-    parent_id: Option<String>,
+    _parent_id: Option<String>,
 ) -> Result<(), String> {
     // --------------------------------------------------
     // 1. 出力ファイルパス決定 + 自動リネーム
     // --------------------------------------------------
-    let mut output_path = get_output_path(app, filename).await.map_err(|e| e.to_string())?;
+    let mut output_path = get_output_path(app, filename)
+        .await
+        .map_err(|e| e.to_string())?;
     output_path.set_extension("mp4");
     output_path = auto_rename(&output_path);
 
@@ -96,14 +98,16 @@ pub async fn download_video(
     let cookie_opt = Some(cookie_header.to_string());
 
     // Audio DL
-    retry_download(|| download_url(
-        app,
-        audio_url.clone(),
-        temp_audio_path.clone(),
-        cookie_opt.clone(),
-        true,
-        Some(download_id.clone()),
-    ))
+    retry_download(|| {
+        download_url(
+            app,
+            audio_url.clone(),
+            temp_audio_path.clone(),
+            cookie_opt.clone(),
+            true,
+            Some(download_id.clone()),
+        )
+    })
     .await?;
 
     // Video DL (セマフォ制御)
@@ -112,14 +116,16 @@ pub async fn download_video(
         .acquire_owned()
         .await
         .map_err(|e| format!("Failed to acquire video semaphore permit: {}", e))?;
-    let video_res = retry_download(|| download_url(
-        app,
-        video_url.clone(),
-        temp_video_path.clone(),
-        cookie_opt.clone(),
-        true,
-        Some(download_id.clone()),
-    ))
+    let video_res = retry_download(|| {
+        download_url(
+            app,
+            video_url.clone(),
+            temp_video_path.clone(),
+            cookie_opt.clone(),
+            true,
+            Some(download_id.clone()),
+        )
+    })
     .await;
     if let Err(e) = video_res {
         drop(permit); // release permit
@@ -132,7 +138,15 @@ pub async fn download_video(
     // --------------------------------------------------
     // 進捗ステージ更新 (簡易的に emit)
     emit_stage(app, &download_id, "merge");
-    if let Err(e) = merge_av(app, &temp_video_path, &temp_audio_path, &output_path, Some(download_id.clone())).await {
+    if let Err(e) = merge_av(
+        app,
+        &temp_video_path,
+        &temp_audio_path,
+        &output_path,
+        Some(download_id.clone()),
+    )
+    .await
+    {
         drop(permit);
         return Err("ERR::MERGE_FAILED".into());
     }
@@ -146,175 +160,6 @@ pub async fn download_video(
     emit_stage(app, &download_id, "complete");
 
     Ok(())
-}
-
-    // // すでに同名ファイルが存在する場合はエラー
-    // if output_path.exists() {
-    //     return Err("ERR::FILE_EXISTS".into());
-    // }
-
-    // // Get cookies from cache.
-    // let cookies = read_cookie(app)?;
-    // if cookies.is_none() {
-    //     return Err("Cookieが見つかりません".into());
-    // }
-    // let cookies = &cookies.unwrap();
-    // let cookie_header = build_cookie_header(cookies);
-
-    // // baseUrlの抽出
-    // let mut video_parts = Vec::<VideoPart>::new();
-    // let mut video = Video {
-    //     title: filename.to_string(),
-    //     bvid: id.to_string(),
-    //     parts: video_parts.clone(),
-    //     // cid: 0,
-    //     // video_qualities: Vec::new(),
-    //     // audio_qualities: Vec::new(),
-    // };
-    // // TODO: fetch_video_infoの呼び出しはしない(Frontendから渡される想定)
-    // let res_body1 = fetch_video_title(&video, cookies).await?;
-    // res_body1.pages.iter().for_each(|page| {
-    //     let mut part = VideoPart {
-    //         cid: page.cid,
-    //         page: page.page,
-    //         part: page.part.clone(),
-    //         duration: page.duration,
-    //         thumbnail: page.first_frame.clone(),
-    //         video_qualities: Vec::new(),
-    //         audio_qualities: Vec::new(),
-    //     };
-    //     video.parts.push(part);
-    // });
-
-    // // TODO: fetch_video_detailsの呼び出しはしない(Frontendから渡される想定)
-    // let res_body2 = fetch_video_details(&video, cookies).await?;
-    // let video_qualities = convert_qualities(&res_body2.data.dash.video);
-    // let audio_qualities = convert_qualities(&res_body2.data.dash.audio);
-    // // video.video_qualities = video_qualities;
-    // // video.audio_qualities = audio_qualities;
-
-    // // // qualityが一致するアイテムを探す
-    // let item = video
-    //     .video_qualities
-    //     .iter()
-    //     .find(|q| q.id == *quality)
-    //     .ok_or_else(|| format!("指定された画質({})が見つかりません", quality))?;
-
-    // let video_url = res_body2
-    //     .data
-    //     .dash
-    //     .video
-    //     .iter()
-    //     .find(|v| v.id == item.id)
-    //     .ok_or_else(|| format!("指定された画質({})の動画が見つかりません", item.id))?
-    //     .base_url
-    //     .clone();
-    // let audio_url = res_body2.data.dash.audio.first().unwrap().clone().base_url;
-
-    // #[derive(Clone)]
-    // struct DlReq {
-    //     url: String,
-    //     path: PathBuf,
-    // }
-    // let lib_path = get_lib_path(app);
-    // let video_req = DlReq {
-    //     url: video_url,
-    //     path: lib_path.join("temp_video.m4s"),
-    // };
-    // let audio_req = DlReq {
-    //     url: audio_url,
-    //     path: lib_path.join("temp_audio.m4s"),
-    // };
-
-    // // ----- 全体リトライ制御 (最大3回) -----
-    // let mut attempt: u8 = 0;
-    // let max_attempts: u8 = 3;
-
-    // // Acquire and hold a video-level permit across video download + merge
-    // let video_permit = loop {
-    //     attempt += 1;
-    //     // 1) Audio を先にDL
-    //     let audio_res = download_url(
-    //         app,
-    //         audio_req.url.clone(),
-    //         audio_req.path.clone(),
-    //         Some(cookie_header.to_string()),
-    //         true,
-    //         download_id.clone(),
-    //     )
-    //     .await;
-
-    //     if let Err(e) = audio_res {
-    //         let msg = e.to_string();
-    //         if msg.contains("ERR::FILE_EXISTS") || msg.contains("ERR::DISK_FULL") {
-    //             return Err(format!("Download failed: {}", msg));
-    //         }
-    //         if attempt >= max_attempts {
-    //             return Err(format!("Audio download failed after retries: {}", msg));
-    //         }
-    //         let backoff_ms = 1000u64 * (1u64 << (attempt as u64 - 1)).min(2);
-    //         tokio::time::sleep(std::time::Duration::from_millis(backoff_ms)).await;
-    //         continue; // 次のattempt
-    //     }
-
-    //     // 2) Audio成功後に Video をDL
-    //     // Acquire global permit to limit concurrent video downloads
-    //     let permit = crate::handlers::concurrency::VIDEO_SEMAPHORE
-    //         .clone()
-    //         .acquire_owned()
-    //         .await
-    //         .map_err(|e| format!("Failed to acquire video semaphore permit: {}", e))?;
-
-    //     let video_res = download_url(
-    //         app,
-    //         video_req.url.clone(),
-    //         video_req.path.clone(),
-    //         Some(cookie_header.to_string()),
-    //         true,
-    //         download_id.clone(),
-    //     )
-    //     .await;
-
-    //     // If video failed, release permit and handle retry
-    //     if let Err(e) = video_res {
-    //         // release permit immediately
-    //         drop(permit);
-    //         let msg = e.to_string();
-    //         if msg.contains("ERR::FILE_EXISTS") || msg.contains("ERR::DISK_FULL") {
-    //             return Err(format!("Download failed: {}", msg));
-    //         }
-    //         if attempt >= max_attempts {
-    //             return Err(format!("Video download failed after retries: {}", msg));
-    //         }
-    //         let backoff_ms = 1000u64 * (1u64 << (attempt as u64 - 1)).min(2);
-    //         tokio::time::sleep(std::time::Duration::from_millis(backoff_ms)).await;
-    //         // 次 attempt で audio も再DL (シンプルに全体再試行)
-    //         continue;
-    //     }
-
-    //     // 両方成功, keep permit across merge/cleanup
-    //     break permit;
-    // };
-
-    // // audio & videoファイルをffmpegで結合
-    // merge_av(
-    //     app,
-    //     &video_req.path,
-    //     &audio_req.path,
-    //     &output_path,
-    //     download_id.clone(),
-    // )
-    // .await?;
-
-    // // tempファイル削除
-    // let _ = fs::remove_file(lib_path.join("temp_video.m4s")).await;
-    // let _ = fs::remove_file(lib_path.join("temp_audio.m4s")).await;
-
-    // // Release the video semaphore permit by dropping it
-    // // (permit was stored in video_permit)
-    // drop(video_permit);
-
-    // Ok(())
 }
 
 pub async fn fetch_user_info(app: &AppHandle) -> Result<Option<User>, String> {
@@ -568,9 +413,18 @@ fn auto_rename(path: &PathBuf) -> PathBuf {
     if !candidate.exists() {
         return candidate;
     }
-    let parent = candidate.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| PathBuf::from("."));
-    let stem = candidate.file_stem().and_then(|s| s.to_str()).unwrap_or("file");
-    let ext = candidate.extension().and_then(|e| e.to_str()).unwrap_or("mp4");
+    let parent = candidate
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| PathBuf::from("."));
+    let stem = candidate
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("file");
+    let ext = candidate
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("mp4");
     let mut idx = 1u32;
     loop {
         let new_name = format!("{} ({}).{}", stem, idx, ext);
@@ -579,7 +433,8 @@ fn auto_rename(path: &PathBuf) -> PathBuf {
             return new_path;
         }
         idx += 1;
-        if idx > 10_000 { // safety upper bound
+        if idx > 10_000 {
+            // safety upper bound
             return candidate; // fallback (異常ケース)
         }
     }
@@ -608,12 +463,15 @@ async fn head_content_length(url: &str, cookie: Option<&String>) -> Option<u64> 
 fn ensure_free_space(target_path: &PathBuf, needed_bytes: u64) -> Result<(), String> {
     #[cfg(target_family = "unix")]
     {
+        use libc::{statvfs, statvfs as statvfs_t};
         use std::ffi::CString;
         use std::mem::MaybeUninit;
         use std::os::unix::ffi::OsStrExt;
-        use libc::{statvfs, statvfs as statvfs_t};
-        let dir = target_path.parent().unwrap_or_else(|| std::path::Path::new("."));
-        let c_path = CString::new(dir.as_os_str().as_bytes()).map_err(|_| "ERR::DISK_FULL".to_string())?;
+        let dir = target_path
+            .parent()
+            .unwrap_or_else(|| std::path::Path::new("."));
+        let c_path =
+            CString::new(dir.as_os_str().as_bytes()).map_err(|_| "ERR::DISK_FULL".to_string())?;
         unsafe {
             let mut stat: MaybeUninit<statvfs_t> = MaybeUninit::uninit();
             if statvfs(c_path.as_ptr(), stat.as_mut_ptr()) != 0 {
@@ -645,9 +503,16 @@ where
             Err(e) => {
                 let msg = e.to_string();
                 // ネットワーク/一時的エラーのみ再試行 (雑判定)
-                let is_retryable = msg.contains("segment") || msg.contains("request error") || msg.contains("timeout") || msg.contains("connect");
+                let is_retryable = msg.contains("segment")
+                    || msg.contains("request error")
+                    || msg.contains("timeout")
+                    || msg.contains("connect");
                 if attempt >= max_attempts || !is_retryable {
-                    return Err(if msg.contains("ERR::") { msg } else { format!("ERR::NETWORK::{msg}") });
+                    return Err(if msg.contains("ERR::") {
+                        msg
+                    } else {
+                        format!("ERR::NETWORK::{msg}")
+                    });
                 }
                 let backoff_ms = 500u64 * (attempt as u64); // 線形簡易
                 tokio::time::sleep(std::time::Duration::from_millis(backoff_ms)).await;
@@ -660,10 +525,11 @@ where
 // ---- Helper: ステージ変更を簡易発火 (Emits 新規生成) ----
 fn emit_stage(app: &AppHandle, download_id: &str, stage: &str) {
     // Emits を新規に生成して stage セット (サイズ不明のため None)
+    let stage_owned = stage.to_string();
     let emits = crate::emits::Emits::new(app.clone(), download_id.to_string(), None);
     tokio::spawn(async move {
-        let _ = emits.set_stage(stage).await;
-        if stage == "complete" {
+        let _ = emits.set_stage(&stage_owned).await;
+        if stage_owned == "complete" {
             emits.complete().await;
         }
     });
