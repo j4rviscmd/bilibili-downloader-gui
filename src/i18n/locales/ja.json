@@ -26,6 +26,9 @@
     "quality_label": "画質",
     "quality_description": "ダウンロードする動画の画質を選択してください。",
     "quality_note": "※ 720p60や1080p60などの高画質は、ログイン状態や地域によっては選択できない場合があります。",
+    "audio_quality_label": "音質",
+    "audio_quality_description": "ダウンロードする音声の音質を選択してください。",
+    "audio_quality_note": "※ Dolby Atmos や ハイレゾ などの高音質は、ログイン状態や地域によっては選択できない場合があります。",
     "progress_title": "ダウンロード進行状況",
     "bar_audio": "音声データ",
     "bar_video": "動画データ",
@@ -37,7 +40,14 @@
     "failed": "失敗",
     "download_failed": "ダウンロードに失敗しました",
     "file_exists": "同名のファイルが既に存在します",
-    "disk_full": "ディスク容量が不足しています"
+    "disk_full": "ディスク容量が不足しています",
+    "duplicate_titles": "重複したファイル名があります。ユニークになるよう修正してください。",
+    "merge_failed": "動画生成 (マージ) に失敗しました。",
+    "quality_not_found": "指定した画質が利用できません。",
+    "cookie_missing": "Cookie が不足または無効です。",
+    "network_error": "ダウンロード中にネットワークエラーが発生しました。",
+    "video_quality_fallback": "選択した画質 ({{from}}) が利用できないため {{to}} にフォールバックしました。",
+    "audio_quality_fallback": "選択した音質 ({{from}}) が利用できないため {{to}} にフォールバックしました。"
   },
   "progress": {
     "elapsed": "経過",
@@ -125,10 +135,14 @@
         "min": "タイトルは2文字以上で入力してください。",
         "max": "タイトルは100文字以内で入力してください。",
         "required": "タイトルを入力してください。",
-        "invalid_chars": "タイトルに使用できない文字が含まれています（{{chars}}）"
+        "invalid_chars": "タイトルに使用できない文字が含まれています（{{chars}}）",
+        "duplicate": "同じファイル名が他のパートで設定されています。"
       },
       "quality": {
-        "required": "画質を選択してください。"
+        "required": "\u753b\u8cea\u3092\u9078\u629e\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
+      },
+      "audio_quality": {
+        "required": "\u97f3\u8cea\u3092\u9078\u629e\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
       }
     }
   }
