@@ -114,11 +114,11 @@ function VideoForm2({ video, page, isDuplicate }: Props) {
                   src={'data:image/png;base64,' + videoPart.thumbnail.base64}
                   alt="thumbnail"
                 />
-                <div className="flex">
-                  <div>{videoPart.part}</div>
-                  <div className="px-1">/</div>
-                  {min > 0 && <div className="mr-1">{min}m</div>}
-                  <div>{sec}s</div>
+                <div className="block">
+                  <span>{videoPart.part}</span>
+                  <span className="px-1">/</span>
+                  {min > 0 && <span className="mr-1">{min}m</span>}
+                  <span>{sec}s</span>
                 </div>
               </div>
               {/* Video Quality */}
