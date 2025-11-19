@@ -13,7 +13,10 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { VIDEO_QUALITIES_MAP } from '@/features/video/constants'
+import {
+  AUDIO_QUALITIES_MAP,
+  VIDEO_QUALITIES_MAP,
+} from '@/features/video/constants'
 import { buildVideoFormSchema2 } from '@/features/video/formSchema'
 import type { Video } from '@/features/video/types'
 import { useVideoInfo } from '@/features/video/useVideoInfo'
@@ -23,15 +26,6 @@ import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { z } from 'zod'
 import { cn } from '../../lib/utils'
-
-// Audio qualities map (display labels). Should be kept in sync with backend codes.
-const AUDIO_QUALITIES_MAP: Record<number, string> = {
-  30216: '64K',
-  30232: '132K',
-  30280: '192K',
-  30250: 'Dolby Atmos',
-  30251: 'Hi-Res Lossless',
-}
 
 type Props = {
   video: Video

@@ -61,6 +61,7 @@ export const useVideoInfo = () => {
     if (id) {
       const v = await fetchVideoInfo(id)
       if (v && v.parts.length > 0 && v.parts[0].cid !== 0) {
+        console.log('Fetched video info:', v)
         store.dispatch(setVideo(v))
         initInputsForVideo(v)
       }
