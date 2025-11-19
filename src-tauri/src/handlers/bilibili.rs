@@ -278,12 +278,10 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
         // NOTE: partごとに画質情報を取得する必要がある？
         let res_body_2 = fetch_video_details(&cookies, &video.bvid, part.cid).await?;
         let video_qualities = convert_qualities(&res_body_2.data.dash.video);
+        let audio_qualities = convert_qualities(&res_body_2.data.dash.audio);
         part.video_qualities = video_qualities;
+        part.audio_qualities = audio_qualities;
     }
-
-    // NOTE: Frontendには音質は不要なのでセットしない
-    // let audio_qualities = convert_qualities(&res_body2.data.dash.audio);
-    // video.audio_qualities = audio_qualities;
 
     Ok(video)
 }
