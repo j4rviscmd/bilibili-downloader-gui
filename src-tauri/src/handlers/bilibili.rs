@@ -24,6 +24,7 @@ pub async fn download_video(
     cid: i64,
     filename: &str,
     quality: &i32,
+    audio_quality: &i32,
     download_id: String,
     _parent_id: Option<String>,
 ) -> Result<(), String> {
@@ -53,23 +54,41 @@ pub async fn download_video(
     // 3. 動画詳細取得 (選択品質のURL抽出)
     // --------------------------------------------------
     let details = fetch_video_details(&cookies, bvid, cid).await?;
-    let video_item = details
+    // 選択動画品質が存在しなければフォールバック (先頭 = 最も高品質)
+    let video_item_opt = details
         .data
         .dash
         .video
         .iter()
-        .find(|v| v.id == *quality)
-        .ok_or_else(|| "ERR::QUALITY_NOT_FOUND".to_string())?;
-    let video_url = video_item.base_url.clone();
-    // Audio は first() を利用 (将来拡張予定)
-    let audio_url = details
+        .find(|v| v.id == *quality);
+    let fallback_video_item = details.data.dash.video.first();
+    let use_video_item = match (video_item_opt, fallback_video_item) {
+        (Some(v), _) => v,
+        (None, Some(fb)) => {
+            emit_stage(app, &download_id, "warn-video-quality-fallback");
+            fb
+        }
+        (None, None) => return Err("ERR::QUALITY_NOT_FOUND".into()),
+    };
+    let video_url = use_video_item.base_url.clone();
+
+    // 選択音声品質が存在しなければフォールバック (先頭 = 最も高品質)
+    let audio_item_opt = details
         .data
         .dash
         .audio
-        .first()
-        .ok_or_else(|| "ERR::QUALITY_NOT_FOUND".to_string())?
-        .base_url
-        .clone();
+        .iter()
+        .find(|a| a.id == *audio_quality);
+    let fallback_audio_item = details.data.dash.audio.first();
+    let use_audio_item = match (audio_item_opt, fallback_audio_item) {
+        (Some(a), _) => a,
+        (None, Some(fb)) => {
+            emit_stage(app, &download_id, "warn-audio-quality-fallback");
+            fb
+        }
+        (None, None) => return Err("ERR::QUALITY_NOT_FOUND".into()),
+    };
+    let audio_url = use_audio_item.base_url.clone();
 
     // --------------------------------------------------
     // 4. 容量事前チェック (取得できなければスキップ)

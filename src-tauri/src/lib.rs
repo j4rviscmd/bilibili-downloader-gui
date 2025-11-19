@@ -113,6 +113,7 @@ async fn download_video(
     cid: i64,
     filename: String,
     quality: i32,
+    audio_quality: i32,
     download_id: String,
     parent_id: Option<String>,
 ) -> Result<(), String> {
@@ -122,6 +123,7 @@ async fn download_video(
         cid,
         &filename,
         &quality,
+        &audio_quality,
         download_id,
         parent_id,
     )

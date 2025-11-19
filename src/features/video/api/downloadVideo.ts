@@ -7,6 +7,7 @@ export const downloadVideo = async (
   cid: number,
   filename: string,
   quality: number,
+  audioQuality: number,
   downloadId: string,
   parentId?: string,
 ) => {
@@ -18,6 +19,7 @@ export const downloadVideo = async (
       cid,
       filename,
       quality,
+      audioQuality,
       downloadId,
       parentId,
     })

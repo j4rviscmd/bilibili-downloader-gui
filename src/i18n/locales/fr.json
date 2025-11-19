@@ -41,7 +41,9 @@
     "merge_failed": "Échec de génération de la vidéo finale (fusion).",
     "quality_not_found": "Qualité demandée indisponible.",
     "cookie_missing": "Cookie manquant ou invalide.",
-    "network_error": "Erreur réseau pendant le téléchargement."
+    "network_error": "Erreur réseau pendant le téléchargement.",
+    "video_quality_fallback": "La qualité vidéo sélectionnée ({{from}}) est indisponible. Utilisation de {{to}}.",
+    "audio_quality_fallback": "La qualité audio sélectionnée ({{from}}) est indisponible. Utilisation de {{to}}."
   },
   "toast": { "success": "Succès", "error": "Une erreur est survenue" },
   "init": {

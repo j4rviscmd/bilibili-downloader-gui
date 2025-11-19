@@ -45,7 +45,9 @@
     "merge_failed": "Failed to generate final video (merge step).",
     "quality_not_found": "Requested quality not available.",
     "cookie_missing": "Cookie missing or invalid.",
-    "network_error": "Network error during download."
+    "network_error": "Network error during download.",
+    "video_quality_fallback": "Selected video quality ({{from}}) unavailable. Using {{to}}.",
+    "audio_quality_fallback": "Selected audio quality ({{from}}) unavailable. Using {{to}}."
   },
   "progress": {
     "elapsed": "Elapsed",

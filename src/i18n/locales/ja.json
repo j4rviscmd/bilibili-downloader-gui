@@ -45,7 +45,9 @@
     "merge_failed": "動画生成 (マージ) に失敗しました。",
     "quality_not_found": "指定した画質が利用できません。",
     "cookie_missing": "Cookie が不足または無効です。",
-    "network_error": "ダウンロード中にネットワークエラーが発生しました。"
+    "network_error": "ダウンロード中にネットワークエラーが発生しました。",
+    "video_quality_fallback": "選択した画質 ({{from}}) が利用できないため {{to}} にフォールバックしました。",
+    "audio_quality_fallback": "選択した音質 ({{from}}) が利用できないため {{to}} にフォールバックしました。"
   },
   "progress": {
     "elapsed": "経過",

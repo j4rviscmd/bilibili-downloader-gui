@@ -121,6 +121,7 @@ export const useVideoInfo = () => {
           pi.cid,
           pi.title.trim(),
           parseInt(pi.videoQuality, 10),
+          parseInt(pi.audioQuality, 10),
           `${parentId}-p${i + 1}`,
           parentId,
         )

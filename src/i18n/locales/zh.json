@@ -41,7 +41,9 @@
     "merge_failed": "生成最终视频（合并阶段）失败。",
     "quality_not_found": "请求的清晰度不可用。",
     "cookie_missing": "Cookie 缺失或无效。",
-    "network_error": "下载过程中发生网络错误。"
+    "network_error": "下载过程中发生网络错误。",
+    "video_quality_fallback": "选定的视频清晰度 ({{from}}) 不可用，已使用 {{to}}。",
+    "audio_quality_fallback": "选定的音频音质 ({{from}}) 不可用，已使用 {{to}}。"
   },
   "toast": { "success": "成功", "error": "发生错误" },
   "init": {
