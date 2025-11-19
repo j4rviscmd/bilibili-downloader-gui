@@ -74,7 +74,7 @@ function DownloadingDialog() {
       <DialogContent
         disableOutsideClick
         onEscapeKeyDown={(e) => e.preventDefault()}
-        className="flex flex-col items-center justify-center [&>button]:hidden"
+        className="flex max-h-[80%] flex-col items-center justify-center [&>button]:hidden"
       >
         <DialogHeader className="w-full">
           <DialogTitle className="text-primary flex w-full items-center">
