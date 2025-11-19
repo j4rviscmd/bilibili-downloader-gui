@@ -26,6 +26,9 @@
     "quality_label": "Quality",
     "quality_description": "Select the quality of the video to download.",
     "quality_note": "* Some high qualities like 720p60 / 1080p60 may not be selectable depending on login state or region.",
+    "audio_quality_label": "Audio Quality",
+    "audio_quality_description": "Select the audio quality to download.",
+    "audio_quality_note": "* Some high-quality audio (Dolby Atmos / Hi-Res) may require login status or region and may not be selectable.",
     "progress_title": "Download Progress",
     "bar_audio": "Audio Data",
     "bar_video": "Video Data",
@@ -37,7 +40,14 @@
     "failed": "Failed",
     "download_failed": "Failed to download",
     "file_exists": "A file with the same name already exists",
-    "disk_full": "Disk is full"
+    "disk_full": "Disk is full",
+    "duplicate_titles": "Duplicate filenames detected. Please make them unique.",
+    "merge_failed": "Failed to generate final video (merge step).",
+    "quality_not_found": "Requested quality not available.",
+    "cookie_missing": "Cookie missing or invalid.",
+    "network_error": "Network error during download.",
+    "video_quality_fallback": "Selected video quality ({{from}}) unavailable. Using {{to}}.",
+    "audio_quality_fallback": "Selected audio quality ({{from}}) unavailable. Using {{to}}."
   },
   "progress": {
     "elapsed": "Elapsed",
@@ -125,10 +135,14 @@
         "min": "Title must be at least 2 characters.",
         "max": "Title must be at most 100 characters.",
         "required": "Please enter a title.",
-        "invalid_chars": "Title contains forbidden characters ({{chars}})."
+        "invalid_chars": "Title contains forbidden characters ({{chars}}).",
+        "duplicate": "This filename is already used by another part."
       },
       "quality": {
         "required": "Please select a quality."
+      },
+      "audio_quality": {
+        "required": "Please select an audio quality."
       }
     }
   }

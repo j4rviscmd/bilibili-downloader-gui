@@ -22,6 +22,9 @@
     "quality_label": "清晰度",
     "quality_description": "选择要下载的视频清晰度。",
     "quality_note": "* 部分高码率清晰度（如 720p60 / 1080p60）可能因登录状态或地区不可用。",
+    "audio_quality_label": "音质",
+    "audio_quality_description": "选择要下载的音频音质。",
+    "audio_quality_note": "* 某些高品质音频（Dolby Atmos / Hi-Res）可能需要登录或受地区限制而不可用。",
     "progress_title": "下载进度",
     "bar_audio": "音频数据",
     "bar_video": "视频数据",
@@ -33,7 +36,14 @@
     "failed": "失败",
     "download_failed": "下载失败",
     "file_exists": "已存在同名文件",
-    "disk_full": "磁盘已满"
+    "disk_full": "磁盘已满",
+    "duplicate_titles": "检测到重复的文件名，请修改为唯一。",
+    "merge_failed": "生成最终视频（合并阶段）失败。",
+    "quality_not_found": "请求的清晰度不可用。",
+    "cookie_missing": "Cookie 缺失或无效。",
+    "network_error": "下载过程中发生网络错误。",
+    "video_quality_fallback": "选定的视频清晰度 ({{from}}) 不可用，已使用 {{to}}。",
+    "audio_quality_fallback": "选定的音频音质 ({{from}}) 不可用，已使用 {{to}}。"
   },
   "toast": { "success": "成功", "error": "发生错误" },
   "init": {
@@ -111,10 +121,14 @@
         "min": "标题至少需要 2 个字符。",
         "max": "标题长度不能超过 100 个字符。",
         "required": "请输入标题。",
-        "invalid_chars": "标题包含不允许的字符（{{chars}}）。"
+        "invalid_chars": "标题包含不允许的字符（{{chars}}）。",
+        "duplicate": "该文件名已被其他分段使用。"
       },
       "quality": {
-        "required": "请选择清晰度。"
+        "required": "\u8bf7\u9009\u62e9\u6e05\u6670\u5ea6\u3002"
+      },
+      "audio_quality": {
+        "required": "\u8bf7\u9009\u62e9\u97f3\u8d28\u3002"
       }
     }
   }

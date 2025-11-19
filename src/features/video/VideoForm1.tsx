@@ -50,7 +50,7 @@ function VideoForm1() {
       <form
         onSubmit={form.handleSubmit(onSubmit)}
         onBlur={form.handleSubmit(onSubmit)}
-        className="space-y-8"
+        className="space-y-3"
       >
         <FormField
           control={form.control}
@@ -59,7 +59,13 @@ function VideoForm1() {
             <FormItem>
               <FormLabel>{t('video.url_label')}</FormLabel>
               <FormControl>
-                <Input required placeholder={placeholder} {...field} />
+                <Input
+                  autoComplete="url"
+                  type="url"
+                  required
+                  placeholder={placeholder}
+                  {...field}
+                />
               </FormControl>
               <FormDescription>{t('video.url_description')}</FormDescription>
               <FormMessage />

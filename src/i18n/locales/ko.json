@@ -22,6 +22,9 @@
     "quality_label": "화질",
     "quality_description": "다운로드할 영상 화질을 선택하세요.",
     "quality_note": "* 720p60 / 1080p60 등의 고화질은 로그인 상태나 지역에 따라 선택할 수 없습니다.",
+    "audio_quality_label": "음질",
+    "audio_quality_description": "다운로드할 음성 음질을 선택하세요.",
+    "audio_quality_note": "* Dolby Atmos / Hi-Res 등의 고음질은 로그인 상태나 지역에 따라 선택할 수 없습니다.",
     "progress_title": "다운로드 진행 상황",
     "bar_audio": "오디오 데이터",
     "bar_video": "비디오 데이터",
@@ -33,7 +36,14 @@
     "failed": "실패",
     "download_failed": "다운로드에 실패했습니다",
     "file_exists": "같은 이름의 파일이 이미 존재합니다",
-    "disk_full": "디스크 용량이 부족합니다"
+    "disk_full": "디스크 용량이 부족합니다",
+    "duplicate_titles": "중복된 파일명이 있습니다. 고유하도록 수정해주세요.",
+    "merge_failed": "최종 영상 생성(병합 단계) 실패.",
+    "quality_not_found": "요청한 화질을 사용할 수 없습니다.",
+    "cookie_missing": "쿠키가 없거나 유효하지 않습니다.",
+    "network_error": "다운로드 중 네트워크 오류 발생.",
+    "video_quality_fallback": "선택한 화질 ({{from}}) 을(를) 사용할 수 없어 {{to}} 로 대체합니다.",
+    "audio_quality_fallback": "선택한 음질 ({{from}}) 을(를) 사용할 수 없어 {{to}} 로 대체합니다."
   },
   "toast": { "success": "성공", "error": "문제가 발생했습니다" },
   "init": {
@@ -114,7 +124,10 @@
         "invalid_chars": "제목에 사용할 수 없는 문자가 포함되어 있습니다 ({{chars}})."
       },
       "quality": {
-        "required": "화질을 선택하세요."
+        "required": "\ud654\uc9c8\uc744 \uc120\ud0dd\ud558\uc138\uc694."
+      },
+      "audio_quality": {
+        "required": "\uc74c\uc9c8\uc744 \uc120\ud0dd\ud558\uc138\uc694."
       }
     }
   }
