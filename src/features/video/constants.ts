@@ -18,3 +18,8 @@ export const AUDIO_QUALITIES_MAP: Record<number, string> = {
   30250: 'Dolby Atmos',
   30251: 'Hi-Res Lossless',
 }
+
+// Explicit display ordering. Keep Dolby Atmos then Hi-Res at tail.
+export const AUDIO_QUALITIES_ORDER: number[] = [
+  30216, 30232, 30280, 30250, 30251,
+]

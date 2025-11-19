@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   AUDIO_QUALITIES_MAP,
+  AUDIO_QUALITIES_ORDER,
   VIDEO_QUALITIES_MAP,
 } from '@/features/video/constants'
 import { buildVideoFormSchema2 } from '@/features/video/formSchema'
@@ -202,44 +203,43 @@ function VideoForm2({ video, page, isDuplicate }: Props) {
                         value={String(field.value)}
                         onValueChange={field.onChange}
                       >
-                        {Object.entries(AUDIO_QUALITIES_MAP).map(
-                          ([id, value]) => {
-                            let isDisabled = true
+                        {AUDIO_QUALITIES_ORDER.map((id) => {
+                          const value = AUDIO_QUALITIES_MAP[id]
+                          let isDisabled = true
+                          if (
+                            video.parts.length > 0 &&
+                            video.parts[page - 1].cid !== 0
+                          ) {
                             if (
-                              video.parts.length > 0 &&
-                              video.parts[page - 1].cid !== 0
+                              video.parts[page - 1].audioQualities.find(
+                                (v) => v.id === Number(id),
+                              )
                             ) {
-                              if (
-                                video.parts[page - 1].audioQualities.find(
-                                  (v) => v.id === Number(id),
-                                )
-                              ) {
-                                isDisabled = false
-                              }
+                              isDisabled = false
                             }
-                            if (isDisabled) {
-                              console.log('audioQuality disabled', {
-                                id,
-                                value,
-                              })
-                            }
-                            return (
-                              <div
-                                key={id}
-                                className={cn(
-                                  'flex items-center space-x-3',
-                                  isDisabled ? 'text-muted-foreground/60' : '',
-                                )}
-                              >
-                                <RadioGroupItem
-                                  disabled={isDisabled}
-                                  value={id}
-                                />
-                                <Label htmlFor={`aq-${id}`}>{value}</Label>
-                              </div>
-                            )
-                          },
-                        )}
+                          }
+                          if (isDisabled) {
+                            console.log('audioQuality disabled', {
+                              id,
+                              value,
+                            })
+                          }
+                          return (
+                            <div
+                              key={id}
+                              className={cn(
+                                'flex items-center space-x-3',
+                                isDisabled ? 'text-muted-foreground/60' : '',
+                              )}
+                            >
+                              <RadioGroupItem
+                                disabled={isDisabled}
+                                value={String(id)}
+                              />
+                              <Label htmlFor={`aq-${id}`}>{value}</Label>
+                            </div>
+                          )
+                        })}
                       </RadioGroup>
                     </FormControl>
                     <FormDescription>
