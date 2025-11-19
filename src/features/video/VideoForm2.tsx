@@ -151,12 +151,12 @@ function VideoForm2({ video, page, isDuplicate }: Props) {
                                 isDisabled = false
                               }
                             }
-                            if (isDisabled) {
-                              console.log('videoQuality disabled', {
-                                id,
-                                value,
-                              })
-                            }
+                            // if (isDisabled) {
+                            //   console.log('videoQuality disabled', {
+                            //     id,
+                            //     value,
+                            //   })
+                            // }
                             return (
                               <div
                                 key={id}
@@ -218,12 +218,12 @@ function VideoForm2({ video, page, isDuplicate }: Props) {
                               isDisabled = false
                             }
                           }
-                          if (isDisabled) {
-                            console.log('audioQuality disabled', {
-                              id,
-                              value,
-                            })
-                          }
+                          // if (isDisabled) {
+                          //   console.log('audioQuality disabled', {
+                          //     id,
+                          //     value,
+                          //   })
+                          // }
                           return (
                             <div
                               key={id}
