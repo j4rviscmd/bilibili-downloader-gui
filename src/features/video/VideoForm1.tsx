@@ -59,7 +59,13 @@ function VideoForm1() {
             <FormItem>
               <FormLabel>{t('video.url_label')}</FormLabel>
               <FormControl>
-                <Input required placeholder={placeholder} {...field} />
+                <Input
+                  autoComplete="url"
+                  type="url"
+                  required
+                  placeholder={placeholder}
+                  {...field}
+                />
               </FormControl>
               <FormDescription>{t('video.url_description')}</FormDescription>
               <FormMessage />
