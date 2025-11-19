@@ -13,8 +13,13 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { VIDEO_QUALITIES_MAP } from '@/features/video/constants'
+import {
+  AUDIO_QUALITIES_MAP,
+  AUDIO_QUALITIES_ORDER,
+  VIDEO_QUALITIES_MAP,
+} from '@/features/video/constants'
 import { buildVideoFormSchema2 } from '@/features/video/formSchema'
+import type { Video } from '@/features/video/types'
 import { useVideoInfo } from '@/features/video/useVideoInfo'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect, useMemo } from 'react'
@@ -23,126 +28,235 @@ import { useTranslation } from 'react-i18next'
 import { z } from 'zod'
 import { cn } from '../../lib/utils'
 
-function VideoForm2() {
-  const { video, onValid2 } = useVideoInfo()
+type Props = {
+  video: Video
+  page: number
+  isDuplicate?: boolean
+}
+function VideoForm2({ video, page, isDuplicate }: Props) {
+  const { onValid2 } = useVideoInfo()
   const { t } = useTranslation()
+  const disabled = video.parts.length === 0
+  const videoPart = video.parts[page - 1]
+  const min = Math.floor(videoPart.duration / 60)
+  const sec = videoPart.duration % 60
+
+  const schema2 = useMemo(() => buildVideoFormSchema2(t), [t])
+  const form = useForm<z.infer<typeof schema2>>({
+    resolver: zodResolver(schema2),
+    defaultValues: {
+      title: '',
+      videoQuality: '80',
+      audioQuality: '30216',
+    },
+  })
 
   useEffect(() => {
     ;(async () => {
-      if (video && video.cid !== 0) {
-        // 値をフォームに反映
-        form.setValue('title', video.title, { shouldValidate: true })
-        form.setValue('quality', (video.qualities[0]?.id || 80).toString(), {
+      if (video && video.parts.length > 0 && video.parts[0].cid !== 0) {
+        form.setValue('title', video.title + '_' + videoPart.part, {
           shouldValidate: true,
         })
-        // 値セット後にバリデーションを実行
+        form.setValue(
+          'videoQuality',
+          (video.parts[page - 1].videoQualities[0]?.id || 80).toString(),
+          { shouldValidate: true },
+        )
+        form.setValue(
+          'audioQuality',
+          (video.parts[page - 1].audioQualities[0]?.id || 30216).toString(),
+          { shouldValidate: true },
+        )
         const ok = await form.trigger()
-        // バリデーション成功時にReduxへ反映（ダウンロードボタン活性のため）
         if (ok) {
           const vals = form.getValues()
-          onValid2(vals.title, vals.quality)
+          onValid2(page - 1, vals.title, vals.videoQuality, vals.audioQuality)
         }
       }
     })()
   }, [video])
 
-  const schema2 = useMemo(() => buildVideoFormSchema2(t), [t])
-
   async function onSubmit(data: z.infer<typeof schema2>) {
-    // ステート更新 & 動画愛情報を抽出
-    onValid2(data.title, data.quality)
+    onValid2(page - 1, data.title, data.videoQuality, data.audioQuality)
   }
 
-  const form = useForm<z.infer<typeof schema2>>({
-    resolver: zodResolver(schema2),
-    defaultValues: {
-      title: '',
-      quality: '80',
-    },
-  })
-
-  const disabled = video.cid === 0
-
   return (
-    <Form {...form}>
-      <fieldset disabled={disabled}>
-        <form
-          onSubmit={form.handleSubmit(onSubmit)}
-          onBlur={form.handleSubmit(onSubmit)}
-          className="space-y-8"
-        >
-          <FormField
-            control={form.control}
-            name="title"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t('video.title_label')}</FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder={t('video.title_placeholder')}
-                    {...field}
-                  />
-                </FormControl>
-                <FormDescription>
-                  {t('video.title_description')}
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="quality"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t('video.quality_label')}</FormLabel>
-                <FormControl>
-                  <RadioGroup
-                    {...field}
-                    value={String(field.value)}
-                    onValueChange={field.onChange}
-                  >
-                    {Object.entries(VIDEO_QUALITIES_MAP)
-                      .reverse() // 高画質から順に表示
-                      .map((q) => {
-                        const id = q[0]
-                        const value = q[1]
-                        let disabled = true
-                        if (video.cid !== 0) {
+    <div className="p-3">
+      <Form {...form}>
+        <fieldset disabled={disabled}>
+          <form
+            onSubmit={form.handleSubmit(onSubmit)}
+            onBlur={form.handleSubmit(onSubmit)}
+            className="space-y-3"
+          >
+            <FormField
+              control={form.control}
+              name="title"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('video.title_label')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder={t('video.title_placeholder')}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t('video.title_description')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <div className="grid grid-cols-24 items-center gap-3">
+              <div className="col-span-12 flex h-full flex-col justify-center">
+                <img
+                  src={'data:image/png;base64,' + videoPart.thumbnail.base64}
+                  alt="thumbnail"
+                />
+                <div className="block">
+                  <span>{videoPart.part}</span>
+                  <span className="px-1">/</span>
+                  {min > 0 && <span className="mr-1">{min}m</span>}
+                  <span>{sec}s</span>
+                </div>
+              </div>
+              {/* Video Quality */}
+              <FormField
+                control={form.control}
+                name="videoQuality"
+                render={({ field }) => (
+                  <FormItem className="col-span-6 h-fit">
+                    <FormLabel>{t('video.quality_label')}</FormLabel>
+                    <FormControl>
+                      <RadioGroup
+                        {...field}
+                        value={String(field.value)}
+                        onValueChange={field.onChange}
+                        orientation="horizontal"
+                      >
+                        {Object.entries(VIDEO_QUALITIES_MAP)
+                          .reverse()
+                          .map(([id, value]) => {
+                            let isDisabled = true
+                            if (
+                              video.parts.length > 0 &&
+                              video.parts[page - 1].cid !== 0
+                            ) {
+                              if (
+                                video.parts[page - 1].videoQualities.find(
+                                  (v) => v.id === Number(id),
+                                )
+                              ) {
+                                isDisabled = false
+                              }
+                            }
+                            // if (isDisabled) {
+                            //   console.log('videoQuality disabled', {
+                            //     id,
+                            //     value,
+                            //   })
+                            // }
+                            return (
+                              <div
+                                key={id}
+                                className={cn(
+                                  'flex items-center space-x-3',
+                                  isDisabled ? 'text-muted-foreground/60' : '',
+                                )}
+                              >
+                                <RadioGroupItem
+                                  disabled={isDisabled}
+                                  value={id}
+                                />
+                                <Label htmlFor={`vq-${id}`}>{value}</Label>
+                              </div>
+                            )
+                          })}
+                      </RadioGroup>
+                    </FormControl>
+                    <FormDescription>
+                      {t('video.quality_description')}
+                      <br />
+                      {t('video.quality_note')}
+                      <br />
+                    </FormDescription>
+                    <FormMessage />
+                    {isDuplicate && (
+                      <div className="text-destructive text-sm">
+                        {t('validation.video.title.duplicate')}
+                      </div>
+                    )}
+                  </FormItem>
+                )}
+              />
+              {/* Audio Quality */}
+              <FormField
+                control={form.control}
+                name="audioQuality"
+                render={({ field }) => (
+                  <FormItem className="col-span-6 h-fit">
+                    <FormLabel>{t('video.audio_quality_label')}</FormLabel>
+                    <FormControl>
+                      <RadioGroup
+                        {...field}
+                        value={String(field.value)}
+                        onValueChange={field.onChange}
+                      >
+                        {AUDIO_QUALITIES_ORDER.map((id) => {
+                          const value = AUDIO_QUALITIES_MAP[id]
+                          let isDisabled = true
                           if (
-                            video.qualities.find((v) => v.id === Number(id))
+                            video.parts.length > 0 &&
+                            video.parts[page - 1].cid !== 0
                           ) {
-                            disabled = false
+                            if (
+                              video.parts[page - 1].audioQualities.find(
+                                (v) => v.id === Number(id),
+                              )
+                            ) {
+                              isDisabled = false
+                            }
                           }
-                        }
-                        return (
-                          <div
-                            key={id}
-                            className={cn(
-                              'flex items-center space-x-3',
-                              disabled ? 'text-muted-foreground/60' : '',
-                            )}
-                          >
-                            <RadioGroupItem disabled={disabled} value={id} />
-                            <Label htmlFor="r1">{value}</Label>
-                          </div>
-                        )
-                      })}
-                  </RadioGroup>
-                </FormControl>
-                <FormDescription>
-                  {t('video.quality_description')}
-                  <br />
-                  {t('video.quality_note')}
-                  <br />
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </form>
-      </fieldset>
-    </Form>
+                          // if (isDisabled) {
+                          //   console.log('audioQuality disabled', {
+                          //     id,
+                          //     value,
+                          //   })
+                          // }
+                          return (
+                            <div
+                              key={id}
+                              className={cn(
+                                'flex items-center space-x-3',
+                                isDisabled ? 'text-muted-foreground/60' : '',
+                              )}
+                            >
+                              <RadioGroupItem
+                                disabled={isDisabled}
+                                value={String(id)}
+                              />
+                              <Label htmlFor={`aq-${id}`}>{value}</Label>
+                            </div>
+                          )
+                        })}
+                      </RadioGroup>
+                    </FormControl>
+                    <FormDescription>
+                      {t('video.audio_quality_description')}
+                      <br />
+                      {t('video.audio_quality_note')}
+                      <br />
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </form>
+        </fieldset>
+      </Form>
+    </div>
   )
 }
 

@@ -18,10 +18,24 @@ pub struct UserData {
 pub struct Video {
     pub title: String,
     pub bvid: String,
+    pub parts: Vec<VideoPart>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VideoPart {
     pub cid: i64,
-    #[serde(rename = "qualities")]
+    pub page: i32,
+    pub part: String,
+    pub duration: i64,
+    pub thumbnail: Thumbnail,
+    #[serde(rename = "videoQualities")]
     pub video_qualities: Vec<Quality>,
+    #[serde(rename = "audioQualities")]
     pub audio_qualities: Vec<Quality>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Thumbnail {
+    pub url: String,
+    pub base64: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

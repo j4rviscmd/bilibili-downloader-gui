@@ -3,10 +3,9 @@ import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 
 const initialState: Video = {
-  bvid: '',
   title: '',
-  cid: 0,
-  qualities: [],
+  bvid: '',
+  parts: [],
 }
 
 export const videoSlice = createSlice({

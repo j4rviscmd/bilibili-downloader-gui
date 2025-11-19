@@ -25,7 +25,8 @@
     "REFERER",
     "reqs",
     "rsplit",
-    "rusqlite"
+    "rusqlite",
+    "vbid"
   ],
   "github-actions.workflows.pinned.workflows": [".github/workflows/release.yml"]
 }

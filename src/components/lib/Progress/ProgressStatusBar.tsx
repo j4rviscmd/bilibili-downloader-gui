@@ -72,7 +72,9 @@ function ProgressStatusBar({ progress }: Props) {
               className={progress.isComplete ? 'bg-chart-2' : ''}
             />
             <div className="mx-0.5" />
-            <div className="text-sm font-semibold">{progress.percentage}%</div>
+            <div className="min-w-[2.5rem] text-end text-sm font-semibold">
+              {progress.percentage}%
+            </div>
           </div>
         </>
       ) : (
@@ -90,7 +92,9 @@ function ProgressStatusBar({ progress }: Props) {
               className={progress.isComplete ? 'bg-chart-2' : ''}
             />
             <div className="mx-0.5" />
-            <div className="text-sm font-semibold">{progress.percentage}%</div>
+            <div className="min-w-[2.5rem] text-end text-sm font-semibold">
+              {progress.percentage}%
+            </div>
           </div>
         </>
       )}
