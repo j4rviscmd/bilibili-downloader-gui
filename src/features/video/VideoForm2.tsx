@@ -108,7 +108,7 @@ function VideoForm2({ video, page, isDuplicate }: Props) {
                 </FormItem>
               )}
             />
-            <div className="grid grid-cols-24 items-start gap-3">
+            <div className="grid grid-cols-24 items-center gap-3">
               <div className="col-span-12 flex h-full flex-col justify-center">
                 <img
                   src={'data:image/png;base64,' + videoPart.thumbnail.base64}
