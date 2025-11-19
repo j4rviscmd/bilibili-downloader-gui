@@ -37,7 +37,11 @@ export const selectAllPartValid = (tFn: any) => (state: RootState) => {
     state.input.partInputs.length > 0 &&
     state.input.partInputs.every(
       (pi) =>
-        schema2.safeParse({ title: pi.title, quality: pi.quality }).success,
+        schema2.safeParse({
+          title: pi.title,
+          videoQuality: pi.videoQuality,
+          audioQuality: pi.audioQuality,
+        }).success,
     )
   )
 }

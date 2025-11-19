@@ -68,7 +68,6 @@ export const buildVideoFormSchema2 = (t: TFunction) =>
       .superRefine((val, ctx) => {
         const pattern = getPatternSync()
         if (pattern.test(val) || /\0/.test(val)) {
-          // Provide concrete chars shown (pattern may be generic). Build list per current initialized pattern.
           const osChars = invalidCharsPattern.source.includes(':*?"<>|')
             ? '\\ / : * ? " < > |' // windows
             : '/'
@@ -79,7 +78,6 @@ export const buildVideoFormSchema2 = (t: TFunction) =>
             }),
           })
         }
-        // Windows specific trailing dot/space restriction
         if (
           invalidCharsPattern.source.includes(':*?"<>|') &&
           /[.\s]$/.test(val)
@@ -92,9 +90,12 @@ export const buildVideoFormSchema2 = (t: TFunction) =>
           })
         }
       }),
-    quality: z
+    videoQuality: z
       .string()
       .nonempty({ message: t('validation.video.quality.required') }),
+    audioQuality: z
+      .string()
+      .nonempty({ message: t('validation.video.audio_quality.required') }),
   })
 
 // フォールバック t (settings の実装と同様) - キーそのまま or defaultValue

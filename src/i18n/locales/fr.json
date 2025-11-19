@@ -119,7 +119,10 @@
         "invalid_chars": "Le titre contient des caractères interdits ({{chars}})."
       },
       "quality": {
-        "required": "Veuillez sélectionner une qualité."
+        "required": "Veuillez s\u00e9lectionner une qualit\u00e9."
+      },
+      "audio_quality": {
+        "required": "Veuillez s\u00e9lectionner une qualit\u00e9 audio."
       }
     }
   }

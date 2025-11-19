@@ -10,3 +10,11 @@ export const VIDEO_QUALITIES_MAP: Record<number, string> = {
 }
 
 export const VIDEO_URL_KEY: string = 'inputUrl'
+
+export const AUDIO_QUALITIES_MAP: Record<number, string> = {
+  30216: '64K',
+  30232: '132K',
+  30280: '192K',
+  30250: 'Dolby Atmos',
+  30251: 'Hi-Res Lossless',
+}

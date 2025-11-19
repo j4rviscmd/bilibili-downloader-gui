@@ -135,6 +135,9 @@
       },
       "quality": {
         "required": "Please select a quality."
+      },
+      "audio_quality": {
+        "required": "Please select an audio quality."
       }
     }
   }

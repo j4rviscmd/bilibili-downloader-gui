@@ -27,8 +27,9 @@ pub struct VideoPart {
     pub part: String,
     pub duration: i64,
     pub thumbnail: Thumbnail,
-    #[serde(rename = "qualities")]
+    #[serde(rename = "videoQualities")]
     pub video_qualities: Vec<Quality>,
+    #[serde(rename = "audioQualities")]
     pub audio_qualities: Vec<Quality>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]

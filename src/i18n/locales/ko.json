@@ -119,7 +119,10 @@
         "invalid_chars": "제목에 사용할 수 없는 문자가 포함되어 있습니다 ({{chars}})."
       },
       "quality": {
-        "required": "화질을 선택하세요."
+        "required": "\ud654\uc9c8\uc744 \uc120\ud0dd\ud558\uc138\uc694."
+      },
+      "audio_quality": {
+        "required": "\uc74c\uc9c8\uc744 \uc120\ud0dd\ud558\uc138\uc694."
       }
     }
   }

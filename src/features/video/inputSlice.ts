@@ -20,9 +20,16 @@ export const inputSlice = createSlice({
     initPartInputs: (
       state,
       action: PayloadAction<
-        { cid: number; page: number; title: string; quality: string }[]
+        {
+          cid: number
+          page: number
+          title: string
+          videoQuality: string
+          audioQuality: string
+        }[]
       >,
     ) => {
+      // 既存互換: legacy quality を持つ要素が来た場合のガードは呼び出し側で保証する前提
       state.partInputs = action.payload
     },
     updatePartInputByIndex: (
@@ -30,14 +37,16 @@ export const inputSlice = createSlice({
       action: PayloadAction<{
         index: number
         title?: string
-        quality?: string
+        videoQuality?: string
+        audioQuality?: string
       }>,
     ) => {
-      const { index, title, quality } = action.payload
+      const { index, title, videoQuality, audioQuality } = action.payload
       const target = state.partInputs[index]
       if (!target) return
       if (title !== undefined) target.title = title
-      if (quality !== undefined) target.quality = quality
+      if (videoQuality !== undefined) target.videoQuality = videoQuality
+      if (audioQuality !== undefined) target.audioQuality = audioQuality
     },
   },
 })

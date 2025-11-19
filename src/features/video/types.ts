@@ -2,7 +2,8 @@ export type PartInput = {
   cid: number
   page: number
   title: string
-  quality: string
+  videoQuality: string
+  audioQuality: string
 }
 
 export type Input = {
@@ -21,7 +22,8 @@ export type VideoPart = {
   page: number
   cid: number
   duration: number
-  qualities: VideoQuality[]
+  videoQualities: VideoQuality[]
+  audioQualities: AudioQuality[]
   thumbnail: Thumbnail
 }
 export type Thumbnail = {
@@ -30,6 +32,11 @@ export type Thumbnail = {
 }
 
 export type VideoQuality = {
+  quality: string
+  id: number
+}
+
+export type AudioQuality = {
   quality: string
   id: number
 }

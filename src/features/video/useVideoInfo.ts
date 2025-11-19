@@ -33,13 +33,26 @@ export const useVideoInfo = () => {
       cid: p.cid,
       page: p.page,
       title: `${v.title}_${p.part}`,
-      quality: (p.qualities[0]?.id || 80).toString(),
+      videoQuality: (p.videoQualities[0]?.id || 80).toString(),
+      audioQuality: (p.audioQualities[0]?.id || 30216).toString(),
     }))
     store.dispatch(initPartInputs(partInputs))
   }
 
-  const onValid2 = (index: number, title: string, quality: string) => {
-    store.dispatch(updatePartInputByIndex({ index, title, quality }))
+  const onValid2 = (
+    index: number,
+    title: string,
+    videoQuality: string,
+    audioQuality?: string,
+  ) => {
+    store.dispatch(
+      updatePartInputByIndex({
+        index,
+        title,
+        videoQuality,
+        ...(audioQuality ? { audioQuality } : {}),
+      }),
+    )
   }
 
   const onValid1 = async (url: string) => {
@@ -60,7 +73,12 @@ export const useVideoInfo = () => {
   const isForm1Valid = schema1.safeParse({ url: input.url }).success
 
   const partValidFlags = input.partInputs.map(
-    (pi) => schema2.safeParse({ title: pi.title, quality: pi.quality }).success,
+    (pi) =>
+      schema2.safeParse({
+        title: pi.title,
+        videoQuality: pi.videoQuality,
+        audioQuality: pi.audioQuality,
+      }).success,
   )
   const duplicateIndices = useSelector(selectDuplicateIndices)
   const hasDuplicates = duplicateIndices.length > 0
@@ -101,7 +119,7 @@ export const useVideoInfo = () => {
           videoId,
           pi.cid,
           pi.title.trim(),
-          parseInt(pi.quality, 10),
+          parseInt(pi.videoQuality, 10),
           `${parentId}-p${i + 1}`,
           parentId,
         )
