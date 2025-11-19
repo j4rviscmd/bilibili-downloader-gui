@@ -22,6 +22,9 @@
     "quality_label": "Calidad",
     "quality_description": "Selecciona la calidad del video a descargar.",
     "quality_note": "* Algunas calidades altas como 720p60 / 1080p60 pueden no estar disponibles según el estado de inicio de sesión o la región.",
+    "audio_quality_label": "Calidad de audio",
+    "audio_quality_description": "Selecciona la calidad de audio a descargar.",
+    "audio_quality_note": "* El audio de alta calidad (Dolby Atmos / Hi-Res) puede requerir inicio de sesión o región y podría no estar disponible.",
     "progress_title": "Progreso de descarga",
     "bar_audio": "Datos de audio",
     "bar_video": "Datos de video",
@@ -33,7 +36,14 @@
     "failed": "Fallido",
     "download_failed": "Error al descargar",
     "file_exists": "Ya existe un archivo con el mismo nombre",
-    "disk_full": "El disco está lleno"
+    "disk_full": "El disco está lleno",
+    "duplicate_titles": "Se detectaron nombres de archivo duplicados. Hazlos únicos.",
+    "merge_failed": "Error al generar el video final (etapa de mezcla).",
+    "quality_not_found": "La calidad solicitada no está disponible.",
+    "cookie_missing": "Cookie ausente o inválida.",
+    "network_error": "Error de red durante la descarga.",
+    "video_quality_fallback": "La calidad de video seleccionada ({{from}}) no está disponible. Usando {{to}}.",
+    "audio_quality_fallback": "La calidad de audio seleccionada ({{from}}) no está disponible. Usando {{to}}."
   },
   "toast": { "success": "Éxito", "error": "Ocurrió un error" },
   "init": {
@@ -111,10 +121,14 @@
         "min": "El título debe tener al menos 2 caracteres.",
         "max": "El título debe tener como máximo 100 caracteres.",
         "required": "Introduce un título.",
-        "invalid_chars": "El título contiene caracteres no permitidos ({{chars}})."
+        "invalid_chars": "El título contiene caracteres no permitidos ({{chars}}).",
+        "duplicate": "Este nombre de archivo ya está usado por otra parte."
       },
       "quality": {
         "required": "Selecciona una calidad."
+      },
+      "audio_quality": {
+        "required": "Selecciona una calidad de audio."
       }
     }
   }

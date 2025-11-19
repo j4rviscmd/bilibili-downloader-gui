@@ -15,9 +15,17 @@ export const progressSlice = createSlice({
     setProgress(state, action: PayloadAction<Progress>) {
       const payload = action.payload
       // compute internal id and parent id
-      const internalId = payload.stage
-        ? `${payload.downloadId}:${payload.stage}`
-        : payload.downloadId
+      // internalId: 'complete' は既存 'merge' を上書きしてボタン解除を確実化
+      const internalId = (() => {
+        if (payload.stage === 'complete') {
+          const mergeId = `${payload.downloadId}:merge`
+          const hasMerge = state.some((p) => p.internalId === mergeId)
+          return hasMerge ? mergeId : `${payload.downloadId}:complete`
+        }
+        return payload.stage
+          ? `${payload.downloadId}:${payload.stage}`
+          : payload.downloadId
+      })()
       const parentId = payload.downloadId
       const entry = { ...payload, internalId, parentId }
       const idx = state.findIndex((p) => p.internalId === internalId)

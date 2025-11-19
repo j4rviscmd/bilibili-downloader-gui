@@ -22,6 +22,9 @@
     "quality_label": "Qualité",
     "quality_description": "Sélectionnez la qualité de la vidéo à télécharger.",
     "quality_note": "* Certaines qualités élevées comme 720p60 / 1080p60 peuvent ne pas être disponibles selon l'état de connexion ou la région.",
+    "audio_quality_label": "Qualité audio",
+    "audio_quality_description": "Sélectionnez la qualité audio à télécharger.",
+    "audio_quality_note": "* L'audio haute qualité (Dolby Atmos / Hi-Res) peut nécessiter l'état de connexion ou la région et peut être indisponible.",
     "progress_title": "Progression du téléchargement",
     "bar_audio": "Données audio",
     "bar_video": "Données vidéo",
@@ -33,7 +36,14 @@
     "failed": "Échec",
     "download_failed": "Échec du téléchargement",
     "file_exists": "Un fichier du même nom existe déjà",
-    "disk_full": "Le disque est plein"
+    "disk_full": "Le disque est plein",
+    "duplicate_titles": "Des noms de fichier en double ont été détectés. Veuillez les rendre uniques.",
+    "merge_failed": "Échec de génération de la vidéo finale (fusion).",
+    "quality_not_found": "Qualité demandée indisponible.",
+    "cookie_missing": "Cookie manquant ou invalide.",
+    "network_error": "Erreur réseau pendant le téléchargement.",
+    "video_quality_fallback": "La qualité vidéo sélectionnée ({{from}}) est indisponible. Utilisation de {{to}}.",
+    "audio_quality_fallback": "La qualité audio sélectionnée ({{from}}) est indisponible. Utilisation de {{to}}."
   },
   "toast": { "success": "Succès", "error": "Une erreur est survenue" },
   "init": {
@@ -114,7 +124,10 @@
         "invalid_chars": "Le titre contient des caractères interdits ({{chars}})."
       },
       "quality": {
-        "required": "Veuillez sélectionner une qualité."
+        "required": "Veuillez s\u00e9lectionner une qualit\u00e9."
+      },
+      "audio_quality": {
+        "required": "Veuillez s\u00e9lectionner une qualit\u00e9 audio."
       }
     }
   }

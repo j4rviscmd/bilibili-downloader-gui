@@ -234,6 +234,8 @@ pub async fn merge_av(
     if !status.success() {
         return Err("ffmpeg failed to merge video and audio".into());
     }
+    // 完了ステージを送信後 complete 呼び出し (単一 Emits ライフサイクル)
+    let _ = emits.set_stage("complete").await;
     emits.complete().await;
 
     Ok(())
