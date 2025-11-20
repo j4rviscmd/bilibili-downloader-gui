@@ -25,6 +25,7 @@ pub fn run() {
                 .expect("no main window")
                 .set_focus();
         }))
+        .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         // Cookie のメモリキャッシュをグローバルステートとして管理
@@ -39,14 +40,19 @@ pub fn run() {
             download_video,
             get_settings,
             set_settings,
-            get_os
+            get_os,
+            record_download_click
         ])
         // 開発環境以外で`app`宣言ではBuildに失敗するため、`_app`を使用
-        .setup(|_app| {
+        .setup(|app| {
+            // Analytics 初期化 (非同期で失敗握りつぶし)
+            let handle: AppHandle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                crate::utils::analytics::init_analytics(&handle).await;
+            });
             // 開発環境の場合は、開発者コンソールを有効化
             #[cfg(debug_assertions)]
             {
-                let app = _app;
                 let window = app.get_webview_window("main").unwrap();
                 let window_height = window.inner_size().unwrap().height;
                 // 横幅だけ0まで縮小可能にする
@@ -154,4 +160,12 @@ async fn get_os() -> String {
     // Returns a normalized OS string used by frontend validation logic
     // std::env::consts::OS already returns one of: "windows", "macos", "linux", etc.
     std::env::consts::OS.to_string()
+}
+
+#[tauri::command]
+async fn record_download_click(app: AppHandle, download_id: String) -> Result<(), String> {
+    tauri::async_runtime::spawn(async move {
+        crate::utils::analytics::record_download_click(&app, &download_id).await;
+    });
+    Ok(())
 }
