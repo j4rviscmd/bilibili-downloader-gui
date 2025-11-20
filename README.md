@@ -37,8 +37,29 @@ See: [Tauri official docs](https://tauri.app/)
 
 1. Install dependencies
    - `npm i`
-2. Start the Tauri development server
+2. (Optional) Enable GA4 analytics in dev by creating a `.env` at repo root (see below)
+3. Start the Tauri development server
    - `npm run tauri dev`
+
+### Development .env (Analytics)
+
+Create a `.env` file in the repository root to embed GA4 secrets during development builds (debug only). These values are read at compile time; changing them requires restarting the dev process so Rust code recompiles.
+
+Example (`.env`):
+
+```.env
+GA_MEASUREMENT_ID=G-XXXXXXX
+GA_API_SECRET=xxxxxxxxxxxxxxxxxxxxxxxx
+# Optional: force debug endpoint in release build
+# GA_DEBUG=1
+```
+
+Notes:
+
+- `.env` is git-ignored; do not commit real secrets.
+- In development (`npm run tauri dev`) the file overrides environment variables for these keys.
+- Release/CI builds should supply environment variables instead of relying on `.env`.
+- If keys are missing you will see `[GA DISABLED] ...` logs in the terminal.
 
 ## Build (Distributable Binaries)
 
@@ -154,6 +175,45 @@ src-tauri/src/
 
 - Frontend: React, Vite, TypeScript, Redux Toolkit, shadcn/ui, animate‑ui
 - Desktop: Tauri (Rust)
+
+## Analytics
+
+This application sends minimal, non-personal usage events to Google Analytics 4 (GA4) via the Measurement Protocol. Installation and continued use imply consent to this data collection. A future version will provide an in-app opt‑out setting.
+
+### What Is Sent
+
+| Event             | When                                         | Parameters                                                                     |
+| ----------------- | -------------------------------------------- | ------------------------------------------------------------------------------ |
+| `first_install`   | First launch after installation              | `app_version`, `os`                                                            |
+| `app_update`      | First launch after version change            | `prev_version`, `new_version`, `os`                                            |
+| `app_start`       | Every app start                              | `app_version`, `os`                                                            |
+| `download_click`  | User clicks download button                  | `download_id`                                                                  |
+| `download_result` | Each download completes (success or failure) | `download_id`, `status`, `duration_ms`, `error_category?`, `app_version`, `os` |
+
+`download_id` is an internal random identifier per download attempt; it cannot identify a person or the downloaded content.
+
+### What Is NOT Sent
+
+- No filenames, URLs, video titles, user names, cookies, local paths, or authentication data.
+- No personally identifying information (PII) of any kind.
+
+### Error Category
+
+For failed downloads, only a high‑level error category (e.g. `COOKIE_MISSING`, `QUALITY_NOT_FOUND`, `NETWORK`, `MERGE_FAILED`) is sent, derived from internal error codes prefixed with `ERR::`.
+
+### Technical Details
+
+- GA4 Measurement ID: GitHub Actions environment variables.
+- API Secret is embedded at build time using GitHub Actions environment variables.
+- Events are sent directly from the desktop app; if delivery fails (e.g. offline) the failure is ignored (no retry / no local queue).
+- Secret exposure risk: desktop binaries can be inspected; the API secret may be extracted. In case of abnormal traffic you can rotate the secret and release a new version.
+
+### Planned
+
+- Opt‑out toggle in Settings (will cease all future event sends)
+- Optional proxy relay to protect the API secret and allow rate limiting
+
+If you have concerns or suggestions regarding analytics, please open an Issue.
 
 ## Error Codes
 
