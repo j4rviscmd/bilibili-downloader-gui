@@ -127,7 +127,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           GA_API_SECRET: ${{ secrets.GA_API_SECRET }}
-          GA_MEASUREMENT_ID: G-2LBL92DLMQ
+          GA_MEASUREMENT_ID: ${{ secrets.GA_MEASUREMENT_ID }}
         with:
           tagName: v__VERSION__
           releaseName: 'v__VERSION__'
