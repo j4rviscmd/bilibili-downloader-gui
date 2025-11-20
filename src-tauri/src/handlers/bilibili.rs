@@ -28,25 +28,39 @@ pub async fn download_video(
     download_id: String,
     _parent_id: Option<String>,
 ) -> Result<(), String> {
+    // Analytics: mark start
+    crate::utils::analytics::mark_download_start(&download_id);
     // --------------------------------------------------
     // 1. 出力ファイルパス決定 + 自動リネーム
     // --------------------------------------------------
-    let mut output_path = get_output_path(app, filename)
-        .await
-        .map_err(|e| e.to_string())?;
+    let mut output_path = match get_output_path(app, filename).await {
+        Ok(p) => p,
+        Err(e) => {
+            crate::utils::analytics::finish_download(app, &download_id, false, Some(&e.to_string())).await;
+            return Err(e.to_string());
+        }
+    };
     output_path.set_extension("mp4");
     output_path = auto_rename(&output_path);
 
     // --------------------------------------------------
     // 2. Cookie チェック
     // --------------------------------------------------
-    let cookies = read_cookie(app).map_err(|e| e.to_string())?;
-    if cookies.is_none() {
+    let cookies_opt = match read_cookie(app) {
+        Ok(c) => c,
+        Err(e) => {
+            crate::utils::analytics::finish_download(app, &download_id, false, Some(&e.to_string())).await;
+            return Err(e.to_string());
+        }
+    };
+    if cookies_opt.is_none() {
+        crate::utils::analytics::finish_download(app, &download_id, false, Some("ERR::COOKIE_MISSING")).await;
         return Err("ERR::COOKIE_MISSING".into());
     }
-    let cookies = cookies.unwrap();
+    let cookies = cookies_opt.unwrap();
     let cookie_header = build_cookie_header(&cookies);
     if cookie_header.is_empty() {
+        crate::utils::analytics::finish_download(app, &download_id, false, Some("ERR::COOKIE_MISSING")).await;
         return Err("ERR::COOKIE_MISSING".into());
     }
 
@@ -68,7 +82,10 @@ pub async fn download_video(
             emit_stage(app, &download_id, "warn-video-quality-fallback");
             fb
         }
-        (None, None) => return Err("ERR::QUALITY_NOT_FOUND".into()),
+        (None, None) => {
+            crate::utils::analytics::finish_download(app, &download_id, false, Some("ERR::QUALITY_NOT_FOUND")).await;
+            return Err("ERR::QUALITY_NOT_FOUND".into());
+        }
     };
     let video_url = use_video_item.base_url.clone();
 
@@ -86,7 +103,10 @@ pub async fn download_video(
             emit_stage(app, &download_id, "warn-audio-quality-fallback");
             fb
         }
-        (None, None) => return Err("ERR::QUALITY_NOT_FOUND".into()),
+        (None, None) => {
+            crate::utils::analytics::finish_download(app, &download_id, false, Some("ERR::QUALITY_NOT_FOUND")).await;
+            return Err("ERR::QUALITY_NOT_FOUND".into());
+        }
     };
     let audio_url = use_audio_item.base_url.clone();
 
@@ -147,6 +167,7 @@ pub async fn download_video(
     .await;
     if let Err(e) = video_res {
         drop(permit); // release permit
+        crate::utils::analytics::finish_download(app, &download_id, false, Some(&e)).await;
         return Err(e);
     }
     // keep permit until merge 完了
@@ -155,16 +176,15 @@ pub async fn download_video(
     // 7. マージ (merge stage emit)
     // --------------------------------------------------
     // merge stage は ffmpeg::merge_av 内で Emits を1つ生成して送信する (重複防止)
-    if let Err(e) = merge_av(
+    if let Err(_e) = merge_av(
         app,
         &temp_video_path,
         &temp_audio_path,
         &output_path,
         Some(download_id.clone()),
-    )
-    .await
-    {
+    ).await {
         drop(permit);
+        crate::utils::analytics::finish_download(app, &download_id, false, Some("ERR::MERGE_FAILED")).await;
         return Err("ERR::MERGE_FAILED".into());
     }
     drop(permit);
@@ -174,6 +194,7 @@ pub async fn download_video(
     let _ = tokio::fs::remove_file(&temp_audio_path).await;
 
     // 完了イベントは ffmpeg::merge_av 内で stage=complete + complete() を送信する
+    crate::utils::analytics::finish_download(app, &download_id, true, None).await;
 
     Ok(())
 }

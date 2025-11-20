@@ -13,6 +13,7 @@ import {
 import { selectDuplicateIndices } from '@/features/video/selectors'
 import { setVideo } from '@/features/video/videoSlice'
 import { enqueue } from '@/shared/queue/queueSlice'
+import { invoke } from '@tauri-apps/api/core'
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -105,6 +106,8 @@ export const useVideoInfo = () => {
       if (!videoId) return
       // Parent ID
       const parentId = `${videoId}-${Date.now()}`
+      // Analytics: record click
+      await invoke<void>('record_download_click', { downloadId: parentId })
       // Enqueue parent (placeholder filename = video.title)
       store.dispatch(
         enqueue({
