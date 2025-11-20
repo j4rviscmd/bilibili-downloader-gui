@@ -47,7 +47,7 @@ Create a `.env` file in the repository root to embed GA4 secrets during developm
 
 Example (`.env`):
 
-```
+```.env
 GA_MEASUREMENT_ID=G-XXXXXXX
 GA_API_SECRET=xxxxxxxxxxxxxxxxxxxxxxxx
 # Optional: force debug endpoint in release build
