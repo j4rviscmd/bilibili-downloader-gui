@@ -20,6 +20,8 @@ static GA_API_SECRET: Option<&'static str> = option_env!("GA_API_SECRET");
 pub async fn init_analytics(app: &AppHandle) {
     // If secrets are missing (empty), skip (build-time embedding should set them)
     if GA_MEASUREMENT_ID.unwrap_or("").is_empty() || GA_API_SECRET.unwrap_or("").is_empty() {
+        #[cfg(debug_assertions)]
+        println!("[GA DISABLED] init_analytics missing GA_MEASUREMENT_ID/GA_API_SECRET");
         return;
     }
 
@@ -78,6 +80,8 @@ pub async fn init_analytics(app: &AppHandle) {
 // Record user clicked download button.
 pub async fn record_download_click(app: &AppHandle, download_id: &str) {
     if GA_MEASUREMENT_ID.unwrap_or("").is_empty() || GA_API_SECRET.unwrap_or("").is_empty() {
+        #[cfg(debug_assertions)]
+        println!("[GA DISABLED] record_download_click skipped (missing GA secrets)");
         return;
     }
     let lib_path = crate::utils::paths::get_lib_path(app);
@@ -106,6 +110,8 @@ pub async fn finish_download(
     err_code: Option<&str>,
 ) {
     if GA_MEASUREMENT_ID.unwrap_or("").is_empty() || GA_API_SECRET.unwrap_or("").is_empty() {
+        #[cfg(debug_assertions)]
+        println!("[GA DISABLED] finish_download skipped (missing GA secrets)");
         return;
     }
     let start_opt = {
