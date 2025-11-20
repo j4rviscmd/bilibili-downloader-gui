@@ -203,7 +203,7 @@ For failed downloads, only a high‑level error category (e.g. `COOKIE_MISSING`,
 
 ### Technical Details
 
-- GA4 Measurement ID: `G-2LBL92DLMQ`
+- GA4 Measurement ID: GitHub Actions environment variables.
 - API Secret is embedded at build time using GitHub Actions environment variables.
 - Events are sent directly from the desktop app; if delivery fails (e.g. offline) the failure is ignored (no retry / no local queue).
 - Secret exposure risk: desktop binaries can be inspected; the API secret may be extracted. In case of abnormal traffic you can rotate the secret and release a new version.

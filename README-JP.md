@@ -184,7 +184,7 @@ src-tauri/src/
 
 ### 技術的詳細
 
-- GA4 測定 ID: `G-2LBL92DLMQ`
+- GA4 測定 ID: GitHub Actions のビルド時にバイナリへ埋め込み(G-xxxxxxxx)
 - API Secret は GitHub Actions のビルド時にバイナリへ埋め込み
 - 送信失敗（オフライン等）はリトライせず破棄
 - Secret はクライアント配布バイナリから抽出され得るため、異常トラフィック検出時は Secret ローテーション + 新バージョンリリースを推奨
