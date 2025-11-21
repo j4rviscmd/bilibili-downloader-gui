@@ -47,7 +47,8 @@
     "cookie_missing": "Cookie missing or invalid.",
     "network_error": "Network error during download.",
     "video_quality_fallback": "Selected video quality ({{from}}) unavailable. Using {{to}}.",
-    "audio_quality_fallback": "Selected audio quality ({{from}}) unavailable. Using {{to}}."
+    "audio_quality_fallback": "Selected audio quality ({{from}}) unavailable. Using {{to}}.",
+    "queue_waiting_prefix": "Queued:"
   },
   "progress": {
     "elapsed": "Elapsed",
