@@ -1,5 +1,6 @@
 export type Progress = {
   downloadId: string
+  deltaTime: number // in seconds
   filesize: number // in MB
   downloaded: number // in MB
   transferRate: number // in KB/s
