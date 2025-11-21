@@ -24,7 +24,7 @@
     "quality_note": "* 部分高码率清晰度（如 720p60 / 1080p60）可能因登录状态或地区不可用。",
     "audio_quality_label": "音质",
     "audio_quality_description": "选择要下载的音频音质。",
-    "audio_quality_note": "* 某些高品质音频（Dolby Atmos / Hi-Res）可能需要登录或受地区限制而不可用。",
+    "audio_quality_note": "* 部分高品质音频（Dolby Atmos / Hi-Res）可能需要登录或受地区限制而不可用。",
     "progress_title": "下载进度",
     "bar_audio": "音频数据",
     "bar_video": "视频数据",
@@ -43,7 +43,9 @@
     "cookie_missing": "Cookie 缺失或无效。",
     "network_error": "下载过程中发生网络错误。",
     "video_quality_fallback": "选定的视频清晰度 ({{from}}) 不可用，已使用 {{to}}。",
-    "audio_quality_fallback": "选定的音频音质 ({{from}}) 不可用，已使用 {{to}}。"
+    "audio_quality_fallback": "选定的音频音质 ({{from}}) 不可用，已使用 {{to}}。",
+    "queue_waiting_prefix": "排队中:",
+    "reload_after_error": "刷新页面后重试"
   },
   "toast": { "success": "成功", "error": "发生错误" },
   "init": {
@@ -91,8 +93,8 @@
     "save_failed_generic": "保存设置失败",
     "permission_denied": "没有权限",
     "disk_full": "磁盘已满",
-    "path_not_directory": "指定的路径不是目录",
-    "path_not_exist": "指定的目录不存在"
+    "path_not_directory": "指定路径不是目录",
+    "path_not_exist": "指定目录不存在"
   },
   "validation": {
     "path": {
@@ -121,14 +123,13 @@
         "min": "标题至少需要 2 个字符。",
         "max": "标题长度不能超过 100 个字符。",
         "required": "请输入标题。",
-        "invalid_chars": "标题包含不允许的字符（{{chars}}）。",
-        "duplicate": "该文件名已被其他分段使用。"
+        "invalid_chars": "标题包含不允许的字符（{{chars}}）。"
       },
       "quality": {
-        "required": "\u8bf7\u9009\u62e9\u6e05\u6670\u5ea6\u3002"
+        "required": "请选择清晰度。"
       },
       "audio_quality": {
-        "required": "\u8bf7\u9009\u62e9\u97f3\u8d28\u3002"
+        "required": "请选择音质。"
       }
     }
   }

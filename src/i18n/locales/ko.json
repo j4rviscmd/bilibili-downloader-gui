@@ -21,10 +21,10 @@
     "title_description": "BiliBili 영상 제목을 입력하세요. 파일명으로 사용됩니다.",
     "quality_label": "화질",
     "quality_description": "다운로드할 영상 화질을 선택하세요.",
-    "quality_note": "* 720p60 / 1080p60 등의 고화질은 로그인 상태나 지역에 따라 선택할 수 없습니다.",
+    "quality_note": "* 720p60 / 1080p60 등의 고화질은 로그인 상태나 지역에 따라 선택 불가할 수 있습니다.",
     "audio_quality_label": "음질",
     "audio_quality_description": "다운로드할 음성 음질을 선택하세요.",
-    "audio_quality_note": "* Dolby Atmos / Hi-Res 등의 고음질은 로그인 상태나 지역에 따라 선택할 수 없습니다.",
+    "audio_quality_note": "* Dolby Atmos / Hi-Res 등의 고음질은 로그인 상태나 지역에 따라 선택 불가할 수 있습니다.",
     "progress_title": "다운로드 진행 상황",
     "bar_audio": "오디오 데이터",
     "bar_video": "비디오 데이터",
@@ -37,13 +37,15 @@
     "download_failed": "다운로드에 실패했습니다",
     "file_exists": "같은 이름의 파일이 이미 존재합니다",
     "disk_full": "디스크 용량이 부족합니다",
-    "duplicate_titles": "중복된 파일명이 있습니다. 고유하도록 수정해주세요.",
+    "duplicate_titles": "중복된 파일명이 있습니다. 고유하게 수정하세요.",
     "merge_failed": "최종 영상 생성(병합 단계) 실패.",
-    "quality_not_found": "요청한 화질을 사용할 수 없습니다.",
+    "quality_not_found": "지정한 화질을 사용할 수 없습니다.",
     "cookie_missing": "쿠키가 없거나 유효하지 않습니다.",
     "network_error": "다운로드 중 네트워크 오류 발생.",
-    "video_quality_fallback": "선택한 화질 ({{from}}) 을(를) 사용할 수 없어 {{to}} 로 대체합니다.",
-    "audio_quality_fallback": "선택한 음질 ({{from}}) 을(를) 사용할 수 없어 {{to}} 로 대체합니다."
+    "video_quality_fallback": "선택한 화질 ({{from}}) 을(를) 사용할 수 없어 {{to}} 로 대체했습니다.",
+    "audio_quality_fallback": "선택한 음질 ({{from}}) 을(를) 사용할 수 없어 {{to}} 로 대체했습니다.",
+    "queue_waiting_prefix": "대기 중:",
+    "reload_after_error": "페이지 새로고침 후 재시도"
   },
   "toast": { "success": "성공", "error": "문제가 발생했습니다" },
   "init": {
@@ -61,7 +63,7 @@
     "latest_version": "최신 버전을 사용 중입니다",
     "downloading_update": "업데이트 다운로드 중 ({{ver}})...",
     "update_done_restart": "업데이트 완료. 재시작 중...",
-    "update_failed": "업데이트 실패",
+    "update_failed": "업데이트 확인 또는 적용 실패",
     "cookie_success": "쿠키 가져오기 성공",
     "cookie_failed": "쿠키 가져오기 실패"
   },
@@ -74,7 +76,7 @@
     "cookie_invalid": "쿠키가 유효하지 않습니다.",
     "user_info_failed": "사용자 정보를 가져올 수 없습니다.",
     "user_info_failed_other": "사용자 정보를 가져올 수 없습니다(로그인 문제 제외).",
-    "version_check_failed": "앱 버전 확인에 실패했습니다.",
+    "version_check_failed": "앱 버전 확인 실패.",
     "unexpected": "예기치 않은 오류가 발생했습니다.",
     "visit_and_login": "에 로그인되어 있는지 확인하세요",
     "quit_app": "앱 종료"
@@ -83,12 +85,12 @@
     "language_label": "언어",
     "output_dir_label": "출력 디렉터리",
     "output_dir_placeholder": "예: C\\\\Users\\\\you\\\\Downloads 또는 /Users/you/Downloads",
-    "output_dir_description": "비디오 파일이 저장될 디렉터리를 입력하세요.",
+    "output_dir_description": "영상 파일이 저장될 디렉터리를 입력하세요.",
     "auto_save_note": "변경 사항은 자동 저장됩니다.",
     "dialog_title": "설정",
     "save_success": "설정을 저장했습니다",
-    "save_failed": "설정 저장에 실패했습니다",
-    "save_failed_generic": "설정 저장에 실패했습니다",
+    "save_failed": "설정 저장 실패",
+    "save_failed_generic": "설정 저장 실패",
     "permission_denied": "권한이 없습니다",
     "disk_full": "디스크 용량이 부족합니다",
     "path_not_directory": "지정한 경로는 디렉터리가 아닙니다",
@@ -98,7 +100,7 @@
     "path": {
       "required": "출력 경로를 입력하세요.",
       "too_long": "경로는 최대 1024자여야 합니다.",
-      "control_chars": "제어 문자는 사용할 수 없습니다.",
+      "control_chars": "제어 문자는 경로에서 허용되지 않습니다.",
       "invalid": "잘못된 경로입니다.",
       "invalid_chars": "허용되지 않는 문자: < > \" | ? *",
       "windows": {
@@ -121,13 +123,13 @@
         "min": "제목은 최소 2자여야 합니다.",
         "max": "제목은 최대 100자여야 합니다.",
         "required": "제목을 입력하세요.",
-        "invalid_chars": "제목에 사용할 수 없는 문자가 포함되어 있습니다 ({{chars}})."
+        "invalid_chars": "제목에 허용되지 않는 문자가 포함되어 있습니다 ({{chars}})."
       },
       "quality": {
-        "required": "\ud654\uc9c8\uc744 \uc120\ud0dd\ud558\uc138\uc694."
+        "required": "화질을 선택하세요."
       },
       "audio_quality": {
-        "required": "\uc74c\uc9c8\uc744 \uc120\ud0dd\ud558\uc138\uc694."
+        "required": "음질을 선택하세요."
       }
     }
   }

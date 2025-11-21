@@ -47,7 +47,9 @@
     "cookie_missing": "Cookie が不足または無効です。",
     "network_error": "ダウンロード中にネットワークエラーが発生しました。",
     "video_quality_fallback": "選択した画質 ({{from}}) が利用できないため {{to}} にフォールバックしました。",
-    "audio_quality_fallback": "選択した音質 ({{from}}) が利用できないため {{to}} にフォールバックしました。"
+    "audio_quality_fallback": "選択した音質 ({{from}}) が利用できないため {{to}} にフォールバックしました。",
+    "queue_waiting_prefix": "キュー待ち:",
+    "reload_after_error": "ページをリロードして再試行"
   },
   "progress": {
     "elapsed": "経過",
@@ -139,10 +141,10 @@
         "duplicate": "同じファイル名が他のパートで設定されています。"
       },
       "quality": {
-        "required": "\u753b\u8cea\u3092\u9078\u629e\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
+        "required": "画質を選択してください。"
       },
       "audio_quality": {
-        "required": "\u97f3\u8cea\u3092\u9078\u629e\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
+        "required": "音質を選択してください。"
       }
     }
   }
