@@ -29,14 +29,6 @@ export const store = configureStore({
   devTools: process.env.NODE_ENV !== 'production',
 })
 
-// NOTE: エラー状態参照のため暫定的に window へ公開 (将来削除検討)
-declare global {
-  interface Window {
-    __REDUX_STORE__?: typeof store
-  }
-}
-window.__REDUX_STORE__ = store
-
 export type RootState = ReturnType<typeof store.getState>
 export type AppDispatch = typeof store.dispatch
 export const useSelector: TypedUseSelectorHook<RootState> = rawUseSelector

@@ -85,7 +85,9 @@ function DownloadingDialog() {
   const activeStages = progress.filter((p) =>
     ['audio', 'video', 'merge'].includes(p.stage || ''),
   )
-  const hasError = useSelector((s: RootState) => s.downloadStatus.hasError)
+  const { hasError, errorMessage } = useSelector(
+    (s: RootState) => s.downloadStatus,
+  )
   // エラー時は即ボタン活性化するため hasError 優先で isDownloading を false にする
   const isDownloading =
     !hasError &&
@@ -185,6 +187,22 @@ function DownloadingDialog() {
           ))}
         </div>
 
+        {hasError && (
+          <div
+            role="alert"
+            className="border-destructive/40 bg-destructive/10 text-destructive mb-4 w-full rounded-md border px-4 py-3 text-sm"
+          >
+            <div className="mb-1 font-semibold">
+              {t('video.download_failed')}
+            </div>
+            <div className="truncate" title={errorMessage || ''}>
+              {errorMessage}
+            </div>
+            <div className="text-muted-foreground mt-2 text-xs">
+              {t('video.reload_after_error')}
+            </div>
+          </div>
+        )}
         <div>
           <Button disabled={isDownloading} onClick={onClick}>
             {isDownloading ? (
