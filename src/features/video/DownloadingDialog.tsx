@@ -62,12 +62,30 @@ function DownloadingDialog() {
     return acc
   }, {})
 
+  // groupsが現在ダイアログに表示中(=進行中)のキュー
+  // input.partInputsを母集団とした時、groupsに含まれていないアイテムリストを取得する
+  // 存在判定はdownloadIdの末尾 -p{page} で行う
+  const activePages = new Set<number>()
+  Object.values(groups).forEach((entries) => {
+    entries.forEach((p) => {
+      const m = p.downloadId.match(/-p(\d+)$/)
+      if (m) {
+        activePages.add(Number(m[1]))
+      }
+    })
+  })
+  // NOTE: DL進行中でないパートリスト
+  const notInProgress = input.partInputs.filter(
+    (part) => !activePages.has(part.page),
+  )
+
   const phaseOrder = ['audio', 'video', 'merge']
   // active stages limited to audio/video/merge (exclude complete)
   const activeStages = progress.filter((p) =>
     ['audio', 'video', 'merge'].includes(p.stage || ''),
   )
-  const isDownloading = activeStages.some((p) => !p.isComplete)
+  const isDownloading =
+    activeStages.some((p) => !p.isComplete) || notInProgress.length > 0
 
   return (
     <Dialog modal open={hasDlQue}>
@@ -147,6 +165,19 @@ function DownloadingDialog() {
                 </div>
               )
             })}
+          {notInProgress.map((part) => (
+            <div
+              key={part.page}
+              className="mb-3 w-full rounded-md border px-1 py-3"
+            >
+              <div
+                className="text-md mb-1 truncate px-3 font-semibold"
+                title={part.title}
+              >
+                {part.title}
+              </div>
+            </div>
+          ))}
         </div>
 
         <div>
