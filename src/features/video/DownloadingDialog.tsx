@@ -174,7 +174,8 @@ function DownloadingDialog() {
                 className="text-md mb-1 truncate px-3 font-semibold"
                 title={part.title}
               >
-                {part.title}
+                <span>{t('video.queue_waiting_prefix')}</span>
+                <span>{part.title}</span>
               </div>
             </div>
           ))}
