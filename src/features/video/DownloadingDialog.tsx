@@ -185,20 +185,6 @@ function DownloadingDialog() {
               </div>
             </div>
           ))}
-          {notInProgress.map((part) => (
-            <div
-              key={part.page}
-              className="mb-3 w-full rounded-md border px-1 py-3"
-            >
-              <div
-                className="text-md mb-1 truncate px-3 font-semibold"
-                title={part.title}
-              >
-                <span className="pr-1">{t('video.queue_waiting_prefix')}</span>
-                <span>{part.title}</span>
-              </div>
-            </div>
-          ))}
         </div>
 
         {hasError && (
