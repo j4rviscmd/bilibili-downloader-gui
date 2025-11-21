@@ -1,3 +1,4 @@
+import { useSelector, type RootState } from '@/app/store'
 import {
   Dialog,
   DialogContent,
@@ -84,8 +85,13 @@ function DownloadingDialog() {
   const activeStages = progress.filter((p) =>
     ['audio', 'video', 'merge'].includes(p.stage || ''),
   )
+  const { hasError, errorMessage } = useSelector(
+    (s: RootState) => s.downloadStatus,
+  )
+  // エラー時は即ボタン活性化するため hasError 優先で isDownloading を false にする
   const isDownloading =
-    activeStages.some((p) => !p.isComplete) || notInProgress.length > 0
+    !hasError &&
+    (activeStages.some((p) => !p.isComplete) || notInProgress.length > 0)
 
   return (
     <Dialog modal open={hasDlQue}>
@@ -181,10 +187,28 @@ function DownloadingDialog() {
           ))}
         </div>
 
+        {hasError && (
+          <div
+            role="alert"
+            className="border-destructive/40 bg-destructive/10 text-destructive mb-4 w-full rounded-md border px-4 py-3 text-sm"
+          >
+            <div className="mb-1 font-semibold">
+              {t('video.download_failed')}
+            </div>
+            <div className="truncate" title={errorMessage || ''}>
+              {errorMessage}
+            </div>
+            <div className="text-muted-foreground mt-2 text-xs">
+              {t('video.reload_after_error')}
+            </div>
+          </div>
+        )}
         <div>
           <Button disabled={isDownloading} onClick={onClick}>
             {isDownloading ? (
               <CircleIndicator r={8} />
+            ) : hasError ? (
+              t('video.reload_after_error')
             ) : (
               t('video.download_completed')
             )}

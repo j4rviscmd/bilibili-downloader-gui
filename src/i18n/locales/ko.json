@@ -44,7 +44,8 @@
     "network_error": "다운로드 중 네트워크 오류 발생.",
     "video_quality_fallback": "선택한 화질 ({{from}}) 을(를) 사용할 수 없어 {{to}} 로 대체했습니다.",
     "audio_quality_fallback": "선택한 음질 ({{from}}) 을(를) 사용할 수 없어 {{to}} 로 대체했습니다.",
-    "queue_waiting_prefix": "대기 중:"
+    "queue_waiting_prefix": "대기 중:",
+    "reload_after_error": "페이지 새로고침 후 재시도"
   },
   "toast": { "success": "성공", "error": "문제가 발생했습니다" },
   "init": {

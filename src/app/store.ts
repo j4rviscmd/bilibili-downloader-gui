@@ -2,6 +2,7 @@ import countReducer from '@/features/count/countSlice'
 import initReducer from '@/features/init/initSlice'
 import inputReducer from '@/features/video/inputSlice'
 import videoReducer from '@/features/video/videoSlice'
+import downloadStatusReducer from '@/shared/downloadStatus/downloadStatusSlice'
 import progressReducer from '@/shared/progress/progressSlice'
 import queueReducer from '@/shared/queue/queueSlice'
 import settingReducer from '@/shared/settings/settingsSlice'
@@ -23,6 +24,7 @@ export const store = configureStore({
     video: videoReducer,
     settings: settingReducer,
     queue: queueReducer,
+    downloadStatus: downloadStatusReducer,
   },
   devTools: process.env.NODE_ENV !== 'production',
 })

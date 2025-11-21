@@ -44,7 +44,8 @@
     "network_error": "下载过程中发生网络错误。",
     "video_quality_fallback": "选定的视频清晰度 ({{from}}) 不可用，已使用 {{to}}。",
     "audio_quality_fallback": "选定的音频音质 ({{from}}) 不可用，已使用 {{to}}。",
-    "queue_waiting_prefix": "排队中:"
+    "queue_waiting_prefix": "排队中:",
+    "reload_after_error": "刷新页面后重试"
   },
   "toast": { "success": "成功", "error": "发生错误" },
   "init": {
