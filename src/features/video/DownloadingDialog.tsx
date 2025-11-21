@@ -1,3 +1,4 @@
+import { useSelector, type RootState } from '@/app/store'
 import {
   Dialog,
   DialogContent,
@@ -84,8 +85,11 @@ function DownloadingDialog() {
   const activeStages = progress.filter((p) =>
     ['audio', 'video', 'merge'].includes(p.stage || ''),
   )
+  const hasError = useSelector((s: RootState) => s.downloadStatus.hasError)
+  // エラー時は即ボタン活性化するため hasError 優先で isDownloading を false にする
   const isDownloading =
-    activeStages.some((p) => !p.isComplete) || notInProgress.length > 0
+    !hasError &&
+    (activeStages.some((p) => !p.isComplete) || notInProgress.length > 0)
 
   return (
     <Dialog modal open={hasDlQue}>
@@ -185,6 +189,8 @@ function DownloadingDialog() {
           <Button disabled={isDownloading} onClick={onClick}>
             {isDownloading ? (
               <CircleIndicator r={8} />
+            ) : hasError ? (
+              t('video.reload_after_error')
             ) : (
               t('video.download_completed')
             )}

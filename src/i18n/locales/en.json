@@ -48,7 +48,8 @@
     "network_error": "Network error during download.",
     "video_quality_fallback": "Selected video quality ({{from}}) unavailable. Using {{to}}.",
     "audio_quality_fallback": "Selected audio quality ({{from}}) unavailable. Using {{to}}.",
-    "queue_waiting_prefix": "Queued:"
+    "queue_waiting_prefix": "Queued:",
+    "reload_after_error": "Reload page to retry"
   },
   "progress": {
     "elapsed": "Elapsed",

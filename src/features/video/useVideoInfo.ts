@@ -12,6 +12,7 @@ import {
 } from '@/features/video/inputSlice'
 import { selectDuplicateIndices } from '@/features/video/selectors'
 import { setVideo } from '@/features/video/videoSlice'
+import { setError } from '@/shared/downloadStatus/downloadStatusSlice'
 import { enqueue } from '@/shared/queue/queueSlice'
 import { invoke } from '@tauri-apps/api/core'
 import { useEffect, useRef } from 'react'
@@ -155,6 +156,7 @@ export const useVideoInfo = () => {
         closeButton: true,
       })
       console.error('Download failed:', raw)
+      store.dispatch(setError(description))
     }
   }
 
