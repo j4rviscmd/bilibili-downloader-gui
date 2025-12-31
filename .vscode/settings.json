@@ -1,4 +1,7 @@
 {
+  "markdownlint.config": {
+    "MD033": false
+  },
   "cSpell.words": [
     "bilibili",
     "bvid",

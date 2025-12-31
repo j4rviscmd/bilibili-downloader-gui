@@ -41,15 +41,16 @@ pub fn run() {
             get_settings,
             set_settings,
             get_os,
-            record_download_click
+            // record_download_click  // NOTE: GA4 Analytics は無効化されています
         ])
         // 開発環境以外で`app`宣言ではBuildに失敗するため、`_app`を使用
         .setup(|app| {
             // Analytics 初期化 (非同期で失敗握りつぶし)
-            let handle: AppHandle = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                crate::utils::analytics::init_analytics(&handle).await;
-            });
+            // NOTE: GA4 Analytics は無効化されています
+            // let handle: AppHandle = app.handle().clone();
+            // tauri::async_runtime::spawn(async move {
+            //     crate::utils::analytics::init_analytics(&handle).await;
+            // });
             // 開発環境の場合は、開発者コンソールを有効化
             #[cfg(debug_assertions)]
             {
@@ -162,10 +163,11 @@ async fn get_os() -> String {
     std::env::consts::OS.to_string()
 }
 
-#[tauri::command]
-async fn record_download_click(app: AppHandle, download_id: String) -> Result<(), String> {
-    tauri::async_runtime::spawn(async move {
-        crate::utils::analytics::record_download_click(&app, &download_id).await;
-    });
-    Ok(())
-}
+// NOTE: GA4 Analytics は無効化されています
+// #[tauri::command]
+// async fn record_download_click(app: AppHandle, download_id: String) -> Result<(), String> {
+//     tauri::async_runtime::spawn(async move {
+//         crate::utils::analytics::record_download_click(&app, &download_id).await;
+//     });
+//     Ok(())
+// }
