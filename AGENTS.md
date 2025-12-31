@@ -9,16 +9,16 @@
 
 - すべてのコード変更は事前に Issue / PR 上で合意。口頭のみ不可。
 - "ユーザの許諾" = 対象リポジトリのメンテナ(OWNER もしくは CODEOWNERS 該当者) の GitHub Review "Approved"。
-- 緊急 hotfix: Issue に `hotfix` ラベル + 原因 / 暫定対策 / 恒久対策案記載。マージ後 24h 以内に事後レビュー。
-- Self-merge 禁止 (hotfix 例外時も事後レビュー必須)。
+- 緊急対応: Issue に `priority:high` ラベル + 原因 / 暫定対策 / 恒久対策案記載。マージ後 24h 以内に事後レビュー。
+- Self-merge 禁止 (緊急時も事後レビュー必須)。
 
-### 2. ブランチ戦略
+### 2. ブランチ戦略 (GitHub Flow)
 
 - `main`: 常にデプロイ可能。直接 push 禁止。保護設定。
-- 機能: `feature/<短い-kebab-case>`。
-- バグ修正: `fix/<issue番号-概要>`。
-- リリース調整: `release/<version>` (必要時)。
-- 緊急: `hotfix/<issue番号>`。
+- `feature/<短い-kebab-case>`: 機能追加・バグ修正・リファクタなどすべての変更。
+  - 例: `feature/add-dark-mode`, `feature/fix-123-login-error`
+- すべての変更は feature ブランチから PR を通じて main にマージ。
+- リリースはタグ (`v<version>`) で管理。
 
 ### 3. コミット規約 (Conventional Commits)
 
@@ -158,7 +158,7 @@
 
 ### 12. Issue ラベル
 
-- 使用ラベル例: `type:feature`, `type:bug`, `type:refactor`, `type:docs`, `priority:high`, `security`, `test-required`, `hotfix`, `blocked`。
+- 使用ラベル例: `type:feature`, `type:bug`, `type:refactor`, `type:docs`, `priority:high`, `security`, `test-required`, `blocked`。
 - `blocked` は解除条件コメント必須。
 
 ### 13. 新規依存導入審査
