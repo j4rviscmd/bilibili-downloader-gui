@@ -8,7 +8,7 @@ Windows and macOS Bilibili video downloader GUI. Frontend is built with React + 
 
 > Notice: This app is intended for educational and personal use. Respect the terms of service and copyright laws. Do not download or redistribute content without permission from rights holders.
 
-![App Icon](public/icon.png)
+<img src="public/icon.png" alt="App Icon" width="128">
 
 ![App Image](public/app-image_en.png)
 
