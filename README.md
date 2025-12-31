@@ -37,29 +37,8 @@ See: [Tauri official docs](https://tauri.app/)
 
 1. Install dependencies
    - `npm i`
-2. (Optional) Enable GA4 analytics in dev by creating a `.env` at repo root (see below)
-3. Start the Tauri development server
+2. Start the Tauri development server
    - `npm run tauri dev`
-
-### Development .env (Analytics)
-
-Create a `.env` file in the repository root to embed GA4 secrets during development builds (debug only). These values are read at compile time; changing them requires restarting the dev process so Rust code recompiles.
-
-Example (`.env`):
-
-```.env
-GA_MEASUREMENT_ID=G-XXXXXXX
-GA_API_SECRET=xxxxxxxxxxxxxxxxxxxxxxxx
-# Optional: force debug endpoint in release build
-# GA_DEBUG=1
-```
-
-Notes:
-
-- `.env` is git-ignored; do not commit real secrets.
-- In development (`npm run tauri dev`) the file overrides environment variables for these keys.
-- Release/CI builds should supply environment variables instead of relying on `.env`.
-- If keys are missing you will see `[GA DISABLED] ...` logs in the terminal.
 
 ## Build (Distributable Binaries)
 
