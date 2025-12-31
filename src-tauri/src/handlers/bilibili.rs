@@ -29,14 +29,16 @@ pub async fn download_video(
     _parent_id: Option<String>,
 ) -> Result<(), String> {
     // Analytics: mark start
-    crate::utils::analytics::mark_download_start(&download_id);
+    // NOTE: GA4 Analytics は無効化されています
+    // crate::utils::analytics::mark_download_start(&download_id);
     // --------------------------------------------------
     // 1. 出力ファイルパス決定 + 自動リネーム
     // --------------------------------------------------
     let mut output_path = match get_output_path(app, filename).await {
         Ok(p) => p,
         Err(e) => {
-            crate::utils::analytics::finish_download(app, &download_id, false, Some(&e.to_string())).await;
+            // NOTE: GA4 Analytics は無効化されています
+            // crate::utils::analytics::finish_download(app, &download_id, false, Some(&e.to_string())).await;
             return Err(e.to_string());
         }
     };
@@ -49,18 +51,21 @@ pub async fn download_video(
     let cookies_opt = match read_cookie(app) {
         Ok(c) => c,
         Err(e) => {
-            crate::utils::analytics::finish_download(app, &download_id, false, Some(&e.to_string())).await;
+            // NOTE: GA4 Analytics は無効化されています
+            // crate::utils::analytics::finish_download(app, &download_id, false, Some(&e.to_string())).await;
             return Err(e.to_string());
         }
     };
     if cookies_opt.is_none() {
-        crate::utils::analytics::finish_download(app, &download_id, false, Some("ERR::COOKIE_MISSING")).await;
+        // NOTE: GA4 Analytics は無効化されています
+        // crate::utils::analytics::finish_download(app, &download_id, false, Some("ERR::COOKIE_MISSING")).await;
         return Err("ERR::COOKIE_MISSING".into());
     }
     let cookies = cookies_opt.unwrap();
     let cookie_header = build_cookie_header(&cookies);
     if cookie_header.is_empty() {
-        crate::utils::analytics::finish_download(app, &download_id, false, Some("ERR::COOKIE_MISSING")).await;
+        // NOTE: GA4 Analytics は無効化されています
+        // crate::utils::analytics::finish_download(app, &download_id, false, Some("ERR::COOKIE_MISSING")).await;
         return Err("ERR::COOKIE_MISSING".into());
     }
 
@@ -83,7 +88,8 @@ pub async fn download_video(
             fb
         }
         (None, None) => {
-            crate::utils::analytics::finish_download(app, &download_id, false, Some("ERR::QUALITY_NOT_FOUND")).await;
+            // NOTE: GA4 Analytics は無効化されています
+            // crate::utils::analytics::finish_download(app, &download_id, false, Some("ERR::QUALITY_NOT_FOUND")).await;
             return Err("ERR::QUALITY_NOT_FOUND".into());
         }
     };
@@ -104,7 +110,8 @@ pub async fn download_video(
             fb
         }
         (None, None) => {
-            crate::utils::analytics::finish_download(app, &download_id, false, Some("ERR::QUALITY_NOT_FOUND")).await;
+            // NOTE: GA4 Analytics は無効化されています
+            // crate::utils::analytics::finish_download(app, &download_id, false, Some("ERR::QUALITY_NOT_FOUND")).await;
             return Err("ERR::QUALITY_NOT_FOUND".into());
         }
     };
@@ -167,7 +174,8 @@ pub async fn download_video(
     .await;
     if let Err(e) = video_res {
         drop(permit); // release permit
-        crate::utils::analytics::finish_download(app, &download_id, false, Some(&e)).await;
+        // NOTE: GA4 Analytics は無効化されています
+        // crate::utils::analytics::finish_download(app, &download_id, false, Some(&e)).await;
         return Err(e);
     }
     // keep permit until merge 完了
@@ -184,7 +192,8 @@ pub async fn download_video(
         Some(download_id.clone()),
     ).await {
         drop(permit);
-        crate::utils::analytics::finish_download(app, &download_id, false, Some("ERR::MERGE_FAILED")).await;
+        // NOTE: GA4 Analytics は無効化されています
+        // crate::utils::analytics::finish_download(app, &download_id, false, Some("ERR::MERGE_FAILED")).await;
         return Err("ERR::MERGE_FAILED".into());
     }
     drop(permit);
@@ -194,7 +203,8 @@ pub async fn download_video(
     let _ = tokio::fs::remove_file(&temp_audio_path).await;
 
     // 完了イベントは ffmpeg::merge_av 内で stage=complete + complete() を送信する
-    crate::utils::analytics::finish_download(app, &download_id, true, None).await;
+    // NOTE: GA4 Analytics は無効化されています
+    // crate::utils::analytics::finish_download(app, &download_id, true, None).await;
 
     Ok(())
 }

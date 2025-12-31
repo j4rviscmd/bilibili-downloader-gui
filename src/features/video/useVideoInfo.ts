@@ -108,7 +108,8 @@ export const useVideoInfo = () => {
       // Parent ID
       const parentId = `${videoId}-${Date.now()}`
       // Analytics: record click
-      await invoke<void>('record_download_click', { downloadId: parentId })
+      // NOTE: GA4 Analytics は無効化されています
+      // await invoke<void>('record_download_click', { downloadId: parentId })
       // Enqueue parent (placeholder filename = video.title)
       store.dispatch(
         enqueue({
