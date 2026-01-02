@@ -19,6 +19,7 @@
     "url_placeholder": "Paste Bilibili URL",
     "url_label": "URL",
     "url_description": "Enter the video URL.",
+    "fetching_info": "Fetching video info...",
     "url_placeholder_example": "e.g. https://www.bilibili.com/video/BV1xxxxxx",
     "title_label": "Title",
     "title_placeholder": "The title will be auto-filled after entering a URL",

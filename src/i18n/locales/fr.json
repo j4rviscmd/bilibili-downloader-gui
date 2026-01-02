@@ -15,6 +15,7 @@
     "url_placeholder": "Coller l'URL Bilibili",
     "url_label": "URL",
     "url_description": "Entrez l'URL de la vidéo.",
+    "fetching_info": "Récupération des informations...",
     "url_placeholder_example": "ex: https://www.bilibili.com/video/BV1xxxxxx",
     "title_label": "Titre",
     "title_placeholder": "Le titre sera rempli automatiquement après l'URL",

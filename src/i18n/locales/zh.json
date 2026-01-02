@@ -15,6 +15,7 @@
     "url_placeholder": "粘贴 Bilibili 链接",
     "url_label": "链接",
     "url_description": "请输入视频链接。",
+    "fetching_info": "正在获取视频信息...",
     "url_placeholder_example": "例如: https://www.bilibili.com/video/BV1xxxxxx",
     "title_label": "标题",
     "title_placeholder": "输入链接后自动填充",

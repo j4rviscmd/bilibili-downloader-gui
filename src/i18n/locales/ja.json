@@ -19,6 +19,7 @@
     "url_placeholder": "Bilibili のURLを貼り付け",
     "url_label": "URL",
     "url_description": "動画のURLを入力してください。",
+    "fetching_info": "動画情報を取得中...",
     "url_placeholder_example": "例: https://www.bilibili.com/video/BV1xxxxxx",
     "title_label": "タイトル",
     "title_placeholder": "URL入力後に自動入力されます",
