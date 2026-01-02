@@ -35,7 +35,7 @@ export const useVideoInfo = () => {
     const partInputs = v.parts.map((p) => ({
       cid: p.cid,
       page: p.page,
-      title: `${v.title}_${p.part}`,
+      title: v.title,
       videoQuality: (p.videoQualities[0]?.id || 80).toString(),
       audioQuality: (p.audioQualities[0]?.id || 30216).toString(),
       selected: true,
