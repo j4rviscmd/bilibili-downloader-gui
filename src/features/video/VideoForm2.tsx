@@ -1,3 +1,5 @@
+import type { RootState } from '@/app/store'
+import { store } from '@/app/store'
 import { Checkbox } from '@/components/animate-ui/radix/checkbox'
 import {
   RadioGroup,
@@ -23,7 +25,6 @@ import { buildVideoFormSchema2 } from '@/features/video/formSchema'
 import { updatePartSelected } from '@/features/video/inputSlice'
 import type { Video } from '@/features/video/types'
 import { useVideoInfo } from '@/features/video/useVideoInfo'
-import { store } from '@/app/store'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
@@ -31,7 +32,6 @@ import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import { z } from 'zod'
 import { cn } from '../../lib/utils'
-import type { RootState } from '@/app/store'
 
 type Props = {
   video: Video
@@ -71,7 +71,7 @@ function VideoForm2({ video, page, isDuplicate }: Props) {
   useEffect(() => {
     ;(async () => {
       if (video && video.parts.length > 0 && video.parts[0].cid !== 0) {
-        form.setValue('title', video.title + '_' + videoPart.part, {
+        form.setValue('title', video.title + ' ' + videoPart.part, {
           shouldValidate: true,
         })
         form.setValue(

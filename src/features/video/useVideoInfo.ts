@@ -14,7 +14,6 @@ import { selectDuplicateIndices } from '@/features/video/selectors'
 import { setVideo } from '@/features/video/videoSlice'
 import { setError } from '@/shared/downloadStatus/downloadStatusSlice'
 import { enqueue } from '@/shared/queue/queueSlice'
-import { invoke } from '@tauri-apps/api/core'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -35,7 +34,7 @@ export const useVideoInfo = () => {
     const partInputs = v.parts.map((p) => ({
       cid: p.cid,
       page: p.page,
-      title: `${v.title}_${p.part}`,
+      title: `${v.title} ${p.part}`,
       videoQuality: (p.videoQualities[0]?.id || 80).toString(),
       audioQuality: (p.audioQualities[0]?.id || 30216).toString(),
       selected: true,
