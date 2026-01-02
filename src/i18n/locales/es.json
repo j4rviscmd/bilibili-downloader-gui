@@ -45,7 +45,10 @@
     "video_quality_fallback": "La calidad de video seleccionada ({{from}}) no está disponible. Usando {{to}}.",
     "audio_quality_fallback": "La calidad de audio seleccionada ({{from}}) no está disponible. Usando {{to}}.",
     "queue_waiting_prefix": "En cola:",
-    "reload_after_error": "Recargar página para reintentar"
+    "reload_after_error": "Recargar página para reintentar",
+    "select_all": "Seleccionar todo",
+    "deselect_all": "Deseleccionar todo",
+    "no_parts_selected": "No se han seleccionado partes para descargar"
   },
   "toast": { "success": "Éxito", "error": "Ocurrió un error" },
   "init": {

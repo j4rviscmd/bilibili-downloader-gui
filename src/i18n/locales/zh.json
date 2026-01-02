@@ -45,7 +45,10 @@
     "video_quality_fallback": "选定的视频清晰度 ({{from}}) 不可用，已使用 {{to}}。",
     "audio_quality_fallback": "选定的音频音质 ({{from}}) 不可用，已使用 {{to}}。",
     "queue_waiting_prefix": "排队中:",
-    "reload_after_error": "刷新页面后重试"
+    "reload_after_error": "刷新页面后重试",
+    "select_all": "全选",
+    "deselect_all": "取消全选",
+    "no_parts_selected": "未选择要下载的内容"
   },
   "toast": { "success": "成功", "error": "发生错误" },
   "init": {

@@ -49,7 +49,10 @@
     "video_quality_fallback": "選択した画質 ({{from}}) が利用できないため {{to}} にフォールバックしました。",
     "audio_quality_fallback": "選択した音質 ({{from}}) が利用できないため {{to}} にフォールバックしました。",
     "queue_waiting_prefix": "キュー待ち:",
-    "reload_after_error": "ページをリロードして再試行"
+    "reload_after_error": "ページをリロードして再試行",
+    "select_all": "全選択",
+    "deselect_all": "全解除",
+    "no_parts_selected": "ダウンロード対象が選択されていません"
   },
   "progress": {
     "elapsed": "経過",

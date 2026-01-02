@@ -45,7 +45,10 @@
     "video_quality_fallback": "La qualité vidéo sélectionnée ({{from}}) est indisponible. Utilisation de {{to}}.",
     "audio_quality_fallback": "La qualité audio sélectionnée ({{from}}) est indisponible. Utilisation de {{to}}.",
     "queue_waiting_prefix": "En file d'attente:",
-    "reload_after_error": "Recharger la page pour réessayer"
+    "reload_after_error": "Recharger la page pour réessayer",
+    "select_all": "Tout sélectionner",
+    "deselect_all": "Tout désélectionner",
+    "no_parts_selected": "Aucune partie sélectionnée pour le téléchargement"
   },
   "toast": { "success": "Succès", "error": "Une erreur est survenue" },
   "init": {

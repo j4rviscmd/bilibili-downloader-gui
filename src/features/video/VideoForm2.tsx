@@ -1,3 +1,4 @@
+import { Checkbox } from '@/components/animate-ui/radix/checkbox'
 import {
   RadioGroup,
   RadioGroupItem,
@@ -19,14 +20,18 @@ import {
   VIDEO_QUALITIES_MAP,
 } from '@/features/video/constants'
 import { buildVideoFormSchema2 } from '@/features/video/formSchema'
+import { updatePartSelected } from '@/features/video/inputSlice'
 import type { Video } from '@/features/video/types'
 import { useVideoInfo } from '@/features/video/useVideoInfo'
+import { store } from '@/app/store'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+import { useSelector } from 'react-redux'
 import { z } from 'zod'
 import { cn } from '../../lib/utils'
+import type { RootState } from '@/app/store'
 
 type Props = {
   video: Video
@@ -40,6 +45,18 @@ function VideoForm2({ video, page, isDuplicate }: Props) {
   const videoPart = video.parts[page - 1]
   const min = Math.floor(videoPart.duration / 60)
   const sec = videoPart.duration % 60
+
+  // 選択状態を取得
+  const selected = useSelector(
+    (state: RootState) => state.input.partInputs[page - 1]?.selected ?? true,
+  )
+
+  // 選択状態を更新
+  const handleSelectedChange = (checked: boolean | 'indeterminate') => {
+    store.dispatch(
+      updatePartSelected({ index: page - 1, selected: checked === true }),
+    )
+  }
 
   const schema2 = useMemo(() => buildVideoFormSchema2(t), [t])
   const form = useForm<z.infer<typeof schema2>>({
@@ -109,16 +126,25 @@ function VideoForm2({ video, page, isDuplicate }: Props) {
               )}
             />
             <div className="grid grid-cols-24 items-center gap-3">
-              <div className="col-span-12 flex h-full flex-col justify-center">
-                <img
-                  src={'data:image/png;base64,' + videoPart.thumbnail.base64}
-                  alt="thumbnail"
-                />
-                <div className="block">
-                  <span>{videoPart.part}</span>
-                  <span className="px-1">/</span>
-                  {min > 0 && <span className="mr-1">{min}m</span>}
-                  <span>{sec}s</span>
+              <div className="col-span-12 flex h-full gap-3">
+                <div className="flex items-center">
+                  <Checkbox
+                    checked={selected}
+                    onCheckedChange={handleSelectedChange}
+                    size="lg"
+                  />
+                </div>
+                <div className="flex flex-col justify-center">
+                  <img
+                    src={'data:image/png;base64,' + videoPart.thumbnail.base64}
+                    alt="thumbnail"
+                  />
+                  <div className="block">
+                    <span>{videoPart.part}</span>
+                    <span className="px-1">/</span>
+                    {min > 0 && <span className="mr-1">{min}m</span>}
+                    <span>{sec}s</span>
+                  </div>
                 </div>
               </div>
               {/* Video Quality */}

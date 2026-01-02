@@ -49,7 +49,10 @@
     "video_quality_fallback": "Selected video quality ({{from}}) unavailable. Using {{to}}.",
     "audio_quality_fallback": "Selected audio quality ({{from}}) unavailable. Using {{to}}.",
     "queue_waiting_prefix": "Queued:",
-    "reload_after_error": "Reload page to retry"
+    "reload_after_error": "Reload page to retry",
+    "select_all": "Select All",
+    "deselect_all": "Deselect All",
+    "no_parts_selected": "No parts selected for download"
   },
   "progress": {
     "elapsed": "Elapsed",
