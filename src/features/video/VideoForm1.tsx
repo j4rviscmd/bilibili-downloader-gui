@@ -11,13 +11,14 @@ import { Input } from '@/components/ui/input'
 import { buildVideoFormSchema1, formSchema1 } from '@/features/video/formSchema'
 import { useVideoInfo } from '@/features/video/useVideoInfo'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { Loader2 } from 'lucide-react'
 import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { z } from 'zod'
 
 function VideoForm1() {
-  const { input, onValid1 } = useVideoInfo()
+  const { input, onValid1, isFetching } = useVideoInfo()
   const { t } = useTranslation()
 
   const schema1 = buildVideoFormSchema1(t)
@@ -59,15 +60,27 @@ function VideoForm1() {
             <FormItem>
               <FormLabel>{t('video.url_label')}</FormLabel>
               <FormControl>
-                <Input
-                  autoComplete="url"
-                  type="url"
-                  required
-                  placeholder={placeholder}
-                  {...field}
-                />
+                <div className="relative">
+                  <Input
+                    autoComplete="url"
+                    type="url"
+                    required
+                    placeholder={placeholder}
+                    disabled={isFetching}
+                    {...field}
+                  />
+                  {isFetching && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                    </div>
+                  )}
+                </div>
               </FormControl>
-              <FormDescription>{t('video.url_description')}</FormDescription>
+              <FormDescription>
+                {isFetching
+                  ? t('video.fetching_info')
+                  : t('video.url_description')}
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}

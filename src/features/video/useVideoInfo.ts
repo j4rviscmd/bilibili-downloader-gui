@@ -15,7 +15,7 @@ import { setVideo } from '@/features/video/videoSlice'
 import { setError } from '@/shared/downloadStatus/downloadStatusSlice'
 import { enqueue } from '@/shared/queue/queueSlice'
 import { invoke } from '@tauri-apps/api/core'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -29,6 +29,7 @@ export const useVideoInfo = () => {
   const progress = useSelector((state) => state.progress)
   const video = useSelector((state) => state.video)
   const input = useSelector((state) => state.input)
+  const [isFetching, setIsFetching] = useState(false)
 
   const initInputsForVideo = (v: typeof video) => {
     const partInputs = v.parts.map((p) => ({
@@ -37,6 +38,7 @@ export const useVideoInfo = () => {
       title: `${v.title}_${p.part}`,
       videoQuality: (p.videoQualities[0]?.id || 80).toString(),
       audioQuality: (p.audioQualities[0]?.id || 30216).toString(),
+      selected: true,
     }))
     store.dispatch(initPartInputs(partInputs))
   }
@@ -61,11 +63,16 @@ export const useVideoInfo = () => {
     store.dispatch(setUrl(url))
     const id = extractId(url)
     if (id) {
-      const v = await fetchVideoInfo(id)
-      if (v && v.parts.length > 0 && v.parts[0].cid !== 0) {
-        console.log('Fetched video info:', v)
-        store.dispatch(setVideo(v))
-        initInputsForVideo(v)
+      setIsFetching(true)
+      try {
+        const v = await fetchVideoInfo(id)
+        if (v && v.parts.length > 0 && v.parts[0].cid !== 0) {
+          console.log('Fetched video info:', v)
+          store.dispatch(setVideo(v))
+          initInputsForVideo(v)
+        }
+      } finally {
+        setIsFetching(false)
       }
     }
   }
@@ -95,10 +102,14 @@ export const useVideoInfo = () => {
       dupToastRef.current = false
     }
   }, [hasDuplicates, t])
+  // 選択されたパートの数をカウント
+  const selectedCount = input.partInputs.filter((pi) => pi.selected).length
+
   const isForm2ValidAll =
     input.partInputs.length > 0 &&
     partValidFlags.every((f) => f) &&
-    !hasDuplicates
+    !hasDuplicates &&
+    selectedCount > 0
 
   const download = async () => {
     try {
@@ -118,16 +129,19 @@ export const useVideoInfo = () => {
           status: 'pending',
         }),
       )
-      // Child downloads: sequential order by parts
-      for (let i = 0; i < input.partInputs.length; i++) {
-        const pi = input.partInputs[i]
+      // Child downloads: sequential order by selected parts only
+      const selectedParts = input.partInputs
+        .map((pi, idx) => ({ pi, idx }))
+        .filter(({ pi }) => pi.selected)
+      for (let i = 0; i < selectedParts.length; i++) {
+        const { pi, idx } = selectedParts[i]
         await downloadVideo(
           videoId,
           pi.cid,
           pi.title.trim(),
           parseInt(pi.videoQuality, 10),
           parseInt(pi.audioQuality, 10),
-          `${parentId}-p${i + 1}`,
+          `${parentId}-p${idx + 1}`,
           parentId,
         )
       }
@@ -170,6 +184,8 @@ export const useVideoInfo = () => {
     isForm1Valid,
     isForm2ValidAll,
     duplicateIndices,
+    selectedCount,
+    isFetching,
     download,
   }
 }

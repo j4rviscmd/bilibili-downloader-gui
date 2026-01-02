@@ -4,6 +4,7 @@ export type PartInput = {
   title: string
   videoQuality: string
   audioQuality: string
+  selected: boolean
 }
 
 export type Input = {

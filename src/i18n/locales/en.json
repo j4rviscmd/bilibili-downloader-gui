@@ -19,6 +19,7 @@
     "url_placeholder": "Paste Bilibili URL",
     "url_label": "URL",
     "url_description": "Enter the video URL.",
+    "fetching_info": "Fetching video info...",
     "url_placeholder_example": "e.g. https://www.bilibili.com/video/BV1xxxxxx",
     "title_label": "Title",
     "title_placeholder": "The title will be auto-filled after entering a URL",
@@ -49,7 +50,10 @@
     "video_quality_fallback": "Selected video quality ({{from}}) unavailable. Using {{to}}.",
     "audio_quality_fallback": "Selected audio quality ({{from}}) unavailable. Using {{to}}.",
     "queue_waiting_prefix": "Queued:",
-    "reload_after_error": "Reload page to retry"
+    "reload_after_error": "Reload page to retry",
+    "select_all": "Select All",
+    "deselect_all": "Deselect All",
+    "no_parts_selected": "No parts selected for download"
   },
   "progress": {
     "elapsed": "Elapsed",

@@ -15,6 +15,7 @@
     "url_placeholder": "Bilibili URL 붙여넣기",
     "url_label": "URL",
     "url_description": "비디오 URL을 입력하세요.",
+    "fetching_info": "비디오 정보를 가져오는 중...",
     "url_placeholder_example": "예: https://www.bilibili.com/video/BV1xxxxxx",
     "title_label": "제목",
     "title_placeholder": "URL 입력 후 자동으로 채워집니다",
@@ -45,7 +46,10 @@
     "video_quality_fallback": "선택한 화질 ({{from}}) 을(를) 사용할 수 없어 {{to}} 로 대체했습니다.",
     "audio_quality_fallback": "선택한 음질 ({{from}}) 을(를) 사용할 수 없어 {{to}} 로 대체했습니다.",
     "queue_waiting_prefix": "대기 중:",
-    "reload_after_error": "페이지 새로고침 후 재시도"
+    "reload_after_error": "페이지 새로고침 후 재시도",
+    "select_all": "전체 선택",
+    "deselect_all": "전체 해제",
+    "no_parts_selected": "다운로드할 파트가 선택되지 않았습니다"
   },
   "toast": { "success": "성공", "error": "문제가 발생했습니다" },
   "init": {

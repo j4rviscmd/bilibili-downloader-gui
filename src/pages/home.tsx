@@ -1,3 +1,4 @@
+import { store } from '@/app/store'
 import { useTheme } from '@/app/contexts/ThemeContext'
 import {
   Sidebar,
@@ -12,18 +13,21 @@ import {
   SidebarTrigger,
 } from '@/components/animate-ui/radix/sidebar'
 import AppBar from '@/components/lib/AppBar/AppBar'
+import { Button } from '@/components/ui/button'
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { useInit } from '@/features/init/useInit'
 import { useVideoInfo } from '@/features/video'
 import DownloadButton from '@/features/video/DownloadButton'
 import DownloadingDialog from '@/features/video/DownloadingDialog'
+import { selectAll, deselectAll } from '@/features/video/inputSlice'
 import VideoForm1 from '@/features/video/VideoForm1'
 import VideoForm2 from '@/features/video/VideoForm2'
 import OpenSettingsDialogButton from '@/shared/settings/dialog/OpenSettingsDialogButton'
 import SettingsDialog from '@/shared/settings/dialog/SettingsDialog'
 import { useUser } from '@/shared/user/useUser'
 import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
 function HomePage() {
@@ -32,6 +36,15 @@ function HomePage() {
   const { user } = useUser()
   const { theme, setTheme } = useTheme()
   const { video, duplicateIndices } = useVideoInfo()
+  const { t } = useTranslation()
+
+  const handleSelectAll = () => {
+    store.dispatch(selectAll())
+  }
+
+  const handleDeselectAll = () => {
+    store.dispatch(deselectAll())
+  }
 
   useEffect(() => {
     if (initiated) return
@@ -95,6 +108,24 @@ function HomePage() {
                     <VideoForm1 />
                   </div>
                   <Separator className="my-3" />
+                  {video.parts.length > 0 && (
+                    <div className="flex items-center gap-2 px-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleSelectAll}
+                      >
+                        {t('video.select_all')}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleDeselectAll}
+                      >
+                        {t('video.deselect_all')}
+                      </Button>
+                    </div>
+                  )}
                   <div className="block">
                     {video.parts.map((_v, idx) => (
                       <VideoForm2

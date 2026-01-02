@@ -15,6 +15,7 @@
     "url_placeholder": "Coller l'URL Bilibili",
     "url_label": "URL",
     "url_description": "Entrez l'URL de la vidéo.",
+    "fetching_info": "Récupération des informations...",
     "url_placeholder_example": "ex: https://www.bilibili.com/video/BV1xxxxxx",
     "title_label": "Titre",
     "title_placeholder": "Le titre sera rempli automatiquement après l'URL",
@@ -45,7 +46,10 @@
     "video_quality_fallback": "La qualité vidéo sélectionnée ({{from}}) est indisponible. Utilisation de {{to}}.",
     "audio_quality_fallback": "La qualité audio sélectionnée ({{from}}) est indisponible. Utilisation de {{to}}.",
     "queue_waiting_prefix": "En file d'attente:",
-    "reload_after_error": "Recharger la page pour réessayer"
+    "reload_after_error": "Recharger la page pour réessayer",
+    "select_all": "Tout sélectionner",
+    "deselect_all": "Tout désélectionner",
+    "no_parts_selected": "Aucune partie sélectionnée pour le téléchargement"
   },
   "toast": { "success": "Succès", "error": "Une erreur est survenue" },
   "init": {

@@ -26,6 +26,7 @@ export const inputSlice = createSlice({
           title: string
           videoQuality: string
           audioQuality: string
+          selected: boolean
         }[]
       >,
     ) => {
@@ -48,9 +49,34 @@ export const inputSlice = createSlice({
       if (videoQuality !== undefined) target.videoQuality = videoQuality
       if (audioQuality !== undefined) target.audioQuality = audioQuality
     },
+    updatePartSelected: (
+      state,
+      action: PayloadAction<{ index: number; selected: boolean }>,
+    ) => {
+      const { index, selected } = action.payload
+      const target = state.partInputs[index]
+      if (target) target.selected = selected
+    },
+    selectAll: (state) => {
+      state.partInputs.forEach((p) => {
+        p.selected = true
+      })
+    },
+    deselectAll: (state) => {
+      state.partInputs.forEach((p) => {
+        p.selected = false
+      })
+    },
   },
 })
 
-export const { setInput, setUrl, initPartInputs, updatePartInputByIndex } =
-  inputSlice.actions
+export const {
+  setInput,
+  setUrl,
+  initPartInputs,
+  updatePartInputByIndex,
+  updatePartSelected,
+  selectAll,
+  deselectAll,
+} = inputSlice.actions
 export default inputSlice.reducer
