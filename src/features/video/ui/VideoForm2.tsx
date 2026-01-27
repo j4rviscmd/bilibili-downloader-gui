@@ -101,7 +101,11 @@ function VideoForm2({ video, page, isDuplicate }: Props) {
       }
 
       const part = video.parts[page - 1]
-      form.setValue('title', video.title + ' ' + videoPart.part, {
+      const title =
+        video.title === videoPart.part
+          ? video.title
+          : `${video.title} ${videoPart.part}`
+      form.setValue('title', title, {
         shouldValidate: true,
       })
       form.setValue(
