@@ -1,5 +1,8 @@
 import { invoke } from '@tauri-apps/api/core'
 
+/**
+ * Supported operating system types.
+ */
 export type SupportedOs =
   | 'windows'
   | 'macos'
@@ -15,6 +18,22 @@ export type SupportedOs =
 
 let cached: SupportedOs | null = null
 
+/**
+ * Retrieves the current operating system.
+ *
+ * Invokes the 'get_os' Tauri command and caches the result. Returns
+ * 'unknown' if the OS cannot be determined or on error.
+ *
+ * @returns A promise resolving to the OS type
+ *
+ * @example
+ * ```typescript
+ * const os = await getOs()
+ * if (os === 'windows') {
+ *   // Windows-specific logic
+ * }
+ * ```
+ */
 export const getOs = async (): Promise<SupportedOs> => {
   if (cached) return cached
   try {

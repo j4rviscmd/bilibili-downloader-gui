@@ -1,7 +1,13 @@
+//! Bilibili API Response Models
+//!
+//! This module defines data structures for deserializing responses from
+//! various Bilibili API endpoints.
+
 use serde::{Deserialize, Serialize};
 
-// User APIレスポンス
-// https://api.bilibili.com/x/web-interface/nav
+/// Response structure from the Bilibili user navigation API.
+///
+/// API endpoint: `https://api.bilibili.com/x/web-interface/nav`
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserApiResponse {
     pub code: i32,
@@ -24,8 +30,11 @@ pub struct UserApiResponseDataImg {
     pub sub_url: String,
 }
 
-// WebInterface APIレスポンス
-// https://api.bilibili.com/x/web-interface/view?bvid={id}
+/// Response structure from the Bilibili web interface view API.
+///
+/// API endpoint: `https://api.bilibili.com/x/web-interface/view?bvid={id}`
+///
+/// Provides basic video information including title and available parts.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WebInterfaceApiResponse {
     pub code: i64,
@@ -47,8 +56,12 @@ pub struct WebInterfaceApiResponseData {
     pub pages: Vec<WebInterfaceApiResponsePage>,
 }
 
-// WebInterface APIレスポンス
-// https://api.bilibili.com/x/player/wbi/playurl?...
+/// Response structure from the Bilibili player API.
+///
+/// API endpoint: `https://api.bilibili.com/x/player/wbi/playurl?...`
+///
+/// Provides detailed playback information including available video and audio
+/// streams with quality options.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct XPlayerApiResponse {
     pub code: i64,

@@ -13,6 +13,14 @@ import { useVideoInfo } from '@/features/video/hooks/useVideoInfo'
 import { Download, Music, Play, Video } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+/**
+ * Determines the label and icon for a progress bar based on download stage.
+ *
+ * @param id - Download ID (for temp stage detection)
+ * @param stage - Download stage ('audio', 'video', 'merge')
+ * @param t - Translation function
+ * @returns A tuple of [label, icon]
+ */
 const getBarInfo = (
   id: string | undefined,
   stage: string | undefined,
@@ -34,6 +42,23 @@ const getBarInfo = (
   return [label, icon]
 }
 
+/**
+ * Modal dialog displaying download progress.
+ *
+ * Shows real-time progress for all active downloads with:
+ * - Grouped progress bars by parent ID (multi-part downloads)
+ * - Separate bars for audio, video, and merge stages
+ * - Queue waiting list for parts not yet started
+ * - Error display with reload prompt
+ * - Completion button to reload the page
+ *
+ * The dialog is modal and cannot be closed until downloads complete or error.
+ *
+ * @example
+ * ```tsx
+ * <DownloadingDialog />
+ * ```
+ */
 function DownloadingDialog() {
   const { progress, input, video } = useVideoInfo()
   const { t } = useTranslation()

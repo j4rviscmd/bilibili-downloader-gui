@@ -1,3 +1,8 @@
+//! Bilibili API Integration
+//!
+//! This module handles all interactions with Bilibili's API, including
+//! video information retrieval, user authentication, and video downloading.
+
 use crate::constants::REFERER;
 use crate::handlers::cookie::read_cookie;
 use crate::handlers::ffmpeg::merge_av;
@@ -10,14 +15,52 @@ use crate::models::frontend_dto::{Quality, Thumbnail, UserData, Video, VideoPart
 use crate::utils::downloads::download_url;
 use crate::utils::paths::get_lib_path;
 use crate::{constants::USER_AGENT, models::frontend_dto::User};
+use base64::Engine;
 use reqwest::{
     header::{self},
     Client,
 };
 use std::collections::BTreeMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::AppHandle;
 
+/// Downloads a Bilibili video with specified quality settings.
+///
+/// This function orchestrates the complete download process:
+/// 1. Determines output path and handles automatic renaming
+/// 2. Validates cookie availability
+/// 3. Fetches video details and stream URLs
+/// 4. Checks available disk space
+/// 5. Downloads audio and video streams separately (with retry logic)
+/// 6. Merges streams using ffmpeg
+///
+/// Progress updates are emitted to the frontend throughout the process.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle
+/// * `bvid` - Bilibili video ID (BV identifier)
+/// * `cid` - Content ID for the specific video part
+/// * `filename` - Desired output filename (without extension)
+/// * `quality` - Video quality ID (will fallback to highest if unavailable)
+/// * `audio_quality` - Audio quality ID (will fallback to highest if unavailable)
+/// * `download_id` - Unique identifier for progress tracking
+/// * `_parent_id` - Optional parent ID for multi-part video tracking (currently unused)
+///
+/// # Returns
+///
+/// Returns `Ok(())` on successful download and merge.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Settings or output path cannot be determined
+/// - Cookies are missing (`ERR::COOKIE_MISSING`)
+/// - Selected quality is not available (`ERR::QUALITY_NOT_FOUND`)
+/// - Disk space is insufficient (`ERR::DISK_FULL`)
+/// - Download fails after retries (`ERR::NETWORK`)
+/// - ffmpeg merge fails (`ERR::MERGE_FAILED`)
 pub async fn download_video(
     app: &AppHandle,
     bvid: &str,
@@ -74,12 +117,7 @@ pub async fn download_video(
     // --------------------------------------------------
     let details = fetch_video_details(&cookies, bvid, cid).await?;
     // 選択動画品質が存在しなければフォールバック (先頭 = 最も高品質)
-    let video_item_opt = details
-        .data
-        .dash
-        .video
-        .iter()
-        .find(|v| v.id == *quality);
+    let video_item_opt = details.data.dash.video.iter().find(|v| v.id == *quality);
     let fallback_video_item = details.data.dash.video.first();
     let use_video_item = match (video_item_opt, fallback_video_item) {
         (Some(v), _) => v,
@@ -124,9 +162,7 @@ pub async fn download_video(
     let audio_size = head_content_length(&audio_url, Some(&cookie_header)).await;
     if let (Some(vs), Some(asz)) = (video_size, audio_size) {
         let total_needed = vs + asz + (5 * 1024 * 1024); // 余裕 5MB
-        if let Err(e) = ensure_free_space(&output_path, total_needed) {
-            return Err(e);
-        }
+        ensure_free_space(&output_path, total_needed)?;
     }
 
     // --------------------------------------------------
@@ -174,8 +210,8 @@ pub async fn download_video(
     .await;
     if let Err(e) = video_res {
         drop(permit); // release permit
-        // NOTE: GA4 Analytics は無効化されています
-        // crate::utils::analytics::finish_download(app, &download_id, false, Some(&e)).await;
+                      // NOTE: GA4 Analytics は無効化されています
+                      // crate::utils::analytics::finish_download(app, &download_id, false, Some(&e)).await;
         return Err(e);
     }
     // keep permit until merge 完了
@@ -190,7 +226,9 @@ pub async fn download_video(
         &temp_audio_path,
         &output_path,
         Some(download_id.clone()),
-    ).await {
+    )
+    .await
+    {
         drop(permit);
         // NOTE: GA4 Analytics は無効化されています
         // crate::utils::analytics::finish_download(app, &download_id, false, Some("ERR::MERGE_FAILED")).await;
@@ -209,6 +247,25 @@ pub async fn download_video(
     Ok(())
 }
 
+/// Fetches the currently logged-in user's information from Bilibili.
+///
+/// This function retrieves user profile data using cached cookies from Firefox.
+/// If no valid cookies are available, it returns `None` without error.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle for accessing the cookie cache
+///
+/// # Returns
+///
+/// Returns `Ok(Some(User))` if user info was successfully retrieved,
+/// or `Ok(None)` if no cookies are available.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The HTTP request fails
+/// - Response JSON parsing fails
 pub async fn fetch_user_info(app: &AppHandle) -> Result<Option<User>, String> {
     let mut result: Option<User> = None;
 
@@ -240,8 +297,6 @@ pub async fn fetch_user_info(app: &AppHandle) -> Result<Option<User>, String> {
         .await
         .map_err(|e| format!("Failed to fetch user info: {e}"))?;
 
-    let _status = res.status();
-    // DEBUG: println!("UserApi Response status: {}", status);
     let body = res
         .json::<UserApiResponse>()
         .await
@@ -260,6 +315,18 @@ pub async fn fetch_user_info(app: &AppHandle) -> Result<Option<User>, String> {
     Ok(result)
 }
 
+/// Builds a Cookie header string from cookie entries.
+///
+/// Filters cookies to include only those for the bilibili.com domain
+/// and formats them as "name=value; name=value".
+///
+/// # Arguments
+///
+/// * `cookies` - Slice of cookie entries
+///
+/// # Returns
+///
+/// Returns a formatted cookie header string suitable for HTTP requests.
 fn build_cookie_header(cookies: &[CookieEntry]) -> String {
     // bilibili ドメインのものに限定しつつ name=value; を組み立て
     let mut parts: Vec<String> = Vec::new();
@@ -272,11 +339,24 @@ fn build_cookie_header(cookies: &[CookieEntry]) -> String {
     parts.join("; ")
 }
 
-/**
- * URLからBase64エンコード文字列を取得する
- * 1. URLから画像データを取得
- * 2. 画像データをBase64エンコードして返す
- */
+/// Fetches an image from a URL and encodes it as Base64.
+///
+/// This function is used to download video thumbnails and encode them
+/// for embedding in the frontend without additional HTTP requests.
+///
+/// # Arguments
+///
+/// * `url` - URL of the image to fetch
+///
+/// # Returns
+///
+/// Returns the Base64-encoded image data.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The HTTP request fails
+/// - Reading response bytes fails
 async fn base64_encode(url: &str) -> Result<String, String> {
     let resp = reqwest::get(url)
         .await
@@ -285,10 +365,34 @@ async fn base64_encode(url: &str) -> Result<String, String> {
         .bytes()
         .await
         .map_err(|e| format!("Failed to read thumbnail image bytes: {}", e))?;
-    let encoded = base64::encode(&bytes);
+    let encoded = base64::engine::general_purpose::STANDARD.encode(&bytes);
     Ok(encoded)
 }
 
+/// Fetches comprehensive metadata for a Bilibili video.
+///
+/// This function retrieves:
+/// - Video title
+/// - All video parts (for multi-part videos)
+/// - Available quality options for video and audio
+/// - Thumbnails (as Base64-encoded images)
+/// - Duration and other metadata
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle for accessing the cookie cache
+/// * `id` - Bilibili video ID (BV identifier)
+///
+/// # Returns
+///
+/// Returns a `Video` structure containing all metadata and available quality options.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - No cookies are available
+/// - API requests fail
+/// - Response parsing fails
 pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String> {
     let video_parts = Vec::<VideoPart>::new();
     let mut video = Video {
@@ -323,7 +427,6 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
         };
         video.parts.push(part);
     }
-    video.parts = video.parts.clone();
     for part in video.parts.iter_mut() {
         // NOTE: partごとに画質情報を取得する必要がある？
         let res_body_2 = fetch_video_details(&cookies, &video.bvid, part.cid).await?;
@@ -336,7 +439,20 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
     Ok(video)
 }
 
-fn convert_qualities(video: &Vec<XPlayerApiResponseVideo>) -> Vec<Quality> {
+/// Converts API video/audio quality data to frontend DTO format.
+///
+/// This function groups quality options by ID, selects the highest codec
+/// for each quality level, and returns them sorted in descending order
+/// (highest quality first).
+///
+/// # Arguments
+///
+/// * `video` - Slice of video or audio quality options from the API
+///
+/// # Returns
+///
+/// Returns a vector of `Quality` objects sorted by quality ID (highest first).
+fn convert_qualities(video: &[XPlayerApiResponseVideo]) -> Vec<Quality> {
     let mut res = Vec::<Quality>::new();
 
     // id(= quality)毎でグルーピングして、 各アイテムの`codecid`が一番大きいものを選択
@@ -364,6 +480,24 @@ fn convert_qualities(video: &Vec<XPlayerApiResponseVideo>) -> Vec<Quality> {
     res
 }
 
+/// Fetches video title and page information from Bilibili's Web Interface API.
+///
+/// This internal function calls the `/x/web-interface/view` endpoint to retrieve
+/// basic video metadata including title and multi-part page information.
+///
+/// # Arguments
+///
+/// * `video` - Video object containing the BVID
+/// * `cookies` - Bilibili authentication cookies
+///
+/// # Returns
+///
+/// Returns the API response containing video title and page details.
+///
+/// # Errors
+///
+/// Returns an error if the HTTP request fails, JSON parsing fails, or the
+/// API returns a non-zero error code.
 async fn fetch_video_title(
     video: &Video,
     cookies: &[CookieEntry],
@@ -385,7 +519,6 @@ async fn fetch_video_title(
         .await
         .map_err(|e| format!("WebInterface Api Failed to fetch video info: {e}"))?;
 
-    let _status = res.status();
     let text = res
         .text()
         .await
@@ -401,6 +534,25 @@ async fn fetch_video_title(
     Ok(body)
 }
 
+/// Fetches video stream URLs and quality options from Bilibili's Player API.
+///
+/// This internal function calls the `/x/player/wbi/playurl` endpoint to retrieve
+/// available quality options and direct URLs for video and audio streams.
+///
+/// # Arguments
+///
+/// * `cookies` - Bilibili authentication cookies
+/// * `vbid` - Video BVID identifier
+/// * `cid` - Content ID for the specific video part
+///
+/// # Returns
+///
+/// Returns the API response containing DASH video/audio streams and quality options.
+///
+/// # Errors
+///
+/// Returns an error if the HTTP request fails, JSON parsing fails, or the
+/// API returns a non-zero error code.
 async fn fetch_video_details(
     cookies: &[CookieEntry],
     // video: &Video,
@@ -430,7 +582,6 @@ async fn fetch_video_details(
         .await
         .map_err(|e| format!("XPlayerApi Failed to fetch video info: {e}"))?;
 
-    let _status = res.status();
     let body: XPlayerApiResponse = res
         .json::<XPlayerApiResponse>()
         .await
@@ -443,49 +594,88 @@ async fn fetch_video_details(
     Ok(body)
 }
 
+/// Constructs the full output path for a downloaded file.
+///
+/// Reads the download output directory from application settings and appends
+/// the filename to it.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle for accessing settings
+/// * `filename` - Desired filename (without extension)
+///
+/// # Returns
+///
+/// Returns the full path where the file should be saved.
+///
+/// # Errors
+///
+/// Returns an error if settings cannot be loaded or the download path is not configured.
 async fn get_output_path(app: &AppHandle, filename: &str) -> anyhow::Result<PathBuf> {
-    if let Ok(settings) = settings::get_settings(app).await {
-        let dir = PathBuf::from(&settings.dl_output_path.unwrap());
-        Ok(dir.join(filename))
-    } else {
-        Err(anyhow::anyhow!("Failed to get settings"))
-    }
+    let settings = settings::get_settings(app)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to get settings: {}", e))?;
+    let output_path = settings
+        .dl_output_path
+        .ok_or_else(|| anyhow::anyhow!("Download output path is not configured"))?;
+    let dir = PathBuf::from(&output_path);
+    Ok(dir.join(filename))
 }
 
-// ---- Helper: 自動リネーム (既存ファイルがある場合 filename (n).mp4) ----
-fn auto_rename(path: &PathBuf) -> PathBuf {
-    let mut candidate = path.clone();
-    if !candidate.exists() {
-        return candidate;
+/// Automatically renames a file if it already exists.
+///
+/// Appends a counter suffix (e.g., "filename (1).mp4") to avoid overwriting
+/// existing files. If more than 10,000 duplicates exist, falls back to
+/// timestamp-based naming.
+///
+/// # Arguments
+///
+/// * `path` - Original file path
+///
+/// # Returns
+///
+/// Returns a `PathBuf` that doesn't conflict with existing files.
+fn auto_rename(path: &Path) -> PathBuf {
+    if !path.exists() {
+        return path.to_path_buf();
     }
-    let parent = candidate
+    let parent = path
         .parent()
         .map(|p| p.to_path_buf())
         .unwrap_or_else(|| PathBuf::from("."));
-    let stem = candidate
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("file");
-    let ext = candidate
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("mp4");
-    let mut idx = 1u32;
-    loop {
+    let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("file");
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("mp4");
+
+    for idx in 1..=10_000u32 {
         let new_name = format!("{} ({}).{}", stem, idx, ext);
         let new_path = parent.join(new_name);
         if !new_path.exists() {
             return new_path;
         }
-        idx += 1;
-        if idx > 10_000 {
-            // safety upper bound
-            return candidate; // fallback (異常ケース)
-        }
     }
+
+    // Fallback: use timestamp to ensure uniqueness
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let fallback_name = format!("{}_{}.{}", stem, timestamp, ext);
+    parent.join(fallback_name)
 }
 
-// ---- Helper: HEAD で Content-Length 取得 ----
+/// Retrieves the Content-Length of a resource via HEAD request.
+///
+/// This function sends a HEAD request to determine the file size
+/// before downloading.
+///
+/// # Arguments
+///
+/// * `url` - URL to query
+/// * `cookie` - Optional cookie header for authentication
+///
+/// # Returns
+///
+/// Returns `Some(size)` if Content-Length is available, `None` otherwise.
 async fn head_content_length(url: &str, cookie: Option<&String>) -> Option<u64> {
     let client = reqwest::Client::builder().build().ok()?;
     let mut req = client.head(url);
@@ -504,8 +694,25 @@ async fn head_content_length(url: &str, cookie: Option<&String>) -> Option<u64> 
     None
 }
 
-// ---- Helper: 空き容量チェック (単純版) ----
-fn ensure_free_space(target_path: &PathBuf, needed_bytes: u64) -> Result<(), String> {
+/// Ensures sufficient disk space is available for the download.
+///
+/// Checks the available disk space on the target filesystem and returns an
+/// error if it's insufficient. Currently implemented for Unix-like systems only.
+/// Windows and other platforms skip the check.
+///
+/// # Arguments
+///
+/// * `target_path` - Path where the file will be saved
+/// * `needed_bytes` - Total bytes required (including safety margin)
+///
+/// # Returns
+///
+/// Returns `Ok(())` if sufficient space is available or the check cannot be performed.
+///
+/// # Errors
+///
+/// Returns `ERR::DISK_FULL` if available space is less than or equal to needed bytes.
+fn ensure_free_space(target_path: &Path, needed_bytes: u64) -> Result<(), String> {
     #[cfg(target_family = "unix")]
     {
         use libc::{statvfs, statvfs as statvfs_t};
@@ -523,7 +730,7 @@ fn ensure_free_space(target_path: &PathBuf, needed_bytes: u64) -> Result<(), Str
                 return Ok(()); // 取得失敗はスキップ
             }
             let stat = stat.assume_init();
-            let free_bytes = (stat.f_bavail as u64) * (stat.f_frsize as u64);
+            let free_bytes = (stat.f_bavail as u64) * stat.f_frsize;
             if free_bytes <= needed_bytes {
                 return Err("ERR::DISK_FULL".into());
             }
@@ -533,7 +740,27 @@ fn ensure_free_space(target_path: &PathBuf, needed_bytes: u64) -> Result<(), Str
     Ok(())
 }
 
-// ---- Helper: リトライラッパ (最大3回, ネットワーク系のみ) ----
+/// Retries a download operation up to 3 times with linear backoff.
+///
+/// This function wraps download operations and automatically retries them on
+/// network-related errors (e.g., timeout, connection errors). Non-retryable
+/// errors are returned immediately.
+///
+/// Backoff strategy: 500ms, 1000ms, 1500ms for attempts 1, 2, 3.
+///
+/// # Arguments
+///
+/// * `f` - A closure that returns a Future resolving to a download result
+///
+/// # Returns
+///
+/// Returns `Ok(())` if the download succeeds on any attempt.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - All retry attempts are exhausted
+/// - A non-retryable error occurs (e.g., ERR::DISK_FULL)
 async fn retry_download<F, Fut>(mut f: F) -> Result<(), String>
 where
     F: FnMut() -> Fut,
@@ -567,7 +794,20 @@ where
     }
 }
 
-// ---- Helper: ステージ変更を簡易発火 (Emits 新規生成) ----
+/// Emits a stage change event to the frontend.
+///
+/// Creates a new Emits instance and spawns a task to set the specified stage.
+/// If the stage is "complete", it also calls the complete() method to finalize
+/// the progress.
+///
+/// This is a convenience helper for emitting simple stage updates without
+/// managing an existing Emits instance.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle for event emission
+/// * `download_id` - Unique identifier for this download
+/// * `stage` - Stage name (e.g., "warn-video-quality-fallback", "complete")
 fn emit_stage(app: &AppHandle, download_id: &str, stage: &str) {
     // Emits を新規に生成して stage セット (サイズ不明のため None)
     let stage_owned = stage.to_string();

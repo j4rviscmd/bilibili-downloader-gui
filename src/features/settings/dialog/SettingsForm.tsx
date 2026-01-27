@@ -29,6 +29,22 @@ import { cn } from '@/shared/lib/utils'
 import { languages } from '@/features/settings/language/languages'
 import { useTranslation } from 'react-i18next'
 
+/**
+ * Settings form component.
+ *
+ * Provides form inputs for configuring application settings:
+ * - Language selection (radio buttons)
+ * - Download output directory path (text input with validation)
+ *
+ * Changes are auto-saved when fields blur or when language is changed.
+ * The form uses react-hook-form with Zod schema validation that supports
+ * both Windows and POSIX path validation rules.
+ *
+ * @example
+ * ```tsx
+ * <SettingsForm />
+ * ```
+ */
 function SettingsForm() {
   const { t } = useTranslation()
   const { settings, saveByForm, updateLanguage } = useSettings()
@@ -51,7 +67,7 @@ function SettingsForm() {
       dlOutputPath: settings.dlOutputPath || '',
       language: settings.language || 'en',
     })
-  }, [settings.dlOutputPath, settings.language])
+  }, [form, settings.dlOutputPath, settings.language])
 
   const onSubmit = async (data: z.infer<typeof formSchema>) => {
     const changed: Partial<z.infer<typeof formSchema>> = {}

@@ -1,6 +1,12 @@
+//! Google Analytics 4 Integration (Currently Disabled)
+//!
+//! This module provides GA4 event tracking functionality for monitoring
+//! application usage, downloads, and errors. All analytics features are
+//! currently disabled but remain in the codebase for potential future use.
+
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::Path;
 use std::sync::Mutex;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
@@ -9,14 +15,32 @@ use reqwest::Client;
 use serde_json::{json, Map, Value};
 use tauri::AppHandle;
 
+/// Global tracking of download start times for duration calculation.
 static DOWNLOAD_STARTS: Lazy<Mutex<HashMap<String, Instant>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 
+/// Google Analytics 4 Measurement Protocol endpoint.
 const GA_ENDPOINT: &str = "https://www.google-analytics.com/mp/collect";
+
+/// GA4 Measurement ID from build-time environment variable.
 static GA_MEASUREMENT_ID: Option<&'static str> = option_env!("GA_MEASUREMENT_ID");
+
+/// GA4 API Secret from build-time environment variable.
 static GA_API_SECRET: Option<&'static str> = option_env!("GA_API_SECRET");
 
-// Initialize analytics on app setup.
+/// Initializes analytics and sends initial events.
+///
+/// This function:
+/// 1. Checks for GA credentials (returns early if missing)
+/// 2. Creates or loads a persistent client ID
+/// 3. Detects first install or version updates
+/// 4. Sends appropriate events (first_install, app_update, or app_start)
+///
+/// Currently disabled - will not send any events unless credentials are provided.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle for accessing application paths
 pub async fn init_analytics(app: &AppHandle) {
     // If secrets are missing (empty), skip (build-time embedding should set them)
     if GA_MEASUREMENT_ID.unwrap_or("").is_empty() || GA_API_SECRET.unwrap_or("").is_empty() {
@@ -77,7 +101,14 @@ pub async fn init_analytics(app: &AppHandle) {
     let _ = send_event_internal(&client_id, "app_start", p).await;
 }
 
-// Record user clicked download button.
+/// Records a download button click event.
+///
+/// Currently disabled - no events are sent unless GA credentials are configured.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle
+/// * `download_id` - Unique identifier for the download
 pub async fn record_download_click(app: &AppHandle, download_id: &str) {
     if GA_MEASUREMENT_ID.unwrap_or("").is_empty() || GA_API_SECRET.unwrap_or("").is_empty() {
         #[cfg(debug_assertions)]
@@ -96,13 +127,30 @@ pub async fn record_download_click(app: &AppHandle, download_id: &str) {
     let _ = send_event_internal(&client_id, "download_click", p).await;
 }
 
-// Mark the start time of a download.
+/// Marks the start time of a download for duration tracking.
+///
+/// Stores the current instant in a global map for later duration calculation
+/// when the download completes.
+///
+/// # Arguments
+///
+/// * `download_id` - Unique identifier for the download
 pub fn mark_download_start(download_id: &str) {
     let mut map = DOWNLOAD_STARTS.lock().unwrap();
     map.insert(download_id.to_string(), Instant::now());
 }
 
-// Finish download (success or failure) and send result.
+/// Records download completion and sends result event.
+///
+/// Calculates download duration and extracts error category if applicable.
+/// Currently disabled - no events are sent unless GA credentials are configured.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle
+/// * `download_id` - Unique identifier for the download
+/// * `success` - Whether the download completed successfully
+/// * `err_code` - Optional error code if the download failed
 pub async fn finish_download(
     app: &AppHandle,
     download_id: &str,
@@ -144,6 +192,26 @@ pub async fn finish_download(
     let _ = send_event_internal(&client_id, "download_result", p).await;
 }
 
+/// Extracts the error category from an error string.
+///
+/// Parses error codes in the format "ERR::CATEGORY::details" and returns
+/// the first component after "ERR::".
+///
+/// # Arguments
+///
+/// * `err` - Error string to parse
+///
+/// # Returns
+///
+/// Returns the error category if the format is valid, `None` otherwise.
+///
+/// # Examples
+///
+/// ```
+/// // "ERR::NETWORK::timeout" -> Some("NETWORK")
+/// // "ERR::DISK_FULL" -> Some("DISK_FULL")
+/// // "other error" -> None
+/// ```
 fn extract_error_category(err: &str) -> Option<String> {
     if let Some(rest) = err.strip_prefix("ERR::") {
         // Take up to next '::'
@@ -155,8 +223,19 @@ fn extract_error_category(err: &str) -> Option<String> {
     None
 }
 
-// Get or create client_id file.
-fn get_or_create_client_id(dir: &PathBuf) -> String {
+/// Gets or creates a client ID file for analytics.
+///
+/// Reads an existing client ID from the file, or generates a new UUID v4
+/// if the file doesn't exist or cannot be read.
+///
+/// # Arguments
+///
+/// * `dir` - Directory path where the client_id file is stored
+///
+/// # Returns
+///
+/// Returns the client ID as a string.
+fn get_or_create_client_id(dir: &Path) -> String {
     let path = dir.join("client_id");
     if path.exists() {
         if let Ok(val) = fs::read_to_string(&path) {
@@ -168,7 +247,14 @@ fn get_or_create_client_id(dir: &PathBuf) -> String {
     uuid
 }
 
-// Minimal UUID v4 (pseudo-random) generator without external crate.
+/// Generates a UUID v4 (pseudo-random) without external crate dependencies.
+///
+/// Creates a UUID v4 compliant identifier using the system's entropy source.
+/// Sets the appropriate version (4) and variant (2) bits according to RFC 4122.
+///
+/// # Returns
+///
+/// Returns a UUID v4 string in the format `xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx`.
 fn uuid_v4() -> String {
     use rand::rngs::StdRng;
     use rand::{RngCore, SeedableRng};
@@ -203,6 +289,24 @@ fn uuid_v4() -> String {
     )
 }
 
+/// Sends an analytics event to Google Analytics 4.
+///
+/// Constructs a GA4 Measurement Protocol request with event data and sends
+/// it to the GA4 endpoint. Automatically adds app_version, os, and timestamp
+/// to the event parameters. In debug builds, uses the debug endpoint and
+/// logs validation messages.
+///
+/// Currently disabled - no events are sent unless GA credentials are configured.
+///
+/// # Arguments
+///
+/// * `client_id` - Unique client identifier for this user
+/// * `name` - Event name (e.g., "first_install", "download_result")
+/// * `params` - Event parameters as a JSON object map
+///
+/// # Returns
+///
+/// Returns `Ok(())` on success, swallows errors to prevent disrupting the app.
 async fn send_event_internal(
     client_id: &str,
     name: &str,
@@ -214,7 +318,7 @@ async fn send_event_internal(
 
     let mut event_obj = Map::new();
     event_obj.insert("name".into(), Value::from(name));
-    event_obj.insert("params".into(), Value::from(Value::Object(params)));
+    event_obj.insert("params".into(), Value::Object(params));
 
     let body = json!({
         "client_id": client_id,
@@ -280,6 +384,12 @@ async fn send_event_internal(
     }
 }
 
+/// Gets the current Unix timestamp in milliseconds.
+///
+/// # Returns
+///
+/// Returns the number of milliseconds since the Unix epoch, or 0 if the
+/// system time is before the epoch.
 fn current_time_ms() -> u128 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)

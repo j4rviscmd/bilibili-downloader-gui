@@ -33,11 +33,37 @@ import { useSelector } from 'react-redux'
 import { z } from 'zod'
 import { cn } from '@/shared/lib/utils'
 
+/**
+ * Props for VideoForm2 component.
+ */
 type Props = {
+  /** Video metadata */
   video: Video
+  /** Part page number (1-indexed) */
   page: number
+  /** Whether this part's title duplicates another */
   isDuplicate?: boolean
 }
+
+/**
+ * Form for video part settings (Step 2).
+ *
+ * Displays settings for a single video part including:
+ * - Checkbox for selection
+ * - Thumbnail and duration
+ * - Custom filename input
+ * - Video quality radio buttons (only available qualities shown)
+ * - Audio quality radio buttons (only available qualities shown)
+ *
+ * Changes are auto-saved on blur. Displays duplicate title warning if needed.
+ *
+ * @param props - Component props
+ *
+ * @example
+ * ```tsx
+ * <VideoForm2 video={videoData} page={1} isDuplicate={false} />
+ * ```
+ */
 function VideoForm2({ video, page, isDuplicate }: Props) {
   const { onValid2 } = useVideoInfo()
   const { t } = useTranslation()
@@ -69,29 +95,36 @@ function VideoForm2({ video, page, isDuplicate }: Props) {
   })
 
   useEffect(() => {
-    ;(async () => {
-      if (video && video.parts.length > 0 && video.parts[0].cid !== 0) {
-        form.setValue('title', video.title + ' ' + videoPart.part, {
-          shouldValidate: true,
-        })
-        form.setValue(
-          'videoQuality',
-          (video.parts[page - 1].videoQualities[0]?.id || 80).toString(),
-          { shouldValidate: true },
-        )
-        form.setValue(
-          'audioQuality',
-          (video.parts[page - 1].audioQualities[0]?.id || 30216).toString(),
-          { shouldValidate: true },
-        )
-        const ok = await form.trigger()
-        if (ok) {
-          const vals = form.getValues()
-          onValid2(page - 1, vals.title, vals.videoQuality, vals.audioQuality)
-        }
+    const syncFormWithVideo = async (): Promise<void> => {
+      if (!video || video.parts.length === 0 || video.parts[0].cid === 0) {
+        return
       }
-    })()
-  }, [video])
+
+      const part = video.parts[page - 1]
+      form.setValue('title', video.title + ' ' + videoPart.part, {
+        shouldValidate: true,
+      })
+      form.setValue(
+        'videoQuality',
+        (part.videoQualities[0]?.id || 80).toString(),
+        { shouldValidate: true },
+      )
+      form.setValue(
+        'audioQuality',
+        (part.audioQualities[0]?.id || 30216).toString(),
+        { shouldValidate: true },
+      )
+
+      const ok = await form.trigger()
+      if (ok) {
+        const vals = form.getValues()
+        onValid2(page - 1, vals.title, vals.videoQuality, vals.audioQuality)
+      }
+    }
+
+    syncFormWithVideo()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [video, page])
 
   async function onSubmit(data: z.infer<typeof schema2>) {
     onValid2(page - 1, data.title, data.videoQuality, data.audioQuality)

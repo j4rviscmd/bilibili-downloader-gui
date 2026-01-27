@@ -51,6 +51,12 @@
     "deselect_all": "전체 해제",
     "no_parts_selected": "다운로드할 파트가 선택되지 않았습니다"
   },
+  "progress": {
+    "elapsed": "경과",
+    "speed": "속도",
+    "downloaded": "다운로드됨",
+    "queued": "대기 중"
+  },
   "toast": { "success": "성공", "error": "문제가 발생했습니다" },
   "init": {
     "initializing": "초기화 중...",
@@ -86,6 +92,7 @@
     "quit_app": "앱 종료"
   },
   "settings": {
+    "title": "설정",
     "language_label": "언어",
     "output_dir_label": "출력 디렉터리",
     "output_dir_placeholder": "예: C\\\\Users\\\\you\\\\Downloads 또는 /Users/you/Downloads",

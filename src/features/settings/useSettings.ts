@@ -11,9 +11,39 @@ import type { Settings } from '@/features/settings/type'
 import { t as staticT, t } from 'i18next'
 import { toast } from 'sonner'
 
+/**
+ * Hook for managing application settings.
+ *
+ * Provides access to current settings and methods to update them.
+ * Settings changes are persisted to the backend and trigger UI updates.
+ * Includes error handling with localized toast notifications for
+ * validation errors (e.g., invalid path, permission denied, disk full).
+ *
+ * @returns Settings state and mutation methods
+ *
+ * @example
+ * ```typescript
+ * const { settings, updateLanguage, saveByForm } = useSettings()
+ *
+ * // Change language
+ * await updateLanguage('ja')
+ *
+ * // Save settings from form
+ * await saveByForm({ dlOutputPath: '/downloads', language: 'en' })
+ * ```
+ */
 export const useSettings = () => {
   const settings = useSelector((state) => state.settings)
 
+  /**
+   * Saves settings from the form with toast notifications.
+   *
+   * Attempts to save settings via `updateSettings`. On success, displays
+   * a success toast. On failure, parses backend error codes and displays
+   * localized error messages (e.g., 'ERR:SETTINGS_PATH_NOT_DIRECTORY').
+   *
+   * @param settings - The settings object to save
+   */
   const saveByForm = async (settings: Settings): Promise<void> => {
     try {
       const isSuccessful = await updateSettings(settings)
@@ -38,33 +68,47 @@ export const useSettings = () => {
         messageKey = 'settings.permission_denied'
       else if (raw.includes('ERR::DISK_FULL')) messageKey = 'settings.disk_full'
 
-      console.log(messageKey)
       const description = messageKey ? staticT(messageKey) : raw
-      console.log(messageKey)
-      console.log(t(messageKey ?? ''))
       toast.error(t('settings.save_failed_generic'), {
         duration: 10000,
         description,
         closeButton: true,
       })
-      console.error('Save settings failed:', raw)
     }
   }
 
+  /**
+   * Updates the settings dialog open/close state.
+   *
+   * @param open - True to open the dialog, false to close
+   */
   const updateOpenDialog = (open: boolean) => {
     store.dispatch(setOpenDialog(open))
   }
 
+  /**
+   * Changes the application language and persists the setting.
+   *
+   * First applies the language change via i18n, then saves the updated
+   * settings to the backend.
+   *
+   * @param lang - The target language code
+   */
   const updateLanguage = async (lang: SupportedLang) => {
     await changeLanguage(lang)
     await updateSettings({ ...settings, language: lang })
   }
 
   /**
-   * アプリ全体の設定を更新します。まず Redux ストアへ反映し、その後永続層（Tauri 側 API）へ保存要求を送ります。
-   * @param newSettings 反映したい最新の設定オブジェクト全体。
-   * @returns なし
-   * @remarks
+   * Updates and persists application settings.
+   *
+   * First updates the Redux store, then saves to the Tauri backend.
+   * If the backend save fails, the Redux state remains updated but
+   * persistence fails.
+   *
+   * @param newSettings - The new settings object
+   * @returns True if settings were successfully saved, false otherwise
+   * @throws Error if backend save operation fails
    */
   const updateSettings = async (newSettings: Settings): Promise<boolean> => {
     let isSuccessful = false
@@ -75,13 +119,17 @@ export const useSettings = () => {
       isSuccessful = true
     } catch (e) {
       isSuccessful = false
-      console.log(e)
       throw Error(String(e))
     }
 
     return isSuccessful
   }
 
+  /**
+   * Fetches settings from the backend and updates Redux store.
+   *
+   * @returns The fetched settings object
+   */
   const getSettings = async (): Promise<Settings> => {
     const settings = await callGetSettings()
     store.dispatch(setSettings(settings))
@@ -89,6 +137,18 @@ export const useSettings = () => {
     return settings
   }
 
+  /**
+   * Converts a language ID to its display label.
+   *
+   * @param id - The language code (e.g., 'en', 'ja')
+   * @returns The localized language label (e.g., 'English', '日本語')
+   *
+   * @example
+   * ```typescript
+   * id2Label('ja') // '日本語'
+   * id2Label('en') // 'English'
+   * ```
+   */
   const id2Label = (id: SupportedLang) => {
     const lang = languages.find((lang) => lang.id === id)
 

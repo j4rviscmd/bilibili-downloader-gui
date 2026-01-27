@@ -12,6 +12,19 @@ import { useSettings } from '@/features/settings/useSettings'
 import { Languages } from 'lucide-react'
 import { motion } from 'motion/react'
 
+/**
+ * Dropdown menu for language selection.
+ *
+ * Displays a button with the current language label and a dropdown
+ * containing all available languages (English, Japanese, French, Spanish,
+ * Chinese, Korean). When a language is selected, it updates the app
+ * settings and applies the new language immediately.
+ *
+ * @example
+ * ```tsx
+ * <LanguagesDropdown />
+ * ```
+ */
 function LanguagesDropdown() {
   const { settings, id2Label, updateLanguage } = useSettings()
 

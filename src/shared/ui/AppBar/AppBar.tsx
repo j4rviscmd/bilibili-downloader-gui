@@ -3,12 +3,33 @@ import LanguagesDropdown from '@/features/settings/LanguagesDropdown'
 import type { User } from '@/features/user'
 import { useTranslation } from 'react-i18next'
 
+/**
+ * Props for AppBar component.
+ */
 type Props = {
+  /** Current user information */
   user: User
+  /** Current theme mode */
   theme: 'light' | 'dark' | 'system'
+  /** Function to update the theme */
   setTheme: (theme: 'light' | 'dark') => void
 }
 
+/**
+ * Application top bar component.
+ *
+ * Displays:
+ * - Logged-in username (masked for privacy)
+ * - Language selection dropdown
+ * - Theme toggle button
+ *
+ * @param props - Component props
+ *
+ * @example
+ * ```tsx
+ * <AppBar user={userData} theme="dark" setTheme={(t) => console.log(t)} />
+ * ```
+ */
 function AppBar({ user, theme, setTheme }: Props) {
   const userName = user.data.uname
   const { t } = useTranslation()

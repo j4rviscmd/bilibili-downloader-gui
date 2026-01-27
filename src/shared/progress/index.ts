@@ -5,4 +5,4 @@
  * @module shared/progress
  */
 
-export type { Progress } from './types'
+export type { Progress } from '@/shared/ui/Progress/types'

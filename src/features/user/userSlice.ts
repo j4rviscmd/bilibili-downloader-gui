@@ -16,10 +16,22 @@ const initialState: User = {
   },
 }
 
+/**
+ * Redux slice for user authentication state.
+ *
+ * Stores the current Bilibili user's information including login status,
+ * username, and WBI signature data for API request signing.
+ */
 export const userSlice = createSlice({
   name: 'user',
   initialState,
   reducers: {
+    /**
+     * Replaces the entire user state.
+     *
+     * @param _ - Previous state (unused, will be replaced)
+     * @param action - Action containing the new user object
+     */
     setUser: (_, action: PayloadAction<User>) => {
       return action.payload
     },

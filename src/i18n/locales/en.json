@@ -58,7 +58,8 @@
   "progress": {
     "elapsed": "Elapsed",
     "speed": "Speed",
-    "downloaded": "Downloaded"
+    "downloaded": "Downloaded",
+    "queued": "Queued"
   },
   "toast": {
     "success": "Success",
@@ -98,6 +99,7 @@
     "quit_app": "Quit App"
   },
   "settings": {
+    "title": "Settings",
     "language_label": "Language",
     "output_dir_label": "Output Directory",
     "output_dir_placeholder": "e.g. C:\\Users\\you\\Downloads or /Users/you/Downloads",

@@ -16,7 +16,9 @@ fn main() {
                         let key_u = key.trim();
                         let val_u = val.trim();
                         match key_u {
-                            "GA_MEASUREMENT_ID" => println!("cargo:rustc-env=GA_MEASUREMENT_ID={val_u}"),
+                            "GA_MEASUREMENT_ID" => {
+                                println!("cargo:rustc-env=GA_MEASUREMENT_ID={val_u}")
+                            }
                             "GA_API_SECRET" => println!("cargo:rustc-env=GA_API_SECRET={val_u}"),
                             "GA_DEBUG" => println!("cargo:rustc-env=GA_DEBUG={val_u}"),
                             _ => {}

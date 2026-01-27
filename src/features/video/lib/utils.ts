@@ -1,12 +1,33 @@
-// Utility functions for video feature
-// NOTE: Keep logic lightweight; do not duplicate complex validation.
+/**
+ * Utility functions for the video feature.
+ *
+ * NOTE: Keep logic lightweight; avoid duplicating complex validation.
+ */
 
-// Remove characters we forbid in schema; unify case & trim.
-// Windows forbidden: \\ / : * ? " < > |
-// Non-Windows (mac/Linux): /
-// Since we don't know OS synchronously, remove broad superset except colon when maybe allowed? We mirror formSchema default.
+/**
+ * Regex matching all characters forbidden in filenames.
+ *
+ * Windows: \\ / : * ? " < > |
+ * Non-Windows (macOS/Linux): /
+ * Since OS detection is async, this uses a broad superset.
+ */
 const FORBIDDEN_SUPERSET = /[\\/:*?"<>|]/g
 
+/**
+ * Normalizes a filename for duplicate detection.
+ *
+ * Removes forbidden characters, trims whitespace, and converts to lowercase.
+ * Used to compare filenames case-insensitively without special characters.
+ *
+ * @param name - The original filename
+ * @returns The normalized filename
+ *
+ * @example
+ * ```typescript
+ * normalizeFilename('My Video: Part 1') // 'my video part 1'
+ * normalizeFilename('Test/File?') // 'testfile'
+ * ```
+ */
 export const normalizeFilename = (name: string): string => {
   return name.trim().toLowerCase().replace(FORBIDDEN_SUPERSET, '')
 }

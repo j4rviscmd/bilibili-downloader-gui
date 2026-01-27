@@ -2,8 +2,23 @@ import type { TFunction } from 'i18next'
 import z from 'zod'
 
 /**
- * 多言語対応版設定フォームスキーマ。
- * i18n の t 関数を受け取り、各バリデーションメッセージを現在の言語に合わせて生成します。
+ * Builds a localized validation schema for the settings form.
+ *
+ * Creates a Zod schema with validation rules for download output path and
+ * language selection. Path validation includes:
+ * - Length constraints (1-1024 characters)
+ * - OS-specific invalid character checks (Windows vs POSIX)
+ * - Reserved filename detection (Windows only)
+ * - Control character detection
+ *
+ * @param t - The i18next translation function for localized error messages
+ * @returns A Zod schema for settings form validation
+ *
+ * @example
+ * ```typescript
+ * const schema = buildSettingsFormSchema(t)
+ * const result = schema.safeParse({ dlOutputPath: '/downloads', language: 'en' })
+ * ```
  */
 export const buildSettingsFormSchema = (t: TFunction) =>
   z.object({
@@ -95,9 +110,15 @@ export const buildSettingsFormSchema = (t: TFunction) =>
     }),
   })
 
-// 後方互換: t を動的に取得できないコンテキスト向け (初期ロード時に ja フォールバック)
-// 使用箇所では buildSettingsFormSchema(t) の利用を推奨
-// 簡易フォールバック t: 第二引数 (defaultValue) を優先し、無ければキーをそのまま返す
+/**
+ * Fallback schema for backward compatibility.
+ *
+ * Uses a minimal translation function that returns the key as-is when no
+ * translation is available. Prefer using `buildSettingsFormSchema(t)` with
+ * a real translation function when possible.
+ *
+ * @deprecated Use buildSettingsFormSchema with useTranslation hook instead
+ */
 const fallbackT: TFunction = ((key: unknown, defaultValue?: unknown) =>
   typeof defaultValue === 'string' ? defaultValue : String(key)) as TFunction
 export const formSchema = buildSettingsFormSchema(fallbackT)

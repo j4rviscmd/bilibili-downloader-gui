@@ -1,5 +1,13 @@
+//! Frontend Data Transfer Objects (DTOs)
+//!
+//! This module defines data structures sent to the frontend, including
+//! user information, video metadata, and quality options.
+
 use serde::{Deserialize, Serialize};
 
+/// User information structure sent to the frontend.
+///
+/// Contains authentication status and basic profile information.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
     pub code: i32,
@@ -14,12 +22,22 @@ pub struct UserData {
     pub is_login: bool,
 }
 
+/// Video metadata structure sent to the frontend.
+///
+/// Contains complete video information including all parts and quality options.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Video {
+    /// Video title
     pub title: String,
+    /// Bilibili video ID (BV identifier)
     pub bvid: String,
+    /// List of video parts (for multi-part videos)
     pub parts: Vec<VideoPart>,
 }
+
+/// Individual video part with quality and metadata information.
+///
+/// Represents a single part of a potentially multi-part video.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VideoPart {
     pub cid: i64,
@@ -32,14 +50,24 @@ pub struct VideoPart {
     #[serde(rename = "audioQualities")]
     pub audio_qualities: Vec<Quality>,
 }
+/// Thumbnail information including both URL and Base64-encoded data.
+///
+/// Provides flexibility for the frontend to use either the URL or embedded data.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Thumbnail {
+    /// Original thumbnail URL
     pub url: String,
+    /// Base64-encoded thumbnail image data
     pub base64: String,
 }
 
+/// Quality option for video or audio streams.
+///
+/// Represents an available quality level with codec information.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Quality {
+    /// Quality ID (higher numbers typically indicate better quality)
     pub id: i32,
+    /// Codec ID
     pub codecid: i16,
 }

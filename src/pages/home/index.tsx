@@ -33,6 +33,25 @@ import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
+/**
+ * Home page component (main application view).
+ *
+ * Displays the primary UI for video downloads including:
+ * - Sidebar with settings button
+ * - App bar with user info, language selector, and theme toggle
+ * - Video URL input form (Step 1)
+ * - Video parts configuration forms (Step 2)
+ * - Select all/deselect all buttons
+ * - Download button
+ * - Download progress dialog
+ *
+ * Redirects to /init if the app is not initialized.
+ *
+ * @example
+ * ```tsx
+ * <Route path="/home" element={<HomePage />} />
+ * ```
+ */
 function HomePage() {
   const { initiated } = useInit()
   const navigate = useNavigate()
@@ -58,29 +77,8 @@ function HomePage() {
     <>
       <SidebarProvider defaultOpen={false}>
         <Sidebar>
-          <SidebarHeader>
-            {/* <SidebarMenu>
-        <SidebarMenuItem>Item 1</SidebarMenuItem>
-      </SidebarMenu> */}
-          </SidebarHeader>
-          <SidebarContent>
-            {/* <SidebarGroup>
-        <SidebarGroupLabel>Label 1</SidebarGroupLabel>
-        <SidebarMenu>
-          <SidebarMenuItem>Item 1</SidebarMenuItem>
-          <SidebarMenuItem>Item 2</SidebarMenuItem>
-          <SidebarMenuItem>Item 3</SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarGroup>
-      <SidebarGroup>
-        <SidebarGroupLabel>Label 2</SidebarGroupLabel>
-        <SidebarMenu>
-          <SidebarMenuItem>Item 1</SidebarMenuItem>
-          <SidebarMenuItem>Item 2</SidebarMenuItem>
-          <SidebarMenuItem>Item 3</SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarGroup> */}
-          </SidebarContent>
+          <SidebarHeader />
+          <SidebarContent />
           <SidebarFooter>
             <SidebarMenu>
               <SidebarMenuItem>

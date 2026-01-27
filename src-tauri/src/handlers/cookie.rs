@@ -1,3 +1,8 @@
+//! Firefox Cookie Management
+//!
+//! This module handles reading cookies from Firefox's SQLite database
+//! and caching them in memory for use in API requests to Bilibili.
+
 use std::{collections::HashMap, fs, path::PathBuf};
 
 use rusqlite::{Connection, Result as SqlResult};
@@ -7,6 +12,22 @@ use tauri::Manager;
 use crate::models::cookie::CookieCache;
 use crate::models::cookie::CookieEntry;
 
+/// Reads cookies from the application's memory cache.
+///
+/// This function retrieves cached cookies without accessing the Firefox database.
+/// Cookies must be fetched first using `get_cookie()`.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle for accessing the cookie cache
+///
+/// # Returns
+///
+/// Returns `Ok(Some(cookies))` if cookies are cached, `Ok(None)` if the cache is empty.
+///
+/// # Errors
+///
+/// Returns an error if the cache state cannot be accessed (should not normally occur).
 pub fn read_cookie(app: &AppHandle) -> Result<Option<Vec<CookieEntry>>, String> {
     // キャッシュを参照する場合は、app.state::<CookieCache>().cookies.lock() から取出
     if let Some(cache) = app.try_state::<CookieCache>() {
@@ -18,18 +39,32 @@ pub fn read_cookie(app: &AppHandle) -> Result<Option<Vec<CookieEntry>>, String> 
     Ok(None)
 }
 
-// Firefox の cookies.sqlite を探す（macOS 想定。必要なら他OS分岐を追加）
+/// Locates the Firefox cookies.sqlite file on the system.
+///
+/// This function searches for the Firefox cookies database in platform-specific
+/// default locations. Supports Windows, macOS, and Linux.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle for resolving home directory paths
+///
+/// # Returns
+///
+/// Returns `Some(PathBuf)` pointing to the cookies.sqlite file if found,
+/// or `None` if Firefox is not installed or the file cannot be located.
 fn find_firefox_cookie_file(app: &AppHandle) -> Option<PathBuf> {
     let filepath = if cfg!(target_os = "windows") {
-        // Windows の場合は AppData フォルダを参照
-        let appdata = app.path().data_dir().unwrap();
+        let appdata = app.path().data_dir().ok()?;
         appdata.join("Mozilla/Firefox/Profiles")
     } else if cfg!(target_os = "macos") {
-        // macOS の場合はホームディレクトリを参照
-        let home = app.path().home_dir().unwrap();
+        let home = app.path().home_dir().ok()?;
         home.join("Library/Application Support/Firefox/Profiles")
+    } else if cfg!(target_os = "linux") {
+        // Linux: ~/.mozilla/firefox
+        let home = app.path().home_dir().ok()?;
+        home.join(".mozilla/firefox")
     } else {
-        PathBuf::new()
+        return None;
     };
 
     if !filepath.exists() {
@@ -47,12 +82,33 @@ fn find_firefox_cookie_file(app: &AppHandle) -> Option<PathBuf> {
     None
 }
 
+/// Extracts Bilibili cookies from Firefox and caches them in memory.
+///
+/// This function:
+/// 1. Locates the Firefox cookies.sqlite database
+/// 2. Copies it to a temporary location (to avoid file locks)
+/// 3. Reads Bilibili-specific cookies from the database
+/// 4. Caches the cookies in application memory for subsequent use
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle for accessing the cookie cache
+///
+/// # Returns
+///
+/// Returns `Ok(true)` if Bilibili cookies were found and cached,
+/// `Ok(false)` if no Bilibili cookies were found.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Firefox cookies database cannot be copied
+/// - SQLite database cannot be opened or queried
 pub async fn get_cookie(app: &AppHandle) -> Result<bool, String> {
     // 1) ローカルの Firefox cookie DB を探索
     let Some(cookiefile) = find_firefox_cookie_file(app) else {
         return Ok(false);
     };
-
 
     // 2) 一時ディレクトリにコピー（Firefox 実行中ロック対策）
     let tmp_dir = std::env::temp_dir();
