@@ -3,6 +3,7 @@
     "MD033": false
   },
   "cSpell.words": [
+    "bavail",
     "bilibili",
     "bvid",
     "codecid",
@@ -17,18 +18,25 @@
     "fnver",
     "fourk",
     "Français",
+    "frsize",
     "futs",
     "KHTML",
     "libappindicator",
+    "libc",
     "librsvg",
     "libwebkit",
+    "mbps",
     "NSIS",
     "outpath",
     "patchelf",
+    "playurl",
     "REFERER",
     "reqs",
+    "retryable",
     "rsplit",
     "rusqlite",
+    "statvfs",
+    "Uninit",
     "vbid"
   ],
   "github-actions.workflows.pinned.workflows": [".github/workflows/release.yml"]
