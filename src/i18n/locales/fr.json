@@ -97,6 +97,8 @@
     "output_dir_label": "Répertoire de sortie",
     "output_dir_placeholder": "ex: C\\\\Users\\\\you\\\\Downloads ou /Users/you/Downloads",
     "output_dir_description": "Indiquez le répertoire où les vidéos seront enregistrées.",
+    "speed_threshold_label": "Seuil de vitesse (Mo/s)",
+    "speed_threshold_description": "Si la vitesse de téléchargement initiale est inférieure à ce seuil, la connexion sera réessayée pour obtenir un nœud CDN plus rapide. Par défaut : 1.0 Mo/s.",
     "auto_save_note": "Les modifications sont enregistrées automatiquement.",
     "dialog_title": "Paramètres",
     "save_success": "Paramètres enregistrés",
@@ -123,6 +125,10 @@
       }
     },
     "language": { "required": "Veuillez sélectionner une langue." },
+    "speed_threshold": {
+      "too_low": "Le seuil de vitesse doit être d'au moins 0,1 Mo/s.",
+      "too_high": "Le seuil de vitesse ne doit pas dépasser 100 Mo/s."
+    },
     "video": {
       "url": {
         "min": "L'URL doit contenir au moins 2 caractères.",

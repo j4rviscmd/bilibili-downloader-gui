@@ -95,8 +95,10 @@
     "title": "设置",
     "language_label": "语言",
     "output_dir_label": "输出目录",
-    "output_dir_placeholder": "例如: C\\\\Users\\\\you\\\\Downloads 或 /Users/you/Downloads",
+    "output_dir_placeholder": "例如: C:\\Users\\you\\Downloads 或 /Users/you/Downloads",
     "output_dir_description": "请输入保存视频文件的目录。",
+    "speed_threshold_label": "速度阈值 (MB/s)",
+    "speed_threshold_description": "如果初始下载速度低于此阈值，将重试连接以获取更快的 CDN 节点。默认值：1.0 MB/s。",
     "auto_save_note": "更改会自动保存。",
     "dialog_title": "设置",
     "save_success": "设置已保存",
@@ -123,6 +125,10 @@
       }
     },
     "language": { "required": "请选择语言。" },
+    "speed_threshold": {
+      "too_low": "速度阈值至少为 0.1 MB/s。",
+      "too_high": "速度阈值不能超过 100 MB/s。"
+    },
     "video": {
       "url": {
         "min": "链接至少需要 2 个字符。",

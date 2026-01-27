@@ -57,6 +57,7 @@ function SettingsForm() {
     defaultValues: {
       dlOutputPath: settings.dlOutputPath || '',
       language: settings.language || 'en',
+      downloadSpeedThresholdMbps: settings.downloadSpeedThresholdMbps ?? 1.0,
     },
     mode: 'onBlur',
   })
@@ -66,19 +67,24 @@ function SettingsForm() {
     form.reset({
       dlOutputPath: settings.dlOutputPath || '',
       language: settings.language || 'en',
+      downloadSpeedThresholdMbps: settings.downloadSpeedThresholdMbps ?? 1.0,
     })
-  }, [form, settings.dlOutputPath, settings.language])
+  }, [form, settings.dlOutputPath, settings.language, settings.downloadSpeedThresholdMbps])
 
   const onSubmit = async (data: z.infer<typeof formSchema>) => {
-    const changed: Partial<z.infer<typeof formSchema>> = {}
-    if (data.dlOutputPath !== settings.dlOutputPath) {
-      changed.dlOutputPath = data.dlOutputPath
-    }
+    const changedKeys = (
+      ['dlOutputPath', 'language', 'downloadSpeedThresholdMbps'] as const
+    ).filter((key) => data[key] !== settings[key])
+
+    if (changedKeys.length === 0) return
+
     if (data.language !== settings.language) {
       updateLanguage(data.language)
-      changed.language = data.language
     }
-    if (Object.keys(changed).length === 0) return
+
+    const changed = Object.fromEntries(
+      changedKeys.map((key) => [key, data[key]]),
+    ) as Partial<z.infer<typeof formSchema>>
     await saveByForm({ ...settings, ...changed })
   }
 
@@ -145,6 +151,39 @@ function SettingsForm() {
               </FormControl>
               <FormDescription>
                 {t('settings.output_dir_description')}
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <Separator />
+        <FormField
+          control={form.control}
+          name="downloadSpeedThresholdMbps"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t('settings.speed_threshold_label')}</FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  step="0.1"
+                  min="0.1"
+                  max="100"
+                  placeholder="1.0"
+                  {...field}
+                  value={field.value ?? 1.0}
+                  onChange={(e) => {
+                    const num = parseFloat(e.target.value)
+                    field.onChange(isNaN(num) ? 1.0 : num)
+                  }}
+                  onBlur={() => {
+                    field.onBlur()
+                    form.handleSubmit(onSubmit)()
+                  }}
+                />
+              </FormControl>
+              <FormDescription>
+                {t('settings.speed_threshold_description')}
               </FormDescription>
               <FormMessage />
             </FormItem>

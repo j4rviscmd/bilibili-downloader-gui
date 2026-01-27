@@ -113,9 +113,17 @@ pub async fn install_ffmpeg(app: &AppHandle) -> Result<bool> {
     };
     // ~/bilibili-downloader-gui/src-tauri/target/debug/lib/ffmpeg
     let archive_path = ffmpeg_root.join(filename);
-    if download_url(app, url.to_string(), archive_path.clone(), None, true, None)
-        .await
-        .is_err()
+    if download_url(
+        app,
+        url.to_string(),
+        archive_path.clone(),
+        None,
+        true,
+        None,
+        None, // No speed check for small files
+    )
+    .await
+    .is_err()
     {
         return Ok(false);
     }
