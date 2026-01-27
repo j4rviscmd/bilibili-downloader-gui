@@ -1,6 +1,5 @@
 import { store } from '@/app/store'
 import { useInit } from '@/features/init'
-import { sleep } from '@/shared/lib/utils'
 import { clearProgress } from '@/shared/progress/progressSlice'
 import CircleIndicator from '@/shared/ui/CircleIndicator'
 import ProgressStatusBar from '@/shared/ui/Progress'
@@ -34,9 +33,7 @@ function InitPage() {
   useEffect(() => {
     progress.forEach((p) => {
       if (p.isComplete) {
-        sleep(500).then(() => {
-          store.dispatch(clearProgress())
-        })
+        store.dispatch(clearProgress())
       }
     })
   }, [progress])
