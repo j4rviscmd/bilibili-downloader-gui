@@ -1,15 +1,41 @@
-//! Concurrency Control for Video Downloads
+//! 動画ダウンロードの並列制御モジュール
 //!
-//! This module manages the maximum number of concurrent video downloads
-//! to prevent overwhelming the network or system resources.
+//! このモジュールは、ネットワークやシステムリソースの過負荷を防ぐために、
+//! 同時に実行できる動画ダウンロードの最大数を管理します。
 
 use once_cell::sync::Lazy;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
 
-/// Global semaphore limiting concurrent video downloads.
+/// 同時実行動画ダウンロード数を制限するグローバルセマフォ。
 ///
-/// This semaphore controls how many video files can be downloaded simultaneously.
-/// The default limit is 8 concurrent downloads. Audio downloads are not limited
-/// by this semaphore.
+/// このセマフォは、同時にダウンロードできる動画ファイルの数を制御します。
+/// デフォルトの制限は8個の同時ダウンロードです。音声ダウンロードは
+/// このセマフォでは制限されません。
+///
+/// # セマフォのライフサイクル
+///
+/// セマフォは以下のライフサイクルで使用されます：
+///
+/// 1. **取得**: ダウンロード開始前に `acquire_owned()` で取得
+/// 2. **保持**: ダウンロードとマージ処理の間、セマフォを保持
+/// 3. **解放**: マージ完了後に `drop()` で解放
+///
+/// この設計により、セマフォは「ネットワーク帯域」ではなく
+/// 「マージ処理のCPU/ディスク負荷」に基づいて同時実行数を制限します。
+///
+/// # 使用例
+///
+/// ```rust
+/// use crate::handlers::concurrency::VIDEO_SEMAPHORE;
+///
+/// // セマフォの取得（非同期）
+/// let permit = VIDEO_SEMAPHORE.clone().acquire_owned().await?;
+///
+/// // ダウンロードとマージ処理
+/// // ...
+///
+/// // セマフォの解放
+/// drop(permit);
+/// ```
 pub static VIDEO_SEMAPHORE: Lazy<Arc<Semaphore>> = Lazy::new(|| Arc::new(Semaphore::new(8)));

@@ -1,7 +1,18 @@
-//! Bilibili API Integration
+//! Bilibili API 連携モジュール
 //!
-//! This module handles all interactions with Bilibili's API, including
-//! video information retrieval, user authentication, and video downloading.
+//! このモジュールはBilibili APIとのすべての相互作用を処理します：
+//!
+//! ## 主要機能
+//!
+//! - **動画情報取得**: 動画タイトル、画質オプション、サムネイル等のメタデータ取得
+//! - **ユーザー認証**: Firefoxからキャッシュされたクッキーを使用したユーザー情報取得
+//! - **動画ダウンロード**: 音声・動画ストリームの並列ダウンロードとffmpegによるマージ
+//!
+//! ## 並列ダウンロード実装
+//!
+//! このモジュールは、音声と動画ストリームを同時にダウンロードすることで
+//! ダウンロード時間を短縮します。セマフォ (`VIDEO_SEMAPHORE`) を使用して
+//! 同時実行数を制限し、システムリソースを保護します。
 
 use crate::constants::REFERER;
 use crate::handlers::cookie::read_cookie;
@@ -25,42 +36,57 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::AppHandle;
 
-/// Downloads a Bilibili video with specified quality settings.
+/// Bilibili動画を指定された画質でダウンロードします。
 ///
-/// This function orchestrates the complete download process:
-/// 1. Determines output path and handles automatic renaming
-/// 2. Validates cookie availability
-/// 3. Fetches video details and stream URLs
-/// 4. Checks available disk space
-/// 5. Downloads audio and video streams separately (with retry logic)
-/// 6. Merges streams using ffmpeg
+/// この関数はダウンロード処理全体をオーケストレーションします：
+/// 1. 出力パスの決定と自動リネーム処理
+/// 2. Cookieの有無を検証
+/// 3. 動画詳細とストリームURLの取得
+/// 4. ディスク容量の事前チェック
+/// 5. 音声・動画ストリームの並列ダウンロード（リトロジック付き）
+/// 6. ffmpegによるストリームのマージ
 ///
-/// Progress updates are emitted to the frontend throughout the process.
+/// 処理の進捗状況はフロントエンドへ随時イベント送信されます。
 ///
-/// # Arguments
+/// # 並列ダウンロードについて
 ///
-/// * `app` - Tauri application handle
-/// * `bvid` - Bilibili video ID (BV identifier)
-/// * `cid` - Content ID for the specific video part
-/// * `filename` - Desired output filename (without extension)
-/// * `quality` - Video quality ID (will fallback to highest if unavailable)
-/// * `audio_quality` - Audio quality ID (will fallback to highest if unavailable)
-/// * `download_id` - Unique identifier for progress tracking
-/// * `_parent_id` - Optional parent ID for multi-part video tracking (currently unused)
+/// 音声と動画のストリームを同時にダウンロードすることで、ダウンロード時間を短縮します。
+/// セマフォ (VIDEO_SEMAPHORE) を使用して同時実行数を制限し、システムリソースを保護します。
 ///
-/// # Returns
+/// ## セマフォ制御のライフサイクル
 ///
-/// Returns `Ok(())` on successful download and merge.
+/// 1. **取得**: `acquire_owned()` でダウンロード開前にセマフォを取得
+/// 2. **並列ダウンロード**: 音声と動画を同時にダウンロード
+/// 3. **マージ処理**: ffmpegで音声と動画を結合
+/// 4. **解放**: マージ完了後に `drop(permit)` でセマフォを解放
 ///
-/// # Errors
+/// この設計により、セマフォは「ネットワーク帯域」ではなく「マージ処理の負荷」に
+/// 基づいて同時実行数を制限します。
 ///
-/// Returns an error if:
-/// - Settings or output path cannot be determined
-/// - Cookies are missing (`ERR::COOKIE_MISSING`)
-/// - Selected quality is not available (`ERR::QUALITY_NOT_FOUND`)
-/// - Disk space is insufficient (`ERR::DISK_FULL`)
-/// - Download fails after retries (`ERR::NETWORK`)
-/// - ffmpeg merge fails (`ERR::MERGE_FAILED`)
+/// # 引数
+///
+/// * `app` - Tauriアプリケーションハンドル
+/// * `bvid` - Bilibili動画ID (BV識別子)
+/// * `cid` - 動画パートごとのコンテンツID
+/// * `filename` - 出力ファイル名（拡張子を除く）
+/// * `quality` - 動画画質ID（利用不可の場合は最高画質にフォールバック）
+/// * `audio_quality` - 音声画質ID（利用不可の場合は最高画質にフォールバック）
+/// * `download_id` - 進捗追跡用の一意識別子
+/// * `_parent_id` - マルチパート動画用の親ID（現在未使用）
+///
+/// # 戻り値
+///
+/// ダウンロードとマージが成功した場合、`Ok(())` を返します。
+///
+/// # エラー
+///
+/// 以下の場合にエラーを返します：
+/// - 設定または出力パスが取得できない
+/// - Cookieが存在しない (`ERR::COOKIE_MISSING`)
+/// - 選択した画質が利用できない (`ERR::QUALITY_NOT_FOUND`)
+/// - ディスク容量が不足している (`ERR::DISK_FULL`)
+/// - リトライ回数を超えてダウンロードが失敗 (`ERR::NETWORK`)
+/// - ffmpegのマージが失敗 (`ERR::MERGE_FAILED`)
 pub async fn download_video(
     app: &AppHandle,
     bvid: &str,
@@ -125,39 +151,21 @@ pub async fn download_video(
     // --------------------------------------------------
     let details = fetch_video_details(&cookies, bvid, cid).await?;
 
-    // 選択動画品質が存在しなければフォールバック (先頭 = 最も高品質)
-    let video_url = match details.data.dash.video.iter().find(|v| v.id == *quality) {
-        Some(v) => v.base_url.clone(),
-        None => match details.data.dash.video.first() {
-            Some(fb) => {
-                emit_stage(app, &download_id, "warn-video-quality-fallback");
-                fb.base_url.clone()
-            }
-            None => {
-                return Err("ERR::QUALITY_NOT_FOUND".into());
-            }
-        },
-    };
-
-    // 選択音声品質が存在しなければフォールバック (先頭 = 最も高品質)
-    let audio_url = match details
-        .data
-        .dash
-        .audio
-        .iter()
-        .find(|a| a.id == *audio_quality)
-    {
-        Some(a) => a.base_url.clone(),
-        None => match details.data.dash.audio.first() {
-            Some(fb) => {
-                emit_stage(app, &download_id, "warn-audio-quality-fallback");
-                fb.base_url.clone()
-            }
-            None => {
-                return Err("ERR::QUALITY_NOT_FOUND".into());
-            }
-        },
-    };
+    // 選択品質が存在しなければフォールバック (先頭 = 最も高品質)
+    let video_url = select_stream_url(
+        &details.data.dash.video,
+        quality,
+        app,
+        &download_id,
+        "warn-video-quality-fallback",
+    )?;
+    let audio_url = select_stream_url(
+        &details.data.dash.audio,
+        audio_quality,
+        app,
+        &download_id,
+        "warn-audio-quality-fallback",
+    )?;
 
     // --------------------------------------------------
     // 4. 容量事前チェック (取得できなければスキップ)
@@ -177,50 +185,65 @@ pub async fn download_video(
     let temp_audio_path = lib_path.join(format!("temp_audio_{}.m4s", download_id));
 
     // --------------------------------------------------
-    // 6. ダウンロード (リトライ込み)
+    // 6. 並列ダウンロード (音声 + 動画)
     // --------------------------------------------------
-    // Audio → Video (セマフォ取得)
-    let cookie_opt = Some(cookie_header.to_string());
-
-    // Audio DL
-    retry_download(|| {
-        download_url(
-            app,
-            audio_url.clone(),
-            temp_audio_path.clone(),
-            cookie_opt.clone(),
-            true,
-            Some(download_id.clone()),
-            Some(min_speed_threshold),
-        )
-    })
-    .await?;
-
-    // Video DL (セマフォ制御)
+    //
+    // 同時実行制御:
+    // - セマフォ (VIDEO_SEMAPHORE) を使用して、同時にダウンロード・マージ処理を実行できる数を制限
+    // - セマフォはマージ完了まで保持されるため、並列実行数は「ネットワーク帯域」ではなく「マージ処理の負荷」に基づく
+    //
+    // 並列実行の利点:
+    // - 音声と動画を同時にダウンロードすることで、ネットワーク帯域を有効活用
+    // - ダウンロード時間を短縮（逐次実行の場合と比較して最大50%削減可能）
+    //
+    // エラーハンドリング:
+    // - tokio::try_join! により、いずれかのダウンロードが失敗した時点で即座にキャンセル
+    // - retry_download によりネットワーク一時エラーの場合は自動再試行（最大3回）
+    //
+    // セマフォのライフサイクル:
+    // 1. acquire_owned() - ダウンロード開始前に取得
+    // 2. 並列ダウンロード実行
+    // 3. マージ実行
+    // 4. drop(permit) - マージ完了後に解放
+    //
+    // セマフォをマージ完了まで保持
     let permit = crate::handlers::concurrency::VIDEO_SEMAPHORE
         .clone()
         .acquire_owned()
         .await
         .map_err(|e| format!("Failed to acquire video semaphore permit: {}", e))?;
-    let video_res = retry_download(|| {
-        download_url(
-            app,
-            video_url.clone(),
-            temp_video_path.clone(),
-            cookie_opt.clone(),
-            true,
-            Some(download_id.clone()),
-            Some(min_speed_threshold),
-        )
-    })
-    .await;
-    if let Err(e) = video_res {
-        drop(permit); // release permit
-                      // NOTE: GA4 Analytics は無効化されています
-                      // crate::utils::analytics::finish_download(app, &download_id, false, Some(&e)).await;
+
+    let cookie = Some(cookie_header.clone());
+
+    // 並列実行（片方失敗で即時キャンセル）
+    if let Err(e) = tokio::try_join!(
+        retry_download(|| {
+            download_url(
+                app,
+                audio_url.clone(),
+                temp_audio_path.clone(),
+                cookie.clone(),
+                true,
+                Some(download_id.clone()),
+                Some(min_speed_threshold),
+            )
+        }),
+        retry_download(|| {
+            download_url(
+                app,
+                video_url.clone(),
+                temp_video_path.clone(),
+                cookie.clone(),
+                true,
+                Some(download_id.clone()),
+                Some(min_speed_threshold),
+            )
+        }),
+    ) {
+        // NOTE: GA4 Analytics は無効化されています
+        // crate::utils::analytics::finish_download(app, &download_id, false, Some(&e)).await;
         return Err(e);
     }
-    // keep permit until merge 完了
 
     // --------------------------------------------------
     // 7. マージ (merge stage emit)
@@ -235,11 +258,13 @@ pub async fn download_video(
     )
     .await
     {
-        drop(permit);
         // NOTE: GA4 Analytics は無効化されています
         // crate::utils::analytics::finish_download(app, &download_id, false, Some("ERR::MERGE_FAILED")).await;
         return Err("ERR::MERGE_FAILED".into());
     }
+
+    // マージ完了後にセマフォを解放
+    // これにより、他の待機中のダウンロードがセマフォを取得可能になる
     drop(permit);
 
     // temp 削除
@@ -253,41 +278,35 @@ pub async fn download_video(
     Ok(())
 }
 
-/// Fetches the currently logged-in user's information from Bilibili.
+/// Bilibiliにログイン中のユーザー情報を取得します。
 ///
-/// This function retrieves user profile data using cached cookies from Firefox.
-/// If no valid cookies are available, it returns `None` without error.
+/// Firefoxからキャッシュされたクッキーを使用してユーザープロファイルデータを
+/// 取得します。有効なクッキーがない場合は、エラーではなく `None` を返します。
 ///
-/// # Arguments
+/// # 引数
 ///
-/// * `app` - Tauri application handle for accessing the cookie cache
+/// * `app` - クッキーキャッシュアクセス用Tauriアプリケーションハンドル
 ///
-/// # Returns
+/// # 戻り値
 ///
-/// Returns `Ok(Some(User))` if user info was successfully retrieved,
-/// or `Ok(None)` if no cookies are available.
+/// ユーザー情報の取得に成功した場合は `Ok(Some(User))`、
+/// クッキーがない場合は `Ok(None)` を返します。
 ///
-/// # Errors
+/// # エラー
 ///
-/// Returns an error if:
-/// - The HTTP request fails
-/// - Response JSON parsing fails
+/// 以下の場合にエラーを返します：
+/// - HTTPリクエストが失敗した場合
+/// - レスポンスJSONのパースが失敗した場合
 pub async fn fetch_user_info(app: &AppHandle) -> Result<Option<User>, String> {
-    let mut result: Option<User> = None;
-
     // 1) メモリキャッシュから Cookie を取得
-    let cookies = read_cookie(app)?;
-    if cookies.is_none() {
-        // DEBUG: println!("No cookies in cache");
-        return Ok(result);
-    }
-    let cookies = cookies.unwrap();
+    let Some(cookies) = read_cookie(app)? else {
+        return Ok(None);
+    };
 
     // 2) bilibili 用 Cookie ヘッダを構築
     let cookie_header = build_cookie_header(&cookies);
     if cookie_header.is_empty() {
-        // DEBUG: println!("No bilibili cookies found in cache");
-        return Ok(result);
+        return Ok(None);
     }
 
     // 3) リクエスト送信（Cookie ヘッダを付与）
@@ -295,74 +314,72 @@ pub async fn fetch_user_info(app: &AppHandle) -> Result<Option<User>, String> {
         .user_agent(USER_AGENT)
         .build()
         .map_err(|e| format!("failed to build client: {e}"))?;
-    let res: reqwest::Response = client
+
+    let body = client
         .get("https://api.bilibili.com/x/web-interface/nav")
         .header(header::COOKIE, cookie_header)
         .header(reqwest::header::REFERER, REFERER)
         .send()
         .await
-        .map_err(|e| format!("Failed to fetch user info: {e}"))?;
-
-    let body = res
+        .map_err(|e| format!("Failed to fetch user info: {e}"))?
         .json::<UserApiResponse>()
         .await
         .map_err(|e| format!("UserApi Failed to parse response JSON:: {e}"))?;
-    // println!("Response body: {}", text);
 
-    result = Some(User {
+    Ok(Some(User {
         code: body.code,
         message: body.message,
         data: UserData {
             uname: body.data.uname,
             is_login: body.data.is_login,
         },
-    });
-
-    Ok(result)
+    }))
 }
 
-/// Builds a Cookie header string from cookie entries.
+/// クッキーエントリーからCookieヘッダー文字列を構築します。
 ///
-/// Filters cookies to include only those for the bilibili.com domain
-/// and formats them as "name=value; name=value".
+/// bilibili.com ドメイン用のクッキーのみをフィルタリングし、
+/// "name=value; name=value" 形式でフォーマットします。
 ///
-/// # Arguments
+/// # 引数
 ///
-/// * `cookies` - Slice of cookie entries
+/// * `cookies` - クッキーエントリーのスライス
 ///
-/// # Returns
+/// # 戻り値
 ///
-/// Returns a formatted cookie header string suitable for HTTP requests.
+/// HTTPリクエストで使用可能なフォーマット済みクッキーヘッダー文字列を返します。
+///
+/// # 実装詳細
+///
+/// - ホストが "bilibili.com" で終わるクッキーのみを対象とします
+/// - セミコロンとスペースで区切って結合します
 fn build_cookie_header(cookies: &[CookieEntry]) -> String {
-    // bilibili ドメインのものに限定しつつ name=value; を組み立て
-    let mut parts: Vec<String> = Vec::new();
-    for c in cookies {
-        if c.host.ends_with("bilibili.com") {
-            // 値にセミコロンや改行が入らない前提。必要ならサニタイズ。
-            parts.push(format!("{}={}", c.name, c.value));
-        }
-    }
-    parts.join("; ")
+    cookies
+        .iter()
+        .filter(|c| c.host.ends_with("bilibili.com"))
+        .map(|c| format!("{}={}", c.name, c.value))
+        .collect::<Vec<_>>()
+        .join("; ")
 }
 
-/// Fetches an image from a URL and encodes it as Base64.
+/// URLから画像を取得し、Base64エンコードします。
 ///
-/// This function is used to download video thumbnails and encode them
-/// for embedding in the frontend without additional HTTP requests.
+/// 動画サムネイルをダウンロードしてBase64エンコードし、
+/// 追加のHTTPリクエストなしでフロントエンドに埋め込むために使用されます。
 ///
-/// # Arguments
+/// # 引数
 ///
-/// * `url` - URL of the image to fetch
+/// * `url` - 取得対象の画像URL
 ///
-/// # Returns
+/// # 戻り値
 ///
-/// Returns the Base64-encoded image data.
+/// Base64エンコードされた画像データを返します。
 ///
-/// # Errors
+/// # エラー
 ///
-/// Returns an error if:
-/// - The HTTP request fails
-/// - Reading response bytes fails
+/// 以下の場合にエラーを返します：
+/// - HTTPリクエストが失敗した場合
+/// - レスポンスバイトの読み取りが失敗した場合
 async fn base64_encode(url: &str) -> Result<String, String> {
     let resp = reqwest::get(url)
         .await
@@ -375,51 +392,49 @@ async fn base64_encode(url: &str) -> Result<String, String> {
     Ok(encoded)
 }
 
-/// Fetches comprehensive metadata for a Bilibili video.
+/// Bilibili動画の包括的なメタデータを取得します。
 ///
-/// This function retrieves:
-/// - Video title
-/// - All video parts (for multi-part videos)
-/// - Available quality options for video and audio
-/// - Thumbnails (as Base64-encoded images)
-/// - Duration and other metadata
+/// 以下の情報を取得します：
+/// - 動画タイトル
+/// - すべての動画パート（マルチパート動画の場合）
+/// - 動画・音声の利用可能な画質オプション
+/// - サムネイル（Base64エンコードされた画像）
+/// - 再生時間やその他のメタデータ
 ///
-/// # Arguments
+/// # 引数
 ///
-/// * `app` - Tauri application handle for accessing the cookie cache
-/// * `id` - Bilibili video ID (BV identifier)
+/// * `app` - クッキーキャッシュアクセス用Tauriアプリケーションハンドル
+/// * `id` - Bilibili動画ID (BV識別子)
 ///
-/// # Returns
+/// # 戻り値
 ///
-/// Returns a `Video` structure containing all metadata and available quality options.
+/// すべてのメタデータと利用可能な画質オプションを含む `Video` 構造体を返します。
 ///
-/// # Errors
+/// # エラー
 ///
-/// Returns an error if:
-/// - No cookies are available
-/// - API requests fail
-/// - Response parsing fails
+/// 以下の場合にエラーを返します：
+/// - クッキーが利用できない場合
+/// - APIリクエストが失敗した場合
+/// - レスポンスのパースが失敗した場合
 pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String> {
-    let video_parts = Vec::<VideoPart>::new();
+    let Some(cookies) = read_cookie(app)? else {
+        return Err("No cookies found".into());
+    };
+
     let mut video = Video {
         title: String::new(),
         bvid: id.to_string(),
-        parts: video_parts.clone(),
+        parts: Vec::new(),
     };
-
-    let cookies = read_cookie(app)?;
-    if cookies.is_none() {
-        return Err("No cookies found".into());
-    }
-    let cookies = cookies.unwrap();
 
     let res_body_1 = fetch_video_title(&video, &cookies).await?;
     video.title = res_body_1.data.title;
+
     for page in res_body_1.data.pages.iter() {
         let thumb_url = page.first_frame.clone();
         let thumb_base64 = base64_encode(&thumb_url).await.unwrap_or_default();
 
-        let part = VideoPart {
+        let mut part = VideoPart {
             cid: page.cid,
             page: page.page,
             part: page.part.clone(),
@@ -431,33 +446,36 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
             video_qualities: Vec::new(),
             audio_qualities: Vec::new(),
         };
-        video.parts.push(part);
-    }
-    for part in video.parts.iter_mut() {
-        // NOTE: partごとに画質情報を取得する必要がある？
+
+        // partごとに画質情報を取得
         let res_body_2 = fetch_video_details(&cookies, &video.bvid, part.cid).await?;
-        let video_qualities = convert_qualities(&res_body_2.data.dash.video);
-        let audio_qualities = convert_qualities(&res_body_2.data.dash.audio);
-        part.video_qualities = video_qualities;
-        part.audio_qualities = audio_qualities;
+        part.video_qualities = convert_qualities(&res_body_2.data.dash.video);
+        part.audio_qualities = convert_qualities(&res_body_2.data.dash.audio);
+
+        video.parts.push(part);
     }
 
     Ok(video)
 }
 
-/// Converts API video/audio quality data to frontend DTO format.
+/// APIの動画/音声画質データをフロントエンドDTO形式に変換します。
 ///
-/// This function groups quality options by ID, selects the highest codec
-/// for each quality level, and returns them sorted in descending order
-/// (highest quality first).
+/// 画質オプションをIDごとにグルーピングし、各画質レベルで最も高いコーデックを
+/// 選択して、降順（最高画質が先頭）でソートして返します。
 ///
-/// # Arguments
+/// # アルゴリズム
 ///
-/// * `video` - Slice of video or audio quality options from the API
+/// 1. `BTreeMap` を使用して画質ID (`id`) でグルーピング
+/// 2. 各グループ内で `codecid` が最大のアイテムを選択
+/// 3. 画質IDの降順でベクターに格納
 ///
-/// # Returns
+/// # 引数
 ///
-/// Returns a vector of `Quality` objects sorted by quality ID (highest first).
+/// * `video` - APIから取得した動画/音声画質オプションのスライス
+///
+/// # 戻り値
+///
+/// 画質IDで降順ソートされた `Quality` オブジェクトのベクターを返します。
 fn convert_qualities(video: &[XPlayerApiResponseVideo]) -> Vec<Quality> {
     let mut res = Vec::<Quality>::new();
 
@@ -486,24 +504,26 @@ fn convert_qualities(video: &[XPlayerApiResponseVideo]) -> Vec<Quality> {
     res
 }
 
-/// Fetches video title and page information from Bilibili's Web Interface API.
+/// Bilibili Web Interface APIから動画タイトルとページ情報を取得します。
 ///
-/// This internal function calls the `/x/web-interface/view` endpoint to retrieve
-/// basic video metadata including title and multi-part page information.
+/// `/x/web-interface/view` エンドポイントを呼び出し、タイトルや
+/// マルチパート動画のページ情報などの基本メタデータを取得します。
 ///
-/// # Arguments
+/// # 引数
 ///
-/// * `video` - Video object containing the BVID
-/// * `cookies` - Bilibili authentication cookies
+/// * `video` - BVIDを含む動画オブジェクト
+/// * `cookies` - Bilibili認証クッキー
 ///
-/// # Returns
+/// # 戻り値
 ///
-/// Returns the API response containing video title and page details.
+/// 動画タイトルとページ詳細を含むAPIレスポンスを返します。
 ///
-/// # Errors
+/// # エラー
 ///
-/// Returns an error if the HTTP request fails, JSON parsing fails, or the
-/// API returns a non-zero error code.
+/// 以下の場合にエラーを返します：
+/// - HTTPリクエストが失敗した場合
+/// - JSONパースが失敗した場合
+/// - APIが非ゼロのエラーコードを返した場合
 async fn fetch_video_title(
     video: &Video,
     cookies: &[CookieEntry],
@@ -540,29 +560,30 @@ async fn fetch_video_title(
     Ok(body)
 }
 
-/// Fetches video stream URLs and quality options from Bilibili's Player API.
+/// Bilibili Player APIから動画ストリームURLと画質オプションを取得します。
 ///
-/// This internal function calls the `/x/player/wbi/playurl` endpoint to retrieve
-/// available quality options and direct URLs for video and audio streams.
+/// `/x/player/wbi/playurl` エンドポイントを呼び出し、動画・音声ストリームの
+/// 利用可能な画質と直接ダウンロードURLを取得します。
 ///
-/// # Arguments
+/// # 引数
 ///
-/// * `cookies` - Bilibili authentication cookies
-/// * `vbid` - Video BVID identifier
-/// * `cid` - Content ID for the specific video part
+/// * `cookies` - Bilibili認証クッキー
+/// * `bvid` - 動画BVID識別子
+/// * `cid` - 動画パートごとのコンテンツID
 ///
-/// # Returns
+/// # 戻り値
 ///
-/// Returns the API response containing DASH video/audio streams and quality options.
+/// DASH動画/音声ストリームと画質オプションを含むAPIレスポンスを返します。
 ///
-/// # Errors
+/// # エラー
 ///
-/// Returns an error if the HTTP request fails, JSON parsing fails, or the
-/// API returns a non-zero error code.
+/// 以下の場合にエラーを返します：
+/// - HTTPリクエストが失敗した場合
+/// - JSONパースが失敗した場合
+/// - APIが非ゼロのエラーコードを返した場合
 async fn fetch_video_details(
     cookies: &[CookieEntry],
-    // video: &Video,
-    vbid: &str,
+    bvid: &str,
     cid: i64,
 ) -> Result<XPlayerApiResponse, String> {
     let client = Client::builder()
@@ -576,8 +597,8 @@ async fn fetch_video_details(
         .header(header::COOKIE, cookie_header)
         .header(header::REFERER, "https://www.bilibili.com")
         .query(&[
-            ("bvid", vbid),
-            ("cid", cid.to_string().as_str()),
+            ("bvid", bvid),
+            ("cid", &cid.to_string()),
             ("qn", "116"),
             ("fnval", "2064"),
             ("fnver", "0"),
@@ -600,23 +621,25 @@ async fn fetch_video_details(
     Ok(body)
 }
 
-/// Constructs the full output path for a downloaded file.
+/// ダウンロードファイルの出力先フルパスを構築します。
 ///
-/// Reads the download output directory from application settings and appends
-/// the filename to it.
+/// アプリケーション設定からダウンロード出力ディレクトリを読み取り、
+/// そこにファイル名を結合します。
 ///
-/// # Arguments
+/// # 引数
 ///
-/// * `app` - Tauri application handle for accessing settings
-/// * `filename` - Desired filename (without extension)
+/// * `app` - 設定アクセス用Tauriアプリケーションハンドル
+/// * `filename` - 希望するファイル名（拡張子を除く）
 ///
-/// # Returns
+/// # 戻り値
 ///
-/// Returns the full path where the file should be saved.
+/// ファイルを保存すべきフルパスを返します。
 ///
-/// # Errors
+/// # エラー
 ///
-/// Returns an error if settings cannot be loaded or the download path is not configured.
+/// 以下の場合にエラーを返します：
+/// - 設定を読み込めない場合
+/// - ダウンロードパスが設定されていない場合
 async fn get_output_path(app: &AppHandle, filename: &str) -> anyhow::Result<PathBuf> {
     let settings = settings::get_settings(app)
         .await
@@ -628,19 +651,25 @@ async fn get_output_path(app: &AppHandle, filename: &str) -> anyhow::Result<Path
     Ok(dir.join(filename))
 }
 
-/// Automatically renames a file if it already exists.
+/// ファイルが既に存在する場合、自動的にリネームします。
 ///
-/// Appends a counter suffix (e.g., "filename (1).mp4") to avoid overwriting
-/// existing files. If more than 10,000 duplicates exist, falls back to
-/// timestamp-based naming.
+/// 既存ファイルを上書きしないように、カウンター接尾辞（例: "filename (1).mp4"）を
+/// 追加します。10,000個以上の重複が存在する場合は、タイムスタンプベースの命名に
+/// フォールバックします。
 ///
-/// # Arguments
+/// # 引数
 ///
-/// * `path` - Original file path
+/// * `path` - 元のファイルパス
 ///
-/// # Returns
+/// # 戻り値
 ///
-/// Returns a `PathBuf` that doesn't conflict with existing files.
+/// 既存ファイルと競合しない `PathBuf` を返します。
+///
+/// # 実装詳細
+///
+/// - ファイルが存在しない場合は、元のパスをそのまま返します
+/// - 1～10,000の範囲で `(数字)` 接尾辞を試行します
+/// - すべての重複が存在する場合は、UNIXタイムスタンプ（ミリ秒）を使用します
 fn auto_rename(path: &Path) -> PathBuf {
     if !path.exists() {
         return path.to_path_buf();
@@ -669,71 +698,81 @@ fn auto_rename(path: &Path) -> PathBuf {
     parent.join(fallback_name)
 }
 
-/// Retrieves the Content-Length of a resource via HEAD request.
+/// HEADリクエストでリソースのContent-Lengthを取得します。
 ///
-/// This function sends a HEAD request to determine the file size
-/// before downloading.
+/// ダウンロード前にファイルサイズを確認するためにHEADリクエストを送信します。
 ///
-/// # Arguments
+/// # 引数
 ///
-/// * `url` - URL to query
-/// * `cookie` - Optional cookie header for authentication
+/// * `url` - 確認対象URL
+/// * `cookie` - 認証用クッキーヘッダー（オプション）
 ///
-/// # Returns
+/// # 戻り値
 ///
-/// Returns `Some(size)` if Content-Length is available, `None` otherwise.
+/// Content-Lengthが利用可能な場合は `Some(size)`、利用不可能な場合は `None` を返します。
+///
+/// # エラーハンドリング
+///
+/// この関数はエラーを伝播せず、失敗した場合に `None` を返します。
+/// ネットワークエラーやパースエラーは暗黙的に無視されます。
 async fn head_content_length(url: &str, cookie: Option<&String>) -> Option<u64> {
     let client = reqwest::Client::builder().build().ok()?;
     let mut req = client.head(url);
     if let Some(c) = cookie {
         req = req.header(reqwest::header::COOKIE, c);
     }
-    if let Ok(resp) = req.send().await {
-        if let Some(len) = resp.headers().get(reqwest::header::CONTENT_LENGTH) {
-            if let Ok(s) = len.to_str() {
-                if let Ok(v) = s.parse::<u64>() {
-                    return Some(v);
-                }
-            }
-        }
-    }
-    None
+    req.send()
+        .await
+        .ok()?
+        .headers()
+        .get(reqwest::header::CONTENT_LENGTH)?
+        .to_str()
+        .ok()?
+        .parse()
+        .ok()
 }
 
-/// Ensures sufficient disk space is available for the download.
+/// ダウンロードに十分なディスク容量が確保されていることを確認します。
 ///
-/// Checks the available disk space on the target filesystem and returns an
-/// error if it's insufficient. Currently implemented for Unix-like systems only.
-/// Windows and other platforms skip the check.
+/// ターゲットファイルシステムの空き容量をチェックし、不足している場合は
+/// エラーを返します。現在はUnix系システムのみ実装されています。
+/// Windowsおよびその他のプラットフォームではチェックをスキップします。
 ///
-/// # Arguments
+/// # 引数
 ///
-/// * `target_path` - Path where the file will be saved
-/// * `needed_bytes` - Total bytes required (including safety margin)
+/// * `target_path` - ファイル保存先パス
+/// * `needed_bytes` - 必要な総バイト数（安全マージン含む）
 ///
-/// # Returns
+/// # 戻り値
 ///
-/// Returns `Ok(())` if sufficient space is available or the check cannot be performed.
+/// 十分な空き容量がある場合、またはチェックを実行できない場合、`Ok(())` を返します。
 ///
-/// # Errors
+/// # エラー
 ///
-/// Returns `ERR::DISK_FULL` if available space is less than or equal to needed bytes.
+/// 空き容量が必要バイト数以下の場合、`ERR::DISK_FULL` エラーを返します。
+///
+/// # 実装詳細
+///
+/// Unix系システムでは `statvfs` システムコールを使用して空き容量を取得します。
+/// チェックはベストエフォートベースで行われ、システムコールが失敗した場合は
+/// エラーを返さずに処理を継続します。
 fn ensure_free_space(target_path: &Path, needed_bytes: u64) -> Result<(), String> {
     #[cfg(target_family = "unix")]
     {
-        use libc::{statvfs, statvfs as statvfs_t};
+        use libc::statvfs;
         use std::ffi::CString;
         use std::mem::MaybeUninit;
         use std::os::unix::ffi::OsStrExt;
+
         let dir = target_path
             .parent()
             .unwrap_or_else(|| std::path::Path::new("."));
         let c_path =
             CString::new(dir.as_os_str().as_bytes()).map_err(|_| "ERR::DISK_FULL".to_string())?;
         unsafe {
-            let mut stat: MaybeUninit<statvfs_t> = MaybeUninit::uninit();
+            let mut stat = MaybeUninit::<statvfs>::uninit();
             if statvfs(c_path.as_ptr(), stat.as_mut_ptr()) != 0 {
-                return Ok(()); // 取得失敗はスキップ
+                return Ok(());
             }
             let stat = stat.assume_init();
             let free_bytes = (stat.f_bavail as u64) * stat.f_frsize;
@@ -746,81 +785,125 @@ fn ensure_free_space(target_path: &Path, needed_bytes: u64) -> Result<(), String
     Ok(())
 }
 
-/// Retries a download operation up to 3 times with linear backoff.
+/// ダウンロード操作を最大3回リトライします（リニアバックオフ方式）。
 ///
-/// This function wraps download operations and automatically retries them on
-/// network-related errors (e.g., timeout, connection errors). Non-retryable
-/// errors are returned immediately.
+/// ダウンロード操作をラップし、ネットワーク関連のエラー（タイムアウト、接続エラー等）
+/// が発生した場合に自動的にリトライします。リトライ不可のエラーは即座に返されます。
 ///
-/// Backoff strategy: 500ms, 1000ms, 1500ms for attempts 1, 2, 3.
+/// バックオフ戦略: 1回目500ms、2回目1000ms、3回目1500ms
 ///
-/// # Arguments
+/// # 型パラメータ
 ///
-/// * `f` - A closure that returns a Future resolving to a download result
+/// * `F` - Futureを返すクロージャの型
+/// * `Fut` - ダウンロード操作のFuture型
 ///
-/// # Returns
+/// # 引数
 ///
-/// Returns `Ok(())` if the download succeeds on any attempt.
+/// * `f` - ダウンロード結果を解決するFutureを返すクロージャ
 ///
-/// # Errors
+/// # 戻り値
 ///
-/// Returns an error if:
-/// - All retry attempts are exhausted
-/// - A non-retryable error occurs (e.g., ERR::DISK_FULL)
+/// いずれかの試行でダウンロードが成功した場合、`Ok(())` を返します。
+///
+/// # エラー
+///
+/// 以下の場合にエラーを返します：
+/// - すべてのリトライ試行が失敗した場合
+/// - リトライ不可のエラーが発生した場合（例: ERR::DISK_FULL）
 async fn retry_download<F, Fut>(mut f: F) -> Result<(), String>
 where
     F: FnMut() -> Fut,
     Fut: std::future::Future<Output = Result<(), anyhow::Error>>,
 {
-    let mut attempt: u8 = 0;
-    let max_attempts: u8 = 3;
-    loop {
-        attempt += 1;
+    const MAX_ATTEMPTS: u8 = 3;
+
+    for attempt in 1..=MAX_ATTEMPTS {
         match f().await {
             Ok(_) => return Ok(()),
             Err(e) => {
                 let msg = e.to_string();
-                // ネットワーク/一時的エラーのみ再試行 (雑判定)
+                // ネットワーク/一時的エラーのみ再試行
                 let is_retryable = msg.contains("segment")
                     || msg.contains("request error")
                     || msg.contains("timeout")
                     || msg.contains("connect");
-                if attempt >= max_attempts || !is_retryable {
+
+                if attempt >= MAX_ATTEMPTS || !is_retryable {
                     return Err(if msg.contains("ERR::") {
                         msg
                     } else {
                         format!("ERR::NETWORK::{msg}")
                     });
                 }
-                let backoff_ms = 500u64 * (attempt as u64); // 線形簡易
-                tokio::time::sleep(std::time::Duration::from_millis(backoff_ms)).await;
-                continue;
+
+                tokio::time::sleep(std::time::Duration::from_millis(500 * attempt as u64)).await;
             }
         }
     }
+
+    unreachable!()
 }
 
-/// Emits a stage change event to the frontend.
+/// ストリームURLを画質リストから選択します。
 ///
-/// Creates a new Emits instance and spawns a task to set the specified stage.
-/// If the stage is "complete", it also calls the complete() method to finalize
-/// the progress.
+/// リクエストされた画質に一致するURLを検索します。見つからない場合は、
+/// 最初の要素（最高画質）にフォールバックします。画質リストが空の場合は
+/// エラーを返します。
 ///
-/// This is a convenience helper for emitting simple stage updates without
-/// managing an existing Emits instance.
+/// # 引数
 ///
-/// # Arguments
+/// * `items` - 利用可能な画質のリスト
+/// * `quality` - 選択したい画質ID
+/// * `app` - Tauriアプリケーションハンドル
+/// * `download_id` - ダウンロード識別子
+/// * `warn_key` - フォールバック時の警告イベントキー
 ///
-/// * `app` - Tauri application handle for event emission
-/// * `download_id` - Unique identifier for this download
-/// * `stage` - Stage name (e.g., "warn-video-quality-fallback", "complete")
+/// # 戻り値
+///
+/// 選択されたストリームURLを返します。
+///
+/// # エラー
+///
+/// 画質リストが空の場合、`ERR::QUALITY_NOT_FOUND` エラーを返します。
+fn select_stream_url(
+    items: &[crate::models::bilibili_api::XPlayerApiResponseVideo],
+    quality: &i32,
+    app: &AppHandle,
+    download_id: &str,
+    warn_key: &str,
+) -> Result<String, String> {
+    items
+        .iter()
+        .find(|v| v.id == *quality)
+        .map(|v| v.base_url.clone())
+        .or_else(|| {
+            items.first().map(|fb| {
+                emit_stage(app, download_id, warn_key);
+                fb.base_url.clone()
+            })
+        })
+        .ok_or_else(|| "ERR::QUALITY_NOT_FOUND".into())
+}
+
+/// フロントエンドへステージ変更イベントを送信します。
+///
+/// 新しいEmitsインスタンスを作成し、非同期タスクでステージを設定します。
+/// ステージが "complete" の場合は、complete()メソッドも呼び出して進捗を確定します。
+///
+/// 既存のEmitsインスタンスを管理せずに、簡易的にステージ更新を送信するための
+/// ヘルパー関数です。
+///
+/// # 引数
+///
+/// * `app` - イベント送信用Tauriアプリケーションハンドル
+/// * `download_id` - ダウンロードの一意識別子
+/// * `stage` - ステージ名（例: "warn-video-quality-fallback", "complete"）
 fn emit_stage(app: &AppHandle, download_id: &str, stage: &str) {
-    // Emits を新規に生成して stage セット (サイズ不明のため None)
-    let stage_owned = stage.to_string();
     let emits = crate::emits::Emits::new(app.clone(), download_id.to_string(), None);
+    let stage = stage.to_owned();
     tokio::spawn(async move {
-        let _ = emits.set_stage(&stage_owned).await;
-        if stage_owned == "complete" {
+        let _ = emits.set_stage(&stage).await;
+        if stage == "complete" {
             emits.complete().await;
         }
     });
