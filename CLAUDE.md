@@ -52,34 +52,65 @@ GA_API_SECRET=xxxxxxxxxxxxxxxxxxxxxxxx
 
 ### フロントエンド構造 (src/)
 
+**Feature-based Co-location**アーキテクチャを採用。
+
 ```
 src/
-├── app/                    # Redux store設定
-│   └── store.ts           # すべてのsliceを統合
-├── components/            # 再利用可能UIコンポーネント
-│   ├── ui/               # shadcn/ui コンポーネント
-│   ├── animate-ui/       # アニメーション付きUI
-│   └── lib/              # プロジェクト固有のコンポーネント
-├── features/             # ドメインロジック + Redux slice
-│   ├── video/           # 動画情報取得・ダウンロード機能
-│   ├── init/            # 初期化処理
-│   └── count/           # カウンター機能
-├── shared/              # 横断的な共通機能
-│   ├── progress/        # ダウンロード進捗管理
-│   ├── settings/        # アプリ設定
-│   ├── user/            # ユーザー情報
-│   ├── queue/           # ダウンロードキュー
-│   └── downloadStatus/  # ダウンロード状態管理
-├── pages/               # ルーティングされるページ
-└── i18n/                # 多言語対応 (en/ja/fr/es/zh/ko)
+├── app/                      # アプリケーション設定
+│   ├── providers/            # グローバルProvider (Theme, Listener)
+│   └── store/                # Redux store設定
+├── pages/                    # ルートレベル画面
+│   ├── home/index.tsx
+│   ├── init/index.tsx
+│   └── error/index.tsx
+├── features/                 # 機能モジュール
+│   ├── video/                # 動画ダウンロード機能
+│   │   ├── ui/               # VideoForm1, VideoForm2, DownloadButton等
+│   │   ├── model/            # videoSlice, inputSlice, selectors
+│   │   ├── hooks/            # useVideoInfo
+│   │   ├── api/              # fetchVideoInfo, downloadVideo
+│   │   ├── lib/              # utils, formSchema, constants
+│   │   ├── types.ts
+│   │   └── index.ts          # Public API
+│   ├── init/                 # 初期化処理
+│   │   ├── model/hooks/
+│   │   └── index.ts
+│   ├── settings/             # アプリ設定
+│   │   ├── ui/dialog/api/
+│   │   └── index.ts
+│   ├── user/                 # ユーザー情報
+│   │   ├── model/hooks/api/
+│   │   └── index.ts
+│   └── preference/           # テーマ設定
+│       ├── ui/
+│       └── index.ts
+├── shared/                   # 横断的共通リソース
+│   ├── ui/                   # shadcn/ui, AppBar, Progress等
+│   ├── animate-ui/           # アニメーション付きUI
+│   ├── hooks/                # useIsMobile等
+│   ├── lib/                  # cn()等のユーティリティ
+│   ├── progress/             # 進捗状態管理
+│   ├── downloadStatus/       # ダウンロード状態
+│   ├── queue/                # キュー管理
+│   └── os/                   # OS検出API
+├── i18n/                     # 多言語対応 (en/ja/fr/es/zh/ko)
+└── styles/                   # グローバルスタイル
 ```
 
-**重要な設計パターン**:
+**設計パターン**:
 
 - **Redux Toolkit**: 状態管理にはすべて`@reduxjs/toolkit`を使用
-- **Feature-based**: `features/`配下は機能ごとにslice + hooks + UI + APIを同じディレクトリに配置
-- **Shared modules**: `shared/`配下は複数のfeatureから使用される横断的な機能
-- **Path alias**: `@/`で`src/`を参照 (vite.config.tsで設定済み)
+- **Feature Co-location**: 各featureは`ui/`, `model/`, `hooks/`, `api/`, `lib/`を内包
+- **Public API**: 各featureの`index.ts`経由でインポート（深いパスは避ける）
+- **Shared modules**: `shared/`は横断的なUI/ユーティリティのみ（ドメインロジックは`features/`へ）
+- **Path alias**: `@/`で`src/`を参照
+
+**インポートルール**:
+
+- `pages` → `features`, `shared` からインポート可
+- `features` → `pages` からインポート禁止
+- `features` → 他の`features` からの直接インポートは避ける
+- `index.ts` (Public API) 経由でインポートすることを推奨
 
 ### バックエンド構造 (src-tauri/src/)
 

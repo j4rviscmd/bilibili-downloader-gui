@@ -1,5 +1,5 @@
-import { useTheme } from '@/app/contexts/ThemeContext'
-import { Toaster } from '@/components/ui/sonner'
+import { useTheme } from '@/app/providers/ThemeContext'
+import { Toaster } from '@/shared/ui/sonner'
 import IndexPage from '@/pages'
 import ErrorPage from '@/pages/error'
 import HomePage from '@/pages/home'

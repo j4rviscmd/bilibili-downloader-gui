@@ -80,61 +80,116 @@ xattr -c "/Applications/bilibili-downloader-gui.app"
 
 If you installed the app outside /Applications, adjust the path accordingly.
 
-## Project Structure (Excerpt)
+## Directory Structure (Co-location)
 
-Top-level overview:
+We use a **feature-based, co-located** folder strategy.
 
-```plain text
-components.json
-eslint.config.js
-index.html
-package.json
-vite.config.ts
-public/
-  icon.png
+```txt
 src/
-  App.tsx
-  main.tsx
-  app/
-    store.ts
-    contexts/
-  components/
-    animate-ui/
-    ui/
-    lib/
-  features/
-    video/
-    init/
-    count/
-  pages/
-  shared/
-  styles/
-src-tauri/
-  Cargo.toml
-  tauri.conf.json
-  src/
-    main.rs
-    lib.rs
-    handlers/
-    models/
-    utils/
+  ├── app/                      # Application wiring
+  │   ├── providers/            # Global providers (Theme, Listener)
+  │   └── store/                # Redux store configuration
+  ├── pages/                    # Route-level screens
+  │   ├── home/
+  │   │   └── index.tsx
+  │   ├── init/
+  │   │   └── index.tsx
+  │   └── error/
+  │       └── index.tsx
+  ├── features/                 # Feature modules
+  │   ├── video/
+  │   │   ├── ui/               # VideoForm1, VideoForm2, DownloadButton, etc.
+  │   │   ├── model/            # videoSlice, inputSlice, selectors
+  │   │   ├── hooks/            # useVideoInfo
+  │   │   ├── api/              # fetchVideoInfo, downloadVideo
+  │   │   ├── lib/              # utils, formSchema, constants
+  │   │   ├── types.ts
+  │   │   └── index.ts          # Public API
+  │   ├── init/
+  │   │   ├── model/            # initSlice
+  │   │   ├── hooks/            # useInit
+  │   │   └── index.ts
+  │   ├── settings/
+  │   │   ├── ui/               # SettingsDialog, LanguagesDropdown
+  │   │   ├── model/            # settingsSlice
+  │   │   ├── api/              # settingApi
+  │   │   └── index.ts
+  │   ├── user/
+  │   │   ├── model/            # userSlice
+  │   │   ├── hooks/            # useUser
+  │   │   ├── api/              # fetchUser
+  │   │   └── index.ts
+  │   └── preference/
+  │       ├── ui/               # ToggleThemeButton
+  │       └── index.ts
+  ├── shared/                   # Shared resources
+  │   ├── ui/                   # shadcn/ui components, AppBar, Progress
+  │   ├── animate-ui/           # Animated UI components
+  │   ├── hooks/                # useIsMobile, etc.
+  │   ├── lib/                  # cn(), utilities
+  │   ├── progress/             # Progress state management
+  │   ├── downloadStatus/       # Download status state
+  │   ├── queue/                # Queue state
+  │   └── os/                   # OS detection API
+  ├── i18n/                     # Internationalization
+  │   └── locales/              # Translation files
+  ├── styles/                   # Global styles
+  └── assets/                   # Static assets
 ```
 
-Frontend (React + Vite):
+### Directory Responsibilities
 
-```plain text
-/src
-  /app                  ← Redux store / React context
-  /components           ← Shared UI (animate‑ui / shadcn/ui) and project-level components
-  /features             ← Domain logic + connected UI (Redux slices, hooks, UI)
-  /shared               ← Cross-cutting logic/state (progress, user, etc.)
-  /pages                ← Routed pages
-  /styles               ← Global styles
-```
+#### `src/app/`
 
-Backend (Tauri / Rust):
+Application wiring at the root level. This is where the application is assembled:
+global providers and store setup.
 
-```plain text
+#### `src/pages/`
+
+Route-level screens. Pages should mainly **compose** features and shared UI.
+Keep business logic/state inside `features/`.
+
+#### `src/features/`
+
+Reusable product features (user-facing behavior). Each feature co-locates its
+Redux logic, API calls, and UI.
+
+A typical feature folder contains:
+
+- `ui/` — feature-specific UI components
+- `model/` — Redux Toolkit slice, selectors
+- `hooks/` — feature hooks
+- `api/` — feature-specific API functions
+- `lib/` — internal utilities for the feature
+- `types.ts` — feature-local types
+- `index.ts` — feature **public API** (recommended entry point for imports)
+
+#### `src/shared/`
+
+Reusable, non-domain-specific building blocks used across the app.
+
+- `shared/ui/` — App-wide reusable UI primitives (shadcn/ui, custom components)
+- `shared/animate-ui/` — Animated UI components
+- `shared/lib/` — Generic utilities (e.g., `cn()`)
+- `shared/hooks/` — Reusable React hooks
+
+### Import Rules
+
+- `pages` may import from `features` and `shared`.
+- `features` must not import from `pages`.
+- Avoid importing directly from other `features`. Prefer composition in `pages`.
+- Prefer importing from a feature's `index.ts` (public API) instead of deep paths.
+
+### Path Aliases
+
+- `@/app/*`
+- `@/pages/*`
+- `@/features/*`
+- `@/shared/*`
+
+### Backend (Tauri / Rust)
+
+```txt
 src-tauri/src/
   main.rs            ← Entry point (kept thin)
   lib.rs             ← App root module / command definitions
@@ -142,8 +197,6 @@ src-tauri/src/
   models/            ← Data structures (requests/responses, etc.)
   utils/             ← Utilities
 ```
-
-(The prior README’s development steps and structure notes are integrated above.)
 
 ## Scripts
 

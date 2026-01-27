@@ -25,3 +25,6 @@ dist-ssr
 *.sw?
 
 .env
+
+# Worktrees
+.worktrees/

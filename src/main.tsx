@@ -1,6 +1,6 @@
 import App from '@/App'
-import { ListenerProvider } from '@/app/contexts/ListenerContext'
-import { ThemeProvider } from '@/app/contexts/ThemeContext'
+import { ListenerProvider } from '@/app/providers/ListenerContext'
+import { ThemeProvider } from '@/app/providers/ThemeContext'
 import { store } from '@/app/store'
 import { setupI18n } from '@/i18n'
 import '@/styles/index.css'

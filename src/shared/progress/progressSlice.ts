@@ -1,4 +1,4 @@
-import type { Progress } from '@/components/lib/Progress'
+import type { Progress } from '@/shared/ui/Progress'
 
 // We'll store per-phase progress entries. Each entry will have an internalId and parentId.
 // internalId = payload.stage ? `${payload.downloadId}:${payload.stage}` : payload.downloadId

@@ -1,4 +1,4 @@
-import { useInit } from '@/features/init/useInit'
+import { useInit } from '@/features/init'
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router'
 
