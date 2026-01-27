@@ -9,6 +9,18 @@ import {
 import { useVideoInfo } from '@/features/video/hooks/useVideoInfo'
 import { useTranslation } from 'react-i18next'
 
+/**
+ * Download button with validation tooltip.
+ *
+ * Displays a download button that is disabled until all validation passes.
+ * Shows a tooltip with the reason why the button is disabled (invalid URL,
+ * duplicate titles, no parts selected, etc.).
+ *
+ * @example
+ * ```tsx
+ * <DownloadButton />
+ * ```
+ */
 function DownloadButton() {
   const {
     download,

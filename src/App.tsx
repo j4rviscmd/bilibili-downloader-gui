@@ -7,6 +7,22 @@ import InitPage from '@/pages/init'
 import '@/styles/global.css'
 import { Route, Routes } from 'react-router'
 
+/**
+ * Root application component.
+ *
+ * Sets up routing for the application with the following pages:
+ * - `/` - Index page (redirects to /init or /home)
+ * - `/init` - Initialization page
+ * - `/home` - Main application page
+ * - `/error` - Error page
+ *
+ * Also configures the toast notification system with theme support.
+ *
+ * @example
+ * ```tsx
+ * <App />
+ * ```
+ */
 function App() {
   const { theme } = useTheme()
 

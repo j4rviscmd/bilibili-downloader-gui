@@ -51,6 +51,12 @@
     "deselect_all": "Tout désélectionner",
     "no_parts_selected": "Aucune partie sélectionnée pour le téléchargement"
   },
+  "progress": {
+    "elapsed": "Temps écoulé",
+    "speed": "Vitesse",
+    "downloaded": "Téléchargé",
+    "queued": "En file d'attente"
+  },
   "toast": { "success": "Succès", "error": "Une erreur est survenue" },
   "init": {
     "initializing": "Initialisation...",
@@ -86,6 +92,7 @@
     "quit_app": "Quitter l'application"
   },
   "settings": {
+    "title": "Paramètres",
     "language_label": "Langue",
     "output_dir_label": "Répertoire de sortie",
     "output_dir_placeholder": "ex: C\\\\Users\\\\you\\\\Downloads ou /Users/you/Downloads",

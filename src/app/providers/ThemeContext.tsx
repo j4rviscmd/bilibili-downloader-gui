@@ -1,25 +1,55 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 
+/**
+ * Available theme modes.
+ */
 type Theme = 'dark' | 'light' | 'system'
 
+/**
+ * Props for the ThemeProvider component.
+ */
 type ThemeProviderProps = {
+  /** Child components to be wrapped */
   children: React.ReactNode
+  /** Initial theme if no stored value exists. Defaults to 'system'. */
   defaultTheme?: Theme
+  /** localStorage key for theme persistence. Defaults to 'vite-ui-theme'. */
   storageKey?: string
 }
 
+/**
+ * State exposed by the theme context.
+ */
 type ThemeProviderState = {
+  /** Current active theme */
   theme: Theme
+  /** Function to update the theme and persist to localStorage */
   setTheme: (theme: Theme) => void
 }
 
-const initialState: ThemeProviderState = {
-  theme: 'system',
-  setTheme: () => null,
-}
+/**
+ * React context for theme management.
+ */
+const ThemeProviderContext = createContext<ThemeProviderState | undefined>(
+  undefined,
+)
 
-const ThemeProviderContext = createContext<ThemeProviderState>(initialState)
-
+/**
+ * Provides theme management to the application.
+ *
+ * Manages light/dark/system theme modes with automatic detection of system
+ * preference and persistence to localStorage. Applies theme changes to the
+ * document root element by adding/removing CSS classes.
+ *
+ * @param props - Component props
+ *
+ * @example
+ * ```tsx
+ * <ThemeProvider defaultTheme="dark" storageKey="app-theme">
+ *   <App />
+ * </ThemeProvider>
+ * ```
+ */
 export function ThemeProvider({
   children,
   defaultTheme = 'system',
@@ -63,11 +93,28 @@ export function ThemeProvider({
   )
 }
 
-export const useTheme = () => {
+/**
+ * Hook to access theme state and setter.
+ *
+ * Must be used within a ThemeProvider component.
+ *
+ * @returns Theme state and setter function
+ * @throws Error if used outside ThemeProvider
+ *
+ * @example
+ * ```tsx
+ * function MyComponent() {
+ *   const { theme, setTheme } = useTheme()
+ *   return <button onClick={() => setTheme('dark')}>Dark Mode</button>
+ * }
+ * ```
+ */
+export function useTheme(): ThemeProviderState {
   const context = useContext(ThemeProviderContext)
 
-  if (context === undefined)
+  if (context === undefined) {
     throw new Error('useTheme must be used within a ThemeProvider')
+  }
 
   return context
 }

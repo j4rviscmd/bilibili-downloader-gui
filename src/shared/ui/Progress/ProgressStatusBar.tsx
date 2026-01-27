@@ -8,12 +8,40 @@ import type { Progress as ProgressType } from '@/shared/progress'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 
+/**
+ * Props for ProgressStatusBar component.
+ */
 type Props = {
+  /** Progress data object */
   progress: ProgressType
 }
 
+/**
+ * Progress bar component for download status.
+ *
+ * Displays:
+ * - Elapsed time
+ * - Transfer speed (KB/s or MB/s)
+ * - Downloaded/total size (if available)
+ * - Progress percentage
+ * - "Queued" label if the download is pending
+ *
+ * @param props - Component props
+ *
+ * @example
+ * ```tsx
+ * <ProgressStatusBar progress={progressData} />
+ * ```
+ */
 function ProgressStatusBar({ progress }: Props) {
   const { t } = useTranslation()
+
+  /**
+   * Formats elapsed time in hours, minutes, and seconds.
+   *
+   * @param sec - Elapsed time in seconds
+   * @returns Formatted time string (e.g., '1h23m45s', '5m30s')
+   */
   const formatElapsed = (sec?: number) => {
     let total = Math.max(0, Math.floor(sec ?? 0))
     const h = Math.floor(total / 3600)
@@ -42,7 +70,7 @@ function ProgressStatusBar({ progress }: Props) {
               <div className="w-1/3">
                 {queued ? (
                   <span className="text-muted-foreground text-sm font-medium">
-                    Queued
+                    {t('progress.queued')}
                   </span>
                 ) : (
                   <>

@@ -5,13 +5,28 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router'
 
+/**
+ * Props for ErrorMessage component.
+ */
 interface ErrorMessageProps {
+  /** Initialization error code */
   errorCode: number
+  /** Callback to open Bilibili in browser */
   onClickUri: () => void
 }
 
 /**
  * Renders the appropriate error message based on error code.
+ *
+ * Error codes:
+ * - 1: ffmpeg not found
+ * - 2: Cookie invalid
+ * - 3: User info failed (not logged in)
+ * - 4: User info failed (other error)
+ * - 5: Version check failed
+ * - default: Unexpected error
+ *
+ * @param props - Component props
  */
 function ErrorMessage({ errorCode, onClickUri }: ErrorMessageProps): ReactNode {
   const { t } = useTranslation()
@@ -46,6 +61,18 @@ function ErrorMessage({ errorCode, onClickUri }: ErrorMessageProps): ReactNode {
   }
 }
 
+/**
+ * Error page component.
+ *
+ * Displays when initialization fails. Shows the error message, error code,
+ * and a button to quit the application. For login errors, provides a link
+ * to open Bilibili in the browser.
+ *
+ * @example
+ * ```tsx
+ * <Route path="/error" element={<ErrorPage />} />
+ * ```
+ */
 function ErrorPage() {
   const location = useLocation()
   const { errorCode } = location.state || { errorCode: 0 }

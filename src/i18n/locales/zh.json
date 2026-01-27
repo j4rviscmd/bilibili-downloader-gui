@@ -51,6 +51,12 @@
     "deselect_all": "取消全选",
     "no_parts_selected": "未选择要下载的内容"
   },
+  "progress": {
+    "elapsed": "已用时间",
+    "speed": "速度",
+    "downloaded": "已下载",
+    "queued": "排队中"
+  },
   "toast": { "success": "成功", "error": "发生错误" },
   "init": {
     "initializing": "初始化中...",
@@ -86,6 +92,7 @@
     "quit_app": "退出应用"
   },
   "settings": {
+    "title": "设置",
     "language_label": "语言",
     "output_dir_label": "输出目录",
     "output_dir_placeholder": "例如: C\\\\Users\\\\you\\\\Downloads 或 /Users/you/Downloads",

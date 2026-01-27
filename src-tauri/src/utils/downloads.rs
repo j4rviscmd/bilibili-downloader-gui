@@ -1,3 +1,12 @@
+//! HTTP Download Utilities
+//!
+//! This module provides robust HTTP download functionality with support for:
+//! - Segmented parallel downloads with Range requests
+//! - Automatic retry with backoff
+//! - Progress tracking and emission to frontend
+//! - Disk space checking
+//! - Fallback to single-stream download when Range is not supported
+
 use crate::{
     constants::{REFERER, USER_AGENT},
     emits::Emits,
@@ -15,11 +24,53 @@ use tokio::io::AsyncSeekExt;
 use tokio::sync::Semaphore;
 use tokio::{fs, io::AsyncWriteExt};
 
-// Detect if an IO error represents "No space left on device" (ENOSPC)
+/// Detects if an I/O error represents "No space left on device".
+///
+/// Checks for ENOSPC (error code 28) on Unix/macOS systems.
+///
+/// # Arguments
+///
+/// * `e` - The I/O error to check
+///
+/// # Returns
+///
+/// Returns `true` if the error is ENOSPC, `false` otherwise.
 fn is_no_space_error(e: &std::io::Error) -> bool {
     matches!(e.raw_os_error(), Some(code) if code == 28) // Unix/macOS ENOSPC = 28
 }
 
+/// Downloads a file from a URL with segmented parallel downloading.
+///
+/// This function implements a sophisticated download strategy:
+/// 1. Attempts to determine file size via HEAD or Range probe
+/// 2. If size is known and Range is supported, splits download into segments
+/// 3. Downloads segments in parallel (default: 1 concurrent for Bilibili stability)
+/// 4. Emits progress updates every 100ms
+/// 5. Falls back to single-stream download if Range is not supported
+///
+/// The function automatically retries failed segments up to 3 times with
+/// exponential backoff.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle for event emission
+/// * `url` - URL to download from
+/// * `output_path` - Destination file path
+/// * `cookie` - Optional cookie header for authentication
+/// * `is_override` - Whether to overwrite existing files
+/// * `download_id` - Optional identifier for progress tracking
+///
+/// # Returns
+///
+/// Returns `Ok(())` on successful download.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - File already exists and `is_override` is false (`ERR::FILE_EXISTS`)
+/// - Disk space is insufficient (`ERR::DISK_FULL`)
+/// - Network requests fail after retries
+/// - File size mismatch occurs
 pub async fn download_url(
     app: &AppHandle,
     url: String,
@@ -28,7 +79,6 @@ pub async fn download_url(
     is_override: bool,
     download_id: Option<String>,
 ) -> Result<()> {
-
     // 基本チェック
     if output_path.exists() {
         if is_override {
@@ -105,7 +155,15 @@ pub async fn download_url(
         // Range サポート不明/サイズ不明 → 旧方式フォールバック (単一取得)
         // DEBUG: total size unknown -> fallback
         // println!("Total size unknown. Fallback to single-stream download.");
-        return single_stream_fallback(app, url, output_path, cookie, is_override, download_id.clone()).await;
+        return single_stream_fallback(
+            app,
+            url,
+            output_path,
+            cookie,
+            is_override,
+            download_id.clone(),
+        )
+        .await;
     }
     let total = total_size.unwrap();
     // DEBUG: total size & Accept-Ranges support
@@ -334,7 +392,31 @@ pub async fn download_url(
     Ok(())
 }
 
-// 単一ストリームフォールバック (旧方式の簡易版)
+/// Fallback single-stream download for when Range requests are not supported.
+///
+/// Downloads the entire file in one continuous stream, emitting progress
+/// updates as chunks are received.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle for event emission
+/// * `url` - URL to download from
+/// * `output_path` - Destination file path
+/// * `cookie` - Optional cookie header for authentication
+/// * `is_override` - Whether to overwrite existing files
+/// * `download_id` - Optional identifier for progress tracking
+///
+/// # Returns
+///
+/// Returns `Ok(())` on successful download.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - File already exists and `is_override` is false
+/// - Disk space is insufficient
+/// - Network request fails
+/// - File write fails
 async fn single_stream_fallback(
     app: &AppHandle,
     url: String,
@@ -404,6 +486,17 @@ async fn single_stream_fallback(
     Ok(())
 }
 
+/// Implements exponential backoff sleep for retry logic.
+///
+/// Sleep durations:
+/// - Attempt 0-1: 500ms
+/// - Attempt 2: 1000ms
+/// - Attempt 3: 2000ms
+/// - Attempt 4+: 3000ms
+///
+/// # Arguments
+///
+/// * `attempt` - Current attempt number (0-indexed)
 async fn backoff_sleep(attempt: u8) {
     let ms = match attempt {
         0 | 1 => 500,

@@ -2,10 +2,22 @@ import { getOs } from '@/shared/os/api/getOs'
 import type { TFunction } from 'i18next'
 import z from 'zod'
 
-// Lazy initialized invalid filename regex based on OS
+/**
+ * Regex pattern for invalid filename characters.
+ *
+ * Defaults to Windows superset, refined by OS detection.
+ */
 let invalidCharsPattern: RegExp = /[\\/:*?"<>|]/ // default (Windows superset)
 let initialized = false
 
+/**
+ * Initializes the OS-specific invalid filename pattern.
+ *
+ * Detects the current OS and sets the appropriate regex for forbidden
+ * filename characters (Windows vs POSIX).
+ *
+ * @returns The initialized regex pattern
+ */
 const initInvalidPattern = async () => {
   if (initialized) return invalidCharsPattern
   initialized = true
@@ -21,14 +33,29 @@ const initInvalidPattern = async () => {
   return invalidCharsPattern
 }
 
-// Synchronous accessor fallback; pattern may refine later but schema creation needs a regex now.
+/**
+ * Returns the current invalid filename pattern synchronously.
+ *
+ * @returns The current invalid chars regex
+ */
 const getPatternSync = () => invalidCharsPattern
 
 // Kick off async initialization (fire & forget)
 initInvalidPattern().catch(() => {})
 
 /**
- * 動画フォーム (Step1) 用スキーマ (URL 入力) - 多言語対応
+ * Builds a localized validation schema for video URL input (Step 1).
+ *
+ * Validates that the URL is a valid Bilibili video link from www.bilibili.com.
+ *
+ * @param t - The i18next translation function for error messages
+ * @returns A Zod schema for video URL validation
+ *
+ * @example
+ * ```typescript
+ * const schema = buildVideoFormSchema1(t)
+ * const result = schema.safeParse({ url: 'https://www.bilibili.com/video/BV1xx411c7XD' })
+ * ```
  */
 export const buildVideoFormSchema1 = (t: TFunction) =>
   z.object({
@@ -56,7 +83,24 @@ export const buildVideoFormSchema1 = (t: TFunction) =>
   })
 
 /**
- * 動画フォーム (Step2) 用スキーマ (タイトル / 画質) - 多言語対応
+ * Builds a localized validation schema for video part settings (Step 2).
+ *
+ * Validates title (filename), video quality, and audio quality.
+ * Title validation includes OS-specific checks for invalid filename characters
+ * and Windows reserved names (e.g., CON, PRN, NUL).
+ *
+ * @param t - The i18next translation function for error messages
+ * @returns A Zod schema for video part input validation
+ *
+ * @example
+ * ```typescript
+ * const schema = buildVideoFormSchema2(t)
+ * const result = schema.safeParse({
+ *   title: 'My Video',
+ *   videoQuality: '80',
+ *   audioQuality: '30216'
+ * })
+ * ```
  */
 export const buildVideoFormSchema2 = (t: TFunction) =>
   z.object({
@@ -98,10 +142,26 @@ export const buildVideoFormSchema2 = (t: TFunction) =>
       .nonempty({ message: t('validation.video.audio_quality.required') }),
   })
 
-// フォールバック t (settings の実装と同様) - キーそのまま or defaultValue
+/**
+ * Fallback translation function for backward compatibility.
+ *
+ * Returns the default value if provided, otherwise the key as-is.
+ *
+ * @deprecated Use buildVideoFormSchema1/2 with useTranslation instead
+ */
 const fallbackT: TFunction = ((key: unknown, defaultValue?: unknown) =>
   typeof defaultValue === 'string' ? defaultValue : String(key)) as TFunction
 
-// 既存の import 互換: 直に schema を import している箇所への後方互換
+/**
+ * Backward-compatible schema instance for Step 1 (URL input).
+ *
+ * @deprecated Use buildVideoFormSchema1(t) with real translation function
+ */
 export const formSchema1 = buildVideoFormSchema1(fallbackT)
+
+/**
+ * Backward-compatible schema instance for Step 2 (part settings).
+ *
+ * @deprecated Use buildVideoFormSchema2(t) with real translation function
+ */
 export const formSchema2 = buildVideoFormSchema2(fallbackT)

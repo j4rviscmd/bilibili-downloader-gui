@@ -17,31 +17,38 @@ import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { z } from 'zod'
 
+/**
+ * Form for video URL input (Step 1).
+ *
+ * Accepts a Bilibili video URL and validates it. On valid submission,
+ * fetches video metadata from the backend. Shows a loading spinner while
+ * fetching and displays validation errors inline.
+ *
+ * @example
+ * ```tsx
+ * <VideoForm1 />
+ * ```
+ */
 function VideoForm1() {
   const { input, onValid1, isFetching } = useVideoInfo()
   const { t } = useTranslation()
 
   const schema1 = buildVideoFormSchema1(t)
 
-  useEffect(() => {
-    // Disabled: restore URL from localStorage at startup.
-    // Previously this read from `localStorage.getItem(VIDEO_URL_KEY)` and
-    // populated the form automatically. To disable automatic restoration,
-    // we now always use the current store value as the initial value.
-    form.setValue('url', input.url, { shouldValidate: false })
-  }, [])
-
-  async function onSubmit(data: z.infer<typeof formSchema1>) {
-    // ステート更新 & 動画愛情報を抽出
-    onValid1(data.url)
-  }
-
   const form = useForm<z.infer<typeof formSchema1>>({
     resolver: zodResolver(schema1),
     defaultValues: {
-      url: '',
+      url: input.url || '',
     },
   })
+
+  useEffect(() => {
+    form.setValue('url', input.url, { shouldValidate: false })
+  }, [form, input.url])
+
+  function onSubmit(data: z.infer<typeof formSchema1>): void {
+    onValid1(data.url)
+  }
 
   const placeholder =
     t('video.url_placeholder_example') ||

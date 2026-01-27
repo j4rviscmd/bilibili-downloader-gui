@@ -1,17 +1,31 @@
 import type { Progress } from '@/shared/ui/Progress'
 
-// We'll store per-phase progress entries. Each entry will have an internalId and parentId.
-// internalId = payload.stage ? `${payload.downloadId}:${payload.stage}` : payload.downloadId
-
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 
 const initialState: Progress[] = []
 
+/**
+ * Redux slice for download progress tracking.
+ *
+ * Stores per-phase progress entries for each download. Each entry has an
+ * internal ID computed from downloadId and stage (audio, video, merge).
+ * The 'complete' stage replaces the 'merge' entry to enable button unlocking.
+ */
 export const progressSlice = createSlice({
   name: 'progress',
   initialState,
   reducers: {
+    /**
+     * Updates or adds a progress entry.
+     *
+     * Computes an internal ID based on downloadId and stage. If an entry
+     * with the same internal ID exists, it is updated; otherwise, a new
+     * entry is added. The 'complete' stage replaces the 'merge' entry if it exists.
+     *
+     * @param state - Current progress array
+     * @param action - Action containing the progress data
+     */
     setProgress(state, action: PayloadAction<Progress>) {
       const payload = action.payload
       // compute internal id and parent id
@@ -36,6 +50,9 @@ export const progressSlice = createSlice({
         state[idx] = entry
       }
     },
+    /**
+     * Clears all progress entries.
+     */
     clearProgress() {
       return []
     },

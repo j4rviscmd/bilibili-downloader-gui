@@ -8,6 +8,24 @@ import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
+/**
+ * Initialization page component.
+ *
+ * Displays during app startup while running the initialization sequence:
+ * - Version check and auto-update
+ * - Settings retrieval
+ * - ffmpeg validation/installation
+ * - Cookie validation
+ * - User authentication
+ *
+ * Shows a loading spinner, status messages, and progress bars for downloads
+ * (e.g., ffmpeg installation). Redirects to /home on success or /error on failure.
+ *
+ * @example
+ * ```tsx
+ * <Route path="/init" element={<InitPage />} />
+ * ```
+ */
 function InitPage() {
   const navigate = useNavigate()
   const { progress, processingFnc, initApp } = useInit()
@@ -24,16 +42,19 @@ function InitPage() {
   }, [progress])
 
   useEffect(() => {
-    ;(async () => {
+    const runInit = async (): Promise<void> => {
       const resCode = await initApp()
       if (resCode === 0) {
         navigate('/home')
         return
       }
-      // エラーコード: 1=ffmpeg, 2=Cookie, 3=未ログイン, 4=ユーザ情報, 5=更新確認
+      // Error codes: 1=ffmpeg, 2=Cookie, 3=not logged in, 4=user info, 5=update check
       const errorCode = [1, 2, 3, 4, 5].includes(resCode) ? resCode : 255
       navigate('/error', { state: { errorCode }, replace: true })
-    })()
+    }
+
+    runInit()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return (

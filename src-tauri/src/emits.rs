@@ -1,3 +1,9 @@
+//! Progress Event Emission Module
+//!
+//! This module provides functionality for emitting download progress events to the frontend.
+//! It manages progress tracking with automatic periodic updates and supports multiple
+//! download stages (audio, video, merge, complete).
+
 use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
@@ -5,51 +11,84 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
 use tokio::{spawn, sync::Mutex, time};
 
-// Frontendへのイベントを送信するためのモジュール
+/// Progress information structure sent to the frontend.
+///
+/// This structure represents the current state of a download operation,
+/// including transfer rates, completion percentage, and elapsed time.
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
- pub struct Progress {
-
+pub struct Progress {
+    /// Current download stage (e.g., "audio", "video", "merge", "complete")
     #[serde(rename = "stage")]
     pub stage: Option<String>,
+    /// Unique identifier for this download operation
+    #[serde(rename = "downloadId")]
+    pub download_id: String,
+    /// Total file size in megabytes
+    #[serde(rename = "filesize")]
+    pub filesize: Option<f64>,
+    /// Downloaded data in megabytes
+    #[serde(rename = "downloaded")]
+    pub downloaded: Option<f64>,
+    /// Current transfer rate in KB/s
+    #[serde(rename = "transferRate")]
+    pub transfer_rate: f64,
+    /// Completion percentage (0-100)
+    #[serde(rename = "percentage")]
+    pub percentage: f64,
+    /// Time elapsed since last update in seconds
+    #[serde(rename = "deltaTime")]
+    pub delta_time: f64,
+    /// Total elapsed time since download start in seconds
+    #[serde(rename = "elapsedTime")]
+    pub elapsed_time: f64,
+    /// Whether the download has completed
+    #[serde(rename = "isComplete")]
+    pub is_complete: bool,
+}
 
-     #[serde(rename = "downloadId")]
-     pub download_id: String,
-     #[serde(rename = "filesize")]
-     pub filesize: Option<f64>,
-     #[serde(rename = "downloaded")]
-     pub downloaded: Option<f64>,
-     #[serde(rename = "transferRate")]
-     pub transfer_rate: f64,
-     #[serde(rename = "percentage")]
-     pub percentage: f64,
-     #[serde(rename = "deltaTime")]
-     pub delta_time: f64,
-     // 累計の経過時間（秒）
-     #[serde(rename = "elapsedTime")]
-     pub elapsed_time: f64,
-     #[serde(rename = "isComplete")]
-     pub is_complete: bool,
- }
-
-
+/// Internal state for progress tracking.
+///
+/// This structure maintains timing information and byte counts for
+/// calculating transfer rates and progress percentages.
 struct EmitsInner {
     progress: Progress,
     start_instant: Instant,
     last_instant: Instant,
     last_downloaded_bytes: u64,
     current_downloaded_bytes: u64,
-    // 内部タイマーの終了フラグ
+    /// Flag to stop the internal timer when download completes
     is_complete: bool,
 }
 
+/// Progress emitter that sends periodic updates to the frontend.
+///
+/// This struct manages download progress tracking and automatically emits
+/// progress events every 100ms. It spawns a background task that runs
+/// until the download completes.
 pub struct Emits {
     app: AppHandle,
     inner: Arc<Mutex<EmitsInner>>,
 }
 
 impl Emits {
+    /// Creates a new progress emitter and starts automatic updates.
+    ///
+    /// This function initializes the progress tracker, emits an initial progress
+    /// event immediately, and spawns a background task that emits progress updates
+    /// every 100ms until the download completes.
+    ///
+    /// # Arguments
+    ///
+    /// * `app` - Tauri application handle for event emission
+    /// * `download_id` - Unique identifier for this download
+    /// * `filesize_bytes` - Optional total file size in bytes
+    ///
+    /// # Returns
+    ///
+    /// Returns a new `Emits` instance with an active background update task.
     pub fn new(app: AppHandle, download_id: String, filesize_bytes: Option<u64>) -> Self {
-        let filesize_mb: Option<f64> = filesize_bytes.map(|filesize_bytes| filesize_bytes as f64 / 1024.0 / 1024.0);
+        let filesize_mb: Option<f64> =
+            filesize_bytes.map(|filesize_bytes| filesize_bytes as f64 / 1024.0 / 1024.0);
         let now = Instant::now();
         let inner = Arc::new(Mutex::new(EmitsInner {
             progress: Progress {
@@ -75,11 +114,16 @@ impl Emits {
             inner: inner.clone(),
         };
 
-        // 生成直後に1回フロントへ送信
-        if let Ok(mut guard) = inner.try_lock() {
-            Self::send_progress_locked(&app, &mut guard);
+        // Send initial progress immediately after creation
+        match inner.try_lock() {
+            Ok(mut guard) => {
+                Self::send_progress_locked(&app, &mut guard);
+            }
+            Err(_) => {
+                #[cfg(debug_assertions)]
+                eprintln!("[Emits] Failed to acquire lock for initial progress emit");
+            }
         }
-
 
         // Emitインスタンス生成と同時に0.1s間隔のタイマーを開始
         spawn(async move {
@@ -96,16 +140,37 @@ impl Emits {
             }
         });
 
-
         this
     }
 
+    /// Updates the current download progress.
+    ///
+    /// This method updates the total bytes downloaded. The actual progress
+    /// calculation and emission happens in the background update task.
+    ///
+    /// # Arguments
+    ///
+    /// * `downloaded_bytes` - Total number of bytes downloaded so far
     pub async fn update_progress(&self, downloaded_bytes: u64) {
-        if let Ok(mut guard) = self.inner.try_lock() {
-            guard.current_downloaded_bytes = downloaded_bytes;
+        match self.inner.try_lock() {
+            Ok(mut guard) => {
+                guard.current_downloaded_bytes = downloaded_bytes;
+            }
+            Err(_) => {
+                #[cfg(debug_assertions)]
+                eprintln!("[Emits] Failed to acquire lock for progress update");
+            }
         }
     }
 
+    /// Sets the current download stage and emits an immediate update.
+    ///
+    /// This method is used to indicate different phases of the download process
+    /// (e.g., "audio", "video", "merge", "complete").
+    ///
+    /// # Arguments
+    ///
+    /// * `stage` - Stage identifier string
     pub async fn set_stage(&self, stage: &str) {
         let mut guard = self.inner.lock().await;
         guard.progress.stage = Some(stage.to_string());
@@ -113,6 +178,10 @@ impl Emits {
         Self::send_progress_locked(&self.app, &mut guard);
     }
 
+    /// Marks the download as complete and stops the update task.
+    ///
+    /// This method sets the progress to 100%, emits a final progress event,
+    /// and stops the background update task.
     pub async fn complete(&self) {
         // 完了時点の累計経過時間を更新
         let mut guard = self.inner.lock().await;
@@ -131,7 +200,15 @@ impl Emits {
         let _ = self.app.emit("progress", guard.progress.clone());
     }
 
-    // ダウンロード途中で総サイズが後から判明した場合に更新するためのユーティリティ
+    /// Updates the total file size when it becomes known during download.
+    ///
+    /// This method is useful when the total size is not available at the start
+    /// of the download but is discovered later (e.g., from Content-Length header
+    /// after the first chunk is received).
+    ///
+    /// # Arguments
+    ///
+    /// * `filesize_bytes` - Total file size in bytes
     pub async fn update_total(&self, filesize_bytes: u64) {
         let filesize_mb: f64 = filesize_bytes as f64 / 1024.0 / 1024.0;
         let mut guard = self.inner.lock().await;
@@ -146,7 +223,16 @@ impl Emits {
         Self::send_progress_locked(&self.app, &mut guard);
     }
 
-    // 内部用: ミューテックス取得済みで進捗を計算・送信
+    /// Internal method: Calculates progress and emits event with lock held.
+    ///
+    /// This method calculates transfer rate, percentage, and timing information,
+    /// then emits a progress event to the frontend. It should only be called
+    /// when the inner mutex is already locked.
+    ///
+    /// # Arguments
+    ///
+    /// * `app` - Tauri application handle for event emission
+    /// * `inner` - Mutable reference to the locked inner state
     fn send_progress_locked(app: &AppHandle, inner: &mut EmitsInner) {
         let mut prg = inner.progress.clone();
         // 差分時間（秒）
@@ -201,6 +287,18 @@ impl Emits {
     }
 }
 
+/// Rounds a floating-point value to a specified number of decimal places.
+///
+/// Returns 0.0 if the input value is not finite (NaN or infinite).
+///
+/// # Arguments
+///
+/// * `v` - Value to round
+/// * `places` - Number of decimal places (non-negative)
+///
+/// # Returns
+///
+/// Returns the rounded value, or 0.0 if the input is not finite.
 fn round_to(v: f64, places: i32) -> f64 {
     if !v.is_finite() {
         return 0.0;
