@@ -1,3 +1,8 @@
+import { useVideoInfo } from '@/features/video/hooks/useVideoInfo'
+import {
+  buildVideoFormSchema1,
+  formSchema1,
+} from '@/features/video/lib/formSchema'
 import {
   Form,
   FormControl,
@@ -8,8 +13,6 @@ import {
   FormMessage,
 } from '@/shared/ui/form'
 import { Input } from '@/shared/ui/input'
-import { buildVideoFormSchema1, formSchema1 } from '@/features/video/lib/formSchema'
-import { useVideoInfo } from '@/features/video/hooks/useVideoInfo'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2 } from 'lucide-react'
 import { useEffect } from 'react'
@@ -77,8 +80,8 @@ function VideoForm1() {
                     {...field}
                   />
                   {isFetching && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                      <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                    <div className="absolute top-1/2 right-3 -translate-y-1/2">
+                      <Loader2 className="text-muted-foreground size-4 animate-spin" />
                     </div>
                   )}
                 </div>

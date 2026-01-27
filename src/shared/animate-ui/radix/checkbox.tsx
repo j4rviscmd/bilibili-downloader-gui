@@ -1,26 +1,26 @@
-'use client';
+'use client'
 
-import * as React from 'react';
-import { Checkbox as CheckboxPrimitive } from 'radix-ui';
-import { motion, type SVGMotionProps, type HTMLMotionProps } from 'motion/react';
-import { cva, type VariantProps } from 'class-variance-authority';
+import { cva, type VariantProps } from 'class-variance-authority'
+import { motion, type HTMLMotionProps, type SVGMotionProps } from 'motion/react'
+import { Checkbox as CheckboxPrimitive } from 'radix-ui'
+import * as React from 'react'
 
-import { cn } from '@/shared/lib/utils';
-import { getStrictContext } from '@/shared/animate-ui/lib/get-strict-context';
-import { useControlledState } from '@/shared/animate-ui/hooks/use-controlled-state';
+import { useControlledState } from '@/shared/animate-ui/hooks/use-controlled-state'
+import { getStrictContext } from '@/shared/animate-ui/lib/get-strict-context'
+import { cn } from '@/shared/lib/utils'
 
 // Context
 type CheckboxContextType = {
-  isChecked: boolean | 'indeterminate';
-  setIsChecked: (checked: boolean | 'indeterminate') => void;
-};
+  isChecked: boolean | 'indeterminate'
+  setIsChecked: (checked: boolean | 'indeterminate') => void
+}
 
 const [CheckboxProvider, useCheckbox] =
-  getStrictContext<CheckboxContextType>('CheckboxContext');
+  getStrictContext<CheckboxContextType>('CheckboxContext')
 
 // Primitive
 type CheckboxRootProps = HTMLMotionProps<'button'> &
-  Omit<React.ComponentProps<typeof CheckboxPrimitive.Root>, 'asChild'>;
+  Omit<React.ComponentProps<typeof CheckboxPrimitive.Root>, 'asChild'>
 
 function CheckboxRoot({
   defaultChecked,
@@ -36,7 +36,7 @@ function CheckboxRoot({
     value: checked,
     defaultValue: defaultChecked,
     onChange: onCheckedChange,
-  });
+  })
 
   return (
     <CheckboxProvider value={{ isChecked, setIsChecked }}>
@@ -58,13 +58,13 @@ function CheckboxRoot({
         />
       </CheckboxPrimitive.Root>
     </CheckboxProvider>
-  );
+  )
 }
 
-type CheckboxIndicatorProps = SVGMotionProps<SVGSVGElement>;
+type CheckboxIndicatorProps = SVGMotionProps<SVGSVGElement>
 
 function CheckboxIndicator(props: CheckboxIndicatorProps) {
-  const { isChecked } = useCheckbox();
+  const { isChecked } = useCheckbox()
 
   return (
     <CheckboxPrimitive.Indicator forceMount asChild>
@@ -119,7 +119,7 @@ function CheckboxIndicator(props: CheckboxIndicatorProps) {
         )}
       </motion.svg>
     </CheckboxPrimitive.Indicator>
-  );
+  )
 }
 
 // Styled Component
@@ -148,7 +148,7 @@ const checkboxVariants = cva(
       size: 'default',
     },
   },
-);
+)
 
 const checkboxIndicatorVariants = cva('', {
   variants: {
@@ -161,9 +161,9 @@ const checkboxIndicatorVariants = cva('', {
   defaultVariants: {
     size: 'default',
   },
-});
+})
 
-type CheckboxProps = CheckboxRootProps & VariantProps<typeof checkboxVariants>;
+type CheckboxProps = CheckboxRootProps & VariantProps<typeof checkboxVariants>
 
 function Checkbox({
   className,
@@ -180,16 +180,16 @@ function Checkbox({
       {children}
       <CheckboxIndicator className={cn(checkboxIndicatorVariants({ size }))} />
     </CheckboxRoot>
-  );
+  )
 }
 
 export {
   Checkbox,
-  CheckboxRoot,
   CheckboxIndicator,
+  CheckboxRoot,
   useCheckbox,
+  type CheckboxContextType,
+  type CheckboxIndicatorProps,
   type CheckboxProps,
   type CheckboxRootProps,
-  type CheckboxIndicatorProps,
-  type CheckboxContextType,
-};
+}

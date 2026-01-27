@@ -1,20 +1,20 @@
-'use client';
+'use client'
 
-import * as React from 'react';
-import { RadioGroup as RadioGroupPrimitive } from 'radix-ui';
-import { Circle } from 'lucide-react';
+import { Circle } from 'lucide-react'
 import {
   AnimatePresence,
   motion,
   type HTMLMotionProps,
   type Transition,
-} from 'motion/react';
+} from 'motion/react'
+import { RadioGroup as RadioGroupPrimitive } from 'radix-ui'
+import * as React from 'react'
 
-import { cn } from '@/shared/lib/utils';
+import { cn } from '@/shared/lib/utils'
 
 type RadioGroupProps = React.ComponentProps<typeof RadioGroupPrimitive.Root> & {
-  transition?: Transition;
-};
+  transition?: Transition
+}
 
 function RadioGroup({ className, ...props }: RadioGroupProps) {
   return (
@@ -23,14 +23,14 @@ function RadioGroup({ className, ...props }: RadioGroupProps) {
       className={cn('grid gap-2.5', className)}
       {...props}
     />
-  );
+  )
 }
 
 type RadioGroupIndicatorProps = React.ComponentProps<
   typeof RadioGroupPrimitive.Indicator
 > & {
-  transition: Transition;
-};
+  transition: Transition
+}
 
 function RadioGroupIndicator({
   className,
@@ -56,15 +56,15 @@ function RadioGroupIndicator({
         </motion.div>
       </AnimatePresence>
     </RadioGroupPrimitive.Indicator>
-  );
+  )
 }
 
 type RadioGroupItemProps = React.ComponentProps<
   typeof RadioGroupPrimitive.Item
 > &
   HTMLMotionProps<'button'> & {
-    transition?: Transition;
-  };
+    transition?: Transition
+  }
 
 function RadioGroupItem({
   className,
@@ -76,7 +76,7 @@ function RadioGroupItem({
       <motion.button
         data-slot="radio-group-item"
         className={cn(
-          'aspect-square size-5 rounded-full flex items-center justify-center border border-input text-primary ring-offset-background focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
+          'border-input text-primary ring-offset-background focus-visible:ring-ring flex aspect-square size-5 items-center justify-center rounded-full border focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
           className,
         )}
         whileHover={{ scale: 1.05 }}
@@ -89,12 +89,12 @@ function RadioGroupItem({
         />
       </motion.button>
     </RadioGroupPrimitive.Item>
-  );
+  )
 }
 
 export {
   RadioGroup,
   RadioGroupItem,
-  type RadioGroupProps,
   type RadioGroupItemProps,
-};
+  type RadioGroupProps,
+}

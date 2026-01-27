@@ -1,10 +1,10 @@
-'use client';
+'use client'
 
-import * as React from 'react';
-import { type HTMLMotionProps, motion, type Transition } from 'motion/react';
-import { cva, type VariantProps } from 'class-variance-authority';
+import { cva, type VariantProps } from 'class-variance-authority'
+import { type HTMLMotionProps, motion, type Transition } from 'motion/react'
+import * as React from 'react'
 
-import { cn } from '@/shared/lib/utils';
+import { cn } from '@/shared/lib/utils'
 
 const buttonVariants = cva(
   "relative overflow-hidden cursor-pointer inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
@@ -33,7 +33,7 @@ const buttonVariants = cva(
       size: 'default',
     },
   },
-);
+)
 
 const rippleVariants = cva('absolute rounded-full size-5 pointer-events-none', {
   variants: {
@@ -48,20 +48,20 @@ const rippleVariants = cva('absolute rounded-full size-5 pointer-events-none', {
   defaultVariants: {
     variant: 'default',
   },
-});
+})
 
 type Ripple = {
-  id: number;
-  x: number;
-  y: number;
-};
+  id: number
+  x: number
+  y: number
+}
 
 type RippleButtonProps = HTMLMotionProps<'button'> & {
-  children: React.ReactNode;
-  rippleClassName?: string;
-  scale?: number;
-  transition?: Transition;
-} & VariantProps<typeof buttonVariants>;
+  children: React.ReactNode
+  rippleClassName?: string
+  scale?: number
+  transition?: Transition
+} & VariantProps<typeof buttonVariants>
 
 function RippleButton({
   ref,
@@ -75,43 +75,43 @@ function RippleButton({
   transition = { duration: 0.6, ease: 'easeOut' },
   ...props
 }: RippleButtonProps) {
-  const [ripples, setRipples] = React.useState<Ripple[]>([]);
-  const buttonRef = React.useRef<HTMLButtonElement>(null);
-  React.useImperativeHandle(ref, () => buttonRef.current as HTMLButtonElement);
+  const [ripples, setRipples] = React.useState<Ripple[]>([])
+  const buttonRef = React.useRef<HTMLButtonElement>(null)
+  React.useImperativeHandle(ref, () => buttonRef.current as HTMLButtonElement)
 
   const createRipple = React.useCallback(
     (event: React.MouseEvent<HTMLButtonElement>) => {
-      const button = buttonRef.current;
-      if (!button) return;
+      const button = buttonRef.current
+      if (!button) return
 
-      const rect = button.getBoundingClientRect();
-      const x = event.clientX - rect.left;
-      const y = event.clientY - rect.top;
+      const rect = button.getBoundingClientRect()
+      const x = event.clientX - rect.left
+      const y = event.clientY - rect.top
 
       const newRipple: Ripple = {
         id: Date.now(),
         x,
         y,
-      };
+      }
 
-      setRipples((prev) => [...prev, newRipple]);
+      setRipples((prev) => [...prev, newRipple])
 
       setTimeout(() => {
-        setRipples((prev) => prev.filter((r) => r.id !== newRipple.id));
-      }, 600);
+        setRipples((prev) => prev.filter((r) => r.id !== newRipple.id))
+      }, 600)
     },
     [],
-  );
+  )
 
   const handleClick = React.useCallback(
     (event: React.MouseEvent<HTMLButtonElement>) => {
-      createRipple(event);
+      createRipple(event)
       if (onClick) {
-        onClick(event);
+        onClick(event)
       }
     },
     [createRipple, onClick],
-  );
+  )
 
   return (
     <motion.button
@@ -140,7 +140,7 @@ function RippleButton({
         />
       ))}
     </motion.button>
-  );
+  )
 }
 
-export { RippleButton, type RippleButtonProps };
+export { RippleButton, type RippleButtonProps }

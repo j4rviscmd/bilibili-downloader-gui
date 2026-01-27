@@ -1,5 +1,5 @@
-import { Button } from '@/shared/ui/button'
 import { useInit } from '@/features/init'
+import { Button } from '@/shared/ui/button'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'

@@ -1,3 +1,5 @@
+import SettingsForm from '@/features/settings/dialog/SettingsForm'
+import { useSettings } from '@/features/settings/useSettings'
 import {
   Dialog,
   DialogContent,
@@ -6,8 +8,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/shared/animate-ui/radix/dialog'
-import SettingsForm from '@/features/settings/dialog/SettingsForm'
-import { useSettings } from '@/features/settings/useSettings'
 import { useTranslation } from 'react-i18next'
 
 /**

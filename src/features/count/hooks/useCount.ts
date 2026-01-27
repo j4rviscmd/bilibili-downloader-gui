@@ -1,5 +1,9 @@
 import { useAppDispatch, useSelector } from '@/app/store'
-import { decrement, increment, setCount } from '@/features/count/model/countSlice'
+import {
+  decrement,
+  increment,
+  setCount,
+} from '@/features/count/model/countSlice'
 
 /**
  * Custom hook for managing counter state.

@@ -1,6 +1,4 @@
 import { store, useSelector } from '@/app/store'
-import type { SupportedLang } from '@/i18n'
-import { changeLanguage } from '@/shared/i18n'
 import {
   callGetSettings,
   callSetSettings,
@@ -8,6 +6,8 @@ import {
 import { languages } from '@/features/settings/language/languages'
 import { setOpenDialog, setSettings } from '@/features/settings/settingsSlice'
 import type { Settings } from '@/features/settings/type'
+import type { SupportedLang } from '@/i18n'
+import { changeLanguage } from '@/shared/i18n'
 import { t as staticT, t } from 'i18next'
 import { toast } from 'sonner'
 

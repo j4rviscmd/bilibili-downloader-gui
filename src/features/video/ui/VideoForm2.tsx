@@ -1,10 +1,20 @@
 import type { RootState } from '@/app/store'
 import { store } from '@/app/store'
+import { useVideoInfo } from '@/features/video/hooks/useVideoInfo'
+import {
+  AUDIO_QUALITIES_MAP,
+  AUDIO_QUALITIES_ORDER,
+  VIDEO_QUALITIES_MAP,
+} from '@/features/video/lib/constants'
+import { buildVideoFormSchema2 } from '@/features/video/lib/formSchema'
+import { updatePartSelected } from '@/features/video/model/inputSlice'
+import type { Video } from '@/features/video/types'
 import { Checkbox } from '@/shared/animate-ui/radix/checkbox'
 import {
   RadioGroup,
   RadioGroupItem,
 } from '@/shared/animate-ui/radix/radio-group'
+import { cn } from '@/shared/lib/utils'
 import {
   Form,
   FormControl,
@@ -16,22 +26,12 @@ import {
 } from '@/shared/ui/form'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
-import {
-  AUDIO_QUALITIES_MAP,
-  AUDIO_QUALITIES_ORDER,
-  VIDEO_QUALITIES_MAP,
-} from '@/features/video/lib/constants'
-import { buildVideoFormSchema2 } from '@/features/video/lib/formSchema'
-import { updatePartSelected } from '@/features/video/model/inputSlice'
-import type { Video } from '@/features/video/types'
-import { useVideoInfo } from '@/features/video/hooks/useVideoInfo'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import { z } from 'zod'
-import { cn } from '@/shared/lib/utils'
 
 /**
  * Props for VideoForm2 component.

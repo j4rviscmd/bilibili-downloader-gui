@@ -1,3 +1,6 @@
+import { languages } from '@/features/settings/language/languages'
+import { useSettings } from '@/features/settings/useSettings'
+import type { SupportedLang } from '@/i18n'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -6,9 +9,6 @@ import {
   DropdownMenuTrigger,
 } from '@/shared/animate-ui/radix/dropdown-menu'
 import { Button } from '@/shared/ui/button'
-import type { SupportedLang } from '@/i18n'
-import { languages } from '@/features/settings/language/languages'
-import { useSettings } from '@/features/settings/useSettings'
 import { Languages } from 'lucide-react'
 import { motion } from 'motion/react'
 

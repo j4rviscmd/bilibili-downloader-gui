@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+src-tauri/target/
+dist/
+dist-ssr/
+
+# Cache
+.vite/
+.turbo/
+
+# Temporary files
+*.log
+*.tmp
+*.temp
+.DS_Store
+
+# Large files
+*.m4s
+*.mp4

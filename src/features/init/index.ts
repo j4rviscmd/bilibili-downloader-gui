@@ -6,6 +6,6 @@
  * @module features/init
  */
 
-export { initSlice, setInitiated, setProcessingFnc } from './model/initSlice'
 export { useInit } from './hooks/useInit'
+export { initSlice, setInitiated, setProcessingFnc } from './model/initSlice'
 export type { InitState } from './types'

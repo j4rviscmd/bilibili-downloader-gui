@@ -1,16 +1,15 @@
-'use client';
+'use client'
 
-import * as React from 'react';
-import { motion, type Variants } from 'motion/react';
+import { motion, type Variants } from 'motion/react'
 
 import {
   getVariants,
-  useAnimateIconContext,
   IconWrapper,
+  useAnimateIconContext,
   type IconProps,
-} from '@/shared/animate-ui/icons/icon';
+} from '@/shared/animate-ui/icons/icon'
 
-type SettingsProps = IconProps<keyof typeof animations>;
+type SettingsProps = IconProps<keyof typeof animations>
 
 const animations = {
   default: {
@@ -65,11 +64,11 @@ const animations = {
     path: {},
     circle: {},
   } satisfies Record<string, Variants>,
-} as const;
+} as const
 
 function IconComponent({ size, ...props }: SettingsProps) {
-  const { controls } = useAnimateIconContext();
-  const variants = getVariants(animations);
+  const { controls } = useAnimateIconContext()
+  const variants = getVariants(animations)
 
   return (
     <motion.svg
@@ -101,17 +100,17 @@ function IconComponent({ size, ...props }: SettingsProps) {
         />
       </motion.g>
     </motion.svg>
-  );
+  )
 }
 
 function Settings(props: SettingsProps) {
-  return <IconWrapper icon={IconComponent} {...props} />;
+  return <IconWrapper icon={IconComponent} {...props} />
 }
 
 export {
   animations,
   Settings,
   Settings as SettingsIcon,
-  type SettingsProps,
   type SettingsProps as SettingsIconProps,
-};
+  type SettingsProps,
+}

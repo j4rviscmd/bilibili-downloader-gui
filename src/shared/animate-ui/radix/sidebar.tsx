@@ -23,12 +23,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
+import { useIsMobile } from '@/shared/hooks/use-mobile'
+import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Separator } from '@/shared/ui/separator'
 import { Skeleton } from '@/shared/ui/skeleton'
-import { useIsMobile } from '@/shared/hooks/use-mobile'
-import { cn } from '@/shared/lib/utils'
 
 const SIDEBAR_COOKIE_NAME = 'sidebar_state'
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
