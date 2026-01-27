@@ -113,47 +113,51 @@ pub async fn download_video(
     }
 
     // --------------------------------------------------
+    // 2.5. 設定から速度閾値を取得
+    // --------------------------------------------------
+    let min_speed_threshold = settings::get_settings(app)
+        .await
+        .map_err(|e| e.to_string())?
+        .download_speed_threshold_mbps;
+
+    // --------------------------------------------------
     // 3. 動画詳細取得 (選択品質のURL抽出)
     // --------------------------------------------------
     let details = fetch_video_details(&cookies, bvid, cid).await?;
+
     // 選択動画品質が存在しなければフォールバック (先頭 = 最も高品質)
-    let video_item_opt = details.data.dash.video.iter().find(|v| v.id == *quality);
-    let fallback_video_item = details.data.dash.video.first();
-    let use_video_item = match (video_item_opt, fallback_video_item) {
-        (Some(v), _) => v,
-        (None, Some(fb)) => {
-            emit_stage(app, &download_id, "warn-video-quality-fallback");
-            fb
-        }
-        (None, None) => {
-            // NOTE: GA4 Analytics は無効化されています
-            // crate::utils::analytics::finish_download(app, &download_id, false, Some("ERR::QUALITY_NOT_FOUND")).await;
-            return Err("ERR::QUALITY_NOT_FOUND".into());
-        }
+    let video_url = match details.data.dash.video.iter().find(|v| v.id == *quality) {
+        Some(v) => v.base_url.clone(),
+        None => match details.data.dash.video.first() {
+            Some(fb) => {
+                emit_stage(app, &download_id, "warn-video-quality-fallback");
+                fb.base_url.clone()
+            }
+            None => {
+                return Err("ERR::QUALITY_NOT_FOUND".into());
+            }
+        },
     };
-    let video_url = use_video_item.base_url.clone();
 
     // 選択音声品質が存在しなければフォールバック (先頭 = 最も高品質)
-    let audio_item_opt = details
+    let audio_url = match details
         .data
         .dash
         .audio
         .iter()
-        .find(|a| a.id == *audio_quality);
-    let fallback_audio_item = details.data.dash.audio.first();
-    let use_audio_item = match (audio_item_opt, fallback_audio_item) {
-        (Some(a), _) => a,
-        (None, Some(fb)) => {
-            emit_stage(app, &download_id, "warn-audio-quality-fallback");
-            fb
-        }
-        (None, None) => {
-            // NOTE: GA4 Analytics は無効化されています
-            // crate::utils::analytics::finish_download(app, &download_id, false, Some("ERR::QUALITY_NOT_FOUND")).await;
-            return Err("ERR::QUALITY_NOT_FOUND".into());
-        }
+        .find(|a| a.id == *audio_quality)
+    {
+        Some(a) => a.base_url.clone(),
+        None => match details.data.dash.audio.first() {
+            Some(fb) => {
+                emit_stage(app, &download_id, "warn-audio-quality-fallback");
+                fb.base_url.clone()
+            }
+            None => {
+                return Err("ERR::QUALITY_NOT_FOUND".into());
+            }
+        },
     };
-    let audio_url = use_audio_item.base_url.clone();
 
     // --------------------------------------------------
     // 4. 容量事前チェック (取得できなければスキップ)
@@ -187,6 +191,7 @@ pub async fn download_video(
             cookie_opt.clone(),
             true,
             Some(download_id.clone()),
+            Some(min_speed_threshold),
         )
     })
     .await?;
@@ -205,6 +210,7 @@ pub async fn download_video(
             cookie_opt.clone(),
             true,
             Some(download_id.clone()),
+            Some(min_speed_threshold),
         )
     })
     .await;

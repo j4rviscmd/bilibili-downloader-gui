@@ -13,3 +13,24 @@ pub const USER_AGENT: &str =
 ///
 /// Required by Bilibili's API for request validation.
 pub const REFERER: &str = "https://www.bilibili.com";
+
+/// Initial speed check size in bytes for detecting slow CDN nodes.
+///
+/// The first N bytes are used to measure download speed. If the speed
+/// falls below MIN_SPEED_THRESHOLD, the connection will be dropped and
+/// retried (up to MAX_RECONNECT_ATTEMPTS times) to get a different CDN node.
+pub const SPEED_CHECK_SIZE: u64 = 1 * 1024 * 1024; // 1MB
+
+/// Minimum download speed threshold in bytes per second.
+///
+/// If the initial download speed is below this threshold, the connection
+/// is considered slow and will be reconnected to attempt getting a faster
+/// CDN node.
+pub const MIN_SPEED_THRESHOLD: u64 = 1 * 1024 * 1024; // 1MB/s
+
+/// Maximum number of reconnect attempts for slow connections.
+///
+/// When initial speed check fails (below MIN_SPEED_THRESHOLD), the system
+/// will reconnect up to this many times. After exceeding this limit,
+/// download continues even if slow to ensure completion.
+pub const MAX_RECONNECT_ATTEMPTS: u8 = 5;

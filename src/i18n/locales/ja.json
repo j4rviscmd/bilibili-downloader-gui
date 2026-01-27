@@ -102,8 +102,10 @@
     "title": "設定",
     "language_label": "言語",
     "output_dir_label": "出力ディレクトリ",
-    "output_dir_placeholder": "例: C\\\\Users\\\\you\\\\Downloads または /Users/you/Downloads",
+    "output_dir_placeholder": "例: C:\\Users\\you\\Downloads または /Users/you/Downloads",
     "output_dir_description": "動画ファイルの保存先ディレクトリを入力してください。",
+    "speed_threshold_label": "速度閾値 (MB/s)",
+    "speed_threshold_description": "初速ダウンロード速度がこの閾値を下回る場合、より高速なCDNノードを取得するために再接続します。デフォルト: 1.0 MB/s。",
     "auto_save_note": "変更は自動的に保存されます。",
     "dialog_title": "設定",
     "save_success": "設定を保存しました",
@@ -131,6 +133,10 @@
     },
     "language": {
       "required": "言語を選択してください。"
+    },
+    "speed_threshold": {
+      "too_low": "速度閾値は 0.1 MB/s 以上で設定してください。",
+      "too_high": "速度閾値は 100 MB/s 以下で設定してください。"
     },
     "video": {
       "url": {

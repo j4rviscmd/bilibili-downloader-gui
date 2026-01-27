@@ -144,6 +144,7 @@ async fn validate_settings(app: &AppHandle, filepath: &PathBuf) -> Result<bool> 
         .and_then(|p| p.to_str().map(|s| s.to_string()));
     let default_settings = Settings {
         dl_output_path: default_dl_path,
+        download_speed_threshold_mbps: 1.0, // Default 1 MB/s
         ..Default::default()
     };
     let json = serde_json::to_string_pretty(&default_settings)?;

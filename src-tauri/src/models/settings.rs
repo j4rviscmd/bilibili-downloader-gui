@@ -14,9 +14,26 @@ pub struct Settings {
     #[serde(rename = "dlOutputPath")]
     pub dl_output_path: Option<String>,
     pub language: Language,
+    /// Download speed threshold in MB/s for initial speed check.
+    ///
+    /// If the initial download speed (measured over SPEED_CHECK_SIZE bytes)
+    /// falls below this threshold, the connection will be dropped and retried
+    /// to get a different CDN node.
+    ///
+    /// Defaults to 1.0 MB/s if not specified in settings.json.
+    #[serde(
+        rename = "downloadSpeedThresholdMbps",
+        default = "default_speed_threshold"
+    )]
+    pub download_speed_threshold_mbps: f64,
     //
     // TODO: 現状は利用していない
     // pub theme: Theme,
+}
+
+/// Default speed threshold of 1.0 MB/s.
+fn default_speed_threshold() -> f64 {
+    1.0
 }
 
 /// Supported UI languages.
