@@ -1,8 +1,11 @@
 import type { RootState } from '@/app/store'
+import {
+  buildVideoFormSchema1,
+  buildVideoFormSchema2,
+} from '@/features/video/lib/formSchema'
+import { normalizeFilename } from '@/features/video/lib/utils'
 import { createSelector } from '@reduxjs/toolkit'
 import type { TFunction } from 'i18next'
-import { buildVideoFormSchema1, buildVideoFormSchema2 } from '@/features/video/lib/formSchema'
-import { normalizeFilename } from '@/features/video/lib/utils'
 
 /**
  * Selects the part inputs from the Redux store.

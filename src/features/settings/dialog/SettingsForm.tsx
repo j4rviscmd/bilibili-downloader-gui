@@ -1,4 +1,9 @@
 import {
+  buildSettingsFormSchema,
+  formSchema,
+} from '@/features/settings/dialog/formSchema'
+import { useSettings } from '@/features/settings/useSettings'
+import {
   Form,
   FormControl,
   FormDescription,
@@ -8,25 +13,20 @@ import {
   FormMessage,
 } from '@/shared/ui/form'
 import { Input } from '@/shared/ui/input'
-import {
-  buildSettingsFormSchema,
-  formSchema,
-} from '@/features/settings/dialog/formSchema'
-import { useSettings } from '@/features/settings/useSettings'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import type { z } from 'zod'
 
 // i18n t は useTranslation から取得
+import { languages } from '@/features/settings/language/languages'
 import {
   RadioGroup,
   RadioGroupItem,
 } from '@/shared/animate-ui/radix/radio-group'
+import { cn } from '@/shared/lib/utils'
 import { Label } from '@/shared/ui/label'
 import { Separator } from '@/shared/ui/separator'
-import { cn } from '@/shared/lib/utils'
-import { languages } from '@/features/settings/language/languages'
 import { useTranslation } from 'react-i18next'
 
 /**

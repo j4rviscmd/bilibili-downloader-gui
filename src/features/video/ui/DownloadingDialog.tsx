@@ -1,4 +1,5 @@
 import { useSelector, type RootState } from '@/app/store'
+import { useVideoInfo } from '@/features/video/hooks/useVideoInfo'
 import {
   Dialog,
   DialogContent,
@@ -9,7 +10,6 @@ import {
 import CircleIndicator from '@/shared/ui/CircleIndicator'
 import ProgressStatusBar, { type Progress } from '@/shared/ui/Progress'
 import { Button } from '@/shared/ui/button'
-import { useVideoInfo } from '@/features/video/hooks/useVideoInfo'
 import { Download, Music, Play, Video } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 

@@ -1,5 +1,18 @@
-import { store } from '@/app/store'
 import { useTheme } from '@/app/providers/ThemeContext'
+import { store } from '@/app/store'
+import { useInit } from '@/features/init'
+import OpenSettingsDialogButton from '@/features/settings/dialog/OpenSettingsDialogButton'
+import SettingsDialog from '@/features/settings/dialog/SettingsDialog'
+import { useUser } from '@/features/user'
+import {
+  deselectAll,
+  DownloadButton,
+  DownloadingDialog,
+  selectAll,
+  useVideoInfo,
+  VideoForm1,
+  VideoForm2,
+} from '@/features/video'
 import {
   Sidebar,
   SidebarContent,
@@ -16,19 +29,6 @@ import AppBar from '@/shared/ui/AppBar/AppBar'
 import { Button } from '@/shared/ui/button'
 import { ScrollArea, ScrollBar } from '@/shared/ui/scroll-area'
 import { Separator } from '@/shared/ui/separator'
-import { useInit } from '@/features/init'
-import {
-  useVideoInfo,
-  VideoForm1,
-  VideoForm2,
-  DownloadButton,
-  DownloadingDialog,
-  selectAll,
-  deselectAll,
-} from '@/features/video'
-import OpenSettingsDialogButton from '@/features/settings/dialog/OpenSettingsDialogButton'
-import SettingsDialog from '@/features/settings/dialog/SettingsDialog'
-import { useUser } from '@/features/user'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'

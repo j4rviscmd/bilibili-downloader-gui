@@ -1,25 +1,25 @@
-'use client';
+'use client'
 
-import * as React from 'react';
 import {
   type SpringOptions,
   type UseInViewOptions,
   useInView,
   useMotionValue,
   useSpring,
-} from 'motion/react';
+} from 'motion/react'
+import * as React from 'react'
 
 type CountingNumberProps = React.ComponentProps<'span'> & {
-  number: number;
-  fromNumber?: number;
-  padStart?: boolean;
-  inView?: boolean;
-  inViewMargin?: UseInViewOptions['margin'];
-  inViewOnce?: boolean;
-  decimalSeparator?: string;
-  transition?: SpringOptions;
-  decimalPlaces?: number;
-};
+  number: number
+  fromNumber?: number
+  padStart?: boolean
+  inView?: boolean
+  inViewMargin?: UseInViewOptions['margin']
+  inViewOnce?: boolean
+  decimalSeparator?: string
+  transition?: SpringOptions
+  decimalPlaces?: number
+}
 
 function CountingNumber({
   ref,
@@ -35,28 +35,28 @@ function CountingNumber({
   className,
   ...props
 }: CountingNumberProps) {
-  const localRef = React.useRef<HTMLSpanElement>(null);
-  React.useImperativeHandle(ref, () => localRef.current as HTMLSpanElement);
+  const localRef = React.useRef<HTMLSpanElement>(null)
+  React.useImperativeHandle(ref, () => localRef.current as HTMLSpanElement)
 
-  const numberStr = number.toString();
+  const numberStr = number.toString()
   const decimals =
     typeof decimalPlaces === 'number'
       ? decimalPlaces
       : numberStr.includes('.')
         ? (numberStr.split('.')[1]?.length ?? 0)
-        : 0;
+        : 0
 
-  const motionVal = useMotionValue(fromNumber);
-  const springVal = useSpring(motionVal, transition);
+  const motionVal = useMotionValue(fromNumber)
+  const springVal = useSpring(motionVal, transition)
   const inViewResult = useInView(localRef, {
     once: inViewOnce,
     margin: inViewMargin,
-  });
-  const isInView = !inView || inViewResult;
+  })
+  const isInView = !inView || inViewResult
 
   React.useEffect(() => {
-    if (isInView) motionVal.set(number);
-  }, [isInView, number, motionVal]);
+    if (isInView) motionVal.set(number)
+  }, [isInView, number, motionVal])
 
   React.useEffect(() => {
     const unsubscribe = springVal.on('change', (latest) => {
@@ -64,32 +64,32 @@ function CountingNumber({
         let formatted =
           decimals > 0
             ? latest.toFixed(decimals)
-            : Math.round(latest).toString();
+            : Math.round(latest).toString()
 
         if (decimals > 0) {
-          formatted = formatted.replace('.', decimalSeparator);
+          formatted = formatted.replace('.', decimalSeparator)
         }
 
         if (padStart) {
-          const finalIntLength = Math.floor(Math.abs(number)).toString().length;
-          const [intPart, fracPart] = formatted.split(decimalSeparator);
-          const paddedInt = intPart?.padStart(finalIntLength, '0') ?? '';
+          const finalIntLength = Math.floor(Math.abs(number)).toString().length
+          const [intPart, fracPart] = formatted.split(decimalSeparator)
+          const paddedInt = intPart?.padStart(finalIntLength, '0') ?? ''
           formatted = fracPart
             ? `${paddedInt}${decimalSeparator}${fracPart}`
-            : paddedInt;
+            : paddedInt
         }
 
-        localRef.current.textContent = formatted;
+        localRef.current.textContent = formatted
       }
-    });
-    return () => unsubscribe();
-  }, [springVal, decimals, padStart, number, decimalSeparator]);
+    })
+    return () => unsubscribe()
+  }, [springVal, decimals, padStart, number, decimalSeparator])
 
-  const finalIntLength = Math.floor(Math.abs(number)).toString().length;
+  const finalIntLength = Math.floor(Math.abs(number)).toString().length
   const initialText = padStart
     ? '0'.padStart(finalIntLength, '0') +
       (decimals > 0 ? decimalSeparator + '0'.repeat(decimals) : '')
-    : '0' + (decimals > 0 ? decimalSeparator + '0'.repeat(decimals) : '');
+    : '0' + (decimals > 0 ? decimalSeparator + '0'.repeat(decimals) : '')
 
   return (
     <span
@@ -100,7 +100,7 @@ function CountingNumber({
     >
       {initialText}
     </span>
-  );
+  )
 }
 
-export { CountingNumber, type CountingNumberProps };
+export { CountingNumber, type CountingNumberProps }

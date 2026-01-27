@@ -1,6 +1,6 @@
+import { useSettings } from '@/features/settings/useSettings'
 import { Settings } from '@/shared/animate-ui/icons/settings'
 import { Button } from '@/shared/ui/button'
-import { useSettings } from '@/features/settings/useSettings'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 

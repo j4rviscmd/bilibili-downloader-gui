@@ -5,5 +5,5 @@
  * @module features/user
  */
 
-export { useUser } from './useUser'
 export type { User } from './types'
+export { useUser } from './useUser'

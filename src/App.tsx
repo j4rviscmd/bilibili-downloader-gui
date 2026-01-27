@@ -1,9 +1,9 @@
 import { useTheme } from '@/app/providers/ThemeContext'
-import { Toaster } from '@/shared/ui/sonner'
 import IndexPage from '@/pages'
 import ErrorPage from '@/pages/error'
 import HomePage from '@/pages/home'
 import InitPage from '@/pages/init'
+import { Toaster } from '@/shared/ui/sonner'
 import '@/styles/global.css'
 import { Route, Routes } from 'react-router'
 

@@ -1,4 +1,5 @@
 'use client'
+import { useVideoInfo } from '@/features/video/hooks/useVideoInfo'
 import { RippleButton } from '@/shared/animate-ui/buttons/ripple'
 import {
   Tooltip,
@@ -6,7 +7,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
-import { useVideoInfo } from '@/features/video/hooks/useVideoInfo'
 import { useTranslation } from 'react-i18next'
 
 /**

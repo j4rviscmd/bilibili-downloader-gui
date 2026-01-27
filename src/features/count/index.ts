@@ -6,6 +6,12 @@
  * @module features/count
  */
 
-export { countSlice, increment, decrement, setCount, selectCount } from './model/countSlice'
 export { useCount } from './hooks/useCount'
+export {
+  countSlice,
+  decrement,
+  increment,
+  selectCount,
+  setCount,
+} from './model/countSlice'
 export type { CountState } from './types'

@@ -144,7 +144,7 @@ src-tauri/src/
 import { invoke } from '@tauri-apps/api/core'
 
 const result = await invoke<Video>('fetch_video_info', {
-  videoId: 'BV1234567890'
+  videoId: 'BV1234567890',
 })
 ```
 
@@ -159,6 +159,7 @@ async fn fetch_video_info(app: AppHandle, video_id: String) -> Result<Video, Str
 ```
 
 **重要**:
+
 - Rust側の関数名とTypeScript側の文字列は一致させる
 - すべてのcommandは`lib.rs`の`invoke_handler`に登録が必要
 - 複雑な型は`models/frontend_dto.rs`でserialize/deserialize可能な構造体として定義
@@ -174,6 +175,7 @@ npx shadcn@latest add <component>
 ```
 
 例:
+
 ```bash
 npx shadcn@latest add button
 npx shadcn@latest add checkbox
@@ -207,6 +209,7 @@ npm run tauri build
 ```
 
 成果物は以下に生成される:
+
 - **Windows**: `src-tauri/target/release/bundle/nsis/*.exe` (インストーラー)
 - **macOS**: `src-tauri/target/release/bundle/dmg/*.dmg`, `*.app` (アプリバンドル)
 

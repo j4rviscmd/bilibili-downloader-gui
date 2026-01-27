@@ -1,6 +1,4 @@
 tabWidth: 2
-useSpaces: true
-reformat: true
 semi: false
 singleQuote: true
 trailingComma: all

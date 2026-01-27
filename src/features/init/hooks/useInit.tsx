@@ -3,11 +3,11 @@ import {
   setProcessingFnc,
   setInitiated as setValue,
 } from '@/features/init/model/initSlice'
-import { sleep } from '@/shared/lib/utils'
-import { changeLanguage } from '@/shared/i18n'
-import { getOs } from '@/shared/os/api/getOs'
 import { useSettings } from '@/features/settings/useSettings'
 import { useUser } from '@/features/user/useUser'
+import { changeLanguage } from '@/shared/i18n'
+import { sleep } from '@/shared/lib/utils'
+import { getOs } from '@/shared/os/api/getOs'
 import { invoke } from '@tauri-apps/api/core'
 import { exit, relaunch } from '@tauri-apps/plugin-process'
 import { check as checkUpdate } from '@tauri-apps/plugin-updater'

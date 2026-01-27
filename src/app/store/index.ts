@@ -8,13 +8,13 @@
 
 import countReducer from '@/features/count/model/countSlice'
 import initReducer from '@/features/init/model/initSlice'
+import settingReducer from '@/features/settings/settingsSlice'
+import userReducer from '@/features/user/userSlice'
 import inputReducer from '@/features/video/model/inputSlice'
 import videoReducer from '@/features/video/model/videoSlice'
 import downloadStatusReducer from '@/shared/downloadStatus/downloadStatusSlice'
 import progressReducer from '@/shared/progress/progressSlice'
 import queueReducer from '@/shared/queue/queueSlice'
-import settingReducer from '@/features/settings/settingsSlice'
-import userReducer from '@/features/user/userSlice'
 import { configureStore } from '@reduxjs/toolkit'
 import {
   useSelector as rawUseSelector,

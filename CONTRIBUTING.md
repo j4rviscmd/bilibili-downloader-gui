@@ -49,12 +49,12 @@ document provides guidelines and instructions for contributing.
 
 ### Useful Commands
 
-| Command | Description |
-| ------- | ----------- |
-| `npm run tauri dev` | Start development server with HMR |
-| `npm run tauri build` | Build distributable binaries |
-| `npm run typecheck` | Run TypeScript type checking |
-| `npm run lint` | Run ESLint |
+| Command               | Description                       |
+| --------------------- | --------------------------------- |
+| `npm run tauri dev`   | Start development server with HMR |
+| `npm run tauri build` | Build distributable binaries      |
+| `npm run typecheck`   | Run TypeScript type checking      |
+| `npm run lint`        | Run ESLint                        |
 
 ## Branch Strategy
 
@@ -113,16 +113,16 @@ This project uses [Conventional Commits](https://www.conventionalcommits.org/).
 
 ### Types
 
-| Type | Description |
-| ---- | ----------- |
-| `feat` | A new feature |
-| `fix` | A bug fix |
-| `docs` | Documentation changes |
-| `style` | Code style changes (formatting, no logic change) |
-| `refactor` | Code refactoring (no feature or fix) |
-| `test` | Adding or updating tests |
-| `chore` | Maintenance tasks (deps, configs, etc.) |
-| `ci` | CI/CD configuration changes |
+| Type       | Description                                      |
+| ---------- | ------------------------------------------------ |
+| `feat`     | A new feature                                    |
+| `fix`      | A bug fix                                        |
+| `docs`     | Documentation changes                            |
+| `style`    | Code style changes (formatting, no logic change) |
+| `refactor` | Code refactoring (no feature or fix)             |
+| `test`     | Adding or updating tests                         |
+| `chore`    | Maintenance tasks (deps, configs, etc.)          |
+| `ci`       | CI/CD configuration changes                      |
 
 ### Examples
 
