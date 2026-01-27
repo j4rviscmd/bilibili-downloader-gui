@@ -1,4 +1,4 @@
-import { useSelector, type RootState } from '@/app/store'
+import { type RootState, useSelector } from '@/app/store'
 import { useVideoInfo } from '@/features/video/hooks/useVideoInfo'
 import {
   Dialog,
@@ -7,9 +7,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/shared/animate-ui/radix/dialog'
+import { Button } from '@/shared/ui/button'
 import CircleIndicator from '@/shared/ui/CircleIndicator'
 import ProgressStatusBar, { type Progress } from '@/shared/ui/Progress'
-import { Button } from '@/shared/ui/button'
 import { Download, Music, Play, Video } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -144,7 +144,7 @@ function DownloadingDialog() {
               return (
                 <div
                   key={parentId}
-                  className="mb-3 w-full rounded-md border px-1 py-3"
+                  className="hover:border-muted-foreground/50 mb-2 w-full rounded-md border px-1.5 py-2 transition-colors duration-200"
                 >
                   {(() => {
                     const first = sorted.find(
@@ -155,7 +155,7 @@ function DownloadingDialog() {
                       : video?.title || ''
                     return groupTitle ? (
                       <div
-                        className="text-md mb-1 truncate px-3 font-semibold"
+                        className="text-md mb-0.5 truncate px-2.5 leading-tight font-semibold"
                         title={groupTitle}
                       >
                         {groupTitle}
@@ -167,17 +167,17 @@ function DownloadingDialog() {
                     const barLabel = barInfo[0]
                     const barIcon = barInfo[1]
                     const key = p.internalId || `${p.downloadId}:${p.stage}`
-                    if (!p.stage || p.stage === 'complete') return
+                    if (!p.stage || p.stage === 'complete') return null
                     return (
                       <div
                         key={key}
-                        className="text-accent-foreground box-border w-full px-3"
+                        className="text-accent-foreground box-border w-full px-2.5"
                       >
                         <div className="flex items-center">
                           <span className="mr-1">{barIcon}</span>
                           <span>{barLabel}</span>
                         </div>
-                        <div className="px-3">
+                        <div className="px-2">
                           {p.stage === 'merge' ? (
                             <div className="flex items-center justify-between text-sm">
                               <span>{t('video.bar_merge')}</span>
@@ -199,10 +199,10 @@ function DownloadingDialog() {
           {notInProgress.map((part) => (
             <div
               key={part.page}
-              className="mb-3 w-full rounded-md border px-1 py-3"
+              className="hover:border-muted-foreground/50 mb-2 w-full rounded-md border px-1.5 py-2 transition-colors duration-200"
             >
               <div
-                className="text-md mb-1 truncate px-3 font-semibold"
+                className="text-md mb-0.5 truncate px-2.5 leading-tight font-semibold"
                 title={part.title}
               >
                 <span className="pr-1">{t('video.queue_waiting_prefix')}</span>
@@ -215,15 +215,16 @@ function DownloadingDialog() {
         {hasError && (
           <div
             role="alert"
-            className="border-destructive/40 bg-destructive/10 text-destructive mb-4 w-full rounded-md border px-4 py-3 text-sm"
+            aria-live="polite"
+            className="border-destructive/40 bg-destructive/10 text-destructive mb-3 w-full rounded-md border px-3 py-2 text-sm"
           >
-            <div className="mb-1 font-semibold">
+            <div className="mb-0.5 font-semibold">
               {t('video.download_failed')}
             </div>
             <div className="truncate" title={errorMessage || ''}>
               {errorMessage}
             </div>
-            <div className="text-muted-foreground mt-2 text-xs">
+            <div className="text-muted-foreground mt-1.5 text-xs">
               {t('video.reload_after_error')}
             </div>
           </div>
