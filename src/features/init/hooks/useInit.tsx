@@ -174,7 +174,6 @@ export const useInit = () => {
       const isInstalled = await invoke('install_ffmpeg')
       if (isInstalled) {
         setMessage(t('init.ffmpeg_install_ok'))
-        await sleep(1000)
         res = true
       } else {
         setMessage(t('init.ffmpeg_install_failed'))
@@ -191,7 +190,6 @@ export const useInit = () => {
    */
   const getAppSettings = async () => {
     setMessage(t('init.fetch_settings'))
-    await sleep(300)
     const settings = await getSettings()
     return settings
   }
@@ -211,7 +209,6 @@ export const useInit = () => {
     // 開発環境ではアップデートチェックをスキップ
     if (import.meta.env.DEV) {
       setMessage(t('init.dev_skip_version'))
-      await sleep(500)
       return true
     }
 
@@ -221,7 +218,6 @@ export const useInit = () => {
       if (!update) {
         // すでに最新
         setMessage(t('init.latest_version'))
-        await sleep(500)
         return true
       }
 
