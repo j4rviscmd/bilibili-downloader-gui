@@ -25,42 +25,47 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::AppHandle;
 
-/// Downloads a Bilibili video with specified quality settings.
+/// Bilibili動画を指定された画質でダウンロードします。
 ///
-/// This function orchestrates the complete download process:
-/// 1. Determines output path and handles automatic renaming
-/// 2. Validates cookie availability
-/// 3. Fetches video details and stream URLs
-/// 4. Checks available disk space
-/// 5. Downloads audio and video streams separately (with retry logic)
-/// 6. Merges streams using ffmpeg
+/// この関数はダウンロード処理全体をオーケストレーションします：
+/// 1. 出力パスの決定と自動リネーム処理
+/// 2. Cookieの有無を検証
+/// 3. 動画詳細とストリームURLの取得
+/// 4. ディスク容量の事前チェック
+/// 5. 音声・動画ストリームの並列ダウンロード（リトロジック付き）
+/// 6. ffmpegによるストリームのマージ
 ///
-/// Progress updates are emitted to the frontend throughout the process.
+/// 処理の進捗状況はフロントエンドへ随時イベント送信されます。
 ///
-/// # Arguments
+/// # 並列ダウンロードについて
 ///
-/// * `app` - Tauri application handle
-/// * `bvid` - Bilibili video ID (BV identifier)
-/// * `cid` - Content ID for the specific video part
-/// * `filename` - Desired output filename (without extension)
-/// * `quality` - Video quality ID (will fallback to highest if unavailable)
-/// * `audio_quality` - Audio quality ID (will fallback to highest if unavailable)
-/// * `download_id` - Unique identifier for progress tracking
-/// * `_parent_id` - Optional parent ID for multi-part video tracking (currently unused)
+/// 音声と動画のストリームを同時にダウンロードすることで、ダウンロード時間を短縮します。
+/// セマフォ (VIDEO_SEMAPHORE) を使用して同時実行数を制限し、システムリソースを保護します。
 ///
-/// # Returns
+/// # 引数
 ///
-/// Returns `Ok(())` on successful download and merge.
+/// * `app` - Tauriアプリケーションハンドル
+/// * `bvid` - Bilibili動画ID (BV識別子)
+/// * `cid` - 動画パートごとのコンテンツID
+/// * `filename` - 出力ファイル名（拡張子を除く）
+/// * `quality` - 動画画質ID（利用不可の場合は最高画質にフォールバック）
+/// * `audio_quality` - 音声画質ID（利用不可の場合は最高画質にフォールバック）
+/// * `download_id` - 進捗追跡用の一意識別子
+/// * `_parent_id` - マルチパート動画用の親ID（現在未使用）
 ///
-/// # Errors
+/// # 戻り値
 ///
-/// Returns an error if:
-/// - Settings or output path cannot be determined
-/// - Cookies are missing (`ERR::COOKIE_MISSING`)
-/// - Selected quality is not available (`ERR::QUALITY_NOT_FOUND`)
-/// - Disk space is insufficient (`ERR::DISK_FULL`)
-/// - Download fails after retries (`ERR::NETWORK`)
-/// - ffmpeg merge fails (`ERR::MERGE_FAILED`)
+/// ダウンロードとマージが成功した場合、`Ok(())` を返します。
+///
+/// # エラー
+///
+/// 以下の場合にエラーを返します：
+/// - 設定または出力パスが取得できない
+/// - Cookieが存在しない (`ERR::COOKIE_MISSING`)
+/// - 選択した画質が利用できない (`ERR::QUALITY_NOT_FOUND`)
+/// - ディスク容量が不足している (`ERR::DISK_FULL`)
+/// - リトライ回数を超えてダウンロードが失敗 (`ERR::NETWORK`)
+/// - ffmpegのマージが失敗 (`ERR::MERGE_FAILED`)
 pub async fn download_video(
     app: &AppHandle,
     bvid: &str,
@@ -177,50 +182,65 @@ pub async fn download_video(
     let temp_audio_path = lib_path.join(format!("temp_audio_{}.m4s", download_id));
 
     // --------------------------------------------------
-    // 6. ダウンロード (リトライ込み)
+    // 6. 並列ダウンロード (音声 + 動画)
     // --------------------------------------------------
-    // Audio → Video (セマフォ取得)
-    let cookie_opt = Some(cookie_header.to_string());
-
-    // Audio DL
-    retry_download(|| {
-        download_url(
-            app,
-            audio_url.clone(),
-            temp_audio_path.clone(),
-            cookie_opt.clone(),
-            true,
-            Some(download_id.clone()),
-            Some(min_speed_threshold),
-        )
-    })
-    .await?;
-
-    // Video DL (セマフォ制御)
+    //
+    // 同時実行制御:
+    // - セマフォ (VIDEO_SEMAPHORE) を使用して、同時にダウンロード・マージ処理を実行できる数を制限
+    // - セマフォはマージ完了まで保持されるため、並列実行数は「ネットワーク帯域」ではなく「マージ処理の負荷」に基づく
+    //
+    // 並列実行の利点:
+    // - 音声と動画を同時にダウンロードすることで、ネットワーク帯域を有効活用
+    // - ダウンロード時間を短縮（逐次実行の場合と比較して最大50%削減可能）
+    //
+    // エラーハンドリング:
+    // - tokio::try_join! により、いずれかのダウンロードが失敗した時点で即座にキャンセル
+    // - retry_download によりネットワーク一時エラーの場合は自動再試行（最大3回）
+    //
+    // セマフォのライフサイクル:
+    // 1. acquire_owned() - ダウンロード開始前に取得
+    // 2. 並列ダウンロード実行
+    // 3. マージ実行
+    // 4. drop(permit) - マージ完了後に解放
+    //
+    // セマフォをマージ完了まで保持
     let permit = crate::handlers::concurrency::VIDEO_SEMAPHORE
         .clone()
         .acquire_owned()
         .await
         .map_err(|e| format!("Failed to acquire video semaphore permit: {}", e))?;
-    let video_res = retry_download(|| {
-        download_url(
-            app,
-            video_url.clone(),
-            temp_video_path.clone(),
-            cookie_opt.clone(),
-            true,
-            Some(download_id.clone()),
-            Some(min_speed_threshold),
-        )
-    })
-    .await;
-    if let Err(e) = video_res {
-        drop(permit); // release permit
-                      // NOTE: GA4 Analytics は無効化されています
-                      // crate::utils::analytics::finish_download(app, &download_id, false, Some(&e)).await;
+
+    let cookie = Some(cookie_header.clone());
+
+    // 並列実行（片方失敗で即時キャンセル）
+    if let Err(e) = tokio::try_join!(
+        retry_download(|| {
+            download_url(
+                app,
+                audio_url.clone(),
+                temp_audio_path.clone(),
+                cookie.clone(),
+                true,
+                Some(download_id.clone()),
+                Some(min_speed_threshold),
+            )
+        }),
+        retry_download(|| {
+            download_url(
+                app,
+                video_url.clone(),
+                temp_video_path.clone(),
+                cookie.clone(),
+                true,
+                Some(download_id.clone()),
+                Some(min_speed_threshold),
+            )
+        }),
+    ) {
+        // NOTE: GA4 Analytics は無効化されています
+        // crate::utils::analytics::finish_download(app, &download_id, false, Some(&e)).await;
         return Err(e);
     }
-    // keep permit until merge 完了
 
     // --------------------------------------------------
     // 7. マージ (merge stage emit)
@@ -235,11 +255,13 @@ pub async fn download_video(
     )
     .await
     {
-        drop(permit);
         // NOTE: GA4 Analytics は無効化されています
         // crate::utils::analytics::finish_download(app, &download_id, false, Some("ERR::MERGE_FAILED")).await;
         return Err("ERR::MERGE_FAILED".into());
     }
+
+    // マージ完了後にセマフォを解放
+    // これにより、他の待機中のダウンロードがセマフォを取得可能になる
     drop(permit);
 
     // temp 削除
@@ -273,21 +295,15 @@ pub async fn download_video(
 /// - The HTTP request fails
 /// - Response JSON parsing fails
 pub async fn fetch_user_info(app: &AppHandle) -> Result<Option<User>, String> {
-    let mut result: Option<User> = None;
-
     // 1) メモリキャッシュから Cookie を取得
-    let cookies = read_cookie(app)?;
-    if cookies.is_none() {
-        // DEBUG: println!("No cookies in cache");
-        return Ok(result);
-    }
-    let cookies = cookies.unwrap();
+    let Some(cookies) = read_cookie(app)? else {
+        return Ok(None);
+    };
 
     // 2) bilibili 用 Cookie ヘッダを構築
     let cookie_header = build_cookie_header(&cookies);
     if cookie_header.is_empty() {
-        // DEBUG: println!("No bilibili cookies found in cache");
-        return Ok(result);
+        return Ok(None);
     }
 
     // 3) リクエスト送信（Cookie ヘッダを付与）
@@ -295,30 +311,26 @@ pub async fn fetch_user_info(app: &AppHandle) -> Result<Option<User>, String> {
         .user_agent(USER_AGENT)
         .build()
         .map_err(|e| format!("failed to build client: {e}"))?;
-    let res: reqwest::Response = client
+
+    let body = client
         .get("https://api.bilibili.com/x/web-interface/nav")
         .header(header::COOKIE, cookie_header)
         .header(reqwest::header::REFERER, REFERER)
         .send()
         .await
-        .map_err(|e| format!("Failed to fetch user info: {e}"))?;
-
-    let body = res
+        .map_err(|e| format!("Failed to fetch user info: {e}"))?
         .json::<UserApiResponse>()
         .await
         .map_err(|e| format!("UserApi Failed to parse response JSON:: {e}"))?;
-    // println!("Response body: {}", text);
 
-    result = Some(User {
+    Ok(Some(User {
         code: body.code,
         message: body.message,
         data: UserData {
             uname: body.data.uname,
             is_login: body.data.is_login,
         },
-    });
-
-    Ok(result)
+    }))
 }
 
 /// Builds a Cookie header string from cookie entries.
@@ -334,15 +346,12 @@ pub async fn fetch_user_info(app: &AppHandle) -> Result<Option<User>, String> {
 ///
 /// Returns a formatted cookie header string suitable for HTTP requests.
 fn build_cookie_header(cookies: &[CookieEntry]) -> String {
-    // bilibili ドメインのものに限定しつつ name=value; を組み立て
-    let mut parts: Vec<String> = Vec::new();
-    for c in cookies {
-        if c.host.ends_with("bilibili.com") {
-            // 値にセミコロンや改行が入らない前提。必要ならサニタイズ。
-            parts.push(format!("{}={}", c.name, c.value));
-        }
-    }
-    parts.join("; ")
+    cookies
+        .iter()
+        .filter(|c| c.host.ends_with("bilibili.com"))
+        .map(|c| format!("{}={}", c.name, c.value))
+        .collect::<Vec<_>>()
+        .join("; ")
 }
 
 /// Fetches an image from a URL and encodes it as Base64.
@@ -400,26 +409,24 @@ async fn base64_encode(url: &str) -> Result<String, String> {
 /// - API requests fail
 /// - Response parsing fails
 pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String> {
-    let video_parts = Vec::<VideoPart>::new();
+    let Some(cookies) = read_cookie(app)? else {
+        return Err("No cookies found".into());
+    };
+
     let mut video = Video {
         title: String::new(),
         bvid: id.to_string(),
-        parts: video_parts.clone(),
+        parts: Vec::new(),
     };
-
-    let cookies = read_cookie(app)?;
-    if cookies.is_none() {
-        return Err("No cookies found".into());
-    }
-    let cookies = cookies.unwrap();
 
     let res_body_1 = fetch_video_title(&video, &cookies).await?;
     video.title = res_body_1.data.title;
+
     for page in res_body_1.data.pages.iter() {
         let thumb_url = page.first_frame.clone();
         let thumb_base64 = base64_encode(&thumb_url).await.unwrap_or_default();
 
-        let part = VideoPart {
+        let mut part = VideoPart {
             cid: page.cid,
             page: page.page,
             part: page.part.clone(),
@@ -431,15 +438,13 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
             video_qualities: Vec::new(),
             audio_qualities: Vec::new(),
         };
-        video.parts.push(part);
-    }
-    for part in video.parts.iter_mut() {
-        // NOTE: partごとに画質情報を取得する必要がある？
+
+        // partごとに画質情報を取得
         let res_body_2 = fetch_video_details(&cookies, &video.bvid, part.cid).await?;
-        let video_qualities = convert_qualities(&res_body_2.data.dash.video);
-        let audio_qualities = convert_qualities(&res_body_2.data.dash.audio);
-        part.video_qualities = video_qualities;
-        part.audio_qualities = audio_qualities;
+        part.video_qualities = convert_qualities(&res_body_2.data.dash.video);
+        part.audio_qualities = convert_qualities(&res_body_2.data.dash.audio);
+
+        video.parts.push(part);
     }
 
     Ok(video)
@@ -688,16 +693,15 @@ async fn head_content_length(url: &str, cookie: Option<&String>) -> Option<u64> 
     if let Some(c) = cookie {
         req = req.header(reqwest::header::COOKIE, c);
     }
-    if let Ok(resp) = req.send().await {
-        if let Some(len) = resp.headers().get(reqwest::header::CONTENT_LENGTH) {
-            if let Ok(s) = len.to_str() {
-                if let Ok(v) = s.parse::<u64>() {
-                    return Some(v);
-                }
-            }
-        }
-    }
-    None
+    req.send()
+        .await
+        .ok()?
+        .headers()
+        .get(reqwest::header::CONTENT_LENGTH)?
+        .to_str()
+        .ok()?
+        .parse()
+        .ok()
 }
 
 /// Ensures sufficient disk space is available for the download.
@@ -772,32 +776,33 @@ where
     F: FnMut() -> Fut,
     Fut: std::future::Future<Output = Result<(), anyhow::Error>>,
 {
-    let mut attempt: u8 = 0;
-    let max_attempts: u8 = 3;
-    loop {
-        attempt += 1;
+    const MAX_ATTEMPTS: u8 = 3;
+
+    for attempt in 1..=MAX_ATTEMPTS {
         match f().await {
             Ok(_) => return Ok(()),
             Err(e) => {
                 let msg = e.to_string();
-                // ネットワーク/一時的エラーのみ再試行 (雑判定)
+                // ネットワーク/一時的エラーのみ再試行
                 let is_retryable = msg.contains("segment")
                     || msg.contains("request error")
                     || msg.contains("timeout")
                     || msg.contains("connect");
-                if attempt >= max_attempts || !is_retryable {
+
+                if attempt >= MAX_ATTEMPTS || !is_retryable {
                     return Err(if msg.contains("ERR::") {
                         msg
                     } else {
                         format!("ERR::NETWORK::{msg}")
                     });
                 }
-                let backoff_ms = 500u64 * (attempt as u64); // 線形簡易
-                tokio::time::sleep(std::time::Duration::from_millis(backoff_ms)).await;
-                continue;
+
+                tokio::time::sleep(std::time::Duration::from_millis(500 * attempt as u64)).await;
             }
         }
     }
+
+    unreachable!()
 }
 
 /// Emits a stage change event to the frontend.
@@ -815,12 +820,11 @@ where
 /// * `download_id` - Unique identifier for this download
 /// * `stage` - Stage name (e.g., "warn-video-quality-fallback", "complete")
 fn emit_stage(app: &AppHandle, download_id: &str, stage: &str) {
-    // Emits を新規に生成して stage セット (サイズ不明のため None)
-    let stage_owned = stage.to_string();
     let emits = crate::emits::Emits::new(app.clone(), download_id.to_string(), None);
+    let stage = stage.to_string();
     tokio::spawn(async move {
-        let _ = emits.set_stage(&stage_owned).await;
-        if stage_owned == "complete" {
+        let _ = emits.set_stage(&stage).await;
+        if stage == "complete" {
             emits.complete().await;
         }
     });
