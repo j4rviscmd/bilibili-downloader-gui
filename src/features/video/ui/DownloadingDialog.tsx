@@ -163,7 +163,7 @@ function DownloadingDialog() {
 										);
 										const groupTitle = first
 											? deriveTitle(first)
-											: video?.title ?? "";
+											: (video?.title ?? "");
 										return groupTitle ? (
 											<div
 												className="text-md mb-0.5 truncate px-2.5 leading-tight font-semibold"
@@ -174,7 +174,11 @@ function DownloadingDialog() {
 										) : null;
 									})()}
 									{sorted.map((p) => {
-										const [barLabel, barIcon] = getBarInfo(p.downloadId, p.stage, t);
+										const [barLabel, barIcon] = getBarInfo(
+											p.downloadId,
+											p.stage,
+											t,
+										);
 										const key = p.internalId || `${p.downloadId}:${p.stage}`;
 										if (!p.stage || p.stage === "complete") return null;
 										return (
