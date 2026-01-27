@@ -69,7 +69,12 @@ function SettingsForm() {
       language: settings.language || 'en',
       downloadSpeedThresholdMbps: settings.downloadSpeedThresholdMbps ?? 1.0,
     })
-  }, [form, settings.dlOutputPath, settings.language, settings.downloadSpeedThresholdMbps])
+  }, [
+    form,
+    settings.dlOutputPath,
+    settings.language,
+    settings.downloadSpeedThresholdMbps,
+  ])
 
   const onSubmit = async (data: z.infer<typeof formSchema>) => {
     const changedKeys = (
