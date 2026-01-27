@@ -27,8 +27,16 @@ export const videoSlice = createSlice({
     setVideo: (_, action: PayloadAction<Video>) => {
       return action.payload
     },
+    /**
+     * Resets the video state to initial values.
+     *
+     * Used after download completion to clear video metadata.
+     */
+    resetVideo: () => {
+      return initialState
+    },
   },
 })
 
-export const { setVideo } = videoSlice.actions
+export const { setVideo, resetVideo } = videoSlice.actions
 export default videoSlice.reducer

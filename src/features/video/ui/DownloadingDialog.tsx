@@ -1,5 +1,7 @@
-import { type RootState, useSelector } from '@/app/store'
+import { type RootState, useAppDispatch, useSelector } from '@/app/store'
 import { useVideoInfo } from '@/features/video/hooks/useVideoInfo'
+import { resetInput } from '@/features/video/model/inputSlice'
+import { resetVideo } from '@/features/video/model/videoSlice'
 import {
   Dialog,
   DialogContent,
@@ -7,6 +9,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/shared/animate-ui/radix/dialog'
+import { clearError } from '@/shared/downloadStatus/downloadStatusSlice'
+import { clearProgress } from '@/shared/progress/progressSlice'
 import { Button } from '@/shared/ui/button'
 import CircleIndicator from '@/shared/ui/CircleIndicator'
 import ProgressStatusBar, { type Progress } from '@/shared/ui/Progress'
@@ -26,17 +30,25 @@ const getBarInfo = (
   stage: string | undefined,
   t: (k: string) => string,
 ) => {
+  const key = stage || id
   let label = ''
-  let icon = <></>
-  if (stage === 'audio' || id === 'temp_audio') {
-    label = t('video.bar_audio')
-    icon = <Music size={13} />
-  } else if (stage === 'video' || id === 'temp_video') {
-    label = t('video.bar_video')
-    icon = <Video size={13} />
-  } else if (stage === 'merge') {
-    label = t('video.bar_merge')
-    icon = <Play size={13} />
+  let icon: React.ReactNode = null
+
+  switch (key) {
+    case 'audio':
+    case 'temp_audio':
+      label = t('video.bar_audio')
+      icon = <Music size={13} />
+      break
+    case 'video':
+    case 'temp_video':
+      label = t('video.bar_video')
+      icon = <Video size={13} />
+      break
+    case 'merge':
+      label = t('video.bar_merge')
+      icon = <Play size={13} />
+      break
   }
 
   return [label, icon]
@@ -62,6 +74,7 @@ const getBarInfo = (
 function DownloadingDialog() {
   const { progress, input, video } = useVideoInfo()
   const { t } = useTranslation()
+  const dispatch = useAppDispatch()
   const deriveTitle = (p: Progress): string | undefined => {
     const m = p.downloadId.match(/-p(\d+)$/)
     if (m) {
@@ -72,12 +85,10 @@ function DownloadingDialog() {
   }
 
   const onClick = () => {
-    // Disabled: do not mutate localStorage on download completion
-    // localStorage.setItem(VIDEO_URL_KEY, '')
-    // NOTE: ページリロードによりリセットするのでコメントアウト
-    // store.dispatch(clearProgress())
-    // ページをリロードして状態をリセット
-    window.location.reload()
+    dispatch(resetInput())
+    dispatch(resetVideo())
+    dispatch(clearProgress())
+    dispatch(clearError())
   }
   const hasDlQue = progress.length > 0
   // group progress entries by parentId (downloadId)
@@ -152,7 +163,7 @@ function DownloadingDialog() {
                     )
                     const groupTitle = first
                       ? deriveTitle(first)
-                      : video?.title || ''
+                      : (video?.title ?? '')
                     return groupTitle ? (
                       <div
                         className="text-md mb-0.5 truncate px-2.5 leading-tight font-semibold"
@@ -163,9 +174,11 @@ function DownloadingDialog() {
                     ) : null
                   })()}
                   {sorted.map((p) => {
-                    const barInfo = getBarInfo(p.downloadId, p.stage, t)
-                    const barLabel = barInfo[0]
-                    const barIcon = barInfo[1]
+                    const [barLabel, barIcon] = getBarInfo(
+                      p.downloadId,
+                      p.stage,
+                      t,
+                    )
                     const key = p.internalId || `${p.downloadId}:${p.stage}`
                     if (!p.stage || p.stage === 'complete') return null
                     return (

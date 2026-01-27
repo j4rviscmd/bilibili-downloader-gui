@@ -115,6 +115,14 @@ export const inputSlice = createSlice({
         p.selected = false
       })
     },
+    /**
+     * Resets the input state to initial values.
+     *
+     * Used after download completion to clear the form.
+     */
+    resetInput: () => {
+      return initialState
+    },
   },
 })
 
@@ -126,5 +134,6 @@ export const {
   updatePartSelected,
   selectAll,
   deselectAll,
+  resetInput,
 } = inputSlice.actions
 export default inputSlice.reducer
