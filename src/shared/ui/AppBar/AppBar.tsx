@@ -1,10 +1,10 @@
-import { Button } from '@/shared/ui/button'
-import { Settings } from '@/shared/animate-ui/icons/settings'
 import ToggleThemeButton from '@/features/preference/ui/ToggleThemeButton'
-import type { User } from '@/features/user'
 import { useSettings } from '@/features/settings/useSettings'
-import { useTranslation } from 'react-i18next'
+import type { User } from '@/features/user'
+import { Settings } from '@/shared/animate-ui/icons/settings'
+import { Button } from '@/shared/ui/button'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 /**
  * Mask the last 3 characters of a username for privacy.
