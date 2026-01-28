@@ -68,7 +68,7 @@ use tauri::AppHandle;
 /// * `app` - Tauriアプリケーションハンドル
 /// * `bvid` - Bilibili動画ID (BV識別子)
 /// * `cid` - 動画パートごとのコンテンツID
-/// * `filename` - 出力ファイル名（拡張子を除く）
+/// * `filename` - Output filename (extension is optional; .mp4 will be added if not present)
 /// * `quality` - 動画画質ID（利用不可の場合は最高画質にフォールバック）
 /// * `audio_quality` - 音声画質ID（利用不可の場合は最高画質にフォールバック）
 /// * `download_id` - 進捗追跡用の一意識別子
@@ -113,19 +113,17 @@ pub async fn download_video(
     };
 
     // Avoid double extension if user already provided .mp4
-    let safe_filename = if filename.to_lowercase().ends_with(".mp4") {
-        filename.to_string()
+    let filename_with_ext = if filename.to_lowercase().ends_with(".mp4") {
+        filename
     } else {
-        format!("{}.mp4", filename)
+        &format!("{filename}.mp4")
     };
 
-    // Get directory from output_path (parent() returns Option<&Path>)
-    // and construct final path by joining directory with safe filename
+    // Get directory from output_path and construct final path
     if let Some(parent) = output_path.parent() {
-        output_path = parent.join(&safe_filename);
+        output_path = parent.join(filename_with_ext);
     } else {
-        // Fallback to current directory if parent is None
-        output_path = PathBuf::from(&safe_filename);
+        output_path = PathBuf::from(filename_with_ext);
     }
     output_path = auto_rename(&output_path);
 
@@ -644,7 +642,7 @@ async fn fetch_video_details(
 /// # 引数
 ///
 /// * `app` - 設定アクセス用Tauriアプリケーションハンドル
-/// * `filename` - 希望するファイル名（拡張子を除く）
+/// * `filename` - Desired filename (extension is optional; .mp4 will be added if not present)
 ///
 /// # 戻り値
 ///

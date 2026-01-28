@@ -243,7 +243,7 @@ async fn fetch_video_info(app: AppHandle, video_id: String) -> Result<Video, Str
 /// * `app` - Tauri application handle
 /// * `bvid` - Bilibili video ID (BV identifier)
 /// * `cid` - Content ID for the specific video part
-/// * `filename` - Desired output filename (without extension)
+/// * `filename` - Desired output filename (extension is optional; .mp4 will be added if not present)
 /// * `quality` - Video quality ID (e.g., 116 for 1080P60)
 /// * `audio_quality` - Audio quality ID
 /// * `download_id` - Unique identifier for tracking this download

@@ -92,8 +92,8 @@ function HomePage() {
           <div className="flex h-full w-full flex-col">
             <header className="bg-accent flex">
               <SidebarTrigger
-                size={'lg'}
-                className="h-full cursor-pointer shadow-md"
+                size="lg"
+                className="h-full shrink-0 cursor-pointer shadow-md"
               />
               <AppBar user={user} theme={theme} setTheme={setTheme} />
             </header>
@@ -103,43 +103,37 @@ function HomePage() {
               }}
               className="flex w-full"
             >
-              <div className="box-border flex w-full flex-col items-center justify-center p-3">
-                <div className="flex h-full w-4/5 flex-col justify-center gap-3">
-                  <div className="block">
-                    <VideoForm1 />
+              <div className="mx-auto flex w-full max-w-5xl flex-col justify-center gap-3 p-3 sm:px-6">
+                <VideoForm1 />
+                <Separator className="my-3" />
+                {video.parts.length > 0 && (
+                  <div className="flex items-center gap-2 px-3">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSelectAll}
+                    >
+                      {t('video.select_all')}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDeselectAll}
+                    >
+                      {t('video.deselect_all')}
+                    </Button>
                   </div>
-                  <Separator className="my-3" />
-                  {video.parts.length > 0 && (
-                    <div className="flex items-center gap-2 px-3">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleSelectAll}
-                      >
-                        {t('video.select_all')}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleDeselectAll}
-                      >
-                        {t('video.deselect_all')}
-                      </Button>
-                    </div>
-                  )}
-                  <div className="block">
-                    {video.parts.map((_v, idx) => (
-                      <VideoForm2
-                        key={idx}
-                        video={video}
-                        page={idx + 1}
-                        isDuplicate={duplicateIndices.includes(idx)}
-                      />
-                    ))}
-                  </div>
-                  <div className="box-border flex w-full justify-center p-3">
-                    <DownloadButton />
-                  </div>
+                )}
+                {video.parts.map((_v, idx) => (
+                  <VideoForm2
+                    key={idx}
+                    video={video}
+                    page={idx + 1}
+                    isDuplicate={duplicateIndices.includes(idx)}
+                  />
+                ))}
+                <div className="box-border flex w-full justify-center p-3">
+                  <DownloadButton />
                 </div>
               </div>
               <ScrollBar />
