@@ -111,7 +111,22 @@ pub async fn download_video(
             return Err(e.to_string());
         }
     };
-    output_path.set_extension("mp4");
+
+    // Avoid double extension if user already provided .mp4
+    let safe_filename = if filename.to_lowercase().ends_with(".mp4") {
+        filename.to_string()
+    } else {
+        format!("{}.mp4", filename)
+    };
+
+    // Get directory from output_path (parent() returns Option<&Path>)
+    // and construct final path by joining directory with safe filename
+    if let Some(parent) = output_path.parent() {
+        output_path = parent.join(&safe_filename);
+    } else {
+        // Fallback to current directory if parent is None
+        output_path = PathBuf::from(&safe_filename);
+    }
     output_path = auto_rename(&output_path);
 
     // --------------------------------------------------
