@@ -149,5 +149,28 @@
         "required": "음질을 선택하세요."
       }
     }
+  },
+  "history": {
+    "title": "히스토리",
+    "empty": "다운로드 기록이 없습니다",
+    "searchPlaceholder": "기록 검색...",
+    "filterAll": "모두",
+    "filterSuccess": "성공",
+    "filterFailed": "실패",
+    "deleteConfirm": "이 항목을 삭제하시겠습니까?",
+    "deleteAllConfirm": "모든 항목을 삭제하시겠습니까?",
+    "exportTitle": "기록 내보내기",
+    "exportJson": "JSON 내보내기",
+    "exportCsv": "CSV 내보내기",
+    "redownload": "다운로드 다시",
+    "columns": {
+      "title": "제목",
+      "url": "URL",
+      "date": "날짜",
+      "status": "상태",
+      "size": "크기",
+      "quality": "화질"
+    },
+    "thumbnail": "다운로드 기록이 없습니다"
   }
 }

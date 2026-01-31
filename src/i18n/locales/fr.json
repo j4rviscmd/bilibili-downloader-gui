@@ -149,5 +149,28 @@
         "required": "Veuillez sélectionner une qualité audio."
       }
     }
+  },
+  "history": {
+    "title": "Historique",
+    "empty": "Aucun historique de téléchargement pour le moment",
+    "searchPlaceholder": "Rechercher dans l'historique...",
+    "filterAll": "Tout",
+    "filterSuccess": "Succès",
+    "filterFailed": "Échec",
+    "deleteConfirm": "Êtes-vous sûr de vouloir supprimer cet élément ?",
+    "deleteAllConfirm": "Êtes-vous sûr de vouloir supprimer tous les éléments ?",
+    "exportTitle": "Exporter l'historique",
+    "exportJson": "Exporter en JSON",
+    "exportCsv": "Exporter en CSV",
+    "redownload": "Télécharger à nouveau",
+    "columns": {
+      "title": "Titre",
+      "url": "URL",
+      "date": "Date",
+      "status": "Statut",
+      "size": "Taille",
+      "quality": "Qualité"
+    },
+    "thumbnail": "Aucun historique de téléchargement pour le moment"
   }
 }

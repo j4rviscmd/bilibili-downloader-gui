@@ -140,8 +140,7 @@
         "min": "El título debe tener al menos 2 caracteres.",
         "max": "El título debe tener como máximo 100 caracteres.",
         "required": "Introduce un título.",
-        "invalid_chars": "El título contiene caracteres no permitidos ({{chars}}).",
-        "duplicate": "Este nombre de archivo ya está usado por otra parte."
+        "invalid_chars": "El título contiene caracteres no permitidos ({{chars}})."
       },
       "quality": {
         "required": "Selecciona una calidad."
@@ -150,5 +149,28 @@
         "required": "Selecciona una calidad de audio."
       }
     }
+  },
+  "history": {
+    "title": "Historial",
+    "empty": "Aún no hay historial de descargas",
+    "searchPlaceholder": "Buscar en el historial...",
+    "filterAll": "Todos",
+    "filterSuccess": "Éxito",
+    "filterFailed": "Fallido",
+    "deleteConfirm": "¿Estás seguro de que quieres eliminar este elemento?",
+    "deleteAllConfirm": "¿Estás seguro de que quieres eliminar todos los elementos?",
+    "exportTitle": "Exportar historial",
+    "exportJson": "Exportar a JSON",
+    "exportCsv": "Exportar a CSV",
+    "redownload": "Descargar de nuevo",
+    "columns": {
+      "title": "Título",
+      "url": "URL",
+      "date": "Fecha",
+      "status": "Estado",
+      "size": "Tamaño",
+      "quality": "Calidad"
+    },
+    "thumbnail": "Aún no hay historial de descargas"
   }
 }

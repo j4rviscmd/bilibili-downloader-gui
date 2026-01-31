@@ -149,5 +149,28 @@
         "required": "请选择音质。"
       }
     }
+  },
+  "history": {
+    "title": "历史记录",
+    "empty": "暂无下载历史",
+    "searchPlaceholder": "搜索历史记录...",
+    "filterAll": "全部",
+    "filterSuccess": "成功",
+    "filterFailed": "失败",
+    "deleteConfirm": "确定要删除此项吗？",
+    "deleteAllConfirm": "确定要删除所有项吗？",
+    "exportTitle": "导出历史记录",
+    "exportJson": "导出为 JSON",
+    "exportCsv": "导出为 CSV",
+    "redownload": "重新下载",
+    "columns": {
+      "title": "标题",
+      "url": "链接",
+      "date": "日期",
+      "status": "状态",
+      "size": "大小",
+      "quality": "清晰度"
+    },
+    "thumbnail": "暂无下载历史"
   }
 }

@@ -159,5 +159,28 @@
         "required": "Please select an audio quality."
       }
     }
+  },
+  "history": {
+    "title": "History",
+    "empty": "No download history yet",
+    "searchPlaceholder": "Search history...",
+    "filterAll": "All",
+    "filterSuccess": "Success",
+    "filterFailed": "Failed",
+    "deleteConfirm": "Are you sure you want to delete this item?",
+    "deleteAllConfirm": "Are you sure you want to delete all items?",
+    "exportTitle": "Export History",
+    "exportJson": "Export JSON",
+    "exportCsv": "Export CSV",
+    "redownload": "Redownload",
+    "columns": {
+      "title": "Title",
+      "url": "URL",
+      "date": "Date",
+      "status": "Status",
+      "size": "Size",
+      "quality": "Quality"
+    },
+    "thumbnail": "No download history yet"
   }
 }
