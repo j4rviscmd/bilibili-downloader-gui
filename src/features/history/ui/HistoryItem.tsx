@@ -83,7 +83,9 @@ function HistoryItem({ entry, onDelete }: Props) {
     <div className="border-border hover:bg-accent/50 flex items-center gap-3 rounded-lg border p-3 transition-colors">
       <div className="bg-muted flex size-20 shrink-0 items-center justify-center overflow-hidden rounded">
         {thumbnailLoading ? (
-          <Loader2 size={24} className="animate-spin text-muted-foreground" />
+          <div className="text-muted-foreground flex size-full items-center justify-center">
+            <Download size={32} />
+          </div>
         ) : thumbnailSrc ? (
           <img
             src={thumbnailSrc}
