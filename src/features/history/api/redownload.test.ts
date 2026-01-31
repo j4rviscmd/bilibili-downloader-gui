@@ -148,10 +148,11 @@ describe('redownloadFromHistory', () => {
       expect(mockDownloadVideo).toHaveBeenCalledWith(
         'BV1xx411c7XD',
         234567,
-        expect.any(String),
-        expect.any(Number),
-        expect.any(String),
-        expect.any(String),
+        'Test Video Part 2',
+        64,
+        30216,
+        expect.anything(),
+        expect.anything(),
       )
     })
   })

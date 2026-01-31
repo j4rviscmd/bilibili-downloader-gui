@@ -55,7 +55,7 @@ describe('historyApi', () => {
 
       const result = await getHistory()
 
-      expect(mockInvoke).toHaveBeenCalledWith('get_history')
+      expect(mockInvoke).toHaveBeenCalledWith('get_history', {})
       expect(result).toEqual([mockEntry, mockEntry2])
     })
 
@@ -122,7 +122,7 @@ describe('historyApi', () => {
 
       await clearHistory()
 
-      expect(mockInvoke).toHaveBeenCalledWith('clear_history')
+      expect(mockInvoke).toHaveBeenCalledWith('clear_history', {})
     })
 
     it('should throw error when invoke fails', async () => {
