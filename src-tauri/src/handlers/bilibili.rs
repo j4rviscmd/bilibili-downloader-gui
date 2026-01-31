@@ -93,7 +93,6 @@ pub async fn download_video(
     quality: i32,
     audio_quality: i32,
     download_id: String,
-    _parent_id: Option<String>,
 ) -> Result<(), String> {
     // Analytics: mark start
     // NOTE: GA4 Analytics は無効化されています
