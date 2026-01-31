@@ -101,7 +101,7 @@ function HistoryItem({ entry, onDelete }: Props) {
 
       <div className="flex min-w-0 flex-1 flex-col gap-1 overflow-hidden">
         <div className="flex items-center gap-2">
-          <h3 className="truncate font-semibold">{entry.title}</h3>
+          <h3 className="line-clamp-1 font-semibold">{entry.title}</h3>
           <span
             className={cn(
               'rounded-full px-2 py-0.5 text-xs font-medium',
