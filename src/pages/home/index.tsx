@@ -1,6 +1,5 @@
 import { store } from '@/app/store'
 import { useInit } from '@/features/init'
-import { PageLayout } from '@/shared/layout'
 import {
   deselectAll,
   DownloadButton,
@@ -10,8 +9,9 @@ import {
   VideoForm1,
   VideoForm2,
 } from '@/features/video'
-import { Separator } from '@/shared/ui/separator'
+import { PageLayout } from '@/shared/layout'
 import { Button } from '@/shared/ui/button'
+import { Separator } from '@/shared/ui/separator'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'

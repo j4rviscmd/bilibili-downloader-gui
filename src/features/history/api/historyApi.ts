@@ -38,13 +38,21 @@ export const getHistory = (): Promise<HistoryEntry[]> =>
  * Adds a new entry to download history.
  */
 export const addHistoryEntry = (entry: HistoryEntry): Promise<void> =>
-  invokeWithErrorHandling('add_history_entry', { entry }, 'Failed to add history entry')
+  invokeWithErrorHandling(
+    'add_history_entry',
+    { entry },
+    'Failed to add history entry',
+  )
 
 /**
  * Removes a single history entry by ID.
  */
 export const removeHistoryEntry = (id: string): Promise<void> =>
-  invokeWithErrorHandling('remove_history_entry', { id }, 'Failed to remove history entry')
+  invokeWithErrorHandling(
+    'remove_history_entry',
+    { id },
+    'Failed to remove history entry',
+  )
 
 /**
  * Clears all download history entries.
@@ -59,10 +67,18 @@ export const searchHistory = (
   query: string,
   filters?: HistoryFilters,
 ): Promise<HistoryEntry[]> =>
-  invokeWithErrorHandling('search_history', { query, filters }, 'Failed to search history')
+  invokeWithErrorHandling(
+    'search_history',
+    { query, filters },
+    'Failed to search history',
+  )
 
 /**
  * Exports history entries to a file in the specified format.
  */
 export const exportHistory = (format: 'json' | 'csv'): Promise<string> =>
-  invokeWithErrorHandling('export_history', { format }, 'Failed to export history')
+  invokeWithErrorHandling(
+    'export_history',
+    { format },
+    'Failed to export history',
+  )

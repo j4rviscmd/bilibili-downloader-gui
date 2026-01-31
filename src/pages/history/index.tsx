@@ -67,7 +67,9 @@ function HistoryPage() {
       setExportDialogOpen(false)
     } catch (error) {
       console.error('Export failed:', error)
-      toast.error(error instanceof Error ? error.message : t('history.exportFailed'))
+      toast.error(
+        error instanceof Error ? error.message : t('history.exportFailed'),
+      )
     }
   }
 

@@ -1,13 +1,16 @@
-import type { HistoryEntry, HistoryFilters } from '@/features/history/model/historySlice'
+import type {
+  HistoryEntry,
+  HistoryFilters,
+} from '@/features/history/model/historySlice'
 import historyReducer, {
-  setEntries,
   addEntry,
-  removeEntry,
   clearHistory,
-  setFilters,
-  setSearchQuery,
-  setLoading,
+  removeEntry,
+  setEntries,
   setError,
+  setFilters,
+  setLoading,
+  setSearchQuery,
 } from '@/features/history/model/historySlice'
 import { describe, expect, it } from 'vitest'
 
@@ -47,7 +50,10 @@ describe('historySlice', () => {
 
   describe('setEntries', () => {
     it('should replace all entries', () => {
-      const state = historyReducer(initialState, setEntries([mockEntry1, mockEntry2]))
+      const state = historyReducer(
+        initialState,
+        setEntries([mockEntry1, mockEntry2]),
+      )
 
       expect(state.entries).toEqual([mockEntry1, mockEntry2])
     })
@@ -165,7 +171,10 @@ describe('historySlice', () => {
 
   describe('setError', () => {
     it('should set error message', () => {
-      const state = historyReducer(initialState, setError('Something went wrong'))
+      const state = historyReducer(
+        initialState,
+        setError('Something went wrong'),
+      )
 
       expect(state.error).toBe('Something went wrong')
     })

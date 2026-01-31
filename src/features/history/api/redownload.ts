@@ -19,7 +19,9 @@ const extractVideoId = (url: string): string | null => {
  *
  * @throws Error if video info fetch fails or download fails
  */
-export const redownloadFromHistory = async (entry: HistoryEntry): Promise<void> => {
+export const redownloadFromHistory = async (
+  entry: HistoryEntry,
+): Promise<void> => {
   const videoId = extractVideoId(entry.url)
 
   if (!videoId) {

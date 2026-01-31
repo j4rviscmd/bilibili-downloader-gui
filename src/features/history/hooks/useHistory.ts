@@ -1,6 +1,16 @@
-import { store } from '@/app/store'
 import type { RootState } from '@/app/store'
-import type { HistoryEntry, HistoryFilters } from '@/features/history/model/historySlice'
+import { store } from '@/app/store'
+import {
+  addHistoryEntry as apiAddHistoryEntry,
+  clearHistory as apiClearHistory,
+  removeHistoryEntry as apiRemoveHistoryEntry,
+  exportHistory,
+  getHistory,
+} from '@/features/history/api/historyApi'
+import type {
+  HistoryEntry,
+  HistoryFilters,
+} from '@/features/history/model/historySlice'
 import {
   addEntry,
   clearHistory,
@@ -11,17 +21,10 @@ import {
   setLoading,
   setSearchQuery,
 } from '@/features/history/model/historySlice'
-import {
-  addHistoryEntry as apiAddHistoryEntry,
-  clearHistory as apiClearHistory,
-  exportHistory,
-  getHistory,
-  removeHistoryEntry as apiRemoveHistoryEntry,
-} from '@/features/history/api/historyApi'
 import { useEffect, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import { toast } from 'sonner'
-import { useTranslation } from 'react-i18next'
 
 /**
  * Wraps an async operation with loading state and error handling.
@@ -37,7 +40,8 @@ async function withLoading<T>(
     onSuccess?.()
     return result
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'An unknown error occurred'
+    const message =
+      err instanceof Error ? err.message : 'An unknown error occurred'
     store.dispatch(setError(message))
     toast.error(message)
     throw err
@@ -58,10 +62,14 @@ export function useHistory() {
   const loading = useSelector((state: RootState) => state.history.loading)
   const error = useSelector((state: RootState) => state.history.error)
   const filters = useSelector((state: RootState) => state.history.filters)
-  const searchQuery = useSelector((state: RootState) => state.history.searchQuery)
+  const searchQuery = useSelector(
+    (state: RootState) => state.history.searchQuery,
+  )
 
   useEffect(() => {
-    withLoading(() => getHistory().then((entries) => store.dispatch(setEntries(entries))))
+    withLoading(() =>
+      getHistory().then((entries) => store.dispatch(setEntries(entries))),
+    )
   }, [])
 
   const filteredEntries = useMemo(() => {
@@ -124,7 +132,9 @@ export function useHistory() {
       () => exportHistory(format),
       () =>
         toast.success(
-          format === 'json' ? t('history.exportedAsJson') : t('history.exportedAsCsv'),
+          format === 'json'
+            ? t('history.exportedAsJson')
+            : t('history.exportedAsCsv'),
         ),
     )
 

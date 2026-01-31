@@ -1,7 +1,7 @@
 import { ScrollArea, ScrollBar } from '@/shared/ui/scroll-area'
+import { useTranslation } from 'react-i18next'
 import type { HistoryEntry } from '../model/historySlice'
 import HistoryItem from './HistoryItem'
-import { useTranslation } from 'react-i18next'
 
 /**
  * Props for HistoryList component.

@@ -1,10 +1,10 @@
-import { Button } from '@/shared/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/shared/animate-ui/radix/dropdown-menu'
+import { Button } from '@/shared/ui/button'
 import { useTranslation } from 'react-i18next'
 
 /**

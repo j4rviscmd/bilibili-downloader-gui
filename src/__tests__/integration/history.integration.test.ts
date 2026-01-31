@@ -1,5 +1,5 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import * as historyApi from '@/features/history/api/historyApi'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
@@ -102,7 +102,9 @@ describe('History Integration Tests', () => {
       ]
       mockInvoke.mockResolvedValue(mockEntries)
 
-      const result = await historyApi.searchHistory('Video', { status: 'completed' as any })
+      const result = await historyApi.searchHistory('Video', {
+        status: 'completed',
+      })
 
       expect(mockInvoke).toHaveBeenCalledWith('search_history', {
         query: 'Video',
@@ -125,7 +127,7 @@ describe('History Integration Tests', () => {
         },
       ]
       const mockJsonData = '[{"id":"1","title":"Test Video"}]'
-      mockInvoke.mockImplementation((cmd: string, args?: unknown) => {
+      mockInvoke.mockImplementation((cmd: string, _args?: unknown) => {
         if (cmd === 'get_history') return Promise.resolve(mockEntries)
         if (cmd === 'export_history') return Promise.resolve(mockJsonData)
         return Promise.resolve(undefined)
@@ -133,7 +135,9 @@ describe('History Integration Tests', () => {
 
       const result = await historyApi.exportHistory('json')
 
-      expect(mockInvoke).toHaveBeenCalledWith('export_history', { format: 'json' })
+      expect(mockInvoke).toHaveBeenCalledWith('export_history', {
+        format: 'json',
+      })
       expect(result).toEqual(mockJsonData)
     })
 
@@ -147,8 +151,9 @@ describe('History Integration Tests', () => {
           status: 'completed',
         },
       ]
-      const mockCsvData = 'id,title,url,filename,downloadedAt,status\n1,Test Video,https://bilibili.com/video/BV1xx411c7XD,,2024-01-15T10:30:00Z,completed'
-      mockInvoke.mockImplementation((cmd: string, args?: unknown) => {
+      const mockCsvData =
+        'id,title,url,filename,downloadedAt,status\n1,Test Video,https://bilibili.com/video/BV1xx411c7XD,,2024-01-15T10:30:00Z,completed'
+      mockInvoke.mockImplementation((cmd: string, _args?: unknown) => {
         if (cmd === 'get_history') return Promise.resolve(mockEntries)
         if (cmd === 'export_history') return Promise.resolve(mockCsvData)
         return Promise.resolve(undefined)
@@ -156,7 +161,9 @@ describe('History Integration Tests', () => {
 
       const result = await historyApi.exportHistory('csv')
 
-      expect(mockInvoke).toHaveBeenCalledWith('export_history', { format: 'csv' })
+      expect(mockInvoke).toHaveBeenCalledWith('export_history', {
+        format: 'csv',
+      })
       expect(result).toEqual(mockCsvData)
     })
   })

@@ -9,8 +9,8 @@ vi.mock('@/features/video/api/downloadVideo', () => ({
   downloadVideo: vi.fn(),
 }))
 
-import { fetchVideoInfo } from '@/features/video/api/fetchVideoInfo'
 import { downloadVideo } from '@/features/video/api/downloadVideo'
+import { fetchVideoInfo } from '@/features/video/api/fetchVideoInfo'
 
 const mockFetchVideoInfo = fetchVideoInfo as ReturnType<typeof vi.fn>
 const mockDownloadVideo = downloadVideo as ReturnType<typeof vi.fn>
@@ -82,8 +82,26 @@ describe('redownloadFromHistory', () => {
       await redownloadFromHistory(mockEntry)
 
       expect(mockDownloadVideo).toHaveBeenCalledTimes(2)
-      expect(mockDownloadVideo).toHaveBeenNthCalledWith(1, 'BV1xx411c7XD', 123456, 'Test Video Part 1', 80, 30216, expect.anything(), expect.anything())
-      expect(mockDownloadVideo).toHaveBeenNthCalledWith(2, 'BV1xx411c7XD', 234567, 'Test Video Part 2', 64, 30216, expect.anything(), expect.anything())
+      expect(mockDownloadVideo).toHaveBeenNthCalledWith(
+        1,
+        'BV1xx411c7XD',
+        123456,
+        'Test Video Part 1',
+        80,
+        30216,
+        expect.anything(),
+        expect.anything(),
+      )
+      expect(mockDownloadVideo).toHaveBeenNthCalledWith(
+        2,
+        'BV1xx411c7XD',
+        234567,
+        'Test Video Part 2',
+        64,
+        30216,
+        expect.anything(),
+        expect.anything(),
+      )
     })
 
     it('should use first available quality for each part', async () => {
@@ -112,7 +130,15 @@ describe('redownloadFromHistory', () => {
 
       await redownloadFromHistory(mockEntry)
 
-      expect(mockDownloadVideo).toHaveBeenCalledWith('BV1xx411c7XD', 123456, 'Test Video Part 1', 80, 30251, expect.anything(), expect.anything())
+      expect(mockDownloadVideo).toHaveBeenCalledWith(
+        'BV1xx411c7XD',
+        123456,
+        'Test Video Part 1',
+        80,
+        30251,
+        expect.anything(),
+        expect.anything(),
+      )
     })
 
     it('should skip parts with cid=0', async () => {
@@ -167,7 +193,9 @@ describe('redownloadFromHistory', () => {
         status: 'completed',
       }
 
-      await expect(redownloadFromHistory(invalidEntry)).rejects.toThrow('Invalid Bilibili URL')
+      await expect(redownloadFromHistory(invalidEntry)).rejects.toThrow(
+        'Invalid Bilibili URL',
+      )
       expect(mockFetchVideoInfo).not.toHaveBeenCalled()
       expect(mockDownloadVideo).not.toHaveBeenCalled()
     })
@@ -175,7 +203,9 @@ describe('redownloadFromHistory', () => {
     it('should throw error when video not found', async () => {
       mockFetchVideoInfo.mockResolvedValue(null)
 
-      await expect(redownloadFromHistory(mockEntry)).rejects.toThrow('Video not found or no parts available')
+      await expect(redownloadFromHistory(mockEntry)).rejects.toThrow(
+        'Video not found or no parts available',
+      )
       expect(mockDownloadVideo).not.toHaveBeenCalled()
     })
 
@@ -187,7 +217,9 @@ describe('redownloadFromHistory', () => {
       }
       mockFetchVideoInfo.mockResolvedValue(mockVideo)
 
-      await expect(redownloadFromHistory(mockEntry)).rejects.toThrow('Video not found or no parts available')
+      await expect(redownloadFromHistory(mockEntry)).rejects.toThrow(
+        'Video not found or no parts available',
+      )
       expect(mockDownloadVideo).not.toHaveBeenCalled()
     })
   })

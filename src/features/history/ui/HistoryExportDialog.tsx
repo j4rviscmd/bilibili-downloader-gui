@@ -1,4 +1,3 @@
-import { Button } from '@/shared/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -11,6 +10,7 @@ import {
   RadioGroup,
   RadioGroupItem,
 } from '@/shared/animate-ui/radix/radio-group'
+import { Button } from '@/shared/ui/button'
 import { Label } from '@/shared/ui/label'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -45,7 +45,9 @@ function HistoryExportDialog({ open, onOpenChange, onExport }: Props) {
       onOpenChange(false)
       setFormat('json')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('history.exportFailed'))
+      toast.error(
+        err instanceof Error ? err.message : t('history.exportFailed'),
+      )
     } finally {
       setExporting(false)
     }
@@ -59,7 +61,10 @@ function HistoryExportDialog({ open, onOpenChange, onExport }: Props) {
           <DialogDescription hidden />
         </DialogHeader>
         <div className="space-y-4 py-4">
-          <RadioGroup value={format} onValueChange={(v) => setFormat(v as 'json' | 'csv')}>
+          <RadioGroup
+            value={format}
+            onValueChange={(v) => setFormat(v as 'json' | 'csv')}
+          >
             <div className="flex items-center space-x-3">
               <RadioGroupItem value="json" id="json" />
               <Label htmlFor="json">{t('history.exportJson')}</Label>
@@ -71,7 +76,11 @@ function HistoryExportDialog({ open, onOpenChange, onExport }: Props) {
           </RadioGroup>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={exporting}>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={exporting}
+          >
             {t('actions.cancel')}
           </Button>
           <Button onClick={handleExport} disabled={exporting}>

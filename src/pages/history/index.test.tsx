@@ -1,6 +1,6 @@
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi, beforeEach } from 'vitest'
 import HistoryPage from '@/pages/history'
+import { render, screen } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/features/history/hooks/useHistory', () => ({
   useHistory: vi.fn(() => ({
@@ -64,4 +64,3 @@ describe.skip('HistoryPage', () => {
     expect(screen.getByText(/no download history yet/i)).toBeInTheDocument()
   })
 })
-

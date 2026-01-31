@@ -1,7 +1,7 @@
 import { useTheme } from '@/app/providers/ThemeContext'
-import { useUser } from '@/features/user'
 import OpenSettingsDialogButton from '@/features/settings/dialog/OpenSettingsDialogButton'
 import SettingsDialog from '@/features/settings/dialog/SettingsDialog'
+import { useUser } from '@/features/user'
 import {
   Sidebar,
   SidebarContent,
@@ -13,11 +13,11 @@ import {
   SidebarRail,
   SidebarTrigger,
 } from '@/shared/animate-ui/radix/sidebar'
+import { cn } from '@/shared/lib/utils'
 import AppBar from '@/shared/ui/AppBar/AppBar'
 import { NavigationSidebarHeader } from '@/shared/ui/NavigationSidebar'
-import { cn } from '@/shared/lib/utils'
-import type { ReactNode } from 'react'
 import { ScrollArea, ScrollBar } from '@/shared/ui/scroll-area'
+import type { ReactNode } from 'react'
 
 /**
  * Props for PageLayout component.
@@ -73,7 +73,7 @@ export function PageLayout({
     <div
       className={cn(
         'mx-auto flex w-full max-w-5xl flex-col gap-3 p-3 sm:px-6',
-        innerClassName
+        innerClassName,
       )}
     >
       {children}
@@ -84,7 +84,10 @@ export function PageLayout({
     if (!withScrollArea) return content
 
     return (
-      <ScrollArea style={{ height: 'calc(100dvh - 2.3rem)' }} className="flex w-full">
+      <ScrollArea
+        style={{ height: 'calc(100dvh - 2.3rem)' }}
+        className="flex w-full"
+      >
         {content}
         <ScrollBar />
       </ScrollArea>

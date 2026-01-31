@@ -1,12 +1,12 @@
-import { useLocation, useNavigate } from 'react-router'
 import {
   SidebarMenu,
-  SidebarMenuItem,
   SidebarMenuButton,
+  SidebarMenuItem,
 } from '@/shared/animate-ui/radix/sidebar'
+import { cn } from '@/shared/lib/utils'
 import { Clock, Home } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/shared/lib/utils'
+import { useLocation, useNavigate } from 'react-router'
 
 type NavigationSidebarHeaderProps = {
   className?: string
