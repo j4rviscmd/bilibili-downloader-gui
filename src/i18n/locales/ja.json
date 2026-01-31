@@ -181,6 +181,11 @@
     "exportCsv": "CSV エクスポート",
     "exportSuccess": "エクスポートが完了しました",
     "exportFailed": "エクスポートに失敗しました",
+    "entryAdded": "履歴を追加しました",
+    "entryRemoved": "履歴を削除しました",
+    "cleared": "履歴をクリアしました",
+    "exportedAsJson": "JSON形式でエクスポートしました",
+    "exportedAsCsv": "CSV形式でエクスポートしました",
     "redownload": "再ダウンロード",
     "columns": {
       "title": "タイトル",

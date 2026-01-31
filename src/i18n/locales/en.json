@@ -181,6 +181,11 @@
     "exportCsv": "Export CSV",
     "exportSuccess": "Export successful",
     "exportFailed": "Export failed",
+    "entryAdded": "History entry added",
+    "entryRemoved": "Entry removed",
+    "cleared": "History cleared",
+    "exportedAsJson": "History exported as JSON",
+    "exportedAsCsv": "History exported as CSV",
     "redownload": "Redownload",
     "columns": {
       "title": "Title",
