@@ -1,6 +1,7 @@
 import { ScrollArea, ScrollBar } from '@/shared/ui/scroll-area'
 import type { HistoryEntry } from '../model/historySlice'
 import HistoryItem from './HistoryItem'
+import { useTranslation } from 'react-i18next'
 
 /**
  * Props for HistoryList component.
@@ -32,11 +33,13 @@ type Props = {
  * ```
  */
 function HistoryList({ entries, loading, onDelete }: Props) {
+  const { t } = useTranslation()
+
   if (loading) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
         <div className="text-muted-foreground animate-pulse">
-          Loading history...
+          {t('init.initializing')}
         </div>
       </div>
     )
@@ -62,7 +65,7 @@ function HistoryList({ entries, loading, onDelete }: Props) {
           </svg>
         </div>
         <p className="text-muted-foreground text-center text-lg">
-          No download history yet
+          {t('history.empty')}
         </p>
       </div>
     )
