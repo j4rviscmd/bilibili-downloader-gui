@@ -33,7 +33,10 @@ pub struct HistoryEntry {
     pub version: String,
 }
 
-/// Default version for new history entries.
+/// Returns the default version string for new history entries.
+///
+/// Used as the default value for the `version` field when deserializing
+/// history entries that don't have a version specified.
 fn default_version() -> String {
     "1.0".to_string()
 }
@@ -41,16 +44,13 @@ fn default_version() -> String {
 /// Search filters for history queries.
 ///
 /// Allows filtering by status, quality, date range, and text search.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct HistoryFilters {
     /// Filter by download status.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
-    /// Filter by video quality.
-    pub quality: Option<String>,
     /// Filter by date range start (ISO 8601).
-    pub start_date: Option<String>,
-    /// Filter by date range end (ISO 8601).
-    pub end_date: Option<String>,
-    /// Text search in title and URL.
-    pub query: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub date_from: Option<String>,
 }

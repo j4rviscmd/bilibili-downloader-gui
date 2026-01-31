@@ -17,7 +17,6 @@ import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarHeader,
   SidebarInset,
   SidebarMenu,
   SidebarMenuItem,
@@ -27,6 +26,7 @@ import {
 } from '@/shared/animate-ui/radix/sidebar'
 import AppBar from '@/shared/ui/AppBar/AppBar'
 import { Button } from '@/shared/ui/button'
+import { NavigationSidebarHeader } from '@/shared/ui/NavigationSidebar'
 import { ScrollArea, ScrollBar } from '@/shared/ui/scroll-area'
 import { Separator } from '@/shared/ui/separator'
 import { useEffect } from 'react'
@@ -77,7 +77,7 @@ function HomePage() {
     <>
       <SidebarProvider defaultOpen={false}>
         <Sidebar>
-          <SidebarHeader />
+          <NavigationSidebarHeader />
           <SidebarContent />
           <SidebarFooter>
             <SidebarMenu>

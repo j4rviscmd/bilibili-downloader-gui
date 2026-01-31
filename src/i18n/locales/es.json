@@ -4,7 +4,17 @@
     "subtitle": "Aplicación de escritorio ligera para ayudar con descargas",
     "logged_in_user": "Usuario conectado"
   },
-  "nav": { "home": "Inicio", "init": "Inicialización", "error": "Error" },
+  "nav": {
+    "home": "Inicio",
+    "history": "Historial",
+    "init": "Inicialización",
+    "error": "Error",
+    "aria": {
+      "mainNavigation": "Navegación principal",
+      "home": "Ir a la página de descarga",
+      "history": "Ir a la página de historial"
+    }
+  },
   "actions": {
     "submit": "Enviar",
     "cancel": "Cancelar",
@@ -152,6 +162,7 @@
   },
   "history": {
     "title": "Historial",
+    "clearAll": "Borrar todo",
     "empty": "Aún no hay historial de descargas",
     "searchPlaceholder": "Buscar en el historial...",
     "filterAll": "Todos",

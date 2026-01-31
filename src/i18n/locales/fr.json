@@ -4,7 +4,17 @@
     "subtitle": "Application de bureau légère pour aider aux téléchargements",
     "logged_in_user": "Utilisateur connecté"
   },
-  "nav": { "home": "Accueil", "init": "Initialisation", "error": "Erreur" },
+  "nav": {
+    "home": "Accueil",
+    "history": "Historique",
+    "init": "Initialisation",
+    "error": "Erreur",
+    "aria": {
+      "mainNavigation": "Navigation principale",
+      "home": "Accéder à la page de téléchargement",
+      "history": "Accéder à l'historique"
+    }
+  },
   "actions": {
     "submit": "Envoyer",
     "cancel": "Annuler",
@@ -152,6 +162,7 @@
   },
   "history": {
     "title": "Historique",
+    "clearAll": "Tout effacer",
     "empty": "Aucun historique de téléchargement pour le moment",
     "searchPlaceholder": "Rechercher dans l'historique...",
     "filterAll": "Tout",

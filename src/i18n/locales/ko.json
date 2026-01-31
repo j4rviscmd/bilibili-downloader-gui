@@ -4,7 +4,17 @@
     "subtitle": "가벼운 데스크톱 앱으로 다운로드 지원",
     "logged_in_user": "로그인 사용자"
   },
-  "nav": { "home": "홈", "init": "초기화", "error": "오류" },
+  "nav": {
+    "home": "홈",
+    "history": "기록",
+    "init": "초기화",
+    "error": "오류",
+    "aria": {
+      "mainNavigation": "메인 내비게이션",
+      "home": "다운로드 페이지로 이동",
+      "history": "기록 페이지로 이동"
+    }
+  },
   "actions": {
     "submit": "제출",
     "cancel": "취소",
@@ -152,6 +162,7 @@
   },
   "history": {
     "title": "히스토리",
+    "clearAll": "모두 지우기",
     "empty": "다운로드 기록이 없습니다",
     "searchPlaceholder": "기록 검색...",
     "filterAll": "모두",

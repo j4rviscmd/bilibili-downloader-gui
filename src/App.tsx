@@ -1,6 +1,7 @@
 import { useTheme } from '@/app/providers/ThemeContext'
 import IndexPage from '@/pages'
 import ErrorPage from '@/pages/error'
+import HistoryPage from '@/pages/history'
 import HomePage from '@/pages/home'
 import InitPage from '@/pages/init'
 import { Toaster } from '@/shared/ui/sonner'
@@ -32,6 +33,7 @@ function App() {
         <Route path="/" element={<IndexPage />} />
         <Route path="/init" element={<InitPage />} />
         <Route path="/home" element={<HomePage />} />
+        <Route path="/history" element={<HistoryPage />} />
         <Route path="/error" element={<ErrorPage />} />
       </Routes>
       <Toaster richColors theme={theme} />

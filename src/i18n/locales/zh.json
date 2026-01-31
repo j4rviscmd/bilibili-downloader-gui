@@ -4,7 +4,17 @@
     "subtitle": "轻量级桌面应用，辅助下载",
     "logged_in_user": "登录用户"
   },
-  "nav": { "home": "主页", "init": "初始化", "error": "错误" },
+  "nav": {
+    "home": "主页",
+    "history": "历史",
+    "init": "初始化",
+    "error": "错误",
+    "aria": {
+      "mainNavigation": "主导航",
+      "home": "前往下载页面",
+      "history": "前往历史页面"
+    }
+  },
   "actions": {
     "submit": "提交",
     "cancel": "取消",
@@ -152,6 +162,7 @@
   },
   "history": {
     "title": "历史记录",
+    "clearAll": "全部清除",
     "empty": "暂无下载历史",
     "searchPlaceholder": "搜索历史记录...",
     "filterAll": "全部",

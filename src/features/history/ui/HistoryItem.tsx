@@ -1,8 +1,8 @@
 'use client'
-import type { HistoryEntry } from '@/features/history/model/historySlice'
 import { redownloadFromHistory } from '@/features/history/api/redownload'
-import { Button } from '@/shared/ui/button'
+import type { HistoryEntry } from '@/features/history/model/historySlice'
 import { cn } from '@/shared/lib/utils'
+import { Button } from '@/shared/ui/button'
 import { Download, Loader2, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -13,6 +13,29 @@ type Props = {
   onDelete: () => void
 }
 
+/**
+ * Single history entry component.
+ *
+ * Displays a history entry with:
+ * - Thumbnail or placeholder icon
+ * - Video title with status badge
+ * - Filename (if available)
+ * - Download date, file size, and quality metadata
+ * - Error message (if failed)
+ * - Redownload button
+ * - Delete button
+ *
+ * Redownload functionality fetches current video info and enqueues
+ * download with available quality options.
+ *
+ * @example
+ * ```tsx
+ * <HistoryItem
+ *   entry={historyEntry}
+ *   onDelete={() => handleDelete(historyEntry.id)}
+ * />
+ * ```
+ */
 function HistoryItem({ entry, onDelete }: Props) {
   const { t } = useTranslation()
   const [isRedownloading, setIsRedownloading] = useState(false)
@@ -49,19 +72,12 @@ function HistoryItem({ entry, onDelete }: Props) {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   }
 
-  const statusColor =
-    entry.status === 'completed'
-      ? 'text-chart-2'
-      : 'text-destructive'
-
-  const statusBg =
-    entry.status === 'completed'
-      ? 'bg-chart-2/10'
-      : 'bg-destructive/10'
+  const isSuccess = entry.status === 'completed'
+  const statusKey = isSuccess ? 'history.filterSuccess' : 'history.filterFailed'
 
   return (
     <div className="border-border hover:bg-accent/50 flex items-center gap-3 rounded-lg border p-3 transition-colors">
-      <div className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">
+      <div className="bg-muted flex size-20 shrink-0 items-center justify-center overflow-hidden rounded">
         {entry.thumbnailUrl ? (
           <img
             src={entry.thumbnailUrl}
@@ -69,7 +85,7 @@ function HistoryItem({ entry, onDelete }: Props) {
             className="size-full object-cover"
           />
         ) : (
-          <div className="flex size-full items-center justify-center text-muted-foreground">
+          <div className="text-muted-foreground flex size-full items-center justify-center">
             <Download size={32} />
           </div>
         )}
@@ -81,13 +97,12 @@ function HistoryItem({ entry, onDelete }: Props) {
           <span
             className={cn(
               'rounded-full px-2 py-0.5 text-xs font-medium',
-              statusBg,
-              statusColor,
+              isSuccess
+                ? 'bg-chart-2/10 text-chart-2'
+                : 'bg-destructive/10 text-destructive',
             )}
           >
-            {entry.status === 'completed'
-              ? t('history.filterSuccess')
-              : t('history.filterFailed')}
+            {t(statusKey)}
           </span>
         </div>
 
@@ -97,7 +112,7 @@ function HistoryItem({ entry, onDelete }: Props) {
           </p>
         )}
 
-        <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+        <div className="text-muted-foreground flex flex-wrap gap-x-4 gap-y-0.5 text-xs">
           <span>{formatDate(entry.downloadedAt)}</span>
           {entry.fileSize && (
             <>
@@ -114,9 +129,7 @@ function HistoryItem({ entry, onDelete }: Props) {
         </div>
 
         {entry.status === 'failed' && entry.errorMessage && (
-          <p className="text-destructive mt-1 text-xs">
-            {entry.errorMessage}
-          </p>
+          <p className="text-destructive mt-1 text-xs">{entry.errorMessage}</p>
         )}
 
         <div className="mt-1 text-xs">
@@ -124,7 +137,7 @@ function HistoryItem({ entry, onDelete }: Props) {
             href={entry.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-muted-foreground hover:text-primary truncate block max-w-[200px]"
+            className="text-muted-foreground hover:text-primary block max-w-[200px] truncate"
           >
             {entry.url}
           </a>

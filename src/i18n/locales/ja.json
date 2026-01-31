@@ -6,8 +6,14 @@
   },
   "nav": {
     "home": "ホーム",
+    "history": "履歴",
     "init": "初期化",
-    "error": "エラー"
+    "error": "エラー",
+    "aria": {
+      "mainNavigation": "メインナビゲーション",
+      "home": "ダウンロード画面へ移動",
+      "history": "履歴画面へ移動"
+    }
   },
   "actions": {
     "submit": "送信",
@@ -162,6 +168,7 @@
   },
   "history": {
     "title": "履歴",
+    "clearAll": "すべて削除",
     "empty": "ダウンロード履歴はまだありません",
     "searchPlaceholder": "履歴を検索...",
     "filterAll": "すべて",
