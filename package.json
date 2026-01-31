@@ -10,7 +10,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "echo 'No tests configured yet' && exit 0",
+    "test": "vitest",
     "preview": "vite preview",
     "tauri": "tauri"
   },
