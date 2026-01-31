@@ -157,7 +157,7 @@ function HistoryItem({ entry, onDelete }: Props) {
           variant="ghost"
           size="icon"
           onClick={onDelete}
-          title={t('video.delete_confirm')}
+          title={t('history.deleteConfirm')}
           className="text-destructive hover:bg-destructive/10"
         >
           <Trash2 size={18} />
