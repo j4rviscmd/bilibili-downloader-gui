@@ -118,8 +118,7 @@ pub async fn download_video(
     // --------------------------------------------------
     // 2. Cookie チェック
     // --------------------------------------------------
-    let cookies = read_cookie(app)?
-        .ok_or("ERR::COOKIE_MISSING")?;
+    let cookies = read_cookie(app)?.ok_or("ERR::COOKIE_MISSING")?;
     let cookie_header = build_cookie_header(&cookies);
     if cookie_header.is_empty() {
         return Err("ERR::COOKIE_MISSING".into());
@@ -230,7 +229,10 @@ pub async fn download_video(
         )
         .await
         {
-            eprintln!("Warning: Failed to save to history for {}: {}", bvid_clone, e);
+            eprintln!(
+                "Warning: Failed to save to history for {}: {}",
+                bvid_clone, e
+            );
         }
     });
 
@@ -377,18 +379,14 @@ async fn fetch_video_info_for_history(
         parts: Vec::new(),
     };
 
-    match fetch_video_title(&video, cookies).await {
-        Ok(body) => {
-            // Store URL only; Base64 conversion happens on-demand via API
-            let thumbnail_url = if body.data.pic.is_empty() {
-                None
-            } else {
-                Some(body.data.pic)
-            };
-            Some((body.data.title, thumbnail_url))
-        }
-        Err(_) => None,
-    }
+    fetch_video_title(&video, cookies).await.ok().map(|body| {
+        let thumbnail_url = if body.data.pic.is_empty() {
+            None
+        } else {
+            Some(body.data.pic)
+        };
+        (body.data.title, thumbnail_url)
+    })
 }
 
 /// Fetches logged-in user information from Bilibili.
@@ -998,7 +996,7 @@ fn select_stream_url(
     items
         .iter()
         .find(|v| v.id == quality)
+        .or_else(|| items.first())
         .map(|v| v.base_url.clone())
-        .or_else(|| items.first().map(|fb| fb.base_url.clone()))
         .ok_or_else(|| "ERR::QUALITY_NOT_FOUND".into())
 }

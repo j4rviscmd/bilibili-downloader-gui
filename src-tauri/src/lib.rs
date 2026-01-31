@@ -452,10 +452,11 @@ async fn search_history(
 /// Embedded quotes are escaped by doubling them.
 fn escape_csv(s: &str) -> String {
     let needs_quoting = s.contains(['"', ',', '\n', '\r']);
-    if !needs_quoting {
-        return s.to_string();
+    if needs_quoting {
+        format!("\"{}\"", s.replace('"', "\"\""))
+    } else {
+        s.to_string()
     }
-    format!("\"{}\"", s.replace('"', "\"\""))
 }
 
 /// Exports history entries in JSON or CSV format.

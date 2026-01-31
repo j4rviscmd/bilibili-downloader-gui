@@ -123,8 +123,11 @@ describe('History Integration Tests', () => {
         },
       ]
       const mockJsonData = '[{"id":"1","title":"Test Video"}]'
-      mockInvoke.mockResolvedValue(mockEntries)
-      mockInvoke.mockResolvedValue(mockJsonData)
+      mockInvoke.mockImplementation((cmd: string, args?: unknown) => {
+        if (cmd === 'get_history') return Promise.resolve(mockEntries)
+        if (cmd === 'export_history') return Promise.resolve(mockJsonData)
+        return Promise.resolve(undefined)
+      })
 
       const result = await historyApi.exportHistory('json')
 
@@ -143,8 +146,11 @@ describe('History Integration Tests', () => {
         },
       ]
       const mockCsvData = 'id,title,url,filename,downloadedAt,status\n1,Test Video,https://bilibili.com/video/BV1xx411c7XD,,2024-01-15T10:30:00Z,completed'
-      mockInvoke.mockResolvedValue(mockEntries)
-      mockInvoke.mockResolvedValue(mockCsvData)
+      mockInvoke.mockImplementation((cmd: string, args?: unknown) => {
+        if (cmd === 'get_history') return Promise.resolve(mockEntries)
+        if (cmd === 'export_history') return Promise.resolve(mockCsvData)
+        return Promise.resolve(undefined)
+      })
 
       const result = await historyApi.exportHistory('csv')
 

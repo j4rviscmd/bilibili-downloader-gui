@@ -7,8 +7,13 @@ import {
 } from '@/shared/animate-ui/radix/dropdown-menu'
 import { useTranslation } from 'react-i18next'
 
+/**
+ * Props for HistoryFilters component.
+ */
 type Props = {
+  /** Current filter value */
   value: 'all' | 'completed' | 'failed'
+  /** Callback when filter value changes */
   onChange: (value: 'all' | 'completed' | 'failed') => void
 }
 

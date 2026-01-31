@@ -2,9 +2,15 @@ import { ScrollArea, ScrollBar } from '@/shared/ui/scroll-area'
 import type { HistoryEntry } from '../model/historySlice'
 import HistoryItem from './HistoryItem'
 
+/**
+ * Props for HistoryList component.
+ */
 type Props = {
+  /** Array of history entries to display */
   entries: HistoryEntry[]
+  /** Loading state indicator */
   loading: boolean
+  /** Callback when delete button is clicked */
   onDelete: (id: string) => void
 }
 

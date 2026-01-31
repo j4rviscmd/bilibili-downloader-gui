@@ -1,28 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 
-/**
- * Formats an error from Tauri invoke call with consistent prefix.
- */
-function formatError(prefix: string, error: unknown): Error {
-  const message = error instanceof Error ? error.message : String(error)
-  console.error(`${prefix}:`, error)
-  return new Error(`${prefix}: ${message}`)
-}
-
-/**
- * Wrapper for Tauri invoke calls with consistent error handling.
- */
-async function invokeWithErrorHandling<T>(
-  command: string,
-  args: Record<string, unknown>,
-  errorPrefix: string,
-): Promise<T> {
-  try {
-    return await invoke<T>(command, args)
-  } catch (error) {
-    throw formatError(errorPrefix, error)
-  }
-}
+const ERROR_PREFIX = 'Failed to fetch thumbnail'
 
 /**
  * Fetches and encodes a thumbnail image as base64 data URL.
@@ -34,5 +12,12 @@ async function invokeWithErrorHandling<T>(
  * @returns Base64-encoded data URL (e.g., "data:image/jpeg;base64,...")
  * @throws Error if thumbnail fetch fails
  */
-export const getThumbnailBase64 = (url: string): Promise<string> =>
-  invokeWithErrorHandling('get_thumbnail_base64', { url }, 'Failed to fetch thumbnail')
+export async function getThumbnailBase64(url: string): Promise<string> {
+  try {
+    return await invoke<string>('get_thumbnail_base64', { url })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    console.error(`${ERROR_PREFIX}:`, error)
+    throw new Error(`${ERROR_PREFIX}: ${message}`)
+  }
+}

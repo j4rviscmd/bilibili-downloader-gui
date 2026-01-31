@@ -1,8 +1,13 @@
 import { Input } from '@/shared/ui/input'
 import { useTranslation } from 'react-i18next'
 
+/**
+ * Props for HistorySearch component.
+ */
 type Props = {
+  /** Current search query value */
   value: string
+  /** Callback when search query changes */
   onChange: (value: string) => void
 }
 

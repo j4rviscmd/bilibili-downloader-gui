@@ -16,9 +16,15 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+/**
+ * Props for HistoryExportDialog component.
+ */
 type Props = {
+  /** Whether the dialog is open */
   open: boolean
+  /** Callback to toggle dialog open state */
   onOpenChange: (open: boolean) => void
+  /** Callback to execute export with selected format */
   onExport: (format: 'json' | 'csv') => Promise<void>
 }
 

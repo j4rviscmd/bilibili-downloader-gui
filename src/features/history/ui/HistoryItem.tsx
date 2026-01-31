@@ -5,12 +5,17 @@ import type { HistoryEntry } from '@/features/history/model/historySlice'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
 import { Download, Loader2, Trash2 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+/**
+ * Props for HistoryItem component.
+ */
 type Props = {
+  /** History entry data to display */
   entry: HistoryEntry
+  /** Callback when delete button is clicked */
   onDelete: () => void
 }
 
@@ -74,7 +79,7 @@ function HistoryItem({ entry, onDelete }: Props) {
     }
   }
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string): string => {
     const date = new Date(dateString)
     return date.toLocaleDateString(undefined, {
       year: 'numeric',
@@ -85,7 +90,7 @@ function HistoryItem({ entry, onDelete }: Props) {
     })
   }
 
-  const formatFileSize = (bytes?: number) => {
+  const formatFileSize = (bytes?: number): string => {
     if (!bytes) return '-'
     if (bytes < 1024) return `${bytes} B`
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`

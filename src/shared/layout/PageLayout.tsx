@@ -80,19 +80,16 @@ export function PageLayout({
     </div>
   )
 
-  const scrollableContent = withScrollArea ? (
-    <ScrollArea
-      style={{
-        height: 'calc(100dvh - 2.3rem)',
-      }}
-      className="flex w-full"
-    >
-      {content}
-      <ScrollBar />
-    </ScrollArea>
-  ) : (
-    content
-  )
+  const renderContent = () => {
+    if (!withScrollArea) return content
+
+    return (
+      <ScrollArea style={{ height: 'calc(100dvh - 2.3rem)' }} className="flex w-full">
+        {content}
+        <ScrollBar />
+      </ScrollArea>
+    )
+  }
 
   return (
     <>
@@ -118,7 +115,7 @@ export function PageLayout({
               />
               <AppBar user={user} theme={theme} setTheme={setTheme} />
             </header>
-            {scrollableContent}
+            {renderContent()}
           </div>
         </SidebarInset>
       </SidebarProvider>
