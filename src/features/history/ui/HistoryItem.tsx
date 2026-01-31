@@ -1,10 +1,11 @@
 'use client'
 import { redownloadFromHistory } from '@/features/history/api/redownload'
+import { getThumbnailBase64 } from '@/features/history/api/thumbnailApi'
 import type { HistoryEntry } from '@/features/history/model/historySlice'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
 import { Download, Loader2, Trash2 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -39,6 +40,25 @@ type Props = {
 function HistoryItem({ entry, onDelete }: Props) {
   const { t } = useTranslation()
   const [isRedownloading, setIsRedownloading] = useState(false)
+  const [thumbnailSrc, setThumbnailSrc] = useState<string | null>(null)
+  const [thumbnailLoading, setThumbnailLoading] = useState(false)
+
+  // Load thumbnail from backend when entry has a URL
+  useEffect(() => {
+    if (entry.thumbnailUrl && !entry.thumbnailUrl.startsWith('data:')) {
+      setThumbnailLoading(true)
+      getThumbnailBase64(entry.thumbnailUrl)
+        .then(setThumbnailSrc)
+        .catch((err) => {
+          console.error('Failed to load thumbnail:', err)
+          setThumbnailSrc(null)
+        })
+        .finally(() => setThumbnailLoading(false))
+    } else if (entry.thumbnailUrl?.startsWith('data:')) {
+      // Already base64 encoded
+      setThumbnailSrc(entry.thumbnailUrl)
+    }
+  }, [entry.thumbnailUrl])
 
   const handleRedownload = async () => {
     setIsRedownloading(true)
@@ -78,9 +98,11 @@ function HistoryItem({ entry, onDelete }: Props) {
   return (
     <div className="border-border hover:bg-accent/50 flex items-center gap-3 rounded-lg border p-3 transition-colors">
       <div className="bg-muted flex size-20 shrink-0 items-center justify-center overflow-hidden rounded">
-        {entry.thumbnailUrl ? (
+        {thumbnailLoading ? (
+          <Loader2 size={24} className="animate-spin text-muted-foreground" />
+        ) : thumbnailSrc ? (
           <img
-            src={entry.thumbnailUrl}
+            src={thumbnailSrc}
             alt={entry.title}
             className="size-full object-cover"
           />

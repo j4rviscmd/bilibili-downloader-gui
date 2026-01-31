@@ -26,8 +26,8 @@ pub struct HistoryEntry {
     pub file_size: Option<u64>,
     /// Video quality (e.g., "1080P60", optional).
     pub quality: Option<String>,
-    /// Thumbnail URL or base64 data URL.
-    /// Stored as base64 data URL to avoid Referer/CORS issues.
+    /// Thumbnail URL (original Bilibili URL).
+    /// Frontend fetches and converts to base64 on-demand via API.
     pub thumbnail_url: Option<String>,
     /// Version for data migration support.
     #[serde(default = "default_version")]

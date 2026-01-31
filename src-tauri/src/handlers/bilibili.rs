@@ -379,17 +379,13 @@ async fn fetch_video_info_for_history(
 
     match fetch_video_title(&video, cookies).await {
         Ok(body) => {
-            let thumbnail_data_url = if body.data.pic.is_empty() {
+            // Store URL only; Base64 conversion happens on-demand via API
+            let thumbnail_url = if body.data.pic.is_empty() {
                 None
             } else {
-                // Download and encode thumbnail as base64 data URL
-                // This avoids Referer/CORS issues with Bilibili image servers
-                match base64_encode(&body.data.pic).await {
-                    Ok(base64_data) => Some(format!("data:image/jpeg;base64,{}", base64_data)),
-                    Err(_) => None,
-                }
+                Some(body.data.pic)
             };
-            Some((body.data.title, thumbnail_data_url))
+            Some((body.data.title, thumbnail_url))
         }
         Err(_) => None,
     }
@@ -487,6 +483,26 @@ fn build_cookie_header(cookies: &[CookieEntry]) -> String {
 /// # Arguments
 ///
 /// * `url` - Image URL to fetch
+///
+/// # Returns
+///
+/// Base64-encoded image data.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - HTTP request fails
+/// - Response byte reading fails
+pub async fn get_thumbnail_base64(url: &str) -> Result<String, String> {
+    let encoded = base64_encode(url).await?;
+    Ok(format!("data:image/jpeg;base64,{}", encoded))
+}
+
+/// Encodes a thumbnail image URL to base64 format.
+///
+/// # Arguments
+///
+/// * `url` - Thumbnail image URL
 ///
 /// # Returns
 ///
