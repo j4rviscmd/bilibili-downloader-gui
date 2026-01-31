@@ -20,6 +20,7 @@ pub mod constants;
 pub mod emits;
 pub mod handlers;
 pub mod models;
+pub mod store;
 pub mod utils;
 
 /// Initializes and runs the Tauri application.
@@ -55,9 +56,8 @@ pub fn run() {
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        // Cookie のメモリキャッシュをグローバルステートとして管理
-        .manage(CookieCache::default())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_store::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             validate_ffmpeg,
             install_ffmpeg,
