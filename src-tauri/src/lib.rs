@@ -14,12 +14,16 @@ use crate::handlers::settings;
 use crate::models::cookie::CookieCache;
 use crate::models::frontend_dto::User;
 use crate::models::frontend_dto::Video;
+use crate::models::history::HistoryEntry;
+use crate::models::history::HistoryFilters;
 use crate::models::settings::Settings;
+use crate::store::HistoryStore;
 
 pub mod constants;
 pub mod emits;
 pub mod handlers;
 pub mod models;
+pub mod store;
 pub mod utils;
 
 /// Initializes and runs the Tauri application.
@@ -39,6 +43,12 @@ pub mod utils;
 /// - `get_settings`: Retrieves application settings
 /// - `set_settings`: Updates application settings
 /// - `get_os`: Returns the current operating system identifier
+/// - `get_history`: Retrieves all download history entries
+/// - `add_history_entry`: Adds a new history entry
+/// - `remove_history_entry`: Removes a history entry by ID
+/// - `clear_history`: Clears all history entries
+/// - `search_history`: Searches history with filters
+/// - `export_history`: Exports history in JSON or CSV format
 ///
 /// # Panics
 ///
@@ -55,9 +65,11 @@ pub fn run() {
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        // Cookie のメモリキャッシュをグローバルステートとして管理
-        .manage(CookieCache::default())
+        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_store::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             validate_ffmpeg,
             install_ffmpeg,
@@ -68,10 +80,20 @@ pub fn run() {
             get_settings,
             set_settings,
             get_os,
+            get_history,
+            add_history_entry,
+            remove_history_entry,
+            clear_history,
+            search_history,
+            export_history,
+            get_thumbnail_base64,
             // record_download_click  // NOTE: GA4 Analytics は無効化されています
         ])
         // 開発環境以外で`app`宣言ではBuildに失敗するため、`_app`を使用
         .setup(|app| {
+            // Cookieキャッシュを初期化
+            app.manage(CookieCache::default());
+
             // Analytics 初期化 (非同期で失敗握りつぶし)
             // NOTE: GA4 Analytics は無効化されています
             // let handle: AppHandle = app.handle().clone();
@@ -137,12 +159,9 @@ async fn validate_ffmpeg(app: AppHandle) -> bool {
 /// - Permission setting fails (macOS)
 #[tauri::command]
 async fn install_ffmpeg(app: AppHandle) -> Result<bool, String> {
-    // ffmpegバイナリのダウンロード処理
-    let res = ffmpeg::install_ffmpeg(&app)
+    ffmpeg::install_ffmpeg(&app)
         .await
-        .map_err(|e| e.to_string())?;
-
-    Ok(res)
+        .map_err(|e| e.to_string())
 }
 
 /// Retrieves Bilibili cookies from the local Firefox browser.
@@ -270,20 +289,17 @@ async fn download_video(
     quality: i32,
     audio_quality: i32,
     download_id: String,
-    parent_id: Option<String>,
 ) -> Result<(), String> {
     bilibili::download_video(
         &app,
         &bvid,
         cid,
         &filename,
-        &quality,
-        &audio_quality,
+        quality,
+        audio_quality,
         download_id,
-        parent_id,
     )
-    .await?;
-    Ok(())
+    .await
 }
 
 /// Retrieves the current application settings.
@@ -337,11 +353,7 @@ async fn get_settings(app: AppHandle) -> Result<Settings, String> {
 /// - File write fails
 #[tauri::command]
 async fn set_settings(app: AppHandle, settings: Settings) -> Result<(), String> {
-    settings::set_settings(&app, &settings)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    Ok(())
+    settings::set_settings(&app, &settings).await
 }
 
 /// Returns the current operating system identifier.
@@ -358,6 +370,163 @@ async fn get_os() -> String {
     // Returns a normalized OS string used by frontend validation logic
     // std::env::consts::OS already returns one of: "windows", "macos", "linux", etc.
     std::env::consts::OS.to_string()
+}
+
+/// Retrieves all download history entries.
+///
+/// Returns all persisted history entries from the history store.
+///
+/// # Errors
+///
+/// Returns an error if the history store cannot be accessed.
+#[tauri::command]
+async fn get_history(app: AppHandle) -> Result<Vec<HistoryEntry>, String> {
+    let store = HistoryStore::new(&app).map_err(|e| e.to_string())?;
+    Ok(store.get_all())
+}
+
+/// Adds a new entry to download history.
+///
+/// Persists a history entry to the history store. The entry is inserted
+/// at the beginning of the history (newest first).
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The entry data is invalid
+/// - The history store cannot be written to
+#[tauri::command]
+async fn add_history_entry(app: AppHandle, entry: HistoryEntry) -> Result<(), String> {
+    let store = HistoryStore::new(&app).map_err(|e| e.to_string())?;
+    store.add_entry(entry)
+}
+
+/// Removes a history entry by ID.
+///
+/// Deletes a single history entry from the history store.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The entry with the given ID is not found
+/// - The history store cannot be written to
+#[tauri::command]
+async fn remove_history_entry(app: AppHandle, id: String) -> Result<(), String> {
+    let store = HistoryStore::new(&app).map_err(|e| e.to_string())?;
+    store.remove_entry(&id)
+}
+
+/// Clears all download history entries.
+///
+/// Removes all history entries from the history store.
+///
+/// # Errors
+///
+/// Returns an error if the history store cannot be written to.
+#[tauri::command]
+async fn clear_history(app: AppHandle) -> Result<(), String> {
+    let store = HistoryStore::new(&app).map_err(|e| e.to_string())?;
+    store.clear()
+}
+
+/// Searches history entries with query and filters.
+///
+/// Searches through history entries using an optional query string and filters.
+///
+/// # Errors
+///
+/// Returns an error if the history store cannot be accessed.
+#[tauri::command]
+async fn search_history(
+    app: AppHandle,
+    query: Option<String>,
+    filters: Option<HistoryFilters>,
+) -> Result<Vec<HistoryEntry>, String> {
+    let store = HistoryStore::new(&app).map_err(|e| e.to_string())?;
+    Ok(store.search(query, filters))
+}
+
+/// Escapes a string value for RFC 4180 compliant CSV output.
+///
+/// Quotes the value if it contains commas, quotes, or newlines.
+/// Embedded quotes are escaped by doubling them.
+fn escape_csv(s: &str) -> String {
+    let needs_quoting = s.contains(['"', ',', '\n', '\r']);
+    if needs_quoting {
+        format!("\"{}\"", s.replace('"', "\"\""))
+    } else {
+        s.to_string()
+    }
+}
+
+/// Exports history entries in JSON or CSV format.
+///
+/// Serializes all history entries to the specified format.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle
+/// * `format` - Export format: "json" or "csv"
+///
+/// # Returns
+///
+/// Returns the serialized data as a string.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The format is invalid
+/// - Serialization fails
+#[tauri::command]
+async fn export_history(app: AppHandle, format: String) -> Result<String, String> {
+    let store = HistoryStore::new(&app).map_err(|e| e.to_string())?;
+    let entries = store.get_all();
+
+    match format.as_str() {
+        "json" => serde_json::to_string_pretty(&entries).map_err(|e| e.to_string()),
+        "csv" => {
+            let mut csv = String::from("id,title,url,status,downloaded_at,file_size,quality\n");
+            for entry in entries {
+                csv.push_str(&format!(
+                    "{},{},{},{},{},{},{}\n",
+                    escape_csv(&entry.id),
+                    escape_csv(&entry.title),
+                    escape_csv(&entry.url),
+                    escape_csv(&entry.status),
+                    escape_csv(&entry.downloaded_at),
+                    entry.file_size.map_or(String::new(), |s| s.to_string()),
+                    entry.quality.unwrap_or_default()
+                ));
+            }
+            Ok(csv)
+        }
+        _ => Err(format!("Invalid format: {}. Supported: json, csv", format)),
+    }
+}
+
+/// Fetches and encodes a thumbnail image as base64 data URL.
+///
+/// Downloads the image from the given URL and returns a base64-encoded
+/// data URL that can be directly used in an `<img>` tag.
+/// This bypasses Referer/CORS restrictions by using the backend to fetch.
+///
+/// # Arguments
+///
+/// * `url` - Thumbnail image URL (e.g., from Bilibili)
+///
+/// # Returns
+///
+/// Base64-encoded data URL (e.g., "data:image/jpeg;base64,...").
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - HTTP request fails
+/// - Response byte reading fails
+/// - Base64 encoding fails
+#[tauri::command]
+async fn get_thumbnail_base64(url: String) -> Result<String, String> {
+    crate::handlers::bilibili::get_thumbnail_base64(&url).await
 }
 
 // NOTE: GA4 Analytics は無効化されています

@@ -4,7 +4,17 @@
     "subtitle": "Aplicación de escritorio ligera para ayudar con descargas",
     "logged_in_user": "Usuario conectado"
   },
-  "nav": { "home": "Inicio", "init": "Inicialización", "error": "Error" },
+  "nav": {
+    "home": "Inicio",
+    "history": "Historial",
+    "init": "Inicialización",
+    "error": "Error",
+    "aria": {
+      "mainNavigation": "Navegación principal",
+      "home": "Ir a la página de descarga",
+      "history": "Ir a la página de historial"
+    }
+  },
   "actions": {
     "submit": "Enviar",
     "cancel": "Cancelar",
@@ -141,7 +151,7 @@
         "max": "El título debe tener como máximo 100 caracteres.",
         "required": "Introduce un título.",
         "invalid_chars": "El título contiene caracteres no permitidos ({{chars}}).",
-        "duplicate": "Este nombre de archivo ya está usado por otra parte."
+        "duplicate": "Este nombre de archivo ya está siendo utilizado por otra parte."
       },
       "quality": {
         "required": "Selecciona una calidad."
@@ -150,5 +160,36 @@
         "required": "Selecciona una calidad de audio."
       }
     }
+  },
+  "history": {
+    "title": "Historial",
+    "clearAll": "Borrar todo",
+    "empty": "Aún no hay historial de descargas",
+    "searchPlaceholder": "Buscar en el historial...",
+    "filterAll": "Todos",
+    "filterSuccess": "Éxito",
+    "filterFailed": "Fallido",
+    "deleteConfirm": "¿Estás seguro de que quieres eliminar este elemento?",
+    "deleteAllConfirm": "¿Estás seguro de que quieres eliminar todos los elementos?",
+    "exportTitle": "Exportar historial",
+    "exportJson": "Exportar a JSON",
+    "exportCsv": "Exportar a CSV",
+    "exportSuccess": "Export successful",
+    "exportFailed": "Export failed",
+    "entryAdded": "Entrada de historial añadida",
+    "entryRemoved": "Entrada eliminada",
+    "cleared": "Historial borrado",
+    "exportedAsJson": "Historial exportado como JSON",
+    "exportedAsCsv": "Historial exportado como CSV",
+    "redownload": "Descargar de nuevo",
+    "columns": {
+      "title": "Título",
+      "url": "URL",
+      "date": "Fecha",
+      "status": "Estado",
+      "size": "Tamaño",
+      "quality": "Calidad"
+    },
+    "thumbnail": "Aún no hay historial de descargas"
   }
 }

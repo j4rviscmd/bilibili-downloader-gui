@@ -6,8 +6,14 @@
   },
   "nav": {
     "home": "Home",
+    "history": "History",
     "init": "Init",
-    "error": "Error"
+    "error": "Error",
+    "aria": {
+      "mainNavigation": "Main navigation",
+      "home": "Navigate to download page",
+      "history": "Navigate to history page"
+    }
   },
   "actions": {
     "submit": "Submit",
@@ -159,5 +165,36 @@
         "required": "Please select an audio quality."
       }
     }
+  },
+  "history": {
+    "title": "History",
+    "clearAll": "Clear All",
+    "empty": "No download history yet",
+    "searchPlaceholder": "Search history...",
+    "filterAll": "All",
+    "filterSuccess": "Success",
+    "filterFailed": "Failed",
+    "deleteConfirm": "Are you sure you want to delete this item?",
+    "deleteAllConfirm": "Are you sure you want to delete all items?",
+    "exportTitle": "Export History",
+    "exportJson": "Export JSON",
+    "exportCsv": "Export CSV",
+    "exportSuccess": "Export successful",
+    "exportFailed": "Export failed",
+    "entryAdded": "History entry added",
+    "entryRemoved": "Entry removed",
+    "cleared": "History cleared",
+    "exportedAsJson": "History exported as JSON",
+    "exportedAsCsv": "History exported as CSV",
+    "redownload": "Redownload",
+    "columns": {
+      "title": "Title",
+      "url": "URL",
+      "date": "Date",
+      "status": "Status",
+      "size": "Size",
+      "quality": "Quality"
+    },
+    "thumbnail": "No download history yet"
   }
 }
