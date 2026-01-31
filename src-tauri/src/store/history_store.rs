@@ -134,7 +134,6 @@ impl HistoryStore {
                             include = false;
                         }
                     }
-                }
 
                 include
             })
