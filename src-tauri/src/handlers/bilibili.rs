@@ -382,7 +382,8 @@ async fn fetch_video_info_for_history(
             let thumbnail_url = if body.data.pic.is_empty() {
                 None
             } else {
-                Some(body.data.pic)
+                // Convert HTTP to HTTPS for Bilibili images
+                Some(body.data.pic.replace("http://", "https://"))
             };
             Some((body.data.title, thumbnail_url))
         }
