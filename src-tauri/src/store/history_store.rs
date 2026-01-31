@@ -125,20 +125,12 @@ impl HistoryStore {
                 if let Some(ref query) = filters.query {
                     let query_lower = query.to_lowercase();
                     if let Some(title) = entry.get("title") {
-                        if !title
-                            .as_str()
-                            .map(|t| t.to_lowercase())
-                            .contains(&query_lower)
-                        {
+                        if !title.as_str().map(|t| t.to_lowercase()).contains(&query_lower) {
                             include = false;
                         }
                     }
                     if let Some(url) = entry.get("url") {
-                        if !url
-                            .as_str()
-                            .map(|u| u.to_lowercase())
-                            .contains(&query_lower)
-                        {
+                        if !url.as_str().map(|u| u.to_lowercase()).contains(&query_lower) {
                             include = false;
                         }
                     }
@@ -240,6 +232,7 @@ mod tests {
 
         let mut handle = MockHandle { store: None };
         let mut manager = MockHandle;
+
         let store = Store::new(handle.store("history.json").unwrap());
         let mut history_store = HistoryStore { store };
 
