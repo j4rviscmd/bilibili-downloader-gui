@@ -1,13 +1,11 @@
 'use client'
-import { redownloadFromHistory } from '@/features/history/api/redownload'
 import { getThumbnailBase64 } from '@/features/history/api/thumbnailApi'
 import type { HistoryEntry } from '@/features/history/model/historySlice'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
-import { Download, Loader2, Trash2 } from 'lucide-react'
+import { Download, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 /**
  * Props for HistoryItem component.
@@ -28,11 +26,7 @@ type Props = {
  * - Filename (if available)
  * - Download date, file size, and quality metadata
  * - Error message (if failed)
- * - Redownload button
  * - Delete button
- *
- * Redownload functionality fetches current video info and enqueues
- * download with available quality options.
  *
  * @example
  * ```tsx
@@ -44,7 +38,6 @@ type Props = {
  */
 function HistoryItem({ entry, onDelete }: Props) {
   const { t } = useTranslation()
-  const [isRedownloading, setIsRedownloading] = useState(false)
   const [thumbnailSrc, setThumbnailSrc] = useState<string | null>(null)
   const [thumbnailLoading, setThumbnailLoading] = useState(false)
 
@@ -64,20 +57,6 @@ function HistoryItem({ entry, onDelete }: Props) {
       setThumbnailSrc(entry.thumbnailUrl)
     }
   }, [entry.thumbnailUrl])
-
-  const handleRedownload = async () => {
-    setIsRedownloading(true)
-    try {
-      await redownloadFromHistory(entry)
-      toast.success(t('video.download_completed'))
-    } catch (error) {
-      toast.error(t('video.download_failed'), {
-        description: error instanceof Error ? error.message : String(error),
-      })
-    } finally {
-      setIsRedownloading(false)
-    }
-  }
 
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString)
@@ -172,19 +151,6 @@ function HistoryItem({ entry, onDelete }: Props) {
       </div>
 
       <div className="flex shrink-0 flex-col gap-1">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleRedownload}
-          title={t('history.redownload')}
-          disabled={isRedownloading}
-        >
-          {isRedownloading ? (
-            <Loader2 size={18} className="animate-spin" />
-          ) : (
-            <Download size={18} />
-          )}
-        </Button>
         <Button
           variant="ghost"
           size="icon"
