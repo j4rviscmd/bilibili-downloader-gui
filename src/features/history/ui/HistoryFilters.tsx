@@ -15,46 +15,38 @@ type Props = {
 /**
  * History filter dropdown component.
  *
- * Provides a dropdown menu to filter history entries by status:
- * - "all": Show all entries
- * - "completed": Show only successfully downloaded entries
- * - "failed": Show only failed download entries
- *
- * Labels are internationalized via react-i18next.
- *
- * @example
- * ```tsx
- * <HistoryFilters
- *   value={filter}
- *   onChange={(newValue) => updateFilters({ status: newValue })}
- * />
- * ```
+ * Provides a dropdown menu to filter history entries by status.
  */
 function HistoryFilters({ value, onChange }: Props) {
   const { t } = useTranslation()
 
-  const filterLabels: Record<Props['value'], string> = {
-    all: 'history.filterAll',
-    completed: 'history.filterSuccess',
-    failed: 'history.filterFailed',
+  const label = (status: Props['value']) => {
+    switch (status) {
+      case 'all':
+        return 'history.filterAll'
+      case 'completed':
+        return 'history.filterSuccess'
+      case 'failed':
+        return 'history.filterFailed'
+    }
   }
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="sm">
-          {t(filterLabels[value])}
+          {t(label(value))}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem onClick={() => onChange('all')}>
-          {t(filterLabels.all)}
+          {t(label('all'))}
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => onChange('completed')}>
-          {t(filterLabels.completed)}
+          {t(label('completed'))}
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => onChange('failed')}>
-          {t(filterLabels.failed)}
+          {t(label('failed'))}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

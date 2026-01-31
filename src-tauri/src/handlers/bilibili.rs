@@ -94,20 +94,12 @@ pub async fn download_video(
     audio_quality: i32,
     download_id: String,
 ) -> Result<(), String> {
-    // Analytics: mark start
-    // NOTE: GA4 Analytics は無効化されています
-    // crate::utils::analytics::mark_download_start(&download_id);
     // --------------------------------------------------
     // 1. 出力ファイルパス決定 + 自動リネーム
     // --------------------------------------------------
-    let mut output_path = match get_output_path(app, filename).await {
-        Ok(p) => p,
-        Err(e) => {
-            // NOTE: GA4 Analytics は無効化されています
-            // crate::utils::analytics::finish_download(app, &download_id, false, Some(&e.to_string())).await;
-            return Err(e.to_string());
-        }
-    };
+    let mut output_path = get_output_path(app, filename)
+        .await
+        .map_err(|e| e.to_string())?;
 
     // Avoid double extension if user already provided .mp4
     let filename_with_ext = if filename.to_lowercase().ends_with(".mp4") {
@@ -116,7 +108,6 @@ pub async fn download_video(
         &format!("{filename}.mp4")
     };
 
-    // Get directory from output_path and construct final path
     if let Some(parent) = output_path.parent() {
         output_path = parent.join(filename_with_ext);
     } else {
@@ -127,37 +118,22 @@ pub async fn download_video(
     // --------------------------------------------------
     // 2. Cookie チェック
     // --------------------------------------------------
-    let cookies_opt = match read_cookie(app) {
-        Ok(c) => c,
-        Err(e) => {
-            // NOTE: GA4 Analytics は無効化されています
-            // crate::utils::analytics::finish_download(app, &download_id, false, Some(&e.to_string())).await;
-            return Err(e.to_string());
-        }
-    };
-    if cookies_opt.is_none() {
-        // NOTE: GA4 Analytics は無効化されています
-        // crate::utils::analytics::finish_download(app, &download_id, false, Some("ERR::COOKIE_MISSING")).await;
-        return Err("ERR::COOKIE_MISSING".into());
-    }
-    let cookies = cookies_opt.unwrap();
+    let cookies = read_cookie(app)?
+        .ok_or("ERR::COOKIE_MISSING")?;
     let cookie_header = build_cookie_header(&cookies);
     if cookie_header.is_empty() {
-        // NOTE: GA4 Analytics は無効化されています
-        // crate::utils::analytics::finish_download(app, &download_id, false, Some("ERR::COOKIE_MISSING")).await;
         return Err("ERR::COOKIE_MISSING".into());
     }
 
     // --------------------------------------------------
-    // 2.5. 設定から速度閾値を取得
+    // 3. 設定から速度閾値を取得
     // --------------------------------------------------
     let min_speed_threshold = settings::get_settings(app)
-        .await
-        .map_err(|e| e.to_string())?
+        .await?
         .download_speed_threshold_mbps;
 
     // --------------------------------------------------
-    // 3. 動画詳細取得 (選択品質のURL抽出)
+    // 4. 動画詳細取得 (選択品質のURL抽出)
     // --------------------------------------------------
     let details = fetch_video_details(&cookies, bvid, cid).await?;
 
@@ -166,7 +142,7 @@ pub async fn download_video(
     let audio_url = select_stream_url(&details.data.dash.audio, audio_quality)?;
 
     // --------------------------------------------------
-    // 4. 容量事前チェック (取得できなければスキップ)
+    // 5. 容量事前チェック (取得できなければスキップ)
     // --------------------------------------------------
     let video_size = head_content_length(&video_url, Some(&cookie_header)).await;
     let audio_size = head_content_length(&audio_url, Some(&cookie_header)).await;
@@ -176,44 +152,25 @@ pub async fn download_video(
     }
 
     // --------------------------------------------------
-    // 5. temp ファイルパス生成 (download_id ベース)
+    // 6. temp ファイルパス生成
     // --------------------------------------------------
     let lib_path = get_lib_path(app);
     let temp_video_path = lib_path.join(format!("temp_video_{}.m4s", download_id));
     let temp_audio_path = lib_path.join(format!("temp_audio_{}.m4s", download_id));
 
     // --------------------------------------------------
-    // 6. 並列ダウンロード (音声 + 動画)
+    // 7. セマフォ取得 + 並列ダウンロード + マージ
     // --------------------------------------------------
-    //
-    // 同時実行制御:
-    // - セマフォ (VIDEO_SEMAPHORE) を使用して、同時にダウンロード・マージ処理を実行できる数を制限
-    // - セマフォはマージ完了まで保持されるため、並列実行数は「ネットワーク帯域」ではなく「マージ処理の負荷」に基づく
-    //
-    // 並列実行の利点:
-    // - 音声と動画を同時にダウンロードすることで、ネットワーク帯域を有効活用
-    // - ダウンロード時間を短縮（逐次実行の場合と比較して最大50%削減可能）
-    //
-    // エラーハンドリング:
-    // - tokio::try_join! により、いずれかのダウンロードが失敗した時点で即座にキャンセル
-    // - retry_download によりネットワーク一時エラーの場合は自動再試行（最大3回）
-    //
-    // セマフォのライフサイクル:
-    // 1. acquire_owned() - ダウンロード開始前に取得
-    // 2. 並列ダウンロード実行
-    // 3. マージ実行
-    // 4. drop(permit) - マージ完了後に解放
-    //
-    // セマフォをマージ完了まで保持
+    // セマフォは「マージ完了まで保持」され、並列実行数はマージ処理の負荷に基づく
     let permit = crate::handlers::concurrency::VIDEO_SEMAPHORE
         .clone()
         .acquire_owned()
         .await
         .map_err(|e| format!("Failed to acquire video semaphore permit: {}", e))?;
 
-    let cookie = Some(cookie_header.clone());
+    let cookie = Some(cookie_header);
 
-    // 並列実行（片方失敗で即時キャンセル）
+    // 音声と動画を並列ダウンロード (片方失敗で即時キャンセル)
     if let Err(e) = tokio::try_join!(
         retry_download(|| {
             download_url(
@@ -238,16 +195,11 @@ pub async fn download_video(
             )
         }),
     ) {
-        // NOTE: GA4 Analytics は無効化されています
-        // crate::utils::analytics::finish_download(app, &download_id, false, Some(&e)).await;
         return Err(e);
     }
 
-    // --------------------------------------------------
-    // 7. マージ (merge stage emit)
-    // --------------------------------------------------
-    // merge stage は ffmpeg::merge_av 内で Emits を1つ生成して送信する (重複防止)
-    if let Err(_e) = merge_av(
+    // マージ実行 (merge stage emitはffmpeg::merge_av内で送信)
+    merge_av(
         app,
         &temp_video_path,
         &temp_audio_path,
@@ -255,14 +207,9 @@ pub async fn download_video(
         Some(download_id.clone()),
     )
     .await
-    {
-        // NOTE: GA4 Analytics は無効化されています
-        // crate::utils::analytics::finish_download(app, &download_id, false, Some("ERR::MERGE_FAILED")).await;
-        return Err("ERR::MERGE_FAILED".into());
-    }
+    .map_err(|_| String::from("ERR::MERGE_FAILED"))?;
 
     // マージ完了後にセマフォを解放
-    // これにより、他の待機中のダウンロードがセマフォを取得可能になる
     drop(permit);
 
     // temp 削除
@@ -274,7 +221,7 @@ pub async fn download_video(
     let bvid_clone = bvid.to_string();
     let quality_clone = quality;
     tokio::spawn(async move {
-        match save_to_history(
+        if let Err(e) = save_to_history(
             &app_clone,
             &bvid_clone,
             quality_clone,
@@ -283,23 +230,9 @@ pub async fn download_video(
         )
         .await
         {
-            Ok(_) => {
-                eprintln!("History entry saved successfully: {}", bvid_clone);
-            }
-            Err(e) => {
-                // 履歴保存失敗は致命的ではない（ダウンロード自体は成功している）
-                eprintln!(
-                    "Warning: Failed to save to history for {}: {}",
-                    bvid_clone, e
-                );
-                // TODO: フロントエンドに通知する場合、ここでイベントを発行
-            }
+            eprintln!("Warning: Failed to save to history for {}: {}", bvid_clone, e);
         }
     });
-
-    // 完了イベントは ffmpeg::merge_av 内で stage=complete + complete() を送信する
-    // NOTE: GA4 Analytics は無効化されています
-    // crate::utils::analytics::finish_download(app, &download_id, true, None).await;
 
     Ok(())
 }

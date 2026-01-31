@@ -372,10 +372,6 @@ async fn get_os() -> String {
 ///
 /// Returns all persisted history entries from the history store.
 ///
-/// # Returns
-///
-/// Returns a vector of history entries.
-///
 /// # Errors
 ///
 /// Returns an error if the history store cannot be accessed.
@@ -389,11 +385,6 @@ async fn get_history(app: AppHandle) -> Result<Vec<HistoryEntry>, String> {
 ///
 /// Persists a history entry to the history store. The entry is inserted
 /// at the beginning of the history (newest first).
-///
-/// # Arguments
-///
-/// * `app` - Tauri application handle
-/// * `entry` - The history entry to add
 ///
 /// # Errors
 ///
@@ -410,11 +401,6 @@ async fn add_history_entry(app: AppHandle, entry: HistoryEntry) -> Result<(), St
 ///
 /// Deletes a single history entry from the history store.
 ///
-/// # Arguments
-///
-/// * `app` - Tauri application handle
-/// * `id` - The unique identifier of the entry to remove
-///
 /// # Errors
 ///
 /// Returns an error if:
@@ -430,10 +416,6 @@ async fn remove_history_entry(app: AppHandle, id: String) -> Result<(), String> 
 ///
 /// Removes all history entries from the history store.
 ///
-/// # Arguments
-///
-/// * `app` - Tauri application handle
-///
 /// # Errors
 ///
 /// Returns an error if the history store cannot be written to.
@@ -447,16 +429,6 @@ async fn clear_history(app: AppHandle) -> Result<(), String> {
 ///
 /// Searches through history entries using an optional query string and filters.
 ///
-/// # Arguments
-///
-/// * `app` - Tauri application handle
-/// * `query` - Optional search query for title/URL matching
-/// * `filters` - Optional filters for status and date range
-///
-/// # Returns
-///
-/// Returns a vector of matching history entries.
-///
 /// # Errors
 ///
 /// Returns an error if the history store cannot be accessed.
@@ -468,6 +440,18 @@ async fn search_history(
 ) -> Result<Vec<HistoryEntry>, String> {
     let store = HistoryStore::new(&app).map_err(|e| e.to_string())?;
     Ok(store.search(query, filters))
+}
+
+/// Escapes a string value for RFC 4180 compliant CSV output.
+///
+/// Quotes the value if it contains commas, quotes, or newlines.
+/// Embedded quotes are escaped by doubling them.
+fn escape_csv(s: &str) -> String {
+    let needs_quoting = s.contains(['"', ',', '\n', '\r']);
+    if !needs_quoting {
+        return s.to_string();
+    }
+    format!("\"{}\"", s.replace('"', "\"\""))
 }
 
 /// Exports history entries in JSON or CSV format.
@@ -498,16 +482,6 @@ async fn export_history(app: AppHandle, format: String) -> Result<String, String
         "csv" => {
             let mut csv = String::from("id,title,url,status,downloaded_at,file_size,quality\n");
             for entry in entries {
-                // RFC 4180 compliant CSV escaping
-                let escape_csv = |s: &str| -> String {
-                    let needs_quoting = s.contains(',') || s.contains('"') || s.contains('\n') || s.contains('\r');
-                    if !needs_quoting {
-                        return s.to_string();
-                    }
-                    let escaped = s.replace('"', "\"\"");
-                    format!("\"{}\"", escaped)
-                };
-
                 csv.push_str(&format!(
                     "{},{},{},{},{},{},{}\n",
                     escape_csv(&entry.id),

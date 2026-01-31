@@ -12,7 +12,6 @@ import {
   RadioGroupItem,
 } from '@/shared/animate-ui/radix/radio-group'
 import { Label } from '@/shared/ui/label'
-import { cn } from '@/shared/lib/utils'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -26,23 +25,7 @@ type Props = {
 /**
  * History export dialog component.
  *
- * Modal dialog for exporting history data in different formats:
- * - JSON: Structured data format
- * - CSV: Spreadsheet-compatible format
- *
- * Handles loading state during export and displays errors via toast notifications.
- *
- * @example
- * ```tsx
- * <HistoryExportDialog
- *   open={isExportDialogOpen}
- *   onOpenChange={setIsExportDialogOpen}
- *   onExport={async (format) => {
- *     const data = await history.exportData(format)
- *     downloadFile(data, format)
- *   }}
- * />
- * ```
+ * Modal dialog for exporting history data in JSON or CSV format.
  */
 function HistoryExportDialog({ open, onOpenChange, onExport }: Props) {
   const { t } = useTranslation()
@@ -67,7 +50,7 @@ function HistoryExportDialog({ open, onOpenChange, onExport }: Props) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{t('history.exportTitle')}</DialogTitle>
-          <DialogDescription hidden></DialogDescription>
+          <DialogDescription hidden />
         </DialogHeader>
         <div className="space-y-4 py-4">
           <RadioGroup value={format} onValueChange={(v) => setFormat(v as 'json' | 'csv')}>
@@ -82,11 +65,7 @@ function HistoryExportDialog({ open, onOpenChange, onExport }: Props) {
           </RadioGroup>
         </div>
         <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={exporting}
-          >
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={exporting}>
             {t('actions.cancel')}
           </Button>
           <Button onClick={handleExport} disabled={exporting}>

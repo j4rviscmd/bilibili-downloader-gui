@@ -4,101 +4,65 @@ import type {
 } from '@/features/history/model/historySlice'
 import { invoke } from '@tauri-apps/api/core'
 
-type InvokeError = unknown
-
-function formatError(prefix: string, error: InvokeError): Error {
+/**
+ * Formats an error from Tauri invoke call with consistent prefix.
+ */
+function formatError(prefix: string, error: unknown): Error {
   const message = error instanceof Error ? error.message : String(error)
   console.error(`${prefix}:`, error)
   return new Error(`${prefix}: ${message}`)
 }
 
 /**
- * Retrieves all download history entries from Tauri backend.
- *
- * @returns A promise resolving to an array of history entries
- * @throws Error if backend command fails
+ * Wrapper for Tauri invoke calls with consistent error handling.
  */
-export const getHistory = async (): Promise<HistoryEntry[]> => {
+async function invokeWithErrorHandling<T>(
+  command: string,
+  args: Record<string, unknown>,
+  errorPrefix: string,
+): Promise<T> {
   try {
-    return await invoke<HistoryEntry[]>('get_history')
+    return await invoke<T>(command, args)
   } catch (error) {
-    throw formatError('Failed to retrieve history', error)
+    throw formatError(errorPrefix, error)
   }
 }
+
+/**
+ * Retrieves all download history entries from Tauri backend.
+ */
+export const getHistory = (): Promise<HistoryEntry[]> =>
+  invokeWithErrorHandling('get_history', {}, 'Failed to retrieve history')
 
 /**
  * Adds a new entry to download history.
- *
- * @param entry - The history entry to add
- * @throws Error if backend fails to save
  */
-export const addHistoryEntry = async (entry: HistoryEntry): Promise<void> => {
-  try {
-    await invoke<void>('add_history_entry', { entry })
-  } catch (error) {
-    throw formatError('Failed to add history entry', error)
-  }
-}
+export const addHistoryEntry = (entry: HistoryEntry): Promise<void> =>
+  invokeWithErrorHandling('add_history_entry', { entry }, 'Failed to add history entry')
 
 /**
  * Removes a single history entry by ID.
- *
- * @param id - The unique identifier of the history entry to remove
- * @throws Error if backend fails to remove
  */
-export const removeHistoryEntry = async (id: string): Promise<void> => {
-  try {
-    await invoke<void>('remove_history_entry', { id })
-  } catch (error) {
-    throw formatError('Failed to remove history entry', error)
-  }
-}
+export const removeHistoryEntry = (id: string): Promise<void> =>
+  invokeWithErrorHandling('remove_history_entry', { id }, 'Failed to remove history entry')
 
 /**
  * Clears all download history entries.
- *
- * @throws Error if backend fails to clear history
  */
-export const clearHistory = async (): Promise<void> => {
-  try {
-    await invoke<void>('clear_history')
-  } catch (error) {
-    throw formatError('Failed to clear history', error)
-  }
-}
+export const clearHistory = (): Promise<void> =>
+  invokeWithErrorHandling('clear_history', {}, 'Failed to clear history')
 
 /**
  * Searches history entries with optional filters.
- *
- * @param query - Search query string to match against title, URL, or filename
- * @param filters - Optional filters for status and date range
- * @returns A promise resolving to filtered history entries
- * @throws Error if backend command fails
  */
-export const searchHistory = async (
+export const searchHistory = (
   query: string,
   filters?: HistoryFilters,
-): Promise<HistoryEntry[]> => {
-  try {
-    return await invoke<HistoryEntry[]>('search_history', { query, filters })
-  } catch (error) {
-    throw formatError('Failed to search history', error)
-  }
-}
+): Promise<HistoryEntry[]> =>
+  invokeWithErrorHandling('search_history', { query, filters }, 'Failed to search history')
 
 /**
  * Exports history entries to a file in the specified format.
- *
- * @param format - Export format ('json' or 'csv')
- * @returns A promise resolving to the exported data string
- * @throws Error if backend fails to export
  */
-export const exportHistory = async (
-  format: 'json' | 'csv',
-): Promise<string> => {
-  try {
-    return await invoke<string>('export_history', { format })
-  } catch (error) {
-    throw formatError('Failed to export history', error)
-  }
-}
+export const exportHistory = (format: 'json' | 'csv'): Promise<string> =>
+  invokeWithErrorHandling('export_history', { format }, 'Failed to export history')

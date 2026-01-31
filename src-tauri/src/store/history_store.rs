@@ -105,15 +105,6 @@ impl HistoryStore {
     /// - **Query**: Searches case-insensitive in title and URL
     /// - **Status**: Filters by status ("completed", "failed", or "all")
     /// - **Date range**: Filters entries after `date_from` (if provided)
-    ///
-    /// # Arguments
-    ///
-    /// * `query` - Optional search query for title/URL matching
-    /// * `filters` - Optional filters for status and date range
-    ///
-    /// # Returns
-    ///
-    /// A vector of history entries matching all specified criteria.
     pub fn search(
         &self,
         query: Option<String>,
@@ -125,47 +116,36 @@ impl HistoryStore {
         entries
             .into_iter()
             .filter(|entry| {
-                let mut include = true;
-
-                // Query search
-                if let Some(ref q) = query {
-                    if !q.is_empty() {
-                        let query_lower = q.to_lowercase();
-                        let title_match = entry.title.to_lowercase().contains(&query_lower);
-                        let url_match = entry.url.to_lowercase().contains(&query_lower);
-                        if !title_match && !url_match {
-                            include = false;
-                        }
+                // Query search: match title or URL case-insensitively
+                if let Some(q) = query.as_ref().filter(|s| !s.is_empty()) {
+                    let query_lower = q.to_lowercase();
+                    let matches = entry.title.to_lowercase().contains(&query_lower)
+                        || entry.url.to_lowercase().contains(&query_lower);
+                    if !matches {
+                        return false;
                     }
                 }
 
                 // Status filter
-                if include {
-                    if let Some(ref status) = filters.status {
-                        if status != "all" {
-                            let entry_status =
-                                if entry.status == "success" || entry.status == "completed" {
-                                    "completed"
-                                } else {
-                                    entry.status.as_str()
-                                };
-                            if entry_status != status {
-                                include = false;
-                            }
-                        }
+                if let Some(status) = filters.status.as_ref().filter(|s| *s != "all") {
+                    let entry_status = if entry.status == "success" || entry.status == "completed" {
+                        "completed"
+                    } else {
+                        entry.status.as_str()
+                    };
+                    if entry_status != status {
+                        return false;
                     }
                 }
 
                 // Date range filter
-                if include {
-                    if let Some(ref date_from) = filters.date_from {
-                        if &entry.downloaded_at < date_from {
-                            include = false;
-                        }
+                if let Some(date_from) = filters.date_from.as_ref() {
+                    if &entry.downloaded_at < date_from {
+                        return false;
                     }
                 }
 
-                include
+                true
             })
             .collect()
     }

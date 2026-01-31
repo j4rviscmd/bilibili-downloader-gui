@@ -22,10 +22,9 @@ import { useEffect, useMemo } from 'react'
 import { useSelector } from 'react-redux'
 import { toast } from 'sonner'
 
-function getErrorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : 'An unknown error occurred'
-}
-
+/**
+ * Wraps an async operation with loading state and error handling.
+ */
 async function withLoading<T>(
   callback: () => Promise<T>,
   onSuccess?: () => void,
@@ -37,9 +36,9 @@ async function withLoading<T>(
     onSuccess?.()
     return result
   } catch (err) {
-    const msg = getErrorMessage(err)
-    store.dispatch(setError(msg))
-    toast.error(msg)
+    const message = err instanceof Error ? err.message : 'An unknown error occurred'
+    store.dispatch(setError(message))
+    toast.error(message)
     throw err
   } finally {
     store.dispatch(setLoading(false))
@@ -49,18 +48,8 @@ async function withLoading<T>(
 /**
  * Custom hook for managing download history.
  *
- * Provides:
- * - History entries data
- * - Search and filter functionality
- * - CRUD operations (add, remove, clear)
- * - Export functionality
- * - Loading and error states
- *
- * @example
- * ```tsx
- * const history = useHistory()
- * <HistoryList entries={history.entries} />
- * ```
+ * Provides history entries, search/filter functionality, CRUD operations,
+ * export functionality, and loading/error states.
  */
 export function useHistory() {
   const entries = useSelector((state: RootState) => state.history.entries)
@@ -70,11 +59,7 @@ export function useHistory() {
   const searchQuery = useSelector((state: RootState) => state.history.searchQuery)
 
   useEffect(() => {
-    withLoading(
-      () => getHistory().then((entries) => {
-        store.dispatch(setEntries(entries))
-      }),
-    )
+    withLoading(() => getHistory().then((entries) => store.dispatch(setEntries(entries))))
   }, [])
 
   const filteredEntries = useMemo(() => {
