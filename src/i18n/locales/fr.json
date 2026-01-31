@@ -173,6 +173,8 @@
     "exportTitle": "Exporter l'historique",
     "exportJson": "Exporter en JSON",
     "exportCsv": "Exporter en CSV",
+    "exportSuccess": "Export successful",
+    "exportFailed": "Export failed",
     "redownload": "Télécharger à nouveau",
     "columns": {
       "title": "Titre",

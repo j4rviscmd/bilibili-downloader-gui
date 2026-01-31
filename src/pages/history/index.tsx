@@ -5,9 +5,12 @@ import HistoryList from '@/features/history/ui/HistoryList'
 import HistorySearch from '@/features/history/ui/HistorySearch'
 import { PageLayout } from '@/shared/layout'
 import { Button } from '@/shared/ui/button'
+import { save } from '@tauri-apps/plugin-dialog'
+import { writeTextFile } from '@tauri-apps/plugin-fs'
 import { FileText, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 function HistoryPage() {
   const { t } = useTranslation()
@@ -40,20 +43,31 @@ function HistoryPage() {
     try {
       const data = await exportData(format)
 
-      const blob = new Blob([data], {
-        type: format === 'json' ? 'application/json' : 'text/csv',
+      // Show file save dialog
+      const filePath = await save({
+        title: t('history.exportTitle'),
+        defaultPath: `history.${format}`,
+        filters: [
+          {
+            name: format.toUpperCase(),
+            extensions: [format],
+          },
+        ],
       })
 
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `history.${format}`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
+      if (!filePath) {
+        // User cancelled the dialog
+        return
+      }
+
+      // Write file to selected location
+      await writeTextFile(filePath, data)
+
+      toast.success(t('history.exportSuccess'))
+      setExportDialogOpen(false)
     } catch (error) {
       console.error('Export failed:', error)
+      toast.error(error instanceof Error ? error.message : t('history.exportFailed'))
     }
   }
 

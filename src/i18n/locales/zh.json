@@ -173,6 +173,8 @@
     "exportTitle": "导出历史记录",
     "exportJson": "导出为 JSON",
     "exportCsv": "导出为 CSV",
+    "exportSuccess": "Export successful",
+    "exportFailed": "Export failed",
     "redownload": "重新下载",
     "columns": {
       "title": "标题",

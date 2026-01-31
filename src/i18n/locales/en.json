@@ -179,6 +179,8 @@
     "exportTitle": "Export History",
     "exportJson": "Export JSON",
     "exportCsv": "Export CSV",
+    "exportSuccess": "Export successful",
+    "exportFailed": "Export failed",
     "redownload": "Redownload",
     "columns": {
       "title": "Title",

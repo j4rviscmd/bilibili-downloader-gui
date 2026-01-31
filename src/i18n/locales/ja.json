@@ -179,6 +179,8 @@
     "exportTitle": "履歴のエクスポート",
     "exportJson": "JSON エクスポート",
     "exportCsv": "CSV エクスポート",
+    "exportSuccess": "エクスポートが完了しました",
+    "exportFailed": "エクスポートに失敗しました",
     "redownload": "再ダウンロード",
     "columns": {
       "title": "タイトル",
