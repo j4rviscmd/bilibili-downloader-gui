@@ -127,7 +127,7 @@ describe('History Integration Tests', () => {
         },
       ]
       const mockJsonData = '[{"id":"1","title":"Test Video"}]'
-      mockInvoke.mockImplementation((cmd: string, _args?: unknown) => {
+      mockInvoke.mockImplementation((cmd: string) => {
         if (cmd === 'get_history') return Promise.resolve(mockEntries)
         if (cmd === 'export_history') return Promise.resolve(mockJsonData)
         return Promise.resolve(undefined)
@@ -153,7 +153,7 @@ describe('History Integration Tests', () => {
       ]
       const mockCsvData =
         'id,title,url,filename,downloadedAt,status\n1,Test Video,https://bilibili.com/video/BV1xx411c7XD,,2024-01-15T10:30:00Z,completed'
-      mockInvoke.mockImplementation((cmd: string, _args?: unknown) => {
+      mockInvoke.mockImplementation((cmd: string) => {
         if (cmd === 'get_history') return Promise.resolve(mockEntries)
         if (cmd === 'export_history') return Promise.resolve(mockCsvData)
         return Promise.resolve(undefined)
