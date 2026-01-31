@@ -290,13 +290,13 @@ async fn save_to_history(
     use chrono::Utc;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    // 動画タイトルを取得
-    let title =
-        match fetch_video_title_for_history(bvid, read_cookie(app)?.as_deref().unwrap_or_default())
+    // 動画タイトルとサムネイルを取得
+    let (title, thumbnail_url) =
+        match fetch_video_info_for_history(bvid, read_cookie(app)?.as_deref().unwrap_or_default())
             .await
         {
-            Some(t) => t,
-            None => bvid.to_string(), // フォールバック: BV IDを使用
+            Some(info) => info,
+            None => (bvid.to_string(), None), // フォールバック: BV IDを使用
         };
 
     let id = format!(
@@ -320,7 +320,7 @@ async fn save_to_history(
         status: "completed".to_string(),
         file_size,
         quality: Some(quality_to_string(&quality)),
-        thumbnail_url: None,
+        thumbnail_url,
         version: "1.0".to_string(),
     };
 
@@ -366,8 +366,11 @@ fn quality_to_string(quality: &i32) -> String {
 ///
 /// # Returns
 ///
-/// `Some(title)` if successful, `None` if fetch fails.
-async fn fetch_video_title_for_history(bvid: &str, cookies: &[CookieEntry]) -> Option<String> {
+/// Returns `(title, thumbnail_url)` if successful, `None` if fetch fails.
+async fn fetch_video_info_for_history(
+    bvid: &str,
+    cookies: &[CookieEntry],
+) -> Option<(String, Option<String>)> {
     let video = crate::models::frontend_dto::Video {
         title: String::new(),
         bvid: bvid.to_string(),
@@ -375,7 +378,14 @@ async fn fetch_video_title_for_history(bvid: &str, cookies: &[CookieEntry]) -> O
     };
 
     match fetch_video_title(&video, cookies).await {
-        Ok(body) => Some(body.data.title),
+        Ok(body) => {
+            let thumbnail_url = if body.data.pic.is_empty() {
+                None
+            } else {
+                Some(body.data.pic)
+            };
+            Some((body.data.title, thumbnail_url))
+        }
         Err(_) => None,
     }
 }

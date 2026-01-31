@@ -52,6 +52,7 @@ pub struct WebInterfaceApiResponsePage {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WebInterfaceApiResponseData {
     pub title: String,
+    pub pic: String,
     pub cid: i64,
     pub pages: Vec<WebInterfaceApiResponsePage>,
 }
