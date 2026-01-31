@@ -45,7 +45,7 @@ function HistoryExportDialog({ open, onOpenChange, onExport }: Props) {
       onOpenChange(false)
       setFormat('json')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Export failed')
+      toast.error(err instanceof Error ? err.message : t('history.exportFailed'))
     } finally {
       setExporting(false)
     }

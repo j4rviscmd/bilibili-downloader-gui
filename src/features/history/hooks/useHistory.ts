@@ -21,6 +21,7 @@ import {
 import { useEffect, useMemo } from 'react'
 import { useSelector } from 'react-redux'
 import { toast } from 'sonner'
+import { useTranslation } from 'react-i18next'
 
 /**
  * Wraps an async operation with loading state and error handling.
@@ -52,6 +53,7 @@ async function withLoading<T>(
  * export functionality, and loading/error states.
  */
 export function useHistory() {
+  const { t } = useTranslation()
   const entries = useSelector((state: RootState) => state.history.entries)
   const loading = useSelector((state: RootState) => state.history.loading)
   const error = useSelector((state: RootState) => state.history.error)
@@ -87,7 +89,7 @@ export function useHistory() {
       () => apiAddHistoryEntry(entry),
       () => {
         store.dispatch(addEntry(entry))
-        toast.success('History entry added')
+        toast.success(t('history.entryAdded'))
       },
     )
 
@@ -96,7 +98,7 @@ export function useHistory() {
       () => apiRemoveHistoryEntry(id),
       () => {
         store.dispatch(removeEntry(id))
-        toast.success('Entry removed')
+        toast.success(t('history.entryRemoved'))
       },
     )
 
@@ -105,7 +107,7 @@ export function useHistory() {
       () => apiClearHistory(),
       () => {
         store.dispatch(clearHistory())
-        toast.success('History cleared')
+        toast.success(t('history.cleared'))
       },
     )
 
@@ -120,7 +122,10 @@ export function useHistory() {
   const exportData = async (format: 'json' | 'csv'): Promise<string> =>
     withLoading(
       () => exportHistory(format),
-      () => toast.success(`History exported as ${format.toUpperCase()}`),
+      () =>
+        toast.success(
+          format === 'json' ? t('history.exportedAsJson') : t('history.exportedAsCsv'),
+        ),
     )
 
   return {
