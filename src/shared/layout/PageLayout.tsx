@@ -96,7 +96,7 @@ export function PageLayout({
 
   return (
     <>
-      <SidebarProvider defaultOpen={false}>
+      <SidebarProvider defaultOpen={true}>
         <Sidebar>
           <NavigationSidebarHeader />
           <SidebarContent />
