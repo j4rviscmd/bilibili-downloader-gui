@@ -1,13 +1,16 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import type {
+  HistoryEntry,
+  HistoryFilters,
+} from '@/features/history/model/historySlice'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  getHistory,
   addHistoryEntry,
-  removeHistoryEntry,
   clearHistory,
-  searchHistory,
   exportHistory,
+  getHistory,
+  removeHistoryEntry,
+  searchHistory,
 } from './historyApi'
-import type { HistoryItem, HistoryFilters } from '@/features/history/model/historySlice'
 
 // Mock the Tauri invoke function
 vi.mock('@tauri-apps/api/core', () => ({
@@ -19,7 +22,7 @@ import { invoke } from '@tauri-apps/api/core'
 const mockInvoke = invoke as unknown as ReturnType<typeof vi.fn>
 
 describe('historyApi', () => {
-  const mockEntry: HistoryItem = {
+  const mockEntry: HistoryEntry = {
     id: '1',
     title: 'Test Video',
     url: 'https://example.com/video1',
@@ -31,7 +34,7 @@ describe('historyApi', () => {
     status: 'completed',
   }
 
-  const mockEntry2: HistoryItem = {
+  const mockEntry2: HistoryEntry = {
     id: '2',
     title: 'Another Video',
     url: 'https://example.com/video2',
@@ -67,7 +70,9 @@ describe('historyApi', () => {
     it('should throw error when invoke fails', async () => {
       mockInvoke.mockRejectedValue(new Error('Database error'))
 
-      await expect(getHistory()).rejects.toThrow('Database error')
+      await expect(getHistory()).rejects.toThrow(
+        'Failed to retrieve history: Database error',
+      )
     })
   })
 
@@ -77,13 +82,17 @@ describe('historyApi', () => {
 
       await addHistoryEntry(mockEntry)
 
-      expect(mockInvoke).toHaveBeenCalledWith('add_history_entry', { entry: mockEntry })
+      expect(mockInvoke).toHaveBeenCalledWith('add_history_entry', {
+        entry: mockEntry,
+      })
     })
 
     it('should throw error when invoke fails', async () => {
       mockInvoke.mockRejectedValue(new Error('Invalid data'))
 
-      await expect(addHistoryEntry(mockEntry)).rejects.toThrow('Invalid data')
+      await expect(addHistoryEntry(mockEntry)).rejects.toThrow(
+        'Failed to add history entry: Invalid data',
+      )
     })
   })
 
@@ -93,13 +102,17 @@ describe('historyApi', () => {
 
       await removeHistoryEntry('1')
 
-      expect(mockInvoke).toHaveBeenCalledWith('remove_history_entry', { id: '1' })
+      expect(mockInvoke).toHaveBeenCalledWith('remove_history_entry', {
+        id: '1',
+      })
     })
 
     it('should throw error when invoke fails', async () => {
       mockInvoke.mockRejectedValue(new Error('Entry not found'))
 
-      await expect(removeHistoryEntry('non-existent')).rejects.toThrow('Entry not found')
+      await expect(removeHistoryEntry('non-existent')).rejects.toThrow(
+        'Failed to remove history entry: Entry not found',
+      )
     })
   })
 
@@ -115,7 +128,9 @@ describe('historyApi', () => {
     it('should throw error when invoke fails', async () => {
       mockInvoke.mockRejectedValue(new Error('Permission denied'))
 
-      await expect(clearHistory()).rejects.toThrow('Permission denied')
+      await expect(clearHistory()).rejects.toThrow(
+        'Failed to clear history: Permission denied',
+      )
     })
   })
 
@@ -125,17 +140,26 @@ describe('historyApi', () => {
 
       const result = await searchHistory('test')
 
-      expect(mockInvoke).toHaveBeenCalledWith('search_history', { query: 'test', filters: undefined })
+      expect(mockInvoke).toHaveBeenCalledWith('search_history', {
+        query: 'test',
+        filters: undefined,
+      })
       expect(result).toEqual([mockEntry])
     })
 
     it('should call invoke with filters when provided', async () => {
       mockInvoke.mockResolvedValue([mockEntry])
-      const filters: HistoryFilters = { status: 'completed', dateFrom: '2024-01-01' }
+      const filters: HistoryFilters = {
+        status: 'completed',
+        dateFrom: '2024-01-01',
+      }
 
       await searchHistory('test', filters)
 
-      expect(mockInvoke).toHaveBeenCalledWith('search_history', { query: 'test', filters })
+      expect(mockInvoke).toHaveBeenCalledWith('search_history', {
+        query: 'test',
+        filters,
+      })
     })
 
     it('should return empty array when no matches', async () => {
@@ -149,7 +173,9 @@ describe('historyApi', () => {
     it('should throw error when invoke fails', async () => {
       mockInvoke.mockRejectedValue(new Error('Search error'))
 
-      await expect(searchHistory('test')).rejects.toThrow('Search error')
+      await expect(searchHistory('test')).rejects.toThrow(
+        'Failed to search history: Search error',
+      )
     })
   })
 
@@ -159,7 +185,9 @@ describe('historyApi', () => {
 
       const result = await exportHistory('json')
 
-      expect(mockInvoke).toHaveBeenCalledWith('export_history', { format: 'json' })
+      expect(mockInvoke).toHaveBeenCalledWith('export_history', {
+        format: 'json',
+      })
       expect(result).toBe('/path/to/export.json')
     })
 
@@ -168,14 +196,18 @@ describe('historyApi', () => {
 
       const result = await exportHistory('csv')
 
-      expect(mockInvoke).toHaveBeenCalledWith('export_history', { format: 'csv' })
+      expect(mockInvoke).toHaveBeenCalledWith('export_history', {
+        format: 'csv',
+      })
       expect(result).toBe('/path/to/export.csv')
     })
 
     it('should throw error when invoke fails', async () => {
       mockInvoke.mockRejectedValue(new Error('Invalid format'))
 
-      await expect(exportHistory('xml')).rejects.toThrow('Invalid format')
+      await expect(exportHistory('csv')).rejects.toThrow(
+        'Failed to export history: Invalid format',
+      )
     })
   })
 })
