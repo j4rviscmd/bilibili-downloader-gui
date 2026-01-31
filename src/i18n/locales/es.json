@@ -150,7 +150,8 @@
         "min": "El título debe tener al menos 2 caracteres.",
         "max": "El título debe tener como máximo 100 caracteres.",
         "required": "Introduce un título.",
-        "invalid_chars": "El título contiene caracteres no permitidos ({{chars}})."
+        "invalid_chars": "El título contiene caracteres no permitidos ({{chars}}).",
+        "duplicate": "Este nombre de archivo ya está siendo utilizado por otra parte."
       },
       "quality": {
         "required": "Selecciona una calidad."
@@ -175,6 +176,11 @@
     "exportCsv": "Exportar a CSV",
     "exportSuccess": "Export successful",
     "exportFailed": "Export failed",
+    "entryAdded": "Entrada de historial añadida",
+    "entryRemoved": "Entrada eliminada",
+    "cleared": "Historial borrado",
+    "exportedAsJson": "Historial exportado como JSON",
+    "exportedAsCsv": "Historial exportado como CSV",
     "redownload": "Descargar de nuevo",
     "columns": {
       "title": "Título",

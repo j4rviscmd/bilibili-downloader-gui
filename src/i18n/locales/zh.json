@@ -150,7 +150,8 @@
         "min": "标题至少需要 2 个字符。",
         "max": "标题长度不能超过 100 个字符。",
         "required": "请输入标题。",
-        "invalid_chars": "标题包含不允许的字符（{{chars}}）。"
+        "invalid_chars": "标题包含不允许的字符（{{chars}}）。",
+        "duplicate": "该文件名已被其他部分使用。"
       },
       "quality": {
         "required": "请选择清晰度。"
@@ -175,6 +176,11 @@
     "exportCsv": "导出为 CSV",
     "exportSuccess": "Export successful",
     "exportFailed": "Export failed",
+    "entryAdded": "历史记录已添加",
+    "entryRemoved": "已删除记录",
+    "cleared": "历史记录已清空",
+    "exportedAsJson": "历史记录已导出为 JSON",
+    "exportedAsCsv": "历史记录已导出为 CSV",
     "redownload": "重新下载",
     "columns": {
       "title": "标题",
