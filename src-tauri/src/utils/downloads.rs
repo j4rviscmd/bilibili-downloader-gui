@@ -281,14 +281,10 @@ pub async fn download_url(
                             reconnect_attempt,
                             min_speed_threshold_bytes_per_sec,
                             |chunk_len| {
-                                // fetch_add returns the OLD value, so add chunk_len to get new value
-                                let new_total =
-                                    dl_total_c.fetch_add(chunk_len, Ordering::Relaxed) + chunk_len;
-                                // Emit progress update (runs in background task)
-                                let emits_clone = emits_c_for_callback.clone();
-                                tokio::spawn(async move {
-                                    emits_clone.update_progress(new_total).await;
-                                });
+                                // Emit progress update via watch channel (non-blocking)
+                                // Note: Use relaxed ordering for progress tracking only
+                                let current = dl_total_c.load(Ordering::Relaxed);
+                                emits_c_for_callback.update_progress(current + chunk_len);
                             },
                         )
                         .await;
@@ -315,6 +311,10 @@ pub async fn download_url(
 
                         // Write to file
                         write_segment(&path_c, s, &buf).await?;
+
+                        // Add confirmed segment size to total (matching pre-change behavior)
+                        let new_total = dl_total_c.fetch_add(size, Ordering::Relaxed) + size;
+                        emits_c.update_progress(new_total);
 
                         return Ok(());
                     }
@@ -507,10 +507,8 @@ async fn single_stream_fallback(
     while let Some(chunk) = resp.chunk().await? {
         file.write_all(&chunk).await.map_err(map_io_error)?;
         downloaded += chunk.len() as u64;
-        let emits_clone = emits_for_callback.clone();
-        tokio::spawn(async move {
-            emits_clone.update_progress(downloaded).await;
-        });
+        // Emit progress update via watch channel (non-blocking)
+        emits_for_callback.update_progress(downloaded);
     }
 
     file.flush().await.map_err(map_io_error)?;
