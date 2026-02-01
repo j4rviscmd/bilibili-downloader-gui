@@ -178,11 +178,11 @@ function DownloadingDialog() {
               return (
                 <div
                   key={parentId}
-                  className="bg-card hover:border-border/80 mb-3 w-full rounded-lg border px-3 py-3 transition-colors duration-200"
+                  className="bg-card hover:border-border/80 mb-2 w-full rounded-lg border px-2.5 py-2.5 transition-colors duration-200"
                 >
                   {groupTitle && (
                     <div
-                      className="text-md mb-2 truncate px-2 leading-tight font-semibold"
+                      className="text-md mb-1.5 truncate px-1.5 leading-tight font-semibold"
                       title={groupTitle}
                     >
                       {groupTitle}
@@ -229,10 +229,10 @@ function DownloadingDialog() {
           {notInProgress.map((part) => (
             <div
               key={part.page}
-              className="bg-card hover:border-border/80 mb-3 w-full rounded-lg border px-3 py-3 transition-colors duration-200"
+              className="bg-card hover:border-border/80 mb-2 w-full rounded-lg border px-2.5 py-2.5 transition-colors duration-200"
             >
               <div
-                className="text-md mb-1 truncate px-2 leading-tight font-semibold"
+                className="text-md mb-0.5 truncate px-1.5 leading-tight font-semibold"
                 title={part.title}
               >
                 <span className="pr-1">{t('video.queue_waiting_prefix')}</span>
@@ -246,7 +246,7 @@ function DownloadingDialog() {
           <div
             role="alert"
             aria-live="polite"
-            className="border-destructive/50 bg-destructive/10 text-destructive mb-4 w-full rounded-lg border px-4 py-3 text-sm"
+            className="border-destructive/50 bg-destructive/10 text-destructive mb-3 w-full rounded-lg border px-3 py-2.5 text-sm"
           >
             <div className="mb-1 font-semibold">
               {t('video.download_failed')}
@@ -254,7 +254,7 @@ function DownloadingDialog() {
             <div className="truncate" title={errorMessage || ''}>
               {errorMessage}
             </div>
-            <div className="text-muted-foreground mt-2 text-xs">
+            <div className="text-muted-foreground mt-1.5 text-xs">
               {t('video.reload_after_error')}
             </div>
           </div>

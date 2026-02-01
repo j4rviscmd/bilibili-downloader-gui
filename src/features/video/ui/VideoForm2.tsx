@@ -26,6 +26,13 @@ import {
 } from '@/shared/ui/form'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/shared/animate-ui/radix/tooltip'
+import { Info } from 'lucide-react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
@@ -162,7 +169,8 @@ function VideoForm2({ video, page, isDuplicate }: Props) {
                 </FormItem>
               )}
             />
-            <div className="grid grid-cols-24 items-center gap-3">
+            <TooltipProvider delayDuration={200}>
+              <div className="grid grid-cols-24 items-center gap-3">
               <div className="col-span-12 flex h-full gap-3">
                 <div className="flex items-center">
                   <Checkbox
@@ -191,14 +199,28 @@ function VideoForm2({ video, page, isDuplicate }: Props) {
                 control={form.control}
                 name="videoQuality"
                 render={({ field }) => (
-                  <FormItem className="col-span-6 h-fit">
-                    <FormLabel>{t('video.quality_label')}</FormLabel>
+                  <FormItem className="col-span-12 h-fit">
+                    <div className="flex items-center gap-1.5">
+                      <FormLabel>{t('video.quality_label')}</FormLabel>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          <p className="text-xs">
+                            {t('video.quality_description')}
+                          </p>
+                          <p className="text-xs mt-1">{t('video.quality_note')}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
                     <FormControl>
                       <RadioGroup
                         {...field}
                         value={String(field.value)}
                         onValueChange={field.onChange}
                         orientation="horizontal"
+                        className="flex flex-wrap gap-x-4 gap-y-2"
                       >
                         {Object.entries(VIDEO_QUALITIES_MAP)
                           .reverse()
@@ -260,13 +282,29 @@ function VideoForm2({ video, page, isDuplicate }: Props) {
                 control={form.control}
                 name="audioQuality"
                 render={({ field }) => (
-                  <FormItem className="col-span-6 h-fit">
-                    <FormLabel>{t('video.audio_quality_label')}</FormLabel>
+                  <FormItem className="col-span-12 h-fit">
+                    <div className="flex items-center gap-1.5">
+                      <FormLabel>{t('video.audio_quality_label')}</FormLabel>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          <p className="text-xs">
+                            {t('video.audio_quality_description')}
+                          </p>
+                          <p className="text-xs mt-1">
+                            {t('video.audio_quality_note')}
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
                     <FormControl>
                       <RadioGroup
                         {...field}
                         value={String(field.value)}
                         onValueChange={field.onChange}
+                        className="flex flex-wrap gap-x-4 gap-y-2"
                       >
                         {AUDIO_QUALITIES_ORDER.map((id) => {
                           const value = AUDIO_QUALITIES_MAP[id]
@@ -317,7 +355,8 @@ function VideoForm2({ video, page, isDuplicate }: Props) {
                   </FormItem>
                 )}
               />
-            </div>
+              </div>
+            </TooltipProvider>
           </form>
         </fieldset>
       </Form>

@@ -101,7 +101,7 @@ function HomePage() {
         </CardContent>
       </Card>
 
-      <Separator className="my-6" />
+      <Separator className="my-4" />
 
       {/* Step 2: Video Parts Configuration */}
       {video.parts.length > 0 && (
@@ -125,10 +125,11 @@ function HomePage() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-0">
             {video.parts.map((_v, idx) => {
               const isCollapsed = collapsedParts.has(idx)
               const showCollapseButton = isMobile && idx >= 2
+              const isLast = idx === video.parts.length - 1
 
               return (
                 <div key={idx}>
@@ -151,11 +152,14 @@ function HomePage() {
                     </Button>
                   )}
                   {!isCollapsed && (
-                    <VideoPartCard
-                      video={video}
-                      page={idx + 1}
-                      isDuplicate={duplicateIndices.includes(idx)}
-                    />
+                    <>
+                      <VideoPartCard
+                        video={video}
+                        page={idx + 1}
+                        isDuplicate={duplicateIndices.includes(idx)}
+                      />
+                      {!isLast && <Separator className="my-3" />}
+                    </>
                   )}
                 </div>
               )
