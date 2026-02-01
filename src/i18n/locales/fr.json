@@ -53,6 +53,7 @@
     "quality_not_found": "Qualité demandée indisponible.",
     "cookie_missing": "Cookie manquant ou invalide.",
     "network_error": "Erreur réseau pendant le téléchargement.",
+    "video_not_found": "Vidéo non trouvée. Veuillez vérifier l'URL.",
     "video_quality_fallback": "La qualité vidéo sélectionnée ({{from}}) est indisponible. Utilisation de {{to}}.",
     "audio_quality_fallback": "La qualité audio sélectionnée ({{from}}) est indisponible. Utilisation de {{to}}.",
     "queue_waiting_prefix": "En file d'attente:",

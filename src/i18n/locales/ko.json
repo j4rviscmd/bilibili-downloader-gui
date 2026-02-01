@@ -53,6 +53,7 @@
     "quality_not_found": "지정한 화질을 사용할 수 없습니다.",
     "cookie_missing": "쿠키가 없거나 유효하지 않습니다.",
     "network_error": "다운로드 중 네트워크 오류 발생.",
+    "video_not_found": "비디오를 찾을 수 없습니다. URL을 확인하세요.",
     "video_quality_fallback": "선택한 화질 ({{from}}) 을(를) 사용할 수 없어 {{to}} 로 대체했습니다.",
     "audio_quality_fallback": "선택한 음질 ({{from}}) 을(를) 사용할 수 없어 {{to}} 로 대체했습니다.",
     "queue_waiting_prefix": "대기 중:",
