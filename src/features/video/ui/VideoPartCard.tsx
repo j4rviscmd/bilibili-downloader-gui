@@ -14,6 +14,12 @@ import {
   RadioGroup,
   RadioGroupItem,
 } from '@/shared/animate-ui/radix/radio-group'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/shared/animate-ui/radix/tooltip'
 import { cn } from '@/shared/lib/utils'
 import {
   Form,
@@ -209,58 +215,81 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                       {t('video.quality_label')}
                     </FormLabel>
                     <FormControl>
-                      <RadioGroup
-                        {...field}
-                        value={String(field.value)}
-                        onValueChange={field.onChange}
-                        orientation="horizontal"
-                        className="flex flex-col gap-3"
-                      >
-                        {Object.entries(VIDEO_QUALITIES_MAP)
-                          .reverse()
-                          .map(([id, value]) => {
-                            let isDisabled = true
-                            if (
-                              video.parts.length > 0 &&
-                              video.parts[page - 1].cid !== 0
-                            ) {
+                      <TooltipProvider delayDuration={200}>
+                        <RadioGroup
+                          {...field}
+                          value={String(field.value)}
+                          onValueChange={field.onChange}
+                          orientation="horizontal"
+                          className="flex flex-col gap-3"
+                        >
+                          {Object.entries(VIDEO_QUALITIES_MAP)
+                            .reverse()
+                            .map(([id, value]) => {
+                              let isDisabled = true
                               if (
-                                video.parts[page - 1].videoQualities.find(
-                                  (v) => v.id === Number(id),
-                                )
+                                video.parts.length > 0 &&
+                                video.parts[page - 1].cid !== 0
                               ) {
-                                isDisabled = false
+                                if (
+                                  video.parts[page - 1].videoQualities.find(
+                                    (v) => v.id === Number(id),
+                                  )
+                                ) {
+                                  isDisabled = false
+                                }
                               }
-                            }
-                            return (
-                              <div
-                                key={id}
-                                className={cn(
-                                  'flex items-center space-x-3 min-h-[44px]',
-                                  isDisabled
-                                    ? 'text-muted-foreground/60'
-                                    : '',
-                                )}
-                              >
+                              const radioItem = (
                                 <RadioGroupItem
                                   disabled={isDisabled}
                                   value={id}
                                   id={`vq-${id}-${page}`}
                                 />
+                              )
+                              const labelElement = (
                                 <Label
                                   htmlFor={`vq-${id}-${page}`}
-                                  className="cursor-pointer"
+                                  className={cn(
+                                    'cursor-pointer',
+                                    isDisabled && 'cursor-not-allowed',
+                                  )}
                                 >
                                   {value}
                                 </Label>
-                              </div>
-                            )
-                          })}
-                      </RadioGroup>
+                              )
+                              if (isDisabled) {
+                                return (
+                                  <Tooltip key={id}>
+                                    <TooltipTrigger asChild>
+                                      <div className="flex items-center space-x-3 min-h-[44px] text-muted-foreground/60">
+                                        {radioItem}
+                                        {labelElement}
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className="max-w-xs">
+                                      <p className="text-xs">
+                                        {t('video.quality_description')}
+                                      </p>
+                                      <p className="text-xs mt-1">
+                                        {t('video.quality_note')}
+                                      </p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                )
+                              }
+                              return (
+                                <div
+                                  key={id}
+                                  className="flex items-center space-x-3 min-h-[44px]"
+                                >
+                                  {radioItem}
+                                  {labelElement}
+                                </div>
+                              )
+                            })}
+                        </RadioGroup>
+                      </TooltipProvider>
                     </FormControl>
-                    <FormDescription className="text-xs">
-                      {t('video.quality_description')}
-                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -276,56 +305,79 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                       {t('video.audio_quality_label')}
                     </FormLabel>
                     <FormControl>
-                      <RadioGroup
-                        {...field}
-                        value={String(field.value)}
-                        onValueChange={field.onChange}
-                        className="flex flex-col gap-3"
-                      >
-                        {AUDIO_QUALITIES_ORDER.map((id) => {
-                          const value = AUDIO_QUALITIES_MAP[id]
-                          let isDisabled = true
-                          if (
-                            video.parts.length > 0 &&
-                            video.parts[page - 1].cid !== 0
-                          ) {
+                      <TooltipProvider delayDuration={200}>
+                        <RadioGroup
+                          {...field}
+                          value={String(field.value)}
+                          onValueChange={field.onChange}
+                          className="flex flex-col gap-3"
+                        >
+                          {AUDIO_QUALITIES_ORDER.map((id) => {
+                            const value = AUDIO_QUALITIES_MAP[id]
+                            let isDisabled = true
                             if (
-                              video.parts[page - 1].audioQualities.find(
-                                (v) => v.id === Number(id),
-                              )
+                              video.parts.length > 0 &&
+                              video.parts[page - 1].cid !== 0
                             ) {
-                              isDisabled = false
+                              if (
+                                video.parts[page - 1].audioQualities.find(
+                                  (v) => v.id === Number(id),
+                                )
+                              ) {
+                                isDisabled = false
+                              }
                             }
-                          }
-                          return (
-                            <div
-                              key={id}
-                              className={cn(
-                                'flex items-center space-x-3 min-h-[44px]',
-                                isDisabled
-                                  ? 'text-muted-foreground/60'
-                                  : '',
-                              )}
-                            >
+                            const radioItem = (
                               <RadioGroupItem
                                 disabled={isDisabled}
                                 value={String(id)}
                                 id={`aq-${id}-${page}`}
                               />
+                            )
+                            const labelElement = (
                               <Label
                                 htmlFor={`aq-${id}-${page}`}
-                                className="cursor-pointer"
+                                className={cn(
+                                  'cursor-pointer',
+                                  isDisabled && 'cursor-not-allowed',
+                                )}
                               >
                                 {value}
                               </Label>
-                            </div>
-                          )
-                        })}
-                      </RadioGroup>
+                            )
+                            if (isDisabled) {
+                              return (
+                                <Tooltip key={id}>
+                                  <TooltipTrigger asChild>
+                                    <div className="flex items-center space-x-3 min-h-[44px] text-muted-foreground/60">
+                                      {radioItem}
+                                      {labelElement}
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="max-w-xs">
+                                    <p className="text-xs">
+                                      {t('video.audio_quality_description')}
+                                    </p>
+                                    <p className="text-xs mt-1">
+                                      {t('video.audio_quality_note')}
+                                    </p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              )
+                            }
+                            return (
+                              <div
+                                key={id}
+                                className="flex items-center space-x-3 min-h-[44px]"
+                              >
+                                {radioItem}
+                                {labelElement}
+                              </div>
+                            )
+                          })}
+                        </RadioGroup>
+                      </TooltipProvider>
                     </FormControl>
-                    <FormDescription className="text-xs">
-                      {t('video.audio_quality_description')}
-                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
