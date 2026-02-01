@@ -15,9 +15,15 @@ pub struct User {
     pub data: UserData,
 }
 
+/// User profile data portion of the User structure.
+///
+/// Contains authentication status and username information
+/// extracted from Bilibili API responses.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserData {
+    /// Username (display name) of the logged-in user
     pub uname: Option<String>,
+    /// Authentication status flag
     #[serde(rename = "isLogin")]
     pub is_login: bool,
 }

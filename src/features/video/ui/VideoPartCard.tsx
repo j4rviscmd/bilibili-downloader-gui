@@ -29,10 +29,10 @@ import {
   FormLabel,
   FormMessage,
 } from '@/shared/ui/form'
-import { Textarea } from '@/shared/ui/textarea'
 import { Label } from '@/shared/ui/label'
-import { Info } from 'lucide-react'
+import { Textarea } from '@/shared/ui/textarea'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { Info } from 'lucide-react'
 import { useEffect, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -162,11 +162,13 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                   size="lg"
                 />
                 <img
-                  src={videoPart.thumbnail.base64.startsWith('data:')
-                    ? videoPart.thumbnail.base64
-                    : 'data:image/png;base64,' + videoPart.thumbnail.base64}
+                  src={
+                    videoPart.thumbnail.base64.startsWith('data:')
+                      ? videoPart.thumbnail.base64
+                      : 'data:image/png;base64,' + videoPart.thumbnail.base64
+                  }
                   alt={`Thumbnail for ${videoPart.part}`}
-                  className="w-24 h-16 md:w-32 md:h-20 rounded-lg object-cover"
+                  className="h-16 w-24 rounded-lg object-cover md:h-20 md:w-32"
                 />
 
                 {/* Title Input */}
@@ -195,10 +197,16 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
               </div>
 
               {/* Video Part Name and Duration */}
-              <div className="mt-1.5 flex items-center text-sm text-muted-foreground" style={{ marginLeft: '2.25rem' }}>
+              <div
+                className="text-muted-foreground mt-1.5 flex items-center text-sm"
+                style={{ marginLeft: '2.25rem' }}
+              >
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <span className="font-medium max-w-[200px] md:max-w-[300px] truncate inline-block cursor-help" title={videoPart.part}>
+                    <span
+                      className="inline-block max-w-[200px] cursor-help truncate font-medium md:max-w-[300px]"
+                      title={videoPart.part}
+                    >
                       {videoPart.part}
                     </span>
                   </TooltipTrigger>
@@ -227,13 +235,13 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                         </FormLabel>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                            <Info className="text-muted-foreground h-4 w-4 cursor-help" />
                           </TooltipTrigger>
                           <TooltipContent side="top" className="max-w-xs">
                             <p className="text-xs">
                               {t('video.quality_description')}
                             </p>
-                            <p className="text-xs mt-1">
+                            <p className="mt-1 text-xs">
                               {t('video.quality_note')}
                             </p>
                           </TooltipContent>
@@ -250,24 +258,17 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                           {Object.entries(VIDEO_QUALITIES_MAP)
                             .reverse()
                             .map(([id, value]) => {
-                              let isDisabled = true
-                              if (
-                                video.parts.length > 0 &&
-                                video.parts[page - 1].cid !== 0
-                              ) {
-                                if (
-                                  video.parts[page - 1].videoQualities.find(
-                                    (v) => v.id === Number(id),
-                                  )
-                                ) {
-                                  isDisabled = false
-                                }
-                              }
+                              const isDisabled =
+                                video.parts.length === 0 ||
+                                video.parts[page - 1].cid === 0 ||
+                                !video.parts[page - 1].videoQualities.some(
+                                  (v) => v.id === Number(id),
+                                )
                               return (
                                 <div
                                   key={id}
                                   className={cn(
-                                    'flex items-center space-x-2 min-h-[36px] min-w-[80px] whitespace-nowrap',
+                                    'flex min-h-[36px] min-w-[80px] items-center space-x-2 whitespace-nowrap',
                                     isDisabled
                                       ? 'text-muted-foreground/60'
                                       : '',
@@ -309,13 +310,13 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                         </FormLabel>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                            <Info className="text-muted-foreground h-4 w-4 cursor-help" />
                           </TooltipTrigger>
                           <TooltipContent side="top" className="max-w-xs">
                             <p className="text-xs">
                               {t('video.audio_quality_description')}
                             </p>
-                            <p className="text-xs mt-1">
+                            <p className="mt-1 text-xs">
                               {t('video.audio_quality_note')}
                             </p>
                           </TooltipContent>
@@ -330,27 +331,18 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                         >
                           {AUDIO_QUALITIES_ORDER.map((id) => {
                             const value = AUDIO_QUALITIES_MAP[id]
-                            let isDisabled = true
-                            if (
-                              video.parts.length > 0 &&
-                              video.parts[page - 1].cid !== 0
-                            ) {
-                              if (
-                                video.parts[page - 1].audioQualities.find(
-                                  (v) => v.id === Number(id),
-                                )
-                              ) {
-                                isDisabled = false
-                              }
-                            }
+                            const isDisabled =
+                              video.parts.length === 0 ||
+                              video.parts[page - 1].cid === 0 ||
+                              !video.parts[page - 1].audioQualities.some(
+                                (v) => v.id === Number(id),
+                              )
                             return (
                               <div
                                 key={id}
                                 className={cn(
-                                  'flex items-center space-x-2 min-h-[36px] min-w-[80px] whitespace-nowrap',
-                                  isDisabled
-                                    ? 'text-muted-foreground/60'
-                                    : '',
+                                  'flex min-h-[36px] min-w-[80px] items-center space-x-2 whitespace-nowrap',
+                                  isDisabled ? 'text-muted-foreground/60' : '',
                                 )}
                               >
                                 <RadioGroupItem
@@ -381,7 +373,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
 
             {/* Duplicate Warning */}
             {isDuplicate && (
-              <div className="text-destructive text-sm mt-1">
+              <div className="text-destructive mt-1 text-sm">
                 {t('validation.video.title.duplicate')}
               </div>
             )}

@@ -63,7 +63,9 @@
     "reload_after_error": "ページをリロードして再試行",
     "select_all": "全選択",
     "deselect_all": "全解除",
-    "no_parts_selected": "ダウンロード対象が選択されていません"
+    "no_parts_selected": "ダウンロード対象が選択されていません",
+    "expand_part": "▶ Part {{num}} を展開",
+    "collapse_part": "▼ Part {{num}} を折りたたむ"
   },
   "progress": {
     "elapsed": "経過",

@@ -14,6 +14,12 @@ import {
   RadioGroup,
   RadioGroupItem,
 } from '@/shared/animate-ui/radix/radio-group'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/shared/animate-ui/radix/tooltip'
 import { cn } from '@/shared/lib/utils'
 import {
   Form,
@@ -26,14 +32,8 @@ import {
 } from '@/shared/ui/form'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/shared/animate-ui/radix/tooltip'
-import { Info } from 'lucide-react'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { Info } from 'lucide-react'
 import { useEffect, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -171,190 +171,171 @@ function VideoForm2({ video, page, isDuplicate }: Props) {
             />
             <TooltipProvider delayDuration={200}>
               <div className="grid grid-cols-24 items-center gap-3">
-              <div className="col-span-12 flex h-full gap-3">
-                <div className="flex items-center">
-                  <Checkbox
-                    checked={selected}
-                    onCheckedChange={handleSelectedChange}
-                    size="lg"
-                  />
-                </div>
-                <div className="flex flex-col justify-center">
-                  <img
-                    src={videoPart.thumbnail.base64.startsWith('data:')
-                      ? videoPart.thumbnail.base64
-                      : 'data:image/png;base64,' + videoPart.thumbnail.base64}
-                    alt="thumbnail"
-                  />
-                  <div className="block">
-                    <span>{videoPart.part}</span>
-                    <span className="px-1">/</span>
-                    {min > 0 && <span className="mr-1">{min}m</span>}
-                    <span>{sec}s</span>
+                <div className="col-span-12 flex h-full gap-3">
+                  <div className="flex items-center">
+                    <Checkbox
+                      checked={selected}
+                      onCheckedChange={handleSelectedChange}
+                      size="lg"
+                    />
+                  </div>
+                  <div className="flex flex-col justify-center">
+                    <img
+                      src={
+                        videoPart.thumbnail.base64.startsWith('data:')
+                          ? videoPart.thumbnail.base64
+                          : 'data:image/png;base64,' +
+                            videoPart.thumbnail.base64
+                      }
+                      alt="thumbnail"
+                    />
+                    <div className="block">
+                      <span>{videoPart.part}</span>
+                      <span className="px-1">/</span>
+                      {min > 0 && <span className="mr-1">{min}m</span>}
+                      <span>{sec}s</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-              {/* Video Quality */}
-              <FormField
-                control={form.control}
-                name="videoQuality"
-                render={({ field }) => (
-                  <FormItem className="col-span-12 h-fit">
-                    <div className="flex items-center gap-1.5">
-                      <FormLabel>{t('video.quality_label')}</FormLabel>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Info className="h-4 w-4 text-muted-foreground cursor-help" />
-                        </TooltipTrigger>
-                        <TooltipContent side="top">
-                          <p className="text-xs">
-                            {t('video.quality_description')}
-                          </p>
-                          <p className="text-xs mt-1">{t('video.quality_note')}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                    <FormControl>
-                      <RadioGroup
-                        {...field}
-                        value={String(field.value)}
-                        onValueChange={field.onChange}
-                        orientation="horizontal"
-                        className="flex flex-wrap gap-x-4 gap-y-2"
-                      >
-                        {Object.entries(VIDEO_QUALITIES_MAP)
-                          .reverse()
-                          .map(([id, value]) => {
-                            let isDisabled = true
-                            if (
-                              video.parts.length > 0 &&
-                              video.parts[page - 1].cid !== 0
-                            ) {
-                              if (
-                                video.parts[page - 1].videoQualities.find(
+                {/* Video Quality */}
+                <FormField
+                  control={form.control}
+                  name="videoQuality"
+                  render={({ field }) => (
+                    <FormItem className="col-span-12 h-fit">
+                      <div className="flex items-center gap-1.5">
+                        <FormLabel>{t('video.quality_label')}</FormLabel>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Info className="text-muted-foreground h-4 w-4 cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            <p className="text-xs">
+                              {t('video.quality_description')}
+                            </p>
+                            <p className="mt-1 text-xs">
+                              {t('video.quality_note')}
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                      <FormControl>
+                        <RadioGroup
+                          {...field}
+                          value={String(field.value)}
+                          onValueChange={field.onChange}
+                          orientation="horizontal"
+                          className="flex flex-wrap gap-x-4 gap-y-2"
+                        >
+                          {Object.entries(VIDEO_QUALITIES_MAP)
+                            .reverse()
+                            .map(([id, value]) => {
+                              const isDisabled =
+                                video.parts.length === 0 ||
+                                video.parts[page - 1].cid === 0 ||
+                                !video.parts[page - 1].videoQualities.some(
                                   (v) => v.id === Number(id),
                                 )
-                              ) {
-                                isDisabled = false
-                              }
-                            }
-                            // if (isDisabled) {
-                            //   console.log('videoQuality disabled', {
-                            //     id,
-                            //     value,
-                            //   })
-                            // }
+                              return (
+                                <div
+                                  key={id}
+                                  className={cn(
+                                    'flex min-w-[80px] items-center space-x-3 whitespace-nowrap',
+                                    isDisabled
+                                      ? 'text-muted-foreground/60'
+                                      : '',
+                                  )}
+                                >
+                                  <RadioGroupItem
+                                    disabled={isDisabled}
+                                    value={id}
+                                  />
+                                  <Label htmlFor={`vq-${id}`}>{value}</Label>
+                                </div>
+                              )
+                            })}
+                        </RadioGroup>
+                      </FormControl>
+                      <FormDescription>
+                        {t('video.quality_description')}
+                        <br />
+                        {t('video.quality_note')}
+                        <br />
+                      </FormDescription>
+                      <FormMessage />
+                      {isDuplicate && (
+                        <div className="text-destructive text-sm">
+                          {t('validation.video.title.duplicate')}
+                        </div>
+                      )}
+                    </FormItem>
+                  )}
+                />
+                {/* Audio Quality */}
+                <FormField
+                  control={form.control}
+                  name="audioQuality"
+                  render={({ field }) => (
+                    <FormItem className="col-span-12 h-fit">
+                      <div className="flex items-center gap-1.5">
+                        <FormLabel>{t('video.audio_quality_label')}</FormLabel>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Info className="text-muted-foreground h-4 w-4 cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            <p className="text-xs">
+                              {t('video.audio_quality_description')}
+                            </p>
+                            <p className="mt-1 text-xs">
+                              {t('video.audio_quality_note')}
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                      <FormControl>
+                        <RadioGroup
+                          {...field}
+                          value={String(field.value)}
+                          onValueChange={field.onChange}
+                          className="flex flex-wrap gap-x-4 gap-y-2"
+                        >
+                          {AUDIO_QUALITIES_ORDER.map((id) => {
+                            const value = AUDIO_QUALITIES_MAP[id]
+                            const isDisabled =
+                              video.parts.length === 0 ||
+                              video.parts[page - 1].cid === 0 ||
+                              !video.parts[page - 1].audioQualities.some(
+                                (v) => v.id === Number(id),
+                              )
                             return (
                               <div
                                 key={id}
                                 className={cn(
-                                  'flex items-center space-x-3 min-w-[80px] whitespace-nowrap',
+                                  'flex min-w-[80px] items-center space-x-3 whitespace-nowrap',
                                   isDisabled ? 'text-muted-foreground/60' : '',
                                 )}
                               >
                                 <RadioGroupItem
                                   disabled={isDisabled}
-                                  value={id}
+                                  value={String(id)}
                                 />
-                                <Label htmlFor={`vq-${id}`}>{value}</Label>
+                                <Label htmlFor={`aq-${id}`}>{value}</Label>
                               </div>
                             )
                           })}
-                      </RadioGroup>
-                    </FormControl>
-                    <FormDescription>
-                      {t('video.quality_description')}
-                      <br />
-                      {t('video.quality_note')}
-                      <br />
-                    </FormDescription>
-                    <FormMessage />
-                    {isDuplicate && (
-                      <div className="text-destructive text-sm">
-                        {t('validation.video.title.duplicate')}
-                      </div>
-                    )}
-                  </FormItem>
-                )}
-              />
-              {/* Audio Quality */}
-              <FormField
-                control={form.control}
-                name="audioQuality"
-                render={({ field }) => (
-                  <FormItem className="col-span-12 h-fit">
-                    <div className="flex items-center gap-1.5">
-                      <FormLabel>{t('video.audio_quality_label')}</FormLabel>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Info className="h-4 w-4 text-muted-foreground cursor-help" />
-                        </TooltipTrigger>
-                        <TooltipContent side="top">
-                          <p className="text-xs">
-                            {t('video.audio_quality_description')}
-                          </p>
-                          <p className="text-xs mt-1">
-                            {t('video.audio_quality_note')}
-                          </p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                    <FormControl>
-                      <RadioGroup
-                        {...field}
-                        value={String(field.value)}
-                        onValueChange={field.onChange}
-                        className="flex flex-wrap gap-x-4 gap-y-2"
-                      >
-                        {AUDIO_QUALITIES_ORDER.map((id) => {
-                          const value = AUDIO_QUALITIES_MAP[id]
-                          let isDisabled = true
-                          if (
-                            video.parts.length > 0 &&
-                            video.parts[page - 1].cid !== 0
-                          ) {
-                            if (
-                              video.parts[page - 1].audioQualities.find(
-                                (v) => v.id === Number(id),
-                              )
-                            ) {
-                              isDisabled = false
-                            }
-                          }
-                          // if (isDisabled) {
-                          //   console.log('audioQuality disabled', {
-                          //     id,
-                          //     value,
-                          //   })
-                          // }
-                          return (
-                            <div
-                              key={id}
-                              className={cn(
-                                'flex items-center space-x-3 min-w-[80px] whitespace-nowrap',
-                                isDisabled ? 'text-muted-foreground/60' : '',
-                              )}
-                            >
-                              <RadioGroupItem
-                                disabled={isDisabled}
-                                value={String(id)}
-                              />
-                              <Label htmlFor={`aq-${id}`}>{value}</Label>
-                            </div>
-                          )
-                        })}
-                      </RadioGroup>
-                    </FormControl>
-                    <FormDescription>
-                      {t('video.audio_quality_description')}
-                      <br />
-                      {t('video.audio_quality_note')}
-                      <br />
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                        </RadioGroup>
+                      </FormControl>
+                      <FormDescription>
+                        {t('video.audio_quality_description')}
+                        <br />
+                        {t('video.audio_quality_note')}
+                        <br />
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
             </TooltipProvider>
           </form>

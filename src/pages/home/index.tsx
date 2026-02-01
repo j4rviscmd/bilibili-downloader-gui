@@ -51,14 +51,16 @@ function HomePage() {
   const isMobile = useIsMobile()
 
   // Collapsed parts state for mobile (parts 3+ are collapsed by default on mobile)
-  const [collapsedParts, setCollapsedParts] = useState<Set<number>>(
-    new Set(),
-  )
+  const [collapsedParts, setCollapsedParts] = useState<Set<number>>(new Set())
 
   // Initialize collapsed parts for mobile (parts 3+ are collapsed)
   useEffect(() => {
     if (isMobile && video.parts.length > 2) {
-      setCollapsedParts(new Set(Array.from({ length: video.parts.length - 2 }, (_, i) => i + 2)))
+      setCollapsedParts(
+        new Set(
+          Array.from({ length: video.parts.length - 2 }, (_, i) => i + 2),
+        ),
+      )
     }
   }, [isMobile, video.parts.length])
 
@@ -113,11 +115,7 @@ function HomePage() {
                 <Button variant="outline" size="sm" onClick={handleSelectAll}>
                   {t('video.select_all')}
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleDeselectAll}
-                >
+                <Button variant="outline" size="sm" onClick={handleDeselectAll}>
                   {t('video.deselect_all')}
                 </Button>
               </div>
@@ -136,17 +134,13 @@ function HomePage() {
                       variant="ghost"
                       size="sm"
                       onClick={() => togglePartCollapsed(idx)}
-                      className="w-full mb-2 h-9"
+                      className="mb-2 h-9 w-full"
                     >
-                      {isCollapsed ? (
-                        <>
-                          <span>▶ Part {idx + 1} を展開</span>
-                        </>
-                      ) : (
-                        <>
-                          <span>▼ Part {idx + 1} を折りたたむ</span>
-                        </>
-                      )}
+                      <span>
+                        {isCollapsed
+                          ? t('video.expand_part', { num: idx + 1 })
+                          : t('video.collapse_part', { num: idx + 1 })}
+                      </span>
                     </Button>
                   )}
                   {!isCollapsed && (

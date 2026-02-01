@@ -23,7 +23,22 @@ pub struct HistoryStore {
 }
 
 impl HistoryStore {
-    /// Creates a new HistoryStore instance.
+    /// Creates a new HistoryStore instance backed by a persistent JSON file.
+    ///
+    /// This function initializes or opens the history.json file from the
+    /// application's store directory using tauri-plugin-store.
+    ///
+    /// # Arguments
+    ///
+    /// * `app` - Tauri application handle for accessing the store
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(HistoryStore)` on success.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the store cannot be created or opened.
     pub fn new(app: &AppHandle) -> Result<Self, Box<dyn std::error::Error>> {
         let store = app
             .store("history.json")
@@ -32,13 +47,43 @@ impl HistoryStore {
         Ok(Self { store })
     }
 
-    /// Loads all history entries from store.
+    /// Loads all history entries from the persistent store.
+    ///
+    /// Retrieves the entries array from the store and deserializes it
+    /// into a vector of `HistoryEntry` structures.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(entries)` on success.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The stored value is not a valid JSON array
+    /// - Deserialization into `HistoryEntry` fails
     pub fn load(&self) -> Result<Vec<HistoryEntry>, String> {
         let entries_value = self.store.get(ENTRIES_KEY).unwrap_or(json!([]));
         serde_json::from_value(entries_value).map_err(|e| e.to_string())
     }
 
-    /// Saves history entries to store with atomic write.
+    /// Saves history entries to the persistent store with atomic write.
+    ///
+    /// Serializes the entries vector and writes it to the store with version
+    /// information. The write operation is atomic via tauri-plugin-store.
+    ///
+    /// # Arguments
+    ///
+    /// * `entries` - Vector of history entries to save
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` on success.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Serialization to JSON fails
+    /// - Store write operation fails
     pub fn save(&self, entries: &Vec<HistoryEntry>) -> Result<(), String> {
         let entries_value = serde_json::to_value(entries).map_err(|e| e.to_string())?;
 
@@ -93,7 +138,13 @@ impl HistoryStore {
 
     /// Retrieves all history entries from the store.
     ///
-    /// Returns an empty vector if loading fails.
+    /// This is a convenience method that returns all entries. If loading
+    /// fails (e.g., corrupted data), it returns an empty vector instead
+    /// of an error.
+    ///
+    /// # Returns
+    ///
+    /// Returns all history entries, or an empty vector if loading fails.
     pub fn get_all(&self) -> Vec<HistoryEntry> {
         self.load().unwrap_or_default()
     }
