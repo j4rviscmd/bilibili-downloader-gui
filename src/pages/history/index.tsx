@@ -76,9 +76,10 @@ function HistoryPage() {
 
   return (
     <>
-      <PageLayout withScrollArea={false} innerClassName="gap-0">
-        {/* Header with search, filters, and action buttons */}
-        <div className="border-border border-b p-3">
+      <PageLayout withScrollArea={false} innerClassName="h-full gap-0 p-0">
+        <div className="flex h-full flex-col overflow-hidden">
+          {/* Header with search, filters, and action buttons */}
+          <div className="border-border shrink-0 border-b p-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-1 items-center gap-2">
               <HistorySearch value={searchQuery} onChange={setSearch} />
@@ -114,11 +115,15 @@ function HistoryPage() {
           </div>
         </div>
 
-        {/* History list with scrollable content */}
-        <ScrollArea className="flex-1">
-          <HistoryList entries={entries} loading={loading} onDelete={remove} />
-          <ScrollBar />
-        </ScrollArea>
+          {/* History list with scrollable content */}
+          <ScrollArea
+            className="flex-1"
+            style={{ height: 'calc(100dvh - 2.3rem - 80px)' }}
+          >
+            <HistoryList entries={entries} loading={loading} onDelete={remove} />
+            <ScrollBar />
+          </ScrollArea>
+        </div>
       </PageLayout>
 
       <HistoryExportDialog
