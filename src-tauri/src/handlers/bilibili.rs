@@ -68,18 +68,18 @@ fn build_client() -> Result<Client, String> {
 /// Returns an error if:
 /// - Response code is non-zero
 /// - Data field is None
-/// - Video not found (code -400)
-fn validate_api_response<T>(code: i64, message: &str, data: Option<&T>) -> Result<(), String> {
-    if code == -400 {
+/// - Video not found (code -400, -404)
+fn validate_api_response<T>(code: i64, _message: &str, data: Option<&T>) -> Result<(), String> {
+    // Video not found errors
+    if code == -400 || code == -404 {
         return Err("ERR::VIDEO_NOT_FOUND".to_string());
     }
     if code != 0 {
-        return Err(format!("Api error (code {code}): {message}"));
+        // Return generic error code instead of raw API message (may be in Chinese)
+        return Err("ERR::API_ERROR".to_string());
     }
     if data.is_none() {
-        return Err(format!(
-            "Api error (code {code}): {message} - no data field"
-        ));
+        return Err("ERR::API_ERROR".to_string());
     }
     Ok(())
 }

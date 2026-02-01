@@ -147,6 +147,7 @@ export const useVideoInfo = () => {
         const errorMap: Record<string, string> = {
           'ERR::VIDEO_NOT_FOUND': 'video.video_not_found',
           'ERR::COOKIE_MISSING': 'video.cookie_missing',
+          'ERR::API_ERROR': 'video.api_error',
         }
         for (const code in errorMap) {
           if (raw.includes(code)) {

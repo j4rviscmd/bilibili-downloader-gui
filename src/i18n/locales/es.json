@@ -54,6 +54,7 @@
     "cookie_missing": "Cookie ausente o inválida.",
     "network_error": "Error de red durante la descarga.",
     "video_not_found": "Video no encontrado. Por favor, verifica la URL.",
+    "api_error": "Error al obtener información del video.",
     "video_quality_fallback": "La calidad de video seleccionada ({{from}}) no está disponible. Usando {{to}}.",
     "audio_quality_fallback": "La calidad de audio seleccionada ({{from}}) no está disponible. Usando {{to}}.",
     "queue_waiting_prefix": "En cola:",
