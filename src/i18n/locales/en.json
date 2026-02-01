@@ -53,6 +53,8 @@
     "quality_not_found": "Requested quality not available.",
     "cookie_missing": "Cookie missing or invalid.",
     "network_error": "Network error during download.",
+    "video_not_found": "Video not found. Please check the URL.",
+    "api_error": "Failed to fetch video information.",
     "video_quality_fallback": "Selected video quality ({{from}}) unavailable. Using {{to}}.",
     "audio_quality_fallback": "Selected audio quality ({{from}}) unavailable. Using {{to}}.",
     "queue_waiting_prefix": "Queued:",

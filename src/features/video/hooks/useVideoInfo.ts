@@ -138,11 +138,29 @@ export const useVideoInfo = () => {
       setIsFetching(true)
       try {
         const v = await fetchVideoInfo(id)
-        if (v && v.parts.length > 0 && v.parts[0].cid !== 0) {
-          console.log('Fetched video info:', v)
-          store.dispatch(setVideo(v))
-          initInputsForVideo(v)
+        console.log('Fetched video info:', v)
+        store.dispatch(setVideo(v))
+        initInputsForVideo(v)
+      } catch (e) {
+        const raw = String(e)
+        let messageKey: string | null = null
+        const errorMap: Record<string, string> = {
+          'ERR::VIDEO_NOT_FOUND': 'video.video_not_found',
+          'ERR::COOKIE_MISSING': 'video.cookie_missing',
+          'ERR::API_ERROR': 'video.api_error',
         }
+        for (const code in errorMap) {
+          if (raw.includes(code)) {
+            messageKey = errorMap[code]
+            break
+          }
+        }
+        const description = messageKey ? t(messageKey) : raw
+        toast.error(t('video.fetch_info'), {
+          duration: 5000,
+          description,
+        })
+        console.error('Failed to fetch video info:', raw)
       } finally {
         setIsFetching(false)
       }

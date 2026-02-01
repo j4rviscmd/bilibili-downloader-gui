@@ -35,6 +35,60 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::AppHandle;
 
+/// Builds a reqwest HTTP client with default user agent.
+///
+/// # Returns
+///
+/// Configured HTTP client.
+///
+/// # Errors
+///
+/// Returns an error if client builder fails.
+fn build_client() -> Result<Client, String> {
+    Client::builder()
+        .user_agent(USER_AGENT)
+        .build()
+        .map_err(|e| format!("failed to build client: {e}"))
+}
+
+/// Validates Bilibili API response.
+///
+/// # Arguments
+///
+/// * `code` - API response code (0 = success)
+/// * `message` - API response message
+/// * `data` - Optional data field reference
+///
+/// # Returns
+///
+/// `Ok(())` if response is valid.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Response code is non-zero
+/// - Data field is None
+/// - Video not found (code -404)
+/// - Request error (code -400)
+fn validate_api_response<T>(code: i64, _message: &str, data: Option<&T>) -> Result<(), String> {
+    // Video not found (-404: "啥都木有" = nothing there)
+    if code == -404 {
+        return Err("ERR::VIDEO_NOT_FOUND".to_string());
+    }
+    // Request error (-400: "请求错误" = request error)
+    if code == -400 {
+        return Err("ERR::API_ERROR".to_string());
+    }
+    if code != 0 {
+        // Return generic error code instead of raw API message (may be in Chinese)
+        return Err("ERR::API_ERROR".to_string());
+    }
+    if data.is_none() {
+        return Err("ERR::API_ERROR".to_string());
+    }
+    Ok(())
+}
+
 /// Downloads a Bilibili video with the specified quality settings.
 ///
 /// This function orchestrates the entire download process:
@@ -97,23 +151,7 @@ pub async fn download_video(
     // --------------------------------------------------
     // 1. 出力ファイルパス決定 + 自動リネーム
     // --------------------------------------------------
-    let mut output_path = get_output_path(app, filename)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    // Avoid double extension if user already provided .mp4
-    let filename_with_ext = if filename.to_lowercase().ends_with(".mp4") {
-        filename
-    } else {
-        &format!("{filename}.mp4")
-    };
-
-    if let Some(parent) = output_path.parent() {
-        output_path = parent.join(filename_with_ext);
-    } else {
-        output_path = PathBuf::from(filename_with_ext);
-    }
-    output_path = auto_rename(&output_path);
+    let output_path = auto_rename(&build_output_path(app, filename).await?);
 
     // --------------------------------------------------
     // 2. Cookie チェック
@@ -136,9 +174,20 @@ pub async fn download_video(
     // --------------------------------------------------
     let details = fetch_video_details(&cookies, bvid, cid).await?;
 
+    // dataフィールドをアンラップ
+    let dash_data = details
+        .data
+        .ok_or_else(|| {
+            format!(
+                "XPlayerApi error (code {}): {} - no data field",
+                details.code, details.message
+            )
+        })?
+        .dash;
+
     // 選択品質が存在しなければフォールバック (先頭 = 最も高品質)
-    let video_url = select_stream_url(&details.data.dash.video, quality)?;
-    let audio_url = select_stream_url(&details.data.dash.audio, audio_quality)?;
+    let video_url = select_stream_url(&dash_data.video, quality)?;
+    let audio_url = select_stream_url(&dash_data.audio, audio_quality)?;
 
     // --------------------------------------------------
     // 5. 容量事前チェック (取得できなければスキップ)
@@ -379,14 +428,19 @@ async fn fetch_video_info_for_history(
         parts: Vec::new(),
     };
 
-    fetch_video_title(&video, cookies).await.ok().map(|body| {
-        let thumbnail_url = if body.data.pic.is_empty() {
-            None
-        } else {
-            Some(body.data.pic)
-        };
-        (body.data.title, thumbnail_url)
-    })
+    fetch_video_title(&video, cookies)
+        .await
+        .ok()
+        .and_then(|body| {
+            // dataフィールドが存在しない場合はNoneを返す
+            let data = body.data?;
+            let thumbnail_url = if data.pic.is_empty() {
+                None
+            } else {
+                Some(data.pic)
+            };
+            Some((data.title, thumbnail_url))
+        })
 }
 
 /// Fetches logged-in user information from Bilibili.
@@ -421,10 +475,7 @@ pub async fn fetch_user_info(app: &AppHandle) -> Result<Option<User>, String> {
     }
 
     // 3) リクエスト送信（Cookie ヘッダを付与）
-    let client = Client::builder()
-        .user_agent(USER_AGENT)
-        .build()
-        .map_err(|e| format!("failed to build client: {e}"))?;
+    let client = build_client()?;
 
     let body = client
         .get("https://api.bilibili.com/x/web-interface/nav")
@@ -484,43 +535,21 @@ fn build_cookie_header(cookies: &[CookieEntry]) -> String {
 ///
 /// # Returns
 ///
-/// Base64-encoded image data.
+/// Base64-encoded image data with data URI prefix.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - HTTP request fails
-/// - Response byte reading fails
+/// Returns an error if HTTP request fails or response reading fails.
 pub async fn get_thumbnail_base64(url: &str) -> Result<String, String> {
-    let encoded = base64_encode(url).await?;
-    Ok(format!("data:image/jpeg;base64,{}", encoded))
-}
-
-/// Encodes a thumbnail image URL to base64 format.
-///
-/// # Arguments
-///
-/// * `url` - Thumbnail image URL
-///
-/// # Returns
-///
-/// Base64-encoded image data.
-///
-/// # Errors
-///
-/// Returns an error if:
-/// - HTTP request fails
-/// - Response byte reading fails
-async fn base64_encode(url: &str) -> Result<String, String> {
-    let resp = reqwest::get(url)
+    let bytes = reqwest::get(url)
         .await
-        .map_err(|e| format!("Failed to fetch thumbnail image: {}", e))?;
-    let bytes = resp
+        .map_err(|e| format!("Failed to fetch thumbnail image: {e}"))?
         .bytes()
         .await
-        .map_err(|e| format!("Failed to read thumbnail image bytes: {}", e))?;
+        .map_err(|e| format!("Failed to read thumbnail image bytes: {e}"))?;
+
     let encoded = base64::engine::general_purpose::STANDARD.encode(&bytes);
-    Ok(encoded)
+    Ok(format!("data:image/jpeg;base64,{encoded}"))
 }
 
 /// Fetches comprehensive video metadata from Bilibili.
@@ -559,11 +588,14 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
     };
 
     let res_body_1 = fetch_video_title(&video, &cookies).await?;
-    video.title = res_body_1.data.title;
+    // fetch_video_title 内で validate_api_response により data の存在が保証されている
+    let data_1 = res_body_1.data.as_ref().unwrap();
 
-    for page in res_body_1.data.pages.iter() {
+    video.title = data_1.title.clone();
+
+    for page in data_1.pages.iter() {
         let thumb_url = page.first_frame.clone();
-        let thumb_base64 = base64_encode(&thumb_url).await.unwrap_or_default();
+        let thumb_base64 = get_thumbnail_base64(&thumb_url).await.unwrap_or_default();
 
         let mut part = VideoPart {
             cid: page.cid,
@@ -580,8 +612,11 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
 
         // partごとに画質情報を取得
         let res_body_2 = fetch_video_details(&cookies, &video.bvid, part.cid).await?;
-        part.video_qualities = convert_qualities(&res_body_2.data.dash.video);
-        part.audio_qualities = convert_qualities(&res_body_2.data.dash.audio);
+        // fetch_video_details 内で validate_api_response により data の存在が保証されている
+        let data_2 = res_body_2.data.as_ref().unwrap();
+
+        part.video_qualities = convert_qualities(&data_2.dash.video);
+        part.audio_qualities = convert_qualities(&data_2.dash.audio);
 
         video.parts.push(part);
     }
@@ -594,12 +629,6 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
 /// Groups quality options by ID, selects the highest codec for each quality level,
 /// and returns them sorted in descending order (highest quality first).
 ///
-/// # Algorithm
-///
-/// 1. Group by quality ID (`id`) using `BTreeMap`
-/// 2. Select item with maximum `codecid` within each group
-/// 3. Store in vector sorted by quality ID descending
-///
 /// # Arguments
 ///
 /// * `video` - Slice of video/audio quality options from API
@@ -608,31 +637,27 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
 ///
 /// Vector of `Quality` objects sorted by quality ID in descending order.
 fn convert_qualities(video: &[XPlayerApiResponseVideo]) -> Vec<Quality> {
-    let mut res = Vec::<Quality>::new();
+    let mut qualities: BTreeMap<i32, &XPlayerApiResponseVideo> = BTreeMap::new();
 
-    // id(= quality)毎でグルーピングして、 各アイテムの`codecid`が一番大きいものを選択
-    // BTreeMapはキー(id)を常に昇順ソートする
-    let mut id_groups: BTreeMap<i32, Vec<XPlayerApiResponseVideo>> = BTreeMap::new();
     for item in video {
-        id_groups.entry(item.id).or_default().push(item.clone())
+        qualities
+            .entry(item.id)
+            .and_modify(|existing| {
+                if item.codecid > existing.codecid {
+                    *existing = item;
+                }
+            })
+            .or_insert(item);
     }
 
-    // id毎に最大の codecid を選択
-    let mut qualities = BTreeMap::new();
-    for (id, items) in id_groups {
-        if let Some(max_item) = items.into_iter().max_by_key(|it| it.codecid) {
-            qualities.insert(id, max_item);
-        }
-    }
-    // id値の降順で配列格納
-    for item in qualities.iter().rev() {
-        res.push(Quality {
-            id: *item.0,
-            codecid: item.1.codecid,
-        });
-    }
-
-    res
+    qualities
+        .into_iter()
+        .rev()
+        .map(|(id, v)| Quality {
+            id,
+            codecid: v.codecid,
+        })
+        .collect()
 }
 
 /// Fetches video title and page info from Bilibili Web Interface API.
@@ -659,10 +684,7 @@ async fn fetch_video_title(
     video: &Video,
     cookies: &[CookieEntry],
 ) -> Result<WebInterfaceApiResponse, String> {
-    let client = Client::builder()
-        .user_agent(USER_AGENT)
-        .build()
-        .map_err(|e| format!("failed to build client: {e}"))?;
+    let client = build_client()?;
 
     let cookie_header = build_cookie_header(cookies);
     let res: reqwest::Response = client
@@ -676,18 +698,12 @@ async fn fetch_video_title(
         .await
         .map_err(|e| format!("WebInterface Api Failed to fetch video info: {e}"))?;
 
-    let text = res
-        .text()
+    let body: WebInterfaceApiResponse = res
+        .json()
         .await
-        .map_err(|e| format!("WebInterface Api Failed to read response text: {e}"))?;
+        .map_err(|e| format!("WebInterface Api Failed to parse response JSON: {e}"))?;
 
-    let body: WebInterfaceApiResponse =
-        serde_json::from_str(&text).map_err(|e| format!("Failed to parse response JSON: {e}"))?;
-
-    if body.code != 0 {
-        return Err(format!("WebInterfaceApi error: {}", body.message));
-    }
-
+    validate_api_response(body.code, &body.message, body.data.as_ref())?;
     Ok(body)
 }
 
@@ -717,10 +733,7 @@ async fn fetch_video_details(
     bvid: &str,
     cid: i64,
 ) -> Result<XPlayerApiResponse, String> {
-    let client = Client::builder()
-        .user_agent(USER_AGENT)
-        .build()
-        .map_err(|e| format!("XPlayerApi failed to build client: {e}"))?;
+    let client = build_client()?;
 
     let cookie_header = build_cookie_header(cookies);
     let res: reqwest::Response = client
@@ -741,45 +754,12 @@ async fn fetch_video_details(
         .map_err(|e| format!("XPlayerApi Failed to fetch video info: {e}"))?;
 
     let body: XPlayerApiResponse = res
-        .json::<XPlayerApiResponse>()
+        .json()
         .await
         .map_err(|e| format!("XPlayerApi Failed to parse response JSON: {e}"))?;
 
-    if body.code != 0 {
-        return Err(format!("XPlayerApi error: {}", body.message));
-    }
-
+    validate_api_response(body.code, &body.message, body.data.as_ref())?;
     Ok(body)
-}
-
-/// Constructs the full output path for the downloaded file.
-///
-/// Reads the download output directory from application settings and
-/// appends the filename to it.
-///
-/// # Arguments
-///
-/// * `app` - Tauri application handle for accessing settings
-/// * `filename` - Desired filename (extension optional; .mp4 added if not present)
-///
-/// # Returns
-///
-/// Full path where the file should be saved.
-///
-/// # Errors
-///
-/// Returns an error if:
-/// - Settings cannot be loaded
-/// - Download path is not configured
-async fn get_output_path(app: &AppHandle, filename: &str) -> anyhow::Result<PathBuf> {
-    let settings = settings::get_settings(app)
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to get settings: {}", e))?;
-    let output_path = settings
-        .dl_output_path
-        .ok_or_else(|| anyhow::anyhow!("Download output path is not configured"))?;
-    let dir = PathBuf::from(&output_path);
-    Ok(dir.join(filename))
 }
 
 /// Automatically renames file if it already exists.
@@ -826,6 +806,42 @@ fn auto_rename(path: &Path) -> PathBuf {
         .unwrap_or(0);
     let fallback_name = format!("{}_{}.{}", stem, timestamp, ext);
     parent.join(fallback_name)
+}
+
+/// Builds the full output path for the downloaded file.
+///
+/// Reads the download output directory from application settings and
+/// appends the filename to it. Ensures `.mp4` extension is present.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle for accessing settings
+/// * `filename` - Desired filename (extension optional; .mp4 added if not present)
+///
+/// # Returns
+///
+/// Full path where the file should be saved.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Settings cannot be loaded
+/// - Download path is not configured
+async fn build_output_path(app: &AppHandle, filename: &str) -> Result<PathBuf, String> {
+    let settings = settings::get_settings(app)
+        .await
+        .map_err(|e| format!("Failed to get settings: {e}"))?;
+    let output_path = settings
+        .dl_output_path
+        .ok_or_else(|| "Download output path is not configured".to_string())?;
+
+    let filename_with_ext = if filename.to_lowercase().ends_with(".mp4") {
+        filename.to_string()
+    } else {
+        format!("{filename}.mp4")
+    };
+
+    Ok(PathBuf::from(&output_path).join(filename_with_ext))
 }
 
 /// Gets Content-Length of a resource via HEAD request.
@@ -950,7 +966,6 @@ where
             Ok(_) => return Ok(()),
             Err(e) => {
                 let msg = e.to_string();
-                // ネットワーク/一時的エラーのみ再試行
                 let is_retryable = msg.contains("segment")
                     || msg.contains("request error")
                     || msg.contains("timeout")
@@ -969,7 +984,8 @@ where
         }
     }
 
-    unreachable!()
+    // All attempts exhausted (covered by attempt >= MAX_ATTEMPTS above)
+    Err("ERR::NETWORK::All retry attempts failed".to_string())
 }
 
 /// Selects stream URL from quality list.
