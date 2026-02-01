@@ -154,7 +154,7 @@ function DownloadingDialog() {
         className="bg-card flex max-h-[80%] flex-col items-center justify-center rounded-xl border [&>button]:hidden"
       >
         <DialogHeader className="w-full">
-          <DialogTitle className="text-primary flex w-full items-center font-display">
+          <DialogTitle className="text-primary font-display flex w-full items-center">
             <Download size={18} className="mr-2" />
             <span className="text-lg">{t('video.progress_title')}</span>
           </DialogTitle>
@@ -201,17 +201,17 @@ function DownloadingDialog() {
                         key={key}
                         className="text-accent-foreground box-border w-full px-2"
                       >
-                        <div className="flex items-center mb-2">
+                        <div className="mb-2 flex items-center">
                           <span className="mr-2">{barIcon}</span>
                           <span className="font-medium">{barLabel}</span>
                         </div>
                         <div className="px-2">
                           {p.stage === 'merge' ? (
-                            <div className="flex items-center justify-between text-sm py-1">
+                            <div className="flex items-center justify-between py-1 text-sm">
                               <span>{t('video.bar_merge')}</span>
                               {!p.isComplete && <CircleIndicator r={10} />}
                               {p.isComplete && (
-                                <span className="text-green-500 font-medium">
+                                <span className="font-medium text-green-500">
                                   {t('video.completed')}
                                 </span>
                               )}
