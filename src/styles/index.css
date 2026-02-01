@@ -104,36 +104,36 @@
 }
 
 .dark {
-  --background: #0F0F23;
-  --foreground: #F8FAFC;
-  --card: rgba(30, 27, 75, 0.6);
-  --card-foreground: #F8FAFC;
-  --popover: #1E1B4B;
-  --popover-foreground: #F8FAFC;
+  --background: #000000;
+  --foreground: #E2E8F0;
+  --card: rgba(255, 255, 255, 0.03);
+  --card-foreground: #E2E8F0;
+  --popover: rgba(255, 255, 255, 0.05);
+  --popover-foreground: #E2E8F0;
   --primary: #E11D48;
   --primary-foreground: #FFFFFF;
-  --secondary: #1E1B4B;
-  --secondary-foreground: #F8FAFC;
-  --muted: #1E1B4B;
+  --secondary: rgba(255, 255, 255, 0.05);
+  --secondary-foreground: #E2E8F0;
+  --muted: rgba(255, 255, 255, 0.05);
   --muted-foreground: #94A3B8;
   --accent: #E11D48;
   --accent-foreground: #FFFFFF;
   --destructive: #E11D48;
-  --border: rgba(255, 255, 255, 0.1);
-  --input: rgba(255, 255, 255, 0.15);
+  --border: rgba(255, 255, 255, 0.06);
+  --input: rgba(255, 255, 255, 0.08);
   --ring: #E11D48;
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: #1E1B4B;
-  --sidebar-foreground: #F8FAFC;
+  --sidebar: rgba(255, 255, 255, 0.03);
+  --sidebar-foreground: #E2E8F0;
   --sidebar-primary: #E11D48;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: rgba(255, 255, 255, 0.1);
-  --sidebar-accent-foreground: #F8FAFC;
-  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-accent: rgba(255, 255, 255, 0.06);
+  --sidebar-accent-foreground: #E2E8F0;
+  --sidebar-border: rgba(255, 255, 255, 0.06);
   --sidebar-ring: #E11D48;
 }
 
@@ -145,18 +145,15 @@
     @apply bg-background text-foreground;
   }
 
-  /* Glassmorphism Card Styles */
+  /* Minimal Card Styles */
   .glass-card {
-    background: var(--glass-bg);
-    border: 1px solid var(--glass-border);
-    box-shadow: 0 4px 16px var(--glass-shadow);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    background: var(--card);
+    border: 1px solid var(--border);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
   }
 
   .glass-card:hover {
-    border-color: var(--glass-hover-border);
-    box-shadow: 0 0 24px var(--glass-hover-glow), 0 4px 16px var(--glass-shadow);
+    border-color: rgba(255, 255, 255, 0.1);
   }
 
   /* Typography Classes */
@@ -170,7 +167,7 @@
 
   /* Interactive Element Transitions */
   button, a, [role="button"] {
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.15s ease-out;
   }
 
   /* Focus Visible Styles */

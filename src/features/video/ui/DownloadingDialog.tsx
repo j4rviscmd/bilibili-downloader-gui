@@ -151,7 +151,7 @@ function DownloadingDialog() {
       <DialogContent
         disableOutsideClick
         onEscapeKeyDown={(e) => e.preventDefault()}
-        className="glass-card flex max-h-[80%] flex-col items-center justify-center rounded-2xl [&>button]:hidden"
+        className="bg-card flex max-h-[80%] flex-col items-center justify-center rounded-xl border [&>button]:hidden"
       >
         <DialogHeader className="w-full">
           <DialogTitle className="text-primary flex w-full items-center font-display">
@@ -178,7 +178,7 @@ function DownloadingDialog() {
               return (
                 <div
                   key={parentId}
-                  className="glass-card hover:border-muted-foreground/50 mb-3 w-full rounded-xl border px-3 py-3 transition-all duration-300"
+                  className="bg-card hover:border-border/80 mb-3 w-full rounded-lg border px-3 py-3 transition-colors duration-200"
                 >
                   {groupTitle && (
                     <div
@@ -229,7 +229,7 @@ function DownloadingDialog() {
           {notInProgress.map((part) => (
             <div
               key={part.page}
-              className="glass-card hover:border-muted-foreground/50 mb-3 w-full rounded-xl border px-3 py-3 transition-all duration-300"
+              className="bg-card hover:border-border/80 mb-3 w-full rounded-lg border px-3 py-3 transition-colors duration-200"
             >
               <div
                 className="text-md mb-1 truncate px-2 leading-tight font-semibold"
@@ -246,7 +246,7 @@ function DownloadingDialog() {
           <div
             role="alert"
             aria-live="polite"
-            className="border-destructive/60 bg-destructive/20 text-destructive mb-4 w-full rounded-xl border px-4 py-3 text-sm backdrop-blur-sm"
+            className="border-destructive/50 bg-destructive/10 text-destructive mb-4 w-full rounded-lg border px-4 py-3 text-sm"
           >
             <div className="mb-1 font-semibold">
               {t('video.download_failed')}
