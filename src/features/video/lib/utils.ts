@@ -31,3 +31,22 @@ const FORBIDDEN_SUPERSET = /[\\/:*?"<>|]/g
 export const normalizeFilename = (name: string): string => {
   return name.trim().toLowerCase().replace(FORBIDDEN_SUPERSET, '')
 }
+
+/**
+ * Converts base64 thumbnail data to a data URL.
+ *
+ * If the data already has a data URL prefix, returns it as-is.
+ * Otherwise, prepends the PNG data URL prefix.
+ *
+ * @param base64 - The base64 encoded image data
+ * @returns A complete data URL
+ *
+ * @example
+ * ```typescript
+ * toThumbnailDataUrl('iVBORw0KG...') // 'data:image/png;base64,iVBORw0KG...'
+ * toThumbnailDataUrl('data:image/jpeg;base64,iVBORw0KG...') // 'data:image/jpeg;base64,iVBORw0KG...'
+ * ```
+ */
+export const toThumbnailDataUrl = (base64: string): string => {
+  return base64.startsWith('data:') ? base64 : `data:image/png;base64,${base64}`
+}

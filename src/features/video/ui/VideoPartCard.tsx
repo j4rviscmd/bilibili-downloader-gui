@@ -7,6 +7,7 @@ import {
   VIDEO_QUALITIES_MAP,
 } from '@/features/video/lib/constants'
 import { buildVideoFormSchema2 } from '@/features/video/lib/formSchema'
+import { toThumbnailDataUrl } from '@/features/video/lib/utils'
 import { updatePartSelected } from '@/features/video/model/inputSlice'
 import type { Video } from '@/features/video/types'
 import { Checkbox } from '@/shared/animate-ui/radix/checkbox'
@@ -82,10 +83,12 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   const min = Math.floor(videoPart.duration / 60)
   const sec = videoPart.duration % 60
 
-  // 選択状態を取得
-  const selected = useSelector(
-    (state: RootState) => state.input.partInputs[page - 1]?.selected ?? true,
+  // 選択状態と既存の入力値を取得
+  const partInput = useSelector(
+    (state: RootState) => state.input.partInputs[page - 1],
   )
+  const selected = partInput?.selected ?? true
+  const existingInput = partInput
 
   // 選択状態を更新
   const handleSelectedChange = (checked: boolean | 'indeterminate') => {
@@ -111,34 +114,34 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
       }
 
       const part = video.parts[page - 1]
-      const title =
+      const defaultTitle =
         video.title === videoPart.part
           ? video.title
           : `${video.title} ${videoPart.part}`
-      form.setValue('title', title, {
-        shouldValidate: true,
-      })
-      form.setValue(
-        'videoQuality',
-        (part.videoQualities[0]?.id || 80).toString(),
-        { shouldValidate: true },
-      )
-      form.setValue(
-        'audioQuality',
-        (part.audioQualities[0]?.id || 30216).toString(),
-        { shouldValidate: true },
-      )
 
-      const ok = await form.trigger()
-      if (ok) {
-        const vals = form.getValues()
-        onValid2(page - 1, vals.title, vals.videoQuality, vals.audioQuality)
+      // 既にユーザーが設定した値があれば、それをフォームにセット
+      // なければデフォルト値をセットしてRedux storeに保存
+      const title = existingInput?.title ?? defaultTitle
+      const videoQuality =
+        existingInput?.videoQuality ?? String(part.videoQualities[0]?.id ?? 80)
+      const audioQuality =
+        existingInput?.audioQuality ??
+        String(part.audioQualities[0]?.id ?? 30216)
+
+      form.setValue('title', title, { shouldValidate: true })
+      form.setValue('videoQuality', videoQuality, { shouldValidate: true })
+      form.setValue('audioQuality', audioQuality, { shouldValidate: true })
+
+      if (await form.trigger()) {
+        // 初期化時のみRedux storeを更新（既存値がある場合は更新しない）
+        if (!existingInput) {
+          onValid2(page - 1, title, videoQuality, audioQuality)
+        }
       }
     }
 
     syncFormWithVideo()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [video, page])
+  }, [video, page, existingInput])
 
   async function onSubmit(data: z.infer<typeof schema2>) {
     onValid2(page - 1, data.title, data.videoQuality, data.audioQuality)
@@ -162,11 +165,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                   size="lg"
                 />
                 <img
-                  src={
-                    videoPart.thumbnail.base64.startsWith('data:')
-                      ? videoPart.thumbnail.base64
-                      : 'data:image/png;base64,' + videoPart.thumbnail.base64
-                  }
+                  src={toThumbnailDataUrl(videoPart.thumbnail.base64)}
                   alt={`Thumbnail for ${videoPart.part}`}
                   className="h-16 w-24 rounded-lg object-cover md:h-20 md:w-32"
                 />
