@@ -284,11 +284,8 @@ pub async fn download_url(
                                 // fetch_add returns the OLD value, so add chunk_len to get new value
                                 let new_total =
                                     dl_total_c.fetch_add(chunk_len, Ordering::Relaxed) + chunk_len;
-                                // Emit progress update (runs in background task)
-                                let emits_clone = emits_c_for_callback.clone();
-                                tokio::spawn(async move {
-                                    emits_clone.update_progress(new_total).await;
-                                });
+                                // Emit progress update via watch channel (non-blocking)
+                                emits_c_for_callback.update_progress(new_total);
                             },
                         )
                         .await;
@@ -507,10 +504,8 @@ async fn single_stream_fallback(
     while let Some(chunk) = resp.chunk().await? {
         file.write_all(&chunk).await.map_err(map_io_error)?;
         downloaded += chunk.len() as u64;
-        let emits_clone = emits_for_callback.clone();
-        tokio::spawn(async move {
-            emits_clone.update_progress(downloaded).await;
-        });
+        // Emit progress update via watch channel (non-blocking)
+        emits_for_callback.update_progress(downloaded);
     }
 
     file.flush().await.map_err(map_io_error)?;

@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Instant;
 use tauri::{AppHandle, Emitter};
-use tokio::{spawn, sync::Mutex, time};
+use tokio::{spawn, sync::watch, sync::Mutex, time};
 
 /// Progress update interval in milliseconds.
 /// The background task emits progress events at this frequency.
@@ -53,12 +53,13 @@ pub struct Progress {
 ///
 /// This structure maintains timing information and byte counts for
 /// calculating transfer rates and progress percentages.
+/// Note: current_downloaded_bytes is now managed via watch::Sender/Receiver
+/// to avoid lock contention between download thread and background task.
 struct EmitsInner {
     progress: Progress,
     start_instant: Instant,
     last_instant: Instant,
     last_downloaded_bytes: u64,
-    current_downloaded_bytes: u64,
     /// Flag to stop the internal timer when download completes
     is_complete: bool,
     /// Last time speed was calculated (for 1-second interval EMA calculation)
@@ -78,7 +79,6 @@ impl Default for EmitsInner {
             last_instant: now,
             last_speed_calc_instant: now,
             last_downloaded_bytes: 0,
-            current_downloaded_bytes: 0,
             last_speed_calc_bytes: 0,
             is_complete: false,
             smoothed_speed_kbps: 0.0,
@@ -91,9 +91,13 @@ impl Default for EmitsInner {
 /// This struct manages download progress tracking and automatically emits
 /// progress events every 100ms. It spawns a background task that runs
 /// until the download completes.
+///
+/// Uses watch::Sender for lock-free progress updates from download thread,
+/// avoiding contention with the background emission task.
 pub struct Emits {
     app: AppHandle,
     inner: Arc<Mutex<EmitsInner>>,
+    progress_tx: watch::Sender<u64>,
 }
 
 impl Emits {
@@ -130,48 +134,57 @@ impl Emits {
             ..Default::default()
         }));
 
+        // Create watch channel for lock-free progress updates
+        let (progress_tx, mut progress_rx) = watch::channel(0u64);
+
         // Send initial progress immediately
         if let Ok(mut guard) = inner.try_lock() {
-            Self::send_progress_locked(&app, &mut guard);
+            Self::send_progress_locked(&app, &mut guard, 0);
         }
 
-        // Spawn background task to emit progress every PROGRESS_UPDATE_INTERVAL_MS
+        // Spawn background task to emit progress with select! for ticker and watch channel
         let inner_for_task = inner.clone();
         let app_for_task = app.clone();
         spawn(async move {
             let mut ticker =
                 time::interval(time::Duration::from_millis(PROGRESS_UPDATE_INTERVAL_MS));
             loop {
-                ticker.tick().await;
-                let mut guard = inner_for_task.lock().await;
-                if guard.is_complete {
-                    break;
+                tokio::select! {
+                    _ = ticker.tick() => {
+                        let mut guard = inner_for_task.lock().await;
+                        if guard.is_complete {
+                            break;
+                        }
+                        let bytes = *progress_rx.borrow();
+                        Self::send_progress_locked(&app_for_task, &mut guard, bytes);
+                    }
+                    Ok(()) = progress_rx.changed() => {
+                        // Progress updated via watch channel - will be reflected on next tick
+                        // This wakes up the select loop but actual emission happens on ticker
+                    }
                 }
-                Self::send_progress_locked(&app_for_task, &mut guard);
             }
         });
 
-        Emits { app, inner }
+        Emits {
+            app,
+            inner,
+            progress_tx,
+        }
     }
 
     /// Updates the current download progress.
     ///
-    /// This method updates the total bytes downloaded. The actual progress
-    /// calculation and emission happens in the background update task.
+    /// This method updates the total bytes downloaded via a watch channel,
+    /// avoiding lock contention with the background emission task.
+    /// The actual progress calculation and emission happens in the background.
     ///
     /// # Arguments
     ///
     /// * `downloaded_bytes` - Total number of bytes downloaded so far
-    pub async fn update_progress(&self, downloaded_bytes: u64) {
-        match self.inner.try_lock() {
-            Ok(mut guard) => {
-                guard.current_downloaded_bytes = downloaded_bytes;
-            }
-            Err(_) => {
-                #[cfg(debug_assertions)]
-                eprintln!("[Emits] Failed to acquire lock for progress update");
-            }
-        }
+    pub fn update_progress(&self, downloaded_bytes: u64) {
+        // Send via watch channel - non-blocking, replaces old value
+        let _ = self.progress_tx.send(downloaded_bytes);
     }
 
     /// Sets the current download stage and emits an immediate update.
@@ -185,8 +198,10 @@ impl Emits {
     pub async fn set_stage(&self, stage: &str) {
         let mut guard = self.inner.lock().await;
         guard.progress.stage = Some(stage.to_string());
+        // Get current bytes from watch channel for immediate update
+        let bytes = *self.progress_tx.subscribe().borrow();
         // Send immediate update reflecting stage change
-        Self::send_progress_locked(&self.app, &mut guard);
+        Self::send_progress_locked(&self.app, &mut guard, bytes);
     }
 
     /// Marks the download as complete and stops the update task.
@@ -233,7 +248,9 @@ impl Emits {
         }
 
         guard.progress.filesize = Some(filesize_mb);
-        Self::send_progress_locked(&self.app, &mut guard);
+        // Get current bytes from watch channel
+        let bytes = *self.progress_tx.subscribe().borrow();
+        Self::send_progress_locked(&self.app, &mut guard, bytes);
     }
 
     /// Internal method: Calculates progress and emits event with lock held.
@@ -246,21 +263,21 @@ impl Emits {
     ///
     /// * `app` - Tauri application handle for event emission
     /// * `inner` - Mutable reference to the locked inner state
-    fn send_progress_locked(app: &AppHandle, inner: &mut EmitsInner) {
+    fn send_progress_locked(app: &AppHandle, inner: &mut EmitsInner, current_bytes: u64) {
         let now = Instant::now();
         let delta_time = now.duration_since(inner.last_instant).as_secs_f64();
         let elapsed_time = now.duration_since(inner.start_instant).as_secs_f64();
-        let bytes_changed = inner.current_downloaded_bytes != inner.last_downloaded_bytes;
+        let bytes_changed = current_bytes != inner.last_downloaded_bytes;
 
         if bytes_changed {
             // Calculate percentage
             inner.progress.percentage =
-                Self::calculate_percentage(inner.current_downloaded_bytes, inner.progress.filesize);
+                Self::calculate_percentage(current_bytes, inner.progress.filesize);
 
             // Calculate smoothed transfer rate (EMA)
             inner.progress.transfer_rate = Self::calculate_smoothed_speed(
                 now,
-                inner.current_downloaded_bytes,
+                current_bytes,
                 inner.smoothed_speed_kbps,
                 inner.last_speed_calc_instant,
                 inner.last_speed_calc_bytes,
@@ -273,21 +290,19 @@ impl Emits {
             if time_since_last_calc >= 1.0 {
                 inner.smoothed_speed_kbps = inner.progress.transfer_rate;
                 inner.last_speed_calc_instant = now;
-                inner.last_speed_calc_bytes = inner.current_downloaded_bytes;
+                inner.last_speed_calc_bytes = current_bytes;
             }
 
             // Round values for display
             if inner.progress.filesize.is_some() {
                 inner.progress.filesize = inner.progress.filesize.map(|v| round_to(v, 1));
-                inner.progress.downloaded = Some(round_to(
-                    inner.current_downloaded_bytes as f64 / (1024.0 * 1024.0),
-                    1,
-                ));
+                inner.progress.downloaded =
+                    Some(round_to(current_bytes as f64 / (1024.0 * 1024.0), 1));
                 inner.progress.percentage = round_to(inner.progress.percentage, 0);
                 inner.progress.transfer_rate = round_to(inner.progress.transfer_rate, 1);
             }
 
-            inner.last_downloaded_bytes = inner.current_downloaded_bytes;
+            inner.last_downloaded_bytes = current_bytes;
         }
 
         inner.progress.delta_time = delta_time;
