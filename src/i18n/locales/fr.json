@@ -12,7 +12,8 @@
     "aria": {
       "mainNavigation": "Navigation principale",
       "home": "Accéder à la page de téléchargement",
-      "history": "Accéder à l'historique"
+      "history": "Accéder à l'historique",
+      "toggleSidebar": "Basculer la barre latérale"
     }
   },
   "actions": {
@@ -22,8 +23,8 @@
     "close": "Fermer"
   },
   "video": {
-    "step1_title": "Step 1: URL Input",
-    "step2_title": "Step 2: Video Part Settings",
+    "step1_title": "Étape 1 : Saisie de l'URL",
+    "step2_title": "Étape 2 : Paramètres des parties de la vidéo",
     "url_placeholder": "Coller l'URL Bilibili",
     "url_label": "URL",
     "url_description": "Entrez l'URL de la vidéo.",
@@ -63,7 +64,8 @@
     "reload_after_error": "Recharger la page pour réessayer",
     "select_all": "Tout sélectionner",
     "deselect_all": "Tout désélectionner",
-    "no_parts_selected": "Aucune partie sélectionnée pour le téléchargement"
+    "no_parts_selected": "Aucune partie sélectionnée pour le téléchargement",
+    "thumbnail_alt": "Miniature pour {{part}}"
   },
   "progress": {
     "elapsed": "Temps écoulé",
@@ -107,6 +109,7 @@
   },
   "settings": {
     "title": "Paramètres",
+    "open_dialog": "Ouvrir les paramètres",
     "language_label": "Langue",
     "output_dir_label": "Répertoire de sortie",
     "output_dir_placeholder": "ex: C\\\\Users\\\\you\\\\Downloads ou /Users/you/Downloads",

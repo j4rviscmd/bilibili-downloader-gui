@@ -37,7 +37,7 @@ type Props = {
  * ```
  */
 function HistoryItem({ entry, onDelete }: Props) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [thumbnailSrc, setThumbnailSrc] = useState<string | null>(null)
   const [thumbnailLoading, setThumbnailLoading] = useState(false)
 
@@ -60,7 +60,17 @@ function HistoryItem({ entry, onDelete }: Props) {
 
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString)
-    return date.toLocaleDateString(undefined, {
+    // Convert i18next language code to BCP 47 language tag
+    const localeMap: Record<string, string> = {
+      zh: 'zh-CN',
+      ja: 'ja-JP',
+      en: 'en-US',
+      fr: 'fr-FR',
+      es: 'es-ES',
+      ko: 'ko-KR',
+    }
+    const locale = localeMap[i18n.language] || i18n.language
+    return date.toLocaleDateString(locale, {
       year: 'numeric',
       month: 'short',
       day: 'numeric',

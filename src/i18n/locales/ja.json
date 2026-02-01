@@ -12,7 +12,8 @@
     "aria": {
       "mainNavigation": "メインナビゲーション",
       "home": "ダウンロード画面へ移動",
-      "history": "履歴画面へ移動"
+      "history": "履歴画面へ移動",
+      "toggleSidebar": "サイドバーを切り替え"
     }
   },
   "actions": {
@@ -65,7 +66,8 @@
     "deselect_all": "全解除",
     "no_parts_selected": "ダウンロード対象が選択されていません",
     "expand_part": "▶ Part {{num}} を展開",
-    "collapse_part": "▼ Part {{num}} を折りたたむ"
+    "collapse_part": "▼ Part {{num}} を折りたたむ",
+    "thumbnail_alt": "{{part}} のサムネイル"
   },
   "progress": {
     "elapsed": "経過",
@@ -112,6 +114,7 @@
   },
   "settings": {
     "title": "設定",
+    "open_dialog": "設定を開く",
     "language_label": "言語",
     "output_dir_label": "出力ディレクトリ",
     "output_dir_placeholder": "例: C:\\Users\\you\\Downloads または /Users/you/Downloads",

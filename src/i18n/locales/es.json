@@ -12,7 +12,8 @@
     "aria": {
       "mainNavigation": "Navegación principal",
       "home": "Ir a la página de descarga",
-      "history": "Ir a la página de historial"
+      "history": "Ir a la página de historial",
+      "toggleSidebar": "Alternar barra lateral"
     }
   },
   "actions": {
@@ -22,8 +23,8 @@
     "close": "Cerrar"
   },
   "video": {
-    "step1_title": "Step 1: URL Input",
-    "step2_title": "Step 2: Video Part Settings",
+    "step1_title": "Paso 1: Entrada de URL",
+    "step2_title": "Paso 2: Configuración de partes del video",
     "url_placeholder": "Pega la URL de Bilibili",
     "url_label": "URL",
     "url_description": "Introduce la URL del video.",
@@ -63,7 +64,8 @@
     "reload_after_error": "Recargar página para reintentar",
     "select_all": "Seleccionar todo",
     "deselect_all": "Deseleccionar todo",
-    "no_parts_selected": "No se han seleccionado partes para descargar"
+    "no_parts_selected": "No se han seleccionado partes para descargar",
+    "thumbnail_alt": "Miniatura para {{part}}"
   },
   "progress": {
     "elapsed": "Transcurrido",
@@ -107,6 +109,7 @@
   },
   "settings": {
     "title": "Configuración",
+    "open_dialog": "Abrir configuración",
     "language_label": "Idioma",
     "output_dir_label": "Directorio de salida",
     "output_dir_placeholder": "ej: C:\\Users\\you\\Downloads o /Users/you/Downloads",
