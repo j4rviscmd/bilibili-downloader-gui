@@ -22,6 +22,8 @@
     "close": "Cerrar"
   },
   "video": {
+    "step1_title": "Step 1: URL Input",
+    "step2_title": "Step 2: Video Part Settings",
     "url_placeholder": "Pega la URL de Bilibili",
     "url_label": "URL",
     "url_description": "Introduce la URL del video.",

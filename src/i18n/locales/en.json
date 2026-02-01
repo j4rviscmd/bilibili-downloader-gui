@@ -22,6 +22,8 @@
     "close": "Close"
   },
   "video": {
+    "step1_title": "Step 1: URL Input",
+    "step2_title": "Step 2: Video Part Settings",
     "url_placeholder": "Paste Bilibili URL",
     "url_label": "URL",
     "url_description": "Enter the video URL.",
@@ -61,7 +63,9 @@
     "reload_after_error": "Reload page to retry",
     "select_all": "Select All",
     "deselect_all": "Deselect All",
-    "no_parts_selected": "No parts selected for download"
+    "no_parts_selected": "No parts selected for download",
+    "expand_part": "▶ Expand Part {{num}}",
+    "collapse_part": "▼ Collapse Part {{num}}"
   },
   "progress": {
     "elapsed": "Elapsed",

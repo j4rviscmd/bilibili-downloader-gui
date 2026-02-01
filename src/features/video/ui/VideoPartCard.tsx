@@ -24,14 +24,13 @@ import { cn } from '@/shared/lib/utils'
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from '@/shared/ui/form'
-import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
+import { Textarea } from '@/shared/ui/textarea'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Info } from 'lucide-react'
 import { useEffect, useMemo } from 'react'
@@ -41,7 +40,7 @@ import { useSelector } from 'react-redux'
 import { z } from 'zod'
 
 /**
- * Props for VideoForm2 component.
+ * Props for VideoPartCard component.
  */
 type Props = {
   /** Video metadata */
@@ -53,14 +52,18 @@ type Props = {
 }
 
 /**
- * Form for video part settings (Step 2).
+ * Card component for video part settings.
  *
- * Displays settings for a single video part including:
+ * Displays a card for a single video part including:
  * - Checkbox for selection
  * - Thumbnail and duration
  * - Custom filename input
  * - Video quality radio buttons (only available qualities shown)
  * - Audio quality radio buttons (only available qualities shown)
+ *
+ * Responsive layout:
+ * - Desktop (≥768px): Horizontal grid with thumbnail, title, and quality selectors
+ * - Mobile (<768px): Vertical stack with collapsible sections
  *
  * Changes are auto-saved on blur. Displays duplicate title warning if needed.
  *
@@ -68,10 +71,10 @@ type Props = {
  *
  * @example
  * ```tsx
- * <VideoForm2 video={videoData} page={1} isDuplicate={false} />
+ * <VideoPartCard video={videoData} page={1} isDuplicate={false} />
  * ```
  */
-function VideoForm2({ video, page, isDuplicate }: Props) {
+function VideoPartCard({ video, page, isDuplicate }: Props) {
   const { onValid2 } = useVideoInfo()
   const { t } = useTranslation()
   const disabled = video.parts.length === 0
@@ -142,74 +145,99 @@ function VideoForm2({ video, page, isDuplicate }: Props) {
   }
 
   return (
-    <div className="p-3">
+    <div className="p-3 md:p-4">
       <Form {...form}>
         <fieldset disabled={disabled}>
           <form
             onSubmit={form.handleSubmit(onSubmit)}
             onBlur={form.handleSubmit(onSubmit)}
-            className="space-y-3"
+            className="space-y-2"
           >
-            <FormField
-              control={form.control}
-              name="title"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('video.title_label')}</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder={t('video.title_placeholder')}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    {t('video.title_description')}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <TooltipProvider delayDuration={200}>
-              <div className="grid grid-cols-24 items-center gap-3">
-                <div className="col-span-12 flex h-full gap-3">
-                  <div className="flex items-center">
-                    <Checkbox
-                      checked={selected}
-                      onCheckedChange={handleSelectedChange}
-                      size="lg"
-                    />
-                  </div>
-                  <div className="flex flex-col justify-center">
-                    <img
-                      src={
-                        videoPart.thumbnail.base64.startsWith('data:')
-                          ? videoPart.thumbnail.base64
-                          : 'data:image/png;base64,' +
-                            videoPart.thumbnail.base64
-                      }
-                      alt="thumbnail"
-                    />
-                    <div className="block">
-                      <span>{videoPart.part}</span>
-                      <span className="px-1">/</span>
-                      {min > 0 && <span className="mr-1">{min}m</span>}
-                      <span>{sec}s</span>
-                    </div>
-                  </div>
+            {/* Thumbnail and Title Section */}
+            <div>
+              <div className="flex items-center gap-3">
+                <Checkbox
+                  checked={selected}
+                  onCheckedChange={handleSelectedChange}
+                  size="lg"
+                />
+                <img
+                  src={
+                    videoPart.thumbnail.base64.startsWith('data:')
+                      ? videoPart.thumbnail.base64
+                      : 'data:image/png;base64,' + videoPart.thumbnail.base64
+                  }
+                  alt={`Thumbnail for ${videoPart.part}`}
+                  className="h-16 w-24 rounded-lg object-cover md:h-20 md:w-32"
+                />
+
+                {/* Title Input */}
+                <div className="flex-1">
+                  <FormField
+                    control={form.control}
+                    name="title"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm font-medium">
+                          {t('video.title_label')}
+                        </FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder={t('video.title_placeholder')}
+                            className="min-h-[52px] resize-none"
+                            rows={3}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
+              </div>
+
+              {/* Video Part Name and Duration */}
+              <div
+                className="text-muted-foreground mt-1.5 flex items-center text-sm"
+                style={{ marginLeft: '2.25rem' }}
+              >
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span
+                      className="inline-block max-w-[200px] cursor-help truncate font-medium md:max-w-[300px]"
+                      title={videoPart.part}
+                    >
+                      {videoPart.part}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <p className="text-sm">{videoPart.part}</p>
+                  </TooltipContent>
+                </Tooltip>
+                <span className="px-1">/</span>
+                {min > 0 && <span className="mr-1">{min}m</span>}
+                <span>{sec}s</span>
+              </div>
+            </div>
+
+            {/* Quality Selectors */}
+            <TooltipProvider delayDuration={200}>
+              <div className="grid grid-cols-1 gap-2">
                 {/* Video Quality */}
                 <FormField
                   control={form.control}
                   name="videoQuality"
                   render={({ field }) => (
-                    <FormItem className="col-span-12 h-fit">
+                    <FormItem>
                       <div className="flex items-center gap-1.5">
-                        <FormLabel>{t('video.quality_label')}</FormLabel>
+                        <FormLabel className="text-sm font-medium">
+                          {t('video.quality_label')}
+                        </FormLabel>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Info className="text-muted-foreground h-4 w-4 cursor-help" />
                           </TooltipTrigger>
-                          <TooltipContent side="top">
+                          <TooltipContent side="top" className="max-w-xs">
                             <p className="text-xs">
                               {t('video.quality_description')}
                             </p>
@@ -240,7 +268,7 @@ function VideoForm2({ video, page, isDuplicate }: Props) {
                                 <div
                                   key={id}
                                   className={cn(
-                                    'flex min-w-[80px] items-center space-x-3 whitespace-nowrap',
+                                    'flex min-h-[36px] min-w-[80px] items-center space-x-2 whitespace-nowrap',
                                     isDisabled
                                       ? 'text-muted-foreground/60'
                                       : '',
@@ -249,41 +277,42 @@ function VideoForm2({ video, page, isDuplicate }: Props) {
                                   <RadioGroupItem
                                     disabled={isDisabled}
                                     value={id}
+                                    id={`vq-${id}-${page}`}
                                   />
-                                  <Label htmlFor={`vq-${id}`}>{value}</Label>
+                                  <Label
+                                    htmlFor={`vq-${id}-${page}`}
+                                    className={cn(
+                                      'cursor-pointer',
+                                      isDisabled && 'cursor-not-allowed',
+                                    )}
+                                  >
+                                    {value}
+                                  </Label>
                                 </div>
                               )
                             })}
                         </RadioGroup>
                       </FormControl>
-                      <FormDescription>
-                        {t('video.quality_description')}
-                        <br />
-                        {t('video.quality_note')}
-                        <br />
-                      </FormDescription>
                       <FormMessage />
-                      {isDuplicate && (
-                        <div className="text-destructive text-sm">
-                          {t('validation.video.title.duplicate')}
-                        </div>
-                      )}
                     </FormItem>
                   )}
                 />
+
                 {/* Audio Quality */}
                 <FormField
                   control={form.control}
                   name="audioQuality"
                   render={({ field }) => (
-                    <FormItem className="col-span-12 h-fit">
+                    <FormItem>
                       <div className="flex items-center gap-1.5">
-                        <FormLabel>{t('video.audio_quality_label')}</FormLabel>
+                        <FormLabel className="text-sm font-medium">
+                          {t('video.audio_quality_label')}
+                        </FormLabel>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Info className="text-muted-foreground h-4 w-4 cursor-help" />
                           </TooltipTrigger>
-                          <TooltipContent side="top">
+                          <TooltipContent side="top" className="max-w-xs">
                             <p className="text-xs">
                               {t('video.audio_quality_description')}
                             </p>
@@ -312,32 +341,42 @@ function VideoForm2({ video, page, isDuplicate }: Props) {
                               <div
                                 key={id}
                                 className={cn(
-                                  'flex min-w-[80px] items-center space-x-3 whitespace-nowrap',
+                                  'flex min-h-[36px] min-w-[80px] items-center space-x-2 whitespace-nowrap',
                                   isDisabled ? 'text-muted-foreground/60' : '',
                                 )}
                               >
                                 <RadioGroupItem
                                   disabled={isDisabled}
                                   value={String(id)}
+                                  id={`aq-${id}-${page}`}
                                 />
-                                <Label htmlFor={`aq-${id}`}>{value}</Label>
+                                <Label
+                                  htmlFor={`aq-${id}-${page}`}
+                                  className={cn(
+                                    'cursor-pointer',
+                                    isDisabled && 'cursor-not-allowed',
+                                  )}
+                                >
+                                  {value}
+                                </Label>
                               </div>
                             )
                           })}
                         </RadioGroup>
                       </FormControl>
-                      <FormDescription>
-                        {t('video.audio_quality_description')}
-                        <br />
-                        {t('video.audio_quality_note')}
-                        <br />
-                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               </div>
             </TooltipProvider>
+
+            {/* Duplicate Warning */}
+            {isDuplicate && (
+              <div className="text-destructive mt-1 text-sm">
+                {t('validation.video.title.duplicate')}
+              </div>
+            )}
           </form>
         </fieldset>
       </Form>
@@ -345,4 +384,4 @@ function VideoForm2({ video, page, isDuplicate }: Props) {
   )
 }
 
-export default VideoForm2
+export default VideoPartCard

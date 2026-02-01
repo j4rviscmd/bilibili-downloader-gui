@@ -151,12 +151,12 @@ function DownloadingDialog() {
       <DialogContent
         disableOutsideClick
         onEscapeKeyDown={(e) => e.preventDefault()}
-        className="flex max-h-[80%] flex-col items-center justify-center [&>button]:hidden"
+        className="bg-card flex max-h-[80%] flex-col items-center justify-center rounded-xl border [&>button]:hidden"
       >
         <DialogHeader className="w-full">
-          <DialogTitle className="text-primary flex w-full items-center">
-            <Download size={16} className="mr-0.5" />
-            <span>{t('video.progress_title')}</span>
+          <DialogTitle className="text-primary font-display flex w-full items-center">
+            <Download size={18} className="mr-2" />
+            <span className="text-lg">{t('video.progress_title')}</span>
           </DialogTitle>
           <DialogDescription hidden />
         </DialogHeader>
@@ -178,11 +178,11 @@ function DownloadingDialog() {
               return (
                 <div
                   key={parentId}
-                  className="hover:border-muted-foreground/50 mb-2 w-full rounded-md border px-1.5 py-2 transition-colors duration-200"
+                  className="bg-card hover:border-border/80 mb-2 w-full rounded-lg border px-2.5 py-2.5 transition-colors duration-200"
                 >
                   {groupTitle && (
                     <div
-                      className="text-md mb-0.5 truncate px-2.5 leading-tight font-semibold"
+                      className="text-md mb-1.5 truncate px-1.5 leading-tight font-semibold"
                       title={groupTitle}
                     >
                       {groupTitle}
@@ -199,19 +199,21 @@ function DownloadingDialog() {
                     return (
                       <div
                         key={key}
-                        className="text-accent-foreground box-border w-full px-2.5"
+                        className="text-accent-foreground box-border w-full px-2"
                       >
-                        <div className="flex items-center">
-                          <span className="mr-1">{barIcon}</span>
-                          <span>{barLabel}</span>
+                        <div className="mb-2 flex items-center">
+                          <span className="mr-2">{barIcon}</span>
+                          <span className="font-medium">{barLabel}</span>
                         </div>
                         <div className="px-2">
                           {p.stage === 'merge' ? (
-                            <div className="flex items-center justify-between text-sm">
+                            <div className="flex items-center justify-between py-1 text-sm">
                               <span>{t('video.bar_merge')}</span>
-                              {!p.isComplete && <CircleIndicator r={8} />}
+                              {!p.isComplete && <CircleIndicator r={10} />}
                               {p.isComplete && (
-                                <span>{t('video.completed')}</span>
+                                <span className="font-medium text-green-500">
+                                  {t('video.completed')}
+                                </span>
                               )}
                             </div>
                           ) : (
@@ -227,10 +229,10 @@ function DownloadingDialog() {
           {notInProgress.map((part) => (
             <div
               key={part.page}
-              className="hover:border-muted-foreground/50 mb-2 w-full rounded-md border px-1.5 py-2 transition-colors duration-200"
+              className="bg-card hover:border-border/80 mb-2 w-full rounded-lg border px-2.5 py-2.5 transition-colors duration-200"
             >
               <div
-                className="text-md mb-0.5 truncate px-2.5 leading-tight font-semibold"
+                className="text-md mb-0.5 truncate px-1.5 leading-tight font-semibold"
                 title={part.title}
               >
                 <span className="pr-1">{t('video.queue_waiting_prefix')}</span>
@@ -244,9 +246,9 @@ function DownloadingDialog() {
           <div
             role="alert"
             aria-live="polite"
-            className="border-destructive/40 bg-destructive/10 text-destructive mb-3 w-full rounded-md border px-3 py-2 text-sm"
+            className="border-destructive/50 bg-destructive/10 text-destructive mb-3 w-full rounded-lg border px-3 py-2.5 text-sm"
           >
-            <div className="mb-0.5 font-semibold">
+            <div className="mb-1 font-semibold">
               {t('video.download_failed')}
             </div>
             <div className="truncate" title={errorMessage || ''}>
@@ -258,9 +260,13 @@ function DownloadingDialog() {
           </div>
         )}
         <div>
-          <Button disabled={isDownloading} onClick={onClick}>
+          <Button
+            disabled={isDownloading}
+            onClick={onClick}
+            className="h-11 px-6"
+          >
             {isDownloading ? (
-              <CircleIndicator r={8} />
+              <CircleIndicator r={10} />
             ) : hasError ? (
               t('video.reload_after_error')
             ) : (
