@@ -1,4 +1,3 @@
-import { ScrollArea, ScrollBar } from '@/shared/ui/scroll-area'
 import { useTranslation } from 'react-i18next'
 import type { HistoryEntry } from '../model/historySlice'
 import HistoryItem from './HistoryItem'
@@ -72,18 +71,15 @@ function HistoryList({ entries, loading, onDelete }: Props) {
   }
 
   return (
-    <ScrollArea className="h-full">
-      <div className="space-y-3 p-3">
-        {entries.map((entry) => (
-          <HistoryItem
-            key={entry.id}
-            entry={entry}
-            onDelete={() => onDelete(entry.id)}
-          />
-        ))}
-      </div>
-      <ScrollBar />
-    </ScrollArea>
+    <div className="space-y-3 p-3">
+      {entries.map((entry) => (
+        <HistoryItem
+          key={entry.id}
+          entry={entry}
+          onDelete={() => onDelete(entry.id)}
+        />
+      ))}
+    </div>
   )
 }
 

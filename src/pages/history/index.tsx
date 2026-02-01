@@ -5,6 +5,7 @@ import HistoryList from '@/features/history/ui/HistoryList'
 import HistorySearch from '@/features/history/ui/HistorySearch'
 import { PageLayout } from '@/shared/layout'
 import { Button } from '@/shared/ui/button'
+import { ScrollArea, ScrollBar } from '@/shared/ui/scroll-area'
 import { save } from '@tauri-apps/plugin-dialog'
 import { writeTextFile } from '@tauri-apps/plugin-fs'
 import { FileText, Trash2 } from 'lucide-react'
@@ -113,10 +114,11 @@ function HistoryPage() {
           </div>
         </div>
 
-        {/* History list */}
-        <div className="flex-1 overflow-hidden">
+        {/* History list with scrollable content */}
+        <ScrollArea className="flex-1">
           <HistoryList entries={entries} loading={loading} onDelete={remove} />
-        </div>
+          <ScrollBar />
+        </ScrollArea>
       </PageLayout>
 
       <HistoryExportDialog
