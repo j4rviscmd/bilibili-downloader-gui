@@ -110,18 +110,18 @@
   --card-foreground: #E2E8F0;
   --popover: rgba(255, 255, 255, 0.05);
   --popover-foreground: #E2E8F0;
-  --primary: #E11D48;
+  --primary: #64748B;
   --primary-foreground: #FFFFFF;
   --secondary: rgba(255, 255, 255, 0.05);
   --secondary-foreground: #E2E8F0;
   --muted: rgba(255, 255, 255, 0.05);
   --muted-foreground: #94A3B8;
-  --accent: #E11D48;
+  --accent: #334155;
   --accent-foreground: #FFFFFF;
   --destructive: #E11D48;
   --border: rgba(255, 255, 255, 0.06);
   --input: rgba(255, 255, 255, 0.08);
-  --ring: #E11D48;
+  --ring: #64748B;
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
@@ -129,12 +129,12 @@
   --chart-5: oklch(0.645 0.246 16.439);
   --sidebar: rgba(255, 255, 255, 0.03);
   --sidebar-foreground: #E2E8F0;
-  --sidebar-primary: #E11D48;
+  --sidebar-primary: #64748B;
   --sidebar-primary-foreground: #FFFFFF;
   --sidebar-accent: rgba(255, 255, 255, 0.06);
   --sidebar-accent-foreground: #E2E8F0;
   --sidebar-border: rgba(255, 255, 255, 0.06);
-  --sidebar-ring: #E11D48;
+  --sidebar-ring: #64748B;
 }
 
 @layer base {
