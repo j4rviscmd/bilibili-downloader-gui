@@ -4,12 +4,15 @@
 //! It manages progress tracking with automatic periodic updates and supports multiple
 //! download stages (audio, video, merge, complete).
 
-use std::time::Instant;
-
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use std::time::Instant;
 use tauri::{AppHandle, Emitter};
 use tokio::{spawn, sync::Mutex, time};
+
+/// Progress update interval in milliseconds.
+/// The background task emits progress events at this frequency.
+const PROGRESS_UPDATE_INTERVAL_MS: u64 = 100;
 
 /// Progress information structure sent to the frontend.
 ///
@@ -132,11 +135,12 @@ impl Emits {
             Self::send_progress_locked(&app, &mut guard);
         }
 
-        // Spawn background task to emit progress every 100ms
+        // Spawn background task to emit progress every PROGRESS_UPDATE_INTERVAL_MS
         let inner_for_task = inner.clone();
         let app_for_task = app.clone();
         spawn(async move {
-            let mut ticker = time::interval(time::Duration::from_millis(100));
+            let mut ticker =
+                time::interval(time::Duration::from_millis(PROGRESS_UPDATE_INTERVAL_MS));
             loop {
                 ticker.tick().await;
                 let mut guard = inner_for_task.lock().await;
@@ -248,15 +252,13 @@ impl Emits {
         let elapsed_time = now.duration_since(inner.start_instant).as_secs_f64();
         let bytes_changed = inner.current_downloaded_bytes != inner.last_downloaded_bytes;
 
-        let mut prg = inner.progress.clone();
-
         if bytes_changed {
             // Calculate percentage
-            prg.percentage =
+            inner.progress.percentage =
                 Self::calculate_percentage(inner.current_downloaded_bytes, inner.progress.filesize);
 
             // Calculate smoothed transfer rate (EMA)
-            prg.transfer_rate = Self::calculate_smoothed_speed(
+            inner.progress.transfer_rate = Self::calculate_smoothed_speed(
                 now,
                 inner.current_downloaded_bytes,
                 inner.smoothed_speed_kbps,
@@ -269,42 +271,40 @@ impl Emits {
                 .duration_since(inner.last_speed_calc_instant)
                 .as_secs_f64();
             if time_since_last_calc >= 1.0 {
-                inner.smoothed_speed_kbps = prg.transfer_rate;
+                inner.smoothed_speed_kbps = inner.progress.transfer_rate;
                 inner.last_speed_calc_instant = now;
                 inner.last_speed_calc_bytes = inner.current_downloaded_bytes;
             }
 
             // Round values for display
             if inner.progress.filesize.is_some() {
-                prg.filesize = inner.progress.filesize.map(|v| round_to(v, 1));
-                prg.downloaded = Some(round_to(
+                inner.progress.filesize = inner.progress.filesize.map(|v| round_to(v, 1));
+                inner.progress.downloaded = Some(round_to(
                     inner.current_downloaded_bytes as f64 / (1024.0 * 1024.0),
                     1,
                 ));
-                prg.percentage = round_to(prg.percentage, 0);
-                prg.transfer_rate = round_to(prg.transfer_rate, 1);
+                inner.progress.percentage = round_to(inner.progress.percentage, 0);
+                inner.progress.transfer_rate = round_to(inner.progress.transfer_rate, 1);
             }
 
             inner.last_downloaded_bytes = inner.current_downloaded_bytes;
         }
 
-        prg.delta_time = delta_time;
-        prg.elapsed_time = round_to(elapsed_time, 1);
+        inner.progress.delta_time = delta_time;
+        inner.progress.elapsed_time = round_to(elapsed_time, 1);
         inner.last_instant = now;
-        inner.progress = prg;
 
         let _ = app.emit("progress", inner.progress.clone());
     }
 
     /// Calculates download percentage based on bytes downloaded and total file size.
     fn calculate_percentage(downloaded_bytes: u64, filesize_mb: Option<f64>) -> f64 {
-        match filesize_mb {
-            None | Some(0.0) => 0.0,
-            Some(fs) => {
-                let downloaded_mb = downloaded_bytes as f64 / (1024.0 * 1024.0);
-                (downloaded_mb / fs) * 100.0
-            }
+        let Some(fs) = filesize_mb else { return 0.0 };
+        if fs == 0.0 {
+            return 0.0;
         }
+        let downloaded_mb = downloaded_bytes as f64 / (1024.0 * 1024.0);
+        (downloaded_mb / fs) * 100.0
     }
 
     /// Calculates EMA-smoothed transfer rate in KB/s.
