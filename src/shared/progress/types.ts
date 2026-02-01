@@ -3,7 +3,7 @@ export type Progress = {
   deltaTime: number // seconds since last update
   filesize: number // in MB
   downloaded: number // in MB
-  transferRate: number // in MB/s
+  transferRate: number // in KB/s
   percentage: number // in %
   elapsedTime: number // cumulative seconds
   isComplete: boolean

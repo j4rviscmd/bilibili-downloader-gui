@@ -58,6 +58,12 @@ struct EmitsInner {
     current_downloaded_bytes: u64,
     /// Flag to stop the internal timer when download completes
     is_complete: bool,
+    /// Last time speed was calculated (for 1-second interval EMA calculation)
+    last_speed_calc_instant: Instant,
+    /// Bytes downloaded at last speed calculation
+    last_speed_calc_bytes: u64,
+    /// EMA smoothed speed in KB/s (exponential moving average)
+    smoothed_speed_kbps: f64,
 }
 
 /// Progress emitter that sends periodic updates to the frontend.
@@ -107,6 +113,9 @@ impl Emits {
             last_downloaded_bytes: 0,
             current_downloaded_bytes: 0,
             is_complete: false,
+            last_speed_calc_instant: now,
+            last_speed_calc_bytes: 0,
+            smoothed_speed_kbps: 0.0,
         }));
 
         let this = Emits {
@@ -253,11 +262,27 @@ impl Emits {
             } else {
                 prg.percentage = 0.0;
             }
-            // 転送速度（平均, KB/s）= 累計ダウンロードバイト / 経過秒 / 1024
-            if elapsed_time > 0.0 {
-                prg.transfer_rate = (inner.current_downloaded_bytes as f64 / elapsed_time) / 1024.0;
+            // 転送速度（EMA平滑化, KB/s）= 1秒間隔で計測した瞬間速度を指数移動平均
+            let time_since_last_calc = now.duration_since(inner.last_speed_calc_instant).as_secs_f64();
+            if time_since_last_calc >= 1.0 {
+                let delta_bytes = inner.current_downloaded_bytes.saturating_sub(inner.last_speed_calc_bytes);
+                let instant_speed = (delta_bytes as f64 / time_since_last_calc) / 1024.0; // KB/s
+
+                // EMA (Exponential Moving Average): 新速度 = 前回速度 * 0.7 + 瞬間速度 * 0.3
+                // 初回は瞬間速度をそのまま使用
+                if inner.smoothed_speed_kbps == 0.0 {
+                    prg.transfer_rate = instant_speed;
+                } else {
+                    prg.transfer_rate = inner.smoothed_speed_kbps * 0.7 + instant_speed * 0.3;
+                }
+
+                // 速度計算状態を更新
+                inner.smoothed_speed_kbps = prg.transfer_rate;
+                inner.last_speed_calc_instant = now;
+                inner.last_speed_calc_bytes = inner.current_downloaded_bytes;
             } else {
-                prg.transfer_rate = 0.0;
+                // 1秒経過していない場合は前回の平滑化速度を使用
+                prg.transfer_rate = inner.smoothed_speed_kbps;
             }
         }
         // 差分時間を更新
