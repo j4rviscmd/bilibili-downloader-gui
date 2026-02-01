@@ -33,7 +33,7 @@ import { Label } from '@/shared/ui/label'
 import { Textarea } from '@/shared/ui/textarea'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Info } from 'lucide-react'
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
@@ -82,9 +82,12 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   const min = Math.floor(videoPart.duration / 60)
   const sec = videoPart.duration % 60
 
-  // 選択状態を取得
+  // 選択状態と既存の入力値を取得
   const selected = useSelector(
     (state: RootState) => state.input.partInputs[page - 1]?.selected ?? true,
+  )
+  const existingInput = useSelector(
+    (state: RootState) => state.input.partInputs[page - 1],
   )
 
   // 選択状態を更新
@@ -104,51 +107,47 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
     },
   })
 
-  // 初回マウント時のみデフォルト値を設定するフラグ
-  const isInitialized = useRef(false)
-
   useEffect(() => {
     const syncFormWithVideo = async (): Promise<void> => {
       if (!video || video.parts.length === 0 || video.parts[0].cid === 0) {
         return
       }
 
-      // 初回マウント時のみデフォルト値を設定
-      // ページ遷移時などはユーザーが選択した値を維持するためスキップ
-      if (isInitialized.current) {
-        return
-      }
-      isInitialized.current = true
-
       const part = video.parts[page - 1]
-      const title =
+      const defaultTitle =
         video.title === videoPart.part
           ? video.title
           : `${video.title} ${videoPart.part}`
+
+      // 既にユーザーが設定した値があれば、それをフォームにセット
+      // なければデフォルト値をセットしてRedux storeに保存
+      const title = existingInput?.title || defaultTitle
+      const videoQuality = existingInput?.videoQuality || (part.videoQualities[0]?.id || 80).toString()
+      const audioQuality = existingInput?.audioQuality || (part.audioQualities[0]?.id || 30216).toString()
+
       form.setValue('title', title, {
         shouldValidate: true,
       })
-      form.setValue(
-        'videoQuality',
-        (part.videoQualities[0]?.id || 80).toString(),
-        { shouldValidate: true },
-      )
-      form.setValue(
-        'audioQuality',
-        (part.audioQualities[0]?.id || 30216).toString(),
-        { shouldValidate: true },
-      )
+      form.setValue('videoQuality', videoQuality, {
+        shouldValidate: true,
+      })
+      form.setValue('audioQuality', audioQuality, {
+        shouldValidate: true,
+      })
 
       const ok = await form.trigger()
       if (ok) {
-        const vals = form.getValues()
-        onValid2(page - 1, vals.title, vals.videoQuality, vals.audioQuality)
+        // 初期化時のみRedux storeを更新（既存値がある場合は更新しない）
+        if (!existingInput) {
+          const vals = form.getValues()
+          onValid2(page - 1, vals.title, vals.videoQuality, vals.audioQuality)
+        }
       }
     }
 
     syncFormWithVideo()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [video, page])
+  }, [video, page, existingInput])
 
   async function onSubmit(data: z.infer<typeof schema2>) {
     onValid2(page - 1, data.title, data.videoQuality, data.audioQuality)
