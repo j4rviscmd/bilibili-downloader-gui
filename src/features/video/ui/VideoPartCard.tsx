@@ -151,7 +151,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
           <form
             onSubmit={form.handleSubmit(onSubmit)}
             onBlur={form.handleSubmit(onSubmit)}
-            className="space-y-3 md:space-y-4"
+            className="space-y-2"
           >
             {/* Thumbnail and Title Section */}
             <div>
@@ -182,7 +182,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                         <FormControl>
                           <Textarea
                             placeholder={t('video.title_placeholder')}
-                            className="min-h-[60px] resize-none"
+                            className="min-h-[52px] resize-none"
                             rows={3}
                             {...field}
                           />
@@ -195,7 +195,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
               </div>
 
               {/* Video Part Name and Duration */}
-              <div className="mt-2 flex items-center text-sm text-muted-foreground" style={{ marginLeft: '2.25rem' }}>
+              <div className="mt-1.5 flex items-center text-sm text-muted-foreground" style={{ marginLeft: '2.25rem' }}>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className="font-medium max-w-[200px] md:max-w-[300px] truncate inline-block cursor-help" title={videoPart.part}>
@@ -214,7 +214,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
 
             {/* Quality Selectors */}
             <TooltipProvider delayDuration={200}>
-              <div className="grid grid-cols-1 gap-3">
+              <div className="grid grid-cols-1 gap-2">
                 {/* Video Quality */}
                 <FormField
                   control={form.control}
@@ -267,7 +267,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                                 <div
                                   key={id}
                                   className={cn(
-                                    'flex items-center space-x-2 min-h-[36px]',
+                                    'flex items-center space-x-2 min-h-[36px] min-w-[80px] whitespace-nowrap',
                                     isDisabled
                                       ? 'text-muted-foreground/60'
                                       : '',
@@ -347,7 +347,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                               <div
                                 key={id}
                                 className={cn(
-                                  'flex items-center space-x-2 min-h-[36px]',
+                                  'flex items-center space-x-2 min-h-[36px] min-w-[80px] whitespace-nowrap',
                                   isDisabled
                                     ? 'text-muted-foreground/60'
                                     : '',

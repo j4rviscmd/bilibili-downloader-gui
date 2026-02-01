@@ -101,8 +101,6 @@ function HomePage() {
         </CardContent>
       </Card>
 
-      <Separator className="my-4" />
-
       {/* Step 2: Video Parts Configuration */}
       {video.parts.length > 0 && (
         <Card>

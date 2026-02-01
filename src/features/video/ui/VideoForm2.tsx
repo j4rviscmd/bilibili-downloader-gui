@@ -248,7 +248,7 @@ function VideoForm2({ video, page, isDuplicate }: Props) {
                               <div
                                 key={id}
                                 className={cn(
-                                  'flex items-center space-x-3',
+                                  'flex items-center space-x-3 min-w-[80px] whitespace-nowrap',
                                   isDisabled ? 'text-muted-foreground/60' : '',
                                 )}
                               >
@@ -331,7 +331,7 @@ function VideoForm2({ video, page, isDuplicate }: Props) {
                             <div
                               key={id}
                               className={cn(
-                                'flex items-center space-x-3',
+                                'flex items-center space-x-3 min-w-[80px] whitespace-nowrap',
                                 isDisabled ? 'text-muted-foreground/60' : '',
                               )}
                             >
