@@ -66,6 +66,23 @@ struct EmitsInner {
     smoothed_speed_kbps: f64,
 }
 
+impl Default for EmitsInner {
+    fn default() -> Self {
+        let now = Instant::now();
+        Self {
+            progress: Default::default(),
+            start_instant: now,
+            last_instant: now,
+            last_speed_calc_instant: now,
+            last_downloaded_bytes: 0,
+            current_downloaded_bytes: 0,
+            last_speed_calc_bytes: 0,
+            is_complete: false,
+            smoothed_speed_kbps: 0.0,
+        }
+    }
+}
+
 /// Progress emitter that sends periodic updates to the frontend.
 ///
 /// This struct manages download progress tracking and automatically emits
@@ -93,63 +110,44 @@ impl Emits {
     ///
     /// Returns a new `Emits` instance with an active background update task.
     pub fn new(app: AppHandle, download_id: String, filesize_bytes: Option<u64>) -> Self {
-        let filesize_mb: Option<f64> =
-            filesize_bytes.map(|filesize_bytes| filesize_bytes as f64 / 1024.0 / 1024.0);
+        fn bytes_to_mb(bytes: u64) -> f64 {
+            bytes as f64 / (1024.0 * 1024.0)
+        }
+
         let now = Instant::now();
         let inner = Arc::new(Mutex::new(EmitsInner {
             progress: Progress {
                 download_id,
-                stage: None,
-                filesize: filesize_mb,
-                downloaded: None,
-                transfer_rate: 0.0,
-                percentage: 0.0,
-                delta_time: 0.0,
-                elapsed_time: 0.0,
-                is_complete: false,
+                filesize: filesize_bytes.map(bytes_to_mb),
+                ..Default::default()
             },
             start_instant: now,
             last_instant: now,
-            last_downloaded_bytes: 0,
-            current_downloaded_bytes: 0,
-            is_complete: false,
             last_speed_calc_instant: now,
-            last_speed_calc_bytes: 0,
-            smoothed_speed_kbps: 0.0,
+            ..Default::default()
         }));
 
-        let this = Emits {
-            app: app.clone(),
-            inner: inner.clone(),
-        };
-
-        // Send initial progress immediately after creation
-        match inner.try_lock() {
-            Ok(mut guard) => {
-                Self::send_progress_locked(&app, &mut guard);
-            }
-            Err(_) => {
-                #[cfg(debug_assertions)]
-                eprintln!("[Emits] Failed to acquire lock for initial progress emit");
-            }
+        // Send initial progress immediately
+        if let Ok(mut guard) = inner.try_lock() {
+            Self::send_progress_locked(&app, &mut guard);
         }
 
-        // Emitインスタンス生成と同時に0.1s間隔のタイマーを開始
+        // Spawn background task to emit progress every 100ms
+        let inner_for_task = inner.clone();
+        let app_for_task = app.clone();
         spawn(async move {
             let mut ticker = time::interval(time::Duration::from_millis(100));
             loop {
                 ticker.tick().await;
-                // 完了済みなら終了
-                let mut guard = inner.lock().await;
+                let mut guard = inner_for_task.lock().await;
                 if guard.is_complete {
                     break;
                 }
-                // 進捗を計算してemit
-                Self::send_progress_locked(&app, &mut guard);
+                Self::send_progress_locked(&app_for_task, &mut guard);
             }
         });
 
-        this
+        Emits { app, inner }
     }
 
     /// Updates the current download progress.
@@ -192,20 +190,19 @@ impl Emits {
     /// This method sets the progress to 100%, emits a final progress event,
     /// and stops the background update task.
     pub async fn complete(&self) {
-        // 完了時点の累計経過時間を更新
         let mut guard = self.inner.lock().await;
         let now = Instant::now();
         let elapsed = now.duration_since(guard.start_instant).as_secs_f64();
-        // 完了時はファイルサイズに設定
+
+        // Set downloaded to filesize on completion
         if let Some(fs_mb) = guard.progress.filesize {
             guard.progress.downloaded = Some(fs_mb);
         }
-        guard.progress.percentage = 100.0; // 完了時は100%
+        guard.progress.percentage = 100.0;
         guard.progress.elapsed_time = round_to(elapsed, 1);
         guard.progress.is_complete = true;
-        // タイマー停止
-        guard.is_complete = true;
-        // 最終進捗をemit
+        guard.is_complete = true; // Stop background timer
+
         let _ = self.app.emit("progress", guard.progress.clone());
     }
 
@@ -219,16 +216,19 @@ impl Emits {
     ///
     /// * `filesize_bytes` - Total file size in bytes
     pub async fn update_total(&self, filesize_bytes: u64) {
-        let filesize_mb: f64 = filesize_bytes as f64 / 1024.0 / 1024.0;
+        let filesize_mb = filesize_bytes as f64 / (1024.0 * 1024.0);
         let mut guard = self.inner.lock().await;
-        // 既に設定済みで値が同じなら何もしない
-        if let Some(existing) = guard.progress.filesize {
-            if (existing - filesize_mb).abs() < f64::EPSILON {
-                return;
-            }
+
+        // Skip if already set to the same value
+        if guard
+            .progress
+            .filesize
+            .map_or(false, |existing| existing == filesize_mb)
+        {
+            return;
         }
+
         guard.progress.filesize = Some(filesize_mb);
-        // 進捗再計算と即時送信
         Self::send_progress_locked(&self.app, &mut guard);
     }
 
@@ -243,72 +243,98 @@ impl Emits {
     /// * `app` - Tauri application handle for event emission
     /// * `inner` - Mutable reference to the locked inner state
     fn send_progress_locked(app: &AppHandle, inner: &mut EmitsInner) {
-        let mut prg = inner.progress.clone();
-        // 差分時間（秒）
         let now = Instant::now();
         let delta_time = now.duration_since(inner.last_instant).as_secs_f64();
-        // 累計経過時間（秒）
         let elapsed_time = now.duration_since(inner.start_instant).as_secs_f64();
-        // バイト量が増えたタイミングのみ速度/進捗を再計算する
         let bytes_changed = inner.current_downloaded_bytes != inner.last_downloaded_bytes;
+
+        let mut prg = inner.progress.clone();
+
         if bytes_changed {
-            // 進捗率を計算
-            if inner.progress.filesize.is_none() {
-                prg.percentage = 0.0;
-            } else if inner.progress.filesize.unwrap() > 0.0 {
-                // filesize は MB 単位
-                let downloaded_mb = inner.current_downloaded_bytes as f64 / 1024.0 / 1024.0;
-                prg.percentage = (downloaded_mb / inner.progress.filesize.unwrap()) * 100.0;
-            } else {
-                prg.percentage = 0.0;
-            }
-            // 転送速度（EMA平滑化, KB/s）= 1秒間隔で計測した瞬間速度を指数移動平均
-            let time_since_last_calc = now.duration_since(inner.last_speed_calc_instant).as_secs_f64();
+            // Calculate percentage
+            prg.percentage =
+                Self::calculate_percentage(inner.current_downloaded_bytes, inner.progress.filesize);
+
+            // Calculate smoothed transfer rate (EMA)
+            prg.transfer_rate = Self::calculate_smoothed_speed(
+                now,
+                inner.current_downloaded_bytes,
+                inner.smoothed_speed_kbps,
+                inner.last_speed_calc_instant,
+                inner.last_speed_calc_bytes,
+            );
+
+            // Update speed calculation state
+            let time_since_last_calc = now
+                .duration_since(inner.last_speed_calc_instant)
+                .as_secs_f64();
             if time_since_last_calc >= 1.0 {
-                let delta_bytes = inner.current_downloaded_bytes.saturating_sub(inner.last_speed_calc_bytes);
-                let instant_speed = (delta_bytes as f64 / time_since_last_calc) / 1024.0; // KB/s
-
-                // EMA (Exponential Moving Average): 新速度 = 前回速度 * 0.7 + 瞬間速度 * 0.3
-                // 初回は瞬間速度をそのまま使用
-                if inner.smoothed_speed_kbps == 0.0 {
-                    prg.transfer_rate = instant_speed;
-                } else {
-                    prg.transfer_rate = inner.smoothed_speed_kbps * 0.7 + instant_speed * 0.3;
-                }
-
-                // 速度計算状態を更新
                 inner.smoothed_speed_kbps = prg.transfer_rate;
                 inner.last_speed_calc_instant = now;
                 inner.last_speed_calc_bytes = inner.current_downloaded_bytes;
-            } else {
-                // 1秒経過していない場合は前回の平滑化速度を使用
-                prg.transfer_rate = inner.smoothed_speed_kbps;
             }
-        }
-        // 差分時間を更新
-        prg.delta_time = delta_time;
-        // 累計経過時間を更新（丸め）
-        prg.elapsed_time = round_to(elapsed_time, 1);
-        // 表示用の丸めは bytes_changed のときだけ進捗値を更新。経過時間は毎回更新。
-        if bytes_changed && inner.progress.filesize.is_some() {
-            prg.filesize = Some(round_to(inner.progress.filesize.unwrap(), 1));
-            prg.downloaded = Some(round_to(
-                inner.current_downloaded_bytes as f64 / 1024.0 / 1024.0,
-                1,
-            ));
-            prg.percentage = round_to(prg.percentage, 0);
-            prg.transfer_rate = round_to(prg.transfer_rate, 1);
-        }
 
-        // 内部状態を更新
-        inner.last_instant = now;
-        if bytes_changed {
+            // Round values for display
+            if inner.progress.filesize.is_some() {
+                prg.filesize = inner.progress.filesize.map(|v| round_to(v, 1));
+                prg.downloaded = Some(round_to(
+                    inner.current_downloaded_bytes as f64 / (1024.0 * 1024.0),
+                    1,
+                ));
+                prg.percentage = round_to(prg.percentage, 0);
+                prg.transfer_rate = round_to(prg.transfer_rate, 1);
+            }
+
             inner.last_downloaded_bytes = inner.current_downloaded_bytes;
         }
+
+        prg.delta_time = delta_time;
+        prg.elapsed_time = round_to(elapsed_time, 1);
+        inner.last_instant = now;
         inner.progress = prg;
 
-        // Emitterを使用してイベントを送信
         let _ = app.emit("progress", inner.progress.clone());
+    }
+
+    /// Calculates download percentage based on bytes downloaded and total file size.
+    fn calculate_percentage(downloaded_bytes: u64, filesize_mb: Option<f64>) -> f64 {
+        match filesize_mb {
+            None | Some(0.0) => 0.0,
+            Some(fs) => {
+                let downloaded_mb = downloaded_bytes as f64 / (1024.0 * 1024.0);
+                (downloaded_mb / fs) * 100.0
+            }
+        }
+    }
+
+    /// Calculates EMA-smoothed transfer rate in KB/s.
+    ///
+    /// Returns the smoothed speed, using the previous smoothed value as base
+    /// and incorporating the instant speed measured since the last calculation.
+    fn calculate_smoothed_speed(
+        now: Instant,
+        current_bytes: u64,
+        prev_smoothed_kbps: f64,
+        last_calc_instant: Instant,
+        last_calc_bytes: u64,
+    ) -> f64 {
+        const SPEED_CALC_INTERVAL_SECS: f64 = 1.0;
+        const EMA_ALPHA: f64 = 0.3; // Weight for new value (0.3), old value gets 0.7
+
+        let time_since_last_calc = now.duration_since(last_calc_instant).as_secs_f64();
+
+        if time_since_last_calc < SPEED_CALC_INTERVAL_SECS {
+            return prev_smoothed_kbps;
+        }
+
+        let delta_bytes = current_bytes.saturating_sub(last_calc_bytes);
+        let instant_speed_kbps = (delta_bytes as f64 / time_since_last_calc) / 1024.0;
+
+        if prev_smoothed_kbps == 0.0 {
+            instant_speed_kbps
+        } else {
+            prev_smoothed_kbps * (1.0 - EMA_ALPHA) + instant_speed_kbps * EMA_ALPHA
+        }
     }
 }
 
