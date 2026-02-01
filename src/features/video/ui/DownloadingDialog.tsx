@@ -75,6 +75,15 @@ function DownloadingDialog() {
   const { progress, input, video } = useVideoInfo()
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
+
+  /**
+   * Derives the display title for a progress entry.
+   * For multi-part downloads (pattern: -p{number}), returns the part title.
+   * For single downloads, returns the video title.
+   *
+   * @param p - Progress entry to derive title from
+   * @returns The derived title or undefined if not found
+   */
   const deriveTitle = (p: Progress): string | undefined => {
     const m = p.downloadId.match(/-p(\d+)$/)
     if (m) {
@@ -84,14 +93,21 @@ function DownloadingDialog() {
     return video?.title
   }
 
+  /**
+   * Resets all download-related state when user closes the dialog.
+   * Clears input, video info, progress, and error states.
+   */
   const onClick = () => {
     dispatch(resetInput())
     dispatch(resetVideo())
     dispatch(clearProgress())
     dispatch(clearError())
   }
+
   const hasDlQue = progress.length > 0
-  // group progress entries by parentId (downloadId)
+
+  // Group progress entries by parentId for multi-part downloads
+  // Entries without parentId use their downloadId as the group key
   const groups = progress.reduce<Record<string, Progress[]>>((acc, p) => {
     const parent = p.parentId || p.downloadId
     if (!acc[parent]) acc[parent] = []
@@ -99,32 +115,33 @@ function DownloadingDialog() {
     return acc
   }, {})
 
-  // groupsが現在ダイアログに表示中(=進行中)のキュー
-  // input.partInputsを母集団とした時、groupsに含まれていないアイテムリストを取得する
-  // 存在判定はdownloadIdの末尾 -p{page} で行う
-  const activePages = new Set<number>()
-  Object.values(groups).forEach((entries) => {
-    entries.forEach((p) => {
-      const m = p.downloadId.match(/-p(\d+)$/)
-      if (m) {
-        activePages.add(Number(m[1]))
-      }
-    })
-  })
-  // NOTE: DL進行中でないパートリスト
+  // Extract active page numbers from progress entries (pattern: -p{number})
+  const activePages = new Set(
+    Object.values(groups)
+      .flatMap((entries) => entries)
+      .map((p) => p.downloadId.match(/-p(\d+)$/)?.[1])
+      .filter((page): page is string => page !== undefined)
+      .map(Number),
+  )
+
+  // Filter parts that are selected but not yet in progress (waiting in queue)
   const notInProgress = input.partInputs.filter(
-    (part) => !activePages.has(part.page),
+    (part) => part.selected && !activePages.has(part.page),
   )
 
   const phaseOrder = ['audio', 'video', 'merge']
-  // active stages limited to audio/video/merge (exclude complete)
+
+  // Filter to only active stages (exclude complete stage for downloading state)
   const activeStages = progress.filter((p) =>
     ['audio', 'video', 'merge'].includes(p.stage || ''),
   )
+
   const { hasError, errorMessage } = useSelector(
     (s: RootState) => s.downloadStatus,
   )
-  // エラー時は即ボタン活性化するため hasError 優先で isDownloading を false にする
+
+  // Determine if download is still in progress
+  // Error state takes precedence to enable the reload button immediately
   const isDownloading =
     !hasError &&
     (activeStages.some((p) => !p.isComplete) || notInProgress.length > 0)
@@ -146,34 +163,32 @@ function DownloadingDialog() {
         <div className="flex h-full w-full flex-col items-center overflow-auto">
           {hasDlQue &&
             Object.entries(groups).map(([parentId, entries]) => {
-              // sort entries by phase order and fallback to existing order
-              const sorted = entries.sort((a, b) => {
+              const sorted = [...entries].sort((a: Progress, b: Progress) => {
                 const ai = a.stage ? phaseOrder.indexOf(a.stage) : -1
                 const bi = b.stage ? phaseOrder.indexOf(b.stage) : -1
                 return ai - bi
               })
+              const firstActive = sorted.find(
+                (p: Progress) => p.stage && p.stage !== 'complete',
+              )
+              const groupTitle = firstActive
+                ? deriveTitle(firstActive)
+                : (video?.title ?? '')
+
               return (
                 <div
                   key={parentId}
                   className="hover:border-muted-foreground/50 mb-2 w-full rounded-md border px-1.5 py-2 transition-colors duration-200"
                 >
-                  {(() => {
-                    const first = sorted.find(
-                      (p) => p.stage && p.stage !== 'complete',
-                    )
-                    const groupTitle = first
-                      ? deriveTitle(first)
-                      : (video?.title ?? '')
-                    return groupTitle ? (
-                      <div
-                        className="text-md mb-0.5 truncate px-2.5 leading-tight font-semibold"
-                        title={groupTitle}
-                      >
-                        {groupTitle}
-                      </div>
-                    ) : null
-                  })()}
-                  {sorted.map((p) => {
+                  {groupTitle && (
+                    <div
+                      className="text-md mb-0.5 truncate px-2.5 leading-tight font-semibold"
+                      title={groupTitle}
+                    >
+                      {groupTitle}
+                    </div>
+                  )}
+                  {sorted.map((p: Progress) => {
                     const [barLabel, barIcon] = getBarInfo(
                       p.downloadId,
                       p.stage,

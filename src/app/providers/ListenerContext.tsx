@@ -42,27 +42,24 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
         const payload = event.payload as Progress
         store.dispatch(setProgress(payload))
 
-        if (payload.stage === 'warn-video-quality-fallback') {
-          toast.warning(
-            i18n.t('video.video_quality_fallback', {
-              from: 'selected',
-              to: 'fallback',
-            }),
-            { duration: 6000 },
-          )
+        // Show toast for quality fallback warnings
+        const stage = payload.stage
+        if (
+          stage === 'warn-video-quality-fallback' ||
+          stage === 'warn-audio-quality-fallback'
+        ) {
+          const key =
+            stage === 'warn-video-quality-fallback'
+              ? 'video.video_quality_fallback'
+              : 'video.audio_quality_fallback'
+          toast.warning(i18n.t(key, { from: 'selected', to: 'fallback' }), {
+            duration: 6000,
+          })
         }
 
-        if (payload.stage === 'warn-audio-quality-fallback') {
-          toast.warning(
-            i18n.t('video.audio_quality_fallback', {
-              from: 'selected',
-              to: 'fallback',
-            }),
-            { duration: 6000 },
-          )
+        if (stage === 'complete') {
+          store.dispatch(dequeue(payload.downloadId))
         }
-
-        store.dispatch(dequeue(payload.downloadId))
       })
     }
 
