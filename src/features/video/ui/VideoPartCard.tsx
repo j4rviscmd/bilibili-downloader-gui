@@ -33,7 +33,7 @@ import { Label } from '@/shared/ui/label'
 import { Textarea } from '@/shared/ui/textarea'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Info } from 'lucide-react'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
@@ -104,11 +104,21 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
     },
   })
 
+  // 初回マウント時のみデフォルト値を設定するフラグ
+  const isInitialized = useRef(false)
+
   useEffect(() => {
     const syncFormWithVideo = async (): Promise<void> => {
       if (!video || video.parts.length === 0 || video.parts[0].cid === 0) {
         return
       }
+
+      // 初回マウント時のみデフォルト値を設定
+      // ページ遷移時などはユーザーが選択した値を維持するためスキップ
+      if (isInitialized.current) {
+        return
+      }
+      isInitialized.current = true
 
       const part = video.parts[page - 1]
       const title =
