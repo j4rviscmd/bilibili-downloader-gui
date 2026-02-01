@@ -90,6 +90,17 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   const selected = partInput?.selected ?? true
   const existingInput = partInput
 
+  // Helper to check if a quality is available for the current part
+  const isQualityAvailable = (qualityId: number, isVideo: boolean): boolean => {
+    if (video.parts.length === 0 || video.parts[page - 1].cid === 0) {
+      return false
+    }
+    const qualities = isVideo
+      ? video.parts[page - 1].videoQualities
+      : video.parts[page - 1].audioQualities
+    return qualities.some((q) => q.id === qualityId)
+  }
+
   // 選択状態を更新
   const handleSelectedChange = (checked: boolean | 'indeterminate') => {
     store.dispatch(
@@ -166,7 +177,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                 />
                 <img
                   src={toThumbnailDataUrl(videoPart.thumbnail.base64)}
-                  alt={`Thumbnail for ${videoPart.part}`}
+                  alt={t('video.thumbnail_alt', { part: videoPart.part })}
                   className="h-16 w-24 rounded-lg object-cover md:h-20 md:w-32"
                 />
 
@@ -257,12 +268,10 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                           {Object.entries(VIDEO_QUALITIES_MAP)
                             .reverse()
                             .map(([id, value]) => {
-                              const isDisabled =
-                                video.parts.length === 0 ||
-                                video.parts[page - 1].cid === 0 ||
-                                !video.parts[page - 1].videoQualities.some(
-                                  (v) => v.id === Number(id),
-                                )
+                              const isDisabled = !isQualityAvailable(
+                                Number(id),
+                                true,
+                              )
                               return (
                                 <div
                                   key={id}
@@ -330,12 +339,10 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                         >
                           {AUDIO_QUALITIES_ORDER.map((id) => {
                             const value = AUDIO_QUALITIES_MAP[id]
-                            const isDisabled =
-                              video.parts.length === 0 ||
-                              video.parts[page - 1].cid === 0 ||
-                              !video.parts[page - 1].audioQualities.some(
-                                (v) => v.id === Number(id),
-                              )
+                            const isDisabled = !isQualityAvailable(
+                              Number(id),
+                              false,
+                            )
                             return (
                               <div
                                 key={id}

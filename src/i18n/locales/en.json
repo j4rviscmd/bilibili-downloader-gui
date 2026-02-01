@@ -12,7 +12,8 @@
     "aria": {
       "mainNavigation": "Main navigation",
       "home": "Navigate to download page",
-      "history": "Navigate to history page"
+      "history": "Navigate to history page",
+      "toggleSidebar": "Toggle Sidebar"
     }
   },
   "actions": {
@@ -65,7 +66,8 @@
     "deselect_all": "Deselect All",
     "no_parts_selected": "No parts selected for download",
     "expand_part": "▶ Expand Part {{num}}",
-    "collapse_part": "▼ Collapse Part {{num}}"
+    "collapse_part": "▼ Collapse Part {{num}}",
+    "thumbnail_alt": "Thumbnail for {{part}}"
   },
   "progress": {
     "elapsed": "Elapsed",
@@ -112,6 +114,7 @@
   },
   "settings": {
     "title": "Settings",
+    "open_dialog": "Open Settings",
     "language_label": "Language",
     "output_dir_label": "Output Directory",
     "output_dir_placeholder": "e.g. C:\\Users\\you\\Downloads or /Users/you/Downloads",

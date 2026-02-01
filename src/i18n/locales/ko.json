@@ -12,7 +12,8 @@
     "aria": {
       "mainNavigation": "메인 내비게이션",
       "home": "다운로드 페이지로 이동",
-      "history": "기록 페이지로 이동"
+      "history": "기록 페이지로 이동",
+      "toggleSidebar": "사이드바 토글"
     }
   },
   "actions": {
@@ -22,8 +23,8 @@
     "close": "닫기"
   },
   "video": {
-    "step1_title": "Step 1: URL Input",
-    "step2_title": "Step 2: Video Part Settings",
+    "step1_title": "단계 1: URL 입력",
+    "step2_title": "단계 2: 비디오 파트 설정",
     "url_placeholder": "Bilibili URL 붙여넣기",
     "url_label": "URL",
     "url_description": "비디오 URL을 입력하세요.",
@@ -63,7 +64,8 @@
     "reload_after_error": "페이지 새로고침 후 재시도",
     "select_all": "전체 선택",
     "deselect_all": "전체 해제",
-    "no_parts_selected": "다운로드할 파트가 선택되지 않았습니다"
+    "no_parts_selected": "다운로드할 파트가 선택되지 않았습니다",
+    "thumbnail_alt": "{{part}}의 썸네일"
   },
   "progress": {
     "elapsed": "경과",
@@ -107,6 +109,7 @@
   },
   "settings": {
     "title": "설정",
+    "open_dialog": "설정 열기",
     "language_label": "언어",
     "output_dir_label": "출력 디렉터리",
     "output_dir_placeholder": "예: C:\\Users\\you\\Downloads 또는 /Users/you/Downloads",

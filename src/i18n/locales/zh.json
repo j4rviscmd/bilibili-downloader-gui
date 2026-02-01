@@ -12,7 +12,8 @@
     "aria": {
       "mainNavigation": "主导航",
       "home": "前往下载页面",
-      "history": "前往历史页面"
+      "history": "前往历史页面",
+      "toggleSidebar": "切换侧边栏"
     }
   },
   "actions": {
@@ -22,8 +23,8 @@
     "close": "关闭"
   },
   "video": {
-    "step1_title": "Step 1: URL Input",
-    "step2_title": "Step 2: Video Part Settings",
+    "step1_title": "步骤 1: URL 输入",
+    "step2_title": "步骤 2: 视频部分设置",
     "url_placeholder": "粘贴 Bilibili 链接",
     "url_label": "链接",
     "url_description": "请输入视频链接。",
@@ -63,7 +64,8 @@
     "reload_after_error": "刷新页面后重试",
     "select_all": "全选",
     "deselect_all": "取消全选",
-    "no_parts_selected": "未选择要下载的内容"
+    "no_parts_selected": "未选择要下载的内容",
+    "thumbnail_alt": "{{part}} 的缩略图"
   },
   "progress": {
     "elapsed": "已用时间",
@@ -107,6 +109,7 @@
   },
   "settings": {
     "title": "设置",
+    "open_dialog": "打开设置",
     "language_label": "语言",
     "output_dir_label": "输出目录",
     "output_dir_placeholder": "例如: C:\\Users\\you\\Downloads 或 /Users/you/Downloads",

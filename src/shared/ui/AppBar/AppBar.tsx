@@ -74,7 +74,7 @@ function AppBar({ user, theme, setTheme }: Props) {
           onMouseEnter={() => setHover(true)}
           onMouseLeave={() => setHover(false)}
           onClick={() => updateOpenDialog(true)}
-          aria-label="Open settings"
+          aria-label={t('settings.open_dialog')}
         >
           <Settings animate={hover} size={18} />
         </Button>
