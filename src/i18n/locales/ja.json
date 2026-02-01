@@ -53,6 +53,7 @@
     "quality_not_found": "指定した画質が利用できません。",
     "cookie_missing": "Cookie が不足または無効です。",
     "network_error": "ダウンロード中にネットワークエラーが発生しました。",
+    "video_not_found": "動画が見つかりませんでした。URLを確認してください。",
     "video_quality_fallback": "選択した画質 ({{from}}) が利用できないため {{to}} にフォールバックしました。",
     "audio_quality_fallback": "選択した音質 ({{from}}) が利用できないため {{to}} にフォールバックしました。",
     "queue_waiting_prefix": "キュー待ち:",

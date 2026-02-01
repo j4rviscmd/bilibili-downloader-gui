@@ -68,7 +68,11 @@ fn build_client() -> Result<Client, String> {
 /// Returns an error if:
 /// - Response code is non-zero
 /// - Data field is None
+/// - Video not found (code -400)
 fn validate_api_response<T>(code: i64, message: &str, data: Option<&T>) -> Result<(), String> {
+    if code == -400 {
+        return Err("ERR::VIDEO_NOT_FOUND".to_string());
+    }
     if code != 0 {
         return Err(format!("Api error (code {code}): {message}"));
     }
