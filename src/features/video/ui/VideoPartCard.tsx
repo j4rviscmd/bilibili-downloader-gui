@@ -158,7 +158,9 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
               </div>
               <div className="flex flex-col gap-2">
                 <img
-                  src={'data:image/png;base64,' + videoPart.thumbnail.base64}
+                  src={videoPart.thumbnail.base64.startsWith('data:')
+                    ? videoPart.thumbnail.base64
+                    : 'data:image/png;base64,' + videoPart.thumbnail.base64}
                   alt={`Thumbnail for ${videoPart.part}`}
                   className="w-24 h-16 md:w-32 md:h-20 rounded-lg object-cover"
                 />

@@ -173,7 +173,9 @@ function VideoForm2({ video, page, isDuplicate }: Props) {
                 </div>
                 <div className="flex flex-col justify-center">
                   <img
-                    src={'data:image/png;base64,' + videoPart.thumbnail.base64}
+                    src={videoPart.thumbnail.base64.startsWith('data:')
+                      ? videoPart.thumbnail.base64
+                      : 'data:image/png;base64,' + videoPart.thumbnail.base64}
                     alt="thumbnail"
                   />
                   <div className="block">
