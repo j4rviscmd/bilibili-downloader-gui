@@ -119,8 +119,11 @@ function VideoForm2({ video, page, isDuplicate }: Props) {
       // 既にユーザーが設定した値があれば、それをフォームにセット
       // なければデフォルト値をセットしてRedux storeに保存
       const title = existingInput?.title ?? defaultTitle
-      const videoQuality = existingInput?.videoQuality ?? String(part.videoQualities[0]?.id ?? 80)
-      const audioQuality = existingInput?.audioQuality ?? String(part.audioQualities[0]?.id ?? 30216)
+      const videoQuality =
+        existingInput?.videoQuality ?? String(part.videoQualities[0]?.id ?? 80)
+      const audioQuality =
+        existingInput?.audioQuality ??
+        String(part.audioQualities[0]?.id ?? 30216)
 
       form.setValue('title', title, { shouldValidate: true })
       form.setValue('videoQuality', videoQuality, { shouldValidate: true })
