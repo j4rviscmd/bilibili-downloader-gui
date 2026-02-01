@@ -22,6 +22,8 @@
     "close": "닫기"
   },
   "video": {
+    "step1_title": "Step 1: URL Input",
+    "step2_title": "Step 2: Video Part Settings",
     "url_placeholder": "Bilibili URL 붙여넣기",
     "url_label": "URL",
     "url_description": "비디오 URL을 입력하세요.",

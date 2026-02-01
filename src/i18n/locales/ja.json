@@ -22,6 +22,8 @@
     "close": "閉じる"
   },
   "video": {
+    "step1_title": "ステップ 1: URL 入力",
+    "step2_title": "ステップ 2: 動画パート設定",
     "url_placeholder": "Bilibili のURLを貼り付け",
     "url_label": "URL",
     "url_description": "動画のURLを入力してください。",
