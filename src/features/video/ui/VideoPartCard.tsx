@@ -146,7 +146,6 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
     }
 
     syncFormWithVideo()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [video, page, existingInput])
 
   async function onSubmit(data: z.infer<typeof schema2>) {
