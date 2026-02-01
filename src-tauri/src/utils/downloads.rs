@@ -21,9 +21,32 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tauri::AppHandle;
-use tokio::io::AsyncSeekExt;
 use tokio::sync::Semaphore;
-use tokio::{fs, io::AsyncWriteExt};
+use tokio::{fs, io::AsyncSeekExt, io::AsyncWriteExt};
+
+/// Sets the download stage based on filename pattern.
+///
+/// This function examines the filename prefix and updates the progress stage
+/// accordingly. Files starting with "temp_audio" are marked as "audio" stage,
+/// and files starting with "temp_video" are marked as "video" stage.
+/// This allows the frontend to display which part of the download process is active.
+///
+/// # Arguments
+///
+/// * `emits` - Reference to the progress emitter for stage updates
+/// * `filename` - The filename to examine for stage detection
+async fn set_stage_from_filename(emits: &Emits, filename: &str) {
+    let stage = if filename.starts_with("temp_audio") {
+        Some("audio")
+    } else if filename.starts_with("temp_video") {
+        Some("video")
+    } else {
+        None
+    };
+    if let Some(s) = stage {
+        let _ = emits.set_stage(s).await;
+    }
+}
 
 /// Detects if an I/O error represents "No space left on device" (ENOSPC).
 fn is_no_space_error(e: &std::io::Error) -> bool {
@@ -34,15 +57,14 @@ fn is_no_space_error(e: &std::io::Error) -> bool {
 /// Returns `ERR::DISK_FULL` for ENOSPC, otherwise wraps the original error.
 fn map_io_error(e: std::io::Error) -> anyhow::Error {
     if is_no_space_error(&e) {
-        anyhow::anyhow!("ERR::DISK_FULL")
-    } else {
-        e.into()
+        return anyhow::anyhow!("ERR::DISK_FULL");
     }
+    e.into()
 }
 
 /// Adds cookie header to a request builder if provided.
 fn apply_cookie(mut req: RequestBuilder, cookie: &Option<String>) -> RequestBuilder {
-    if let Some(ref c) = cookie {
+    if let Some(c) = cookie {
         req = req.header(header::COOKIE, c);
     }
     req
@@ -82,10 +104,8 @@ fn check_initial_speed(
         return SpeedCheckResult::InsufficientData;
     }
 
-    // Skip speed check if no threshold specified
-    let threshold = match min_speed_threshold_bytes_per_sec {
-        Some(t) => t,
-        None => return SpeedCheckResult::Acceptable,
+    let Some(threshold) = min_speed_threshold_bytes_per_sec else {
+        return SpeedCheckResult::Acceptable;
     };
 
     let elapsed = start_time.elapsed().as_secs_f64();
@@ -199,13 +219,7 @@ pub async fn download_url(
     // ---- 4. Setup progress emitter ----
     let id_for_emit = download_id.clone().unwrap_or_else(|| filename.to_string());
     let emits = Arc::new(Emits::new(app.clone(), id_for_emit, Some(total)));
-
-    // Set stage based on filename
-    if filename.starts_with("temp_audio") {
-        let _ = emits.set_stage("audio").await;
-    } else if filename.starts_with("temp_video") {
-        let _ = emits.set_stage("video").await;
-    }
+    set_stage_from_filename(&emits, filename).await;
 
     let downloaded_total = Arc::new(AtomicU64::new(0));
     let sem = Arc::new(Semaphore::new(concurrency));
@@ -256,7 +270,8 @@ pub async fn download_url(
                             ));
                         }
 
-                        // Download segment with speed check
+                        // Download segment with speed check and progress updates
+                        let emits_c_for_callback = emits_c.clone();
                         let download_result = download_segment_with_speed_check(
                             &mut resp,
                             idx,
@@ -265,6 +280,16 @@ pub async fn download_url(
                             MAX_SEG_RETRIES,
                             reconnect_attempt,
                             min_speed_threshold_bytes_per_sec,
+                            |chunk_len| {
+                                // fetch_add returns the OLD value, so add chunk_len to get new value
+                                let new_total =
+                                    dl_total_c.fetch_add(chunk_len, Ordering::Relaxed) + chunk_len;
+                                // Emit progress update (runs in background task)
+                                let emits_clone = emits_c_for_callback.clone();
+                                tokio::spawn(async move {
+                                    emits_clone.update_progress(new_total).await;
+                                });
+                            },
                         )
                         .await;
 
@@ -291,8 +316,6 @@ pub async fn download_url(
                         // Write to file
                         write_segment(&path_c, s, &buf).await?;
 
-                        let new_total = dl_total_c.fetch_add(size, Ordering::Relaxed) + size;
-                        emits_c.update_progress(new_total).await;
                         return Ok(());
                     }
                     Err(e) => {
@@ -336,11 +359,31 @@ pub async fn download_url(
 
 /// Downloads a segment with initial speed check.
 ///
+/// This function downloads data from a response stream while performing
+/// periodic speed checks. If the download speed falls below the minimum
+/// threshold, it signals that a reconnect is needed.
+///
+/// # Arguments
+///
+/// * `resp` - Mutable reference to the HTTP response to read from
+/// * `_idx` - Segment index (for error reporting, currently unused)
+/// * `size` - Expected segment size in bytes
+/// * `attempt` - Current retry attempt number
+/// * `max_seg_retries` - Maximum number of retries allowed
+/// * `reconnect_attempt` - Current reconnect attempt due to slow speed
+/// * `min_speed_threshold_bytes_per_sec` - Minimum speed threshold (None = skip check)
+/// * `on_chunk_received` - Callback invoked when each chunk is received with the chunk size in bytes.
+///   This callback is called for every chunk received, allowing the caller to track progress
+///   and update download statistics in real-time.
+///
 /// # Returns
 ///
-/// - `Ok((buf, received, false))`: Download complete
+/// - `Ok((buf, received, false))`: Download complete successfully.
+///   - `buf` contains the downloaded data
+///   - `received` is the total bytes received
+///   - `false` indicates no reconnect needed
 /// - `Err(true)`: Speed too slow, reconnect needed
-/// - `Err(false)`: Download failed (non-recoverable)
+/// - `Err(false)`: Download failed (non-recoverable, max retries exceeded)
 async fn download_segment_with_speed_check(
     resp: &mut reqwest::Response,
     _idx: usize,
@@ -349,6 +392,7 @@ async fn download_segment_with_speed_check(
     max_seg_retries: u8,
     reconnect_attempt: u8,
     min_speed_threshold_bytes_per_sec: Option<u64>,
+    on_chunk_received: impl Fn(u64),
 ) -> Result<(Vec<u8>, u64, bool), bool> {
     let mut buf = Vec::with_capacity(size.min(8 * 1024 * 1024) as usize);
     let mut received: u64 = 0;
@@ -358,8 +402,12 @@ async fn download_segment_with_speed_check(
     loop {
         match resp.chunk().await {
             Ok(Some(chunk)) => {
-                received += chunk.len() as u64;
+                let chunk_len = chunk.len() as u64;
+                received += chunk_len;
                 buf.extend_from_slice(&chunk);
+
+                // Report progress on chunk received
+                on_chunk_received(chunk_len);
 
                 // Perform speed check when enough data received
                 if !speed_checked && received >= SPEED_CHECK_SIZE {
@@ -442,14 +490,8 @@ async fn single_stream_fallback(
         .and_then(|s| s.to_str())
         .unwrap_or("download");
     let id_for_emit = download_id.unwrap_or_else(|| filename.to_string());
-    let emits = Emits::new(app.clone(), id_for_emit, total);
-
-    // Set stage based on filename
-    if filename.starts_with("temp_audio") {
-        let _ = emits.set_stage("audio").await;
-    } else if filename.starts_with("temp_video") {
-        let _ = emits.set_stage("video").await;
-    }
+    let emits = Arc::new(Emits::new(app.clone(), id_for_emit, total));
+    set_stage_from_filename(&emits, filename).await;
 
     // Open file and download
     let mut file = tokio::fs::OpenOptions::new()
@@ -461,10 +503,14 @@ async fn single_stream_fallback(
         .map_err(map_io_error)?;
 
     let mut downloaded: u64 = 0;
+    let emits_for_callback = emits.clone();
     while let Some(chunk) = resp.chunk().await? {
         file.write_all(&chunk).await.map_err(map_io_error)?;
         downloaded += chunk.len() as u64;
-        emits.update_progress(downloaded).await;
+        let emits_clone = emits_for_callback.clone();
+        tokio::spawn(async move {
+            emits_clone.update_progress(downloaded).await;
+        });
     }
 
     file.flush().await.map_err(map_io_error)?;
@@ -493,10 +539,8 @@ async fn fetch_total_size(
     let head_req = apply_cookie(client.head(url).header(header::REFERER, REFERER), cookie);
     if let Ok(resp) = head_req.send().await {
         if let Some(len) = resp.headers().get(header::CONTENT_LENGTH) {
-            if let Ok(s) = len.to_str() {
-                if let Ok(val) = s.parse::<u64>() {
-                    return Some(val);
-                }
+            if let Ok(val) = len.to_str().ok()?.parse::<u64>() {
+                return Some(val);
             }
         }
     }
@@ -513,10 +557,8 @@ async fn fetch_total_size(
         if let Some(cr) = resp.headers().get(header::CONTENT_RANGE) {
             if let Ok(s) = cr.to_str() {
                 // Format: "bytes START-END/TOTAL"
-                if let Some(total_part) = s.rsplit('/').next() {
-                    if let Ok(total_val) = total_part.parse::<u64>() {
-                        return Some(total_val);
-                    }
+                if let Some(total_val) = s.rsplit('/').next().and_then(|v| v.parse::<u64>().ok()) {
+                    return Some(total_val);
                 }
             }
         }
