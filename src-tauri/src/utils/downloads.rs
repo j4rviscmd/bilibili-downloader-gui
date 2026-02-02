@@ -293,6 +293,7 @@ pub async fn download_url(
                             Ok(result) => result,
                             Err(reconnect) if reconnect => {
                                 reconnect_attempt += 1;
+                                backoff_sleep(reconnect_attempt).await;
                                 continue;
                             }
                             Err(_) => {
