@@ -96,7 +96,7 @@ function HistoryList({ entries, loading, onDelete, height }: Props) {
       style={{ height }}
       data={entries}
       itemContent={(_index, entry) => (
-        <div key={entry.id} className="p-3">
+        <div key={entry.id} className="py-2">
           <HistoryItem entry={entry} onDelete={() => onDelete(entry.id)} />
         </div>
       )}
