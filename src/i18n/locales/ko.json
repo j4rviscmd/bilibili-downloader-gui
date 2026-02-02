@@ -114,6 +114,9 @@
     "output_dir_label": "출력 디렉터리",
     "output_dir_placeholder": "예: C:\\Users\\you\\Downloads 또는 /Users/you/Downloads",
     "output_dir_description": "영상 파일이 저장될 디렉터리를 입력하세요.",
+    "output_dir_button": "선택",
+    "output_dir_changing": "선택 중...",
+    "output_dir_dialog_title": "출력 디렉터리 선택",
     "speed_threshold_label": "속도 임계값 (MB/s)",
     "speed_threshold_description": "초기 다운로드 속도가 이 임계값보다 낮으면 더 빠른 CDN 노드를 얻기 위해 연결이 다시 시도됩니다. 기본값: 1.0 MB/s.",
     "auto_save_note": "변경 사항은 자동 저장됩니다.",
@@ -124,7 +127,15 @@
     "permission_denied": "권한이 없습니다",
     "disk_full": "디스크 용량이 부족합니다",
     "path_not_directory": "지정한 경로는 디렉터리가 아닙니다",
-    "path_not_exist": "지정한 디렉터리가 존재하지 않습니다"
+    "path_not_exist": "지정한 디렉터리가 존재하지 않습니다",
+    "lib_path_label": "라이브러리 저장 위치",
+    "lib_path_description": "ffmpeg 등의 종속 파일을 저장할 위치입니다. 기본값은 앱 데이터 디렉터리입니다. 변경하면 ffmpeg가 새 위치로 이동됩니다.",
+    "lib_path_button": "선택",
+    "lib_path_changing": "선택 중...",
+    "lib_path_dialog_title": "라이브러리 디렉터리 선택",
+    "lib_path_error": "경로를 가져오지 못했습니다",
+    "lib_path_change_success": "라이브러리 저장 위치가 성공적으로 업데이트되었습니다",
+    "lib_path_change_error": "라이브러리 저장 위치 변경 실패"
   },
   "validation": {
     "path": {

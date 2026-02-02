@@ -4,6 +4,8 @@
 //! that downloads videos from Bilibili. It handles video information retrieval,
 //! downloads, cookie management, ffmpeg integration, and user settings.
 
+use std::path::PathBuf;
+
 use tauri::AppHandle;
 use tauri::Manager;
 
@@ -79,6 +81,8 @@ pub fn run() {
             download_video,
             get_settings,
             set_settings,
+            update_lib_path,
+            get_current_lib_path,
             get_os,
             get_history,
             add_history_entry,
@@ -356,6 +360,95 @@ async fn get_settings(app: AppHandle) -> Result<Settings, String> {
 #[tauri::command]
 async fn set_settings(app: AppHandle, settings: Settings) -> Result<(), String> {
     settings::set_settings(&app, &settings).await
+}
+
+/// Updates the library storage path and moves ffmpeg to the new location.
+///
+/// This command:
+/// 1. Gets the current lib_path from settings (defaults to app_data_dir()/lib/)
+/// 2. Moves ffmpeg from the old path to the new path with validation
+/// 3. Updates settings.json with the new lib_path
+/// 4. Returns an error on failure (original lib_path is preserved)
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle for accessing paths and settings
+/// * `new_path` - New library path (used as-is for user-specified paths)
+///
+/// # Returns
+///
+/// Returns `Ok(())` on successful move and settings update.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Source ffmpeg validation fails
+/// - Directory creation fails
+/// - Copy operation fails
+/// - Validation fails (new path is cleaned up)
+/// - Settings update fails
+#[tauri::command]
+async fn update_lib_path(app: AppHandle, new_path: String) -> Result<(), String> {
+    use crate::utils::paths;
+
+    // Get current lib_path (or default)
+    let current_settings = settings::get_settings(&app).await?;
+    let _old_lib_path = current_settings
+        .lib_path
+        .as_ref()
+        .map(PathBuf::from)
+        .unwrap_or_else(|| paths::get_default_lib_path(&app));
+
+    // Use the user-selected path as-is (no /lib suffix for user-specified paths)
+    let new_lib_path = PathBuf::from(&new_path);
+
+    // Get old and new ffmpeg root paths
+    let old_ffmpeg_path = paths::get_ffmpeg_root_path(&app);
+
+    // Determine new ffmpeg root path based on new lib path
+    let new_ffmpeg_path = if cfg!(target_os = "windows") {
+        new_lib_path.join("ffmpeg-master-latest-win64-lgpl-shared")
+    } else {
+        new_lib_path.join("ffmpeg")
+    };
+
+    // Move ffmpeg (if it exists)
+    if old_ffmpeg_path.exists() {
+        ffmpeg::move_ffmpeg(old_ffmpeg_path.clone(), new_ffmpeg_path)?;
+    }
+
+    // Update settings with new lib_path
+    let mut updated_settings = current_settings;
+    updated_settings.lib_path = new_lib_path
+        .to_str()
+        .map(|s| s.to_string());
+
+    settings::set_settings(&app, &updated_settings).await?;
+
+    Ok(())
+}
+
+/// Returns the current library path.
+///
+/// This command returns the currently configured lib_path.
+/// If no custom path is set, returns the default path (app_data_dir()/lib/).
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle for accessing application paths
+///
+/// # Returns
+///
+/// Returns the current library path as a string.
+#[tauri::command]
+async fn get_current_lib_path(app: AppHandle) -> Result<String, String> {
+    use crate::utils::paths;
+
+    let lib_path = paths::get_lib_path(&app);
+    lib_path
+        .to_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| "Failed to convert lib path to string".to_string())
 }
 
 /// Returns the current operating system identifier.

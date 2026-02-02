@@ -1,5 +1,6 @@
 import SettingsForm from '@/features/settings/dialog/SettingsForm'
 import { useSettings } from '@/features/settings/useSettings'
+import { ScrollArea } from '@/shared/ui/scroll-area'
 import {
   Dialog,
   DialogContent,
@@ -31,12 +32,14 @@ function SettingsDialog() {
       open={settings.dialogOpen}
       onOpenChange={(open) => updateOpenDialog(open)}
     >
-      <DialogContent>
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{t('settings.dialog_title')}</DialogTitle>
           <DialogDescription hidden></DialogDescription>
         </DialogHeader>
-        <SettingsForm />
+        <ScrollArea className="max-h-[calc(90vh-100px)] px-4">
+          <SettingsForm />
+        </ScrollArea>
         <DialogFooter></DialogFooter>
       </DialogContent>
     </Dialog>

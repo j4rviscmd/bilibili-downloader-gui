@@ -135,6 +135,9 @@
     "output_dir_label": "出力ディレクトリ",
     "output_dir_placeholder": "例: C:\\Users\\you\\Downloads または /Users/you/Downloads",
     "output_dir_description": "動画ファイルの保存先ディレクトリを入力してください。",
+    "output_dir_button": "選択",
+    "output_dir_changing": "選択中...",
+    "output_dir_dialog_title": "出力ディレクトリを選択",
     "speed_threshold_label": "速度閾値 (MB/s)",
     "speed_threshold_description": "初速ダウンロード速度がこの閾値を下回る場合、より高速なCDNノードを取得するために再接続します。デフォルト: 1.0 MB/s。",
     "auto_save_note": "変更は自動的に保存されます。",
@@ -145,7 +148,15 @@
     "permission_denied": "権限がありません",
     "disk_full": "ディスク容量が不足しています",
     "path_not_directory": "指定されたパスはディレクトリではありません",
-    "path_not_exist": "指定されたディレクトリが存在しません"
+    "path_not_exist": "指定されたディレクトリが存在しません",
+    "lib_path_label": "ライブラリ保存先",
+    "lib_path_description": "ffmpegなどの依存ファイルを保存する場所。デフォルトはアプリデータディレクトリ。変更するとffmpegが新しい場所に移動されます。",
+    "lib_path_button": "選択",
+    "lib_path_changing": "選択中...",
+    "lib_path_dialog_title": "ライブラリディレクトリを選択",
+    "lib_path_error": "パスの取得に失敗しました",
+    "lib_path_change_success": "ライブラリ保存先を変更しました",
+    "lib_path_change_error": "ライブラリ保存先の変更に失敗しました"
   },
   "validation": {
     "path": {

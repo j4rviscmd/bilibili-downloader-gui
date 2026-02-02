@@ -257,6 +257,152 @@ fn validate_command(path: &PathBuf) -> bool {
     cmd_builder.output().is_ok()
 }
 
+/// Moves ffmpeg from one location to another with validation.
+///
+/// This function:
+/// 1. Creates the target directory if needed
+/// 2. Copies the entire ffmpeg directory to the new location
+/// 3. Validates the copied ffmpeg binary
+/// 4. Removes the old directory on successful validation
+/// 5. Cleans up the new directory on validation failure
+///
+/// **Always overwrites** the target if ffmpeg exists there.
+///
+/// # Arguments
+///
+/// * `from_path` - Current ffmpeg root directory path
+/// * `to_path` - New ffmpeg root directory path
+///
+/// # Returns
+///
+/// Returns `Ok(())` on successful move and validation.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Source ffmpeg doesn't exist or is invalid
+/// - Directory creation fails
+/// - Copy operation fails
+/// - Validation fails (new path is cleaned up)
+pub fn move_ffmpeg(from_path: PathBuf, to_path: PathBuf) -> Result<(), String> {
+    // Validate source ffmpeg
+    if !from_path.exists() {
+        return Err(format!(
+            "Source ffmpeg directory does not exist: {:?}",
+            from_path
+        ));
+    }
+
+    let ffmpeg_bin = if cfg!(target_os = "windows") {
+        from_path
+            .join("ffmpeg-master-latest-win64-lgpl-shared")
+            .join("ffmpeg-master-latest-win64-lgpl-shared")
+            .join("bin")
+            .join("ffmpeg")
+    } else {
+        from_path.join("ffmpeg")
+    };
+
+    // Set .exe extension on Windows
+    let ffmpeg_bin = if cfg!(target_os = "windows") {
+        let mut p = ffmpeg_bin;
+        p.set_extension("exe");
+        p
+    } else {
+        ffmpeg_bin
+    };
+
+    if !ffmpeg_bin.exists() {
+        return Err(format!("Source ffmpeg binary not found: {:?}", ffmpeg_bin));
+    }
+
+    if !validate_command(&ffmpeg_bin) {
+        return Err(format!(
+            "Source ffmpeg binary is not valid: {:?}",
+            ffmpeg_bin
+        ));
+    }
+
+    // Create target directory (remove existing if present)
+    if to_path.exists() {
+        fs::remove_dir_all(&to_path)
+            .map_err(|e| format!("Failed to remove existing target directory: {}", e))?;
+    }
+    fs::create_dir_all(&to_path)
+        .map_err(|e| format!("Failed to create target directory: {}", e))?;
+
+    // Copy entire directory recursively
+    copy_dir_recursive(&from_path, &to_path)
+        .map_err(|e| format!("Failed to copy ffmpeg directory: {}", e))?;
+
+    // Validate the copied ffmpeg
+    let new_ffmpeg_bin = if cfg!(target_os = "windows") {
+        to_path
+            .join("ffmpeg-master-latest-win64-lgpl-shared")
+            .join("ffmpeg-master-latest-win64-lgpl-shared")
+            .join("bin")
+            .join("ffmpeg")
+    } else {
+        to_path.join("ffmpeg")
+    };
+
+    // Set .exe extension on Windows
+    let new_ffmpeg_bin = if cfg!(target_os = "windows") {
+        let mut p = new_ffmpeg_bin;
+        p.set_extension("exe");
+        p
+    } else {
+        new_ffmpeg_bin
+    };
+
+    if !validate_command(&new_ffmpeg_bin) {
+        // Validation failed - clean up the new directory
+        let _ = fs::remove_dir_all(&to_path);
+        return Err(format!(
+            "Copied ffmpeg binary validation failed: {:?}",
+            new_ffmpeg_bin
+        ));
+    }
+
+    // Remove old directory on success
+    fs::remove_dir_all(&from_path)
+        .map_err(|e| format!("Failed to remove old ffmpeg directory: {}", e))?;
+
+    Ok(())
+}
+
+/// Recursively copies a directory to another location.
+///
+/// # Arguments
+///
+/// * `from` - Source directory path
+/// * `to` - Target directory path
+///
+/// # Returns
+///
+/// Returns `Ok(())` on successful copy.
+///
+/// # Errors
+///
+/// Returns an error if file/directory operations fail.
+fn copy_dir_recursive(from: &PathBuf, to: &PathBuf) -> std::io::Result<()> {
+    if from.is_dir() {
+        for entry in fs::read_dir(from)? {
+            let entry = entry?;
+            let from_path = entry.path();
+            let to_path = to.join(entry.file_name());
+
+            if from_path.is_dir() {
+                fs::create_dir_all(&to_path)?;
+                copy_dir_recursive(&from_path, &to_path)?;
+            } else {
+                fs::copy(&from_path, &to_path)?;
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Merges separate video and audio files into a single MP4 file.
 ///
 /// This function uses ffmpeg to combine video and audio streams:

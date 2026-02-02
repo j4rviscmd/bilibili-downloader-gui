@@ -14,6 +14,13 @@ pub struct Settings {
     #[serde(rename = "dlOutputPath")]
     pub dl_output_path: Option<String>,
     pub language: Language,
+    /// Custom path for library dependencies (ffmpeg, etc.).
+    ///
+    /// If not specified, defaults to `app_data_dir()/lib/`.
+    /// This allows users to store large dependencies like ffmpeg on
+    /// a different drive or location with more storage space.
+    #[serde(rename = "libPath")]
+    pub lib_path: Option<String>,
     /// Download speed threshold in MB/s for initial speed check.
     ///
     /// If the initial download speed (measured over SPEED_CHECK_SIZE bytes)

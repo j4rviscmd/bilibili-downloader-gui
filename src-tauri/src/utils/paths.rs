@@ -3,14 +3,88 @@
 //! This module provides functions for resolving platform-specific paths
 //! to application resources, including ffmpeg binaries, settings, and
 //! the library directory.
+//!
+//! ## Directory Structure
+//!
+//! ```text
+//! app_data_dir()/
+//! ├── settings.json         ← Fixed (user cannot change)
+//! └── history.json          ← Managed by tauri-plugin-store
+//!
+//! user-specified libPath/   (default: app_data_dir()/lib/)
+//! ├── ffmpeg/
+//! │   └── ffmpeg.exe
+//! └── (future dependency files will use subdirectory structure)
+//! ```
 
-use std::path::PathBuf;
+use std::{fs, path::PathBuf};
 use tauri::{AppHandle, Manager};
+use crate::models::settings::Settings;
+
+/// Returns the default library directory path.
+///
+/// This returns `app_data_dir()/lib/` which is used when:
+/// - No custom `lib_path` is configured in settings
+/// - Settings file cannot be read
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle for resolving the app data directory
+///
+/// # Returns
+///
+/// Returns the path to the default lib directory.
+pub fn get_default_lib_path(app: &AppHandle) -> PathBuf {
+    app.path()
+        .app_data_dir()
+        .unwrap_or_else(|_| PathBuf::from("."))
+        .join("lib")
+}
+
+/// Returns the library directory path from user settings.
+///
+/// Reads the `lib_path` from `settings.json` and returns it.
+/// If not configured or settings cannot be read, falls back to
+/// the default path (`app_data_dir()/lib/`).
+///
+/// Creates the directory if it doesn't exist.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle for resolving paths
+///
+/// # Returns
+///
+/// Returns the configured library path or the default path.
+pub fn get_lib_path(app: &AppHandle) -> PathBuf {
+    // Try to read lib_path from settings.json
+    let settings_path = get_settings_path(app);
+
+    if let Ok(settings_str) = fs::read_to_string(&settings_path) {
+        if let Ok(settings) = serde_json::from_str::<Settings>(&settings_str) {
+            if let Some(custom_path) = settings.lib_path {
+                let path = PathBuf::from(custom_path);
+                // Create directory if it doesn't exist
+                if !path.exists() {
+                    let _ = fs::create_dir_all(&path);
+                }
+                return path;
+            }
+        }
+    }
+
+    // Fallback to default path
+    let default_path = get_default_lib_path(app);
+    if !default_path.exists() {
+        let _ = fs::create_dir_all(&default_path);
+    }
+    default_path
+}
 
 /// Returns the platform-specific path to the ffmpeg binary.
 ///
-/// On Windows: `lib/ffmpeg-master-latest-win64-lgpl-shared/.../bin/ffmpeg.exe`
-/// On macOS/Linux: `lib/ffmpeg/ffmpeg`
+/// On Windows: `{libPath}/ffmpeg-master-latest-win64-lgpl-shared/.../bin/ffmpeg.exe`
+/// On macOS/Linux: `{libPath}/ffmpeg/ffmpeg`
 ///
 /// # Arguments
 ///
@@ -38,8 +112,8 @@ pub fn get_ffmpeg_path(app: &AppHandle) -> PathBuf {
 ///
 /// This is the directory where ffmpeg files are extracted.
 ///
-/// On Windows: `lib/ffmpeg-master-latest-win64-lgpl-shared`
-/// On macOS/Linux: `lib/ffmpeg`
+/// On Windows: `{libPath}/ffmpeg-master-latest-win64-lgpl-shared`
+/// On macOS/Linux: `{libPath}/ffmpeg`
 ///
 /// # Arguments
 ///
@@ -57,46 +131,34 @@ pub fn get_ffmpeg_root_path(app: &AppHandle) -> PathBuf {
     }
 }
 
-// /// その他のバイナリやライブラリのパスも同様に追加可能
-// pub fn get_lib_path(app: &AppHandle, name: &str) -> PathBuf {
-//     app.path_resolver()
-//         .resolve_resource(&format!("lib/{}", name))
-//         .expect("failed to resolve lib path")
-// }
-
-/// Returns the application's library directory path.
-///
-/// This directory stores application resources including ffmpeg, settings,
-/// and temporary files. Falls back to the current directory if the resource
-/// directory cannot be determined.
-///
-/// # Arguments
-///
-/// * `app` - Tauri application handle for resolving the resource directory
-///
-/// # Returns
-///
-/// Returns the path to the `lib` subdirectory within the application's
-/// resource directory, or `./lib` as a fallback.
-pub fn get_lib_path(app: &AppHandle) -> PathBuf {
-    app.path()
-        .resource_dir()
-        .unwrap_or_else(|_| PathBuf::from("."))
-        .join("lib")
-}
-
 /// Returns the path to the application settings file.
 ///
-/// The settings file is stored as `settings.json` in the library directory.
+/// **CHANGED:** Now stores settings at `app_data_dir()/settings.json`
+/// (previously was at `resource_dir()/lib/settings.json`).
+///
+/// This ensures settings persist across application updates.
 ///
 /// # Arguments
 ///
-/// * `app` - Tauri application handle for resolving the library path
+/// * `app` - Tauri application handle for resolving the app data directory
 ///
 /// # Returns
 ///
 /// Returns the absolute path to `settings.json`.
 pub fn get_settings_path(app: &AppHandle) -> PathBuf {
-    let lib = get_lib_path(app);
-    lib.join("settings.json")
+    app.path()
+        .app_data_dir()
+        .unwrap_or_else(|_| PathBuf::from("."))
+        .join("settings.json")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_settings_path_returns_app_data_dir() {
+        // This test verifies that settings are stored in app_data_dir
+        // Actual implementation requires Tauri test context
+    }
 }

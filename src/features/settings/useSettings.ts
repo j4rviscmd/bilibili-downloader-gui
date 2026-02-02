@@ -2,6 +2,7 @@ import { store, useSelector } from '@/app/store'
 import {
   callGetSettings,
   callSetSettings,
+  callUpdateLibPath,
 } from '@/features/settings/api/settingApi'
 import { languages } from '@/features/settings/language/languages'
 import { setOpenDialog, setSettings } from '@/features/settings/settingsSlice'
@@ -126,6 +127,31 @@ export const useSettings = () => {
   }
 
   /**
+   * Updates the library storage path and moves ffmpeg to the new location.
+   *
+   * Calls the backend to move ffmpeg from the old path to the new path
+   * with validation. On success, updates settings with the new lib_path.
+   * On failure, displays an error toast (original lib_path is preserved).
+   *
+   * @param newPath - New library path (used as-is)
+   */
+  const updateLibPath = async (newPath: string): Promise<void> => {
+    try {
+      await callUpdateLibPath(newPath)
+      // Refresh settings to get the updated lib_path
+      await getSettings()
+      toast.success(staticT('settings.lib_path_change_success'))
+    } catch (e) {
+      const raw = String(e)
+      toast.error(staticT('settings.lib_path_change_error'), {
+        duration: 10000,
+        description: raw,
+        closeButton: true,
+      })
+    }
+  }
+
+  /**
    * Fetches settings from the backend and updates Redux store.
    *
    * @returns The fetched settings object
@@ -162,6 +188,7 @@ export const useSettings = () => {
     updateOpenDialog,
     updateSettings,
     getSettings,
+    updateLibPath,
     id2Label,
   }
 }
