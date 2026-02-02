@@ -412,9 +412,7 @@ async fn update_lib_path(app: AppHandle, new_path: String) -> Result<(), String>
 
     // Update settings with new lib_path
     let mut updated_settings = current_settings;
-    updated_settings.lib_path = new_lib_path
-        .to_str()
-        .map(|s| s.to_string());
+    updated_settings.lib_path = new_lib_path.to_str().map(|s| s.to_string());
 
     settings::set_settings(&app, &updated_settings).await?;
 

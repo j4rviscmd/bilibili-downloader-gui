@@ -17,9 +17,9 @@
 //! └── (future dependency files will use subdirectory structure)
 //! ```
 
+use crate::models::settings::Settings;
 use std::{fs, path::PathBuf};
 use tauri::{AppHandle, Manager};
-use crate::models::settings::Settings;
 
 /// Returns the platform-specific ffmpeg subdirectory name.
 const fn ffmpeg_subdir() -> &'static str {
