@@ -205,7 +205,7 @@ npx shadcn@latest add dialog
   ```bash
   # 各言語ファイルのキー数を確認
   for f in src/i18n/locales/*.json; do
-    echo "$f: $(cat "$f" | grep -o '":' | wc -l | tr -d ' ')"
+    echo "$f: $(grep -c '":' "$f")"
   done
   ```
 - **禁止事項**: 一部の言語のみにキーを追加すること（実行時エラーの原因となる）
