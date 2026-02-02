@@ -1,15 +1,13 @@
 'use client'
+
 import { useThumbnailCache } from '@/features/history'
 import type { HistoryEntry } from '@/features/history/model/historySlice'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
-import { Download, RefreshCw, Trash2 } from 'lucide-react'
+import { Check, Copy, Download, RefreshCw, Trash2 } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-type Props = {
-  entry: HistoryEntry
-  onDelete: () => void
-}
+import { toast } from 'sonner'
 
 // Convert i18next language code to BCP 47 language tag
 const I18N_LOCALE_MAP: Record<string, string> = {
@@ -46,6 +44,11 @@ const ThumbnailPlaceholder = () => (
   </div>
 )
 
+type Props = {
+  entry: HistoryEntry
+  onDelete: () => void
+}
+
 /**
  * Single history entry component.
  *
@@ -59,6 +62,7 @@ const ThumbnailPlaceholder = () => (
  */
 function HistoryItem({ entry, onDelete }: Props) {
   const { t, i18n } = useTranslation()
+  const [copied, setCopied] = useState(false)
 
   const {
     data: thumbnailSrc,
@@ -73,8 +77,18 @@ function HistoryItem({ entry, onDelete }: Props) {
     ? entry.thumbnailUrl
     : thumbnailSrc
 
+  const handleCopyUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(entry.url)
+      setCopied(true)
+      toast.success(t('history.copySuccess'))
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      toast.error(t('history.copyFailed'))
+    }
+  }
+
   const isSuccess = entry.status === 'completed'
-  const statusKey = isSuccess ? 'history.filterSuccess' : 'history.filterFailed'
 
   return (
     <div className="border-border hover:bg-accent/50 group flex items-center gap-3 rounded-lg border p-3 transition-colors">
@@ -112,7 +126,7 @@ function HistoryItem({ entry, onDelete }: Props) {
                 : 'bg-destructive/10 text-destructive',
             )}
           >
-            {t(statusKey)}
+            {t(isSuccess ? 'history.filterSuccess' : 'history.filterFailed')}
           </span>
         </div>
 
@@ -142,14 +156,25 @@ function HistoryItem({ entry, onDelete }: Props) {
           <p className="text-destructive mt-1 text-xs">{entry.errorMessage}</p>
         )}
 
-        <a
-          href={entry.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-muted-foreground hover:text-primary mt-1 block max-w-[200px] truncate text-xs"
-        >
-          {entry.url}
-        </a>
+        <div className="mt-1 flex items-center gap-2 text-xs">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground hover:bg-muted size-6 shrink-0"
+            onClick={handleCopyUrl}
+            title={t('history.copyUrl')}
+          >
+            {copied ? <Check size={14} /> : <Copy size={14} />}
+          </Button>
+          <a
+            href={entry.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-muted-foreground hover:text-primary truncate"
+          >
+            {entry.url}
+          </a>
+        </div>
       </div>
 
       <Button
