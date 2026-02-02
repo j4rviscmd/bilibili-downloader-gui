@@ -1,6 +1,5 @@
 import SettingsForm from '@/features/settings/dialog/SettingsForm'
 import { useSettings } from '@/features/settings/useSettings'
-import { ScrollArea } from '@/shared/ui/scroll-area'
 import {
   Dialog,
   DialogContent,
@@ -9,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/shared/animate-ui/radix/dialog'
+import { ScrollArea } from '@/shared/ui/scroll-area'
 import { useTranslation } from 'react-i18next'
 
 /**

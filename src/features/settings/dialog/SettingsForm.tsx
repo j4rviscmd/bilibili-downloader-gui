@@ -1,9 +1,10 @@
+import { callGetCurrentLibPath } from '@/features/settings/api/settingApi'
 import {
   buildSettingsFormSchema,
   formSchema,
 } from '@/features/settings/dialog/formSchema'
 import { useSettings } from '@/features/settings/useSettings'
-import { callGetCurrentLibPath } from '@/features/settings/api/settingApi'
+import { Button } from '@/shared/ui/button'
 import {
   Form,
   FormControl,
@@ -14,9 +15,8 @@ import {
   FormMessage,
 } from '@/shared/ui/form'
 import { Input } from '@/shared/ui/input'
-import { Button } from '@/shared/ui/button'
-import { open } from '@tauri-apps/plugin-dialog'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { open } from '@tauri-apps/plugin-dialog'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import type { z } from 'zod'
@@ -172,7 +172,9 @@ function SettingsForm() {
 
   return (
     <Form {...form}>
-      <FormDescription className="mb-4">{t('settings.auto_save_note')}</FormDescription>
+      <FormDescription className="mb-4">
+        {t('settings.auto_save_note')}
+      </FormDescription>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <FormField
           control={form.control}
@@ -296,7 +298,9 @@ function SettingsForm() {
               )}
             </Button>
           </div>
-          <FormDescription>{t('settings.lib_path_description')}</FormDescription>
+          <FormDescription>
+            {t('settings.lib_path_description')}
+          </FormDescription>
         </div>
       </form>
     </Form>
