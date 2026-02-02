@@ -3,7 +3,6 @@ import { useInit } from '@/features/init'
 import {
   deselectAll,
   DownloadButton,
-  DownloadingDialog,
   selectAll,
   useVideoInfo,
   VideoForm1,
@@ -34,7 +33,7 @@ import { useNavigate } from 'react-router'
  * - Video parts configuration forms (Step 2)
  * - Select all/deselect all buttons
  * - Download button
- * - Download progress dialog
+ * - Download progress (inline in each part card)
  *
  * Redirects to /init if the app is not initialized.
  *
@@ -162,8 +161,6 @@ function HomePage() {
           </CardFooter>
         </Card>
       )}
-
-      <DownloadingDialog />
     </PageLayout>
   )
 }

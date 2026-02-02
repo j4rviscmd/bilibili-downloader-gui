@@ -87,6 +87,8 @@ pub fn run() {
             search_history,
             export_history,
             get_thumbnail_base64,
+            reveal_in_folder,
+            open_file,
             // record_download_click  // NOTE: GA4 Analytics は無効化されています
         ])
         // 開発環境以外で`app`宣言ではBuildに失敗するため、`_app`を使用
@@ -270,7 +272,7 @@ async fn fetch_video_info(app: AppHandle, video_id: String) -> Result<Video, Str
 ///
 /// # Returns
 ///
-/// Returns `Ok(())` on successful download and merge, or an error message.
+/// Returns the output file path on successful download and merge, or an error message.
 ///
 /// # Errors
 ///
@@ -289,7 +291,7 @@ async fn download_video(
     quality: i32,
     audio_quality: i32,
     download_id: String,
-) -> Result<(), String> {
+) -> Result<String, String> {
     bilibili::download_video(
         &app,
         &bvid,
@@ -527,6 +529,100 @@ async fn export_history(app: AppHandle, format: String) -> Result<String, String
 #[tauri::command]
 async fn get_thumbnail_base64(url: String) -> Result<String, String> {
     crate::handlers::bilibili::get_thumbnail_base64(&url).await
+}
+
+/// Reveals a file in the system's file manager.
+///
+/// Opens the parent folder and selects the specified file.
+/// Uses platform-specific commands for file manager integration.
+///
+/// # Arguments
+///
+/// * `path` - Absolute path to the file to reveal
+///
+/// # Returns
+///
+/// Returns `Ok(())` on success, or an error message if the operation fails.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The file does not exist
+/// - The file manager cannot be opened
+#[tauri::command]
+async fn reveal_in_folder(path: String) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .args(["-R", &path])
+            .spawn()
+            .map_err(|e| format!("Failed to reveal file on macOS: {}", e))?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer.exe")
+            .args(["/select,", &path])
+            .spawn()
+            .map_err(|e| format!("Failed to reveal file on Windows: {}", e))?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let file_uri = format!("file://{}", path);
+        std::process::Command::new("dbus-send")
+            .args([
+                "--session",
+                "--dest=org.freedesktop.FileManager1",
+                "--type=method_call",
+                "/org/freedesktop/FileManager1",
+                "org.freedesktop.FileManager1.ShowItems",
+                &format!("array:string:{}", file_uri),
+                "string:",
+            ])
+            .spawn()
+            .map_err(|e| format!("Failed to reveal file on Linux: {}", e))?;
+    }
+    Ok(())
+}
+
+/// Opens a file with the system's default application.
+///
+/// # Arguments
+///
+/// * `path` - Absolute path to the file to open
+///
+/// # Returns
+///
+/// Returns `Ok(())` on success, or an error message if the operation fails.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The file does not exist
+/// - No application is associated with the file type
+#[tauri::command]
+async fn open_file(path: String) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Failed to open file on macOS: {}", e))?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/c", "start", "", &path])
+            .spawn()
+            .map_err(|e| format!("Failed to open file on Windows: {}", e))?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Failed to open file on Linux: {}", e))?;
+    }
+    Ok(())
 }
 
 // NOTE: GA4 Analytics は無効化されています

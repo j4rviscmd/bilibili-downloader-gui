@@ -13,10 +13,38 @@ import {
 import { selectDuplicateIndices } from '@/features/video/model/selectors'
 import { setVideo } from '@/features/video/model/videoSlice'
 import { setError } from '@/shared/downloadStatus/downloadStatusSlice'
-import { enqueue } from '@/shared/queue/queueSlice'
+import { clearQueueItem, enqueue } from '@/shared/queue/queueSlice'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+
+/**
+ * Error code to translation key mapping.
+ */
+const ERROR_MAP: Record<string, string> = {
+  'ERR::VIDEO_NOT_FOUND': 'video.video_not_found',
+  'ERR::COOKIE_MISSING': 'video.cookie_missing',
+  'ERR::API_ERROR': 'video.api_error',
+  'ERR::FILE_EXISTS': 'video.file_exists',
+  'ERR::DISK_FULL': 'video.disk_full',
+  'ERR::MERGE_FAILED': 'video.merge_failed',
+  'ERR::QUALITY_NOT_FOUND': 'video.quality_not_found',
+}
+
+/**
+ * Extracts localized error message from error string.
+ */
+function getErrorMessage(error: string, t: (key: string) => string): string {
+  for (const [code, key] of Object.entries(ERROR_MAP)) {
+    if (error.includes(code)) {
+      return t(key)
+    }
+  }
+  if (error.includes('ERR::NETWORK::')) {
+    return t('video.network_error')
+  }
+  return error
+}
 
 /**
  * Extracts the Bilibili video ID from a URL.
@@ -143,19 +171,7 @@ export const useVideoInfo = () => {
         initInputsForVideo(v)
       } catch (e) {
         const raw = String(e)
-        let messageKey: string | null = null
-        const errorMap: Record<string, string> = {
-          'ERR::VIDEO_NOT_FOUND': 'video.video_not_found',
-          'ERR::COOKIE_MISSING': 'video.cookie_missing',
-          'ERR::API_ERROR': 'video.api_error',
-        }
-        for (const code in errorMap) {
-          if (raw.includes(code)) {
-            messageKey = errorMap[code]
-            break
-          }
-        }
-        const description = messageKey ? t(messageKey) : raw
+        const description = getErrorMessage(raw, t)
         toast.error(t('video.fetch_info'), {
           duration: 5000,
           description,
@@ -220,6 +236,28 @@ export const useVideoInfo = () => {
       if (!isForm1Valid || !isForm2ValidAll) return
       const videoId = (extractId(input.url) ?? '').trim()
       if (!videoId) return
+
+      // Clear completed items for selected parts before starting new download
+      const state = store.getState()
+      const selectedParts = input.partInputs
+        .map((pi, idx) => ({ pi, idx }))
+        .filter(({ pi }) => pi.selected)
+
+      for (const { idx } of selectedParts) {
+        // Find and clear completed items for this part index
+        const completedItem = state.queue.find((item) => {
+          const match = item.downloadId.match(/-p(\d+)$/)
+          return (
+            match &&
+            parseInt(match[1], 10) === idx + 1 &&
+            item.status === 'done'
+          )
+        })
+        if (completedItem) {
+          store.dispatch(clearQueueItem(completedItem.downloadId))
+        }
+      }
+
       // Parent ID
       const parentId = `${videoId}-${Date.now()}`
       // Analytics: record click
@@ -234,9 +272,6 @@ export const useVideoInfo = () => {
         }),
       )
       // Child downloads: sequential order by selected parts only
-      const selectedParts = input.partInputs
-        .map((pi, idx) => ({ pi, idx }))
-        .filter(({ pi }) => pi.selected)
       for (let i = 0; i < selectedParts.length; i++) {
         const { pi, idx } = selectedParts[i]
         await downloadVideo(
@@ -251,24 +286,7 @@ export const useVideoInfo = () => {
       }
     } catch (e) {
       const raw = String(e)
-      let messageKey: string | null = null
-      const errorMap: Record<string, string> = {
-        'ERR::FILE_EXISTS': 'video.file_exists',
-        'ERR::DISK_FULL': 'video.disk_full',
-        'ERR::MERGE_FAILED': 'video.merge_failed',
-        'ERR::QUALITY_NOT_FOUND': 'video.quality_not_found',
-        'ERR::COOKIE_MISSING': 'video.cookie_missing',
-      }
-      for (const code in errorMap) {
-        if (raw.includes(code)) {
-          messageKey = errorMap[code]
-          break
-        }
-      }
-      if (!messageKey && raw.includes('ERR::NETWORK::')) {
-        messageKey = 'video.network_error'
-      }
-      const description = messageKey ? t(messageKey) : raw
+      const description = getErrorMessage(raw, t)
       toast.error(t('video.download_failed'), {
         duration: Infinity,
         description,
