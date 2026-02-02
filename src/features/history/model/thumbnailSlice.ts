@@ -13,55 +13,55 @@
  */
 
 import { getThumbnailBase64 } from '../api/thumbnailApi'
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
+import { createSlice, createAsyncThunk, type PayloadAction } from '@reduxjs/toolkit'
 
-/**
- * Maximum number of cached thumbnails before LRU eviction.
- */
+/** Maximum number of thumbnails to store in cache (LRU eviction threshold) */
 const MAX_CACHE_ENTRIES = 200
 
-/**
- * Default time-to-live for cache entries in milliseconds (1 hour).
- */
+/** Default cache TTL in milliseconds (1 hour) */
 const DEFAULT_CACHE_MAX_AGE = 60 * 60 * 1000
 
 /**
- * Cached thumbnail data structure.
+ * Represents a cached thumbnail entry.
+ *
+ * @property data - Base64-encoded image data URL
+ * @property loading - Whether a fetch is in progress
+ * @property error - Error message if fetch failed, null otherwise
+ * @property timestamp - Unix timestamp in milliseconds when entry was created/updated
  */
 export type CachedThumbnail = {
-  /** Base64 encoded data URL */
   data: string
-  /** Whether the thumbnail is currently being fetched */
   loading: boolean
-  /** Error message if fetch failed */
   error: string | null
-  /** Timestamp when entry was created (for TTL) */
   timestamp: number
 }
 
 /**
  * Thumbnail cache state structure.
+ *
+ * @property cache - Map of URL to cached thumbnail entries
+ * @property maxAge - Cache TTL in milliseconds (default: 1 hour)
  */
 export type ThumbnailCacheState = {
-  /** Cache entries indexed by URL */
   cache: Record<string, CachedThumbnail>
-  /** Maximum age for cache entries in milliseconds */
   maxAge: number
 }
 
-/**
- * Initial state for the thumbnail cache.
- */
+/** Initial cache state with empty cache and default TTL */
 const initialState: ThumbnailCacheState = {
   cache: {},
   maxAge: DEFAULT_CACHE_MAX_AGE,
 }
 
 /**
- * Async thunk to fetch a thumbnail and cache it.
+ * Async thunk to fetch and cache a thumbnail image.
  *
- * If the thumbnail is already being fetched (loading: true), this thunk
- * will not initiate a duplicate request.
+ * Implements request deduplication to prevent concurrent fetches
+ * of the same URL. Skips fetch if URL is already loading or cached.
+ *
+ * @param url - The thumbnail URL to fetch
+ * @returns Promise resolving to { url, data } on success
+ * @throws Rejects with { url, error } on failure
  */
 export const fetchThumbnail = createAsyncThunk(
   'thumbnailCache/fetchThumbnail',
@@ -77,86 +77,97 @@ export const fetchThumbnail = createAsyncThunk(
     condition: (url, { getState }) => {
       const state = getState() as { thumbnailCache: ThumbnailCacheState }
       const entry = state.thumbnailCache.cache[url]
-
       // Skip fetch if already loading or successfully cached
-      if (entry?.loading || (entry?.data && !entry.error)) {
-        return false
-      }
-
-      return true
+      return !(entry?.loading || (entry?.data && !entry.error))
     },
   },
 )
+
+/**
+ * Creates a new cache entry with loading state.
+ *
+ * @param data - Optional initial data (default: empty string)
+ * @returns A new CachedThumbnail entry
+ */
+const createEntry = (data = ''): CachedThumbnail => ({
+  data,
+  loading: true,
+  error: null,
+  timestamp: Date.now(),
+})
 
 const thumbnailSlice = createSlice({
   name: 'thumbnailCache',
   initialState,
   reducers: {
     /**
-     * Manually set a thumbnail in the cache.
+     * Manually sets a thumbnail in the cache.
+     *
+     * @param state - Current state
+     * @param action - Action containing { url, data }
      */
-    setThumbnail: (state, action: { payload: { url: string; data: string } }) => {
+    setThumbnail(state, action: PayloadAction<{ url: string; data: string }>) {
       const { url, data } = action.payload
-      state.cache[url] = {
-        data,
-        loading: false,
-        error: null,
-        timestamp: Date.now(),
+      state.cache[url] = { data, loading: false, error: null, timestamp: Date.now() }
+    },
+    /**
+     * Sets an error state for a cached thumbnail.
+     *
+     * @param state - Current state
+     * @param action - Action containing { url, error }
+     */
+    setThumbnailError(state, action: PayloadAction<{ url: string; error: string }>) {
+      const entry = state.cache[action.payload.url]
+      if (entry) {
+        entry.loading = false
+        entry.error = action.payload.error
       }
     },
-
     /**
-     * Mark a thumbnail as errored.
+     * Removes a thumbnail from the cache.
+     *
+     * @param state - Current state
+     * @param action - Action containing the URL to remove
      */
-    setThumbnailError: (
-      state,
-      action: { payload: { url: string; error: string } },
-    ) => {
-      const { url, error } = action.payload
-      if (state.cache[url]) {
-        state.cache[url].loading = false
-        state.cache[url].error = error
-      }
-    },
-
-    /**
-     * Remove a specific thumbnail from the cache.
-     */
-    removeThumbnail: (state, action: { payload: string }) => {
+    removeThumbnail(state, action: PayloadAction<string>) {
       delete state.cache[action.payload]
     },
-
     /**
-     * Clear expired cache entries based on TTL.
+     * Removes all expired cache entries based on TTL.
+     *
+     * Entries older than maxAge (default: 1 hour) are deleted.
+     *
+     * @param state - Current state
      */
-    clearExpiredEntries: (state) => {
+    clearExpiredEntries(state) {
       const now = Date.now()
-      Object.entries(state.cache).forEach(([url, entry]) => {
-        if (now - entry.timestamp > state.maxAge) {
-          delete state.cache[url]
-        }
-      })
+      const expiredUrls = Object.entries(state.cache)
+        .filter(([, entry]) => now - entry.timestamp > state.maxAge)
+        .map(([url]) => url)
+      expiredUrls.forEach((url) => delete state.cache[url])
     },
-
     /**
-     * Clear all cached thumbnails.
+     * Clears all cache entries.
+     *
+     * @param state - Current state
      */
-    clearCache: (state) => {
+    clearCache(state) {
       state.cache = {}
     },
-
     /**
-     * Evict oldest entries if cache exceeds max size (LRU policy).
+     * Evicts oldest entries when cache exceeds maximum size.
+     *
+     * Implements LRU (Least Recently Used) eviction policy.
+     * Removes oldest entries until cache size is within MAX_CACHE_ENTRIES.
+     *
+     * @param state - Current state
      */
-    evictOldestEntries: (state) => {
+    evictOldestEntries(state) {
       const entries = Object.entries(state.cache)
       if (entries.length <= MAX_CACHE_ENTRIES) return
 
-      // Sort by timestamp (oldest first) and remove excess
       const sorted = entries.sort((a, b) => a[1].timestamp - b[1].timestamp)
-      const toRemove = sorted.slice(0, entries.length - MAX_CACHE_ENTRIES)
-
-      toRemove.forEach(([url]) => {
+      sorted.slice(0, entries.length - MAX_CACHE_ENTRIES).forEach(([url]) => {
         delete state.cache[url]
       })
     },
@@ -166,12 +177,7 @@ const thumbnailSlice = createSlice({
       .addCase(fetchThumbnail.pending, (state, action) => {
         const url = action.meta.arg
         if (!state.cache[url]) {
-          state.cache[url] = {
-            data: '',
-            loading: true,
-            error: null,
-            timestamp: Date.now(),
-          }
+          state.cache[url] = createEntry()
         } else {
           state.cache[url].loading = true
           state.cache[url].error = null
@@ -179,12 +185,7 @@ const thumbnailSlice = createSlice({
       })
       .addCase(fetchThumbnail.fulfilled, (state, action) => {
         const { url, data } = action.payload
-        state.cache[url] = {
-          data,
-          loading: false,
-          error: null,
-          timestamp: Date.now(),
-        }
+        state.cache[url] = { data, loading: false, error: null, timestamp: Date.now() }
       })
       .addCase(fetchThumbnail.rejected, (state, action) => {
         const { url, error } = action.payload as { url: string; error: string }

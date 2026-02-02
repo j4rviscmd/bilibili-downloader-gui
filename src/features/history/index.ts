@@ -13,16 +13,19 @@ export { default as HistoryItem } from './ui/HistoryItem'
 export { useThumbnailCache } from './hooks/useThumbnailCache'
 
 // Public API: Redux Slice
-export { thumbnailSlice } from './model/thumbnailSlice'
 export {
+  clearCache,
+  clearExpiredEntries,
+  evictOldestEntries,
   fetchThumbnail,
+  removeThumbnail,
   setThumbnail,
   setThumbnailError,
-  removeThumbnail,
-  clearExpiredEntries,
-  clearCache,
-  evictOldestEntries,
+  thumbnailSlice,
 } from './model/thumbnailSlice'
 
 // Public API: Types
-export type { CachedThumbnail, ThumbnailCacheState } from './model/thumbnailSlice'
+export type {
+  CachedThumbnail,
+  ThumbnailCacheState,
+} from './model/thumbnailSlice'

@@ -12,37 +12,49 @@
  * @module history/hooks/useThumbnailCache
  */
 
-import { useCallback, useEffect, useRef } from 'react'
-import { useSelector } from 'react-redux'
 import type { RootState } from '@/app/store'
 import { useAppDispatch } from '@/app/store'
+import { useCallback, useEffect } from 'react'
+import { useSelector } from 'react-redux'
 import {
-  fetchThumbnail,
   clearExpiredEntries,
   evictOldestEntries,
+  fetchThumbnail,
 } from '../model/thumbnailSlice'
 
 /**
- * Result type for useThumbnailCache hook.
+ * Result type returned by useThumbnailCache hook.
+ *
+ * @property data - Base64 data URL of the cached thumbnail, or null if not available
+ * @property loading - Whether a fetch is currently in progress
+ * @property error - Error message if fetch failed, null otherwise
+ * @property retry - Function to retry fetching the thumbnail
  */
 type UseThumbnailCacheResult = {
-  /** Base64 data URL or null if not available */
   data: string | null
-  /** Whether a fetch is currently in progress */
   loading: boolean
-  /** Error message if fetch failed */
   error: string | null
-  /** Retry fetching the thumbnail */
   retry: () => void
 }
 
-/**
- * Interval for automatic cache cleanup (5 minutes).
- */
+/** Cleanup interval in milliseconds (5 minutes) */
 const CLEANUP_INTERVAL = 5 * 60 * 1000
 
 /**
+ * Global cleanup timer shared across all hook instances.
+ *
+ * This singleton timer prevents multiple cleanup intervals when
+ * the hook is used in multiple components. It persists for the
+ * lifetime of the application.
+ */
+let cleanupTimerId: ReturnType<typeof setInterval> | null = null
+
+/**
  * Custom hook to fetch and cache video thumbnails.
+ *
+ * Automatically deduplicates concurrent requests for the same URL and
+ * provides loading/error states. The hook also manages periodic cleanup
+ * of expired and old cache entries.
  *
  * @param url - The thumbnail URL to fetch. If undefined, no fetch is performed.
  * @returns Object containing cached data, loading state, error, and retry function
@@ -59,54 +71,73 @@ const CLEANUP_INTERVAL = 5 * 60 * 1000
 export function useThumbnailCache(url?: string): UseThumbnailCacheResult {
   const dispatch = useAppDispatch()
 
-  // Track if this component instance initiated the fetch (for deduplication)
-  const isInitiator = useRef(false)
-
-  // Select cache entry for this URL
   const cacheEntry = useSelector((state: RootState) =>
     url ? state.thumbnailCache.cache[url] : undefined,
   )
 
-  // Fetch function with deduplication
+  /**
+   * Fetches the thumbnail if not already cached or loading.
+   *
+   * Only initiates a fetch if:
+   * - URL is provided
+   * - No cache entry exists, OR
+   * - Entry exists but is not loading and has no data or error
+   */
   const fetch = useCallback(() => {
     if (!url) return
 
-    // Only fetch if not already loading and no valid cached data
     const shouldFetch =
-      !cacheEntry || (!cacheEntry.loading && !cacheEntry.data && !cacheEntry.error)
+      !cacheEntry ||
+      (!cacheEntry.loading && !cacheEntry.data && !cacheEntry.error)
 
     if (shouldFetch) {
-      isInitiator.current = true
       dispatch(fetchThumbnail(url))
     }
   }, [url, cacheEntry, dispatch])
 
-  // Retry function (ignores cache and fetches again)
+  /**
+   * Retries fetching the thumbnail.
+   *
+   * Useful for recovering from failed fetches. Forces a new
+   * fetch request regardless of current cache state.
+   */
   const retry = useCallback(() => {
     if (!url) return
-    isInitiator.current = true
     dispatch(fetchThumbnail(url))
   }, [url, dispatch])
-
-  // Automatic cleanup effect
-  useEffect(() => {
-    const cleanupTimer = setInterval(() => {
-      dispatch(clearExpiredEntries())
-      dispatch(evictOldestEntries())
-    }, CLEANUP_INTERVAL)
-
-    return () => clearInterval(cleanupTimer)
-  }, [dispatch])
 
   // Fetch on mount and when URL changes
   useEffect(() => {
     fetch()
   }, [fetch])
 
-  // Extract data from cache entry
-  const data = cacheEntry?.data ?? null
-  const loading = cacheEntry?.loading ?? false
-  const error = cacheEntry?.error ?? null
+  /**
+   * Setup global cleanup timer (singleton across all hook instances).
+   *
+   * The timer persists for the app lifetime to periodically:
+   * 1. Remove expired entries (older than TTL)
+   * 2. Evict oldest entries if cache exceeds max size
+   *
+   * Note: Cleanup function is intentionally empty to keep timer running.
+   */
+  useEffect(() => {
+    if (!cleanupTimerId) {
+      cleanupTimerId = setInterval(() => {
+        dispatch(clearExpiredEntries())
+        dispatch(evictOldestEntries())
+      }, CLEANUP_INTERVAL)
+    }
 
-  return { data, loading, error, retry }
+    return () => {
+      // Only clear timer if this is the last hook instance
+      // In practice, we keep the timer running for the app lifetime
+    }
+  }, [dispatch])
+
+  return {
+    data: cacheEntry?.data ?? null,
+    loading: cacheEntry?.loading ?? false,
+    error: cacheEntry?.error ?? null,
+    retry,
+  }
 }

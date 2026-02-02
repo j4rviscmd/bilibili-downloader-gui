@@ -6,26 +6,48 @@ import { Button } from '@/shared/ui/button'
 import { Download, RefreshCw, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-/**
- * Props for HistoryItem component.
- */
 type Props = {
-  /** History entry data to display */
   entry: HistoryEntry
-  /** Callback when delete button is clicked */
   onDelete: () => void
 }
 
+// Convert i18next language code to BCP 47 language tag
+const I18N_LOCALE_MAP: Record<string, string> = {
+  zh: 'zh-CN',
+  ja: 'ja-JP',
+  en: 'en-US',
+  fr: 'fr-FR',
+  es: 'es-ES',
+  ko: 'ko-KR',
+}
+
+function formatDate(dateString: string, locale: string): string {
+  const date = new Date(dateString)
+  const mappedLocale = I18N_LOCALE_MAP[locale] || locale
+  return date.toLocaleDateString(mappedLocale, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function formatFileSize(bytes?: number): string {
+  if (!bytes) return '-'
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+const ThumbnailPlaceholder = () => (
+  <div className="text-muted-foreground flex size-full items-center justify-center">
+    <Download size={32} />
+  </div>
+)
+
 /**
  * Single history entry component.
- *
- * Displays a history entry with:
- * - Thumbnail or placeholder icon
- * - Video title with status badge
- * - Filename (if available)
- * - Download date, file size, and quality metadata
- * - Error message (if failed)
- * - Delete button
  *
  * @example
  * ```tsx
@@ -38,55 +60,27 @@ type Props = {
 function HistoryItem({ entry, onDelete }: Props) {
   const { t, i18n } = useTranslation()
 
-  // Use thumbnail cache hook (skip if already base64 data URL)
-  const { data: thumbnailSrc, loading: thumbnailLoading, error, retry } =
-    useThumbnailCache(
-      entry.thumbnailUrl?.startsWith('data:') ? undefined : entry.thumbnailUrl,
-    )
+  const {
+    data: thumbnailSrc,
+    loading: thumbnailLoading,
+    error,
+    retry,
+  } = useThumbnailCache(
+    entry.thumbnailUrl?.startsWith('data:') ? undefined : entry.thumbnailUrl,
+  )
 
-  // Display thumbnail: use data URL directly if already base64, otherwise use cached value
   const displayThumbnail = entry.thumbnailUrl?.startsWith('data:')
     ? entry.thumbnailUrl
     : thumbnailSrc
-
-  const formatDate = (dateString: string): string => {
-    const date = new Date(dateString)
-    // Convert i18next language code to BCP 47 language tag
-    const localeMap: Record<string, string> = {
-      zh: 'zh-CN',
-      ja: 'ja-JP',
-      en: 'en-US',
-      fr: 'fr-FR',
-      es: 'es-ES',
-      ko: 'ko-KR',
-    }
-    const locale = localeMap[i18n.language] || i18n.language
-    return date.toLocaleDateString(locale, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  }
-
-  const formatFileSize = (bytes?: number): string => {
-    if (!bytes) return '-'
-    if (bytes < 1024) return `${bytes} B`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  }
 
   const isSuccess = entry.status === 'completed'
   const statusKey = isSuccess ? 'history.filterSuccess' : 'history.filterFailed'
 
   return (
     <div className="border-border hover:bg-accent/50 group flex items-center gap-3 rounded-lg border p-3 transition-colors">
-      <div className="relative bg-muted flex size-20 shrink-0 items-center justify-center overflow-hidden rounded">
+      <div className="bg-muted relative flex size-20 shrink-0 items-center justify-center overflow-hidden rounded">
         {thumbnailLoading ? (
-          <div className="text-muted-foreground flex size-full items-center justify-center">
-            <Download size={32} />
-          </div>
+          <ThumbnailPlaceholder />
         ) : displayThumbnail ? (
           <img
             src={displayThumbnail}
@@ -94,9 +88,7 @@ function HistoryItem({ entry, onDelete }: Props) {
             className="size-full object-cover"
           />
         ) : (
-          <div className="text-muted-foreground flex size-full items-center justify-center">
-            <Download size={32} />
-          </div>
+          <ThumbnailPlaceholder />
         )}
         {error && (
           <button
@@ -131,7 +123,7 @@ function HistoryItem({ entry, onDelete }: Props) {
         )}
 
         <div className="text-muted-foreground flex flex-wrap gap-x-4 gap-y-0.5 text-xs">
-          <span>{formatDate(entry.downloadedAt)}</span>
+          <span>{formatDate(entry.downloadedAt, i18n.language)}</span>
           {entry.fileSize && (
             <>
               <span>•</span>
@@ -150,29 +142,25 @@ function HistoryItem({ entry, onDelete }: Props) {
           <p className="text-destructive mt-1 text-xs">{entry.errorMessage}</p>
         )}
 
-        <div className="mt-1 text-xs">
-          <a
-            href={entry.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-muted-foreground hover:text-primary block max-w-[200px] truncate"
-          >
-            {entry.url}
-          </a>
-        </div>
+        <a
+          href={entry.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-muted-foreground hover:text-primary mt-1 block max-w-[200px] truncate text-xs"
+        >
+          {entry.url}
+        </a>
       </div>
 
-      <div className="flex shrink-0 flex-col gap-1">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onDelete}
-          title={t('history.deleteConfirm')}
-          className="text-destructive hover:bg-destructive/10"
-        >
-          <Trash2 size={18} />
-        </Button>
-      </div>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={onDelete}
+        title={t('history.deleteConfirm')}
+        className="text-destructive hover:bg-destructive/10"
+      >
+        <Trash2 size={18} />
+      </Button>
     </div>
   )
 }

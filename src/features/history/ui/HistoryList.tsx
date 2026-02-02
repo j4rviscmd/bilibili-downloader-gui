@@ -4,26 +4,53 @@ import type { HistoryEntry } from '../model/historySlice'
 import HistoryItem from './HistoryItem'
 
 /**
- * Props for HistoryList component.
+ * Props for the HistoryList component.
+ *
+ * @property entries - Array of history entries to display
+ * @property loading - Whether the history data is currently loading
+ * @property onDelete - Callback function when an entry is deleted
+ * @property height - Optional height for the virtual scroll container
  */
 type Props = {
-  /** Array of history entries to display */
   entries: HistoryEntry[]
-  /** Loading state indicator */
   loading: boolean
-  /** Callback when delete button is clicked */
   onDelete: (id: string) => void
-  /** Height for the virtual list container */
   height?: string
 }
+
+/** Approximate height in pixels for each HistoryItem (used for virtual scrolling) */
+const DEFAULT_ITEM_HEIGHT = 120 // Approximate height for each HistoryItem
+
+/**
+ * Empty state icon component.
+ *
+ * Displays a stylized film/grid icon to represent no history entries.
+ */
+const EmptyStateIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="64"
+    height="64"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.5}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className="opacity-20"
+  >
+    <path d="M3 3h18M21 3v5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v5M21 21v-5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v5M3 8h18M12 3v18" />
+  </svg>
+)
 
 /**
  * History list component with loading, empty states, and virtual scrolling.
  *
- * Displays history entries in a scrollable list with:
- * - Loading spinner while fetching data
- * - Empty state illustration when no entries exist
- * - Virtual scrolling for optimal performance with large lists
+ * Features:
+ * - Loading state with spinner
+ * - Empty state with icon and message
+ * - Virtual scrolling for efficient rendering of large lists
+ * - Responsive height calculation
  *
  * @example
  * ```tsx
@@ -38,6 +65,7 @@ type Props = {
 function HistoryList({ entries, loading, onDelete, height }: Props) {
   const { t } = useTranslation()
 
+  // Loading state - shows animated text
   if (loading) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
@@ -48,24 +76,12 @@ function HistoryList({ entries, loading, onDelete, height }: Props) {
     )
   }
 
+  // Empty state - shows icon and message when no entries exist
   if (entries.length === 0) {
     return (
       <div className="flex min-h-[400px] flex-col items-center justify-center gap-4 p-8">
         <div className="text-muted-foreground/60 flex size-32 items-center justify-center">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="64"
-            height="64"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={1.5}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="opacity-20"
-          >
-            <path d="M3 3h18M21 3v5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v5M21 21v-5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v5M3 8h18M12 3v18" />
-          </svg>
+          <EmptyStateIcon />
         </div>
         <p className="text-muted-foreground text-center text-lg">
           {t('history.empty')}
@@ -74,6 +90,7 @@ function HistoryList({ entries, loading, onDelete, height }: Props) {
     )
   }
 
+  // Virtualized list for efficient rendering of large datasets
   return (
     <Virtuoso
       style={{ height }}
@@ -83,7 +100,7 @@ function HistoryList({ entries, loading, onDelete, height }: Props) {
           <HistoryItem entry={entry} onDelete={() => onDelete(entry.id)} />
         </div>
       )}
-      defaultItemHeight={120} // Approximate height for each HistoryItem
+      defaultItemHeight={DEFAULT_ITEM_HEIGHT}
     />
   )
 }
