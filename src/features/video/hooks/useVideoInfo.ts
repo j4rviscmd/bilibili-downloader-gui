@@ -13,7 +13,12 @@ import {
 import { selectDuplicateIndices } from '@/features/video/model/selectors'
 import { setVideo } from '@/features/video/model/videoSlice'
 import { setError } from '@/shared/downloadStatus/downloadStatusSlice'
-import { clearQueueItem, enqueue } from '@/shared/queue/queueSlice'
+import {
+  clearQueue,
+  clearQueueItem,
+  enqueue,
+  findCompletedItemForPart,
+} from '@/shared/queue/queueSlice'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -154,8 +159,9 @@ export const useVideoInfo = () => {
    * Handles validation and submission of the video URL (Form 1).
    *
    * Extracts the video ID from the URL, fetches metadata from Bilibili,
-   * and initializes part inputs. Sets the fetching state during the
-   * operation.
+   * and initializes part inputs. Clears the queue before fetching new video
+   * info to prevent showing stale completion status from previous downloads.
+   * Sets the fetching state during the operation.
    *
    * @param url - The Bilibili video URL.
    */
@@ -165,6 +171,8 @@ export const useVideoInfo = () => {
     if (id) {
       setIsFetching(true)
       try {
+        // Clear queue before fetching new video to prevent stale UI states
+        store.dispatch(clearQueue())
         const v = await fetchVideoInfo(id)
         console.log('Fetched video info:', v)
         store.dispatch(setVideo(v))
@@ -244,15 +252,7 @@ export const useVideoInfo = () => {
         .filter(({ pi }) => pi.selected)
 
       for (const { idx } of selectedParts) {
-        // Find and clear completed items for this part index
-        const completedItem = state.queue.find((item) => {
-          const match = item.downloadId.match(/-p(\d+)$/)
-          return (
-            match &&
-            parseInt(match[1], 10) === idx + 1 &&
-            item.status === 'done'
-          )
-        })
+        const completedItem = findCompletedItemForPart(state, idx + 1)
         if (completedItem) {
           store.dispatch(clearQueueItem(completedItem.downloadId))
         }
