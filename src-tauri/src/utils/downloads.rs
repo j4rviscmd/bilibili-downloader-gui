@@ -48,15 +48,10 @@ async fn set_stage_from_filename(emits: &Emits, filename: &str) {
     }
 }
 
-/// Detects if an I/O error represents "No space left on device" (ENOSPC).
-fn is_no_space_error(e: &std::io::Error) -> bool {
-    matches!(e.raw_os_error(), Some(28))
-}
-
 /// Converts an I/O error to an appropriate anyhow error.
-/// Returns `ERR::DISK_FULL` for ENOSPC, otherwise wraps the original error.
+/// Returns `ERR::DISK_FULL` for ENOSPC (error code 28), otherwise wraps the original error.
 fn map_io_error(e: std::io::Error) -> anyhow::Error {
-    if is_no_space_error(&e) {
+    if matches!(e.raw_os_error(), Some(28)) {
         return anyhow::anyhow!("ERR::DISK_FULL");
     }
     e.into()
@@ -293,6 +288,7 @@ pub async fn download_url(
                             Ok(result) => result,
                             Err(reconnect) if reconnect => {
                                 reconnect_attempt += 1;
+                                backoff_sleep(reconnect_attempt).await;
                                 continue;
                             }
                             Err(_) => {
@@ -518,12 +514,8 @@ async fn single_stream_fallback(
 
 /// Implements exponential backoff sleep for retry logic.
 async fn backoff_sleep(attempt: u8) {
-    let ms = match attempt {
-        0 | 1 => 500,
-        2 => 1000,
-        3 => 2000,
-        _ => 3000,
-    };
+    // Cap at 3000ms: 500ms (attempt 1), 1000ms (attempt 2), 2000ms (attempt 3+)
+    let ms = (500u64 << attempt.saturating_sub(1)).min(3000);
     tokio::time::sleep(Duration::from_millis(ms)).await;
 }
 
@@ -551,18 +543,16 @@ async fn fetch_total_size(
             .header(header::REFERER, REFERER),
         cookie,
     );
-    if let Ok(resp) = probe_req.send().await {
-        if let Some(cr) = resp.headers().get(header::CONTENT_RANGE) {
-            if let Ok(s) = cr.to_str() {
-                // Format: "bytes START-END/TOTAL"
-                if let Some(total_val) = s.rsplit('/').next().and_then(|v| v.parse::<u64>().ok()) {
-                    return Some(total_val);
-                }
-            }
-        }
-    }
+    let Ok(resp) = probe_req.send().await else {
+        return None;
+    };
 
-    None
+    // Format: "bytes START-END/TOTAL"
+    resp.headers()
+        .get(header::CONTENT_RANGE)
+        .and_then(|cr| cr.to_str().ok())
+        .and_then(|s| s.rsplit('/').next())
+        .and_then(|v| v.parse::<u64>().ok())
 }
 
 /// Calculates segment ranges for segmented download.
