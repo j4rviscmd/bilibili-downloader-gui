@@ -1,6 +1,7 @@
 import type { RootState } from '@/app/store'
 import { store } from '@/app/store'
 import { downloadVideo } from '@/features/video/api/downloadVideo'
+import { usePartDownloadStatus } from '@/features/video/hooks/usePartDownloadStatus'
 import { useVideoInfo } from '@/features/video/hooks/useVideoInfo'
 import {
   AUDIO_QUALITIES_MAP,
@@ -11,9 +12,7 @@ import { buildVideoFormSchema2 } from '@/features/video/lib/formSchema'
 import { toThumbnailDataUrl } from '@/features/video/lib/utils'
 import { updatePartSelected } from '@/features/video/model/inputSlice'
 import type { Video } from '@/features/video/types'
-import { usePartDownloadStatus } from '@/features/video/hooks/usePartDownloadStatus'
 import { PartDownloadProgress } from '@/features/video/ui/PartDownloadProgress'
-import { clearQueueItem } from '@/shared/queue/queueSlice'
 import { Checkbox } from '@/shared/animate-ui/radix/checkbox'
 import {
   RadioGroup,
@@ -26,6 +25,7 @@ import {
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
 import { cn } from '@/shared/lib/utils'
+import { clearQueueItem } from '@/shared/queue/queueSlice'
 import {
   Form,
   FormControl,
@@ -93,9 +93,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
 
   // グローバルなダウンロードアクティビティを監視
   const hasActiveDownloads = useSelector((state: RootState) =>
-    state.queue.some(
-      (q) => q.status === 'running' || q.status === 'pending',
-    ),
+    state.queue.some((q) => q.status === 'running' || q.status === 'pending'),
   )
 
   // 選択状態と既存の入力値を取得
@@ -107,20 +105,18 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
 
   // 自分のパートが選択されていて、まだ自分の番でない場合
   const isWaitingForTurn =
-    selected &&
-    !downloadId &&
-    !isComplete &&
-    hasActiveDownloads
+    selected && !downloadId && !isComplete && hasActiveDownloads
 
-  // Helper to check if a quality is available for the current part
-  const isQualityAvailable = (qualityId: number, isVideo: boolean): boolean => {
-    if (video.parts.length === 0 || video.parts[page - 1].cid === 0) {
-      return false
-    }
-    const qualities = isVideo
-      ? video.parts[page - 1].videoQualities
-      : video.parts[page - 1].audioQualities
-    return qualities.some((q) => q.id === qualityId)
+  const partQualities = {
+    video: videoPart.videoQualities,
+    audio: videoPart.audioQualities,
+  }
+
+  const isQualityAvailable = (
+    qualityId: number,
+    type: 'video' | 'audio',
+  ): boolean => {
+    return partQualities[type].some((q) => q.id === qualityId)
   }
 
   // 選択状態を更新
@@ -149,9 +145,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
     // 該当パートの完了済みアイテムをクリア
     const completedItem = state.queue.find((item) => {
       const match = item.downloadId.match(/-p(\d+)$/)
-      return (
-        match && parseInt(match[1], 10) === page && item.status === 'done'
-      )
+      return match && parseInt(match[1], 10) === page && item.status === 'done'
     })
     if (completedItem) {
       store.dispatch(clearQueueItem(completedItem.downloadId))
@@ -338,7 +332,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                             .map(([id, value]) => {
                               const isDisabled = !isQualityAvailable(
                                 Number(id),
-                                true,
+                                'video',
                               )
                               return (
                                 <div
@@ -409,7 +403,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                             const value = AUDIO_QUALITIES_MAP[id]
                             const isDisabled = !isQualityAvailable(
                               Number(id),
-                              false,
+                              'audio',
                             )
                             return (
                               <div

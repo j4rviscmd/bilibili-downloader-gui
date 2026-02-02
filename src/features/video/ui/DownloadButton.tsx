@@ -1,4 +1,5 @@
 'use client'
+import type { RootState } from '@/app/store'
 import { useVideoInfo } from '@/features/video/hooks/useVideoInfo'
 import { RippleButton } from '@/shared/animate-ui/buttons/ripple'
 import {
@@ -9,7 +10,6 @@ import {
 } from '@/shared/animate-ui/radix/tooltip'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
-import type { RootState } from '@/app/store'
 
 /**
  * Download button with validation tooltip.
@@ -36,9 +36,7 @@ function DownloadButton() {
 
   // Check if any download is running or pending
   const hasActiveDownloads = useSelector((state: RootState) =>
-    state.queue.some(
-      (q) => q.status === 'running' || q.status === 'pending',
-    ),
+    state.queue.some((q) => q.status === 'running' || q.status === 'pending'),
   )
 
   const disabled = !(isForm1Valid && isForm2ValidAll) || hasActiveDownloads

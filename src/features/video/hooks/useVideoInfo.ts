@@ -19,6 +19,34 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 /**
+ * Error code to translation key mapping.
+ */
+const ERROR_MAP: Record<string, string> = {
+  'ERR::VIDEO_NOT_FOUND': 'video.video_not_found',
+  'ERR::COOKIE_MISSING': 'video.cookie_missing',
+  'ERR::API_ERROR': 'video.api_error',
+  'ERR::FILE_EXISTS': 'video.file_exists',
+  'ERR::DISK_FULL': 'video.disk_full',
+  'ERR::MERGE_FAILED': 'video.merge_failed',
+  'ERR::QUALITY_NOT_FOUND': 'video.quality_not_found',
+}
+
+/**
+ * Extracts localized error message from error string.
+ */
+function getErrorMessage(error: string, t: (key: string) => string): string {
+  for (const [code, key] of Object.entries(ERROR_MAP)) {
+    if (error.includes(code)) {
+      return t(key)
+    }
+  }
+  if (error.includes('ERR::NETWORK::')) {
+    return t('video.network_error')
+  }
+  return error
+}
+
+/**
  * Extracts the Bilibili video ID from a URL.
  *
  * @param url - The Bilibili video URL.
@@ -143,19 +171,7 @@ export const useVideoInfo = () => {
         initInputsForVideo(v)
       } catch (e) {
         const raw = String(e)
-        let messageKey: string | null = null
-        const errorMap: Record<string, string> = {
-          'ERR::VIDEO_NOT_FOUND': 'video.video_not_found',
-          'ERR::COOKIE_MISSING': 'video.cookie_missing',
-          'ERR::API_ERROR': 'video.api_error',
-        }
-        for (const code in errorMap) {
-          if (raw.includes(code)) {
-            messageKey = errorMap[code]
-            break
-          }
-        }
-        const description = messageKey ? t(messageKey) : raw
+        const description = getErrorMessage(raw, t)
         toast.error(t('video.fetch_info'), {
           duration: 5000,
           description,
@@ -270,24 +286,7 @@ export const useVideoInfo = () => {
       }
     } catch (e) {
       const raw = String(e)
-      let messageKey: string | null = null
-      const errorMap: Record<string, string> = {
-        'ERR::FILE_EXISTS': 'video.file_exists',
-        'ERR::DISK_FULL': 'video.disk_full',
-        'ERR::MERGE_FAILED': 'video.merge_failed',
-        'ERR::QUALITY_NOT_FOUND': 'video.quality_not_found',
-        'ERR::COOKIE_MISSING': 'video.cookie_missing',
-      }
-      for (const code in errorMap) {
-        if (raw.includes(code)) {
-          messageKey = errorMap[code]
-          break
-        }
-      }
-      if (!messageKey && raw.includes('ERR::NETWORK::')) {
-        messageKey = 'video.network_error'
-      }
-      const description = messageKey ? t(messageKey) : raw
+      const description = getErrorMessage(raw, t)
       toast.error(t('video.download_failed'), {
         duration: Infinity,
         description,

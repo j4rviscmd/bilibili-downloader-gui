@@ -54,9 +54,7 @@ export const downloadVideo = async (
       downloadId,
     })
     // Store output path for post-download actions
-    store.dispatch(
-      updateQueueItem({ downloadId, outputPath, title: filename }),
-    )
+    store.dispatch(updateQueueItem({ downloadId, outputPath, title: filename }))
   } finally {
     // dequeue handled by progress events
   }

@@ -47,7 +47,10 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
         if (stage === 'complete') {
           // Mark as done - keep in queue so completion actions remain visible
           store.dispatch(
-            updateQueueStatus({ downloadId: payload.downloadId, status: 'done' }),
+            updateQueueStatus({
+              downloadId: payload.downloadId,
+              status: 'done',
+            }),
           )
         } else if (
           stage === 'audio' ||
@@ -56,7 +59,10 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
         ) {
           // Mark as running when download stages start
           store.dispatch(
-            updateQueueStatus({ downloadId: payload.downloadId, status: 'running' }),
+            updateQueueStatus({
+              downloadId: payload.downloadId,
+              status: 'running',
+            }),
           )
         }
 

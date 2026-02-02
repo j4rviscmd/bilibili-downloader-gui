@@ -1,5 +1,5 @@
-import { selectDownloadIdByPartIndex } from '@/shared/queue/queueSlice'
 import type { RootState } from '@/app/store'
+import { selectDownloadIdByPartIndex } from '@/shared/queue/queueSlice'
 import type { Progress } from '@/shared/ui/Progress'
 import { useSelector } from 'react-redux'
 
