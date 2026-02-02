@@ -1,5 +1,3 @@
-import { clearQueueItem } from '@/shared/queue/queueSlice'
-import { store } from '@/app/store'
 import { Button } from '@/shared/ui/button'
 import { CheckCircle2, Download, FolderOpen, RotateCcw } from 'lucide-react'
 import { useCallback } from 'react'
@@ -70,10 +68,7 @@ export function PartDownloadProgress({
   const handleRedownload = useCallback(() => {
     if (!downloadId || !filename) return
 
-    // Clear the completed item from queue
-    store.dispatch(clearQueueItem(downloadId))
-
-    // Trigger redownload via callback
+    // Trigger redownload via callback (parent will handle queue cleanup)
     onRedownload()
   }, [downloadId, filename, onRedownload])
 

@@ -567,6 +567,7 @@ async fn reveal_in_folder(path: String) -> Result<(), String> {
     }
     #[cfg(target_os = "linux")]
     {
+        let file_uri = format!("file://{}", path);
         std::process::Command::new("dbus-send")
             .args([
                 "--session",
@@ -574,7 +575,7 @@ async fn reveal_in_folder(path: String) -> Result<(), String> {
                 "--type=method_call",
                 "/org/freedesktop/FileManager1",
                 "org.freedesktop.FileManager1.ShowItems",
-                format!("array:string:file://{}", path).as_str(),
+                &format!("array:string:{}", file_uri),
                 "string:",
             ])
             .spawn()

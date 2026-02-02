@@ -13,7 +13,7 @@ import { updatePartSelected } from '@/features/video/model/inputSlice'
 import type { Video } from '@/features/video/types'
 import { usePartDownloadStatus } from '@/features/video/hooks/usePartDownloadStatus'
 import { PartDownloadProgress } from '@/features/video/ui/PartDownloadProgress'
-import { enqueue } from '@/shared/queue/queueSlice'
+import { clearQueueItem } from '@/shared/queue/queueSlice'
 import { Checkbox } from '@/shared/animate-ui/radix/checkbox'
 import {
   RadioGroup,
@@ -154,13 +154,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
       )
     })
     if (completedItem) {
-      store.dispatch(
-        enqueue({
-          downloadId: completedItem.downloadId,
-          filename: partInput.title,
-          status: 'pending',
-        }),
-      )
+      store.dispatch(clearQueueItem(completedItem.downloadId))
     }
 
     // 新しいdownloadIdを生成して再ダウンロード
@@ -226,7 +220,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
     }
 
     syncFormWithVideo()
-  }, [video, page, existingInput])
+  }, [video, page, existingInput, form, onValid2])
 
   async function onSubmit(data: z.infer<typeof schema2>) {
     onValid2(page - 1, data.title, data.videoQuality, data.audioQuality)
