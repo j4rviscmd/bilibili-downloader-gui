@@ -1,77 +1,60 @@
 'use client'
+
 import { getThumbnailBase64 } from '@/features/history/api/thumbnailApi'
 import type { HistoryEntry } from '@/features/history/model/historySlice'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
-import { Copy, Check, Download, Trash2 } from 'lucide-react'
+import { Check, Copy, Download, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-/**
- * Props for HistoryItem component.
- */
+const LOCALE_MAP: Record<string, string> = {
+  zh: 'zh-CN',
+  ja: 'ja-JP',
+  en: 'en-US',
+  fr: 'fr-FR',
+  es: 'es-ES',
+  ko: 'ko-KR',
+}
+
+const FILE_SIZE_UNITS = ['B', 'KB', 'MB'] as const
+const BYTES_PER_KB = 1024
+const BYTES_PER_MB = 1024 * 1024
+const COPY_RESET_DELAY = 2000
+
 type Props = {
-  /** History entry data to display */
   entry: HistoryEntry
-  /** Callback when delete button is clicked */
   onDelete: () => void
 }
 
-/**
- * Single history entry component.
- *
- * Displays a history entry with:
- * - Thumbnail or placeholder icon
- * - Video title with status badge
- * - Filename (if available)
- * - Download date, file size, and quality metadata
- * - Error message (if failed)
- * - Delete button
- *
- * @example
- * ```tsx
- * <HistoryItem
- *   entry={historyEntry}
- *   onDelete={() => handleDelete(historyEntry.id)}
- * />
- * ```
- */
 function HistoryItem({ entry, onDelete }: Props) {
   const { t, i18n } = useTranslation()
   const [thumbnailSrc, setThumbnailSrc] = useState<string | null>(null)
   const [thumbnailLoading, setThumbnailLoading] = useState(false)
   const [copied, setCopied] = useState(false)
 
-  // Load thumbnail from backend when entry has a URL
   useEffect(() => {
-    if (entry.thumbnailUrl && !entry.thumbnailUrl.startsWith('data:')) {
-      setThumbnailLoading(true)
-      getThumbnailBase64(entry.thumbnailUrl)
-        .then(setThumbnailSrc)
-        .catch((err) => {
-          console.error('Failed to load thumbnail:', err)
-          setThumbnailSrc(null)
-        })
-        .finally(() => setThumbnailLoading(false))
-    } else if (entry.thumbnailUrl?.startsWith('data:')) {
-      // Already base64 encoded
+    if (!entry.thumbnailUrl) return
+
+    if (entry.thumbnailUrl.startsWith('data:')) {
       setThumbnailSrc(entry.thumbnailUrl)
+      return
     }
+
+    setThumbnailLoading(true)
+    getThumbnailBase64(entry.thumbnailUrl)
+      .then(setThumbnailSrc)
+      .catch((err) => {
+        console.error('Failed to load thumbnail:', err)
+        setThumbnailSrc(null)
+      })
+      .finally(() => setThumbnailLoading(false))
   }, [entry.thumbnailUrl])
 
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString)
-    // Convert i18next language code to BCP 47 language tag
-    const localeMap: Record<string, string> = {
-      zh: 'zh-CN',
-      ja: 'ja-JP',
-      en: 'en-US',
-      fr: 'fr-FR',
-      es: 'es-ES',
-      ko: 'ko-KR',
-    }
-    const locale = localeMap[i18n.language] || i18n.language
+    const locale = LOCALE_MAP[i18n.language] || i18n.language
     return date.toLocaleDateString(locale, {
       year: 'numeric',
       month: 'short',
@@ -83,42 +66,49 @@ function HistoryItem({ entry, onDelete }: Props) {
 
   const formatFileSize = (bytes?: number): string => {
     if (!bytes) return '-'
-    if (bytes < 1024) return `${bytes} B`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+
+    let unitIndex = 0
+    let value = bytes
+
+    if (bytes >= BYTES_PER_MB) {
+      value = bytes / BYTES_PER_MB
+      unitIndex = 2
+    } else if (bytes >= BYTES_PER_KB) {
+      value = bytes / BYTES_PER_KB
+      unitIndex = 1
+    }
+
+    return `${value.toFixed(unitIndex > 0 ? 1 : 0)} ${FILE_SIZE_UNITS[unitIndex]}`
   }
 
-  const handleCopyUrl = async () => {
+  const handleCopyUrl = async (): Promise<void> => {
     try {
       await navigator.clipboard.writeText(entry.url)
       setCopied(true)
       toast.success(t('history.copySuccess'))
-      setTimeout(() => setCopied(false), 2000)
+      setTimeout(() => setCopied(false), COPY_RESET_DELAY)
     } catch {
       toast.error(t('history.copyFailed'))
     }
   }
 
   const isSuccess = entry.status === 'completed'
-  const statusKey = isSuccess ? 'history.filterSuccess' : 'history.filterFailed'
+
+  const showThumbnailPlaceholder = thumbnailLoading || !thumbnailSrc
 
   return (
     <div className="border-border hover:bg-accent/50 flex items-center gap-3 rounded-lg border p-3 transition-colors">
       <div className="bg-muted flex size-20 shrink-0 items-center justify-center overflow-hidden rounded">
-        {thumbnailLoading ? (
+        {showThumbnailPlaceholder ? (
           <div className="text-muted-foreground flex size-full items-center justify-center">
             <Download size={32} />
           </div>
-        ) : thumbnailSrc ? (
+        ) : (
           <img
             src={thumbnailSrc}
             alt={entry.title}
             className="size-full object-cover"
           />
-        ) : (
-          <div className="text-muted-foreground flex size-full items-center justify-center">
-            <Download size={32} />
-          </div>
         )}
       </div>
 
@@ -133,7 +123,7 @@ function HistoryItem({ entry, onDelete }: Props) {
                 : 'bg-destructive/10 text-destructive',
             )}
           >
-            {t(statusKey)}
+            {t(isSuccess ? 'history.filterSuccess' : 'history.filterFailed')}
           </span>
         </div>
 
@@ -167,7 +157,7 @@ function HistoryItem({ entry, onDelete }: Props) {
           <Button
             variant="ghost"
             size="icon"
-            className="size-6 shrink-0 text-muted-foreground hover:bg-muted"
+            className="text-muted-foreground hover:bg-muted size-6 shrink-0"
             onClick={handleCopyUrl}
             title={t('history.copyUrl')}
           >
