@@ -225,6 +225,9 @@
       "size": "Taille",
       "quality": "Qualité"
     },
+    "copyUrl": "Copier l'URL",
+    "copySuccess": "URL copiée dans le presse-papiers",
+    "copyFailed": "Échec de la copie de l'URL",
     "thumbnail": "Aucun historique de téléchargement pour le moment"
   }
 }

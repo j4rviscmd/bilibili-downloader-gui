@@ -225,6 +225,9 @@
       "size": "크기",
       "quality": "화질"
     },
+    "copyUrl": "URL 복사",
+    "copySuccess": "URL이 클립보드에 복사되었습니다",
+    "copyFailed": "URL 복사 실패",
     "thumbnail": "다운로드 기록이 없습니다"
   }
 }
