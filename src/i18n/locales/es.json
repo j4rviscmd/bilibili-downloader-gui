@@ -131,6 +131,9 @@
     "output_dir_label": "Directorio de salida",
     "output_dir_placeholder": "ej: C:\\Users\\you\\Downloads o /Users/you/Downloads",
     "output_dir_description": "Introduce el directorio donde se guardarán los videos.",
+    "output_dir_button": "Seleccionar",
+    "output_dir_changing": "Seleccionando...",
+    "output_dir_dialog_title": "Seleccionar directorio de salida",
     "speed_threshold_label": "Umbral de velocidad (MB/s)",
     "speed_threshold_description": "Si la velocidad de descarga inicial está por debajo de este umbral, se volverá a intentar la conexión para obtener un nodo CDN más rápido. Predeterminado: 1.0 MB/s.",
     "auto_save_note": "Los cambios se guardan automáticamente.",
@@ -141,7 +144,15 @@
     "permission_denied": "Permiso denegado",
     "disk_full": "Disco lleno",
     "path_not_directory": "La ruta especificada no es un directorio",
-    "path_not_exist": "El directorio especificado no existe"
+    "path_not_exist": "El directorio especificado no existe",
+    "lib_path_label": "Ubicación de almacenamiento de biblioteca",
+    "lib_path_description": "Ubicación para almacenar archivos de dependencia como ffmpeg. Por defecto, directorio de datos de la aplicación. Cambiar esto moverá ffmpeg a la nueva ubicación.",
+    "lib_path_button": "Seleccionar",
+    "lib_path_changing": "Seleccionando...",
+    "lib_path_dialog_title": "Seleccionar directorio de biblioteca",
+    "lib_path_error": "Error al obtener la ruta",
+    "lib_path_change_success": "Ubicación de almacenamiento de biblioteca actualizada correctamente",
+    "lib_path_change_error": "Error al cambiar la ubicación de almacenamiento de biblioteca"
   },
   "validation": {
     "path": {

@@ -41,3 +41,46 @@ export const callSetSettings = async (settings: Settings) => {
 
   return res
 }
+
+/**
+ * Updates the library storage path and moves ffmpeg to the new location.
+ *
+ * Invokes the 'update_lib_path' Tauri command to:
+ * - Move ffmpeg from the old path to the new path with validation
+ * - Update settings.json with the new lib_path
+ *
+ * @param newPath - New library path (without /lib suffix; /lib will be appended)
+ * @returns A promise that resolves when the path is updated
+ * @throws Error if the operation fails (original lib_path is preserved)
+ *
+ * @example
+ * ```typescript
+ * await callUpdateLibPath('/Volumes/ExternalDrive/MyLib')
+ * // This will move ffmpeg to '/Volumes/ExternalDrive/MyLib/lib/'
+ * ```
+ */
+export const callUpdateLibPath = async (newPath: string) => {
+  const res = await invoke('update_lib_path', { newPath })
+
+  return res
+}
+
+/**
+ * Retrieves the current library path.
+ *
+ * Invokes the 'get_current_lib_path' Tauri command to fetch the current
+ * library path. If no custom path is set, returns the default path.
+ *
+ * @returns A promise resolving to the current library path string
+ *
+ * @example
+ * ```typescript
+ * const libPath = await callGetCurrentLibPath()
+ * console.log(libPath) // '/Users/xxx/Library/Application Support/com.bilibili.downloader/lib'
+ * ```
+ */
+export const callGetCurrentLibPath = async () => {
+  const res = await invoke<string>('get_current_lib_path')
+
+  return res
+}

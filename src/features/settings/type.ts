@@ -9,6 +9,14 @@ export interface Settings {
   /** Current application language */
   language: SupportedLang
   /**
+   * Custom path for library dependencies (ffmpeg, etc.).
+   *
+   * If not specified, defaults to `app_data_dir()/lib/`.
+   * This allows users to store large dependencies like ffmpeg on
+   * a different drive or location with more storage space.
+   */
+  libPath?: string
+  /**
    * Download speed threshold in MB/s for initial speed check.
    *
    * If the initial download speed (measured over 1MB) falls below this threshold,

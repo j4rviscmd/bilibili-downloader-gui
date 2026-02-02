@@ -8,6 +8,7 @@
     "process:default",
     "opener:default",
     "shell:allow-open",
+    "dialog:default",
     {
       "identifier": "opener:allow-open-url",
       "allow": [

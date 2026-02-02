@@ -135,6 +135,9 @@
     "output_dir_label": "Output Directory",
     "output_dir_placeholder": "e.g. C:\\Users\\you\\Downloads or /Users/you/Downloads",
     "output_dir_description": "Enter the directory where video files will be saved.",
+    "output_dir_button": "Select",
+    "output_dir_changing": "Selecting...",
+    "output_dir_dialog_title": "Select Output Directory",
     "speed_threshold_label": "Speed Threshold (MB/s)",
     "speed_threshold_description": "If initial download speed is below this threshold, the connection will be retried to get a faster CDN node. Default: 1.0 MB/s.",
     "auto_save_note": "Changes are saved automatically.",
@@ -145,7 +148,15 @@
     "permission_denied": "Permission denied",
     "disk_full": "Disk is full",
     "path_not_directory": "The specified path is not a directory",
-    "path_not_exist": "The specified directory does not exist"
+    "path_not_exist": "The specified directory does not exist",
+    "lib_path_label": "Library Storage Location",
+    "lib_path_description": "Location to store dependency files like ffmpeg. Defaults to app data directory. Changing this will move ffmpeg to the new location.",
+    "lib_path_button": "Select",
+    "lib_path_changing": "Selecting...",
+    "lib_path_dialog_title": "Select Library Directory",
+    "lib_path_error": "Failed to get path",
+    "lib_path_change_success": "Library storage location updated successfully",
+    "lib_path_change_error": "Failed to change library storage location"
   },
   "validation": {
     "path": {

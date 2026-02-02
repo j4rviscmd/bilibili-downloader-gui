@@ -131,6 +131,9 @@
     "output_dir_label": "输出目录",
     "output_dir_placeholder": "例如: C:\\Users\\you\\Downloads 或 /Users/you/Downloads",
     "output_dir_description": "请输入保存视频文件的目录。",
+    "output_dir_button": "选择",
+    "output_dir_changing": "选择中...",
+    "output_dir_dialog_title": "选择输出目录",
     "speed_threshold_label": "速度阈值 (MB/s)",
     "speed_threshold_description": "如果初始下载速度低于此阈值，将重试连接以获取更快的 CDN 节点。默认值：1.0 MB/s。",
     "auto_save_note": "更改会自动保存。",
@@ -141,7 +144,15 @@
     "permission_denied": "没有权限",
     "disk_full": "磁盘已满",
     "path_not_directory": "指定路径不是目录",
-    "path_not_exist": "指定目录不存在"
+    "path_not_exist": "指定目录不存在",
+    "lib_path_label": "库存储位置",
+    "lib_path_description": "存储 ffmpeg 等依赖文件的位置。默认为应用数据目录。更改后会将 ffmpeg 移动到新位置。",
+    "lib_path_button": "选择",
+    "lib_path_changing": "选择中...",
+    "lib_path_dialog_title": "选择库目录",
+    "lib_path_error": "获取路径失败",
+    "lib_path_change_success": "库存储位置已成功更新",
+    "lib_path_change_error": "更改库存储位置失败"
   },
   "validation": {
     "path": {

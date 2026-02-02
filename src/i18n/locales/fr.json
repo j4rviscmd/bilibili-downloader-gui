@@ -129,8 +129,11 @@
     "open_dialog": "Ouvrir les paramètres",
     "language_label": "Langue",
     "output_dir_label": "Répertoire de sortie",
-    "output_dir_placeholder": "ex: C\\\\Users\\\\you\\\\Downloads ou /Users/you/Downloads",
+    "output_dir_placeholder": "ex: C:\\Users\\you\\Downloads ou /Users/you/Downloads",
     "output_dir_description": "Indiquez le répertoire où les vidéos seront enregistrées.",
+    "output_dir_button": "Sélectionner",
+    "output_dir_changing": "Sélection...",
+    "output_dir_dialog_title": "Sélectionner le répertoire de sortie",
     "speed_threshold_label": "Seuil de vitesse (Mo/s)",
     "speed_threshold_description": "Si la vitesse de téléchargement initiale est inférieure à ce seuil, la connexion sera réessayée pour obtenir un nœud CDN plus rapide. Par défaut : 1.0 Mo/s.",
     "auto_save_note": "Les modifications sont enregistrées automatiquement.",
@@ -141,7 +144,15 @@
     "permission_denied": "Permission refusée",
     "disk_full": "Disque plein",
     "path_not_directory": "Le chemin indiqué n'est pas un répertoire",
-    "path_not_exist": "Le répertoire indiqué n'existe pas"
+    "path_not_exist": "Le répertoire indiqué n'existe pas",
+    "lib_path_label": "Emplacement de stockage de la bibliothèque",
+    "lib_path_description": "Emplacement pour stocker les fichiers de dépendance comme ffmpeg. Par défaut, répertoire des données de l'application. Le changement déplacera ffmpeg vers le nouvel emplacement.",
+    "lib_path_button": "Sélectionner",
+    "lib_path_changing": "Sélection...",
+    "lib_path_dialog_title": "Sélectionner le répertoire de la bibliothèque",
+    "lib_path_error": "Échec de l'obtention du chemin",
+    "lib_path_change_success": "Emplacement de stockage de la bibliothèque mis à jour avec succès",
+    "lib_path_change_error": "Échec de la modification de l'emplacement de stockage de la bibliothèque"
   },
   "validation": {
     "path": {
