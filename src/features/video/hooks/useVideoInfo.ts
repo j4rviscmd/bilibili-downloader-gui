@@ -5,6 +5,7 @@ import {
   buildVideoFormSchema1,
   buildVideoFormSchema2,
 } from '@/features/video/lib/formSchema'
+import { extractVideoId } from '@/features/video/lib/utils'
 import {
   initPartInputs,
   setUrl,
@@ -47,20 +48,23 @@ function getErrorMessage(error: string, t: (key: string) => string): string {
 }
 
 /**
- * Extracts the Bilibili video ID from a URL.
- *
- * @param url - The Bilibili video URL.
- * @returns The video ID (e.g., 'BV1234567890') or null if not found.
- *
- * @example
- * ```typescript
- * extractId('https://www.bilibili.com/video/BV1xx411c7XD')
- * // Returns: 'BV1xx411c7XD'
- * ```
+ * Clears completed queue items for the given part indices.
  */
-const extractId = (url: string) => {
-  const match = url.match(/\/video\/([a-zA-Z0-9]+)/)
-  return match ? match[1] : null
+function clearCompletedItems(partIndices: number[]): void {
+  const state = store.getState()
+  for (const partIndex of partIndices) {
+    const completedItem = state.queue.find((item) => {
+      const match = item.downloadId.match(/-p(\d+)$/)
+      return (
+        match &&
+        parseInt(match[1], 10) === partIndex + 1 &&
+        item.status === 'done'
+      )
+    })
+    if (completedItem) {
+      store.dispatch(clearQueueItem(completedItem.downloadId))
+    }
+  }
 }
 
 /**
@@ -161,7 +165,7 @@ export const useVideoInfo = () => {
    */
   const onValid1 = async (url: string) => {
     store.dispatch(setUrl(url))
-    const id = extractId(url)
+    const id = extractVideoId(url)
     if (id) {
       setIsFetching(true)
       try {
@@ -234,35 +238,21 @@ export const useVideoInfo = () => {
   const download = async () => {
     try {
       if (!isForm1Valid || !isForm2ValidAll) return
-      const videoId = (extractId(input.url) ?? '').trim()
+
+      const videoId = (extractVideoId(input.url) ?? '').trim()
       if (!videoId) return
 
-      // Clear completed items for selected parts before starting new download
-      const state = store.getState()
+      // 選択されたパートを収集
       const selectedParts = input.partInputs
         .map((pi, idx) => ({ pi, idx }))
         .filter(({ pi }) => pi.selected)
 
-      for (const { idx } of selectedParts) {
-        // Find and clear completed items for this part index
-        const completedItem = state.queue.find((item) => {
-          const match = item.downloadId.match(/-p(\d+)$/)
-          return (
-            match &&
-            parseInt(match[1], 10) === idx + 1 &&
-            item.status === 'done'
-          )
-        })
-        if (completedItem) {
-          store.dispatch(clearQueueItem(completedItem.downloadId))
-        }
-      }
+      // 完了済みアイテムをクリア
+      clearCompletedItems(selectedParts.map(({ idx }) => idx))
 
       // Parent ID
       const parentId = `${videoId}-${Date.now()}`
-      // Analytics: record click
-      // NOTE: GA4 Analytics は無効化されています
-      // await invoke<void>('record_download_click', { downloadId: parentId })
+
       // Enqueue parent (placeholder filename = video.title)
       store.dispatch(
         enqueue({
@@ -271,9 +261,9 @@ export const useVideoInfo = () => {
           status: 'pending',
         }),
       )
+
       // Child downloads: sequential order by selected parts only
-      for (let i = 0; i < selectedParts.length; i++) {
-        const { pi, idx } = selectedParts[i]
+      for (const { pi, idx } of selectedParts) {
         await downloadVideo(
           videoId,
           pi.cid,

@@ -69,9 +69,10 @@ export const queueSlice = createSlice({
      * Updates the status of a queue item.
      *
      * Automatically aggregates parent status based on children:
-     * - If all children are 'done', parent becomes 'done'
      * - If any child is 'error', parent becomes 'error'
-     * - If any child is 'running', parent becomes 'running'
+     * - Else if any child is 'running', parent becomes 'running'
+     * - Else if all children are 'done', parent becomes 'done'
+     * - Otherwise, parent becomes 'pending'
      *
      * @param state - Current queue state
      * @param action - Action containing the download ID and new status
@@ -90,20 +91,32 @@ export const queueSlice = createSlice({
         target.status = status
         if (errorMessage) target.errorMessage = errorMessage
       }
-      // 親の自動集約: 子が全てdoneなら親done / 子にerrorがあれば親error
-      const parentIds = new Set(
+
+      // 親の自動集約
+      const uniqueParentIds = new Set(
         state.map((i) => i.parentId).filter(Boolean) as string[],
       )
-      parentIds.forEach((pid) => {
-        const children = state.filter((i) => i.parentId === pid)
-        const parent = state.find((i) => i.downloadId === pid)
+
+      uniqueParentIds.forEach((parentId) => {
+        const parent = state.find((i) => i.downloadId === parentId)
         if (!parent) return
-        if (children.every((c) => c.status === 'done')) parent.status = 'done'
-        else if (children.some((c) => c.status === 'error'))
+
+        const children = state.filter((i) => i.parentId === parentId)
+        const childStatuses = children.map((c) => c.status)
+
+        // 優先度順にチェック: error > running > done > pending
+        if (childStatuses.includes('error')) {
           parent.status = 'error'
-        else if (children.some((c) => c.status === 'running'))
+        } else if (childStatuses.includes('running')) {
           parent.status = 'running'
-        else parent.status = parent.status || 'pending'
+        } else if (
+          children.length > 0 &&
+          childStatuses.every((s) => s === 'done')
+        ) {
+          parent.status = 'done'
+        } else {
+          parent.status = parent.status || 'pending'
+        }
       })
     },
     /**

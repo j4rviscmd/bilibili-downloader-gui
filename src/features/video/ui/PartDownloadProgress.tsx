@@ -1,7 +1,8 @@
 import { Button } from '@/shared/ui/button'
+import type { Progress } from '@/shared/ui/Progress'
 import { invoke } from '@tauri-apps/api/core'
 import { CheckCircle2, Download, FolderOpen, RotateCcw } from 'lucide-react'
-import { useCallback } from 'react'
+import { type ReactNode, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { PartDownloadStatus } from '../hooks/usePartDownloadStatus'
 
@@ -13,6 +14,93 @@ function formatTransferRate(kb: number): string {
     return `${(kb / 1024).toFixed(1)}MB/s`
   }
   return `${kb.toFixed(0)}KB/s`
+}
+
+/**
+ * Props for stage progress display component.
+ */
+type StageProgressProps = {
+  /** Emoji icon for the stage */
+  icon: string
+  /** Translation key for stage name */
+  stageKey: string
+  /** Progress entry for this stage */
+  progress: Progress | undefined
+}
+
+/**
+ * Displays progress information for a single download stage.
+ */
+function StageProgress({ icon, stageKey, progress }: StageProgressProps) {
+  const { t } = useTranslation()
+
+  if (!progress) {
+    return (
+      <div className="flex min-h-[33px] items-center">
+        {icon} {t(stageKey)}: {t('video.stage_waiting')}
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex min-h-[33px] items-center gap-1">
+      <span className="font-medium">
+        {icon} {t(stageKey)}
+      </span>
+      <span>{progress.percentage.toFixed(0)}%</span>
+      <span>{formatTransferRate(progress.transferRate || 0)}</span>
+      {progress.filesize != null && (
+        <span>
+          {progress.downloaded?.toFixed(1) ?? '0'}mb/
+          {progress.filesize.toFixed(1)}mb
+        </span>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Renders the merge stage status based on audio/video completion.
+ */
+function renderMergeStage(
+  progressEntries: Progress[],
+  t: (key: string) => string,
+): ReactNode {
+  const mergeProgress = progressEntries.find((p) => p.stage === 'merge')
+  const audioProgress = progressEntries.find((p) => p.stage === 'audio')
+  const videoProgress = progressEntries.find((p) => p.stage === 'video')
+
+  if (mergeProgress) {
+    return (
+      <div className="flex min-h-[33px] items-center gap-1">
+        <span className="font-medium">🔄 {t('video.stage_merge')}</span>
+        <span>{mergeProgress.percentage.toFixed(0)}%</span>
+      </div>
+    )
+  }
+
+  const audioComplete = audioProgress && audioProgress.percentage >= 100
+  const videoComplete = videoProgress && videoProgress.percentage >= 100
+  const bothComplete = audioComplete && videoComplete
+
+  if (bothComplete) {
+    return (
+      <div className="flex min-h-[33px] items-center gap-1">
+        <span className="font-medium">🔄 {t('video.stage_merge')}</span>
+        <span>{t('video.stage_merging')}</span>
+      </div>
+    )
+  }
+
+  if (audioProgress || videoProgress) {
+    return (
+      <div className="flex min-h-[33px] items-center">
+        🔄 {t('video.stage_merge')}: {t('video.stage_waiting')}
+      </div>
+    )
+  }
+
+  return null
 }
 
 /**
@@ -157,120 +245,17 @@ export function PartDownloadProgress({
       {/* Running View - third priority */}
       {isDownloading && (
         <div className="text-muted-foreground grid min-h-[33px] grid-cols-1 gap-x-2 gap-y-1 text-xs sm:grid-cols-2 lg:grid-cols-3">
-          {/* Audio Stage */}
-          {(() => {
-            const audioProgress = progressEntries.find(
-              (p) => p.stage === 'audio',
-            )
-            if (audioProgress) {
-              return (
-                <div className="flex min-h-[33px] items-center gap-1">
-                  <span className="font-medium">
-                    🔊 {t('video.stage_audio')}
-                  </span>
-                  <span>{audioProgress.percentage.toFixed(0)}%</span>
-                  <span>
-                    {formatTransferRate(audioProgress.transferRate || 0)}
-                  </span>
-                  {audioProgress.filesize != null && (
-                    <span>
-                      {audioProgress.downloaded?.toFixed(1) ?? '0'}mb/
-                      {audioProgress.filesize.toFixed(1)}mb
-                    </span>
-                  )}
-                </div>
-              )
-            }
-            return (
-              <div className="flex min-h-[33px] items-center">
-                🔊 {t('video.stage_audio')}: {t('video.stage_waiting')}
-              </div>
-            )
-          })()}
-
-          {/* Video Stage */}
-          {(() => {
-            const videoProgress = progressEntries.find(
-              (p) => p.stage === 'video',
-            )
-            if (videoProgress) {
-              return (
-                <div className="flex min-h-[33px] items-center gap-1">
-                  <span className="font-medium">
-                    🎬 {t('video.stage_video')}
-                  </span>
-                  <span>{videoProgress.percentage.toFixed(0)}%</span>
-                  <span>
-                    {formatTransferRate(videoProgress.transferRate || 0)}
-                  </span>
-                  {videoProgress.filesize != null && (
-                    <span>
-                      {videoProgress.downloaded?.toFixed(1) ?? '0'}mb/
-                      {videoProgress.filesize.toFixed(1)}mb
-                    </span>
-                  )}
-                </div>
-              )
-            }
-            return (
-              <div className="flex min-h-[33px] items-center">
-                🎬 {t('video.stage_video')}: {t('video.stage_waiting')}
-              </div>
-            )
-          })()}
-
-          {/* Merge Stage */}
-          {(() => {
-            const mergeProgress = progressEntries.find(
-              (p) => p.stage === 'merge',
-            )
-            const audioProgress = progressEntries.find(
-              (p) => p.stage === 'audio',
-            )
-            const videoProgress = progressEntries.find(
-              (p) => p.stage === 'video',
-            )
-
-            if (mergeProgress) {
-              return (
-                <div className="flex min-h-[33px] items-center gap-1">
-                  <span className="font-medium">
-                    🔄 {t('video.stage_merge')}
-                  </span>
-                  <span>{mergeProgress.percentage.toFixed(0)}%</span>
-                </div>
-              )
-            }
-
-            // Check if both audio and video are complete (100%)
-            const audioComplete =
-              audioProgress && audioProgress.percentage >= 100
-            const videoComplete =
-              videoProgress && videoProgress.percentage >= 100
-            const bothComplete = audioComplete && videoComplete
-
-            if (bothComplete) {
-              return (
-                <div className="flex min-h-[33px] items-center gap-1">
-                  <span className="font-medium">
-                    🔄 {t('video.stage_merge')}
-                  </span>
-                  <span>{t('video.stage_merging')}</span>
-                </div>
-              )
-            }
-
-            // Still downloading audio or video
-            if (audioProgress || videoProgress) {
-              return (
-                <div className="flex min-h-[33px] items-center">
-                  🔄 {t('video.stage_merge')}: {t('video.stage_waiting')}
-                </div>
-              )
-            }
-
-            return null
-          })()}
+          <StageProgress
+            icon="🔊"
+            stageKey="video.stage_audio"
+            progress={progressEntries.find((p) => p.stage === 'audio')}
+          />
+          <StageProgress
+            icon="🎬"
+            stageKey="video.stage_video"
+            progress={progressEntries.find((p) => p.stage === 'video')}
+          />
+          {renderMergeStage(progressEntries, t)}
         </div>
       )}
 
