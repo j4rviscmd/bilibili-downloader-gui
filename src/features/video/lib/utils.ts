@@ -5,6 +5,23 @@
  */
 
 /**
+ * Extracts the Bilibili video ID from a URL.
+ *
+ * @param url - The Bilibili video URL.
+ * @returns The video ID (e.g., 'BV1234567890') or null if not found.
+ *
+ * @example
+ * ```typescript
+ * extractVideoId('https://www.bilibili.com/video/BV1xx411c7XD')
+ * // Returns: 'BV1xx411c7XD'
+ * ```
+ */
+export const extractVideoId = (url: string): string | null => {
+  const match = url.match(/\/video\/([a-zA-Z0-9]+)/)
+  return match ? match[1] : null
+}
+
+/**
  * Regex matching all characters forbidden in filenames.
  *
  * Windows: \\ / : * ? " < > |

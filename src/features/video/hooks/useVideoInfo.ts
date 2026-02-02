@@ -5,6 +5,7 @@ import {
   buildVideoFormSchema1,
   buildVideoFormSchema2,
 } from '@/features/video/lib/formSchema'
+import { extractVideoId } from '@/features/video/lib/utils'
 import {
   initPartInputs,
   setUrl,
@@ -49,23 +50,6 @@ function getErrorMessage(error: string, t: (key: string) => string): string {
     return t('video.network_error')
   }
   return error
-}
-
-/**
- * Extracts the Bilibili video ID from a URL.
- *
- * @param url - The Bilibili video URL.
- * @returns The video ID (e.g., 'BV1234567890') or null if not found.
- *
- * @example
- * ```typescript
- * extractId('https://www.bilibili.com/video/BV1xx411c7XD')
- * // Returns: 'BV1xx411c7XD'
- * ```
- */
-const extractId = (url: string) => {
-  const match = url.match(/\/video\/([a-zA-Z0-9]+)/)
-  return match ? match[1] : null
 }
 
 /**
@@ -167,7 +151,7 @@ export const useVideoInfo = () => {
    */
   const onValid1 = async (url: string) => {
     store.dispatch(setUrl(url))
-    const id = extractId(url)
+    const id = extractVideoId(url)
     if (id) {
       setIsFetching(true)
       try {
@@ -242,17 +226,20 @@ export const useVideoInfo = () => {
   const download = async () => {
     try {
       if (!isForm1Valid || !isForm2ValidAll) return
-      const videoId = (extractId(input.url) ?? '').trim()
+
+      const videoId = (extractVideoId(input.url) ?? '').trim()
       if (!videoId) return
 
-      // Clear completed items for selected parts before starting new download
-      const state = store.getState()
+      // 選択されたパートを収集
       const selectedParts = input.partInputs
         .map((pi, idx) => ({ pi, idx }))
         .filter(({ pi }) => pi.selected)
 
       for (const { idx } of selectedParts) {
-        const completedItem = findCompletedItemForPart(state, idx + 1)
+        const completedItem = findCompletedItemForPart(
+          store.getState(),
+          idx + 1,
+        )
         if (completedItem) {
           store.dispatch(clearQueueItem(completedItem.downloadId))
         }
@@ -260,9 +247,7 @@ export const useVideoInfo = () => {
 
       // Parent ID
       const parentId = `${videoId}-${Date.now()}`
-      // Analytics: record click
-      // NOTE: GA4 Analytics は無効化されています
-      // await invoke<void>('record_download_click', { downloadId: parentId })
+
       // Enqueue parent (placeholder filename = video.title)
       store.dispatch(
         enqueue({
@@ -271,9 +256,9 @@ export const useVideoInfo = () => {
           status: 'pending',
         }),
       )
+
       // Child downloads: sequential order by selected parts only
-      for (let i = 0; i < selectedParts.length; i++) {
-        const { pi, idx } = selectedParts[i]
+      for (const { pi, idx } of selectedParts) {
         await downloadVideo(
           videoId,
           pi.cid,

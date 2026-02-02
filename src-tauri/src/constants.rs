@@ -17,9 +17,14 @@ pub const REFERER: &str = "https://www.bilibili.com";
 /// Initial speed check size in bytes for detecting slow CDN nodes.
 ///
 /// The first N bytes are used to measure download speed. If the speed
-/// falls below MIN_SPEED_THRESHOLD, the connection will be dropped and
-/// retried (up to MAX_RECONNECT_ATTEMPTS times) to get a different CDN node.
-pub const SPEED_CHECK_SIZE: u64 = 1 * 1024 * 1024; // 1MB
+/// falls below `MIN_SPEED_THRESHOLD`, the connection will be dropped and
+/// retried (up to `MAX_RECONNECT_ATTEMPTS` times) to get a different CDN node.
+///
+/// # Value
+///
+/// - **Default**: `1 * 1024 * 1024` (1 MiB)
+/// - **Purpose**: Size of initial data sample used for speed measurement
+pub const SPEED_CHECK_SIZE: u64 = 1 * 1024 * 1024; // 1 MiB
 
 /// Minimum download speed threshold in bytes per second.
 ///

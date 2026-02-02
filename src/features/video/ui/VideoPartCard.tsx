@@ -9,7 +9,7 @@ import {
   VIDEO_QUALITIES_MAP,
 } from '@/features/video/lib/constants'
 import { buildVideoFormSchema2 } from '@/features/video/lib/formSchema'
-import { toThumbnailDataUrl } from '@/features/video/lib/utils'
+import { extractVideoId, toThumbnailDataUrl } from '@/features/video/lib/utils'
 import { updatePartSelected } from '@/features/video/model/inputSlice'
 import type { Video } from '@/features/video/types'
 import { PartDownloadProgress } from '@/features/video/ui/PartDownloadProgress'
@@ -189,16 +189,10 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   const handleRedownload = async () => {
     const partIndex = page - 1
     const state = store.getState()
-    const input = state.input
-
-    // 入力値を取得
-    const partInput = input.partInputs[partIndex]
+    const partInput = state.input.partInputs[partIndex]
     if (!partInput) return
 
-    // videoIdをURLから抽出
-    const url = input.url
-    const videoIdMatch = url.match(/\/video\/([a-zA-Z0-9]+)/)
-    const videoId = videoIdMatch ? videoIdMatch[1] : ''
+    const videoId = extractVideoId(state.input.url)
     if (!videoId) return
 
     // 該当パートの完了済みアイテムをクリア
