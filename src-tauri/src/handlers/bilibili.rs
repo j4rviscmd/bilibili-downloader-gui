@@ -128,7 +128,7 @@ fn validate_api_response<T>(code: i64, _message: &str, data: Option<&T>) -> Resu
 ///
 /// # Returns
 ///
-/// Returns `Ok(())` on successful download and merge.
+/// Returns the output file path as `String` on successful download and merge.
 ///
 /// # Errors
 ///
@@ -147,7 +147,7 @@ pub async fn download_video(
     quality: i32,
     audio_quality: i32,
     download_id: String,
-) -> Result<(), String> {
+) -> Result<String, String> {
     // --------------------------------------------------
     // 1. 出力ファイルパス決定 + 自動リネーム
     // --------------------------------------------------
@@ -264,6 +264,9 @@ pub async fn download_video(
     let _ = tokio::fs::remove_file(&temp_video_path).await;
     let _ = tokio::fs::remove_file(&temp_audio_path).await;
 
+    // 出力パスを保持 (クローンで履歴保存に渡す)
+    let output_path_str = output_path.to_string_lossy().to_string();
+
     // 履歴に保存 (非同期で失敗してもダウンロードには影響しない)
     let app_clone = app.clone();
     let bvid_clone = bvid.to_string();
@@ -285,7 +288,7 @@ pub async fn download_video(
         }
     });
 
-    Ok(())
+    Ok(output_path_str)
 }
 
 #[cfg(test)]

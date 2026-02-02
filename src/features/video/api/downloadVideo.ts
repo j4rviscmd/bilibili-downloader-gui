@@ -1,5 +1,5 @@
 import { store } from '@/app/store'
-import { enqueue } from '@/shared/queue/queueSlice'
+import { enqueue, updateQueueItem } from '@/shared/queue/queueSlice'
 import { invoke } from '@tauri-apps/api/core'
 
 /**
@@ -45,15 +45,18 @@ export const downloadVideo = async (
   // enqueue prior to backend invoke
   store.dispatch(enqueue({ downloadId, parentId, filename, status: 'pending' }))
   try {
-    await invoke<void>('download_video', {
+    const outputPath = await invoke<string>('download_video', {
       bvid: videoId,
       cid,
       filename,
       quality,
       audioQuality,
       downloadId,
-      parentId,
     })
+    // Store output path for post-download actions
+    store.dispatch(
+      updateQueueItem({ downloadId, outputPath, title: filename }),
+    )
   } finally {
     // dequeue handled by progress events
   }

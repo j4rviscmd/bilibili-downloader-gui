@@ -13,7 +13,7 @@ import {
 import { selectDuplicateIndices } from '@/features/video/model/selectors'
 import { setVideo } from '@/features/video/model/videoSlice'
 import { setError } from '@/shared/downloadStatus/downloadStatusSlice'
-import { enqueue } from '@/shared/queue/queueSlice'
+import { clearQueueItem, enqueue } from '@/shared/queue/queueSlice'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -220,6 +220,28 @@ export const useVideoInfo = () => {
       if (!isForm1Valid || !isForm2ValidAll) return
       const videoId = (extractId(input.url) ?? '').trim()
       if (!videoId) return
+
+      // Clear completed items for selected parts before starting new download
+      const state = store.getState()
+      const selectedParts = input.partInputs
+        .map((pi, idx) => ({ pi, idx }))
+        .filter(({ pi }) => pi.selected)
+
+      for (const { idx } of selectedParts) {
+        // Find and clear completed items for this part index
+        const completedItem = state.queue.find((item) => {
+          const match = item.downloadId.match(/-p(\d+)$/)
+          return (
+            match &&
+            parseInt(match[1], 10) === idx + 1 &&
+            item.status === 'done'
+          )
+        })
+        if (completedItem) {
+          store.dispatch(clearQueueItem(completedItem.downloadId))
+        }
+      }
+
       // Parent ID
       const parentId = `${videoId}-${Date.now()}`
       // Analytics: record click
@@ -234,9 +256,6 @@ export const useVideoInfo = () => {
         }),
       )
       // Child downloads: sequential order by selected parts only
-      const selectedParts = input.partInputs
-        .map((pi, idx) => ({ pi, idx }))
-        .filter(({ pi }) => pi.selected)
       for (let i = 0; i < selectedParts.length; i++) {
         const { pi, idx } = selectedParts[i]
         await downloadVideo(

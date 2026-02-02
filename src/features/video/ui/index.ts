@@ -4,5 +4,4 @@
  */
 
 export { default as DownloadButton } from './DownloadButton'
-export { default as DownloadingDialog } from './DownloadingDialog'
 export { default as VideoForm1 } from './VideoForm1'

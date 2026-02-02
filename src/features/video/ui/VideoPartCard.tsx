@@ -1,5 +1,6 @@
 import type { RootState } from '@/app/store'
 import { store } from '@/app/store'
+import { downloadVideo } from '@/features/video/api/downloadVideo'
 import { useVideoInfo } from '@/features/video/hooks/useVideoInfo'
 import {
   AUDIO_QUALITIES_MAP,
@@ -10,6 +11,9 @@ import { buildVideoFormSchema2 } from '@/features/video/lib/formSchema'
 import { toThumbnailDataUrl } from '@/features/video/lib/utils'
 import { updatePartSelected } from '@/features/video/model/inputSlice'
 import type { Video } from '@/features/video/types'
+import { usePartDownloadStatus } from '@/features/video/hooks/usePartDownloadStatus'
+import { PartDownloadProgress } from '@/features/video/ui/PartDownloadProgress'
+import { enqueue } from '@/shared/queue/queueSlice'
 import { Checkbox } from '@/shared/animate-ui/radix/checkbox'
 import {
   RadioGroup,
@@ -83,12 +87,30 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   const min = Math.floor(videoPart.duration / 60)
   const sec = videoPart.duration % 60
 
+  // 進捗状態を取得
+  const downloadStatus = usePartDownloadStatus(page - 1)
+  const { isDownloading, isPending, isComplete, downloadId } = downloadStatus
+
+  // グローバルなダウンロードアクティビティを監視
+  const hasActiveDownloads = useSelector((state: RootState) =>
+    state.queue.some(
+      (q) => q.status === 'running' || q.status === 'pending',
+    ),
+  )
+
   // 選択状態と既存の入力値を取得
   const partInput = useSelector(
     (state: RootState) => state.input.partInputs[page - 1],
   )
   const selected = partInput?.selected ?? true
   const existingInput = partInput
+
+  // 自分のパートが選択されていて、まだ自分の番でない場合
+  const isWaitingForTurn =
+    selected &&
+    !downloadId &&
+    !isComplete &&
+    hasActiveDownloads
 
   // Helper to check if a quality is available for the current part
   const isQualityAvailable = (qualityId: number, isVideo: boolean): boolean => {
@@ -106,6 +128,58 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
     store.dispatch(
       updatePartSelected({ index: page - 1, selected: checked === true }),
     )
+  }
+
+  // 再ダウンロード処理
+  const handleRedownload = async () => {
+    const partIndex = page - 1
+    const state = store.getState()
+    const input = state.input
+
+    // 入力値を取得
+    const partInput = input.partInputs[partIndex]
+    if (!partInput) return
+
+    // videoIdをURLから抽出
+    const url = input.url
+    const videoIdMatch = url.match(/\/video\/([a-zA-Z0-9]+)/)
+    const videoId = videoIdMatch ? videoIdMatch[1] : ''
+    if (!videoId) return
+
+    // 該当パートの完了済みアイテムをクリア
+    const completedItem = state.queue.find((item) => {
+      const match = item.downloadId.match(/-p(\d+)$/)
+      return (
+        match && parseInt(match[1], 10) === page && item.status === 'done'
+      )
+    })
+    if (completedItem) {
+      store.dispatch(
+        enqueue({
+          downloadId: completedItem.downloadId,
+          filename: partInput.title,
+          status: 'pending',
+        }),
+      )
+    }
+
+    // 新しいdownloadIdを生成して再ダウンロード
+    const newDownloadId = `${videoId}-${Date.now()}-p${page}`
+
+    await downloadVideo(
+      videoId,
+      partInput.cid,
+      partInput.title.trim(),
+      parseInt(partInput.videoQuality, 10),
+      parseInt(partInput.audioQuality || '30216', 10),
+      newDownloadId,
+      newDownloadId.replace(/-p\d+$/, ''),
+    )
+  }
+
+  // エラー時のリトライ処理
+  const handleRetry = () => {
+    store.dispatch(updatePartSelected({ index: page - 1, selected: true }))
   }
 
   const schema2 = useMemo(() => buildVideoFormSchema2(t), [t])
@@ -161,7 +235,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   return (
     <div className="p-3 md:p-4">
       <Form {...form}>
-        <fieldset disabled={disabled}>
+        <fieldset disabled={disabled || isDownloading || isPending}>
           <form
             onSubmit={form.handleSubmit(onSubmit)}
             onBlur={form.handleSubmit(onSubmit)}
@@ -385,6 +459,16 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
             )}
           </form>
         </fieldset>
+
+        {/* Download Progress Section */}
+        {(downloadStatus.downloadId || isWaitingForTurn) && (
+          <PartDownloadProgress
+            status={downloadStatus}
+            isWaitingForTurn={isWaitingForTurn}
+            onRedownload={handleRedownload}
+            onRetry={handleRetry}
+          />
+        )}
       </Form>
     </div>
   )

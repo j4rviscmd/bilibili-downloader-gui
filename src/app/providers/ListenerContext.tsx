@@ -2,7 +2,7 @@ import { store } from '@/app/store'
 import i18n from '@/i18n'
 import type { Progress } from '@/shared/progress'
 import { setProgress } from '@/shared/progress/progressSlice'
-import { dequeue } from '@/shared/queue/queueSlice'
+import { updateQueueStatus } from '@/shared/queue/queueSlice'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { createContext, useEffect, type FC, type ReactNode } from 'react'
 import { toast } from 'sonner'
@@ -42,8 +42,25 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
         const payload = event.payload as Progress
         store.dispatch(setProgress(payload))
 
-        // Show toast for quality fallback warnings
+        // Update queue status based on progress stage
         const stage = payload.stage
+        if (stage === 'complete') {
+          // Mark as done - keep in queue so completion actions remain visible
+          store.dispatch(
+            updateQueueStatus({ downloadId: payload.downloadId, status: 'done' }),
+          )
+        } else if (
+          stage === 'audio' ||
+          stage === 'video' ||
+          stage === 'merge'
+        ) {
+          // Mark as running when download stages start
+          store.dispatch(
+            updateQueueStatus({ downloadId: payload.downloadId, status: 'running' }),
+          )
+        }
+
+        // Show toast for quality fallback warnings
         if (
           stage === 'warn-video-quality-fallback' ||
           stage === 'warn-audio-quality-fallback'
@@ -55,10 +72,6 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
           toast.warning(i18n.t(key, { from: 'selected', to: 'fallback' }), {
             duration: 6000,
           })
-        }
-
-        if (stage === 'complete') {
-          store.dispatch(dequeue(payload.downloadId))
         }
       })
     }

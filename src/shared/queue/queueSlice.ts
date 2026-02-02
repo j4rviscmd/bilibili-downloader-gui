@@ -15,6 +15,10 @@ export type QueueItem = {
   status?: 'pending' | 'running' | 'done' | 'error'
   /** Error message if status is 'error' */
   errorMessage?: string
+  /** Output file path (available after download completes) */
+  outputPath?: string
+  /** Video title */
+  title?: string
 }
 
 const initialState: QueueItem[] = []
@@ -102,9 +106,62 @@ export const queueSlice = createSlice({
         else parent.status = parent.status || 'pending'
       })
     },
+    /**
+     * Updates a queue item with new data.
+     *
+     * Merges provided fields with existing item data.
+     *
+     * @param state - Current queue state
+     * @param action - Action containing the download ID and fields to update
+     */
+    updateQueueItem(
+      state,
+      action: PayloadAction<Partial<QueueItem> & { downloadId: string }>,
+    ) {
+      const { downloadId, ...fields } = action.payload
+      const target = state.find((i) => i.downloadId === downloadId)
+      if (target) {
+        Object.assign(target, fields)
+      }
+    },
+    /**
+     * Removes a single queue item by download ID.
+     *
+     * @param state - Current queue state
+     * @param action - Action containing the download ID to remove
+     */
+    clearQueueItem(state, action: PayloadAction<string>) {
+      return state.filter((i) => i.downloadId !== action.payload)
+    },
   },
 })
 
-export const { enqueue, dequeue, clearQueue, updateQueueStatus } =
-  queueSlice.actions
+export const {
+  enqueue,
+  dequeue,
+  clearQueue,
+  updateQueueStatus,
+  updateQueueItem,
+  clearQueueItem,
+} = queueSlice.actions
 export default queueSlice.reducer
+
+/**
+ * Selects download ID by part index from queue.
+ *
+ * Extracts part index from downloadId using regex pattern `-p(\d+)$`.
+ * Returns the download ID if found and matches the part index.
+ *
+ * @param state - Redux root state
+ * @param partIndex - Zero-based part index (will match +1 in downloadId)
+ * @returns Download ID if found, undefined otherwise
+ */
+export const selectDownloadIdByPartIndex = (
+  state: { queue: QueueItem[] },
+  partIndex: number,
+): string | undefined => {
+  return state.queue.find((item) => {
+    const match = item.downloadId.match(/-p(\d+)$/)
+    return match && parseInt(match[1], 10) === partIndex + 1
+  })?.downloadId
+}

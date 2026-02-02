@@ -54,5 +54,4 @@ export type { Input, Video } from './types'
 
 // UI components
 export { default as DownloadButton } from './ui/DownloadButton'
-export { default as DownloadingDialog } from './ui/DownloadingDialog'
 export { default as VideoForm1 } from './ui/VideoForm1'
