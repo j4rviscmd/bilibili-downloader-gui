@@ -1,3 +1,4 @@
+import type { Progress } from '@/shared/ui/Progress'
 import { Button } from '@/shared/ui/button'
 import { invoke } from '@tauri-apps/api/core'
 import { CheckCircle2, Download, FolderOpen, RotateCcw } from 'lucide-react'
@@ -90,6 +91,62 @@ function StageProgressView({
   return (
     <div className="flex min-h-[33px] items-center">
       {emoji} {t(`video.stage_${stage}`)}: {t('video.stage_waiting')}
+    </div>
+  )
+}
+
+/**
+ * Props for stage progress display.
+ */
+type StageProgressProps = {
+  /** Stage emoji icon */
+  icon: string
+  /** Translation key for stage name */
+  labelKey: string
+  /** Progress entries to search */
+  progressEntries: Progress[]
+  /** Stage identifier to find in entries */
+  stageName: string
+  /** Translation function */
+  t: (key: string) => string
+  /** Optional custom content when waiting */
+  waitingLabel?: string
+}
+
+/**
+ * Renders progress display for a single download stage.
+ */
+function StageProgress({
+  icon,
+  labelKey,
+  progressEntries,
+  stageName,
+  t,
+  waitingLabel,
+}: StageProgressProps) {
+  const progress = progressEntries.find((p) => p.stage === stageName)
+
+  if (!progress) {
+    return (
+      <div className="flex min-h-[33px] items-center">
+        {icon} {t(labelKey)}: {waitingLabel ?? t('video.stage_waiting')}
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex min-h-[33px] items-center gap-1">
+      <span className="font-medium">
+        {icon} {t(labelKey)}
+      </span>
+      <span>{progress.percentage.toFixed(0)}%</span>
+      <span>{formatTransferRate(progress.transferRate || 0)}</span>
+      {progress.filesize != null && (
+        <span>
+          {progress.downloaded?.toFixed(1) ?? '0'}mb/
+          {progress.filesize.toFixed(1)}mb
+        </span>
+      )}
     </div>
   )
 }
@@ -236,21 +293,72 @@ export function PartDownloadProgress({
       {/* Running View - third priority */}
       {isDownloading && (
         <div className="text-muted-foreground grid min-h-[33px] grid-cols-1 gap-x-2 gap-y-1 text-xs sm:grid-cols-2 lg:grid-cols-3">
-          <StageProgressView
-            stage="audio"
+          <StageProgress
+            icon="🔊"
+            labelKey="video.stage_audio"
             progressEntries={progressEntries}
+            stageName="audio"
             t={t}
           />
-          <StageProgressView
-            stage="video"
+
+          <StageProgress
+            icon="🎬"
+            labelKey="video.stage_video"
             progressEntries={progressEntries}
+            stageName="video"
             t={t}
           />
-          <StageProgressView
-            stage="merge"
-            progressEntries={progressEntries}
-            t={t}
-          />
+
+          {/* Merge Stage - has special logic for merging state */}
+          {(() => {
+            const mergeProgress = progressEntries.find(
+              (p) => p.stage === 'merge',
+            )
+            const audioProgress = progressEntries.find(
+              (p) => p.stage === 'audio',
+            )
+            const videoProgress = progressEntries.find(
+              (p) => p.stage === 'video',
+            )
+
+            if (mergeProgress) {
+              return (
+                <div className="flex min-h-[33px] items-center gap-1">
+                  <span className="font-medium">
+                    🔄 {t('video.stage_merge')}
+                  </span>
+                  <span>{mergeProgress.percentage.toFixed(0)}%</span>
+                </div>
+              )
+            }
+
+            const audioComplete =
+              audioProgress && audioProgress.percentage >= 100
+            const videoComplete =
+              videoProgress && videoProgress.percentage >= 100
+            const bothComplete = audioComplete && videoComplete
+
+            if (bothComplete) {
+              return (
+                <div className="flex min-h-[33px] items-center gap-1">
+                  <span className="font-medium">
+                    🔄 {t('video.stage_merge')}
+                  </span>
+                  <span>{t('video.stage_merging')}</span>
+                </div>
+              )
+            }
+
+            if (audioProgress || videoProgress) {
+              return (
+                <div className="flex min-h-[33px] items-center">
+                  🔄 {t('video.stage_merge')}: {t('video.stage_waiting')}
+                </div>
+              )
+            }
+
+            return null
+          })()}
         </div>
       )}
 
