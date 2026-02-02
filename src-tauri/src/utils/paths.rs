@@ -21,6 +21,22 @@ use std::{fs, path::PathBuf};
 use tauri::{AppHandle, Manager};
 use crate::models::settings::Settings;
 
+/// Returns the platform-specific ffmpeg subdirectory name.
+const fn ffmpeg_subdir() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "ffmpeg-master-latest-win64-lgpl-shared"
+    } else {
+        "ffmpeg"
+    }
+}
+
+/// Ensures a directory exists, creating it if necessary.
+fn ensure_dir_exists(path: &PathBuf) {
+    if !path.exists() {
+        let _ = fs::create_dir_all(path);
+    }
+}
+
 /// Returns the default library directory path.
 ///
 /// This returns `app_data_dir()/lib/` which is used when:
@@ -57,27 +73,20 @@ pub fn get_default_lib_path(app: &AppHandle) -> PathBuf {
 ///
 /// Returns the configured library path or the default path.
 pub fn get_lib_path(app: &AppHandle) -> PathBuf {
-    // Try to read lib_path from settings.json
     let settings_path = get_settings_path(app);
 
     if let Ok(settings_str) = fs::read_to_string(&settings_path) {
         if let Ok(settings) = serde_json::from_str::<Settings>(&settings_str) {
             if let Some(custom_path) = settings.lib_path {
                 let path = PathBuf::from(custom_path);
-                // Create directory if it doesn't exist
-                if !path.exists() {
-                    let _ = fs::create_dir_all(&path);
-                }
+                ensure_dir_exists(&path);
                 return path;
             }
         }
     }
 
-    // Fallback to default path
     let default_path = get_default_lib_path(app);
-    if !default_path.exists() {
-        let _ = fs::create_dir_all(&default_path);
-    }
+    ensure_dir_exists(&default_path);
     default_path
 }
 
@@ -95,16 +104,16 @@ pub fn get_lib_path(app: &AppHandle) -> PathBuf {
 /// Returns the absolute path to the ffmpeg executable.
 pub fn get_ffmpeg_path(app: &AppHandle) -> PathBuf {
     let lib = get_lib_path(app);
+    let subdir = ffmpeg_subdir();
+
     if cfg!(target_os = "windows") {
-        let mut ffmpeg = lib
-            .join("ffmpeg-master-latest-win64-lgpl-shared")
-            .join("ffmpeg-master-latest-win64-lgpl-shared")
+        lib.join(subdir)
+            .join(subdir)
             .join("bin")
-            .join("ffmpeg");
-        ffmpeg.set_extension("exe");
-        ffmpeg
+            .join("ffmpeg")
+            .with_extension("exe")
     } else {
-        lib.join("ffmpeg").join("ffmpeg")
+        lib.join(subdir).join("ffmpeg")
     }
 }
 
@@ -123,12 +132,7 @@ pub fn get_ffmpeg_path(app: &AppHandle) -> PathBuf {
 ///
 /// Returns the absolute path to the ffmpeg root directory.
 pub fn get_ffmpeg_root_path(app: &AppHandle) -> PathBuf {
-    let lib = get_lib_path(app);
-    if cfg!(target_os = "windows") {
-        lib.join("ffmpeg-master-latest-win64-lgpl-shared")
-    } else {
-        lib.join("ffmpeg")
-    }
+    get_lib_path(app).join(ffmpeg_subdir())
 }
 
 /// Returns the path to the application settings file.

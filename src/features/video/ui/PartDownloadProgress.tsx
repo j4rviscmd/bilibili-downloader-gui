@@ -15,6 +15,85 @@ function formatTransferRate(kb: number): string {
   return `${kb.toFixed(0)}KB/s`
 }
 
+type StageProgressViewProps = {
+  stage: 'audio' | 'video' | 'merge'
+  progressEntries: PartDownloadStatus['progressEntries']
+  t: (key: string) => string
+}
+
+function StageProgressView({
+  stage,
+  progressEntries,
+  t,
+}: StageProgressViewProps) {
+  const progress = progressEntries.find((p) => p.stage === stage)
+
+  if (stage === 'merge') {
+    const audioProgress = progressEntries.find((p) => p.stage === 'audio')
+    const videoProgress = progressEntries.find((p) => p.stage === 'video')
+    const audioComplete = audioProgress && audioProgress.percentage >= 100
+    const videoComplete = videoProgress && videoProgress.percentage >= 100
+
+    if (progress) {
+      return (
+        <div className="flex min-h-[33px] items-center gap-1">
+          <span className="font-medium">
+            🔄 {t('video.stage_merge')}
+          </span>
+          <span>{progress.percentage.toFixed(0)}%</span>
+        </div>
+      )
+    }
+
+    if (audioComplete && videoComplete) {
+      return (
+        <div className="flex min-h-[33px] items-center gap-1">
+          <span className="font-medium">
+            🔄 {t('video.stage_merge')}
+          </span>
+          <span>{t('video.stage_merging')}</span>
+        </div>
+      )
+    }
+
+    if (audioProgress || videoProgress) {
+      return (
+        <div className="flex min-h-[33px] items-center">
+          🔄 {t('video.stage_merge')}: {t('video.stage_waiting')}
+        </div>
+      )
+    }
+    return null
+  }
+
+  // Audio or Video stage
+  const emoji = stage === 'audio' ? '🔊' : '🎬'
+
+  if (progress) {
+    return (
+      <div className="flex min-h-[33px] items-center gap-1">
+        <span className="font-medium">
+          {emoji} {t(`video.stage_${stage}`)}
+        </span>
+        <span>{progress.percentage.toFixed(0)}%</span>
+        <span>{formatTransferRate(progress.transferRate || 0)}</span>
+        {progress.filesize != null && (
+          <span>
+            {progress.downloaded?.toFixed(1) ?? '0'}mb/
+            {progress.filesize.toFixed(1)}mb
+          </span>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex min-h-[33px] items-center">
+      {emoji} {t(`video.stage_${stage}`)}: {t('video.stage_waiting')}
+    </div>
+  )
+}
+
 /**
  * Props for PartDownloadProgress component.
  */
@@ -157,120 +236,21 @@ export function PartDownloadProgress({
       {/* Running View - third priority */}
       {isDownloading && (
         <div className="text-muted-foreground grid min-h-[33px] grid-cols-1 gap-x-2 gap-y-1 text-xs sm:grid-cols-2 lg:grid-cols-3">
-          {/* Audio Stage */}
-          {(() => {
-            const audioProgress = progressEntries.find(
-              (p) => p.stage === 'audio',
-            )
-            if (audioProgress) {
-              return (
-                <div className="flex min-h-[33px] items-center gap-1">
-                  <span className="font-medium">
-                    🔊 {t('video.stage_audio')}
-                  </span>
-                  <span>{audioProgress.percentage.toFixed(0)}%</span>
-                  <span>
-                    {formatTransferRate(audioProgress.transferRate || 0)}
-                  </span>
-                  {audioProgress.filesize != null && (
-                    <span>
-                      {audioProgress.downloaded?.toFixed(1) ?? '0'}mb/
-                      {audioProgress.filesize.toFixed(1)}mb
-                    </span>
-                  )}
-                </div>
-              )
-            }
-            return (
-              <div className="flex min-h-[33px] items-center">
-                🔊 {t('video.stage_audio')}: {t('video.stage_waiting')}
-              </div>
-            )
-          })()}
-
-          {/* Video Stage */}
-          {(() => {
-            const videoProgress = progressEntries.find(
-              (p) => p.stage === 'video',
-            )
-            if (videoProgress) {
-              return (
-                <div className="flex min-h-[33px] items-center gap-1">
-                  <span className="font-medium">
-                    🎬 {t('video.stage_video')}
-                  </span>
-                  <span>{videoProgress.percentage.toFixed(0)}%</span>
-                  <span>
-                    {formatTransferRate(videoProgress.transferRate || 0)}
-                  </span>
-                  {videoProgress.filesize != null && (
-                    <span>
-                      {videoProgress.downloaded?.toFixed(1) ?? '0'}mb/
-                      {videoProgress.filesize.toFixed(1)}mb
-                    </span>
-                  )}
-                </div>
-              )
-            }
-            return (
-              <div className="flex min-h-[33px] items-center">
-                🎬 {t('video.stage_video')}: {t('video.stage_waiting')}
-              </div>
-            )
-          })()}
-
-          {/* Merge Stage */}
-          {(() => {
-            const mergeProgress = progressEntries.find(
-              (p) => p.stage === 'merge',
-            )
-            const audioProgress = progressEntries.find(
-              (p) => p.stage === 'audio',
-            )
-            const videoProgress = progressEntries.find(
-              (p) => p.stage === 'video',
-            )
-
-            if (mergeProgress) {
-              return (
-                <div className="flex min-h-[33px] items-center gap-1">
-                  <span className="font-medium">
-                    🔄 {t('video.stage_merge')}
-                  </span>
-                  <span>{mergeProgress.percentage.toFixed(0)}%</span>
-                </div>
-              )
-            }
-
-            // Check if both audio and video are complete (100%)
-            const audioComplete =
-              audioProgress && audioProgress.percentage >= 100
-            const videoComplete =
-              videoProgress && videoProgress.percentage >= 100
-            const bothComplete = audioComplete && videoComplete
-
-            if (bothComplete) {
-              return (
-                <div className="flex min-h-[33px] items-center gap-1">
-                  <span className="font-medium">
-                    🔄 {t('video.stage_merge')}
-                  </span>
-                  <span>{t('video.stage_merging')}</span>
-                </div>
-              )
-            }
-
-            // Still downloading audio or video
-            if (audioProgress || videoProgress) {
-              return (
-                <div className="flex min-h-[33px] items-center">
-                  🔄 {t('video.stage_merge')}: {t('video.stage_waiting')}
-                </div>
-              )
-            }
-
-            return null
-          })()}
+          <StageProgressView
+            stage="audio"
+            progressEntries={progressEntries}
+            t={t}
+          />
+          <StageProgressView
+            stage="video"
+            progressEntries={progressEntries}
+            t={t}
+          />
+          <StageProgressView
+            stage="merge"
+            progressEntries={progressEntries}
+            t={t}
+          />
         </div>
       )}
 

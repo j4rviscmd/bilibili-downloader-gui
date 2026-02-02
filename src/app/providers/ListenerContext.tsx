@@ -45,7 +45,6 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
         // Update queue status based on progress stage
         const stage = payload.stage
         if (stage === 'complete') {
-          // Mark as done - keep in queue so completion actions remain visible
           store.dispatch(
             updateQueueStatus({
               downloadId: payload.downloadId,
@@ -57,7 +56,6 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
           stage === 'video' ||
           stage === 'merge'
         ) {
-          // Mark as running when download stages start
           store.dispatch(
             updateQueueStatus({
               downloadId: payload.downloadId,
@@ -67,14 +65,10 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
         }
 
         // Show toast for quality fallback warnings
-        if (
-          stage === 'warn-video-quality-fallback' ||
-          stage === 'warn-audio-quality-fallback'
-        ) {
-          const key =
-            stage === 'warn-video-quality-fallback'
-              ? 'video.video_quality_fallback'
-              : 'video.audio_quality_fallback'
+        if (stage === 'warn-video-quality-fallback' || stage === 'warn-audio-quality-fallback') {
+          const key = stage === 'warn-video-quality-fallback'
+            ? 'video.video_quality_fallback'
+            : 'video.audio_quality_fallback'
           toast.warning(i18n.t(key, { from: 'selected', to: 'fallback' }), {
             duration: 6000,
           })

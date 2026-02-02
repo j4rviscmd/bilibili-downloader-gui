@@ -115,9 +115,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   const isQualityAvailable = (
     qualityId: number,
     type: 'video' | 'audio',
-  ): boolean => {
-    return partQualities[type].some((q) => q.id === qualityId)
-  }
+  ): boolean => partQualities[type].some((q) => q.id === qualityId)
 
   // 選択状態を更新
   const handleSelectedChange = (checked: boolean | 'indeterminate') => {
@@ -158,7 +156,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
       videoId,
       partInput.cid,
       partInput.title.trim(),
-      parseInt(partInput.videoQuality, 10),
+      parseInt(partInput.videoQuality || '80', 10),
       parseInt(partInput.audioQuality || '30216', 10),
       newDownloadId,
       newDownloadId.replace(/-p\d+$/, ''),

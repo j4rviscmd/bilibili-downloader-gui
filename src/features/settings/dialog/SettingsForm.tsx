@@ -226,9 +226,11 @@ function SettingsForm() {
                   onClick={handleDlOutputPathChange}
                   disabled={isUpdatingDlOutputPath}
                 >
-                  {isUpdatingDlOutputPath
-                    ? t('settings.output_dir_changing')
-                    : t('settings.output_dir_button')}
+                  {t(
+                    isUpdatingDlOutputPath
+                      ? 'settings.output_dir_changing'
+                      : 'settings.output_dir_button',
+                  )}
                 </Button>
               </div>
               <FormDescription>
@@ -287,9 +289,11 @@ function SettingsForm() {
               onClick={handleLibPathChange}
               disabled={isUpdatingLibPath}
             >
-              {isUpdatingLibPath
-                ? t('settings.lib_path_changing')
-                : t('settings.lib_path_button')}
+              {t(
+                isUpdatingLibPath
+                  ? 'settings.lib_path_changing'
+                  : 'settings.lib_path_button',
+              )}
             </Button>
           </div>
           <FormDescription>{t('settings.lib_path_description')}</FormDescription>
