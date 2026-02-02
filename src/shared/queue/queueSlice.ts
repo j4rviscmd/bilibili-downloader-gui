@@ -1,3 +1,4 @@
+import type { RootState } from '@/app/store'
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 
@@ -158,6 +159,28 @@ export const {
   clearQueueItem,
 } = queueSlice.actions
 export default queueSlice.reducer
+
+/**
+ * Finds a completed queue item for a specific part index.
+ *
+ * Extracts part index from downloadId using regex pattern `-p(\d+)$`.
+ * Returns the item if found, matches the part index, and has status 'done'.
+ *
+ * @param state - Redux root state
+ * @param partIndex - One-based part number (matches the number in downloadId)
+ * @returns Queue item if found and completed, undefined otherwise
+ */
+export function findCompletedItemForPart(
+  state: RootState,
+  partIndex: number,
+): QueueItem | undefined {
+  return state.queue.find((item) => {
+    const match = item.downloadId.match(/-p(\d+)$/)
+    return (
+      match && parseInt(match[1], 10) === partIndex && item.status === 'done'
+    )
+  })
+}
 
 /**
  * Selects download ID by part index from queue.
