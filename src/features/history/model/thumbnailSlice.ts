@@ -12,8 +12,12 @@
  * @module history/model/thumbnailSlice
  */
 
+import {
+  createAsyncThunk,
+  createSlice,
+  type PayloadAction,
+} from '@reduxjs/toolkit'
 import { getThumbnailBase64 } from '../api/thumbnailApi'
-import { createSlice, createAsyncThunk, type PayloadAction } from '@reduxjs/toolkit'
 
 /** Maximum number of thumbnails to store in cache (LRU eviction threshold) */
 const MAX_CACHE_ENTRIES = 200
@@ -108,7 +112,12 @@ const thumbnailSlice = createSlice({
      */
     setThumbnail(state, action: PayloadAction<{ url: string; data: string }>) {
       const { url, data } = action.payload
-      state.cache[url] = { data, loading: false, error: null, timestamp: Date.now() }
+      state.cache[url] = {
+        data,
+        loading: false,
+        error: null,
+        timestamp: Date.now(),
+      }
     },
     /**
      * Sets an error state for a cached thumbnail.
@@ -116,7 +125,10 @@ const thumbnailSlice = createSlice({
      * @param state - Current state
      * @param action - Action containing { url, error }
      */
-    setThumbnailError(state, action: PayloadAction<{ url: string; error: string }>) {
+    setThumbnailError(
+      state,
+      action: PayloadAction<{ url: string; error: string }>,
+    ) {
       const entry = state.cache[action.payload.url]
       if (entry) {
         entry.loading = false
@@ -185,7 +197,12 @@ const thumbnailSlice = createSlice({
       })
       .addCase(fetchThumbnail.fulfilled, (state, action) => {
         const { url, data } = action.payload
-        state.cache[url] = { data, loading: false, error: null, timestamp: Date.now() }
+        state.cache[url] = {
+          data,
+          loading: false,
+          error: null,
+          timestamp: Date.now(),
+        }
       })
       .addCase(fetchThumbnail.rejected, (state, action) => {
         const { url, error } = action.payload as { url: string; error: string }
