@@ -1,3 +1,5 @@
+import { useAppDispatch } from '@/app/store'
+import { clearExpiredEntries } from '@/features/history'
 import { useHistory } from '@/features/history/hooks/useHistory'
 import HistoryExportDialog from '@/features/history/ui/HistoryExportDialog'
 import HistoryFilters from '@/features/history/ui/HistoryFilters'
@@ -5,7 +7,6 @@ import HistoryList from '@/features/history/ui/HistoryList'
 import HistorySearch from '@/features/history/ui/HistorySearch'
 import { PageLayout } from '@/shared/layout'
 import { Button } from '@/shared/ui/button'
-import { ScrollArea, ScrollBar } from '@/shared/ui/scroll-area'
 import { save } from '@tauri-apps/plugin-dialog'
 import { writeTextFile } from '@tauri-apps/plugin-fs'
 import { FileText, Trash2 } from 'lucide-react'
@@ -13,8 +14,19 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+/**
+ * History page component.
+ *
+ * Provides a full-featured history management interface including:
+ * - Search and filter functionality
+ * - Export to JSON/CSV
+ * - Clear all history with confirmation
+ * - Virtual scrolling for large lists
+ * - Automatic thumbnail cache cleanup on unmount
+ */
 function HistoryPage() {
   const { t } = useTranslation()
+  const dispatch = useAppDispatch()
 
   const {
     entries,
@@ -30,16 +42,46 @@ function HistoryPage() {
 
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
 
+  /**
+   * Update document title when component mounts or language changes.
+   */
   useEffect(() => {
     document.title = `${t('history.title')} - ${t('app.title')}`
   }, [t])
 
+  /**
+   * Cleanup expired thumbnail cache entries when page unmounts.
+   *
+   * This ensures memory is freed up when leaving the history page.
+   */
+  useEffect(() => {
+    return () => {
+      dispatch(clearExpiredEntries())
+    }
+  }, [dispatch])
+
+  /**
+   * Handles clearing all history entries with confirmation.
+   *
+   * Shows a native confirm dialog before proceeding to prevent accidental deletion.
+   */
   const handleClearAll = () => {
     if (confirm(t('history.deleteAllConfirm'))) {
       clear()
     }
   }
 
+  /**
+   * Handles exporting history data to JSON or CSV format.
+   *
+   * Process:
+   * 1. Convert history entries to the selected format
+   * 2. Show native file save dialog
+   * 3. Write data to the selected file path
+   * 4. Display success/error toast notification
+   *
+   * @param format - Export format ('json' or 'csv')
+   */
   const handleExport = async (format: 'json' | 'csv') => {
     try {
       const data = await exportData(format)
@@ -78,7 +120,6 @@ function HistoryPage() {
     <>
       <PageLayout withScrollArea={false} innerClassName="h-full gap-0 p-0">
         <div className="flex h-full flex-col overflow-hidden">
-          {/* Header with search, filters, and action buttons */}
           <div className="border-border shrink-0 border-b p-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-1 items-center gap-2">
@@ -115,18 +156,12 @@ function HistoryPage() {
             </div>
           </div>
 
-          {/* History list with scrollable content */}
-          <ScrollArea
-            className="flex-1"
-            style={{ height: 'calc(100dvh - 2.3rem - 80px)' }}
-          >
-            <HistoryList
-              entries={entries}
-              loading={loading}
-              onDelete={remove}
-            />
-            <ScrollBar />
-          </ScrollArea>
+          <HistoryList
+            entries={entries}
+            loading={loading}
+            onDelete={remove}
+            height="calc(100dvh - 2.3rem - 80px)"
+          />
         </div>
       </PageLayout>
 

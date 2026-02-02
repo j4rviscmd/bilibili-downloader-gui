@@ -8,6 +8,7 @@
 
 import countReducer from '@/features/count/model/countSlice'
 import historyReducer from '@/features/history/model/historySlice'
+import thumbnailCacheReducer from '@/features/history/model/thumbnailSlice'
 import initReducer from '@/features/init/model/initSlice'
 import settingReducer from '@/features/settings/settingsSlice'
 import userReducer from '@/features/user/userSlice'
@@ -41,6 +42,7 @@ export const store = configureStore({
     queue: queueReducer,
     downloadStatus: downloadStatusReducer,
     history: historyReducer,
+    thumbnailCache: thumbnailCacheReducer,
   },
   devTools: process.env.NODE_ENV !== 'production',
 })

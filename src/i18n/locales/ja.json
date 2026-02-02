@@ -234,6 +234,7 @@
     "copyUrl": "URLをコピー",
     "copySuccess": "URLをクリップボードにコピーしました",
     "copyFailed": "URLのコピーに失敗しました",
-    "thumbnail": "ダウンロード履歴はまだありません"
+    "thumbnail": "ダウンロード履歴はまだありません",
+    "retryThumbnail": "サムネイルを再読み込み"
   }
 }

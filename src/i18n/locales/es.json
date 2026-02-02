@@ -228,6 +228,7 @@
     "copyUrl": "Copiar URL",
     "copySuccess": "URL copiada al portapapeles",
     "copyFailed": "Error al copiar la URL",
-    "thumbnail": "Aún no hay historial de descargas"
+    "thumbnail": "Aún no hay historial de descargas",
+    "retryThumbnail": "Recargar miniatura"
   }
 }

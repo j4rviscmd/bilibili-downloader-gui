@@ -234,6 +234,7 @@
     "copyUrl": "Copy URL",
     "copySuccess": "URL copied to clipboard",
     "copyFailed": "Failed to copy URL",
-    "thumbnail": "No download history yet"
+    "thumbnail": "No download history yet",
+    "retryThumbnail": "Reload thumbnail"
   }
 }

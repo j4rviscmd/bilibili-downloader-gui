@@ -1,15 +1,16 @@
 'use client'
 
-import { getThumbnailBase64 } from '@/features/history/api/thumbnailApi'
+import { useThumbnailCache } from '@/features/history'
 import type { HistoryEntry } from '@/features/history/model/historySlice'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
-import { Check, Copy, Download, Trash2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Check, Copy, Download, RefreshCw, Trash2 } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-const LOCALE_MAP: Record<string, string> = {
+// Convert i18next language code to BCP 47 language tag
+const I18N_LOCALE_MAP: Record<string, string> = {
   zh: 'zh-CN',
   ja: 'ja-JP',
   en: 'en-US',
@@ -18,75 +19,70 @@ const LOCALE_MAP: Record<string, string> = {
   ko: 'ko-KR',
 }
 
-const FILE_SIZE_UNITS = ['B', 'KB', 'MB'] as const
-const BYTES_PER_KB = 1024
-const BYTES_PER_MB = 1024 * 1024
-const COPY_RESET_DELAY = 2000
+function formatDate(dateString: string, locale: string): string {
+  const date = new Date(dateString)
+  const mappedLocale = I18N_LOCALE_MAP[locale] || locale
+  return date.toLocaleDateString(mappedLocale, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function formatFileSize(bytes?: number): string {
+  if (!bytes) return '-'
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+const ThumbnailPlaceholder = () => (
+  <div className="text-muted-foreground flex size-full items-center justify-center">
+    <Download size={32} />
+  </div>
+)
 
 type Props = {
   entry: HistoryEntry
   onDelete: () => void
 }
 
+/**
+ * Single history entry component.
+ *
+ * @example
+ * ```tsx
+ * <HistoryItem
+ *   entry={historyEntry}
+ *   onDelete={() => handleDelete(historyEntry.id)}
+ * />
+ * ```
+ */
 function HistoryItem({ entry, onDelete }: Props) {
   const { t, i18n } = useTranslation()
-  const [thumbnailSrc, setThumbnailSrc] = useState<string | null>(null)
-  const [thumbnailLoading, setThumbnailLoading] = useState(false)
   const [copied, setCopied] = useState(false)
 
-  useEffect(() => {
-    if (!entry.thumbnailUrl) return
+  const {
+    data: thumbnailSrc,
+    loading: thumbnailLoading,
+    error,
+    retry,
+  } = useThumbnailCache(
+    entry.thumbnailUrl?.startsWith('data:') ? undefined : entry.thumbnailUrl,
+  )
 
-    if (entry.thumbnailUrl.startsWith('data:')) {
-      setThumbnailSrc(entry.thumbnailUrl)
-      return
-    }
+  const displayThumbnail = entry.thumbnailUrl?.startsWith('data:')
+    ? entry.thumbnailUrl
+    : thumbnailSrc
 
-    setThumbnailLoading(true)
-    getThumbnailBase64(entry.thumbnailUrl)
-      .then(setThumbnailSrc)
-      .catch((err) => {
-        console.error('Failed to load thumbnail:', err)
-        setThumbnailSrc(null)
-      })
-      .finally(() => setThumbnailLoading(false))
-  }, [entry.thumbnailUrl])
-
-  const formatDate = (dateString: string): string => {
-    const date = new Date(dateString)
-    const locale = LOCALE_MAP[i18n.language] || i18n.language
-    return date.toLocaleDateString(locale, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  }
-
-  const formatFileSize = (bytes?: number): string => {
-    if (!bytes) return '-'
-
-    let unitIndex = 0
-    let value = bytes
-
-    if (bytes >= BYTES_PER_MB) {
-      value = bytes / BYTES_PER_MB
-      unitIndex = 2
-    } else if (bytes >= BYTES_PER_KB) {
-      value = bytes / BYTES_PER_KB
-      unitIndex = 1
-    }
-
-    return `${value.toFixed(unitIndex > 0 ? 1 : 0)} ${FILE_SIZE_UNITS[unitIndex]}`
-  }
-
-  const handleCopyUrl = async (): Promise<void> => {
+  const handleCopyUrl = async () => {
     try {
       await navigator.clipboard.writeText(entry.url)
       setCopied(true)
       toast.success(t('history.copySuccess'))
-      setTimeout(() => setCopied(false), COPY_RESET_DELAY)
+      setTimeout(() => setCopied(false), 2000)
     } catch {
       toast.error(t('history.copyFailed'))
     }
@@ -94,21 +90,28 @@ function HistoryItem({ entry, onDelete }: Props) {
 
   const isSuccess = entry.status === 'completed'
 
-  const showThumbnailPlaceholder = thumbnailLoading || !thumbnailSrc
-
   return (
-    <div className="border-border hover:bg-accent/50 flex items-center gap-3 rounded-lg border p-3 transition-colors">
-      <div className="bg-muted flex size-20 shrink-0 items-center justify-center overflow-hidden rounded">
-        {showThumbnailPlaceholder ? (
-          <div className="text-muted-foreground flex size-full items-center justify-center">
-            <Download size={32} />
-          </div>
-        ) : (
+    <div className="border-border hover:bg-accent/50 group flex items-center gap-3 rounded-lg border p-3 transition-colors">
+      <div className="bg-muted relative flex size-20 shrink-0 items-center justify-center overflow-hidden rounded">
+        {thumbnailLoading ? (
+          <ThumbnailPlaceholder />
+        ) : displayThumbnail ? (
           <img
-            src={thumbnailSrc}
+            src={displayThumbnail}
             alt={entry.title}
             className="size-full object-cover"
           />
+        ) : (
+          <ThumbnailPlaceholder />
+        )}
+        {error && (
+          <button
+            onClick={retry}
+            className="bg-background/80 hover:bg-background absolute rounded p-1 opacity-0 transition-opacity group-hover:opacity-100"
+            title={t('history.retryThumbnail')}
+          >
+            <RefreshCw size={16} />
+          </button>
         )}
       </div>
 
@@ -134,7 +137,7 @@ function HistoryItem({ entry, onDelete }: Props) {
         )}
 
         <div className="text-muted-foreground flex flex-wrap gap-x-4 gap-y-0.5 text-xs">
-          <span>{formatDate(entry.downloadedAt)}</span>
+          <span>{formatDate(entry.downloadedAt, i18n.language)}</span>
           {entry.fileSize && (
             <>
               <span>•</span>
@@ -174,17 +177,15 @@ function HistoryItem({ entry, onDelete }: Props) {
         </div>
       </div>
 
-      <div className="flex shrink-0 flex-col gap-1">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onDelete}
-          title={t('history.deleteConfirm')}
-          className="text-destructive hover:bg-destructive/10"
-        >
-          <Trash2 size={18} />
-        </Button>
-      </div>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={onDelete}
+        title={t('history.deleteConfirm')}
+        className="text-destructive hover:bg-destructive/10"
+      >
+        <Trash2 size={18} />
+      </Button>
     </div>
   )
 }
