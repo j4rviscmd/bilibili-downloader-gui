@@ -3,9 +3,10 @@ import { getThumbnailBase64 } from '@/features/history/api/thumbnailApi'
 import type { HistoryEntry } from '@/features/history/model/historySlice'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
-import { Download, Trash2 } from 'lucide-react'
+import { Copy, Check, Download, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 /**
  * Props for HistoryItem component.
@@ -40,6 +41,7 @@ function HistoryItem({ entry, onDelete }: Props) {
   const { t, i18n } = useTranslation()
   const [thumbnailSrc, setThumbnailSrc] = useState<string | null>(null)
   const [thumbnailLoading, setThumbnailLoading] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   // Load thumbnail from backend when entry has a URL
   useEffect(() => {
@@ -84,6 +86,17 @@ function HistoryItem({ entry, onDelete }: Props) {
     if (bytes < 1024) return `${bytes} B`
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  }
+
+  const handleCopyUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(entry.url)
+      setCopied(true)
+      toast.success(t('history.copySuccess'))
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      toast.error(t('history.copyFailed'))
+    }
   }
 
   const isSuccess = entry.status === 'completed'
@@ -150,12 +163,21 @@ function HistoryItem({ entry, onDelete }: Props) {
           <p className="text-destructive mt-1 text-xs">{entry.errorMessage}</p>
         )}
 
-        <div className="mt-1 text-xs">
+        <div className="mt-1 flex items-center gap-2 text-xs">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-6 shrink-0 text-muted-foreground hover:bg-muted"
+            onClick={handleCopyUrl}
+            title={t('history.copyUrl')}
+          >
+            {copied ? <Check size={14} /> : <Copy size={14} />}
+          </Button>
           <a
             href={entry.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-muted-foreground hover:text-primary block max-w-[200px] truncate"
+            className="text-muted-foreground hover:text-primary truncate"
           >
             {entry.url}
           </a>
