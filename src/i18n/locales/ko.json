@@ -225,6 +225,7 @@
       "size": "크기",
       "quality": "화질"
     },
-    "thumbnail": "다운로드 기록이 없습니다"
+    "thumbnail": "다운로드 기록이 없습니다",
+    "retryThumbnail": "썸네일 다시 로드"
   }
 }

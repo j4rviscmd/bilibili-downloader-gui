@@ -1,11 +1,12 @@
 import { useHistory } from '@/features/history/hooks/useHistory'
+import { clearExpiredEntries } from '@/features/history'
 import HistoryExportDialog from '@/features/history/ui/HistoryExportDialog'
 import HistoryFilters from '@/features/history/ui/HistoryFilters'
 import HistoryList from '@/features/history/ui/HistoryList'
 import HistorySearch from '@/features/history/ui/HistorySearch'
 import { PageLayout } from '@/shared/layout'
 import { Button } from '@/shared/ui/button'
-import { ScrollArea, ScrollBar } from '@/shared/ui/scroll-area'
+import { useAppDispatch } from '@/app/store'
 import { save } from '@tauri-apps/plugin-dialog'
 import { writeTextFile } from '@tauri-apps/plugin-fs'
 import { FileText, Trash2 } from 'lucide-react'
@@ -15,6 +16,7 @@ import { toast } from 'sonner'
 
 function HistoryPage() {
   const { t } = useTranslation()
+  const dispatch = useAppDispatch()
 
   const {
     entries,
@@ -33,6 +35,13 @@ function HistoryPage() {
   useEffect(() => {
     document.title = `${t('history.title')} - ${t('app.title')}`
   }, [t])
+
+  // Clear expired thumbnail cache when leaving history page
+  useEffect(() => {
+    return () => {
+      dispatch(clearExpiredEntries())
+    }
+  }, [dispatch])
 
   const handleClearAll = () => {
     if (confirm(t('history.deleteAllConfirm'))) {
@@ -115,18 +124,13 @@ function HistoryPage() {
             </div>
           </div>
 
-          {/* History list with scrollable content */}
-          <ScrollArea
-            className="flex-1"
-            style={{ height: 'calc(100dvh - 2.3rem - 80px)' }}
-          >
-            <HistoryList
-              entries={entries}
-              loading={loading}
-              onDelete={remove}
-            />
-            <ScrollBar />
-          </ScrollArea>
+          {/* History list with virtual scrolling */}
+          <HistoryList
+            entries={entries}
+            loading={loading}
+            onDelete={remove}
+            height="calc(100dvh - 2.3rem - 80px)"
+          />
         </div>
       </PageLayout>
 

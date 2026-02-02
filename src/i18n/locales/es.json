@@ -225,6 +225,7 @@
       "size": "Tamaño",
       "quality": "Calidad"
     },
-    "thumbnail": "Aún no hay historial de descargas"
+    "thumbnail": "Aún no hay historial de descargas",
+    "retryThumbnail": "Recargar miniatura"
   }
 }

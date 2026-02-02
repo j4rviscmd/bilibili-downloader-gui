@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { Virtuoso } from 'react-virtuoso'
 import type { HistoryEntry } from '../model/historySlice'
 import HistoryItem from './HistoryItem'
 
@@ -12,15 +13,17 @@ type Props = {
   loading: boolean
   /** Callback when delete button is clicked */
   onDelete: (id: string) => void
+  /** Height for the virtual list container */
+  height?: string
 }
 
 /**
- * History list component with loading and empty states.
+ * History list component with loading, empty states, and virtual scrolling.
  *
  * Displays history entries in a scrollable list with:
  * - Loading spinner while fetching data
  * - Empty state illustration when no entries exist
- * - Scrollable list of HistoryItem components
+ * - Virtual scrolling for optimal performance with large lists
  *
  * @example
  * ```tsx
@@ -28,10 +31,11 @@ type Props = {
  *   entries={history.entries}
  *   loading={history.loading}
  *   onDelete={(id) => history.remove(id)}
+ *   height="calc(100dvh - 2.3rem - 80px)"
  * />
  * ```
  */
-function HistoryList({ entries, loading, onDelete }: Props) {
+function HistoryList({ entries, loading, onDelete, height }: Props) {
   const { t } = useTranslation()
 
   if (loading) {
@@ -71,15 +75,16 @@ function HistoryList({ entries, loading, onDelete }: Props) {
   }
 
   return (
-    <div className="space-y-3 p-3">
-      {entries.map((entry) => (
-        <HistoryItem
-          key={entry.id}
-          entry={entry}
-          onDelete={() => onDelete(entry.id)}
-        />
-      ))}
-    </div>
+    <Virtuoso
+      style={{ height }}
+      data={entries}
+      itemContent={(_index, entry) => (
+        <div key={entry.id} className="p-3">
+          <HistoryItem entry={entry} onDelete={() => onDelete(entry.id)} />
+        </div>
+      )}
+      defaultItemHeight={120} // Approximate height for each HistoryItem
+    />
   )
 }
 

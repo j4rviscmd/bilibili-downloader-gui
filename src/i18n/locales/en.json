@@ -231,6 +231,7 @@
       "size": "Size",
       "quality": "Quality"
     },
-    "thumbnail": "No download history yet"
+    "thumbnail": "No download history yet",
+    "retryThumbnail": "Reload thumbnail"
   }
 }

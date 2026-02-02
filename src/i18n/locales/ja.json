@@ -231,6 +231,7 @@
       "size": "サイズ",
       "quality": "画質"
     },
-    "thumbnail": "ダウンロード履歴はまだありません"
+    "thumbnail": "ダウンロード履歴はまだありません",
+    "retryThumbnail": "サムネイルを再読み込み"
   }
 }

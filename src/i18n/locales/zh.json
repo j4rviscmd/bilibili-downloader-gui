@@ -225,6 +225,7 @@
       "size": "大小",
       "quality": "清晰度"
     },
-    "thumbnail": "暂无下载历史"
+    "thumbnail": "暂无下载历史",
+    "retryThumbnail": "重新加载缩略图"
   }
 }

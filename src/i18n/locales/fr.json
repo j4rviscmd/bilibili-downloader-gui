@@ -225,6 +225,7 @@
       "size": "Taille",
       "quality": "Qualité"
     },
-    "thumbnail": "Aucun historique de téléchargement pour le moment"
+    "thumbnail": "Aucun historique de téléchargement pour le moment",
+    "retryThumbnail": "Recharger la vignette"
   }
 }

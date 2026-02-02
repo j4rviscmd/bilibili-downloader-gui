@@ -1,10 +1,9 @@
 'use client'
-import { getThumbnailBase64 } from '@/features/history/api/thumbnailApi'
+import { useThumbnailCache } from '@/features/history'
 import type { HistoryEntry } from '@/features/history/model/historySlice'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
-import { Download, Trash2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Download, RefreshCw, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 /**
@@ -38,25 +37,17 @@ type Props = {
  */
 function HistoryItem({ entry, onDelete }: Props) {
   const { t, i18n } = useTranslation()
-  const [thumbnailSrc, setThumbnailSrc] = useState<string | null>(null)
-  const [thumbnailLoading, setThumbnailLoading] = useState(false)
 
-  // Load thumbnail from backend when entry has a URL
-  useEffect(() => {
-    if (entry.thumbnailUrl && !entry.thumbnailUrl.startsWith('data:')) {
-      setThumbnailLoading(true)
-      getThumbnailBase64(entry.thumbnailUrl)
-        .then(setThumbnailSrc)
-        .catch((err) => {
-          console.error('Failed to load thumbnail:', err)
-          setThumbnailSrc(null)
-        })
-        .finally(() => setThumbnailLoading(false))
-    } else if (entry.thumbnailUrl?.startsWith('data:')) {
-      // Already base64 encoded
-      setThumbnailSrc(entry.thumbnailUrl)
-    }
-  }, [entry.thumbnailUrl])
+  // Use thumbnail cache hook (skip if already base64 data URL)
+  const { data: thumbnailSrc, loading: thumbnailLoading, error, retry } =
+    useThumbnailCache(
+      entry.thumbnailUrl?.startsWith('data:') ? undefined : entry.thumbnailUrl,
+    )
+
+  // Display thumbnail: use data URL directly if already base64, otherwise use cached value
+  const displayThumbnail = entry.thumbnailUrl?.startsWith('data:')
+    ? entry.thumbnailUrl
+    : thumbnailSrc
 
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString)
@@ -90,15 +81,15 @@ function HistoryItem({ entry, onDelete }: Props) {
   const statusKey = isSuccess ? 'history.filterSuccess' : 'history.filterFailed'
 
   return (
-    <div className="border-border hover:bg-accent/50 flex items-center gap-3 rounded-lg border p-3 transition-colors">
-      <div className="bg-muted flex size-20 shrink-0 items-center justify-center overflow-hidden rounded">
+    <div className="border-border hover:bg-accent/50 group flex items-center gap-3 rounded-lg border p-3 transition-colors">
+      <div className="relative bg-muted flex size-20 shrink-0 items-center justify-center overflow-hidden rounded">
         {thumbnailLoading ? (
           <div className="text-muted-foreground flex size-full items-center justify-center">
             <Download size={32} />
           </div>
-        ) : thumbnailSrc ? (
+        ) : displayThumbnail ? (
           <img
-            src={thumbnailSrc}
+            src={displayThumbnail}
             alt={entry.title}
             className="size-full object-cover"
           />
@@ -106,6 +97,15 @@ function HistoryItem({ entry, onDelete }: Props) {
           <div className="text-muted-foreground flex size-full items-center justify-center">
             <Download size={32} />
           </div>
+        )}
+        {error && (
+          <button
+            onClick={retry}
+            className="bg-background/80 hover:bg-background absolute rounded p-1 opacity-0 transition-opacity group-hover:opacity-100"
+            title={t('history.retryThumbnail')}
+          >
+            <RefreshCw size={16} />
+          </button>
         )}
       </div>
 
