@@ -1,3 +1,4 @@
+import type { Progress } from '@/shared/progress'
 import { Button } from '@/shared/ui/button'
 import { invoke } from '@tauri-apps/api/core'
 import { CheckCircle2, Download, FolderOpen, RotateCcw } from 'lucide-react'
@@ -13,6 +14,62 @@ function formatTransferRate(kb: number): string {
     return `${(kb / 1024).toFixed(1)}MB/s`
   }
   return `${kb.toFixed(0)}KB/s`
+}
+
+/**
+ * Props for stage progress display.
+ */
+type StageProgressProps = {
+  /** Stage emoji icon */
+  icon: string
+  /** Translation key for stage name */
+  labelKey: string
+  /** Progress entries to search */
+  progressEntries: Progress[]
+  /** Stage identifier to find in entries */
+  stageName: string
+  /** Translation function */
+  t: (key: string) => string
+  /** Optional custom content when waiting */
+  waitingLabel?: string
+}
+
+/**
+ * Renders progress display for a single download stage.
+ */
+function StageProgress({
+  icon,
+  labelKey,
+  progressEntries,
+  stageName,
+  t,
+  waitingLabel,
+}: StageProgressProps) {
+  const progress = progressEntries.find((p) => p.stage === stageName)
+
+  if (!progress) {
+    return (
+      <div className="flex min-h-[33px] items-center">
+        {icon} {t(labelKey)}: {waitingLabel ?? t('video.stage_waiting')}
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex min-h-[33px] items-center gap-1">
+      <span className="font-medium">
+        {icon} {t(labelKey)}
+      </span>
+      <span>{progress.percentage.toFixed(0)}%</span>
+      <span>{formatTransferRate(progress.transferRate || 0)}</span>
+      {progress.filesize != null && (
+        <span>
+          {progress.downloaded?.toFixed(1) ?? '0'}mb/
+          {progress.filesize.toFixed(1)}mb
+        </span>
+      )}
+    </div>
+  )
 }
 
 /**
@@ -157,69 +214,23 @@ export function PartDownloadProgress({
       {/* Running View - third priority */}
       {isDownloading && (
         <div className="text-muted-foreground grid min-h-[33px] grid-cols-1 gap-x-2 gap-y-1 text-xs sm:grid-cols-2 lg:grid-cols-3">
-          {/* Audio Stage */}
-          {(() => {
-            const audioProgress = progressEntries.find(
-              (p) => p.stage === 'audio',
-            )
-            if (audioProgress) {
-              return (
-                <div className="flex min-h-[33px] items-center gap-1">
-                  <span className="font-medium">
-                    🔊 {t('video.stage_audio')}
-                  </span>
-                  <span>{audioProgress.percentage.toFixed(0)}%</span>
-                  <span>
-                    {formatTransferRate(audioProgress.transferRate || 0)}
-                  </span>
-                  {audioProgress.filesize != null && (
-                    <span>
-                      {audioProgress.downloaded?.toFixed(1) ?? '0'}mb/
-                      {audioProgress.filesize.toFixed(1)}mb
-                    </span>
-                  )}
-                </div>
-              )
-            }
-            return (
-              <div className="flex min-h-[33px] items-center">
-                🔊 {t('video.stage_audio')}: {t('video.stage_waiting')}
-              </div>
-            )
-          })()}
+          <StageProgress
+            icon="🔊"
+            labelKey="video.stage_audio"
+            progressEntries={progressEntries}
+            stageName="audio"
+            t={t}
+          />
 
-          {/* Video Stage */}
-          {(() => {
-            const videoProgress = progressEntries.find(
-              (p) => p.stage === 'video',
-            )
-            if (videoProgress) {
-              return (
-                <div className="flex min-h-[33px] items-center gap-1">
-                  <span className="font-medium">
-                    🎬 {t('video.stage_video')}
-                  </span>
-                  <span>{videoProgress.percentage.toFixed(0)}%</span>
-                  <span>
-                    {formatTransferRate(videoProgress.transferRate || 0)}
-                  </span>
-                  {videoProgress.filesize != null && (
-                    <span>
-                      {videoProgress.downloaded?.toFixed(1) ?? '0'}mb/
-                      {videoProgress.filesize.toFixed(1)}mb
-                    </span>
-                  )}
-                </div>
-              )
-            }
-            return (
-              <div className="flex min-h-[33px] items-center">
-                🎬 {t('video.stage_video')}: {t('video.stage_waiting')}
-              </div>
-            )
-          })()}
+          <StageProgress
+            icon="🎬"
+            labelKey="video.stage_video"
+            progressEntries={progressEntries}
+            stageName="video"
+            t={t}
+          />
 
-          {/* Merge Stage */}
+          {/* Merge Stage - has special logic for merging state */}
           {(() => {
             const mergeProgress = progressEntries.find(
               (p) => p.stage === 'merge',
@@ -242,7 +253,6 @@ export function PartDownloadProgress({
               )
             }
 
-            // Check if both audio and video are complete (100%)
             const audioComplete =
               audioProgress && audioProgress.percentage >= 100
             const videoComplete =
@@ -260,7 +270,6 @@ export function PartDownloadProgress({
               )
             }
 
-            // Still downloading audio or video
             if (audioProgress || videoProgress) {
               return (
                 <div className="flex min-h-[33px] items-center">

@@ -13,7 +13,12 @@ import {
 import { selectDuplicateIndices } from '@/features/video/model/selectors'
 import { setVideo } from '@/features/video/model/videoSlice'
 import { setError } from '@/shared/downloadStatus/downloadStatusSlice'
-import { clearQueue, clearQueueItem, enqueue } from '@/shared/queue/queueSlice'
+import {
+  clearQueue,
+  clearQueueItem,
+  enqueue,
+  findCompletedItemForPart,
+} from '@/shared/queue/queueSlice'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -247,15 +252,7 @@ export const useVideoInfo = () => {
         .filter(({ pi }) => pi.selected)
 
       for (const { idx } of selectedParts) {
-        // Find and clear completed items for this part index
-        const completedItem = state.queue.find((item) => {
-          const match = item.downloadId.match(/-p(\d+)$/)
-          return (
-            match &&
-            parseInt(match[1], 10) === idx + 1 &&
-            item.status === 'done'
-          )
-        })
+        const completedItem = findCompletedItemForPart(state, idx + 1)
         if (completedItem) {
           store.dispatch(clearQueueItem(completedItem.downloadId))
         }

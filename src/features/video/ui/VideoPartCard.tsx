@@ -25,7 +25,10 @@ import {
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
 import { cn } from '@/shared/lib/utils'
-import { clearQueueItem } from '@/shared/queue/queueSlice'
+import {
+  clearQueueItem,
+  findCompletedItemForPart,
+} from '@/shared/queue/queueSlice'
 import {
   Form,
   FormControl,
@@ -43,6 +46,62 @@ import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import { z } from 'zod'
+
+/**
+ * Props for quality radio option.
+ */
+type QualityRadioOption = {
+  /** Quality ID */
+  id: string
+  /** Display label */
+  label: string
+  /** Whether this quality is available for the current video */
+  isAvailable: boolean
+}
+
+/**
+ * Props for QualityRadioGroup component.
+ */
+type QualityRadioGroupProps = {
+  /** Radio options to render */
+  options: QualityRadioOption[]
+  /** Prefix for HTML IDs (e.g., 'vq' or 'aq') */
+  idPrefix: string
+}
+
+/**
+ * Reusable radio group for quality selection.
+ */
+function QualityRadioGroup({ options, idPrefix }: QualityRadioGroupProps) {
+  return (
+    <div className="flex flex-wrap gap-x-4 gap-y-2">
+      {options.map(({ id, label, isAvailable }) => (
+        <div
+          key={id}
+          className={cn(
+            'flex min-h-[36px] min-w-[80px] items-center space-x-2 whitespace-nowrap',
+            !isAvailable && 'text-muted-foreground/60',
+          )}
+        >
+          <RadioGroupItem
+            disabled={!isAvailable}
+            value={id}
+            id={`${idPrefix}-${id}`}
+          />
+          <Label
+            htmlFor={`${idPrefix}-${id}`}
+            className={cn(
+              'cursor-pointer',
+              !isAvailable && 'cursor-not-allowed',
+            )}
+          >
+            {label}
+          </Label>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 /**
  * Props for VideoPartCard component.
@@ -143,10 +202,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
     if (!videoId) return
 
     // 該当パートの完了済みアイテムをクリア
-    const completedItem = state.queue.find((item) => {
-      const match = item.downloadId.match(/-p(\d+)$/)
-      return match && parseInt(match[1], 10) === page && item.status === 'done'
-    })
+    const completedItem = findCompletedItemForPart(state, page)
     if (completedItem) {
       store.dispatch(clearQueueItem(completedItem.downloadId))
     }
@@ -321,46 +377,22 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                       </div>
                       <FormControl>
                         <RadioGroup
-                          {...field}
                           value={String(field.value)}
                           onValueChange={field.onChange}
-                          orientation="horizontal"
-                          className="flex flex-wrap gap-x-4 gap-y-2"
                         >
-                          {Object.entries(VIDEO_QUALITIES_MAP)
-                            .reverse()
-                            .map(([id, value]) => {
-                              const isDisabled = !isQualityAvailable(
-                                Number(id),
-                                'video',
-                              )
-                              return (
-                                <div
-                                  key={id}
-                                  className={cn(
-                                    'flex min-h-[36px] min-w-[80px] items-center space-x-2 whitespace-nowrap',
-                                    isDisabled
-                                      ? 'text-muted-foreground/60'
-                                      : '',
-                                  )}
-                                >
-                                  <RadioGroupItem
-                                    disabled={isDisabled}
-                                    value={id}
-                                    id={`vq-${id}-${page}`}
-                                  />
-                                  <Label
-                                    htmlFor={`vq-${id}-${page}`}
-                                    className={cn(
-                                      'cursor-pointer',
-                                      isDisabled && 'cursor-not-allowed',
-                                    )}
-                                  >
-                                    {value}
-                                  </Label>
-                                </div>
-                              )
-                            })}
+                          <QualityRadioGroup
+                            idPrefix={`vq-${page}`}
+                            options={Object.entries(VIDEO_QUALITIES_MAP)
+                              .reverse()
+                              .map(([id, label]) => ({
+                                id,
+                                label,
+                                isAvailable: isQualityAvailable(
+                                  Number(id),
+                                  'video',
+                                ),
+                              }))}
+                          />
                         </RadioGroup>
                       </FormControl>
                       <FormMessage />
@@ -394,42 +426,20 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                       </div>
                       <FormControl>
                         <RadioGroup
-                          {...field}
                           value={String(field.value)}
                           onValueChange={field.onChange}
-                          className="flex flex-wrap gap-x-4 gap-y-2"
                         >
-                          {AUDIO_QUALITIES_ORDER.map((id) => {
-                            const value = AUDIO_QUALITIES_MAP[id]
-                            const isDisabled = !isQualityAvailable(
-                              Number(id),
-                              'audio',
-                            )
-                            return (
-                              <div
-                                key={id}
-                                className={cn(
-                                  'flex min-h-[36px] min-w-[80px] items-center space-x-2 whitespace-nowrap',
-                                  isDisabled ? 'text-muted-foreground/60' : '',
-                                )}
-                              >
-                                <RadioGroupItem
-                                  disabled={isDisabled}
-                                  value={String(id)}
-                                  id={`aq-${id}-${page}`}
-                                />
-                                <Label
-                                  htmlFor={`aq-${id}-${page}`}
-                                  className={cn(
-                                    'cursor-pointer',
-                                    isDisabled && 'cursor-not-allowed',
-                                  )}
-                                >
-                                  {value}
-                                </Label>
-                              </div>
-                            )
-                          })}
+                          <QualityRadioGroup
+                            idPrefix={`aq-${page}`}
+                            options={AUDIO_QUALITIES_ORDER.map((id) => ({
+                              id: String(id),
+                              label: AUDIO_QUALITIES_MAP[id],
+                              isAvailable: isQualityAvailable(
+                                Number(id),
+                                'audio',
+                              ),
+                            }))}
+                          />
                         </RadioGroup>
                       </FormControl>
                       <FormMessage />
