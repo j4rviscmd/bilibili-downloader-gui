@@ -110,13 +110,6 @@ pub fn run() {
             #[cfg(debug_assertions)]
             {
                 let window = app.get_webview_window("main").unwrap();
-                let window_height = window.inner_size().unwrap().height;
-                // 横幅だけ0まで縮小可能にする
-                // 縦幅は現状の値をそのままにする
-                let _ = window.set_min_size(Some(tauri::Size::Logical(tauri::LogicalSize {
-                    width: 0.0,
-                    height: window_height as f64, // 現在の高さを保持
-                })));
                 window.open_devtools();
             }
             Ok(())
