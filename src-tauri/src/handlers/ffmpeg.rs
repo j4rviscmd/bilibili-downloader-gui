@@ -228,6 +228,31 @@ async fn unpack_archive(archive_path: &PathBuf, dest: &PathBuf) -> Result<bool> 
     Ok(true)
 }
 
+/// Builds the ffmpeg binary path for the current platform.
+///
+/// # Arguments
+///
+/// * `base_path` - The root directory containing ffmpeg
+///
+/// # Returns
+///
+/// Returns the full path to the ffmpeg binary (with .exe extension on Windows).
+fn build_ffmpeg_bin_path(base_path: &PathBuf) -> PathBuf {
+    let mut path = if cfg!(target_os = "windows") {
+        base_path
+            .join("ffmpeg-master-latest-win64-lgpl-shared")
+            .join("ffmpeg-master-latest-win64-lgpl-shared")
+            .join("bin")
+            .join("ffmpeg")
+    } else {
+        base_path.join("ffmpeg")
+    };
+    if cfg!(target_os = "windows") {
+        path.set_extension("exe");
+    }
+    path
+}
+
 /// Validates that a binary can be executed by running it with --help.
 ///
 /// On Windows, this function prevents console window creation during validation.
@@ -293,24 +318,7 @@ pub fn move_ffmpeg(from_path: PathBuf, to_path: PathBuf) -> Result<(), String> {
         ));
     }
 
-    let ffmpeg_bin = if cfg!(target_os = "windows") {
-        from_path
-            .join("ffmpeg-master-latest-win64-lgpl-shared")
-            .join("ffmpeg-master-latest-win64-lgpl-shared")
-            .join("bin")
-            .join("ffmpeg")
-    } else {
-        from_path.join("ffmpeg")
-    };
-
-    // Set .exe extension on Windows
-    let ffmpeg_bin = if cfg!(target_os = "windows") {
-        let mut p = ffmpeg_bin;
-        p.set_extension("exe");
-        p
-    } else {
-        ffmpeg_bin
-    };
+    let ffmpeg_bin = build_ffmpeg_bin_path(&from_path);
 
     if !ffmpeg_bin.exists() {
         return Err(format!("Source ffmpeg binary not found: {:?}", ffmpeg_bin));
@@ -336,24 +344,7 @@ pub fn move_ffmpeg(from_path: PathBuf, to_path: PathBuf) -> Result<(), String> {
         .map_err(|e| format!("Failed to copy ffmpeg directory: {}", e))?;
 
     // Validate the copied ffmpeg
-    let new_ffmpeg_bin = if cfg!(target_os = "windows") {
-        to_path
-            .join("ffmpeg-master-latest-win64-lgpl-shared")
-            .join("ffmpeg-master-latest-win64-lgpl-shared")
-            .join("bin")
-            .join("ffmpeg")
-    } else {
-        to_path.join("ffmpeg")
-    };
-
-    // Set .exe extension on Windows
-    let new_ffmpeg_bin = if cfg!(target_os = "windows") {
-        let mut p = new_ffmpeg_bin;
-        p.set_extension("exe");
-        p
-    } else {
-        new_ffmpeg_bin
-    };
+    let new_ffmpeg_bin = build_ffmpeg_bin_path(&to_path);
 
     if !validate_command(&new_ffmpeg_bin) {
         // Validation failed - clean up the new directory

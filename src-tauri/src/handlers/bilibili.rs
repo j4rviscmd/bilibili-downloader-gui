@@ -267,17 +267,24 @@ pub async fn download_video(
     // 出力パスを保持 (クローンで履歴保存に渡す)
     let output_path_str = output_path.to_string_lossy().to_string();
 
+    // 実際のファイルサイズを取得
+    let actual_file_size = tokio::fs::metadata(&output_path)
+        .await
+        .ok()
+        .map(|m| m.len());
+
     // 履歴に保存 (非同期で失敗してもダウンロードには影響しない)
     let app_clone = app.clone();
     let bvid_clone = bvid.to_string();
     let quality_clone = quality;
+    let filename_for_history = filename.to_string();
     tokio::spawn(async move {
         if let Err(e) = save_to_history(
             &app_clone,
             &bvid_clone,
             quality_clone,
-            video_size,
-            audio_size,
+            actual_file_size,
+            &filename_for_history,
         )
         .await
         {
@@ -330,28 +337,28 @@ mod tests {
 /// * `app` - Tauri application handle
 /// * `bvid` - Bilibili video ID
 /// * `quality` - Video quality ID
-/// * `video_size` - Video file size in bytes
-/// * `audio_size` - Audio file size in bytes
+/// * `file_size` - Actual merged file size in bytes
+/// * `filename` - User-specified filename (without extension)
 async fn save_to_history(
     app: &AppHandle,
     bvid: &str,
     quality: i32,
-    video_size: Option<u64>,
-    audio_size: Option<u64>,
+    file_size: Option<u64>,
+    filename: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use crate::models::history::HistoryEntry;
     use crate::store::HistoryStore;
     use chrono::Utc;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    // 動画タイトルとサムネイルを取得
-    let (title, thumbnail_url) =
-        match fetch_video_info_for_history(bvid, read_cookie(app)?.as_deref().unwrap_or_default())
+    // ユーザーが指定したファイル名から拡張子を削除してタイトルとして使用
+    let title = filename.rsplit('.').next().unwrap_or(filename).to_string();
+
+    // サムネイルURLを取得
+    let thumbnail_url =
+        fetch_video_info_for_history(bvid, read_cookie(app)?.as_deref().unwrap_or_default())
             .await
-        {
-            Some(info) => info,
-            None => (bvid.to_string(), None), // フォールバック: BV IDを使用
-        };
+            .and_then(|(_, url)| url);
 
     let id = format!(
         "{}_{}",
@@ -363,8 +370,6 @@ async fn save_to_history(
     );
 
     let downloaded_at = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-
-    let file_size = video_size.and_then(|vs| audio_size.map(|asz| vs + asz));
 
     let entry = HistoryEntry {
         id: id.clone(),
@@ -864,15 +869,22 @@ async fn build_output_path(app: &AppHandle, filename: &str) -> Result<PathBuf, S
 ///
 /// Does not propagate errors; returns `None` on failure.
 /// Network and parse errors are silently ignored.
+/// Only returns Content-Length if HTTP status is 200 OK.
 async fn head_content_length(url: &str, cookie: Option<&String>) -> Option<u64> {
     let client = reqwest::Client::builder().build().ok()?;
     let mut req = client.head(url);
     if let Some(c) = cookie {
         req = req.header(reqwest::header::COOKIE, c);
     }
-    req.send()
-        .await
-        .ok()?
+    let response = req.send().await.ok()?;
+
+    // Only accept successful responses (200 OK)
+    if !response.status().is_success() {
+        eprintln!("HEAD request failed for {}: {}", url, response.status());
+        return None;
+    }
+
+    response
         .headers()
         .get(reqwest::header::CONTENT_LENGTH)?
         .to_str()
