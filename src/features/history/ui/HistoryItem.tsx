@@ -9,7 +9,11 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-// Convert i18next language code to BCP 47 language tag
+/**
+ * Mapping of i18next language codes to BCP 47 language tags.
+ *
+ * Used for locale-aware date formatting in history entries.
+ */
 const I18N_LOCALE_MAP: Record<string, string> = {
   zh: 'zh-CN',
   ja: 'ja-JP',
@@ -19,6 +23,13 @@ const I18N_LOCALE_MAP: Record<string, string> = {
   ko: 'ko-KR',
 }
 
+/**
+ * Formats an ISO 8601 date string to a localized date representation.
+ *
+ * @param dateString - ISO 8601 date string
+ * @param locale - i18next language code (e.g., "en", "ja")
+ * @returns Localized date string (e.g., "Jan 1, 2025, 12:00 PM")
+ */
 function formatDate(dateString: string, locale: string): string {
   const date = new Date(dateString)
   const mappedLocale = I18N_LOCALE_MAP[locale] || locale
@@ -31,13 +42,29 @@ function formatDate(dateString: string, locale: string): string {
   })
 }
 
+/** Bytes per kilobyte */
+const KB = 1000
+/** Bytes per megabyte */
+const MB = 1_000_000
+
+/**
+ * Formats a byte count to a human-readable file size string.
+ *
+ * @param bytes - File size in bytes
+ * @returns Formatted string (e.g., "1.5 MB", "500 KB", "-")
+ */
 function formatFileSize(bytes?: number): string {
   if (!bytes) return '-'
-  if (bytes < 1000) return `${bytes} B`
-  if (bytes < 1000 * 1000) return `${(bytes / 1000).toFixed(1)} KB`
-  return `${(bytes / (1000 * 1000)).toFixed(1)} MB`
+  if (bytes < KB) return `${bytes} B`
+  if (bytes < MB) return `${(bytes / KB).toFixed(1)} KB`
+  return `${(bytes / MB).toFixed(1)} MB`
 }
 
+/**
+ * Thumbnail placeholder component.
+ *
+ * Displays a download icon when no thumbnail is available or loading.
+ */
 const ThumbnailPlaceholder = () => (
   <div className="text-muted-foreground flex size-full items-center justify-center">
     <Download size={32} />

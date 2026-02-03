@@ -148,33 +148,24 @@ pub async fn download_video(
     audio_quality: i32,
     download_id: String,
 ) -> Result<String, String> {
-    // --------------------------------------------------
     // 1. 出力ファイルパス決定 + 自動リネーム
-    // --------------------------------------------------
     let output_path = auto_rename(&build_output_path(app, filename).await?);
 
-    // --------------------------------------------------
     // 2. Cookie チェック
-    // --------------------------------------------------
     let cookies = read_cookie(app)?.ok_or("ERR::COOKIE_MISSING")?;
     let cookie_header = build_cookie_header(&cookies);
     if cookie_header.is_empty() {
         return Err("ERR::COOKIE_MISSING".into());
     }
 
-    // --------------------------------------------------
     // 3. 設定から速度閾値を取得
-    // --------------------------------------------------
     let min_speed_threshold = settings::get_settings(app)
         .await?
         .download_speed_threshold_mbps;
 
-    // --------------------------------------------------
     // 4. 動画詳細取得 (選択品質のURL抽出)
-    // --------------------------------------------------
     let details = fetch_video_details(&cookies, bvid, cid).await?;
 
-    // dataフィールドをアンラップ
     let dash_data = details
         .data
         .ok_or_else(|| {
@@ -189,9 +180,7 @@ pub async fn download_video(
     let video_url = select_stream_url(&dash_data.video, quality)?;
     let audio_url = select_stream_url(&dash_data.audio, audio_quality)?;
 
-    // --------------------------------------------------
     // 5. 容量事前チェック (取得できなければスキップ)
-    // --------------------------------------------------
     let video_size = head_content_length(&video_url, Some(&cookie_header)).await;
     let audio_size = head_content_length(&audio_url, Some(&cookie_header)).await;
     if let (Some(vs), Some(asz)) = (video_size, audio_size) {
@@ -199,16 +188,12 @@ pub async fn download_video(
         ensure_free_space(&output_path, total_needed)?;
     }
 
-    // --------------------------------------------------
     // 6. temp ファイルパス生成
-    // --------------------------------------------------
     let lib_path = get_lib_path(app);
     let temp_video_path = lib_path.join(format!("temp_video_{}.m4s", download_id));
     let temp_audio_path = lib_path.join(format!("temp_audio_{}.m4s", download_id));
 
-    // --------------------------------------------------
     // 7. セマフォ取得 + 並列ダウンロード + マージ
-    // --------------------------------------------------
     // セマフォは「マージ完了まで保持」され、並列実行数はマージ処理の負荷に基づく
     let permit = crate::handlers::concurrency::VIDEO_SEMAPHORE
         .clone()
@@ -274,24 +259,14 @@ pub async fn download_video(
         .map(|m| m.len());
 
     // 履歴に保存 (非同期で失敗してもダウンロードには影響しない)
-    let app_clone = app.clone();
-    let bvid_clone = bvid.to_string();
-    let quality_clone = quality;
-    let filename_for_history = filename.to_string();
+    let app = app.clone();
+    let bvid = bvid.to_string();
+    let filename = filename.to_string();
     tokio::spawn(async move {
-        if let Err(e) = save_to_history(
-            &app_clone,
-            &bvid_clone,
-            quality_clone,
-            actual_file_size,
-            &filename_for_history,
-        )
-        .await
+        if let Err(e) =
+            save_to_history(&app, &bvid, quality, actual_file_size, &filename).await
         {
-            eprintln!(
-                "Warning: Failed to save to history for {}: {}",
-                bvid_clone, e
-            );
+            eprintln!("Warning: Failed to save to history for {bvid}: {e}");
         }
     });
 
@@ -360,14 +335,11 @@ async fn save_to_history(
             .await
             .and_then(|(_, url)| url);
 
-    let id = format!(
-        "{}_{}",
-        bvid,
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis()
-    );
+    let timestamp_ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    let id = format!("{}_{}", bvid, timestamp_ms);
 
     let downloaded_at = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
 

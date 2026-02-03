@@ -32,32 +32,29 @@ use tokio::process::Command as AsyncCommand;
 pub fn validate_ffmpeg(app: &AppHandle) -> bool {
     let ffmpeg_root = get_ffmpeg_root_path(app);
     let ffmpeg_path = get_ffmpeg_path(app);
-    // ffmpeg rootの存在チェック処理
     if !ffmpeg_root.exists() {
         return false;
     }
-    // ffmpegの存在チェック処理
     if !ffmpeg_path.exists() {
-        // ffmpegのパスが存在しない場合は無効とみなし、lib直下のffmpegを削除 & falseを返す
-        if ffmpeg_root.is_dir() {
-            fs::remove_dir_all(&ffmpeg_root).ok();
-        }
+        cleanup_ffmpeg_dir(&ffmpeg_root);
         return false;
     }
 
-    // ffmpeg --helpを実行して終了コードを確認
-    let is_valid_cmd = validate_command(&ffmpeg_path);
-    if !is_valid_cmd {
-        // エラーが発生した場合は無効とみなし、lib直下のffmpegを削除 & falseを返す
-        if ffmpeg_root.is_dir() {
-            fs::remove_dir_all(&ffmpeg_root).ok();
-        } else if ffmpeg_root.is_file() {
-            fs::remove_file(&ffmpeg_root).ok();
-        }
+    if !validate_command(&ffmpeg_path) {
+        cleanup_ffmpeg_dir(&ffmpeg_root);
         return false;
     }
 
     true
+}
+
+/// Removes the ffmpeg root directory if it exists.
+fn cleanup_ffmpeg_dir(ffmpeg_root: &PathBuf) {
+    if ffmpeg_root.is_dir() {
+        fs::remove_dir_all(ffmpeg_root).ok();
+    } else if ffmpeg_root.is_file() {
+        fs::remove_file(ffmpeg_root).ok();
+    }
 }
 
 /// Downloads and installs the ffmpeg binary for the current platform.
@@ -95,21 +92,16 @@ pub async fn install_ffmpeg(app: &AppHandle) -> Result<bool> {
             .map_err(|e| anyhow::anyhow!("Failed to create ffmpeg directory: {}", e))?;
     }
 
-    // let url = "https://evermeet.cx/ffmpeg/getrelease/zip";
-    let url = if cfg!(target_os = "windows") {
-        "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-lgpl-shared.zip"
+    // Download URL and filename based on platform
+    let (url, filename) = if cfg!(target_os = "windows") {
+        (
+            "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-lgpl-shared.zip",
+            "ffmpeg-master-latest-win64-lgpl-shared.zip",
+        )
     } else if cfg!(target_os = "macos") {
-        "https://evermeet.cx/ffmpeg/getrelease/zip"
+        ("https://evermeet.cx/ffmpeg/getrelease/zip", "ffmpeg.zip")
     } else {
-        ""
-    };
-    // ダウンロードするファイル名
-    let filename = if cfg!(target_os = "windows") {
-        "ffmpeg-master-latest-win64-lgpl-shared.zip"
-    } else if cfg!(target_os = "macos") {
-        "ffmpeg.zip"
-    } else {
-        return Ok(false); // 対応していないOSの場合は終了
+        return Ok(false);
     };
     // ~/bilibili-downloader-gui/src-tauri/target/debug/lib/ffmpeg
     let archive_path = ffmpeg_root.join(filename);
@@ -136,15 +128,15 @@ pub async fn install_ffmpeg(app: &AppHandle) -> Result<bool> {
     }
 
     // Remove archive file after successful extraction
-    fs::remove_file(&archive_path).ok();
+    let _ = fs::remove_file(&archive_path);
 
     // Grant execute permission on macOS
     #[cfg(target_os = "macos")]
     {
         let ffmpeg_bin = ffmpeg_root.join("ffmpeg");
-        let ffmpeg_path_str = ffmpeg_bin
-            .to_str()
-            .ok_or_else(|| anyhow::anyhow!("Invalid ffmpeg path"))?;
+        let Some(ffmpeg_path_str) = ffmpeg_bin.to_str() else {
+            return Err(anyhow::anyhow!("Invalid ffmpeg path").into());
+        };
         let res = Command::new("chmod")
             .arg("+x")
             .arg(ffmpeg_path_str)
@@ -431,20 +423,16 @@ pub async fn merge_av(
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("output");
-    let id_for_emit = download_id.unwrap_or_else(|| filename.to_string());
-    let emits = Emits::new(app.clone(), id_for_emit, None);
+    let emits = Emits::new(app.clone(), download_id.unwrap_or(filename.to_string()), None);
     let _ = emits.set_stage("merge").await;
 
     let ffmpeg_path = get_ffmpeg_path(app);
-    let video_str = video_path
-        .to_str()
-        .ok_or_else(|| "Invalid video path".to_string())?;
-    let audio_str = audio_path
-        .to_str()
-        .ok_or_else(|| "Invalid audio path".to_string())?;
-    let output_str = output_path
-        .to_str()
-        .ok_or_else(|| "Invalid output path".to_string())?;
+
+    // Convert paths to strings for ffmpeg command
+    let to_str_err = || "Invalid path".to_string();
+    let video_str = video_path.to_str().ok_or_else(to_str_err)?;
+    let audio_str = audio_path.to_str().ok_or_else(to_str_err)?;
+    let output_str = output_path.to_str().ok_or_else(to_str_err)?;
 
     let mut cmd = AsyncCommand::new(ffmpeg_path);
     cmd.args([
