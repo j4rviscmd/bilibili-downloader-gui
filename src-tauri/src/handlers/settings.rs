@@ -37,17 +37,13 @@ pub async fn set_settings(app: &AppHandle, settings: &Settings) -> Result<(), St
     let settings_str = serde_json::to_string_pretty(settings)
         .map_err(|e| format!("Failed to serialize settings: {}", e))?;
 
-    // validate settings contents.
-    // NOTE: validate_settingsは読み込み時向けのメソッドなので利用しない
-    // let _ = validate_settings(app, &filepath).await;
-
     // Validate download output directory
     let dl_output_path = settings
         .dl_output_path
         .as_ref()
         .ok_or_else(|| "ERR:SETTINGS_PATH_NOT_SET".to_string())?;
     let dl_output_dir_path = PathBuf::from(dl_output_path);
-    // Check existence first, then check if it's a directory
+
     if !dl_output_dir_path.exists() {
         return Err("ERR:SETTINGS_PATH_NOT_EXIST".to_string());
     }
@@ -82,18 +78,18 @@ pub async fn set_settings(app: &AppHandle, settings: &Settings) -> Result<(), St
 /// - File read fails (after initial creation attempt)
 pub async fn get_settings(app: &AppHandle) -> Result<Settings, String> {
     let filepath = paths::get_settings_path(app);
-    // DEBUG: println!("Loading settings from: {:?}", filepath);
     let _ = validate_settings(app, &filepath).await;
 
     let settings_str = fs::read_to_string(&filepath).unwrap_or_default();
     let mut settings: Settings = serde_json::from_str(&settings_str)
         .map_err(|e| format!("Failed to parse settings.json: {}", e))?;
 
-    let needs_default = settings
+    // Set default download directory if not configured
+    if settings
         .dl_output_path
         .as_ref()
-        .is_none_or(|p| p.is_empty());
-    if needs_default {
+        .is_none_or(|p| p.is_empty())
+    {
         if let Ok(download_dir) = app.path().download_dir() {
             if let Some(path_str) = download_dir.to_str() {
                 settings.dl_output_path = Some(path_str.to_string());
@@ -131,9 +127,7 @@ async fn validate_settings(app: &AppHandle, filepath: &PathBuf) -> Result<bool> 
 
     // Create parent directory if it doesn't exist
     if let Some(parent) = filepath.parent() {
-        if !parent.exists() {
-            fs::create_dir_all(parent)?;
-        }
+        fs::create_dir_all(parent)?;
     }
 
     // Build default settings with download directory fallback

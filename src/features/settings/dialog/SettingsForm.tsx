@@ -222,9 +222,9 @@ function SettingsForm() {
                   disabled={isUpdatingDlOutputPath}
                 >
                   {t(
-                    isUpdatingDlOutputPath
-                      ? 'settings.output_dir_changing'
-                      : 'settings.output_dir_button',
+                    `settings.output_dir_${
+                      isUpdatingDlOutputPath ? 'changing' : 'button'
+                    }`,
                   )}
                 </Button>
               </div>
@@ -252,9 +252,9 @@ function SettingsForm() {
               disabled={isUpdatingLibPath}
             >
               {t(
-                isUpdatingLibPath
-                  ? 'settings.lib_path_changing'
-                  : 'settings.lib_path_button',
+                `settings.lib_path_${
+                  isUpdatingLibPath ? 'changing' : 'button'
+                }`,
               )}
             </Button>
           </div>
