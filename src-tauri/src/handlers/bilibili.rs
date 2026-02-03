@@ -158,12 +158,7 @@ pub async fn download_video(
         return Err("ERR::COOKIE_MISSING".into());
     }
 
-    // 3. 設定から速度閾値を取得
-    let min_speed_threshold = settings::get_settings(app)
-        .await?
-        .download_speed_threshold_mbps;
-
-    // 4. 動画詳細取得 (選択品質のURL抽出)
+    // 3. 動画詳細取得 (選択品質のURL抽出)
     let details = fetch_video_details(&cookies, bvid, cid).await?;
 
     let dash_data = details
@@ -213,7 +208,6 @@ pub async fn download_video(
                 cookie.clone(),
                 true,
                 Some(download_id.clone()),
-                Some(min_speed_threshold),
             )
         }),
         retry_download(|| {
@@ -224,7 +218,6 @@ pub async fn download_video(
                 cookie.clone(),
                 true,
                 Some(download_id.clone()),
-                Some(min_speed_threshold),
             )
         }),
     ) {

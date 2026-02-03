@@ -16,15 +16,6 @@ export interface Settings {
    * a different drive or location with more storage space.
    */
   libPath?: string
-  /**
-   * Download speed threshold in MB/s for initial speed check.
-   *
-   * If the initial download speed (measured over 1MB) falls below this threshold,
-   * the connection will be dropped and retried to get a different CDN node.
-   *
-   * @default 1.0
-   */
-  downloadSpeedThresholdMbps?: number
   // Frontendのみの管理につき、localStorageでのみ保存している
   // TODO: themeをjson管理
   // theme: 'light' | 'dark'

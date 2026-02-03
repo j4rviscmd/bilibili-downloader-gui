@@ -112,7 +112,6 @@ pub async fn install_ffmpeg(app: &AppHandle) -> Result<bool> {
         None,
         true,
         None,
-        None, // No speed check for small files
     )
     .await
     .is_err()

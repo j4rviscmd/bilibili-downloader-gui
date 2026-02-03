@@ -8,7 +8,7 @@
 //! - Fallback to single-stream download when Range is not supported
 
 use crate::{
-    constants::{MAX_RECONNECT_ATTEMPTS, REFERER, SPEED_CHECK_SIZE, USER_AGENT},
+    constants::{MAX_RECONNECT_ATTEMPTS, MIN_SPEED_THRESHOLD, REFERER, SPEED_CHECK_SIZE, USER_AGENT},
     emits::Emits,
 };
 use anyhow::Result;
@@ -82,7 +82,6 @@ enum SpeedCheckResult {
 /// * `received` - Bytes received so far
 /// * `start_time` - When download started
 /// * `reconnect_attempt` - Current reconnect attempt count
-/// * `min_speed_threshold_bytes_per_sec` - Minimum speed threshold in bytes/sec (None = skip check)
 ///
 /// # Returns
 ///
@@ -93,15 +92,10 @@ fn check_initial_speed(
     received: u64,
     start_time: Instant,
     reconnect_attempt: u8,
-    min_speed_threshold_bytes_per_sec: Option<u64>,
 ) -> SpeedCheckResult {
     if received < SPEED_CHECK_SIZE {
         return SpeedCheckResult::InsufficientData;
     }
-
-    let Some(threshold) = min_speed_threshold_bytes_per_sec else {
-        return SpeedCheckResult::Acceptable;
-    };
 
     let elapsed = start_time.elapsed().as_secs_f64();
     if elapsed <= 0.0 {
@@ -109,7 +103,7 @@ fn check_initial_speed(
     }
 
     let speed = (received as f64 / elapsed) as u64;
-    if speed < threshold && reconnect_attempt < MAX_RECONNECT_ATTEMPTS {
+    if speed < MIN_SPEED_THRESHOLD && reconnect_attempt < MAX_RECONNECT_ATTEMPTS {
         return SpeedCheckResult::Slow;
     }
 
@@ -136,7 +130,6 @@ fn check_initial_speed(
 /// * `cookie` - Optional cookie header for authentication
 /// * `is_override` - Whether to overwrite existing files
 /// * `download_id` - Optional identifier for progress tracking
-/// * `min_speed_threshold_mb_s` - Minimum speed threshold in MB/s (None = skip speed check)
 ///
 /// # Returns
 ///
@@ -156,7 +149,6 @@ pub async fn download_url(
     cookie: Option<String>,
     is_override: bool,
     download_id: Option<String>,
-    min_speed_threshold_mb_s: Option<f64>,
 ) -> Result<()> {
     // File existence check
     if output_path.exists() {
@@ -171,10 +163,6 @@ pub async fn download_url(
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("download");
-
-    // Convert MB/s to bytes/sec for internal use
-    let min_speed_threshold_bytes_per_sec =
-        min_speed_threshold_mb_s.map(|mb_s| (mb_s * 1024.0 * 1024.0) as u64);
 
     let client = reqwest::Client::builder()
         .user_agent(USER_AGENT)
@@ -274,7 +262,6 @@ pub async fn download_url(
                             attempt,
                             MAX_SEG_RETRIES,
                             reconnect_attempt,
-                            min_speed_threshold_bytes_per_sec,
                             |chunk_len| {
                                 // Emit progress update via watch channel (non-blocking)
                                 // Note: Use relaxed ordering for progress tracking only
@@ -367,7 +354,6 @@ pub async fn download_url(
 /// * `attempt` - Current retry attempt number
 /// * `max_seg_retries` - Maximum number of retries allowed
 /// * `reconnect_attempt` - Current reconnect attempt due to slow speed
-/// * `min_speed_threshold_bytes_per_sec` - Minimum speed threshold (None = skip check)
 /// * `on_chunk_received` - Callback invoked when each chunk is received with the chunk size in bytes.
 ///   This callback is called for every chunk received, allowing the caller to track progress
 ///   and update download statistics in real-time.
@@ -387,7 +373,6 @@ async fn download_segment_with_speed_check(
     attempt: u8,
     max_seg_retries: u8,
     reconnect_attempt: u8,
-    min_speed_threshold_bytes_per_sec: Option<u64>,
     on_chunk_received: impl Fn(u64),
 ) -> Result<(Vec<u8>, u64, bool), bool> {
     let mut buf = Vec::with_capacity(size.min(8 * 1024 * 1024) as usize);
@@ -411,7 +396,6 @@ async fn download_segment_with_speed_check(
                         received,
                         start_time,
                         reconnect_attempt,
-                        min_speed_threshold_bytes_per_sec,
                     ) {
                         SpeedCheckResult::Slow => return Err(true), // Reconnect needed
                         SpeedCheckResult::Acceptable => speed_checked = true,
