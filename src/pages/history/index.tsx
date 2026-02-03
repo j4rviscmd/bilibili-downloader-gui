@@ -7,7 +7,7 @@ import HistoryList from '@/features/history/ui/HistoryList'
 import HistorySearch from '@/features/history/ui/HistorySearch'
 import { PageLayout } from '@/shared/layout'
 import { Button } from '@/shared/ui/button'
-import { save } from '@tauri-apps/plugin-dialog'
+import { confirm, save } from '@tauri-apps/plugin-dialog'
 import { writeTextFile } from '@tauri-apps/plugin-fs'
 import { FileText, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -65,8 +65,9 @@ function HistoryPage() {
    *
    * Shows a native confirm dialog before proceeding to prevent accidental deletion.
    */
-  const handleClearAll = () => {
-    if (confirm(t('history.deleteAllConfirm'))) {
+  const handleClearAll = async () => {
+    const confirmed = await confirm(t('history.deleteAllConfirm'))
+    if (confirmed) {
       clear()
     }
   }
