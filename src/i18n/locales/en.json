@@ -138,8 +138,6 @@
     "output_dir_button": "Select",
     "output_dir_changing": "Selecting...",
     "output_dir_dialog_title": "Select Output Directory",
-    "speed_threshold_label": "Speed Threshold (MB/s)",
-    "speed_threshold_description": "If initial download speed is below this threshold, the connection will be retried to get a faster CDN node. Default: 1.0 MB/s.",
     "auto_save_note": "Changes are saved automatically.",
     "dialog_title": "Settings",
     "save_success": "Settings saved",
@@ -175,10 +173,6 @@
     },
     "language": {
       "required": "Please select a language."
-    },
-    "speed_threshold": {
-      "too_low": "Speed threshold must be at least 0.1 MB/s.",
-      "too_high": "Speed threshold must be at most 100 MB/s."
     },
     "video": {
       "url": {

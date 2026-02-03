@@ -108,15 +108,6 @@ export const buildSettingsFormSchema = (t: TFunction) =>
     language: z.enum(['en', 'ja', 'fr', 'es', 'zh', 'ko'] as const, {
       message: t('validation.language.required'),
     }),
-    downloadSpeedThresholdMbps: z
-      .number()
-      .min(0.1, {
-        message: t('validation.speed_threshold.too_low'),
-      })
-      .max(100, {
-        message: t('validation.speed_threshold.too_high'),
-      })
-      .optional(),
     libPath: z
       .string()
       .max(1024, {
