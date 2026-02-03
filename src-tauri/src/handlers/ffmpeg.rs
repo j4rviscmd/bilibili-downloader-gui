@@ -105,16 +105,9 @@ pub async fn install_ffmpeg(app: &AppHandle) -> Result<bool> {
     };
     // ~/bilibili-downloader-gui/src-tauri/target/debug/lib/ffmpeg
     let archive_path = ffmpeg_root.join(filename);
-    if download_url(
-        app,
-        url.to_string(),
-        archive_path.clone(),
-        None,
-        true,
-        None,
-    )
-    .await
-    .is_err()
+    if download_url(app, url.to_string(), archive_path.clone(), None, true, None)
+        .await
+        .is_err()
     {
         return Ok(false);
     }
@@ -422,7 +415,11 @@ pub async fn merge_av(
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("output");
-    let emits = Emits::new(app.clone(), download_id.unwrap_or(filename.to_string()), None);
+    let emits = Emits::new(
+        app.clone(),
+        download_id.unwrap_or(filename.to_string()),
+        None,
+    );
     let _ = emits.set_stage("merge").await;
 
     let ffmpeg_path = get_ffmpeg_path(app);

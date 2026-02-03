@@ -256,9 +256,7 @@ pub async fn download_video(
     let bvid = bvid.to_string();
     let filename = filename.to_string();
     tokio::spawn(async move {
-        if let Err(e) =
-            save_to_history(&app, &bvid, quality, actual_file_size, &filename).await
-        {
+        if let Err(e) = save_to_history(&app, &bvid, quality, actual_file_size, &filename).await {
             eprintln!("Warning: Failed to save to history for {bvid}: {e}");
         }
     });

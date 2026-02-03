@@ -8,7 +8,9 @@
 //! - Fallback to single-stream download when Range is not supported
 
 use crate::{
-    constants::{MAX_RECONNECT_ATTEMPTS, MIN_SPEED_THRESHOLD, REFERER, SPEED_CHECK_SIZE, USER_AGENT},
+    constants::{
+        MAX_RECONNECT_ATTEMPTS, MIN_SPEED_THRESHOLD, REFERER, SPEED_CHECK_SIZE, USER_AGENT,
+    },
     emits::Emits,
 };
 use anyhow::Result;
@@ -392,11 +394,7 @@ async fn download_segment_with_speed_check(
 
                 // Perform speed check when enough data received
                 if !speed_checked && received >= SPEED_CHECK_SIZE {
-                    match check_initial_speed(
-                        received,
-                        start_time,
-                        reconnect_attempt,
-                    ) {
+                    match check_initial_speed(received, start_time, reconnect_attempt) {
                         SpeedCheckResult::Slow => return Err(true), // Reconnect needed
                         SpeedCheckResult::Acceptable => speed_checked = true,
                         SpeedCheckResult::InsufficientData => {}
