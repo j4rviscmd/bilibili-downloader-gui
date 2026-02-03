@@ -15,11 +15,8 @@ import { invoke } from '@tauri-apps/api/core'
  * console.log(settings.language) // 'en', 'ja', etc.
  * ```
  */
-export const callGetSettings = async () => {
-  const res = await invoke<Settings>('get_settings')
-
-  return res
-}
+export const callGetSettings = async (): Promise<Settings> =>
+  invoke<Settings>('get_settings')
 
 /**
  * Persists application settings to the Tauri backend.
@@ -36,11 +33,8 @@ export const callGetSettings = async () => {
  * await callSetSettings({ dlOutputPath: '/downloads', language: 'en' })
  * ```
  */
-export const callSetSettings = async (settings: Settings) => {
-  const res = await invoke('set_settings', { settings })
-
-  return res
-}
+export const callSetSettings = async (settings: Settings): Promise<void> =>
+  invoke('set_settings', { settings })
 
 /**
  * Updates the library storage path and moves ffmpeg to the new location.
@@ -59,11 +53,8 @@ export const callSetSettings = async (settings: Settings) => {
  * // This will move ffmpeg to '/Volumes/ExternalDrive/MyLib/lib/'
  * ```
  */
-export const callUpdateLibPath = async (newPath: string) => {
-  const res = await invoke('update_lib_path', { newPath })
-
-  return res
-}
+export const callUpdateLibPath = async (newPath: string): Promise<void> =>
+  invoke('update_lib_path', { newPath })
 
 /**
  * Retrieves the current library path.
@@ -79,8 +70,5 @@ export const callUpdateLibPath = async (newPath: string) => {
  * console.log(libPath) // '/Users/xxx/Library/Application Support/com.bilibili.downloader/lib'
  * ```
  */
-export const callGetCurrentLibPath = async () => {
-  const res = await invoke<string>('get_current_lib_path')
-
-  return res
-}
+export const callGetCurrentLibPath = async (): Promise<string> =>
+  invoke<string>('get_current_lib_path')
