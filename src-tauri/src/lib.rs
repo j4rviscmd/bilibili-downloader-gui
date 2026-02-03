@@ -57,14 +57,16 @@ pub mod utils;
 /// Panics if the Tauri application fails to run.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    // Build Tauri builder with plugins
+    // Window state plugin is only enabled in release builds to prevent
+    // window position restoration during development
+    let mut builder = tauri::Builder::default()
         // .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
         //     let _ = app
         //         .get_webview_window("main")
         //         .expect("no main window")
         //         .set_focus();
         // }))
-        .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_shell::init())
@@ -113,7 +115,15 @@ pub fn run() {
                 window.open_devtools();
             }
             Ok(())
-        })
+        });
+
+    // Add window state plugin only in release builds
+    #[cfg(not(debug_assertions))]
+    {
+        builder = builder.plugin(tauri_plugin_window_state::Builder::new().build());
+    }
+
+    builder
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
