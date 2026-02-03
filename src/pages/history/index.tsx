@@ -66,8 +66,7 @@ function HistoryPage() {
    * Shows a native confirm dialog before proceeding to prevent accidental deletion.
    */
   const handleClearAll = async () => {
-    const confirmed = await confirm(t('history.deleteAllConfirm'))
-    if (confirmed) {
+    if (await confirm(t('history.deleteAllConfirm'))) {
       clear()
     }
   }
