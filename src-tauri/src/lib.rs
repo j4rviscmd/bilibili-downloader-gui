@@ -60,7 +60,7 @@ pub fn run() {
     // Build Tauri builder with plugins
     // Window state plugin is only enabled in release builds to prevent
     // window position restoration during development
-    let builder = tauri::Builder::default()
+    let mut builder = tauri::Builder::default()
         // .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
         //     let _ = app
         //         .get_webview_window("main")
@@ -119,7 +119,9 @@ pub fn run() {
 
     // Add window state plugin only in release builds
     #[cfg(not(debug_assertions))]
-    let builder = builder.plugin(tauri_plugin_window_state::Builder::new().build());
+    {
+        builder = builder.plugin(tauri_plugin_window_state::Builder::new().build());
+    }
 
     builder
         .run(tauri::generate_context!())
