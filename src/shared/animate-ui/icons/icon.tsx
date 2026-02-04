@@ -128,7 +128,6 @@ function AnimateIcon({
   React.useEffect(() => {
     currentAnimation.current = typeof animate === 'string' ? animate : animation
     setLocalAnimate(!!animate)
-     
   }, [animate])
 
   React.useEffect(

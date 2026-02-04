@@ -51,7 +51,6 @@ function InitPage() {
     }
 
     runInit()
-     
   }, [])
 
   return (
