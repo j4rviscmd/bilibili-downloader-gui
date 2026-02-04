@@ -238,25 +238,16 @@ export const useInit = () => {
    * Firefox browser. If valid cookies are found, they are cached in the
    * backend for subsequent API requests.
    *
-   * Note: Currently returns true even on failure for graceful degradation.
+   * Note: Always returns true to allow non-logged-in users to proceed.
    *
-   * @returns True if cookies are valid or not required, false otherwise.
+   * @returns True to continue initialization.
    */
   const checkCookie = async (): Promise<boolean> => {
-    let res = false
+    // Cookieチェック（詳細な結果は非表示）
+    // 設定取得と同じメッセージを使用して、進行中であることを示す
+    await invoke('get_cookie')
 
-    // Cookieの有効性チェック
-    // 有効な場合、アプリメモリに保存(By backend) & ログインユーザ名の取得
-    const isValid = await invoke('get_cookie')
-    if (isValid) {
-      setMessage(t('init.cookie_success'))
-      res = true
-    } else {
-      setMessage(t('init.cookie_failed'))
-      res = true
-    }
-
-    return res
+    return true
   }
 
   /**
