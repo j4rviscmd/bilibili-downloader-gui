@@ -2,6 +2,13 @@ import type { TFunction } from 'i18next'
 import z from 'zod'
 
 /**
+ * Adds a validation issue to the context.
+ */
+const addIssue = (ctx: z.RefinementCtx, message: string) => {
+  ctx.addIssue({ code: 'custom', message })
+}
+
+/**
  * Validates a file system path for OS-specific constraints.
  *
  * Performs comprehensive validation including:
@@ -14,80 +21,61 @@ function refinePath(value: string, ctx: z.RefinementCtx, t: TFunction) {
   // Reject control characters (0x00-0x1F)
   // eslint-disable-next-line no-control-regex
   if (/[\x00-\x1F]/.test(value)) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: t('validation.path.control_chars'),
-    })
-    return
+    return addIssue(ctx, t('validation.path.control_chars'))
   }
 
   const endsWithSpaceOrDot = /[ .]$/.test(value)
-  const isWindowsStyle =
-    /^[A-Za-z]:\\/.test(value) ||
-    value.startsWith('\\\\') ||
-    value.includes('\\')
+  const isWindowsStyle = /^[A-Za-z]:|\\\\|\\/.test(value)
   const isPosixStyle = value.startsWith('/')
 
   if (isWindowsStyle) {
-    // Colons only allowed at position 1 (drive letter)
-    const colonIndexes = [...value]
-      .map((c, i) => (c === ':' ? i : -1))
-      .filter((i) => i !== -1)
-    if (colonIndexes.some((i) => i !== 1)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: t('validation.path.windows.colon'),
-      })
-    }
-    // Invalid Windows characters
-    if (/[<>"|?*]/.test(value)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: t('validation.path.windows.invalid_chars'),
-      })
-    }
-    // Segment trailing space/dot check
-    const segments = value.split(/\\+/)
-    if (segments.some((seg) => seg !== '' && /[ .]$/.test(seg))) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: t('validation.path.windows.segment_trailing'),
-      })
-    }
-    // Path trailing space/dot check
-    if (endsWithSpaceOrDot) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: t('validation.path.windows.path_trailing'),
-      })
-    }
-    // Reserved names (CON, PRN, AUX, NUL, COM1-9, LPT1-9)
-    const reserved = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i
-    if (segments.some((seg) => reserved.test(seg))) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: t('validation.path.windows.reserved'),
-      })
-    }
+    validateWindowsPath(value, ctx, t, endsWithSpaceOrDot)
+  } else if (isPosixStyle && value.includes('\0')) {
+    addIssue(ctx, t('validation.path.invalid'))
+  } else if (/[<>"|?*]/.test(value)) {
+    // Unknown path style - check for invalid chars
+    addIssue(ctx, t('validation.path.invalid_chars'))
+  }
+}
+
+/**
+ * Validates Windows-specific path constraints.
+ */
+function validateWindowsPath(
+  value: string,
+  ctx: z.RefinementCtx,
+  t: TFunction,
+  endsWithSpaceOrDot: boolean,
+) {
+  // Colons only allowed at position 1 (drive letter)
+  const invalidColonIndex = [...value].findIndex((c, i) => c === ':' && i !== 1)
+  if (invalidColonIndex !== -1) {
+    addIssue(ctx, t('validation.path.windows.colon'))
   }
 
-  if (isPosixStyle) {
-    if (value.includes('\0')) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: t('validation.path.invalid'),
-      })
-    }
+  // Invalid Windows characters
+  if (/[<>"|?*]/.test(value)) {
+    addIssue(ctx, t('validation.path.windows.invalid_chars'))
   }
 
-  // Unknown path style - check for invalid chars
-  if (!isWindowsStyle && !isPosixStyle) {
-    if (/[<>"|?*]/.test(value)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: t('validation.path.invalid_chars'),
-      })
-    }
+  // Segment trailing space/dot check
+  const segments = value.split(/\\+/)
+  const hasInvalidSegment = segments.some(
+    (seg) => seg !== '' && /[ .]$/.test(seg),
+  )
+  if (hasInvalidSegment) {
+    addIssue(ctx, t('validation.path.windows.segment_trailing'))
+  }
+
+  // Path trailing space/dot check
+  if (endsWithSpaceOrDot) {
+    addIssue(ctx, t('validation.path.windows.path_trailing'))
+  }
+
+  // Reserved names (CON, PRN, AUX, NUL, COM1-9, LPT1-9)
+  const reserved = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i
+  if (segments.some((seg) => reserved.test(seg))) {
+    addIssue(ctx, t('validation.path.windows.reserved'))
   }
 }
 
@@ -142,6 +130,7 @@ export const buildSettingsFormSchema = (t: TFunction) =>
  *
  * @deprecated Use buildSettingsFormSchema with useTranslation hook instead
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const fallbackT: TFunction = ((key: unknown, defaultValue?: unknown) =>
   typeof defaultValue === 'string' ? defaultValue : String(key)) as TFunction
 export const formSchema = buildSettingsFormSchema(fallbackT)

@@ -18,8 +18,4 @@ import { invoke } from '@tauri-apps/api/core'
  * }
  * ```
  */
-export const fetchUser = async (): Promise<User> => {
-  const user = await invoke<User>('fetch_user')
-
-  return user
-}
+export const fetchUser = (): Promise<User> => invoke<User>('fetch_user')

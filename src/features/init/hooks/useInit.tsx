@@ -96,43 +96,61 @@ export const useInit = () => {
     // Fire & forget OS detection (don't await)
     getOs().then((os) => console.log('Detected OS:', os))
 
-    let resCode = 255
-    const isValidVersion = await checkVersion()
-    if (isValidVersion) {
-      const settings = await getAppSettings()
-      // Apply language setting (delayed after main.tsx initialization)
-      if (settings?.language) {
-        try {
-          if ((await import('@/i18n')).default.language !== settings.language) {
-            setMessage(t('init.applying_language', { lang: settings.language }))
-            await changeLanguage(settings.language)
-            setMessage(t('init.applied_language', { lang: settings.language }))
-            // No sleep - language should be reflected immediately
-          }
-        } catch (e) {
-          console.warn('Failed to apply language setting', e)
-        }
-      }
-      const isValidFfmpeg = await checkFfmpeg()
-      if (isValidFfmpeg) {
-        // Cookie check (continue for non-logged-in users even without cookie)
-        await checkCookie()
-        // Fetch user info and store in Redux (hasCookie=false if no cookie)
-        await getUserInfo()
-        // Success regardless of cookie presence
-        resCode = 0
-      } else {
-        resCode = 1
-      }
-    } else {
-      resCode = 5
+    // Early exit on version check failure
+    if (!(await checkVersion())) {
+      await finalizeInit(5)
+      return 5
     }
 
+    const settings = await getAppSettings()
+    await applyLanguageSetting(settings?.language)
+
+    // Early exit on ffmpeg check failure
+    if (!(await checkFfmpeg())) {
+      await finalizeInit(1)
+      return 1
+    }
+
+    // Cookie check (continue for non-logged-in users even without cookie)
+    await checkCookie()
+    // Fetch user info and store in Redux (hasCookie=false if no cookie)
+    await getUserInfo()
+
+    await finalizeInit(0)
+    return 0
+  }
+
+  /**
+   * Finalizes initialization by setting flag and sleeping briefly.
+   */
+  const finalizeInit = async (code: number): Promise<void> => {
     await sleep(500)
     setInitiated(true)
-    console.log('Application initialization completed')
+    console.log('Application initialization completed with code:', code)
+  }
 
-    return resCode
+  /**
+   * Applies language setting if different from current.
+   */
+  const applyLanguageSetting = async (
+    language: string | undefined,
+  ): Promise<void> => {
+    if (!language) return
+
+    try {
+      const i18n = (await import('@/i18n')).default
+      if (i18n.language !== language) {
+        setMessage(t('init.applying_language', { lang: language }))
+        // Type guard: ensure language is a SupportedLang
+        const supportedLangs = ['en', 'ja', 'fr', 'es', 'zh', 'ko'] as const
+        if (supportedLangs.includes(language as any)) {
+          await changeLanguage(language as any)
+          setMessage(t('init.applied_language', { lang: language }))
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to apply language setting', e)
+    }
   }
 
   /**

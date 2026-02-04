@@ -26,25 +26,14 @@ import { setUser } from '@/features/user/userSlice'
 export const useUser = () => {
   const user = useSelector((state) => state.user)
 
-  /**
-   * Updates the user state in Redux.
-   *
-   * @param user - The new user object
-   */
-  const onChangeUser = (user: User) => {
-    store.dispatch(setUser(user))
-  }
-
-  /**
-   * Fetches user information from Bilibili and updates Redux state.
-   *
-   * @returns The fetched user object
-   */
   const getUserInfo = async (): Promise<User> => {
     const res = await fetchUser()
-    onChangeUser(res)
-
+    store.dispatch(setUser(res))
     return res
+  }
+
+  const onChangeUser = (user: User) => {
+    store.dispatch(setUser(user))
   }
 
   return {
