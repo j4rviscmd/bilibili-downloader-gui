@@ -111,10 +111,10 @@ export function PageLayout({
         </Sidebar>
         <SidebarInset>
           <div className="flex h-full w-full flex-col">
-            <header className="bg-accent flex">
+            <header className="bg-accent flex shadow-md">
               <SidebarTrigger
                 size="lg"
-                className="h-full shrink-0 cursor-pointer shadow-md"
+                className="h-full shrink-0 cursor-pointer"
               />
               <AppBar user={user} theme={theme} setTheme={setTheme} />
             </header>

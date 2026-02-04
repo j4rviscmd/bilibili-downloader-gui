@@ -56,7 +56,7 @@ function AppBar({ user, theme, setTheme }: Props) {
   const maskedUserName = isLoggedIn ? maskUserName(userName) : ''
 
   return (
-    <div className="bg-accent box-border flex h-9 w-full items-center justify-between px-3 shadow-md sm:mx-auto sm:max-w-7xl sm:px-6">
+    <div className="bg-accent box-border flex h-9 w-full items-center justify-between px-3 sm:mx-auto sm:max-w-7xl sm:px-6">
       <div>
         <span className="text-muted-foreground">
           {t('app.logged_in_user')}:
