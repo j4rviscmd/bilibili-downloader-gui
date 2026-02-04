@@ -3,6 +3,8 @@ import {
   type SupportedLang,
 } from '@/i18n'
 
+export type { SupportedLang }
+
 /**
  * Changes the application language.
  *

@@ -130,7 +130,6 @@ export const buildSettingsFormSchema = (t: TFunction) =>
  *
  * @deprecated Use buildSettingsFormSchema with useTranslation hook instead
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const fallbackT: TFunction = ((key: unknown, defaultValue?: unknown) =>
   typeof defaultValue === 'string' ? defaultValue : String(key)) as TFunction
 export const formSchema = buildSettingsFormSchema(fallbackT)

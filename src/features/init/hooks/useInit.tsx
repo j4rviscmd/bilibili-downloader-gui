@@ -5,7 +5,10 @@ import {
 } from '@/features/init/model/initSlice'
 import { useSettings } from '@/features/settings/useSettings'
 import { useUser } from '@/features/user/useUser'
-import { changeLanguage } from '@/shared/i18n'
+import {
+  changeLanguage,
+  type SupportedLang,
+} from '@/shared/i18n'
 import { sleep } from '@/shared/lib/utils'
 import { getOs } from '@/shared/os/api/getOs'
 import { invoke } from '@tauri-apps/api/core'
@@ -50,6 +53,13 @@ export const useInit = () => {
   const processingFnc = useSelector(
     (state: RootState) => state.init.processingFnc,
   )
+
+  /**
+   * Type guard to check if a string is a supported language.
+   */
+  const isSupportedLang = (lang: string): lang is SupportedLang => {
+    return ['en', 'ja', 'fr', 'es', 'zh', 'ko'].includes(lang)
+  }
 
   /**
    * Sets the initialization completion flag.
@@ -142,9 +152,8 @@ export const useInit = () => {
       if (i18n.language !== language) {
         setMessage(t('init.applying_language', { lang: language }))
         // Type guard: ensure language is a SupportedLang
-        const supportedLangs = ['en', 'ja', 'fr', 'es', 'zh', 'ko'] as const
-        if (supportedLangs.includes(language as any)) {
-          await changeLanguage(language as any)
+        if (isSupportedLang(language)) {
+          await changeLanguage(language)
           setMessage(t('init.applied_language', { lang: language }))
         }
       }
