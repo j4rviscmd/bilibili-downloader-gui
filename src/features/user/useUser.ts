@@ -8,7 +8,7 @@ import { setUser } from '@/features/user/userSlice'
  *
  * Provides access to the current user information and methods to
  * fetch and update it. The user data includes login status, username,
- * and WBI signature data.
+ * and cookie availability status.
  *
  * @returns User state and mutation methods
  *
@@ -18,7 +18,7 @@ import { setUser } from '@/features/user/userSlice'
  *
  * // Fetch user info
  * const userData = await getUserInfo()
- * if (userData?.data.isLogin) {
+ * if (userData.hasCookie && userData.data.isLogin) {
  *   console.log('User:', userData.data.uname)
  * }
  * ```
@@ -38,18 +38,13 @@ export const useUser = () => {
   /**
    * Fetches user information from Bilibili and updates Redux state.
    *
-   * @returns The fetched user object or null if unavailable
+   * @returns The fetched user object
    */
-  const getUserInfo = async (): Promise<User | null> => {
+  const getUserInfo = async (): Promise<User> => {
     const res = await fetchUser()
-    if (res) {
-      // console.log('user')
-      // console.log(JSON.stringify(res, null, 2))
-      onChangeUser(res)
+    onChangeUser(res)
 
-      return res
-    }
-    return null
+    return res
   }
 
   return {

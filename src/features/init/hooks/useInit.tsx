@@ -95,29 +95,19 @@ export const useInit = () => {
     console.log('Application initialization started')
     // Fire & forget OS detection (don't await)
     getOs().then((os) => console.log('Detected OS:', os))
-    /*
-     * 返却コード一覧
-     *  0: 正常終了
-     *  1: ffmpegのチェック失敗
-     *  2: Cookieのチェック失敗
-     *  3: ユーザ情報の取得失敗(未ログイン)
-     *  4: ユーザ情報の取得失敗(未ログイン以外)
-     *  5: アプリバージョンのチェック失敗
-     *  255: 想定外エラー
-     */
+
     let resCode = 255
     const isValidVersion = await checkVersion()
     if (isValidVersion) {
       const settings = await getAppSettings()
-      // 設定言語適用（main.tsx 初期化後に遅延適用する）
+      // Apply language setting (delayed after main.tsx initialization)
       if (settings?.language) {
         try {
           if ((await import('@/i18n')).default.language !== settings.language) {
             setMessage(t('init.applying_language', { lang: settings.language }))
             await changeLanguage(settings.language)
             setMessage(t('init.applied_language', { lang: settings.language }))
-            // 言語は即反映したいので`sleep`させない
-            // await sleep(500)
+            // No sleep - language should be reflected immediately
           }
         } catch (e) {
           console.warn('Failed to apply language setting', e)
@@ -125,18 +115,12 @@ export const useInit = () => {
       }
       const isValidFfmpeg = await checkFfmpeg()
       if (isValidFfmpeg) {
-        const isValidCookie = await checkCookie()
-        if (isValidCookie) {
-          // Cookieよりユーザ情報を取得
-          const user = await getUserInfo()
-          if (user && user.data.isLogin) {
-            resCode = 0
-          } else {
-            resCode = 3
-          }
-        } else {
-          resCode = 2
-        }
+        // Cookie check (continue for non-logged-in users even without cookie)
+        await checkCookie()
+        // Fetch user info and store in Redux (hasCookie=false if no cookie)
+        await getUserInfo()
+        // Success regardless of cookie presence
+        resCode = 0
       } else {
         resCode = 1
       }
@@ -206,7 +190,7 @@ export const useInit = () => {
    * false if update check fails.
    */
   const checkVersion = async (): Promise<boolean> => {
-    // 開発環境ではアップデートチェックをスキップ
+    // Skip update check in development
     if (import.meta.env.DEV) {
       setMessage(t('init.dev_skip_version'))
       return true
@@ -216,12 +200,12 @@ export const useInit = () => {
     try {
       const update = await checkUpdate()
       if (!update) {
-        // すでに最新
+        // Already up to date
         setMessage(t('init.latest_version'))
         return true
       }
 
-      // 強制アップデートを実施
+      // Perform forced update
       const ver = update.version ?? 'latest'
       setMessage(t('init.downloading_update', { ver }))
       await update.downloadAndInstall()
@@ -244,25 +228,15 @@ export const useInit = () => {
    * Firefox browser. If valid cookies are found, they are cached in the
    * backend for subsequent API requests.
    *
-   * Note: Currently returns true even on failure for graceful degradation.
+   * Note: Always returns true to allow non-logged-in users to proceed.
    *
-   * @returns True if cookies are valid or not required, false otherwise.
+   * @returns True to continue initialization.
    */
   const checkCookie = async (): Promise<boolean> => {
-    let res = false
+    // Cookie check (detailed results hidden - use generic progress message)
+    await invoke('get_cookie')
 
-    // Cookieの有効性チェック
-    // 有効な場合、アプリメモリに保存(By backend) & ログインユーザ名の取得
-    const isValid = await invoke('get_cookie')
-    if (isValid) {
-      setMessage(t('init.cookie_success'))
-      res = true
-    } else {
-      setMessage(t('init.cookie_failed'))
-      res = true
-    }
-
-    return res
+    return true
   }
 
   /**

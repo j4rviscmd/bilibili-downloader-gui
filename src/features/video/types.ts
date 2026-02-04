@@ -38,6 +38,8 @@ export type Video = {
   bvid: string
   /** List of video parts (episodes) */
   parts: VideoPart[]
+  /** Indicates whether quality options are limited due to missing cookies */
+  isLimitedQuality: boolean
 }
 
 /**

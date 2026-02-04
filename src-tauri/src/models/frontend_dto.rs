@@ -9,10 +9,14 @@ use serde::{Deserialize, Serialize};
 ///
 /// Contains authentication status and basic profile information.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct User {
     pub code: i32,
     pub message: String,
     pub data: UserData,
+    /// Indicates whether valid Bilibili cookies are available
+    #[serde(default)]
+    pub has_cookie: bool,
 }
 
 /// User profile data portion of the User structure.
@@ -32,6 +36,7 @@ pub struct UserData {
 ///
 /// Contains complete video information including all parts and quality options.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Video {
     /// Video title
     pub title: String,
@@ -39,21 +44,23 @@ pub struct Video {
     pub bvid: String,
     /// List of video parts (for multi-part videos)
     pub parts: Vec<VideoPart>,
+    /// Indicates whether quality options are limited due to missing cookies
+    #[serde(default)]
+    pub is_limited_quality: bool,
 }
 
 /// Individual video part with quality and metadata information.
 ///
 /// Represents a single part of a potentially multi-part video.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct VideoPart {
     pub cid: i64,
     pub page: i32,
     pub part: String,
     pub duration: i64,
     pub thumbnail: Thumbnail,
-    #[serde(rename = "videoQualities")]
     pub video_qualities: Vec<Quality>,
-    #[serde(rename = "audioQualities")]
     pub audio_qualities: Vec<Quality>,
 }
 /// Thumbnail information including both URL and Base64-encoded data.

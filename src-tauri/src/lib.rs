@@ -27,6 +27,7 @@ pub mod handlers;
 pub mod models;
 pub mod store;
 pub mod utils;
+pub use utils::wbi;
 
 /// Initializes and runs the Tauri application.
 ///
@@ -204,7 +205,8 @@ async fn get_cookie(app: AppHandle) -> Result<bool, String> {
 /// Fetches the logged-in user information from Bilibili.
 ///
 /// This command retrieves the current user's profile information using
-/// cached cookies. Returns `None` if no valid cookies are available.
+/// cached cookies. Returns a User object with `has_cookie` indicating
+/// whether valid cookies are available.
 ///
 /// # Arguments
 ///
@@ -212,16 +214,16 @@ async fn get_cookie(app: AppHandle) -> Result<bool, String> {
 ///
 /// # Returns
 ///
-/// Returns `Ok(Some(User))` if user information was successfully retrieved,
-/// `Ok(None)` if no valid cookies are available.
+/// Returns a User object with user profile data if cookies are available,
+/// or a User object with `has_cookie: false` if no cookies are found.
 ///
 /// # Errors
 ///
 /// Returns an error if:
-/// - The API request fails
-/// - Response parsing fails
+/// - The API request fails (when cookies are available)
+/// - Response parsing fails (when cookies are available)
 #[tauri::command]
-async fn fetch_user(app: AppHandle) -> Result<Option<User>, String> {
+async fn fetch_user(app: AppHandle) -> Result<User, String> {
     // firefoxのCookie取得処理
     let user = bilibili::fetch_user_info(&app)
         .await

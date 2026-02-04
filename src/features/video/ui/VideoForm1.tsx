@@ -1,8 +1,10 @@
+import type { RootState } from '@/app/store'
 import { useVideoInfo } from '@/features/video/hooks/useVideoInfo'
 import {
   buildVideoFormSchema1,
   formSchema1,
 } from '@/features/video/lib/formSchema'
+import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import {
   Form,
   FormControl,
@@ -14,10 +16,12 @@ import {
 } from '@/shared/ui/form'
 import { Input } from '@/shared/ui/input'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Loader2 } from 'lucide-react'
+import { open } from '@tauri-apps/plugin-shell'
+import { AlertTriangle, Info, Loader2 } from 'lucide-react'
 import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+import { useSelector } from 'react-redux'
 import { z } from 'zod'
 
 /**
@@ -35,6 +39,7 @@ import { z } from 'zod'
 function VideoForm1() {
   const { input, onValid1, isFetching } = useVideoInfo()
   const { t } = useTranslation()
+  const user = useSelector((state: RootState) => state.user)
 
   const schema1 = buildVideoFormSchema1(t)
 
@@ -63,6 +68,44 @@ function VideoForm1() {
         onBlur={form.handleSubmit(onSubmit)}
         className="space-y-3"
       >
+        {/* Cookie Status Badge */}
+        {!user.hasCookie && (
+          <div className="bg-muted mb-4 flex items-center gap-2 rounded-md px-3 py-2 text-sm">
+            <Info className="text-muted-foreground h-4 w-4" />
+            <span className="text-muted-foreground">
+              {t('user.cookie_missing')}
+            </span>
+          </div>
+        )}
+
+        {/* Quality Limit Warning for Non-logged-in Users */}
+        {user.hasCookie && !user.data.isLogin && (
+          <Alert variant="warning" className="mb-4">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>{t('video.quality_limited_title')}</AlertTitle>
+            <AlertDescription>
+              <p className="inline">
+                {t('video.quality_limited_description')}{' '}
+                <a
+                  href="#"
+                  className="font-medium underline hover:text-amber-700 dark:hover:text-amber-300"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    open('https://www.bilibili.com').catch(console.error)
+                  }}
+                >
+                  {t('video.quality_limited_link')}
+                </a>
+                {t('video.quality_limited_link_suffix')}
+              </p>
+              <p className="text-xs">
+                {t('video.quality_limited_restart_note')}
+              </p>
+            </AlertDescription>
+          </Alert>
+        )}
+
         <FormField
           control={form.control}
           name="url"
