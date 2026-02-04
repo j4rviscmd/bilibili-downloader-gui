@@ -329,10 +329,10 @@ async fn save_to_history(
         .unwrap_or_default()
         .as_millis();
     let id = format!("{}_{}", bvid, timestamp_ms);
-
     let downloaded_at = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
 
-    let entry = HistoryEntry {
+    let store = HistoryStore::new(app)?;
+    store.add_entry(HistoryEntry {
         id: id.clone(),
         title,
         url: format!("https://www.bilibili.com/video/{}", bvid),
@@ -342,10 +342,7 @@ async fn save_to_history(
         quality: Some(quality_to_string(&quality)),
         thumbnail_url,
         version: "1.0".to_string(),
-    };
-
-    let store = HistoryStore::new(app)?;
-    store.add_entry(entry)?;
+    })?;
 
     eprintln!("History entry saved: {}", id);
     Ok(())
@@ -364,14 +361,15 @@ async fn save_to_history(
 /// Human-readable quality string (e.g., "1080P60")
 fn quality_to_string(quality: &i32) -> String {
     match quality {
-        116 => "4K".to_string(),
-        112 => "1080P60".to_string(),
-        80 => "1080P".to_string(),
-        64 => "720P".to_string(),
-        32 => "480P".to_string(),
-        16 => "360P".to_string(),
-        _ => format!("Q{}", quality),
+        116 => "4K",
+        112 => "1080P60",
+        80 => "1080P",
+        64 => "720P",
+        32 => "480P",
+        16 => "360P",
+        _ => return format!("Q{quality}"),
     }
+    .to_string()
 }
 
 /// Fetches video title for history entry (returns None on failure).
@@ -402,7 +400,6 @@ async fn fetch_video_info_for_history(
         .await
         .ok()
         .and_then(|body| {
-            // dataフィールドが存在しない場合はNoneを返す
             let data = body.data?;
             let thumbnail_url = if data.pic.is_empty() {
                 None
@@ -432,14 +429,10 @@ async fn fetch_video_info_for_history(
 /// - HTTP request fails (when cookies are available)
 /// - Response JSON parsing fails (when cookies are available)
 pub async fn fetch_user_info(app: &AppHandle) -> Result<User, String> {
-    // 1) メモリキャッシュから Cookie を取得（Cookieがなくても継続）
     let cookies = read_cookie(app)?.unwrap_or_default();
-
-    // 2) bilibili 用 Cookie ヘッダを構築
     let cookie_header = build_cookie_header(&cookies);
     let has_cookie = !cookie_header.is_empty();
 
-    // Cookieがない場合はhas_cookie=falseのUserを返す
     if !has_cookie {
         return Ok(User {
             code: 0,
@@ -452,9 +445,7 @@ pub async fn fetch_user_info(app: &AppHandle) -> Result<User, String> {
         });
     }
 
-    // 3) リクエスト送信（Cookie ヘッダを付与）
     let client = build_client()?;
-
     let body = client
         .get("https://api.bilibili.com/x/web-interface/nav")
         .header(header::COOKIE, cookie_header)

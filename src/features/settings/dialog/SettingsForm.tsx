@@ -59,8 +59,7 @@ function SettingsForm() {
   useEffect(() => {
     const fetchCurrentLibPath = async () => {
       try {
-        const path = await callGetCurrentLibPath()
-        setCurrentLibPath(path)
+        setCurrentLibPath(await callGetCurrentLibPath())
       } catch (error) {
         console.error('Failed to get current lib path:', error)
         setCurrentLibPath(t('settings.lib_path_error'))
@@ -72,15 +71,14 @@ function SettingsForm() {
 
   // Handle lib path change
   const handleLibPathChange = async () => {
+    setIsUpdatingLibPath(true)
     try {
-      setIsUpdatingLibPath(true)
       const selected = await open({
         directory: true,
         multiple: false,
         title: t('settings.lib_path_dialog_title'),
         defaultPath: currentLibPath || undefined,
       })
-
       if (selected) {
         // Backend will append /lib to the selected path
         await updateLibPath(selected)
@@ -94,15 +92,14 @@ function SettingsForm() {
 
   // Handle dl output path change
   const handleDlOutputPathChange = async () => {
+    setIsUpdatingDlOutputPath(true)
     try {
-      setIsUpdatingDlOutputPath(true)
       const selected = await open({
         directory: true,
         multiple: false,
         title: t('settings.output_dir_dialog_title'),
         defaultPath: settings.dlOutputPath || undefined,
       })
-
       if (selected) {
         form.setValue('dlOutputPath', selected, {
           shouldDirty: true,
