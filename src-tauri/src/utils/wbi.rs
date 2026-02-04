@@ -79,26 +79,24 @@ pub fn generate_wbi_signature(
     params: &mut BTreeMap<String, String>,
     mixin_key: &str,
 ) -> Result<WbiSignature, String> {
-    // 1. Add timestamp to parameters
     let wts = chrono::Utc::now().timestamp();
     params.insert("wts".to_string(), wts.to_string());
 
-    // 2. Sort parameters and concatenate
+    // Sort parameters and concatenate
     let query_string = params
         .iter()
-        .map(|(k, v)| format!("{}={}", k, v))
+        .map(|(k, v)| format!("{k}={v}"))
         .collect::<Vec<_>>()
         .join("&");
 
-    // 3. Append MixinKey and create HMAC-SHA256 hash
-    let sign_input = format!("{}{}", query_string, mixin_key);
-
+    // Append MixinKey and create HMAC-SHA256 hash
     let mut mac = <Hmac<Sha256> as KeyInit>::new_from_slice(mixin_key.as_bytes())
-        .map_err(|e| format!("Failed to create HMAC: {}", e))?;
-    mac.update(sign_input.as_bytes());
+        .map_err(|e| format!("Failed to create HMAC: {e}"))?;
+    mac.update(query_string.as_bytes());
+    mac.update(mixin_key.as_bytes());
     let hash = mac.finalize().into_bytes();
 
-    // 4. Base64 encode and take first 32 characters
+    // Base64 encode and take first 32 characters
     let w_rid = base64::engine::general_purpose::STANDARD
         .encode(&hash[..])
         .chars()
