@@ -125,19 +125,12 @@ export const useInit = () => {
       }
       const isValidFfmpeg = await checkFfmpeg()
       if (isValidFfmpeg) {
-        const isValidCookie = await checkCookie()
-        if (isValidCookie) {
-          // Cookieよりユーザ情報を取得
-          const user = await getUserInfo()
-          // Cookieがあれば正常終了（ログイン状態は問わない）
-          if (user.hasCookie) {
-            resCode = 0
-          } else {
-            resCode = 3
-          }
-        } else {
-          resCode = 2
-        }
+        // Cookieチェック（非ログインユーザ対応：Cookieがなくても続行）
+        await checkCookie()
+        // ユーザ情報を取得（Cookieがない場合はhasCookie=false）
+        const user = await getUserInfo()
+        // Cookieの有無に関わらず正常終了
+        resCode = 0
       } else {
         resCode = 1
       }
