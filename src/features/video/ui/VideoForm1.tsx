@@ -85,22 +85,23 @@ function VideoForm1() {
           <Alert variant="warning" className="mb-4">
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>{t('video.quality_limited_title')}</AlertTitle>
-            <AlertDescription>
-              {t('video.quality_limited_description')}
-              {' '}
-              <a
-                href="https://www.bilibili.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline font-medium hover:text-amber-700 dark:hover:text-amber-300"
-                onClick={(e) => {
-                  e.preventDefault()
-                  open('https://www.bilibili.com').catch(console.error)
-                }}
-              >
-                {t('video.quality_limited_link')}
-              </a>
-              {t('video.quality_limited_link_suffix')}
+            <AlertDescription className="space-y-0">
+              <span className="inline">
+                {t('video.quality_limited_description')}
+                {' '}
+                <a
+                  href="#"
+                  className="underline font-medium hover:text-amber-700 dark:hover:text-amber-300"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    open('https://www.bilibili.com').catch(console.error)
+                  }}
+                >
+                  {t('video.quality_limited_link')}
+                </a>
+                {t('video.quality_limited_link_suffix')}
+              </span>
             </AlertDescription>
           </Alert>
         )}
