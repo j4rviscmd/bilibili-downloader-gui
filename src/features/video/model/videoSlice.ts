@@ -6,6 +6,7 @@ const initialState: Video = {
   title: '',
   bvid: '',
   parts: [],
+  isLimitedQuality: false,
 }
 
 /**

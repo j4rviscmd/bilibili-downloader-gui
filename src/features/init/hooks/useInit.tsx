@@ -129,7 +129,8 @@ export const useInit = () => {
         if (isValidCookie) {
           // Cookieよりユーザ情報を取得
           const user = await getUserInfo()
-          if (user && user.data.isLogin) {
+          // Cookieがあれば正常終了（ログイン状態は問わない）
+          if (user.hasCookie) {
             resCode = 0
           } else {
             resCode = 3

@@ -151,12 +151,10 @@ pub async fn download_video(
     // 1. 出力ファイルパス決定 + 自動リネーム
     let output_path = auto_rename(&build_output_path(app, filename).await?);
 
-    // 2. Cookie チェック
-    let cookies = read_cookie(app)?.ok_or("ERR::COOKIE_MISSING")?;
+    // 2. Cookie取得（WBI署名により非ログインユーザでも動作）
+    let cookies = read_cookie(app)?.unwrap_or_default();
     let cookie_header = build_cookie_header(&cookies);
-    if cookie_header.is_empty() {
-        return Err("ERR::COOKIE_MISSING".into());
-    }
+    // Cookieヘッダーが空でも続行（WBI署名により画質制限付きでダウンロード可能）
 
     // 3. 動画詳細取得 (選択品質のURL抽出)
     let details = fetch_video_details(&cookies, bvid, cid).await?;
@@ -397,6 +395,7 @@ async fn fetch_video_info_for_history(
         title: String::new(),
         bvid: bvid.to_string(),
         parts: Vec::new(),
+        is_limited_quality: false, // 履歴用では使用しない
     };
 
     fetch_video_title(&video, cookies)
@@ -417,7 +416,7 @@ async fn fetch_video_info_for_history(
 /// Fetches logged-in user information from Bilibili.
 ///
 /// Retrieves user profile data using cached cookies from Firefox.
-/// Returns `None` instead of an error when no valid cookies are available.
+/// Always returns a User object with `has_cookie` indicating cookie status.
 ///
 /// # Arguments
 ///
@@ -425,24 +424,32 @@ async fn fetch_video_info_for_history(
 ///
 /// # Returns
 ///
-/// `Ok(Some(User))` if user info was successfully retrieved,
-/// `Ok(None)` if no valid cookies are available.
+/// `Ok(User)` with `has_cookie` set based on cookie availability.
 ///
 /// # Errors
 ///
 /// Returns an error if:
-/// - HTTP request fails
-/// - Response JSON parsing fails
-pub async fn fetch_user_info(app: &AppHandle) -> Result<Option<User>, String> {
-    // 1) メモリキャッシュから Cookie を取得
-    let Some(cookies) = read_cookie(app)? else {
-        return Ok(None);
-    };
+/// - HTTP request fails (when cookies are available)
+/// - Response JSON parsing fails (when cookies are available)
+pub async fn fetch_user_info(app: &AppHandle) -> Result<User, String> {
+    // 1) メモリキャッシュから Cookie を取得（Cookieがなくても継続）
+    let cookies = read_cookie(app)?.unwrap_or_default();
 
     // 2) bilibili 用 Cookie ヘッダを構築
     let cookie_header = build_cookie_header(&cookies);
-    if cookie_header.is_empty() {
-        return Ok(None);
+    let has_cookie = !cookie_header.is_empty();
+
+    // Cookieがない場合はhas_cookie=falseのUserを返す
+    if !has_cookie {
+        return Ok(User {
+            code: 0,
+            message: String::new(),
+            data: UserData {
+                uname: None,
+                is_login: false,
+            },
+            has_cookie: false,
+        });
     }
 
     // 3) リクエスト送信（Cookie ヘッダを付与）
@@ -459,14 +466,15 @@ pub async fn fetch_user_info(app: &AppHandle) -> Result<Option<User>, String> {
         .await
         .map_err(|e| format!("UserApi Failed to parse response JSON:: {e}"))?;
 
-    Ok(Some(User {
+    Ok(User {
         code: body.code,
         message: body.message,
         data: UserData {
             uname: body.data.uname,
             is_login: body.data.is_login,
         },
-    }))
+        has_cookie: true,
+    })
 }
 
 /// Builds Cookie header string from cookie entries.
@@ -548,14 +556,18 @@ pub async fn get_thumbnail_base64(url: &str) -> Result<String, String> {
 /// - API request fails
 /// - Response parsing fails
 pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String> {
-    let Some(cookies) = read_cookie(app)? else {
-        return Err("No cookies found".into());
-    };
+    // Cookie取得（WBI署名により非ログインユーザでも動作）
+    let cookies = read_cookie(app)?.unwrap_or_default();
+
+    // 画質制限の判定（Cookieがない場合は制限付き）
+    let cookie_header = build_cookie_header(&cookies);
+    let is_limited_quality = cookie_header.is_empty();
 
     let mut video = Video {
         title: String::new(),
         bvid: id.to_string(),
         parts: Vec::new(),
+        is_limited_quality,
     };
 
     let res_body_1 = fetch_video_title(&video, &cookies).await?;
@@ -581,7 +593,7 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
             audio_qualities: Vec::new(),
         };
 
-        // partごとに画質情報を取得
+        // partごとに画質情報を取得（WBI署名付き）
         let res_body_2 = fetch_video_details(&cookies, &video.bvid, part.cid).await?;
         // fetch_video_details 内で validate_api_response により data の存在が保証されている
         let data_2 = res_body_2.data.as_ref().unwrap();
@@ -706,7 +718,24 @@ async fn fetch_video_details(
 ) -> Result<XPlayerApiResponse, String> {
     let client = build_client()?;
 
+    // WBI署名のためMixinKeyを取得
+    let mixin_key = crate::utils::wbi::fetch_mixin_key(&client).await?;
+
+    // クエリパラメータ構築
+    let mut params = std::collections::BTreeMap::new();
+    params.insert("bvid".to_string(), bvid.to_string());
+    params.insert("cid".to_string(), cid.to_string());
+    params.insert("qn".to_string(), "116".to_string());
+    params.insert("fnval".to_string(), "2064".to_string());
+    params.insert("fnver".to_string(), "0".to_string());
+    params.insert("fourk".to_string(), "1".to_string());
+
+    // WBI署名生成
+    let signature = crate::utils::wbi::generate_wbi_signature(&mut params, &mixin_key)?;
+
+    // Cookieヘッダー構築（空でもOK）
     let cookie_header = build_cookie_header(cookies);
+
     let res: reqwest::Response = client
         .get("https://api.bilibili.com/x/player/wbi/playurl")
         .header(header::COOKIE, cookie_header)
@@ -718,7 +747,8 @@ async fn fetch_video_details(
             ("fnval", "2064"),
             ("fnver", "0"),
             ("fourk", "1"),
-            ("voice_balance", "1"),
+            ("w_rid", &signature.w_rid),
+            ("wts", &signature.wts),
         ])
         .send()
         .await

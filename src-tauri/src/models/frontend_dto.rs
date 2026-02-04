@@ -13,6 +13,9 @@ pub struct User {
     pub code: i32,
     pub message: String,
     pub data: UserData,
+    /// Indicates whether valid Bilibili cookies are available
+    #[serde(default)]
+    pub has_cookie: bool,
 }
 
 /// User profile data portion of the User structure.
@@ -39,6 +42,9 @@ pub struct Video {
     pub bvid: String,
     /// List of video parts (for multi-part videos)
     pub parts: Vec<VideoPart>,
+    /// Indicates whether quality options are limited due to missing cookies
+    #[serde(default)]
+    pub is_limited_quality: bool,
 }
 
 /// Individual video part with quality and metadata information.

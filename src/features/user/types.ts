@@ -12,6 +12,8 @@ export type User = {
   ttl: number
   /** User data payload */
   data: UserData
+  /** Indicates whether valid Bilibili cookies are available */
+  hasCookie: boolean
 }
 
 /**

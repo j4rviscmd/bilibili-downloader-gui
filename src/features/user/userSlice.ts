@@ -14,6 +14,7 @@ const initialState: User = {
       subUrl: '',
     },
   },
+  hasCookie: false,
 }
 
 /**

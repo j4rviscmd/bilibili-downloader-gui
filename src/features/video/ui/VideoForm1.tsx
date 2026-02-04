@@ -14,10 +14,13 @@ import {
 } from '@/shared/ui/form'
 import { Input } from '@/shared/ui/input'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { Info } from 'lucide-react'
 import { Loader2 } from 'lucide-react'
 import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+import { useSelector } from 'react-redux'
+import type { RootState } from '@/app/store'
 import { z } from 'zod'
 
 /**
@@ -35,6 +38,7 @@ import { z } from 'zod'
 function VideoForm1() {
   const { input, onValid1, isFetching } = useVideoInfo()
   const { t } = useTranslation()
+  const user = useSelector((state: RootState) => state.user)
 
   const schema1 = buildVideoFormSchema1(t)
 
@@ -63,6 +67,16 @@ function VideoForm1() {
         onBlur={form.handleSubmit(onSubmit)}
         className="space-y-3"
       >
+        {/* Cookie Status Badge */}
+        {!user.hasCookie && (
+          <div className="mb-4 flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-sm">
+            <Info className="text-muted-foreground h-4 w-4" />
+            <span className="text-muted-foreground">
+              {t('user.cookie_missing')}
+            </span>
+          </div>
+        )}
+
         <FormField
           control={form.control}
           name="url"

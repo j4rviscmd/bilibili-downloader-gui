@@ -83,7 +83,11 @@
     "redownload": "再ダウンロード",
     "retry": "再試行",
     "download_failed_part": "ダウンロードに失敗しました",
-    "time_remaining": "残{{time}}"
+    "time_remaining": "残{{time}}",
+    "quality_limited_title": "画質制限あり",
+    "quality_limited_description": "Cookieがない場合、480p以下の低画質のみ利用可能です。FirefoxのCookieを読み込むと高画質が利用できます。",
+    "quality_limited_notice": "ログインCookieがないため低画質のみ利用可能",
+    "quality_limited_notice_detail": "ダウンロードは可能ですが、480p以下に制限されます。設定でFirefoxのCookieを追加すると高画質オプションが解放されます。"
   },
   "progress": {
     "elapsed": "経過",
@@ -94,6 +98,12 @@
   "toast": {
     "success": "成功",
     "error": "問題が発生しました"
+  },
+  "user": {
+    "cookie_valid": "Cookieが読み込まれました",
+    "cookie_missing": "Cookieが見つかりません（画質制限あり）",
+    "not_logged_in": "ログインしていません",
+    "login_required_for_high_quality": "高画質にはログインが必要です"
   },
   "init": {
     "initializing": "初期化中...",

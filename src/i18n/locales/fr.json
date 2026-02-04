@@ -82,7 +82,11 @@
     "redownload": "Télécharger à nouveau",
     "retry": "Réessayer",
     "download_failed_part": "Échec du téléchargement",
-    "time_remaining": "{{time}} restante"
+    "time_remaining": "{{time}} restante",
+    "quality_limited_title": "Qualité Limitée",
+    "quality_limited_description": "Sans cookies, seule une qualité inférieure (480p ou moins) est disponible. Chargez les cookies Firefox pour une qualité supérieure.",
+    "quality_limited_notice": "Qualité inférieure disponible en raison de l'absence de cookies de connexion",
+    "quality_limited_notice_detail": "Vous pouvez toujours télécharger, mais la qualité sera limitée à 480p ou moins. Ajoutez les cookies Firefox dans les paramètres pour débloquer les options de qualité supérieure."
   },
   "progress": {
     "elapsed": "Temps écoulé",
@@ -91,6 +95,12 @@
     "queued": "En file d'attente"
   },
   "toast": { "success": "Succès", "error": "Une erreur est survenue" },
+  "user": {
+    "cookie_valid": "Cookies chargées",
+    "cookie_missing": "Aucun cookie trouvé (qualité limitée)",
+    "not_logged_in": "Non connecté",
+    "login_required_for_high_quality": "Connexion requise pour une qualité supérieure"
+  },
   "init": {
     "initializing": "Initialisation...",
     "fetch_settings": "Récupération des paramètres...",
