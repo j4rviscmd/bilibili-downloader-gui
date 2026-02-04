@@ -5,10 +5,7 @@ import {
 } from '@/features/init/model/initSlice'
 import { useSettings } from '@/features/settings/useSettings'
 import { useUser } from '@/features/user/useUser'
-import {
-  changeLanguage,
-  type SupportedLang,
-} from '@/shared/i18n'
+import { changeLanguage, type SupportedLang } from '@/shared/i18n'
 import { sleep } from '@/shared/lib/utils'
 import { getOs } from '@/shared/os/api/getOs'
 import { invoke } from '@tauri-apps/api/core'
