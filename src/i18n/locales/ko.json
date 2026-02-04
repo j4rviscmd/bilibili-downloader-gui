@@ -87,6 +87,7 @@
     "quality_limited_description": "Cookie가 없으면 480p 이하의 낮은 화질만 이용할 수 있습니다.",
     "quality_limited_link": "Firefox에서 로그인",
     "quality_limited_link_suffix": "하면 더 높은 화질을 이용할 수 있습니다.",
+    "quality_limited_restart_note": "※ 로그인 후 앱을 다시 시작해 주세요.",
     "quality_limited_notice": "로그인 Cookie가 없어 낮은 화질만 이용 가능",
     "quality_limited_notice_detail": "다운로드는 가능하지만 480p 이하로 제한됩니다. 설정에서 Firefox Cookie를 추가하면 더 높은 화질 옵션이 해제됩니다."
   },
@@ -100,7 +101,7 @@
   "user": {
     "cookie_valid": "Cookie가 로드됨",
     "cookie_missing": "Cookie를 찾을 수 없음（화질 제한됨）",
-    "not_logged_in": "로그인되지 않음",
+    "not_logged_in": "비로그인",
     "login_required_for_high_quality": "고화질에는 로그인 필요"
   },
   "init": {

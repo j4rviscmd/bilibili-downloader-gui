@@ -86,7 +86,8 @@
     "quality_limited_title": "Qualité Limitée",
     "quality_limited_description": "Sans cookies, seule une qualité inférieure (480p ou moins) est disponible.",
     "quality_limited_link": "Connectez-vous via Firefox",
-    "quality_limited_link_suffix": " pour débloquer une qualité supérieure.",
+    "quality_limited_link_suffix": " pour débloquer une qualité supérieure。",
+    "quality_limited_restart_note": "※ Veuillez redémarrer l'application après vous être connecté。",
     "quality_limited_notice": "Qualité inférieure disponible en raison de l'absence de cookies de connexion",
     "quality_limited_notice_detail": "Vous pouvez toujours télécharger, mais la qualité sera limitée à 480p ou moins. Ajoutez les cookies Firefox dans les paramètres pour débloquer les options de qualité supérieure."
   },

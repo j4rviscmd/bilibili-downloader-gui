@@ -47,12 +47,13 @@ type Props = {
  */
 function AppBar({ user, theme, setTheme }: Props) {
   const userName = user.data.uname
+  const isLoggedIn = user.data.isLogin
   const { t } = useTranslation()
   const { updateOpenDialog } = useSettings()
   const [hover, setHover] = useState(false)
 
   // Mask last 3 characters of the user ID for display
-  const maskedUserName = maskUserName(userName)
+  const maskedUserName = isLoggedIn ? maskUserName(userName) : ''
 
   return (
     <div className="bg-accent box-border flex h-9 w-full items-center justify-between px-3 shadow-md sm:mx-auto sm:max-w-7xl sm:px-6">
@@ -61,7 +62,7 @@ function AppBar({ user, theme, setTheme }: Props) {
           {t('app.logged_in_user')}:
         </span>
         <span title={userName} className="px-3">
-          {maskedUserName}
+          {maskedUserName || t('user.not_logged_in')}
         </span>
       </div>
       <div className="flex items-center">

@@ -85,8 +85,8 @@ function VideoForm1() {
           <Alert variant="warning" className="mb-4">
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>{t('video.quality_limited_title')}</AlertTitle>
-            <AlertDescription className="space-y-0">
-              <span className="inline">
+            <AlertDescription>
+              <p className="inline">
                 {t('video.quality_limited_description')}
                 {' '}
                 <a
@@ -101,7 +101,10 @@ function VideoForm1() {
                   {t('video.quality_limited_link')}
                 </a>
                 {t('video.quality_limited_link_suffix')}
-              </span>
+              </p>
+              <p className="text-xs">
+                {t('video.quality_limited_restart_note')}
+              </p>
             </AlertDescription>
           </Alert>
         )}
