@@ -434,9 +434,11 @@ async fn fetch_video_info_for_history(
 pub async fn fetch_user_info(app: &AppHandle) -> Result<User, String> {
     // 1) メモリキャッシュから Cookie を取得（Cookieがなくても継続）
     let cookies = read_cookie(app)?.unwrap_or_default();
+    println!("DEBUG fetch_user_info: cookies.len() = {}", cookies.len());
 
     // 2) bilibili 用 Cookie ヘッダを構築
     let cookie_header = build_cookie_header(&cookies);
+    println!("DEBUG fetch_user_info: cookie_header.is_empty() = {}", cookie_header.is_empty());
     let has_cookie = !cookie_header.is_empty();
 
     // Cookieがない場合はhas_cookie=falseのUserを返す
@@ -466,7 +468,7 @@ pub async fn fetch_user_info(app: &AppHandle) -> Result<User, String> {
         .await
         .map_err(|e| format!("UserApi Failed to parse response JSON:: {e}"))?;
 
-    Ok(User {
+    let user = User {
         code: body.code,
         message: body.message,
         data: UserData {
@@ -474,7 +476,9 @@ pub async fn fetch_user_info(app: &AppHandle) -> Result<User, String> {
             is_login: body.data.is_login,
         },
         has_cookie: true,
-    })
+    };
+    println!("DEBUG fetch_user_info: Returning User with has_cookie={}", user.has_cookie);
+    Ok(user)
 }
 
 /// Builds Cookie header string from cookie entries.

@@ -42,8 +42,7 @@ export const useUser = () => {
    */
   const getUserInfo = async (): Promise<User> => {
     const res = await fetchUser()
-    // console.log('user')
-    // console.log(JSON.stringify(res, null, 2))
+    console.log('DEBUG getUserInfo: calling onChangeUser with hasCookie =', res.hasCookie)
     onChangeUser(res)
 
     return res
