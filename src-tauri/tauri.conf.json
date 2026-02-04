@@ -14,10 +14,10 @@
     "windows": [
       {
         "title": "bilibili Downloader GUI",
-        "width": 1024,
-        "minWidth": 1024,
-        "height": 640,
-        "minHeight": 640
+        "width": 980,
+        "minWidth": 980,
+        "height": 522,
+        "minHeight": 522
       }
     ],
     "security": {
