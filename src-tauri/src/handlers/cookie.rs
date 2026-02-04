@@ -139,8 +139,6 @@ pub async fn get_cookie(app: &AppHandle) -> Result<bool, String> {
 
     match read_res {
         Ok(has_any) => {
-            println!("DEBUG get_cookie: has_any = {}, cookies count = {}", has_any, cookies.len());
-
             // for (name, value) in cookies.iter() {
             //     println!("cookie: name={}, value={}", name, value);
             // }

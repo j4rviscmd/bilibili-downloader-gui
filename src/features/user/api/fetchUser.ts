@@ -20,7 +20,6 @@ import { invoke } from '@tauri-apps/api/core'
  */
 export const fetchUser = async (): Promise<User> => {
   const user = await invoke<User>('fetch_user')
-  console.log('DEBUG fetchUser: received user from backend:', user)
 
   return user
 }

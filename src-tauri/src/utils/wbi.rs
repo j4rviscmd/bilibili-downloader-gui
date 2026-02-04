@@ -168,29 +168,40 @@ pub async fn fetch_mixin_key(client: &Client) -> Result<String, String> {
         .and_then(|v| v.as_str())
         .ok_or_else(|| "img_url not found".to_string())?;
 
-    // Extract key from URL: https://xxx/wbi/img_12345678-abcdefgh.png -> "12345678abcdefgh"
-    let filename = img_url
+    let sub_url = wbi_img
+        .get("sub_url")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| "sub_url not found".to_string())?;
+
+    // Extract filename from img_url
+    let img_key = img_url
         .rsplit('/')
         .next()
-        .unwrap_or("");
-    let key = filename
-        .trim_start_matches("img_")
-        .trim_end_matches(".png")
-        .split('-')
-        .collect::<Vec<&str>>()
-        .concat();
+        .unwrap_or("")
+        .trim_end_matches(".png");
 
-    // MixinKey format: first 24 chars + last 24 chars (total 48)
-    if key.len() < 48 {
+    // Extract filename from sub_url
+    let sub_key = sub_url
+        .rsplit('/')
+        .next()
+        .unwrap_or("")
+        .trim_end_matches(".png");
+
+    // MixinKey format: img_url key[0..24] + sub_url key[8..32] (total 48)
+    // 取img_url的前24位 + sub_url的后24位
+    if img_key.len() < 24 || sub_key.len() < 24 {
         return Err(format!(
-            "MixinKey length insufficient: got {} chars, expected at least 48",
-            key.len()
+            "MixinKey length insufficient: img_key={}, sub_key={}",
+            img_key.len(),
+            sub_key.len()
         ));
     }
 
-    let prefix = &key[..24];
-    let suffix = &key[key.len() - 24..];
-    Ok(format!("{}{}", prefix, suffix))
+    let img_prefix = &img_key[..24];
+    let sub_suffix = &sub_key[sub_key.len() - 24..];
+    let mixin_key = format!("{}{}", img_prefix, sub_suffix);
+
+    Ok(mixin_key)
 }
 
 #[cfg(test)]
