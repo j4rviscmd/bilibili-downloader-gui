@@ -127,8 +127,8 @@ export const useInit = () => {
       if (isValidFfmpeg) {
         // Cookieチェック（非ログインユーザ対応：Cookieがなくても続行）
         await checkCookie()
-        // ユーザ情報を取得（Cookieがない場合はhasCookie=false）
-        const user = await getUserInfo()
+        // ユーザ情報を取得してReduxストアに保存（Cookieがない場合はhasCookie=false）
+        await getUserInfo()
         // Cookieの有無に関わらず正常終了
         resCode = 0
       } else {
