@@ -13,7 +13,9 @@ import {
   FormMessage,
 } from '@/shared/ui/form'
 import { Input } from '@/shared/ui/input'
+import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { AlertTriangle } from 'lucide-react'
 import { Info } from 'lucide-react'
 import { Loader2 } from 'lucide-react'
 import { useEffect } from 'react'
@@ -75,6 +77,17 @@ function VideoForm1() {
               {t('user.cookie_missing')}
             </span>
           </div>
+        )}
+
+        {/* Quality Limit Warning for Non-logged-in Users */}
+        {user.hasCookie && !user.data.isLogin && (
+          <Alert variant="warning" className="mb-4">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>{t('video.quality_limited_title')}</AlertTitle>
+            <AlertDescription>
+              {t('video.quality_limited_description')}
+            </AlertDescription>
+          </Alert>
         )}
 
         <FormField
