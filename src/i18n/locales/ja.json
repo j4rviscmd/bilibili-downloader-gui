@@ -85,7 +85,9 @@
     "download_failed_part": "ダウンロードに失敗しました",
     "time_remaining": "残{{time}}",
     "quality_limited_title": "画質制限あり",
-    "quality_limited_description": "Cookieがない場合、480p以下の低画質のみ利用可能です。FirefoxのCookieを読み込むと高画質が利用できます。",
+    "quality_limited_description": "Cookieがない場合は480p以下の画質のみになります。",
+    "quality_limited_link": "Firefoxでログイン",
+    "quality_limited_link_suffix": "すると高画質も利用可能です。",
     "quality_limited_notice": "ログインCookieがないため低画質のみ利用可能",
     "quality_limited_notice_detail": "ダウンロードは可能ですが、480p以下に制限されます。設定でFirefoxのCookieを追加すると高画質オプションが解放されます。"
   },

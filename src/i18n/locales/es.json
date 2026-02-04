@@ -84,7 +84,9 @@
     "download_failed_part": "Descarga fallida",
     "time_remaining": "{{time}} restante",
     "quality_limited_title": "Calidad Limitada",
-    "quality_limited_description": "Sin cookies, solo disponible menor calidad (480p o inferior). Cargue cookies de Firefox para mayor calidad.",
+    "quality_limited_description": "Sin cookies, solo disponible menor calidad (480p o inferior).",
+    "quality_limited_link": "Inicia sesión en Firefox",
+    "quality_limited_link_suffix": " para desbloquear mayor calidad.",
     "quality_limited_notice": "Menor calidad disponible debido a cookies de inicio de sesión faltantes",
     "quality_limited_notice_detail": "Todavía puede descargar, pero la calidad se limitará a 480p o inferior. Agregue cookies de Firefox en configuración para desbloquear opciones de mayor calidad."
   },

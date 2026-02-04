@@ -15,6 +15,7 @@ import {
 import { Input } from '@/shared/ui/input'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { open } from '@tauri-apps/plugin-shell'
 import { AlertTriangle } from 'lucide-react'
 import { Info } from 'lucide-react'
 import { Loader2 } from 'lucide-react'
@@ -86,6 +87,20 @@ function VideoForm1() {
             <AlertTitle>{t('video.quality_limited_title')}</AlertTitle>
             <AlertDescription>
               {t('video.quality_limited_description')}
+              {' '}
+              <a
+                href="https://www.bilibili.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline font-medium hover:text-amber-700 dark:hover:text-amber-300"
+                onClick={(e) => {
+                  e.preventDefault()
+                  open('https://www.bilibili.com').catch(console.error)
+                }}
+              >
+                {t('video.quality_limited_link')}
+              </a>
+              {t('video.quality_limited_link_suffix')}
             </AlertDescription>
           </Alert>
         )}

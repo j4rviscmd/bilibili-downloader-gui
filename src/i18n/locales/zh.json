@@ -84,7 +84,9 @@
     "download_failed_part": "下载失败",
     "time_remaining": "剩余 {{time}}",
     "quality_limited_title": "画质受限",
-    "quality_limited_description": "没有Cookie的情况下，仅可用较低画质（480p或以下）。请加载Firefox的Cookie以获得更高画质。",
+    "quality_limited_description": "没有Cookie的情况下，仅可用较低画质（480p或以下）。",
+    "quality_limited_link": "通过Firefox登录",
+    "quality_limited_link_suffix": "即可使用更高画质。",
     "quality_limited_notice": "由于缺少登录Cookie，仅可用较低画质",
     "quality_limited_notice_detail": "您仍然可以下载，但画质将限制为480p或以下。在设置中添加Firefox的Cookie可解锁更高画质选项。"
   },

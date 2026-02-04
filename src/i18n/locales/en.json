@@ -85,7 +85,9 @@
     "download_failed_part": "Download failed",
     "time_remaining": "{{time}} remaining",
     "quality_limited_title": "Quality Limited",
-    "quality_limited_description": "Without cookies, only lower quality (480p or below) is available. Load Firefox cookies for higher quality.",
+    "quality_limited_description": "Without cookies, only lower quality (480p or below) is available.",
+    "quality_limited_link": "Log in via Firefox",
+    "quality_limited_link_suffix": " to unlock higher quality options.",
     "quality_limited_notice": "Lower quality available due to missing login cookies",
     "quality_limited_notice_detail": "You can still download, but quality will be limited to 480p or below. Add Firefox cookies in settings to unlock higher quality options."
   },
