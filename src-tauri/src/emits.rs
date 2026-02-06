@@ -239,11 +239,7 @@ impl Emits {
         let mut guard = self.inner.lock().await;
 
         // Skip if already set to the same value
-        if guard
-            .progress
-            .filesize
-            .map_or(false, |existing| existing == filesize_mb)
-        {
+        if guard.progress.filesize == Some(filesize_mb) {
             return;
         }
 
