@@ -1,58 +1,45 @@
-# Continuous Integration workflow
-# Runs on all pull requests to main branch
-# Checks code quality, formatting, and build status for both frontend and backend
+# CI workflow for PRs to main branch
 name: CI
 
 on:
   pull_request:
     branches: [main]
 
-# Cancel in-progress runs for the same branch to save resources
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Required permissions for writing comments and status checks
 permissions:
   contents: write
   pull-requests: write
 
 jobs:
-  # Verify code formatting using Prettier
   format:
-    name: Format
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/node-setup
       - run: npm run format:check
 
-  # Run ESLint to check code quality and enforce style rules
   lint:
-    name: Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/node-setup
       - run: npm run lint
 
-  # Build the frontend to ensure there are no compilation errors
   build:
-    name: Frontend Build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/node-setup
       - run: npm run build
 
-  # Run tests if test files exist and test script is defined
   test:
-    name: Test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/node-setup
-      # Only run if test files are present in the codebase
       - if: hashFiles('**/*.test.ts', '**/*.test.tsx', '**/*.spec.ts', '**/*.spec.tsx') != ''
         run: |
           if grep -q '"test"' package.json; then
@@ -61,9 +48,7 @@ jobs:
             echo "No test script defined in package.json, skipping tests."
           fi
 
-  # Check Rust code for compilation errors without building
   rust-check:
-    name: Rust Check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -71,10 +56,7 @@ jobs:
       - run: cargo check
         working-directory: src-tauri
 
-  # Run Clippy linter for additional Rust code quality checks
-  # Treats warnings as errors (-D warnings)
   rust-clippy:
-    name: Rust Clippy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -84,9 +66,7 @@ jobs:
       - run: cargo clippy -- -D warnings
         working-directory: src-tauri
 
-  # Verify Rust code formatting using rustfmt
   rust-format:
-    name: Rust Format
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
