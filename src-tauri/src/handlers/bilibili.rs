@@ -916,6 +916,8 @@ fn ensure_free_space(target_path: &Path, needed_bytes: u64) -> Result<(), String
                 return Ok(());
             }
             let stat = stat.assume_init();
+            #[allow(clippy::unnecessary_cast)]
+            #[allow(clippy::useless_conversion)]
             let free_bytes = u64::from(stat.f_bavail) * stat.f_frsize;
             if free_bytes <= needed_bytes {
                 return Err("ERR::DISK_FULL".into());
