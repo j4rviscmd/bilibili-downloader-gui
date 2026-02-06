@@ -1,0 +1,20 @@
+# Reusable composite action for Node.js environment setup
+# Used by CI workflow to configure Node.js runtime and install dependencies
+name: 'Node.js Setup'
+description: 'Setup Node.js with dependencies for CI'
+
+runs:
+  using: 'composite'
+  steps:
+    # Install Node.js 20.x and enable npm caching for faster builds
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20.x
+        cache: npm
+
+    # Install dependencies using npm ci for clean, reproducible installs
+    # Uses package-lock.json for exact version matching
+    - name: Install dependencies
+      shell: bash
+      run: npm ci

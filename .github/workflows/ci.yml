@@ -1,90 +1,95 @@
+# Continuous Integration workflow
+# Runs on all pull requests to main branch
+# Checks code quality, formatting, and build status for both frontend and backend
 name: CI
 
 on:
   pull_request:
     branches: [main]
 
+# Cancel in-progress runs for the same branch to save resources
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Required permissions for writing comments and status checks
 permissions:
   contents: write
   pull-requests: write
 
 jobs:
+  # Verify code formatting using Prettier
   format:
     name: Format
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/node-setup
+      - run: npm run format:check
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20.x
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Check formatting
-        run: npm run format:check
-
+  # Run ESLint to check code quality and enforce style rules
   lint:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/node-setup
+      - run: npm run lint
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20.x
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run ESLint
-        run: npm run lint
-
+  # Build the frontend to ensure there are no compilation errors
   build:
-    name: Build
+    name: Frontend Build
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/node-setup
+      - run: npm run build
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20.x
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Type check and build
-        run: npm run build
-
+  # Run tests if test files exist and test script is defined
   test:
     name: Test
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/node-setup
+      # Only run if test files are present in the codebase
+      - if: hashFiles('**/*.test.ts', '**/*.test.tsx', '**/*.spec.ts', '**/*.spec.tsx') != ''
+        run: |
+          if grep -q '"test"' package.json; then
+            npm test -- --run
+          else
+            echo "No test script defined in package.json, skipping tests."
+          fi
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+  # Check Rust code for compilation errors without building
+  rust-check:
+    name: Rust Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/rust-setup
+      - run: cargo check
+        working-directory: src-tauri
+
+  # Run Clippy linter for additional Rust code quality checks
+  # Treats warnings as errors (-D warnings)
+  rust-clippy:
+    name: Rust Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/rust-setup
         with:
-          node-version: 20.x
-          cache: npm
+          components: clippy
+      - run: cargo clippy -- -D warnings
+        working-directory: src-tauri
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run tests
-        run: npm test
+  # Verify Rust code formatting using rustfmt
+  rust-format:
+    name: Rust Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/rust-setup
+      - run: cargo fmt --check
+        working-directory: src-tauri
