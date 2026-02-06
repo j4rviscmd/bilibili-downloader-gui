@@ -9,7 +9,11 @@ use crate::utils::downloads::download_url;
 use crate::utils::paths::{get_ffmpeg_path, get_ffmpeg_root_path};
 use anyhow::Result;
 use std::fs::File;
-use std::{fs, path::{Path, PathBuf}, process::Command};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    process::Command,
+};
 use tauri::AppHandle;
 use tokio::process::Command as AsyncCommand;
 

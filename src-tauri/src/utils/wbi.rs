@@ -18,9 +18,9 @@
 //! - [WBI Discussion](https://github.com/SocialSisterYi/bilibili-API-collect/discussions/920)
 
 use base64::Engine;
+use hmac::digest::KeyInit;
 use hmac::Hmac;
 use hmac::Mac;
-use hmac::digest::KeyInit;
 use reqwest::Client;
 use sha2::Sha256;
 use std::collections::BTreeMap;
