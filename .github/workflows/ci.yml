@@ -1,3 +1,4 @@
+# CI workflow for PRs to main branch
 name: CI
 
 on:
@@ -14,77 +15,61 @@ permissions:
 
 jobs:
   format:
-    name: Format
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20.x
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Check formatting
-        run: npm run format:check
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/node-setup
+      - run: npm run format:check
 
   lint:
-    name: Lint
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20.x
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run ESLint
-        run: npm run lint
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/node-setup
+      - run: npm run lint
 
   build:
-    name: Build
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20.x
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Type check and build
-        run: npm run build
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/node-setup
+      - run: npm run build
 
   test:
-    name: Test
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/node-setup
+      - if: hashFiles('**/*.test.ts', '**/*.test.tsx', '**/*.spec.ts', '**/*.spec.tsx') != ''
+        run: |
+          if grep -q '"test"' package.json; then
+            npm test -- --run
+          else
+            echo "No test script defined in package.json, skipping tests."
+          fi
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+  rust-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/rust-setup
+      - run: cargo check
+        working-directory: src-tauri
+
+  rust-clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/rust-setup
         with:
-          node-version: 20.x
-          cache: npm
+          components: clippy
+      - run: cargo clippy -- -D warnings
+        working-directory: src-tauri
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run tests
-        run: npm test
+  rust-format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/rust-setup
+      - run: cargo fmt --check
+        working-directory: src-tauri

@@ -24,14 +24,14 @@ pub const REFERER: &str = "https://www.bilibili.com";
 ///
 /// - **Default**: `1 * 1024 * 1024` (1 MiB)
 /// - **Purpose**: Size of initial data sample used for speed measurement
-pub const SPEED_CHECK_SIZE: u64 = 1 * 1024 * 1024; // 1 MiB
+pub const SPEED_CHECK_SIZE: u64 = 1024 * 1024; // 1 MiB
 
 /// Minimum download speed threshold in bytes per second.
 ///
 /// If the initial download speed is below this threshold, the connection
 /// is considered slow and will be reconnected to attempt getting a faster
 /// CDN node.
-pub const MIN_SPEED_THRESHOLD: u64 = 1 * 1024 * 1024; // 1MB/s
+pub const MIN_SPEED_THRESHOLD: u64 = 1024 * 1024; // 1MB/s
 
 /// Maximum number of reconnect attempts for slow connections.
 ///

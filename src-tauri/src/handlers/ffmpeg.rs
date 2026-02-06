@@ -9,7 +9,11 @@ use crate::utils::downloads::download_url;
 use crate::utils::paths::{get_ffmpeg_path, get_ffmpeg_root_path};
 use anyhow::Result;
 use std::fs::File;
-use std::{fs, path::PathBuf, process::Command};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    process::Command,
+};
 use tauri::AppHandle;
 use tokio::process::Command as AsyncCommand;
 
@@ -127,7 +131,7 @@ pub async fn install_ffmpeg(app: &AppHandle) -> Result<bool> {
     {
         let ffmpeg_bin = ffmpeg_root.join("ffmpeg");
         let Some(ffmpeg_path_str) = ffmpeg_bin.to_str() else {
-            return Err(anyhow::anyhow!("Invalid ffmpeg path").into());
+            return Err(anyhow::anyhow!("Invalid ffmpeg path"));
         };
         let res = Command::new("chmod")
             .arg("+x")
@@ -221,7 +225,7 @@ async fn unpack_archive(archive_path: &PathBuf, dest: &PathBuf) -> Result<bool> 
 /// # Returns
 ///
 /// Returns the full path to the ffmpeg binary (with .exe extension on Windows).
-fn build_ffmpeg_bin_path(base_path: &PathBuf) -> PathBuf {
+fn build_ffmpeg_bin_path(base_path: &Path) -> PathBuf {
     let mut path = if cfg!(target_os = "windows") {
         base_path
             .join("ffmpeg-master-latest-win64-lgpl-shared")
@@ -360,7 +364,7 @@ pub fn move_ffmpeg(from_path: PathBuf, to_path: PathBuf) -> Result<(), String> {
 /// # Errors
 ///
 /// Returns an error if file/directory operations fail.
-fn copy_dir_recursive(from: &PathBuf, to: &PathBuf) -> std::io::Result<()> {
+fn copy_dir_recursive(from: &Path, to: &Path) -> std::io::Result<()> {
     if from.is_dir() {
         for entry in fs::read_dir(from)? {
             let entry = entry?;

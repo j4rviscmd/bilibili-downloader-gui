@@ -197,7 +197,7 @@ pub async fn download_video(
     let cookie = Some(cookie_header);
 
     // 音声と動画を並列ダウンロード (片方失敗で即時キャンセル)
-    if let Err(e) = tokio::try_join!(
+    tokio::try_join!(
         retry_download(|| {
             download_url(
                 app,
@@ -218,9 +218,7 @@ pub async fn download_video(
                 Some(download_id.clone()),
             )
         }),
-    ) {
-        return Err(e);
-    }
+    )?;
 
     // マージ実行 (merge stage emitはffmpeg::merge_av内で送信)
     merge_av(
@@ -918,7 +916,9 @@ fn ensure_free_space(target_path: &Path, needed_bytes: u64) -> Result<(), String
                 return Ok(());
             }
             let stat = stat.assume_init();
-            let free_bytes = (stat.f_bavail as u64) * stat.f_frsize;
+            #[allow(clippy::unnecessary_cast)]
+            #[allow(clippy::useless_conversion)]
+            let free_bytes = u64::from(stat.f_bavail) * stat.f_frsize;
             if free_bytes <= needed_bytes {
                 return Err("ERR::DISK_FULL".into());
             }
