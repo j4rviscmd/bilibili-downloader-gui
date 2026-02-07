@@ -89,6 +89,9 @@ jobs:
             args: '--target aarch64-apple-darwin'
           - platform: 'macos-latest' # Intel
             args: '--target x86_64-apple-darwin'
+          # Uncomment to enable Linux builds
+          # - platform: 'ubuntu-22.04'
+          #   args: ''
           - platform: 'windows-latest'
             args: ''
 
@@ -120,6 +123,13 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
+      # Uncomment to enable Linux builds
+      # - name: Install dependencies (Ubuntu only)
+      #   if: matrix.platform == 'ubuntu-22.04'
+      #   run: |
+      #     sudo apt-get update
+      #     sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
       - name: Install frontend dependencies (npm ci)
         if: ${{ hashFiles('package-lock.json') != '' }}
         run: npm ci
@@ -133,8 +143,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          GA_API_SECRET: ${{ secrets.GA_API_SECRET }}
-          GA_MEASUREMENT_ID: ${{ secrets.GA_MEASUREMENT_ID }}
         with:
           tagName: v__VERSION__
           releaseName: 'v__VERSION__'
