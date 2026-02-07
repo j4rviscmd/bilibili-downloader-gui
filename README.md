@@ -3,6 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 ![Built with Tauri](https://img.shields.io/badge/Built%20with-Tauri-24C8DB)
 ![React + Vite + TS](https://img.shields.io/badge/React%20%2B%20Vite-TypeScript-2ea44f)
+![GitHub Downloads](https://img.shields.io/github/downloads/j4rviscmd/bilibili-downloader-gui/total?style=flat-square)
 
 Windows and macOS Bilibili video downloader GUI. Frontend is built with React + Vite; the desktop app is powered by Tauri (Rust).
 
