@@ -19,3 +19,7 @@ dist-ssr/
 # Large files
 *.m4s
 *.mp4
+
+# Worktrees
+.worktrees/
+remotion/
