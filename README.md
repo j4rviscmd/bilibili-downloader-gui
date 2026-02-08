@@ -5,11 +5,19 @@
 ![React + Vite + TS](https://img.shields.io/badge/React%20%2B%20Vite-TypeScript-2ea44f)
 ![GitHub Downloads](https://img.shields.io/github/downloads/j4rviscmd/bilibili-downloader-gui/total?style=flat-square)
 
-Windows and macOS Bilibili video downloader GUI. Frontend is built with React + Vite; the desktop app is powered by Tauri (Rust).
+<table width="100%">
+  <tr>
+    <td width="80%">
+      <p><strong>Windows and macOS Bilibili video downloader GUI.</strong></p>
+      <p>Frontend is built with React + Vite; the desktop app is powered by Tauri (Rust).</p>
+    </td>
+    <td width="20%">
+      <img src="public/icon.png" alt="App Icon" width="128">
+    </td>
+  </tr>
+</table>
 
 > Notice: This app is intended for educational and personal use. Respect the terms of service and copyright laws. Do not download or redistribute content without permission from rights holders.
-
-<img src="public/icon.png" alt="App Icon" width="128">
 
 ![App Image](public/app-image_en.png)
 
@@ -19,7 +27,7 @@ I build this in my spare time. Every star shows that my work is valued and keeps
 
 ![Star](docs/images/star-github.gif)
 
-## Features
+## 🎯 Features
 
 - Fetch Bilibili video info and assist downloads
 - Lightweight and fast desktop app built with Tauri
@@ -27,32 +35,7 @@ I build this in my spare time. Every star shows that my work is valued and keeps
 - Progress indicator and toast notifications
 - Multi-language UI (English / 日本語 / Français / Español / 中文 / 한국어)
 
-## Requirements
-
-- Node.js 18+ (LTS recommended)
-- Rust (stable)
-- Toolchain required by Tauri builds (e.g., Xcode Command Line Tools on macOS)
-
-See: [Tauri official docs](https://tauri.app/)
-
-## Supported OS
-
-- Windows 10/11
-- macOS 12+ (Intel and Apple Silicon)
-
-## Quick Start (Development)
-
-1. Install dependencies
-   - `npm i`
-2. Start the Tauri development server
-   - `npm run tauri dev`
-
-## Build (Distributable Binaries)
-
-- `npm run tauri build`
-  - Artifacts are typically generated under `src-tauri/target/release/` (varies by OS).
-
-## Installation
+## 💻 Installation
 
 Download from the latest release: [Releases › Latest](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest)
 
@@ -71,7 +54,7 @@ Download from the latest release: [Releases › Latest](https://github.com/j4rvi
 
 Note: For unsigned builds on macOS, see the section below about Gatekeeper and xattr.
 
-## macOS: First Launch of Unsigned Builds
+## 🍎 macOS: First Launch of Unsigned Builds
 
 If you run a build that is not notarized/signed with an Apple Developer certificate (e.g., CI artifacts), macOS Gatekeeper may block the app. You can either:
 
@@ -86,6 +69,37 @@ xattr -c "/Applications/bilibili-downloader-gui.app"
 ```
 
 If you installed the app outside /Applications, adjust the path accordingly.
+
+---
+
+## 👨‍💻 For Developers
+
+The following sections are intended for developers who want to build, modify, or contribute to this project.
+
+## 📦 Requirements
+
+- Node.js 18+ (LTS recommended)
+- Rust (stable)
+- Toolchain required by Tauri builds (e.g., Xcode Command Line Tools on macOS)
+
+See: [Tauri official docs](https://tauri.app/)
+
+## 💻 Supported OS
+
+- Windows 10/11
+- macOS 12+ (Intel and Apple Silicon)
+
+## 🚀 Quick Start (Development)
+
+1. Install dependencies
+   - `npm i`
+2. Start the Tauri development server
+   - `npm run tauri dev`
+
+## 🔨 Build (Distributable Binaries)
+
+- `npm run tauri build`
+  - Artifacts are typically generated under `src-tauri/target/release/` (varies by OS).
 
 ## Directory Structure (Co-location)
 
@@ -205,17 +219,17 @@ src-tauri/src/
   utils/             ← Utilities
 ```
 
-## Scripts
+## ⚙️ Scripts
 
 - Dev: `npm run tauri dev`
 - Build: `npm run tauri build`
 
-## Tech Stack
+## 🛠️ Tech Stack
 
 - Frontend: React, Vite, TypeScript, Redux Toolkit, shadcn/ui, animate‑ui
 - Desktop: Tauri (Rust)
 
-## Error Codes
+## ❌ Error Codes
 
 Returned error codes (mapped to i18n in the frontend):
 
@@ -226,7 +240,7 @@ Returned error codes (mapped to i18n in the frontend):
 - `ERR::NETWORK::<detail>` Network failure after retries
 - `ERR::MERGE_FAILED` ffmpeg merge process failed
 
-## Future
+## 🔮 Future
 
 - [ ] Select download destination
 - [ ] Allow overwriting existing files
@@ -234,7 +248,7 @@ Returned error codes (mapped to i18n in the frontend):
 - [ ] Download history retention
 - [ ] Single-instance app launch (prevent multiple concurrent launches)
 
-## Localization (i18n)
+## 🌍 Localization (i18n)
 
 Current supported languages:
 
@@ -249,15 +263,15 @@ Contributions welcome for additional languages. If you find an unnatural or awkw
 
 不自然な言い回しや表現を見つけた場合は、遠慮なく Pull Request を送ってください。
 
-## Contributing
+## 🤝 Contributing
 
 Issues and PRs are welcome. For large changes, please start a discussion in an Issue first. Small fixes (docs, typos, minor UI tweaks) are appreciated.
 
-## License
+## 📜 License
 
 MIT License — see [LICENSE](./LICENSE) for details.
 
-## Acknowledgements
+## 🙏 Acknowledgements
 
 - The Tauri team and community
 - OSS such as shadcn/ui, Radix UI, sonner
