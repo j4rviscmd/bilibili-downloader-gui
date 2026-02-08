@@ -45,10 +45,10 @@ pub async fn fetch_all_release_notes(
         .map_err(|e| anyhow::anyhow!("Failed to parse current version: {}", e))?;
 
     let github = Octocrab::builder().build()?;
-    const PER_PAGE: u32 = 30;
+    const PER_PAGE: u8 = 30;
     let mut releases = Vec::new();
 
-    for page in 1.. {
+    for page in 1u32.. {
         let page_releases = github
             .repos(owner, repo)
             .releases()
@@ -63,7 +63,7 @@ pub async fn fetch_all_release_notes(
             break;
         }
 
-        for release in page_releases.items {
+        for release in &page_releases.items {
             let version_str = release
                 .tag_name
                 .strip_prefix('v')
@@ -71,7 +71,7 @@ pub async fn fetch_all_release_notes(
 
             if let Ok(version) = Version::parse(version_str) {
                 if version > current_version {
-                    releases.push(release);
+                    releases.push(release.clone());
                 }
             }
         }
