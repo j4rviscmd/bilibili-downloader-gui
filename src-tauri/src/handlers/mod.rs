@@ -10,9 +10,11 @@
 //! - **cookie**: Firefox cookie extraction and caching
 //! - **ffmpeg**: Binary validation and installation, A/V merging
 //! - **settings**: Application settings persistence
+//! - **updater**: GitHub release notes fetching
 
 pub mod bilibili;
 pub mod concurrency;
 pub mod cookie;
 pub mod ffmpeg;
 pub mod settings;
+pub mod updater;

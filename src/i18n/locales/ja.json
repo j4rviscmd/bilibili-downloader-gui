@@ -243,5 +243,29 @@
     "copyFailed": "URLのコピーに失敗しました",
     "thumbnail": "ダウンロード履歴はまだありません",
     "retryThumbnail": "サムネイルを再読み込み"
+  },
+  "updater": {
+    "title": "アップデートが利用可能です ({{version}})",
+    "description": "新しいバージョンが利用可能です！",
+    "current_label": "現在",
+    "latest_label": "最新",
+    "downloading": "アップデートをダウンロード中...",
+    "ready": "アップデートの準備が完了しました",
+    "ready_description": "アップデートがダウンロードされ、インストールの準備ができました。「再起動」をクリックしてアップデートを適用してください。",
+    "no_release_notes": "リリースノートはありません",
+    "actions": {
+      "update_now": "今すぐアップデート",
+      "later": "後で",
+      "restart": "再起動",
+      "downloading": "ダウンロード中...",
+      "cancel": "キャンセル",
+      "retry": "再試行"
+    },
+    "error": {
+      "title": "アップデートに失敗しました",
+      "no_update_available": "利用可能なアップデートがありません",
+      "download_failed": "アップデートのダウンロードに失敗しました",
+      "restart_failed": "アプリケーションの再起動に失敗しました"
+    }
   }
 }

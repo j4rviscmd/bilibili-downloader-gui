@@ -243,5 +243,29 @@
     "copyFailed": "Failed to copy URL",
     "thumbnail": "No download history yet",
     "retryThumbnail": "Reload thumbnail"
+  },
+  "updater": {
+    "title": "Update Available ({{version}})",
+    "description": "A new version is available!",
+    "current_label": "Current",
+    "latest_label": "Latest",
+    "downloading": "Downloading update...",
+    "ready": "Update ready to install",
+    "ready_description": "The update has been downloaded and is ready to be installed. Click 'Restart' to apply the update.",
+    "no_release_notes": "No release notes available",
+    "actions": {
+      "update_now": "Update Now",
+      "later": "Later",
+      "restart": "Restart",
+      "downloading": "Downloading...",
+      "cancel": "Cancel",
+      "retry": "Retry"
+    },
+    "error": {
+      "title": "Update Failed",
+      "no_update_available": "No update available",
+      "download_failed": "Failed to download update",
+      "restart_failed": "Failed to restart application"
+    }
   }
 }

@@ -237,5 +237,29 @@
     "copyFailed": "Échec de la copie de l'URL",
     "thumbnail": "Aucun historique de téléchargement pour le moment",
     "retryThumbnail": "Recharger la vignette"
+  },
+  "updater": {
+    "title": "Mise à jour disponible ({{version}})",
+    "description": "Une nouvelle version est disponible !",
+    "current_label": "Actuel",
+    "latest_label": "Dernière",
+    "downloading": "Téléchargement de la mise à jour...",
+    "ready": "Mise à jour prête à installer",
+    "ready_description": "La mise à jour a été téléchargée et est prête à être installée. Cliquez sur 'Redémarrer' pour appliquer la mise à jour.",
+    "no_release_notes": "Aucune note de version disponible",
+    "actions": {
+      "update_now": "Mettre à jour maintenant",
+      "later": "Plus tard",
+      "restart": "Redémarrer",
+      "downloading": "Téléchargement...",
+      "cancel": "Annuler",
+      "retry": "Réessayer"
+    },
+    "error": {
+      "title": "Échec de la mise à jour",
+      "no_update_available": "Aucune mise à jour disponible",
+      "download_failed": "Échec du téléchargement de la mise à jour",
+      "restart_failed": "Échec du redémarrage de l'application"
+    }
   }
 }

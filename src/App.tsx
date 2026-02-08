@@ -1,4 +1,5 @@
 import { useTheme } from '@/app/providers/ThemeContext'
+import { UpdateNotification } from '@/features/updater'
 import IndexPage from '@/pages'
 import ErrorPage from '@/pages/error'
 import HistoryPage from '@/pages/history'
@@ -36,6 +37,7 @@ function App() {
         <Route path="/history" element={<HistoryPage />} />
         <Route path="/error" element={<ErrorPage />} />
       </Routes>
+      <UpdateNotification />
       <Toaster richColors theme={theme} />
     </>
   )
