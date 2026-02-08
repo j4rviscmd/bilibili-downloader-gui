@@ -70,6 +70,12 @@ xattr -c "/Applications/bilibili-downloader-gui.app"
 
 If you installed the app outside /Applications, adjust the path accordingly.
 
+---
+
+## 👨‍💻 For Developers
+
+The following sections are intended for developers who want to build, modify, or contribute to this project.
+
 ## 📦 Requirements
 
 - Node.js 18+ (LTS recommended)
