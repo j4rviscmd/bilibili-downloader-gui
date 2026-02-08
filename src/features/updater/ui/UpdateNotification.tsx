@@ -1,16 +1,4 @@
-import {
-  setError,
-  setDownloadProgress,
-  setIsDownloading,
-  setIsUpdateReady,
-  setShowDialog,
-} from '@/features/updater/model/updaterSlice'
 import { useAppDispatch, useSelector } from '@/app/store'
-import { Download, RefreshCw, X } from 'lucide-react'
-import React, { useCallback } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { useTranslation } from 'react-i18next'
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -20,11 +8,23 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
-import { Badge } from '@/components/ui/badge'
-import { check } from '@tauri-apps/plugin-updater'
+import {
+  setDownloadProgress,
+  setError,
+  setIsDownloading,
+  setIsUpdateReady,
+  setShowDialog,
+} from '@/features/updater/model/updaterSlice'
 import { relaunch } from '@tauri-apps/plugin-process'
+import { check } from '@tauri-apps/plugin-updater'
+import { Download, RefreshCw, X } from 'lucide-react'
+import React, { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 /**
  * Update notification dialog component.
@@ -36,18 +36,8 @@ export const UpdateNotification = React.memo(() => {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
 
-  const latestVersion = useSelector((state) => state.updater.latestVersion)
-  const currentVersion = useSelector((state) => state.updater.currentVersion)
-  const releaseNotes = useSelector((state) => state.updater.releaseNotes)
-  const downloadProgress = useSelector((state) => state.updater.downloadProgress)
-  const isDownloading = useSelector((state) => state.updater.isDownloading)
-  const isUpdateReady = useSelector((state) => state.updater.isUpdateReady)
-  const error = useSelector((state) => state.updater.error)
-  const showDialog = useSelector((state) => state.updater.showDialog)
+  const updater = useSelector((state) => state.updater)
 
-  /**
-   * Handles the update download and installation process.
-   */
   const handleUpdate = useCallback(async () => {
     try {
       dispatch(setIsDownloading(true))
@@ -62,7 +52,6 @@ export const UpdateNotification = React.memo(() => {
         return
       }
 
-      // Download with progress tracking
       let contentLength = 0
       let downloaded = 0
 
@@ -74,11 +63,11 @@ export const UpdateNotification = React.memo(() => {
             break
           case 'Progress':
             downloaded += event.data.chunkLength
-            const progress = Math.min(
-              100,
-              (downloaded / contentLength) * 100,
+            dispatch(
+              setDownloadProgress(
+                Math.min(100, (downloaded / contentLength) * 100),
+              ),
             )
-            dispatch(setDownloadProgress(progress))
             break
           case 'Finished':
             dispatch(setDownloadProgress(100))
@@ -88,7 +77,6 @@ export const UpdateNotification = React.memo(() => {
         }
       })
 
-      // Update ready - restart the app
       dispatch(setIsDownloading(false))
       dispatch(setIsUpdateReady(true))
     } catch (e) {
@@ -99,24 +87,15 @@ export const UpdateNotification = React.memo(() => {
     }
   }, [dispatch, t])
 
-  /**
-   * Handles closing the dialog without updating.
-   */
   const handleCancel = useCallback(() => {
     dispatch(setShowDialog(false))
   }, [dispatch])
 
-  /**
-   * Handles retrying the update after an error.
-   */
   const handleRetry = useCallback(() => {
     dispatch(setError(null))
     handleUpdate()
   }, [dispatch, handleUpdate])
 
-  /**
-   * Handles restarting the app after update is ready.
-   */
   const handleRestart = useCallback(async () => {
     try {
       await relaunch()
@@ -126,37 +105,101 @@ export const UpdateNotification = React.memo(() => {
     }
   }, [dispatch, t])
 
+  const markdownComponents = {
+    h1: ({ children }: { children: React.ReactNode }) => (
+      <h1 className="mb-4 text-xl font-bold">{children}</h1>
+    ),
+    h2: ({ children }: { children: React.ReactNode }) => (
+      <h2 className="mt-4 mb-3 text-lg font-semibold">{children}</h2>
+    ),
+    h3: ({ children }: { children: React.ReactNode }) => (
+      <h3 className="mt-3 mb-2 text-base font-medium">{children}</h3>
+    ),
+    p: ({ children }: { children: React.ReactNode }) => (
+      <p className="mb-2 leading-relaxed">{children}</p>
+    ),
+    ul: ({ children }: { children: React.ReactNode }) => (
+      <ul className="mb-3 list-inside list-disc space-y-1">{children}</ul>
+    ),
+    ol: ({ children }: { children: React.ReactNode }) => (
+      <ol className="mb-3 list-inside list-decimal space-y-1">{children}</ol>
+    ),
+    li: ({ children }: { children: React.ReactNode }) => (
+      <li className="ml-4">{children}</li>
+    ),
+    code: ({ children }: { children: React.ReactNode }) => (
+      <code className="bg-muted rounded px-1.5 py-0.5 font-mono text-xs">
+        {children}
+      </code>
+    ),
+    pre: ({ children }: { children: React.ReactNode }) => (
+      <pre className="bg-muted mb-3 overflow-x-auto rounded-md p-3">
+        {children}
+      </pre>
+    ),
+    a: ({ href, children }: { href?: string; children: React.ReactNode }) => (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-primary hover:text-primary/80 underline"
+      >
+        {children}
+      </a>
+    ),
+    strong: ({ children }: { children: React.ReactNode }) => (
+      <strong className="font-semibold">{children}</strong>
+    ),
+    blockquote: ({ children }: { children: React.ReactNode }) => (
+      <blockquote className="border-muted-foreground/20 my-3 border-l-4 pl-4 italic">
+        {children}
+      </blockquote>
+    ),
+  }
+
   return (
-    <AlertDialog open={showDialog} onOpenChange={(open) => !open && dispatch(setShowDialog(false))}>
-      <AlertDialogContent size="lg" className="w-[1200px] max-w-none max-h-[90vh] flex flex-col">
+    <AlertDialog
+      open={updater.showDialog}
+      onOpenChange={(open) => !open && dispatch(setShowDialog(false))}
+    >
+      <AlertDialogContent
+        size="lg"
+        className="flex max-h-[90vh] w-[1200px] max-w-none flex-col"
+      >
         <AlertDialogHeader className="place-items-start text-left">
           <AlertDialogTitle>
-            {t('updater.title', { version: `v${latestVersion}` })}
+            {t('updater.title', { version: `v${updater.latestVersion}` })}
           </AlertDialogTitle>
           <AlertDialogDescription>
             <span className="flex flex-wrap items-center gap-2">
               <span>{t('updater.description')}</span>
-              <span className="text-muted-foreground">{t('updater.current_label')}</span>
-              <Badge variant="secondary">v{currentVersion}</Badge>
+              <span className="text-muted-foreground">
+                {t('updater.current_label')}
+              </span>
+              <Badge variant="secondary">v{updater.currentVersion}</Badge>
               <span className="text-muted-foreground">→</span>
-              <span className="text-muted-foreground">{t('updater.latest_label')}</span>
-              <Badge variant="default">v{latestVersion}</Badge>
+              <span className="text-muted-foreground">
+                {t('updater.latest_label')}
+              </span>
+              <Badge variant="default">v{updater.latestVersion}</Badge>
             </span>
           </AlertDialogDescription>
         </AlertDialogHeader>
 
-        <div className="my-4 flex-1 min-h-0 flex flex-col">
-          {isDownloading ? (
+        <div className="my-4 flex min-h-0 flex-1 flex-col">
+          {updater.isDownloading ? (
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">
                   {t('updater.downloading')}
                 </span>
-                <span className="font-medium">{Math.round(downloadProgress)}%</span>
+                <span className="font-medium">
+                  {Math.round(updater.downloadProgress)}%
+                </span>
               </div>
-              <Progress value={downloadProgress} />
+              <Progress value={updater.downloadProgress} />
             </div>
-          ) : isUpdateReady ? (
+          ) : updater.isUpdateReady ? (
             <div className="rounded-md bg-green-50 p-4 dark:bg-green-950">
               <p className="text-sm font-medium text-green-800 dark:text-green-200">
                 {t('updater.ready')}
@@ -165,81 +208,44 @@ export const UpdateNotification = React.memo(() => {
                 {t('updater.ready_description')}
               </p>
             </div>
-          ) : error ? (
-            <div className="rounded-md bg-destructive/10 p-4">
+          ) : updater.error ? (
+            <div className="bg-destructive/10 rounded-md p-4">
               <div className="flex items-start gap-3">
                 <div className="flex-shrink-0">
-                  <X className="size-5 text-destructive" />
+                  <X className="text-destructive size-5" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-destructive">
+                  <p className="text-destructive text-sm font-medium">
                     {t('updater.error.title')}
                   </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {error}
+                  <p className="text-muted-foreground mt-1 text-xs">
+                    {updater.error}
                   </p>
                 </div>
               </div>
             </div>
-          ) : releaseNotes ? (
-            <div className="rounded-md border border-border flex-1 min-h-0 flex flex-col">
-              <div className="p-4 overflow-y-auto">
+          ) : updater.releaseNotes ? (
+            <div className="border-border flex min-h-0 flex-1 flex-col rounded-md border">
+              <div className="overflow-y-auto p-4">
                 <div className="markdown-body text-sm">
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  components={{
-                    h1: ({ children }) => (
-                      <h1 className="text-xl font-bold mb-4">{children}</h1>
-                    ),
-                    h2: ({ children }) => (
-                      <h2 className="text-lg font-semibold mb-3 mt-4">{children}</h2>
-                    ),
-                    h3: ({ children }) => (
-                      <h3 className="text-base font-medium mb-2 mt-3">{children}</h3>
-                    ),
-                    p: ({ children }) => (
-                      <p className="mb-2 leading-relaxed">{children}</p>
-                    ),
-                    ul: ({ children }) => (
-                      <ul className="list-disc list-inside mb-3 space-y-1">{children}</ul>
-                    ),
-                    ol: ({ children }) => (
-                      <ol className="list-decimal list-inside mb-3 space-y-1">{children}</ol>
-                    ),
-                    li: ({ children }) => (
-                      <li className="ml-4">{children}</li>
-                    ),
-                    code: ({ children }) => (
-                      <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono">{children}</code>
-                    ),
-                    pre: ({ children }) => (
-                      <pre className="bg-muted p-3 rounded-md overflow-x-auto mb-3">{children}</pre>
-                    ),
-                    a: ({ href, children }) => (
-                      <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline hover:text-primary/80">{children}</a>
-                    ),
-                    strong: ({ children }) => (
-                      <strong className="font-semibold">{children}</strong>
-                    ),
-                    blockquote: ({ children }) => (
-                      <blockquote className="border-l-4 border-muted-foreground/20 pl-4 italic my-3">{children}</blockquote>
-                    ),
-                  }}
-                >
-                  {releaseNotes}
-                </ReactMarkdown>
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={markdownComponents}
+                  >
+                    {updater.releaseNotes}
+                  </ReactMarkdown>
+                </div>
               </div>
-            </div>
             </div>
           ) : (
             <div className="flex items-center justify-center py-8">
-              <RefreshCw className="size-6 animate-spin text-muted-foreground" />
+              <RefreshCw className="text-muted-foreground size-6 animate-spin" />
             </div>
           )}
         </div>
 
         <AlertDialogFooter>
-          {isUpdateReady ? (
+          {updater.isUpdateReady ? (
             <>
               <AlertDialogCancel onClick={handleCancel}>
                 {t('updater.actions.later')}
@@ -249,7 +255,7 @@ export const UpdateNotification = React.memo(() => {
                 {t('updater.actions.restart')}
               </Button>
             </>
-          ) : error ? (
+          ) : updater.error ? (
             <>
               <AlertDialogCancel onClick={handleCancel}>
                 {t('updater.actions.cancel')}
@@ -263,12 +269,12 @@ export const UpdateNotification = React.memo(() => {
             <>
               <AlertDialogCancel
                 onClick={handleCancel}
-                disabled={isDownloading}
+                disabled={updater.isDownloading}
               >
                 {t('updater.actions.later')}
               </AlertDialogCancel>
-              <Button onClick={handleUpdate} disabled={isDownloading}>
-                {isDownloading ? (
+              <Button onClick={handleUpdate} disabled={updater.isDownloading}>
+                {updater.isDownloading ? (
                   <>
                     <RefreshCw className="mr-2 size-4 animate-spin" />
                     {t('updater.actions.downloading')}
@@ -283,7 +289,7 @@ export const UpdateNotification = React.memo(() => {
             </>
           )}
         </AlertDialogFooter>
-    </AlertDialogContent>
+      </AlertDialogContent>
     </AlertDialog>
   )
 })

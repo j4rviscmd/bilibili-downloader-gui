@@ -23,12 +23,7 @@ export const updaterSlice = createSlice({
   name: 'updater',
   initialState,
   reducers: {
-    /**
-     * Sets the update availability status.
-     *
-     * @param state - Current updater state
-     * @param action - Action containing update availability info
-     */
+    /** Sets the update availability status and shows dialog if available. */
     setUpdateAvailable(
       state,
       action: PayloadAction<{
@@ -40,69 +35,33 @@ export const updaterSlice = createSlice({
       state.updateAvailable = action.payload.available
       state.latestVersion = action.payload.latestVersion
       state.currentVersion = action.payload.currentVersion
-      if (action.payload.available) {
-        state.showDialog = true
-      }
+      state.showDialog = action.payload.available
     },
-    /**
-     * Sets the release notes content.
-     *
-     * @param state - Current updater state
-     * @param action - Action containing the release notes Markdown
-     */
+    /** Sets the release notes content. */
     setReleaseNotes(state, action: PayloadAction<string>) {
       state.releaseNotes = action.payload
     },
-    /**
-     * Updates the download progress.
-     *
-     * @param state - Current updater state
-     * @param action - Action containing progress percentage (0-100)
-     */
+    /** Updates the download progress percentage (0-100). */
     setDownloadProgress(state, action: PayloadAction<number>) {
       state.downloadProgress = action.payload
     },
-    /**
-     * Sets the downloading state.
-     *
-     * @param state - Current updater state
-     * @param action - Action containing the downloading flag
-     */
+    /** Sets the downloading state. */
     setIsDownloading(state, action: PayloadAction<boolean>) {
       state.isDownloading = action.payload
     },
-    /**
-     * Sets the update ready state.
-     *
-     * @param state - Current updater state
-     * @param action - Action containing the ready flag
-     */
+    /** Sets the update ready state. */
     setIsUpdateReady(state, action: PayloadAction<boolean>) {
       state.isUpdateReady = action.payload
     },
-    /**
-     * Sets an error message.
-     *
-     * @param state - Current updater state
-     * @param action - Action containing the error message
-     */
+    /** Sets an error message. */
     setError(state, action: PayloadAction<string | null>) {
       state.error = action.payload
     },
-    /**
-     * Controls the update dialog visibility.
-     *
-     * @param state - Current updater state
-     * @param action - Action containing the dialog visibility flag
-     */
+    /** Controls the update dialog visibility. */
     setShowDialog(state, action: PayloadAction<boolean>) {
       state.showDialog = action.payload
     },
-    /**
-     * Resets the updater state to initial values.
-     *
-     * @param state - Current updater state
-     */
+    /** Resets the updater state to initial values. */
     resetUpdater(state) {
       Object.assign(state, initialState)
     },

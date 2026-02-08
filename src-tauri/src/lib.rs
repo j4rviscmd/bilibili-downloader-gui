@@ -763,7 +763,11 @@ async fn open_file(path: String) -> Result<(), String> {
 /// // notes contains Markdown formatted release notes for all newer versions
 /// ```
 #[tauri::command]
-async fn get_release_notes(owner: String, repo: String, current_version: String) -> Result<String, String> {
+async fn get_release_notes(
+    owner: String,
+    repo: String,
+    current_version: String,
+) -> Result<String, String> {
     updater::fetch_all_release_notes(&owner, &repo, &current_version)
         .await
         .map_err(|e| e.to_string())
