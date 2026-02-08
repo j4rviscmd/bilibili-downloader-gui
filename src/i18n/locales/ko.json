@@ -237,5 +237,29 @@
     "copyFailed": "URL 복사 실패",
     "thumbnail": "다운로드 기록이 없습니다",
     "retryThumbnail": "썸네일 다시 로드"
+  },
+  "updater": {
+    "title": "업데이트 가능 ({{version}})",
+    "description": "새 버전을 사용할 수 있습니다!",
+    "current_label": "현재",
+    "latest_label": "최신",
+    "downloading": "업데이트 다운로드 중...",
+    "ready": "업데이트 설치 준비 완료",
+    "ready_description": "업데이트가 다운로드되었으며 설치 준비가 되었습니다. '재시작'을 클릭하여 업데이트를 적용하세요.",
+    "no_release_notes": "릴리스 노트 없음",
+    "actions": {
+      "update_now": "지금 업데이트",
+      "later": "나중에",
+      "restart": "재시작",
+      "downloading": "다운로드 중...",
+      "cancel": "취소",
+      "retry": "재시도"
+    },
+    "error": {
+      "title": "업데이트 실패",
+      "no_update_available": "사용 가능한 업데이트가 없습니다",
+      "download_failed": "업데이트 다운로드 실패",
+      "restart_failed": "애플리케이션 재시작 실패"
+    }
   }
 }

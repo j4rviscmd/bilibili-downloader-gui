@@ -4,6 +4,7 @@ import ErrorPage from '@/pages/error'
 import HistoryPage from '@/pages/history'
 import HomePage from '@/pages/home'
 import InitPage from '@/pages/init'
+import { UpdateNotification } from '@/features/updater'
 import { Toaster } from '@/shared/ui/sonner'
 import '@/styles/global.css'
 import { Route, Routes } from 'react-router'
@@ -36,6 +37,7 @@ function App() {
         <Route path="/history" element={<HistoryPage />} />
         <Route path="/error" element={<ErrorPage />} />
       </Routes>
+      <UpdateNotification />
       <Toaster richColors theme={theme} />
     </>
   )

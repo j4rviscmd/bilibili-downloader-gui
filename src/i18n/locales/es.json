@@ -237,5 +237,29 @@
     "copyFailed": "Error al copiar la URL",
     "thumbnail": "Aún no hay historial de descargas",
     "retryThumbnail": "Recargar miniatura"
+  },
+  "updater": {
+    "title": "Actualización disponible ({{version}})",
+    "description": "¡Hay una nueva versión disponible!",
+    "current_label": "Actual",
+    "latest_label": "Última",
+    "downloading": "Descargando actualización...",
+    "ready": "Actualización lista para instalar",
+    "ready_description": "La actualización se ha descargado y está lista para instalar. Haz clic en 'Reiniciar' para aplicar la actualización.",
+    "no_release_notes": "No hay notas de la versión",
+    "actions": {
+      "update_now": "Actualizar ahora",
+      "later": "Más tarde",
+      "restart": "Reiniciar",
+      "downloading": "Descargando...",
+      "cancel": "Cancelar",
+      "retry": "Reintentar"
+    },
+    "error": {
+      "title": "Error en la actualización",
+      "no_update_available": "No hay actualizaciones disponibles",
+      "download_failed": "Error al descargar la actualización",
+      "restart_failed": "Error al reiniciar la aplicación"
+    }
   }
 }

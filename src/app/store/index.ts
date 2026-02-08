@@ -11,6 +11,7 @@ import historyReducer from '@/features/history/model/historySlice'
 import thumbnailCacheReducer from '@/features/history/model/thumbnailSlice'
 import initReducer from '@/features/init/model/initSlice'
 import settingReducer from '@/features/settings/settingsSlice'
+import updaterReducer from '@/features/updater/model/updaterSlice'
 import userReducer from '@/features/user/userSlice'
 import inputReducer from '@/features/video/model/inputSlice'
 import videoReducer from '@/features/video/model/videoSlice'
@@ -43,6 +44,7 @@ export const store = configureStore({
     downloadStatus: downloadStatusReducer,
     history: historyReducer,
     thumbnailCache: thumbnailCacheReducer,
+    updater: updaterReducer,
   },
   devTools: process.env.NODE_ENV !== 'production',
 })

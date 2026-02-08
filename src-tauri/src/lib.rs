@@ -13,6 +13,7 @@ use crate::handlers::bilibili;
 use crate::handlers::cookie;
 use crate::handlers::ffmpeg;
 use crate::handlers::settings;
+use crate::handlers::updater;
 use crate::models::cookie::CookieCache;
 use crate::models::frontend_dto::User;
 use crate::models::frontend_dto::Video;
@@ -52,6 +53,7 @@ pub use utils::wbi;
 /// - `clear_history`: Clears all history entries
 /// - `search_history`: Searches history with filters
 /// - `export_history`: Exports history in JSON or CSV format
+/// - `get_release_notes`: Fetches release notes from GitHub API
 ///
 /// # Panics
 ///
@@ -97,6 +99,7 @@ pub fn run() {
             get_thumbnail_base64,
             reveal_in_folder,
             open_file,
+            get_release_notes,
             // record_download_click  // NOTE: GA4 Analytics は無効化されています
         ])
         // 開発環境以外で`app`宣言ではBuildに失敗するため、`_app`を使用
@@ -730,3 +733,38 @@ async fn open_file(path: String) -> Result<(), String> {
 //     });
 //     Ok(())
 // }
+
+/// Fetches all release notes from GitHub for versions newer than current.
+///
+/// This command retrieves all releases from the GitHub repository,
+/// filters them to include only versions newer than the current version,
+/// and merges their release notes into a single Markdown document.
+///
+/// # Arguments
+///
+/// * `owner` - Repository owner (e.g., "j4rviscmd")
+/// * `repo` - Repository name (e.g., "bilibili-downloader-gui")
+/// * `current_version` - Current application version (e.g., "1.1.0")
+///
+/// # Returns
+///
+/// Returns merged release notes for all newer versions as a Markdown-formatted string.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The GitHub API request fails (network issues, rate limit, etc.)
+/// - The current version cannot be parsed as semver
+///
+/// # Example
+///
+/// ```rust
+/// let notes = get_release_notes("j4rviscmd", "bilibili-downloader-gui", "1.1.0").await?;
+/// // notes contains Markdown formatted release notes for all newer versions
+/// ```
+#[tauri::command]
+async fn get_release_notes(owner: String, repo: String, current_version: String) -> Result<String, String> {
+    updater::fetch_all_release_notes(&owner, &repo, &current_version)
+        .await
+        .map_err(|e| e.to_string())
+}

@@ -237,5 +237,29 @@
     "copyFailed": "复制链接失败",
     "thumbnail": "暂无下载历史",
     "retryThumbnail": "重新加载缩略图"
+  },
+  "updater": {
+    "title": "有可用更新 ({{version}})",
+    "description": "有新版本可用！",
+    "current_label": "当前",
+    "latest_label": "最新",
+    "downloading": "正在下载更新...",
+    "ready": "更新已准备安装",
+    "ready_description": "更新已下载并准备安装。点击\\\"重启\\\"以应用更新。",
+    "no_release_notes": "暂无发布说明",
+    "actions": {
+      "update_now": "立即更新",
+      "later": "稍后",
+      "restart": "重启",
+      "downloading": "下载中...",
+      "cancel": "取消",
+      "retry": "重试"
+    },
+    "error": {
+      "title": "更新失败",
+      "no_update_available": "无可用更新",
+      "download_failed": "更新下载失败",
+      "restart_failed": "应用程序重启失败"
+    }
   }
 }
