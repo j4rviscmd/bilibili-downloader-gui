@@ -7,11 +7,11 @@
 
 <table>
   <tr>
-    <td width="70%">
+    <td width="75%">
       <p><strong>Windows and macOS Bilibili video downloader GUI.</strong></p>
       <p>Frontend is built with React + Vite; the desktop app is powered by Tauri (Rust).</p>
     </td>
-    <td width="30%">
+    <td width="25%">
       <img src="public/icon.png" alt="App Icon" width="128">
     </td>
   </tr>
