@@ -5,7 +5,7 @@
 ![React + Vite + TS](https://img.shields.io/badge/React%20%2B%20Vite-TypeScript-2ea44f)
 ![GitHub Downloads](https://img.shields.io/github/downloads/j4rviscmd/bilibili-downloader-gui/total?style=flat-square)
 
-<table>
+<table width="100%">
   <tr>
     <td width="80%">
       <p><strong>Windows and macOS Bilibili video downloader GUI.</strong></p>
