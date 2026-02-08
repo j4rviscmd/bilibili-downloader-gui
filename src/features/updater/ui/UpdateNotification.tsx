@@ -106,38 +106,38 @@ export const UpdateNotification = React.memo(() => {
   }, [dispatch, t])
 
   const markdownComponents = {
-    h1: ({ children }: { children: React.ReactNode }) => (
+    h1: ({ children }: { children?: React.ReactNode }) => (
       <h1 className="mb-4 text-xl font-bold">{children}</h1>
     ),
-    h2: ({ children }: { children: React.ReactNode }) => (
+    h2: ({ children }: { children?: React.ReactNode }) => (
       <h2 className="mt-4 mb-3 text-lg font-semibold">{children}</h2>
     ),
-    h3: ({ children }: { children: React.ReactNode }) => (
+    h3: ({ children }: { children?: React.ReactNode }) => (
       <h3 className="mt-3 mb-2 text-base font-medium">{children}</h3>
     ),
-    p: ({ children }: { children: React.ReactNode }) => (
+    p: ({ children }: { children?: React.ReactNode }) => (
       <p className="mb-2 leading-relaxed">{children}</p>
     ),
-    ul: ({ children }: { children: React.ReactNode }) => (
+    ul: ({ children }: { children?: React.ReactNode }) => (
       <ul className="mb-3 list-inside list-disc space-y-1">{children}</ul>
     ),
-    ol: ({ children }: { children: React.ReactNode }) => (
+    ol: ({ children }: { children?: React.ReactNode }) => (
       <ol className="mb-3 list-inside list-decimal space-y-1">{children}</ol>
     ),
-    li: ({ children }: { children: React.ReactNode }) => (
+    li: ({ children }: { children?: React.ReactNode }) => (
       <li className="ml-4">{children}</li>
     ),
-    code: ({ children }: { children: React.ReactNode }) => (
+    code: ({ children }: { children?: React.ReactNode }) => (
       <code className="bg-muted rounded px-1.5 py-0.5 font-mono text-xs">
         {children}
       </code>
     ),
-    pre: ({ children }: { children: React.ReactNode }) => (
+    pre: ({ children }: { children?: React.ReactNode }) => (
       <pre className="bg-muted mb-3 overflow-x-auto rounded-md p-3">
         {children}
       </pre>
     ),
-    a: ({ href, children }: { href?: string; children: React.ReactNode }) => (
+    a: ({ href, children }: { href?: string; children?: React.ReactNode }) => (
       <a
         href={href}
         target="_blank"
@@ -147,10 +147,10 @@ export const UpdateNotification = React.memo(() => {
         {children}
       </a>
     ),
-    strong: ({ children }: { children: React.ReactNode }) => (
+    strong: ({ children }: { children?: React.ReactNode }) => (
       <strong className="font-semibold">{children}</strong>
     ),
-    blockquote: ({ children }: { children: React.ReactNode }) => (
+    blockquote: ({ children }: { children?: React.ReactNode }) => (
       <blockquote className="border-muted-foreground/20 my-3 border-l-4 pl-4 italic">
         {children}
       </blockquote>
