@@ -97,7 +97,7 @@ export function PageLayout({
   return (
     <>
       <SidebarProvider defaultOpen={true}>
-        <Sidebar>
+        <Sidebar collapsible="icon">
           <NavigationSidebarHeader />
           <SidebarContent />
           <SidebarFooter>
