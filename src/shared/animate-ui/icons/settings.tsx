@@ -11,6 +11,14 @@ import {
 
 type SettingsProps = IconProps<keyof typeof animations>
 
+/**
+ * Animation variants for the settings gear icon.
+ *
+ * Available animations:
+ * - 'default': Rotates 180 degrees with easing
+ * - 'default-loop': Rotates 360 degrees continuously
+ * - 'rotate': Continuous linear rotation
+ */
 const animations = {
   default: {
     group: {
@@ -66,6 +74,21 @@ const animations = {
   } satisfies Record<string, Variants>,
 } as const
 
+/**
+ * Internal settings icon component with animation support.
+ *
+ * Renders a gear/cog icon with animated rotation. The icon consists
+ * of a path (gear shape) and a circle (center hole), both animated
+ * using Framer Motion variants.
+ *
+ * @param size - Icon size in pixels (default from IconWrapper)
+ * @param props - Additional SVG and animation props
+ *
+ * @example
+ * ```tsx
+ * <IconComponent size={24} animate={true} />
+ * ```
+ */
 function IconComponent({ size, ...props }: SettingsProps) {
   const { controls } = useAnimateIconContext()
   const variants = getVariants(animations)
@@ -103,6 +126,24 @@ function IconComponent({ size, ...props }: SettingsProps) {
   )
 }
 
+/**
+ * Animated settings gear icon.
+ *
+ * Displays a gear/cog icon that can animate on hover or tap.
+ * Supports multiple animation types including rotation and spinning.
+ *
+ * @example
+ * ```tsx
+ * // Animate on hover
+ * <Settings animateOnHover={true} />
+ *
+ * // Continuous rotation
+ * <Settings animateOnHover={true} animation="rotate" />
+ *
+ * // Custom size
+ * <Settings size={32} animateOnHover={true} />
+ * ```
+ */
 function Settings(props: SettingsProps) {
   return <IconWrapper icon={IconComponent} {...props} />
 }

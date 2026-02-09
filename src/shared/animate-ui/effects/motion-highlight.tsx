@@ -32,11 +32,31 @@ type MotionHighlightContextType<T extends string> = {
   forceUpdateBounds?: boolean
 }
 
+/**
+ * Context for managing motion highlight state across components.
+ *
+ * Provides shared state and handlers for managing active values, bounds,
+ * and styling for motion highlight animations.
+ */
 const MotionHighlightContext = React.createContext<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   MotionHighlightContextType<any> | undefined
 >(undefined)
 
+/**
+ * Hook to access the motion highlight context.
+ *
+ * Provides access to motion highlight state and handlers.
+ * Must be used within a MotionHighlight provider.
+ *
+ * @throws {Error} If used outside of a MotionHighlightProvider
+ * @returns The motion highlight context value
+ *
+ * @example
+ * ```tsx
+ * const { activeValue, setActiveValue, setBounds } = useMotionHighlight()
+ * ```
+ */
 function useMotionHighlight<T extends string>(): MotionHighlightContextType<T> {
   const context = React.useContext(MotionHighlightContext)
   if (!context) {
@@ -106,6 +126,29 @@ type MotionHighlightProps<T extends string> = React.ComponentProps<'div'> &
     | UncontrolledChildrenModeMotionHighlightProps<T>
   )
 
+/**
+ * Container component for motion highlight animations.
+ *
+ * Provides animated background highlights that follow active/hovered items.
+ * Supports two modes:
+ * - 'parent': Single highlight moves between items
+ * - 'children': Each item has its own highlight
+ *
+ * @example
+ * ```tsx
+ * // Parent mode (shared highlight)
+ * <MotionHighlight mode="parent" hover>
+ *   <MenuItem />
+ *   <MenuItem />
+ * </MotionHighlight>
+ *
+ * // Children mode (individual highlights)
+ * <MotionHighlight mode="children">
+ *   <MenuItem />
+ *   <MenuItem />
+ * </MotionHighlight>
+ * ```
+ */
 function MotionHighlight<T extends string>({
   ref,
   ...props
@@ -310,6 +353,16 @@ function MotionHighlight<T extends string>({
   )
 }
 
+/**
+ * Filters data attributes to avoid overriding existing element props.
+ *
+ * Ensures that data-* attributes are only applied if the element doesn't
+ * already have them defined, preventing accidental overrides of element state.
+ *
+ * @param element - The React element to check for existing props
+ * @param dataAttributes - Data attributes to apply
+ * @returns Filtered data attributes that won't override existing props
+ */
 function getNonOverridingDataAttributes(
   element: React.ReactElement,
   dataAttributes: Record<string, unknown>,
@@ -348,6 +401,24 @@ type MotionHighlightItemProps = React.ComponentProps<'div'> & {
   forceUpdateBounds?: boolean
 }
 
+/**
+ * Individual item wrapper for motion highlight animations.
+ *
+ * Wraps a child element to enable motion highlight behavior.
+ * Tracks item bounds, active state, and triggers animations on interaction.
+ *
+ * @example
+ * ```tsx
+ * <MotionHighlightItem value="home">
+ *   <button>Home</button>
+ * </MotionHighlightItem>
+ *
+ * // With asChild pattern
+ * <MotionHighlightItem asChild value="settings">
+ *   <button>Settings</button>
+ * </MotionHighlightItem>
+ * ```
+ */
 function MotionHighlightItem({
   ref,
   children,

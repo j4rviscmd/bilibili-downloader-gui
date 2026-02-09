@@ -13,7 +13,9 @@
       "mainNavigation": "메인 내비게이션",
       "home": "다운로드 페이지로 이동",
       "history": "기록 페이지로 이동",
-      "toggleSidebar": "사이드바 토글"
+      "toggleSidebar": "사이드바 토글",
+      "openSidebar": "사이드바 열기",
+      "closeSidebar": "사이드바 닫기"
     }
   },
   "actions": {

@@ -11,13 +11,19 @@ import {
   SidebarMenuItem,
   SidebarProvider,
   SidebarRail,
-  SidebarTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  useSidebar,
 } from '@/shared/animate-ui/radix/sidebar'
 import { cn } from '@/shared/lib/utils'
 import AppBar from '@/shared/ui/AppBar/AppBar'
+import { Button } from '@/shared/ui/button'
 import { NavigationSidebarHeader } from '@/shared/ui/NavigationSidebar'
 import { ScrollArea, ScrollBar } from '@/shared/ui/scroll-area'
+import { PanelLeft, PanelLeftClose } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 
 /**
  * Props for PageLayout component.
@@ -61,6 +67,44 @@ export interface PageLayoutProps {
  * </PageLayout>
  * ```
  */
+/**
+ * Custom sidebar trigger with dynamic icon and accessibility improvements.
+ *
+ * - Shows PanelLeft when collapsed, PanelLeftClose when expanded
+ * - Includes aria-label for screen readers
+ * - Uses sidebar Tooltip component for consistent styling
+ */
+function EnhancedSidebarTrigger({ className }: { className?: string }) {
+  const { state, toggleSidebar } = useSidebar()
+  const { t } = useTranslation()
+
+  const isExpanded = state === 'expanded'
+  const icon = isExpanded ? <PanelLeftClose /> : <PanelLeft />
+  const label = isExpanded
+    ? t('nav.aria.closeSidebar') || 'Close sidebar'
+    : t('nav.aria.openSidebar') || 'Open sidebar'
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn('h-full shrink-0 cursor-pointer', className)}
+          onClick={toggleSidebar}
+          aria-label={label}
+        >
+          {icon}
+          <span className="sr-only">{label}</span>
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="right" align="center">
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
 export function PageLayout({
   children,
   withScrollArea = true,
@@ -80,24 +124,10 @@ export function PageLayout({
     </div>
   )
 
-  const renderContent = () => {
-    if (!withScrollArea) return content
-
-    return (
-      <ScrollArea
-        style={{ height: 'calc(100dvh - 2.3rem)' }}
-        className="flex w-full"
-      >
-        {content}
-        <ScrollBar />
-      </ScrollArea>
-    )
-  }
-
   return (
     <>
       <SidebarProvider defaultOpen={true}>
-        <Sidebar>
+        <Sidebar collapsible="icon">
           <NavigationSidebarHeader />
           <SidebarContent />
           <SidebarFooter>
@@ -112,13 +142,20 @@ export function PageLayout({
         <SidebarInset>
           <div className="flex h-full w-full flex-col">
             <header className="bg-accent flex shadow-md">
-              <SidebarTrigger
-                size="lg"
-                className="h-full shrink-0 cursor-pointer"
-              />
+              <EnhancedSidebarTrigger />
               <AppBar user={user} theme={theme} setTheme={setTheme} />
             </header>
-            {renderContent()}
+            {withScrollArea ? (
+              <ScrollArea
+                style={{ height: 'calc(100dvh - 2.3rem)' }}
+                className="flex w-full"
+              >
+                {content}
+                <ScrollBar />
+              </ScrollArea>
+            ) : (
+              content
+            )}
           </div>
         </SidebarInset>
       </SidebarProvider>
