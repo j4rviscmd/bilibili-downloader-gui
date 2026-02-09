@@ -13,7 +13,9 @@
       "mainNavigation": "Navigation principale",
       "home": "Accéder à la page de téléchargement",
       "history": "Accéder à l'historique",
-      "toggleSidebar": "Basculer la barre latérale"
+      "toggleSidebar": "Basculer la barre latérale",
+      "openSidebar": "Ouvrir la barre latérale",
+      "closeSidebar": "Fermer la barre latérale"
     }
   },
   "actions": {

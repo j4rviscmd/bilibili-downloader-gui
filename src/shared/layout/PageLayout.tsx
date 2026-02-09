@@ -12,11 +12,15 @@ import {
   SidebarProvider,
   SidebarRail,
   SidebarTrigger,
+  useSidebar,
 } from '@/shared/animate-ui/radix/sidebar'
+import { Button } from '@/shared/ui/button'
 import { cn } from '@/shared/lib/utils'
 import AppBar from '@/shared/ui/AppBar/AppBar'
 import { NavigationSidebarHeader } from '@/shared/ui/NavigationSidebar'
 import { ScrollArea, ScrollBar } from '@/shared/ui/scroll-area'
+import { PanelLeft, PanelLeftClose, X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import type { ReactNode } from 'react'
 
 /**
@@ -61,6 +65,38 @@ export interface PageLayoutProps {
  * </PageLayout>
  * ```
  */
+/**
+ * Custom sidebar trigger with dynamic icon and accessibility improvements.
+ *
+ * - Shows PanelLeft when collapsed, PanelLeftClose when expanded
+ * - Includes aria-label for screen readers
+ * - Includes tooltip for visual feedback
+ */
+function EnhancedSidebarTrigger({ className }: { className?: string }) {
+  const { state, toggleSidebar } = useSidebar()
+  const { t } = useTranslation()
+
+  const isExpanded = state === 'expanded'
+  const icon = isExpanded ? <PanelLeftClose /> : <PanelLeft />
+  const label = isExpanded
+    ? t('nav.aria.closeSidebar') || 'Close sidebar'
+    : t('nav.aria.openSidebar') || 'Open sidebar'
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className={cn('h-full shrink-0 cursor-pointer', className)}
+      onClick={toggleSidebar}
+      aria-label={label}
+      title={label}
+    >
+      {icon}
+      <span className="sr-only">{label}</span>
+    </Button>
+  )
+}
+
 export function PageLayout({
   children,
   withScrollArea = true,
@@ -112,10 +148,7 @@ export function PageLayout({
         <SidebarInset>
           <div className="flex h-full w-full flex-col">
             <header className="bg-accent flex shadow-md">
-              <SidebarTrigger
-                size="lg"
-                className="h-full shrink-0 cursor-pointer"
-              />
+              <EnhancedSidebarTrigger />
               <AppBar user={user} theme={theme} setTheme={setTheme} />
             </header>
             {renderContent()}

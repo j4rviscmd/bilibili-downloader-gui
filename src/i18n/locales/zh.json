@@ -13,7 +13,9 @@
       "mainNavigation": "主导航",
       "home": "前往下载页面",
       "history": "前往历史页面",
-      "toggleSidebar": "切换侧边栏"
+      "toggleSidebar": "切换侧边栏",
+      "openSidebar": "打开侧边栏",
+      "closeSidebar": "关闭侧边栏"
     }
   },
   "actions": {

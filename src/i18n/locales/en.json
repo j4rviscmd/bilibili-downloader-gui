@@ -13,7 +13,9 @@
       "mainNavigation": "Main navigation",
       "home": "Navigate to download page",
       "history": "Navigate to history page",
-      "toggleSidebar": "Toggle Sidebar"
+      "toggleSidebar": "Toggle Sidebar",
+      "openSidebar": "Open sidebar",
+      "closeSidebar": "Close sidebar"
     }
   },
   "actions": {

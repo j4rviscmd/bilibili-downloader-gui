@@ -13,7 +13,9 @@
       "mainNavigation": "メインナビゲーション",
       "home": "ダウンロード画面へ移動",
       "history": "履歴画面へ移動",
-      "toggleSidebar": "サイドバーを切り替え"
+      "toggleSidebar": "サイドバーを切り替え",
+      "openSidebar": "サイドバーを開く",
+      "closeSidebar": "サイドバーを閉じる"
     }
   },
   "actions": {
