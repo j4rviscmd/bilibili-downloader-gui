@@ -99,11 +99,7 @@ function EnhancedSidebarTrigger({ className }: { className?: string }) {
           <span className="sr-only">{label}</span>
         </Button>
       </TooltipTrigger>
-      <TooltipContent
-        side="right"
-        align="center"
-        hidden={state !== 'collapsed' || isMobile}
-      >
+      <TooltipContent side="right" align="center">
         {label}
       </TooltipContent>
     </Tooltip>
