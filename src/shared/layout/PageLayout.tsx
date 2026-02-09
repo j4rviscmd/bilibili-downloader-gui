@@ -76,7 +76,7 @@ export interface PageLayoutProps {
  * - Uses sidebar Tooltip component for consistent styling
  */
 function EnhancedSidebarTrigger({ className }: { className?: string }) {
-  const { state, toggleSidebar, isMobile } = useSidebar()
+  const { state, toggleSidebar } = useSidebar()
   const { t } = useTranslation()
 
   const isExpanded = state === 'expanded'
