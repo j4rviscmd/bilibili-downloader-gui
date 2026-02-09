@@ -159,7 +159,7 @@
     "path_not_directory": "指定路径不是目录",
     "path_not_exist": "指定目录不存在",
     "lib_path_label": "库存储位置",
-    "lib_path_description": "存储 ffmpeg 等依赖文件的位置。默认为应用数据目录。更改后会将 ffmpeg 移动到新位置。",
+    "lib_path_description": "存储 ffmpeg 等依赖文件的位置。默认为应用数据目录。更改后会将依赖文件移动到新位置。",
     "lib_path_button": "选择",
     "lib_path_changing": "选择中...",
     "lib_path_dialog_title": "选择库目录",

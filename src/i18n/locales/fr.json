@@ -159,7 +159,7 @@
     "path_not_directory": "Le chemin indiqué n'est pas un répertoire",
     "path_not_exist": "Le répertoire indiqué n'existe pas",
     "lib_path_label": "Emplacement de stockage de la bibliothèque",
-    "lib_path_description": "Emplacement pour stocker les fichiers de dépendance comme ffmpeg. Par défaut, répertoire des données de l'application. Le changement déplacera ffmpeg vers le nouvel emplacement.",
+    "lib_path_description": "Emplacement pour stocker les fichiers de dépendance comme ffmpeg. Par défaut, répertoire des données de l'application. Le changement déplacera les fichiers de dépendance vers le nouvel emplacement.",
     "lib_path_button": "Sélectionner",
     "lib_path_changing": "Sélection...",
     "lib_path_dialog_title": "Sélectionner le répertoire de la bibliothèque",

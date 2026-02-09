@@ -163,7 +163,7 @@
     "path_not_directory": "指定されたパスはディレクトリではありません",
     "path_not_exist": "指定されたディレクトリが存在しません",
     "lib_path_label": "ライブラリ保存先",
-    "lib_path_description": "ffmpegなどの依存ファイルを保存する場所。デフォルトはアプリデータディレクトリ。変更するとffmpegが新しい場所に移動されます。",
+    "lib_path_description": "ffmpegなどの依存ファイルを保存する場所。変更すると依存ファイルが新しい場所に移動されます。",
     "lib_path_button": "選択",
     "lib_path_changing": "選択中...",
     "lib_path_dialog_title": "ライブラリディレクトリを選択",

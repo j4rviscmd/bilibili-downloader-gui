@@ -159,7 +159,7 @@
     "path_not_directory": "지정한 경로는 디렉터리가 아닙니다",
     "path_not_exist": "지정한 디렉터리가 존재하지 않습니다",
     "lib_path_label": "라이브러리 저장 위치",
-    "lib_path_description": "ffmpeg 등의 종속 파일을 저장할 위치입니다. 기본값은 앱 데이터 디렉터리입니다. 변경하면 ffmpeg가 새 위치로 이동됩니다.",
+    "lib_path_description": "ffmpeg 등의 종속 파일을 저장할 위치입니다. 기본값은 앱 데이터 디렉터리입니다. 변경하면 종속 파일이 새 위치로 이동됩니다.",
     "lib_path_button": "선택",
     "lib_path_changing": "선택 중...",
     "lib_path_dialog_title": "라이브러리 디렉터리 선택",
