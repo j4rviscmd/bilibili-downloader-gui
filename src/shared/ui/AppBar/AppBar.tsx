@@ -1,9 +1,15 @@
-import { UserRound } from 'lucide-react'
 import ToggleThemeButton from '@/features/preference/ui/ToggleThemeButton'
 import { useSettings } from '@/features/settings/useSettings'
 import type { User } from '@/features/user'
 import { Settings } from '@/shared/animate-ui/icons/settings'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/shared/animate-ui/radix/tooltip'
 import { Button } from '@/shared/ui/button'
+import { UserRound } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -60,12 +66,23 @@ function AppBar({ user, theme, setTheme }: Props) {
     <div className="bg-accent box-border flex h-9 w-full items-center justify-between px-3 sm:mx-auto sm:max-w-7xl sm:px-6">
       <div className="flex items-center gap-2">
         <UserRound
-          className="size-4 text-muted-foreground"
+          className="text-muted-foreground size-4"
           aria-hidden="true"
         />
-        <span title={userName} className="text-sm">
-          {maskedUserName || t('user.not_logged_in')}
-        </span>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="cursor-help text-sm">
+                {maskedUserName || t('user.not_logged_in')}
+              </span>
+            </TooltipTrigger>
+            {isLoggedIn && userName && (
+              <TooltipContent>
+                <p>{userName}</p>
+              </TooltipContent>
+            )}
+          </Tooltip>
+        </TooltipProvider>
       </div>
       <div className="flex items-center">
         <ToggleThemeButton theme={theme} setTheme={setTheme} />
