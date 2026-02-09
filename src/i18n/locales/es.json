@@ -159,7 +159,7 @@
     "path_not_directory": "La ruta especificada no es un directorio",
     "path_not_exist": "El directorio especificado no existe",
     "lib_path_label": "Ubicación de almacenamiento de biblioteca",
-    "lib_path_description": "Ubicación para almacenar archivos de dependencia como ffmpeg. Por defecto, directorio de datos de la aplicación. Cambiar esto moverá los archivos de dependencia a la nueva ubicación.",
+    "lib_path_description": "Ubicación para almacenar archivos de dependencia como ffmpeg. Cambiar esto moverá los archivos de dependencia a la nueva ubicación.",
     "lib_path_button": "Seleccionar",
     "lib_path_changing": "Seleccionando...",
     "lib_path_dialog_title": "Seleccionar directorio de biblioteca",
