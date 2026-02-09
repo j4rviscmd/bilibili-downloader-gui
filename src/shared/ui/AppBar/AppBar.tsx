@@ -2,8 +2,14 @@ import ToggleThemeButton from '@/features/preference/ui/ToggleThemeButton'
 import { useSettings } from '@/features/settings/useSettings'
 import type { User } from '@/features/user'
 import { Settings } from '@/shared/animate-ui/icons/settings'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/shared/animate-ui/radix/tooltip'
 import { Button } from '@/shared/ui/button'
-import { useState } from 'react'
+import { UserRound } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 /**
@@ -46,24 +52,32 @@ type Props = {
  * ```
  */
 function AppBar({ user, theme, setTheme }: Props) {
-  const userName = user.data.uname
-  const isLoggedIn = user.data.isLogin
   const { t } = useTranslation()
   const { updateOpenDialog } = useSettings()
-  const [hover, setHover] = useState(false)
 
-  // Mask last 3 characters of the user ID for display
-  const maskedUserName = isLoggedIn ? maskUserName(userName) : ''
+  const maskedUserName = user.data.isLogin ? maskUserName(user.data.uname) : ''
 
   return (
     <div className="bg-accent box-border flex h-9 w-full items-center justify-between px-3 sm:mx-auto sm:max-w-7xl sm:px-6">
-      <div>
-        <span className="text-muted-foreground">
-          {t('app.logged_in_user')}:
-        </span>
-        <span title={userName} className="px-3">
-          {maskedUserName || t('user.not_logged_in')}
-        </span>
+      <div className="flex items-center gap-2">
+        <UserRound
+          className="text-muted-foreground size-4"
+          aria-hidden="true"
+        />
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="cursor-help text-sm">
+                {maskedUserName || t('user.not_logged_in')}
+              </span>
+            </TooltipTrigger>
+            {user.data.isLogin && user.data.uname && (
+              <TooltipContent>
+                <p>{user.data.uname}</p>
+              </TooltipContent>
+            )}
+          </Tooltip>
+        </TooltipProvider>
       </div>
       <div className="flex items-center">
         <ToggleThemeButton theme={theme} setTheme={setTheme} />
@@ -72,12 +86,10 @@ function AppBar({ user, theme, setTheme }: Props) {
           variant="ghost"
           size="icon"
           className="size-7"
-          onMouseEnter={() => setHover(true)}
-          onMouseLeave={() => setHover(false)}
           onClick={() => updateOpenDialog(true)}
           aria-label={t('settings.open_dialog')}
         >
-          <Settings animate={hover} size={18} />
+          <Settings animateOnHover size={18} />
         </Button>
       </div>
     </div>
