@@ -163,7 +163,7 @@
     "path_not_directory": "The specified path is not a directory",
     "path_not_exist": "The specified directory does not exist",
     "lib_path_label": "Library Storage Location",
-    "lib_path_description": "Location to store dependency files like ffmpeg. Defaults to app data directory. Changing this will move ffmpeg to the new location.",
+    "lib_path_description": "Location to store dependency files like ffmpeg. Changing this will move dependency files to the new location.",
     "lib_path_button": "Select",
     "lib_path_changing": "Selecting...",
     "lib_path_dialog_title": "Select Library Directory",
