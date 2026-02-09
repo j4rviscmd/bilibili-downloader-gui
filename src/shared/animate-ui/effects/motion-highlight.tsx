@@ -367,14 +367,10 @@ function getNonOverridingDataAttributes(
   element: React.ReactElement,
   dataAttributes: Record<string, unknown>,
 ): Record<string, unknown> {
-  return Object.keys(dataAttributes).reduce<Record<string, unknown>>(
-    (acc, key) => {
-      if ((element.props as Record<string, unknown>)[key] === undefined) {
-        acc[key] = dataAttributes[key]
-      }
-      return acc
-    },
-    {},
+  return Object.fromEntries(
+    Object.entries(dataAttributes).filter(
+      ([key]) => (element.props as Record<string, unknown>)[key] === undefined,
+    ),
   )
 }
 

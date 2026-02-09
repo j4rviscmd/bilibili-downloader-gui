@@ -369,13 +369,10 @@ function getVariants<
 
   if (animationType in staticAnimations) {
     const variant = staticAnimations[animationType as StaticAnimations]
+    const skipGroup = animationType === 'path' || animationType === 'path-loop'
     result = {} as T
     for (const key in animations.default) {
-      if (
-        (animationType === 'path' || animationType === 'path-loop') &&
-        key.includes('group')
-      )
-        continue
+      if (skipGroup && key.includes('group')) continue
       result[key] = variant as T[Extract<keyof T, string>]
     }
   } else {
@@ -389,6 +386,12 @@ function getVariants<
       const transition = state.animate?.transition
       if (!transition) continue
 
+      const loopTransition = {
+        repeat: Infinity,
+        repeatType: 'loop' as const,
+        repeatDelay: loopDelay,
+      }
+
       const hasNestedKeys = Object.values(transition).some(
         (v) =>
           typeof v === 'object' &&
@@ -400,21 +403,11 @@ function getVariants<
         for (const prop in transition) {
           const subTrans = transition[prop]
           if (typeof subTrans === 'object' && subTrans !== null) {
-            transition[prop] = {
-              ...subTrans,
-              repeat: Infinity,
-              repeatType: 'loop',
-              repeatDelay: loopDelay,
-            }
+            transition[prop] = { ...subTrans, ...loopTransition }
           }
         }
       } else {
-        state.animate.transition = {
-          ...transition,
-          repeat: Infinity,
-          repeatType: 'loop',
-          repeatDelay: loopDelay,
-        }
+        state.animate.transition = { ...transition, ...loopTransition }
       }
     }
   }

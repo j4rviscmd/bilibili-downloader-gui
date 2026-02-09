@@ -79,10 +79,10 @@ function EnhancedSidebarTrigger({ className }: { className?: string }) {
   const { t } = useTranslation()
 
   const isExpanded = state === 'expanded'
-  const icon = isExpanded ? <PanelLeftClose /> : <PanelLeft />
   const label = isExpanded
     ? t('nav.aria.closeSidebar') || 'Close sidebar'
     : t('nav.aria.openSidebar') || 'Open sidebar'
+  const Icon = isExpanded ? PanelLeftClose : PanelLeft
 
   return (
     <Tooltip>
@@ -94,7 +94,7 @@ function EnhancedSidebarTrigger({ className }: { className?: string }) {
           onClick={toggleSidebar}
           aria-label={label}
         >
-          {icon}
+          <Icon />
           <span className="sr-only">{label}</span>
         </Button>
       </TooltipTrigger>
