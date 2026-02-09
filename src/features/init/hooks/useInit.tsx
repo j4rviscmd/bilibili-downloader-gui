@@ -9,8 +9,7 @@ import { changeLanguage, type SupportedLang } from '@/shared/i18n'
 import { sleep } from '@/shared/lib/utils'
 import { getOs } from '@/shared/os/api/getOs'
 import { invoke } from '@tauri-apps/api/core'
-import { exit, relaunch } from '@tauri-apps/plugin-process'
-import { check as checkUpdate } from '@tauri-apps/plugin-updater'
+import { exit } from '@tauri-apps/plugin-process'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 
@@ -81,11 +80,13 @@ export const useInit = () => {
    *
    * Performs the following steps in order:
    * 1. OS detection (fire-and-forget)
-   * 2. Version check and auto-update (skipped in dev mode)
-   * 3. App settings retrieval and language application
-   * 4. ffmpeg validation/installation
-   * 5. Cookie validation
-   * 6. User authentication check
+   * 2. App settings retrieval and language application
+   * 3. ffmpeg validation/installation
+   * 4. Cookie validation
+   * 5. User authentication check
+   *
+   * Note: Version checking is handled separately by UpdaterProvider
+   * which displays a non-blocking dialog when updates are available.
    *
    * TODO: Move invoke calls to api/ directory.
    *
@@ -95,7 +96,6 @@ export const useInit = () => {
    * - 2: Cookie check failed
    * - 3: User info fetch failed (not logged in)
    * - 4: User info fetch failed (other error)
-   * - 5: Version check failed
    * - 255: Unexpected error
    */
   const initApp = async (): Promise<number> => {
@@ -203,46 +203,18 @@ export const useInit = () => {
   }
 
   /**
-   * Checks the application version and performs auto-update if needed.
+   * Checks the application version.
    *
-   * In development mode, this check is skipped. In production, if an
-   * update is available, it downloads and installs automatically, then
-   * relaunches the app. If the app is already up-to-date, displays a
-   * confirmation message for 0.5s.
+   * Version checking is handled by UpdaterProvider which displays
+   * a non-blocking dialog when updates are available. This function
+   * always returns true to allow initialization to continue.
    *
-   * @returns True if version is valid (latest or successfully updated),
-   * false if update check fails.
+   * @returns Always true to continue initialization.
    */
   const checkVersion = async (): Promise<boolean> => {
-    // Skip update check in development
-    if (import.meta.env.DEV) {
-      setMessage(t('init.dev_skip_version'))
-      return true
-    }
-
-    setMessage(t('init.checking_version'))
-    try {
-      const update = await checkUpdate()
-      if (!update) {
-        // Already up to date
-        setMessage(t('init.latest_version'))
-        return true
-      }
-
-      // Perform forced update
-      const ver = update.version ?? 'latest'
-      setMessage(t('init.downloading_update', { ver }))
-      await update.downloadAndInstall()
-
-      setMessage(t('init.update_done_restart'))
-      await sleep(1500)
-      await relaunch()
-      return false
-    } catch (e) {
-      console.error('Version check/update failed:', e)
-      setMessage(t('init.update_failed'))
-      return false
-    }
+    // Version check is now handled by UpdaterProvider with user dialog
+    // Always return true to continue initialization
+    return true
   }
 
   /**
