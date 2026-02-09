@@ -12,6 +12,9 @@ import {
   SidebarProvider,
   SidebarRail,
   SidebarTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
   useSidebar,
 } from '@/shared/animate-ui/radix/sidebar'
 import { Button } from '@/shared/ui/button'
@@ -19,7 +22,7 @@ import { cn } from '@/shared/lib/utils'
 import AppBar from '@/shared/ui/AppBar/AppBar'
 import { NavigationSidebarHeader } from '@/shared/ui/NavigationSidebar'
 import { ScrollArea, ScrollBar } from '@/shared/ui/scroll-area'
-import { PanelLeft, PanelLeftClose, X } from 'lucide-react'
+import { PanelLeft, PanelLeftClose } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { ReactNode } from 'react'
 
@@ -70,10 +73,10 @@ export interface PageLayoutProps {
  *
  * - Shows PanelLeft when collapsed, PanelLeftClose when expanded
  * - Includes aria-label for screen readers
- * - Includes tooltip for visual feedback
+ * - Uses sidebar Tooltip component for consistent styling
  */
 function EnhancedSidebarTrigger({ className }: { className?: string }) {
-  const { state, toggleSidebar } = useSidebar()
+  const { state, toggleSidebar, isMobile } = useSidebar()
   const { t } = useTranslation()
 
   const isExpanded = state === 'expanded'
@@ -83,17 +86,27 @@ function EnhancedSidebarTrigger({ className }: { className?: string }) {
     : t('nav.aria.openSidebar') || 'Open sidebar'
 
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      className={cn('h-full shrink-0 cursor-pointer', className)}
-      onClick={toggleSidebar}
-      aria-label={label}
-      title={label}
-    >
-      {icon}
-      <span className="sr-only">{label}</span>
-    </Button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn('h-full shrink-0 cursor-pointer', className)}
+          onClick={toggleSidebar}
+          aria-label={label}
+        >
+          {icon}
+          <span className="sr-only">{label}</span>
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent
+        side="right"
+        align="center"
+        hidden={!isExpanded && !isMobile}
+      >
+        {label}
+      </TooltipContent>
+    </Tooltip>
   )
 }
 
