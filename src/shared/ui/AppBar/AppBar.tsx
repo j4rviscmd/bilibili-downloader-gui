@@ -1,3 +1,4 @@
+import { UserRound } from 'lucide-react'
 import ToggleThemeButton from '@/features/preference/ui/ToggleThemeButton'
 import { useSettings } from '@/features/settings/useSettings'
 import type { User } from '@/features/user'
@@ -57,11 +58,12 @@ function AppBar({ user, theme, setTheme }: Props) {
 
   return (
     <div className="bg-accent box-border flex h-9 w-full items-center justify-between px-3 sm:mx-auto sm:max-w-7xl sm:px-6">
-      <div>
-        <span className="text-muted-foreground">
-          {t('app.logged_in_user')}:
-        </span>
-        <span title={userName} className="px-3">
+      <div className="flex items-center gap-2">
+        <UserRound
+          className="size-4 text-muted-foreground"
+          aria-hidden="true"
+        />
+        <span title={userName} className="text-sm">
           {maskedUserName || t('user.not_logged_in')}
         </span>
       </div>
