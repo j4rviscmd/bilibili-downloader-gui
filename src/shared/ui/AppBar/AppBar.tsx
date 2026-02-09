@@ -52,6 +52,8 @@ function AppBar({ user, theme, setTheme }: Props) {
 
   const maskedUserName = user.data.isLogin ? maskUserName(user.data.uname) : ''
 
+  const showTooltip = user.data.isLogin && user.data.uname
+
   return (
     <div className="bg-accent box-border flex h-9 w-full items-center justify-between px-3 sm:mx-auto sm:max-w-7xl sm:px-6">
       <div className="flex items-center gap-2">
@@ -66,7 +68,7 @@ function AppBar({ user, theme, setTheme }: Props) {
                 {maskedUserName || t('user.not_logged_in')}
               </span>
             </TooltipTrigger>
-            {user.data.isLogin && user.data.uname && (
+            {showTooltip && (
               <TooltipContent>
                 <p>{user.data.uname}</p>
               </TooltipContent>
