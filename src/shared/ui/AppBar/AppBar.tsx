@@ -10,7 +10,6 @@ import {
 } from '@/shared/animate-ui/radix/tooltip'
 import { Button } from '@/shared/ui/button'
 import { UserRound } from 'lucide-react'
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 /**
@@ -53,14 +52,10 @@ type Props = {
  * ```
  */
 function AppBar({ user, theme, setTheme }: Props) {
-  const userName = user.data.uname
-  const isLoggedIn = user.data.isLogin
   const { t } = useTranslation()
   const { updateOpenDialog } = useSettings()
-  const [hover, setHover] = useState(false)
 
-  // Mask last 3 characters of the user ID for display
-  const maskedUserName = isLoggedIn ? maskUserName(userName) : ''
+  const maskedUserName = user.data.isLogin ? maskUserName(user.data.uname) : ''
 
   return (
     <div className="bg-accent box-border flex h-9 w-full items-center justify-between px-3 sm:mx-auto sm:max-w-7xl sm:px-6">
@@ -76,9 +71,9 @@ function AppBar({ user, theme, setTheme }: Props) {
                 {maskedUserName || t('user.not_logged_in')}
               </span>
             </TooltipTrigger>
-            {isLoggedIn && userName && (
+            {user.data.isLogin && user.data.uname && (
               <TooltipContent>
-                <p>{userName}</p>
+                <p>{user.data.uname}</p>
               </TooltipContent>
             )}
           </Tooltip>
@@ -91,12 +86,10 @@ function AppBar({ user, theme, setTheme }: Props) {
           variant="ghost"
           size="icon"
           className="size-7"
-          onMouseEnter={() => setHover(true)}
-          onMouseLeave={() => setHover(false)}
           onClick={() => updateOpenDialog(true)}
           aria-label={t('settings.open_dialog')}
         >
-          <Settings animate={hover} size={18} />
+          <Settings animateOnHover size={18} />
         </Button>
       </div>
     </div>
