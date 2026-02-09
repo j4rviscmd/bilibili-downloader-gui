@@ -102,7 +102,7 @@ function EnhancedSidebarTrigger({ className }: { className?: string }) {
       <TooltipContent
         side="right"
         align="center"
-        hidden={!isExpanded && !isMobile}
+        hidden={state !== 'collapsed' || isMobile}
       >
         {label}
       </TooltipContent>
