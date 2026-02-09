@@ -80,10 +80,28 @@ interface IconWrapperProps<T> extends IconProps<T> {
   icon: React.ComponentType<IconProps<T>>
 }
 
+/**
+ * Context for managing animated icon state.
+ *
+ * Provides shared animation controls, animation type, and loop settings
+ * to nested icon components.
+ */
 const AnimateIconContext = React.createContext<AnimateIconContextValue | null>(
   null,
 )
 
+/**
+ * Hook to access the animated icon context.
+ *
+ * Returns default values if used outside of an AnimateIconProvider.
+ *
+ * @returns The icon animation context value with defaults applied
+ *
+ * @example
+ * ```tsx
+ * const { controls, animation, loop, loopDelay } = useAnimateIconContext()
+ * ```
+ */
 function useAnimateIconContext() {
   const context = React.useContext(AnimateIconContext)
   if (!context)
@@ -96,6 +114,25 @@ function useAnimateIconContext() {
   return context
 }
 
+/**
+ * Provider wrapper for animating icons on user interaction.
+ *
+ * Manages animation state for child icon components, triggering animations
+ * on hover, tap/click, or controlled state changes.
+ *
+ * @example
+ * ```tsx
+ * // Animate on hover
+ * <AnimateIcon animateOnHover="path">
+ *   <MyIcon />
+ * </AnimateIcon>
+ *
+ * // Controlled animation
+ * <AnimateIcon animate={isPlaying} animation="spin">
+ *   <PlayIcon />
+ * </AnimateIcon>
+ * ```
+ */
 function AnimateIcon({
   animate,
   onAnimateChange,
@@ -184,6 +221,29 @@ function AnimateIcon({
 const pathClassName =
   "[&_[stroke-dasharray='1px_1px']]:![stroke-dasharray:1px_0px]"
 
+/**
+ * Wrapper component for creating animated icons.
+ *
+ * Automatically handles animation context inheritance and applies
+ * appropriate variants based on the animation type. Supports size
+ * customization and className merging.
+ *
+ * @example
+ * ```tsx
+ * // Standalone animated icon
+ * <IconWrapper
+ *   icon={SettingsIcon}
+ *   animateOnHover={true}
+ *   animation="rotate"
+ *   size={24}
+ * />
+ *
+ * // Inheriting from parent AnimateIcon
+ * <AnimateIcon animateOnHover="path">
+ *   <IconWrapper icon={HomeIcon} />
+ * </AnimateIcon>
+ * ```
+ */
 function IconWrapper<T extends string>({
   size = 28,
   animation: animationProp,
@@ -279,6 +339,25 @@ function IconWrapper<T extends string>({
   )
 }
 
+/**
+ * Gets animation variants with loop support applied.
+ *
+ * Retrieves the appropriate animation variants based on the current
+ * animation type from context. If loop is enabled, modifies the
+ * transition properties to include infinite repetition.
+ *
+ * @param animations - Object containing animation variant definitions
+ * @returns Variants object with loop modifications applied if needed
+ *
+ * @example
+ * ```tsx
+ * const animations = {
+ *   default: { group: { initial: {}, animate: {} } },
+ *   spin: { group: { initial: {}, animate: {} } }
+ * }
+ * const variants = getVariants(animations)
+ * ```
+ */
 function getVariants<
   V extends { default: T; [key: string]: T },
   T extends Record<string, Variants>,

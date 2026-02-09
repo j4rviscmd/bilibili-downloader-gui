@@ -7,6 +7,9 @@ use once_cell::sync::Lazy;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
 
+/// Default maximum number of concurrent video downloads.
+const DEFAULT_MAX_CONCURRENT_DOWNLOADS: usize = 8;
+
 /// Global semaphore limiting concurrent video downloads.
 ///
 /// This semaphore controls how many video files can be downloaded simultaneously.
@@ -38,4 +41,5 @@ use tokio::sync::Semaphore;
 /// // Release semaphore
 /// drop(permit);
 /// ```
-pub static VIDEO_SEMAPHORE: Lazy<Arc<Semaphore>> = Lazy::new(|| Arc::new(Semaphore::new(8)));
+pub static VIDEO_SEMAPHORE: Lazy<Arc<Semaphore>> =
+    Lazy::new(|| Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_DOWNLOADS)));

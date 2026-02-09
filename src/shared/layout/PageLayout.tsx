@@ -11,20 +11,19 @@ import {
   SidebarMenuItem,
   SidebarProvider,
   SidebarRail,
-  SidebarTrigger,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
   useSidebar,
 } from '@/shared/animate-ui/radix/sidebar'
-import { Button } from '@/shared/ui/button'
 import { cn } from '@/shared/lib/utils'
 import AppBar from '@/shared/ui/AppBar/AppBar'
+import { Button } from '@/shared/ui/button'
 import { NavigationSidebarHeader } from '@/shared/ui/NavigationSidebar'
 import { ScrollArea, ScrollBar } from '@/shared/ui/scroll-area'
 import { PanelLeft, PanelLeftClose } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 
 /**
  * Props for PageLayout component.
@@ -125,20 +124,6 @@ export function PageLayout({
     </div>
   )
 
-  const renderContent = () => {
-    if (!withScrollArea) return content
-
-    return (
-      <ScrollArea
-        style={{ height: 'calc(100dvh - 2.3rem)' }}
-        className="flex w-full"
-      >
-        {content}
-        <ScrollBar />
-      </ScrollArea>
-    )
-  }
-
   return (
     <>
       <SidebarProvider defaultOpen={true}>
@@ -160,7 +145,17 @@ export function PageLayout({
               <EnhancedSidebarTrigger />
               <AppBar user={user} theme={theme} setTheme={setTheme} />
             </header>
-            {renderContent()}
+            {withScrollArea ? (
+              <ScrollArea
+                style={{ height: 'calc(100dvh - 2.3rem)' }}
+                className="flex w-full"
+              >
+                {content}
+                <ScrollBar />
+              </ScrollArea>
+            ) : (
+              content
+            )}
           </div>
         </SidebarInset>
       </SidebarProvider>
