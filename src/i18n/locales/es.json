@@ -263,5 +263,9 @@
       "download_failed": "Error al descargar la actualización",
       "restart_failed": "Error al reiniciar la aplicación"
     }
+  },
+  "github": {
+    "stars": "{{count}} estrellas",
+    "repo": "Ver en GitHub"
   }
 }

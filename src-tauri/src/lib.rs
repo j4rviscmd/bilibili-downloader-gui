@@ -12,6 +12,7 @@ use tauri::Manager;
 use crate::handlers::bilibili;
 use crate::handlers::cookie;
 use crate::handlers::ffmpeg;
+use crate::handlers::github;
 use crate::handlers::settings;
 use crate::handlers::updater;
 use crate::models::cookie::CookieCache;
@@ -54,6 +55,7 @@ pub use utils::wbi;
 /// - `search_history`: Searches history with filters
 /// - `export_history`: Exports history in JSON or CSV format
 /// - `get_release_notes`: Fetches release notes from GitHub API
+/// - `get_repo_stars`: Fetches star count for a GitHub repository
 ///
 /// # Panics
 ///
@@ -100,6 +102,7 @@ pub fn run() {
             reveal_in_folder,
             open_file,
             get_release_notes,
+            get_repo_stars,
             // record_download_click  // NOTE: GA4 Analytics は無効化されています
         ])
         // 開発環境以外で`app`宣言ではBuildに失敗するため、`_app`を使用
@@ -769,6 +772,47 @@ async fn get_release_notes(
     current_version: String,
 ) -> Result<String, String> {
     updater::fetch_all_release_notes(&owner, &repo, &current_version)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Fetches the star count for a GitHub repository.
+///
+/// This command retrieves the current stargazers count for the specified
+/// repository via the GitHub API. No authentication is required for public
+/// repositories.
+///
+/// # Arguments
+///
+/// * `owner` - Repository owner (e.g., "j4rviscmd")
+/// * `repo` - Repository name (e.g., "bilibili-downloader-gui")
+///
+/// # Returns
+///
+/// Returns the star count as a number.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The GitHub API request fails (network issues, rate limit exceeded)
+/// - The repository is not found or private
+/// - Invalid owner/repo parameters
+///
+/// # Example
+///
+/// ```rust
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// use tauri::AppHandle;
+///
+/// # let app: AppHandle = unimplemented!();
+/// let stars = get_repo_stars("j4rviscmd", "bilibili-downloader-gui".to_string()).await?;
+/// println!("Stars: {}", stars);
+/// # Ok(())
+/// # }
+/// ```
+#[tauri::command]
+async fn get_repo_stars(owner: String, repo: String) -> Result<usize, String> {
+    github::fetch_repo_stars(&owner, &repo)
         .await
         .map_err(|e| e.to_string())
 }

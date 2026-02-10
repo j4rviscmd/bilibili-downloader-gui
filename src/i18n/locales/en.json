@@ -269,5 +269,9 @@
       "download_failed": "Failed to download update",
       "restart_failed": "Failed to restart application"
     }
+  },
+  "github": {
+    "stars": "{{count}} stars",
+    "repo": "View on GitHub"
   }
 }
