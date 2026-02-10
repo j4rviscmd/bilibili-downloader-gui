@@ -8,17 +8,15 @@ import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
-  FormLabel,
   FormMessage,
 } from '@/shared/ui/form'
 import { Input } from '@/shared/ui/input'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { open } from '@tauri-apps/plugin-shell'
-import { AlertTriangle, Info, Loader2 } from 'lucide-react'
-import { useEffect } from 'react'
+import { AlertTriangle, CircleX, Info, Loader2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
@@ -40,6 +38,7 @@ function VideoForm1() {
   const { input, onValid1, isFetching } = useVideoInfo()
   const { t } = useTranslation()
   const user = useSelector((state: RootState) => state.user)
+  const [lastFetchedUrl, setLastFetchedUrl] = useState<string>('')
 
   const schema1 = buildVideoFormSchema1(t)
 
@@ -51,11 +50,30 @@ function VideoForm1() {
   })
 
   useEffect(() => {
-    form.setValue('url', input.url, { shouldValidate: false })
+    const trimmedUrl = input.url.trim()
+    form.setValue('url', trimmedUrl, { shouldValidate: false })
   }, [form, input.url])
 
   function onSubmit(data: z.infer<typeof formSchema1>): void {
-    onValid1(data.url)
+    const trimmedUrl = data.url.trim()
+    if (trimmedUrl === lastFetchedUrl) return
+    setLastFetchedUrl(trimmedUrl)
+    onValid1(trimmedUrl)
+  }
+
+  /**
+   * Prevents default anchor/button behavior and stops event propagation.
+   *
+   * Used for links that should open in an external browser via Tauri's
+   * shell API instead of navigating within the app.
+   *
+   * @param e - The mouse event from an anchor or button element
+   */
+  function preventEventDefaults(
+    e: React.MouseEvent<HTMLAnchorElement | HTMLButtonElement>,
+  ) {
+    e.preventDefault()
+    e.stopPropagation()
   }
 
   const placeholder =
@@ -90,8 +108,7 @@ function VideoForm1() {
                   href="#"
                   className="font-medium underline hover:text-amber-700 dark:hover:text-amber-300"
                   onClick={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
+                    preventEventDefaults(e)
                     open('https://www.bilibili.com').catch(console.error)
                   }}
                 >
@@ -111,10 +128,10 @@ function VideoForm1() {
           name="url"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>{t('video.url_label')}</FormLabel>
               <FormControl>
                 <div className="relative">
                   <Input
+                    className="pr-10"
                     autoComplete="url"
                     type="url"
                     required
@@ -122,18 +139,26 @@ function VideoForm1() {
                     disabled={isFetching}
                     {...field}
                   />
-                  {isFetching && (
+                  {isFetching ? (
                     <div className="absolute top-1/2 right-3 -translate-y-1/2">
                       <Loader2 className="text-muted-foreground size-4 animate-spin" />
                     </div>
-                  )}
+                  ) : field.value ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        preventEventDefaults(e)
+                        form.setValue('url', '', { shouldValidate: true })
+                        field.onChange('')
+                        setLastFetchedUrl('')
+                      }}
+                      className="text-muted-foreground hover:text-foreground absolute top-1/2 right-3 -translate-y-1/2 transition-colors"
+                    >
+                      <CircleX className="size-4" />
+                    </button>
+                  ) : null}
                 </div>
               </FormControl>
-              <FormDescription>
-                {isFetching
-                  ? t('video.fetching_info')
-                  : t('video.url_description')}
-              </FormDescription>
               <FormMessage />
             </FormItem>
           )}
