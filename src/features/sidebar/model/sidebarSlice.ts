@@ -1,54 +1,37 @@
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 
-const COOKIE_NAME = 'sidebar_state'
-
 /**
- * Reads the initial sidebar state from browser cookies.
+ * サイドバーの状態管理
  *
- * Falls back to true (open) if document is unavailable (SSR) or
- * cookie is not set/invalid.
- *
- * @returns The initial open state of the sidebar
+ * サイドバーの開閉状態を管理するRedux状態。
+ * この状態は settings.json に永続化され、ページ遷移後も維持される。
  */
-function readInitialState(): boolean {
-  if (typeof document === 'undefined') return true
-
-  const match =
-    document.cookie
-      .split(';')
-      .find((c) => c.trim().startsWith(`${COOKIE_NAME}=`))
-      ?.split('=')[1]
-      ?.trim() ?? ''
-
-  return match === 'true'
-}
-
-/** Sidebar state shape managed by Redux. */
 export type SidebarState = {
+  /** サイドバーが開いているかどうか */
   sidebarOpen: boolean
 }
 
 const initialState: SidebarState = {
-  sidebarOpen: readInitialState(),
+  sidebarOpen: true,
 }
 
 /**
- * Redux slice for managing sidebar open/closed state.
+ * サイドバー用Redux Slice
  *
- * Provides action creator to update sidebar state. The state is
- * persisted via cookies by the SidebarProvider component.
- *
- * @example
- * ```ts
- * import { setSidebarOpen } from '@/features/sidebar'
- * dispatch(setSidebarOpen(true))
- * ```
+ * サイドバーの開閉状態を管理する。状態はRedux Toolkitの
+ * createSliceを使用して定義され、setSidebarOpenアクションを通じて更新される。
  */
 export const sidebarSlice = createSlice({
   name: 'sidebar',
   initialState,
   reducers: {
+    /**
+     * サイドバーの開閉状態を設定
+     *
+     * @param state - 現在のRedux状態
+     * @param action - boolean値を含むアクション（true: 開く, false: 閉じる）
+     */
     setSidebarOpen: (state, action: PayloadAction<boolean>) => {
       state.sidebarOpen = action.payload
     },

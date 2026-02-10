@@ -1,35 +1,6 @@
 'use client'
 
-/**
- * Animated sidebar component built on Radix UI primitives.
- *
- * Features:
- * - Redux state persistence for sidebar open/closed state
- * - Responsive mobile/desktop layouts with sheet component
- * - Keyboard shortcut (Cmd/Ctrl+B) for toggle
- * - Icon-only collapsed mode with tooltips
- * - Motion-highlight animations on hover
- *
- * @example
- * ```tsx
- * <SidebarProvider defaultOpen={true}>
- *   <Sidebar>
- *     <SidebarHeader />
- *     <SidebarContent>
- *       <SidebarMenu>
- *         <SidebarMenuItem>
- *           <SidebarMenuButton>Home</SidebarMenuButton>
- *         </SidebarMenuItem>
- *       </SidebarMenu>
- *     </SidebarContent>
- *   </Sidebar>
- *   <SidebarInset>
- *     <main>Page content</main>
- *   </SidebarInset>
- * </SidebarProvider>
- * ```
- */
-
+import { invoke } from '@tauri-apps/api/core'
 import { type VariantProps, cva } from 'class-variance-authority'
 import { PanelLeftIcon } from 'lucide-react'
 import { type Transition } from 'motion/react'
@@ -63,61 +34,94 @@ import { Separator } from '@/shared/ui/separator'
 import { Skeleton } from '@/shared/ui/skeleton'
 import { useTranslation } from 'react-i18next'
 
-const SIDEBAR_COOKIE_NAME = 'sidebar_state'
-const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
 const SIDEBAR_WIDTH = '16rem'
 const SIDEBAR_WIDTH_MOBILE = '18rem'
 const SIDEBAR_WIDTH_ICON = '3rem'
 const SIDEBAR_KEYBOARD_SHORTCUT = 'b'
 
+type Settings = {
+  dlOutputPath?: string
+  language: string
+  libPath?: string
+  sidebarExpanded?: boolean
+}
+
+/**
+ * サイドバーコンテキストのプロパティ型
+ *
+ * SidebarProvider から提供されるコンテキスト値の型定義。
+ */
 type SidebarContextProps = {
+  /** サイドバーの現在の状態 */
   state: 'expanded' | 'collapsed'
+  /** デスクトップ表示でサイドバーが開いているか */
   open: boolean
+  /** サイドバーの開閉を設定する関数 */
   setOpen: (open: boolean) => void
+  /** モバイル表示でサイドバーが開いているか */
   openMobile: boolean
+  /** モバイルサイドバーの開閉を設定する関数 */
   setOpenMobile: (open: boolean) => void
+  /** 現在モバイル画面かどうか */
   isMobile: boolean
+  /** サイドバーの開閉を切り替える関数 */
   toggleSidebar: () => void
 }
 
 const SidebarContext = React.createContext<SidebarContextProps | null>(null)
 
 /**
- * Hook to access sidebar context state and actions.
+ * サイドバーコンテキストを使用するフック
  *
- * @throws {Error} If used outside of a SidebarProvider
- * @returns Sidebar context containing state, open/close functions, and utilities
+ * SidebarProvider の配下で使用し、サイドバーの状態と操作関数を取得する。
+ *
+ * @throws SidebarProvider の配下以外で使用した場合エラー
+ * @returns サイドバーコンテキスト値
+ *
+ * @example
+ * ```tsx
+ * const { open, toggleSidebar } = useSidebar()
+ * ```
  */
 function useSidebar() {
   const context = React.useContext(SidebarContext)
   if (!context) {
     throw new Error('useSidebar must be used within a SidebarProvider.')
   }
-
   return context
 }
 
+/**
+ * SidebarProvider のプロパティ型
+ */
 type SidebarProviderProps = React.ComponentProps<'div'> & {
+  /** デフォルトの開閉状態 */
   defaultOpen?: boolean
+  /** 制御モードでの開閉状態（省略時はRedux状態を使用） */
   open?: boolean
+  /** 開閉状態変更時のコールバック */
   onOpenChange?: (open: boolean) => void
 }
 
 /**
- * Provider component for sidebar state management.
+ * サイドバーコンテキストプロバイダ
  *
- * Integrates with Redux store for persistent sidebar state across
- * page navigations. Falls back to local state if openProp is provided.
+ * サイドバーの状態を管理し、子コンポーネントにコンテキストを提供する。
+ * Reduxとsettings.jsonの両方と同期し、ページ遷移後も状態を維持する。
  *
- * Features:
- * - Redux state integration for desktop sidebar
- * - Local state for mobile sheet overlay
- * - Cookie persistence for state backup
- * - Keyboard shortcut (Cmd/Ctrl+B) handling
+ * 機能:
+ * - settings.json からの初期状態読み込み
+ * - Reduxへの状態同期
+ * - settings.json への状態永続化
+ * - キーボードショートカット対応 (Cmd/Ctrl + B)
  *
- * @param defaultOpen - Initial open state when Redux state is unavailable (default: true)
- * @param open - Controlled open state (overrides Redux if provided)
- * @param onOpenChange - Callback when open state changes in controlled mode
+ * @example
+ * ```tsx
+ * <SidebarProvider>
+ *   <Sidebar />
+ *   <SidebarInset />
+ * </SidebarProvider>
+ * ```
  */
 function SidebarProvider({
   defaultOpen = true,
@@ -133,10 +137,34 @@ function SidebarProvider({
 
   const dispatch = useAppDispatch()
   const [fallbackOpen] = React.useState(defaultOpen)
+  const [cachedSettings, setCachedSettings] = React.useState<Settings | null>(
+    null,
+  )
 
   // Use Redux state via selector (controlled mode uses openProp if provided)
   const reduxOpen = useSelector((state) => state.sidebar.sidebarOpen)
   const open = openProp ?? reduxOpen ?? fallbackOpen
+
+  // Load initial state from settings.json (executes only once on mount)
+  const hasLoadedInitialSettings = React.useRef(false)
+
+  React.useEffect(() => {
+    if (hasLoadedInitialSettings.current) return
+
+    const loadSidebarState = async () => {
+      try {
+        const settings = (await invoke('get_settings')) as Settings
+        setCachedSettings(settings)
+        if (settings.sidebarExpanded !== undefined) {
+          dispatch(setSidebarOpen(settings.sidebarExpanded))
+        }
+      } catch (error) {
+        console.error('Failed to load sidebar state from settings:', error)
+      }
+    }
+    loadSidebarState()
+    hasLoadedInitialSettings.current = true
+  }, [dispatch])
 
   const setOpen = React.useCallback(
     (value: boolean | ((value: boolean) => boolean)) => {
@@ -148,10 +176,21 @@ function SidebarProvider({
         dispatch(setSidebarOpen(openState))
       }
 
-      // Keep Cookie persistence in sync
-      document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
+      // Persist to settings.json (use cached settings to avoid unnecessary get_settings call)
+      if (cachedSettings) {
+        const updatedSettings = {
+          ...cachedSettings,
+          sidebarExpanded: openState,
+        }
+        setCachedSettings(updatedSettings)
+        invoke('set_settings', { settings: updatedSettings }).catch((error) => {
+          console.error('Failed to save sidebar state to settings:', error)
+          // Rollback on error
+          setCachedSettings(cachedSettings)
+        })
+      }
     },
-    [dispatch, open, setOpenProp],
+    [dispatch, open, setOpenProp, cachedSettings],
   )
 
   const toggleSidebar = React.useCallback(() => {
@@ -213,30 +252,41 @@ function SidebarProvider({
   )
 }
 
+/**
+ * Sidebar コンポーネントのプロパティ型
+ */
 type SidebarProps = React.ComponentProps<'div'> & {
+  /** サイドバーの配置位置 */
   side?: 'left' | 'right'
+  /** サイドバーの表示スタイル */
   variant?: 'sidebar' | 'floating' | 'inset'
+  /** 折りたたみの動作モード */
   collapsible?: 'offcanvas' | 'icon' | 'none'
+  /** コンテナ用の追加クラス名 */
   containerClassName?: string
+  /** ホバー時のアニメーションを有効にするか */
   animateOnHover?: boolean
+  /** アニメーションのトランジション設定 */
   transition?: Transition
 }
 
 /**
- * Main sidebar container component.
+ * サイドバーメインコンポーネント
  *
- * Renders differently based on collapsible mode and screen size:
- * - `none`: Static sidebar, always visible
- * - `offcanvas`: Slides out of view when collapsed (desktop)
- * - `icon`: Collapses to icon-only mode with tooltips
+ * デスクトップとモバイルで異なる表示モードをサポートするサイドバー。
  *
- * On mobile, always renders as a Sheet overlay.
+ * 表示モード:
+ * - デスクトップ: collapsible='offcanvas' で画面外にスライド、'icon' でアイコンのみ表示
+ * - モバイル: Sheet コンポーネントとしてオーバーレイ表示
  *
- * @param side - Which side of the screen to anchor (default: 'left')
- * @param variant - Visual style: 'sidebar', 'floating', or 'inset' (default: 'sidebar')
- * @param collapsible - Collapsed behavior: 'offcanvas', 'icon', or 'none' (default: 'offcanvas')
- * @param animateOnHover - Enable motion highlight on hover (default: true)
- * @param transition - Animation config for motion effects
+ * @example
+ * ```tsx
+ * <Sidebar>
+ *   <SidebarHeader />
+ *   <SidebarContent />
+ *   <SidebarFooter />
+ * </Sidebar>
+ * ```
  */
 function Sidebar({
   side = 'left',
@@ -365,13 +415,16 @@ function Sidebar({
   )
 }
 
+/**
+ * SidebarTrigger のプロパティ型
+ */
 type SidebarTriggerProps = React.ComponentProps<typeof Button>
 
 /**
- * Button that toggles the sidebar open/closed state.
+ * サイドバー開閉トリガーボタン
  *
- * Renders a panel icon button that triggers the sidebar toggle.
- * Can be used in the header or any other appropriate location.
+ * クリック時にサイドバーの開閉を切り替えるボタンコンポーネント。
+ * AppBar 等に配置して使用する。
  *
  * @example
  * ```tsx
@@ -400,21 +453,16 @@ function SidebarTrigger({ className, onClick, ...props }: SidebarTriggerProps) {
   )
 }
 
+/**
+ * SidebarRail のプロパティ型
+ */
 type SidebarRailProps = React.ComponentProps<'button'>
 
 /**
- * Invisible rail trigger on the edge of a collapsed sidebar.
+ * サイドバーレール（ホバー領域）
  *
- * Appears on hover when sidebar is collapsed with 'offcanvas' mode,
- * allowing users to toggle the sidebar by hovering/clicking the edge.
- * Uses translated i18n label for accessibility.
- *
- * @example
- * ```tsx
- * <Sidebar>
- *   <SidebarRail />
- * </Sidebar>
- * ```
+ * サイドバーの端に配置される見えないホバー領域。
+ * ホバー時にクリックまたはドラッグ操作でサイドバーを切り替えることができる。
  */
 function SidebarRail({ className, ...props }: SidebarRailProps) {
   const { toggleSidebar } = useSidebar()
@@ -442,8 +490,17 @@ function SidebarRail({ className, ...props }: SidebarRailProps) {
   )
 }
 
+/**
+ * SidebarInset のプロパティ型
+ */
 type SidebarInsetProps = React.ComponentProps<'main'>
 
+/**
+ * サイドバーのメインコンテンツ領域
+ *
+ * サイドバーに隣接するメインコンテンツを表示する領域。
+ * variant='inset' の場合、特殊なスタイルが適用される。
+ */
 function SidebarInset({ className, ...props }: SidebarInsetProps) {
   return (
     <main
@@ -458,8 +515,16 @@ function SidebarInset({ className, ...props }: SidebarInsetProps) {
   )
 }
 
+/**
+ * SidebarInput のプロパティ型
+ */
 type SidebarInputProps = React.ComponentProps<typeof Input>
 
+/**
+ * サイドバー用入力コンポーネント
+ *
+ * サイドバー内での使用に最適化された入力フィールド。
+ */
 function SidebarInput({ className, ...props }: SidebarInputProps) {
   return (
     <Input
@@ -471,8 +536,16 @@ function SidebarInput({ className, ...props }: SidebarInputProps) {
   )
 }
 
+/**
+ * SidebarHeader のプロパティ型
+ */
 type SidebarHeaderProps = React.ComponentProps<'div'>
 
+/**
+ * サイドバーヘッダー領域
+ *
+ * サイドバーの上部に配置されるヘッダーコンテンツ用コンテナ。
+ */
 function SidebarHeader({ className, ...props }: SidebarHeaderProps) {
   return (
     <div
@@ -484,8 +557,16 @@ function SidebarHeader({ className, ...props }: SidebarHeaderProps) {
   )
 }
 
+/**
+ * SidebarFooter のプロパティ型
+ */
 type SidebarFooterProps = React.ComponentProps<'div'>
 
+/**
+ * サイドバーフッター領域
+ *
+ * サイドバーの下部に配置されるフッターコンテンツ用コンテナ。
+ */
 function SidebarFooter({ className, ...props }: SidebarFooterProps) {
   return (
     <div
@@ -497,8 +578,14 @@ function SidebarFooter({ className, ...props }: SidebarFooterProps) {
   )
 }
 
+/**
+ * SidebarSeparator のプロパティ型
+ */
 type SidebarSeparatorProps = React.ComponentProps<typeof Separator>
 
+/**
+ * サイドバー内の区切り線
+ */
 function SidebarSeparator({ className, ...props }: SidebarSeparatorProps) {
   return (
     <Separator
@@ -510,8 +597,16 @@ function SidebarSeparator({ className, ...props }: SidebarSeparatorProps) {
   )
 }
 
+/**
+ * SidebarContent のプロパティ型
+ */
 type SidebarContentProps = React.ComponentProps<'div'>
 
+/**
+ * サイドバーコンテンツ領域
+ *
+ * スクロール可能なメインコンテンツを表示する領域。
+ */
 function SidebarContent({ className, ...props }: SidebarContentProps) {
   return (
     <div
@@ -526,8 +621,16 @@ function SidebarContent({ className, ...props }: SidebarContentProps) {
   )
 }
 
+/**
+ * SidebarGroup のプロパティ型
+ */
 type SidebarGroupProps = React.ComponentProps<'div'>
 
+/**
+ * サイドバーグループ
+ *
+ * 関連するメニューアイテムをグループ化するコンテナ。
+ */
 function SidebarGroup({ className, ...props }: SidebarGroupProps) {
   return (
     <div
@@ -539,10 +642,18 @@ function SidebarGroup({ className, ...props }: SidebarGroupProps) {
   )
 }
 
+/**
+ * SidebarGroupLabel のプロパティ型
+ */
 type SidebarGroupLabelProps = React.ComponentProps<'div'> & {
   asChild?: boolean
 }
 
+/**
+ * サイドバーグループのラベル
+ *
+ * グループのタイトルを表示する。iconモード時は非表示になる。
+ */
 function SidebarGroupLabel({
   className,
   asChild = false,
@@ -563,10 +674,18 @@ function SidebarGroupLabel({
   )
 }
 
+/**
+ * SidebarGroupAction のプロパティ型
+ */
 type SidebarGroupActionProps = React.ComponentProps<'button'> & {
   asChild?: boolean
 }
 
+/**
+ * サイドバーグループのアクションボタン
+ *
+ * グループの右上に配置されるアクションボタン。
+ */
 function SidebarGroupAction({
   className,
   asChild = false,
@@ -587,8 +706,16 @@ function SidebarGroupAction({
   )
 }
 
+/**
+ * SidebarGroupContent のプロパティ型
+ */
 type SidebarGroupContentProps = React.ComponentProps<'div'>
 
+/**
+ * サイドバーグループのコンテンツ
+ *
+ * グループ内のメニューアイテムを配置するコンテナ。
+ */
 function SidebarGroupContent({
   className,
   ...props
@@ -603,8 +730,16 @@ function SidebarGroupContent({
   )
 }
 
+/**
+ * SidebarMenu のプロパティ型
+ */
 type SidebarMenuProps = React.ComponentProps<'ul'>
 
+/**
+ * サイドバーメニューリスト
+ *
+ * メニューアイテムのリストを表示するコンテナ。
+ */
 function SidebarMenu({ className, ...props }: SidebarMenuProps) {
   return (
     <ul
@@ -616,8 +751,16 @@ function SidebarMenu({ className, ...props }: SidebarMenuProps) {
   )
 }
 
+/**
+ * SidebarMenuItem のプロパティ型
+ */
 type SidebarMenuItemProps = React.ComponentProps<'li'>
 
+/**
+ * サイドバーメニューアイテム
+ *
+ * 個々のメニューアイテムを表すリスト要素。
+ */
 function SidebarMenuItem({ className, ...props }: SidebarMenuItemProps) {
   return (
     <li
@@ -668,6 +811,9 @@ const sidebarMenuButtonVariants = cva(
   },
 )
 
+/**
+ * SidebarMenuButton のプロパティ型
+ */
 type SidebarMenuButtonProps = React.ComponentProps<'button'> & {
   asChild?: boolean
   isActive?: boolean
@@ -675,19 +821,16 @@ type SidebarMenuButtonProps = React.ComponentProps<'button'> & {
 } & VariantProps<typeof sidebarMenuButtonVariants>
 
 /**
- * Button component for sidebar menu items with optional tooltip.
+ * サイドバーメニューボタン
  *
- * Features:
- * - Active state styling for current page/selection
- * - Tooltip support for collapsed sidebar mode
- * - Motion highlight animation on hover
- * - Size variants: sm, default, lg
- * - Variant styles: default, outline
+ * メニューアイテムのボタン。ツールチップ表示とアクティブ状態の管理に対応。
  *
- * @param isActive - Whether the button represents the active/selected state
- * @param tooltip - Tooltip text (string) or TooltipContent props; shown when collapsed
- * @param size - Button size: 'sm', 'default', or 'lg' (default: 'default')
- * @param variant - Visual variant: 'default' or 'outline' (default: 'default')
+ * @example
+ * ```tsx
+ * <SidebarMenuButton asChild isActive>
+ *   <a href="/dashboard">Dashboard</a>
+ * </SidebarMenuButton>
+ * ```
  */
 function SidebarMenuButton({
   asChild = false,
@@ -741,6 +884,12 @@ type SidebarMenuActionProps = React.ComponentProps<'button'> & {
   showOnHover?: boolean
 }
 
+/**
+ * サイドバーメニューアクションボタン
+ *
+ * メニューアイテム内に配置されるアクションボタン。
+ * showOnHover を有効にすると、ホバー時のみ表示される。
+ */
 function SidebarMenuAction({
   className,
   asChild = false,
@@ -764,8 +913,16 @@ function SidebarMenuAction({
   )
 }
 
+/**
+ * SidebarMenuBadge のプロパティ型
+ */
 type SidebarMenuBadgeProps = React.ComponentProps<'div'>
 
+/**
+ * サイドバーメニューバッジ
+ *
+ * メニューアイテムの右側に表示されるバッジ（通知数など）。
+ */
 function SidebarMenuBadge({ className, ...props }: SidebarMenuBadgeProps) {
   return (
     <div
@@ -780,19 +937,24 @@ function SidebarMenuBadge({ className, ...props }: SidebarMenuBadgeProps) {
   )
 }
 
+/**
+ * SidebarMenuSkeleton のプロパティ型
+ */
 type SidebarMenuSkeletonProps = React.ComponentProps<'div'> & {
   showIcon?: boolean
 }
 
+/**
+ * サイドバーメニュースケルトン
+ *
+ * 読み込み中に表示されるプレースホルダー。
+ */
 function SidebarMenuSkeleton({
   className,
   showIcon = false,
   ...props
 }: SidebarMenuSkeletonProps) {
-  const width = React.useMemo(
-    () => `${Math.floor(Math.random() * 40) + 50}%`,
-    [],
-  )
+  const width = `${Math.floor(Math.random() * 40) + 50}%`
 
   return (
     <div
@@ -820,8 +982,16 @@ function SidebarMenuSkeleton({
   )
 }
 
+/**
+ * SidebarMenuSub のプロパティ型
+ */
 type SidebarMenuSubProps = React.ComponentProps<'ul'>
 
+/**
+ * サイドバーサブメニューリスト
+ *
+ * 入れ子になったサブメニューアイテムのリスト。
+ */
 function SidebarMenuSub({ className, ...props }: SidebarMenuSubProps) {
   return (
     <ul
@@ -837,8 +1007,16 @@ function SidebarMenuSub({ className, ...props }: SidebarMenuSubProps) {
   )
 }
 
+/**
+ * SidebarMenuSubItem のプロパティ型
+ */
 type SidebarMenuSubItemProps = React.ComponentProps<'li'>
 
+/**
+ * サイドバーサブメニューアイテム
+ *
+ * サブメニュー内の個々のアイテム。
+ */
 function SidebarMenuSubItem({ className, ...props }: SidebarMenuSubItemProps) {
   return (
     <li
@@ -850,12 +1028,20 @@ function SidebarMenuSubItem({ className, ...props }: SidebarMenuSubItemProps) {
   )
 }
 
+/**
+ * SidebarMenuSubButton のプロパティ型
+ */
 type SidebarMenuSubButtonProps = React.ComponentProps<'a'> & {
   asChild?: boolean
   size?: 'sm' | 'md'
   isActive?: boolean
 }
 
+/**
+ * サイドバーサブメニューボタン
+ *
+ * サブメニューアイテムのボタン。
+ */
 function SidebarMenuSubButton({
   asChild = false,
   size = 'md',
@@ -910,10 +1096,6 @@ export {
   SidebarRail,
   SidebarSeparator,
   SidebarTrigger,
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
   useSidebar,
   type SidebarContentProps,
   type SidebarFooterProps,
