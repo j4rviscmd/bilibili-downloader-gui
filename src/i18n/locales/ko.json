@@ -263,5 +263,9 @@
       "download_failed": "업데이트 다운로드 실패",
       "restart_failed": "애플리케이션 재시작 실패"
     }
+  },
+  "github": {
+    "stars": "{{count}}개 별",
+    "repo": "GitHub에서 보기"
   }
 }

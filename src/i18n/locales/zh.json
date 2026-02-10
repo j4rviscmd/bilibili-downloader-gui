@@ -263,5 +263,9 @@
       "download_failed": "更新下载失败",
       "restart_failed": "应用程序重启失败"
     }
+  },
+  "github": {
+    "stars": "{{count}} 星标",
+    "repo": "在 GitHub 上查看"
   }
 }

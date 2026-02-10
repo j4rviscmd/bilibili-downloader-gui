@@ -263,5 +263,9 @@
       "download_failed": "Échec du téléchargement de la mise à jour",
       "restart_failed": "Échec du redémarrage de l'application"
     }
+  },
+  "github": {
+    "stars": "{{count}} étoiles",
+    "repo": "Voir sur GitHub"
   }
 }

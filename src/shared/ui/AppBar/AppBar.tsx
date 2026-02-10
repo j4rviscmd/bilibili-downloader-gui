@@ -8,12 +8,16 @@ import {
 } from '@/shared/animate-ui/radix/tooltip'
 import { UserRound } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { GitHubStars } from '@/shared/ui/GitHubStars'
 
 /**
- * Mask the last 3 characters of a username for privacy.
+ * Masks the last 3 characters of a username for privacy.
+ *
+ * Replaces the last 3 characters with asterisks. If the username is
+ * 3 characters or less, masks all characters.
  *
  * @param userName - The username to mask
- * @returns The masked username
+ * @returns The masked username (e.g., "user***" or "***")
  */
 function maskUserName(userName: string | undefined): string {
   if (!userName) return ''
@@ -21,16 +25,10 @@ function maskUserName(userName: string | undefined): string {
   return userName.slice(0, -3) + '***'
 }
 
-/**
- * Props for AppBar component.
- */
 type Props = {
-  /** Current user information */
-  user: User
-  /** Current theme mode */
-  theme: 'light' | 'dark' | 'system'
-  /** Function to update the theme */
-  setTheme: (theme: 'light' | 'dark') => void
+  readonly user: User
+  readonly theme: 'light' | 'dark' | 'system'
+  readonly setTheme: (theme: 'light' | 'dark') => void
 }
 
 /**
@@ -38,21 +36,14 @@ type Props = {
  *
  * Displays:
  * - Logged-in username (masked for privacy)
+ * - GitHub repository stars (with caching)
  * - Theme toggle button
- *
- * @param props - Component props
- *
- * @example
- * ```tsx
- * <AppBar user={userData} theme="dark" setTheme={(t) => console.log(t)} />
- * ```
  */
 function AppBar({ user, theme, setTheme }: Props) {
   const { t } = useTranslation()
 
   const maskedUserName = user.data.isLogin ? maskUserName(user.data.uname) : ''
-
-  const showTooltip = user.data.isLogin && user.data.uname
+  const hasUsername = user.data.isLogin && user.data.uname
 
   return (
     <div className="bg-accent box-border flex h-9 w-full items-center justify-between px-3 sm:mx-auto sm:max-w-7xl sm:px-6">
@@ -68,7 +59,7 @@ function AppBar({ user, theme, setTheme }: Props) {
                 {maskedUserName || t('user.not_logged_in')}
               </span>
             </TooltipTrigger>
-            {showTooltip && (
+            {hasUsername && (
               <TooltipContent>
                 <p>{user.data.uname}</p>
               </TooltipContent>
@@ -76,7 +67,8 @@ function AppBar({ user, theme, setTheme }: Props) {
           </Tooltip>
         </TooltipProvider>
       </div>
-      <div className="flex items-center">
+      <div className="flex items-center gap-3">
+        <GitHubStars owner="j4rviscmd" repo="bilibili-downloader-gui" />
         <ToggleThemeButton theme={theme} setTheme={setTheme} />
       </div>
     </div>

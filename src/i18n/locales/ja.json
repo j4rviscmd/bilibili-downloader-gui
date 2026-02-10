@@ -269,5 +269,9 @@
       "download_failed": "アップデートのダウンロードに失敗しました",
       "restart_failed": "アプリケーションの再起動に失敗しました"
     }
+  },
+  "github": {
+    "stars": "{{count}} スター",
+    "repo": "GitHub で見る"
   }
 }
