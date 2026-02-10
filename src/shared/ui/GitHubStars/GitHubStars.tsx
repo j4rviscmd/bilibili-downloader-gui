@@ -1,7 +1,3 @@
-import { useEffect, useState } from 'react'
-import { invoke } from '@tauri-apps/api/core'
-import { Star } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
 import {
   Tooltip,
   TooltipContent,
@@ -10,9 +6,13 @@ import {
 } from '@/shared/animate-ui/radix/tooltip'
 import {
   getCachedStars,
-  setCachedStars,
   isCacheValid,
+  setCachedStars,
 } from '@/shared/lib/githubStarsCache'
+import { invoke } from '@tauri-apps/api/core'
+import { Star } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { GitHubIcon } from './GitHubIcon'
 
 type Props = {
@@ -111,12 +111,14 @@ export function GitHubStars({ owner, repo, className = '' }: Props) {
             href={`https://github.com/${owner}/${repo}/stargazers`}
             target="_blank"
             rel="noopener noreferrer"
-            className={`flex items-center gap-1 text-sm text-muted-foreground hover:text-primary transition-colors ${className}`}
+            className={`text-muted-foreground hover:text-primary flex items-center gap-1 text-sm transition-colors ${className}`}
             aria-label={tooltipContent}
           >
             <GitHubIcon className="size-4" />
             <Star className="size-4 fill-current" aria-hidden="true" />
-            <span className={isLoading ? 'opacity-50' : ''}>{displayStars}</span>
+            <span className={isLoading ? 'opacity-50' : ''}>
+              {displayStars}
+            </span>
           </a>
         </TooltipTrigger>
         <TooltipContent>

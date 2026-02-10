@@ -6,9 +6,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
+import { GitHubStars } from '@/shared/ui/GitHubStars'
 import { UserRound } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { GitHubStars } from '@/shared/ui/GitHubStars'
 
 /**
  * Masks the last 3 characters of a username for privacy.
