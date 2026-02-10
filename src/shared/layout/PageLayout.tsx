@@ -11,11 +11,13 @@ import {
   SidebarMenuItem,
   SidebarProvider,
   SidebarRail,
+  useSidebar,
+} from '@/shared/animate-ui/radix/sidebar'
+import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-  useSidebar,
-} from '@/shared/animate-ui/radix/sidebar'
+} from '@/shared/animate-ui/radix/tooltip'
 import { cn } from '@/shared/lib/utils'
 import AppBar from '@/shared/ui/AppBar/AppBar'
 import { Button } from '@/shared/ui/button'

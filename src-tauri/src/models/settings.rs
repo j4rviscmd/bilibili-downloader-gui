@@ -1,66 +1,45 @@
-//! Application Settings Model
-//!
-//! This module defines the settings structure persisted to settings.json
-//! and the supported configuration options.
+//! Application settings persisted to settings.json
 
 use serde::{Deserialize, Serialize};
 
-/// Application settings structure.
+/// アプリケーション設定を表す構造体
 ///
-/// Stores user preferences including download location and UI language.
+/// settings.json に永続化される設定項目を定義する。
+/// すべてのフィールドはオプションで、シリアライズ時に camelCase に変換される。
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub struct Settings {
+    /// 動画の出力先ディレクトリパス
     #[serde(rename = "dlOutputPath")]
     pub dl_output_path: Option<String>,
+    /// UI言語設定
     pub language: Language,
-    /// Custom path for library dependencies (ffmpeg, etc.).
-    ///
-    /// If not specified, defaults to `app_data_dir()/lib/`.
-    /// This allows users to store large dependencies like ffmpeg on
-    /// a different drive or location with more storage space.
+    /// ライブラリのディレクトリパス
     #[serde(rename = "libPath")]
     pub lib_path: Option<String>,
-    //
-    // TODO: 現状は利用していない
-    // pub theme: Theme,
+    /// サイドバーの展開状態（true: 展開, false: 折りたたみ）
+    #[serde(rename = "sidebarExpanded")]
+    pub sidebar_expanded: Option<bool>,
 }
 
-/// Supported UI languages.
+/// サポートするUI言語
 ///
-/// Determines the language used for the application interface.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// アプリケーションでサポートされている言語を列挙する。
+/// デフォルトは英語（En）。
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum Language {
-    /// English
-    En,
-    /// Japanese
-    Ja,
-    /// French
-    Fr,
-    /// Spanish
-    Es,
-    /// Chinese
-    Zh,
-    /// Korean
-    Ko,
-}
-
-impl Default for Language {
-    /// Returns English as the default language.
-    fn default() -> Self {
-        Language::En
-    }
-}
-
-/// UI theme preference.
-///
-/// Currently unused, but reserved for future theme support.
-#[derive(Default)]
-pub enum Theme {
-    /// Light theme
-    Light,
-    /// Dark theme (default)
+    /// 英語
     #[default]
-    Dark,
+    En,
+    /// 日本語
+    Ja,
+    /// フランス語
+    Fr,
+    /// スペイン語
+    Es,
+    /// 中国語
+    Zh,
+    /// 韓国語
+    Ko,
 }
