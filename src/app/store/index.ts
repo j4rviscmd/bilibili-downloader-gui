@@ -1,16 +1,9 @@
-/**
- * Redux store configuration module.
- *
- * Centralizes all Redux reducers and provides typed hooks for the
- * application.
- * @module app/store
- */
-
 import countReducer from '@/features/count/model/countSlice'
 import historyReducer from '@/features/history/model/historySlice'
 import thumbnailCacheReducer from '@/features/history/model/thumbnailSlice'
 import initReducer from '@/features/init/model/initSlice'
 import settingReducer from '@/features/settings/settingsSlice'
+import { sidebarReducer } from '@/features/sidebar'
 import updaterReducer from '@/features/updater/model/updaterSlice'
 import userReducer from '@/features/user/userSlice'
 import inputReducer from '@/features/video/model/inputSlice'
@@ -26,53 +19,39 @@ import {
 } from 'react-redux'
 
 /**
- * The Redux store instance containing all application state.
+ * Configured Redux store with all application reducers.
  *
- * Combines all feature and shared slices into a single store.
- * Redux DevTools are enabled in non-production environments.
+ * Combines feature slices (video, history, settings, etc.) and shared
+ * utilities (progress, queue, download status) into a single state tree.
+ * DevTools enabled in non-production environments.
  */
 export const store = configureStore({
   reducer: {
     count: countReducer,
-    init: initReducer,
-    user: userReducer,
-    progress: progressReducer,
-    input: inputReducer,
-    video: videoReducer,
-    settings: settingReducer,
-    queue: queueReducer,
     downloadStatus: downloadStatusReducer,
     history: historyReducer,
+    init: initReducer,
+    input: inputReducer,
+    progress: progressReducer,
+    queue: queueReducer,
+    settings: settingReducer,
+    sidebar: sidebarReducer,
     thumbnailCache: thumbnailCacheReducer,
     updater: updaterReducer,
+    user: userReducer,
+    video: videoReducer,
   },
   devTools: process.env.NODE_ENV !== 'production',
 })
 
-/**
- * Root state type derived from the store.
- *
- * Use this type for typing selector functions and accessing global state.
- */
+/** Type representing the entire Redux state tree. */
 export type RootState = ReturnType<typeof store.getState>
 
-/**
- * App dispatch type including thunk middleware.
- *
- * Use this type for dispatching actions with full TypeScript support.
- */
+/** Type representing the Redux dispatch function with typed actions. */
 export type AppDispatch = typeof store.dispatch
 
-/**
- * Typed version of the `useSelector` hook.
- *
- * Automatically infers RootState type for better TypeScript experience.
- */
-export const useSelector: TypedUseSelectorHook<RootState> = rawUseSelector
-
-/**
- * Typed version of the `useDispatch` hook.
- *
- * Returns a dispatch function with full AppDispatch typing.
- */
+/** Typed hook to dispatch actions with proper type inference. */
 export const useAppDispatch: () => AppDispatch = useDispatch
+
+/** Typed hook to select from the Redux store with proper type inference. */
+export const useSelector: TypedUseSelectorHook<RootState> = rawUseSelector

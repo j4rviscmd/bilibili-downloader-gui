@@ -1,11 +1,43 @@
 'use client'
 
+/**
+ * Animated sidebar component built on Radix UI primitives.
+ *
+ * Features:
+ * - Redux state persistence for sidebar open/closed state
+ * - Responsive mobile/desktop layouts with sheet component
+ * - Keyboard shortcut (Cmd/Ctrl+B) for toggle
+ * - Icon-only collapsed mode with tooltips
+ * - Motion-highlight animations on hover
+ *
+ * @example
+ * ```tsx
+ * <SidebarProvider defaultOpen={true}>
+ *   <Sidebar>
+ *     <SidebarHeader />
+ *     <SidebarContent>
+ *       <SidebarMenu>
+ *         <SidebarMenuItem>
+ *           <SidebarMenuButton>Home</SidebarMenuButton>
+ *         </SidebarMenuItem>
+ *       </SidebarMenu>
+ *     </SidebarContent>
+ *   </Sidebar>
+ *   <SidebarInset>
+ *     <main>Page content</main>
+ *   </SidebarInset>
+ * </SidebarProvider>
+ * ```
+ */
+
 import { type VariantProps, cva } from 'class-variance-authority'
 import { PanelLeftIcon } from 'lucide-react'
 import { type Transition } from 'motion/react'
 import { Slot } from 'radix-ui'
 import * as React from 'react'
 
+import { useAppDispatch, useSelector } from '@/app/store'
+import { setSidebarOpen } from '@/features/sidebar'
 import {
   MotionHighlight,
   MotionHighlightItem,
@@ -50,6 +82,12 @@ type SidebarContextProps = {
 
 const SidebarContext = React.createContext<SidebarContextProps | null>(null)
 
+/**
+ * Hook to access sidebar context state and actions.
+ *
+ * @throws {Error} If used outside of a SidebarProvider
+ * @returns Sidebar context containing state, open/close functions, and utilities
+ */
 function useSidebar() {
   const context = React.useContext(SidebarContext)
   if (!context) {
@@ -65,6 +103,22 @@ type SidebarProviderProps = React.ComponentProps<'div'> & {
   onOpenChange?: (open: boolean) => void
 }
 
+/**
+ * Provider component for sidebar state management.
+ *
+ * Integrates with Redux store for persistent sidebar state across
+ * page navigations. Falls back to local state if openProp is provided.
+ *
+ * Features:
+ * - Redux state integration for desktop sidebar
+ * - Local state for mobile sheet overlay
+ * - Cookie persistence for state backup
+ * - Keyboard shortcut (Cmd/Ctrl+B) handling
+ *
+ * @param defaultOpen - Initial open state when Redux state is unavailable (default: true)
+ * @param open - Controlled open state (overrides Redux if provided)
+ * @param onOpenChange - Callback when open state changes in controlled mode
+ */
 function SidebarProvider({
   defaultOpen = true,
   open: openProp,
@@ -77,20 +131,27 @@ function SidebarProvider({
   const isMobile = useIsMobile()
   const [openMobile, setOpenMobile] = React.useState(false)
 
-  const [_open, _setOpen] = React.useState(defaultOpen)
-  const open = openProp ?? _open
+  const dispatch = useAppDispatch()
+  const [fallbackOpen] = React.useState(defaultOpen)
+
+  // Use Redux state via selector (controlled mode uses openProp if provided)
+  const reduxOpen = useSelector((state) => state.sidebar.sidebarOpen)
+  const open = openProp ?? reduxOpen ?? fallbackOpen
+
   const setOpen = React.useCallback(
     (value: boolean | ((value: boolean) => boolean)) => {
       const openState = typeof value === 'function' ? value(open) : value
       if (setOpenProp) {
         setOpenProp(openState)
       } else {
-        _setOpen(openState)
+        // Update Redux state
+        dispatch(setSidebarOpen(openState))
       }
 
+      // Keep Cookie persistence in sync
       document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
     },
-    [setOpenProp, open],
+    [dispatch, open, setOpenProp],
   )
 
   const toggleSidebar = React.useCallback(() => {
@@ -161,6 +222,22 @@ type SidebarProps = React.ComponentProps<'div'> & {
   transition?: Transition
 }
 
+/**
+ * Main sidebar container component.
+ *
+ * Renders differently based on collapsible mode and screen size:
+ * - `none`: Static sidebar, always visible
+ * - `offcanvas`: Slides out of view when collapsed (desktop)
+ * - `icon`: Collapses to icon-only mode with tooltips
+ *
+ * On mobile, always renders as a Sheet overlay.
+ *
+ * @param side - Which side of the screen to anchor (default: 'left')
+ * @param variant - Visual style: 'sidebar', 'floating', or 'inset' (default: 'sidebar')
+ * @param collapsible - Collapsed behavior: 'offcanvas', 'icon', or 'none' (default: 'offcanvas')
+ * @param animateOnHover - Enable motion highlight on hover (default: true)
+ * @param transition - Animation config for motion effects
+ */
 function Sidebar({
   side = 'left',
   variant = 'sidebar',
@@ -290,6 +367,17 @@ function Sidebar({
 
 type SidebarTriggerProps = React.ComponentProps<typeof Button>
 
+/**
+ * Button that toggles the sidebar open/closed state.
+ *
+ * Renders a panel icon button that triggers the sidebar toggle.
+ * Can be used in the header or any other appropriate location.
+ *
+ * @example
+ * ```tsx
+ * <SidebarTrigger />
+ * ```
+ */
 function SidebarTrigger({ className, onClick, ...props }: SidebarTriggerProps) {
   const { toggleSidebar } = useSidebar()
 
@@ -314,6 +402,20 @@ function SidebarTrigger({ className, onClick, ...props }: SidebarTriggerProps) {
 
 type SidebarRailProps = React.ComponentProps<'button'>
 
+/**
+ * Invisible rail trigger on the edge of a collapsed sidebar.
+ *
+ * Appears on hover when sidebar is collapsed with 'offcanvas' mode,
+ * allowing users to toggle the sidebar by hovering/clicking the edge.
+ * Uses translated i18n label for accessibility.
+ *
+ * @example
+ * ```tsx
+ * <Sidebar>
+ *   <SidebarRail />
+ * </Sidebar>
+ * ```
+ */
 function SidebarRail({ className, ...props }: SidebarRailProps) {
   const { toggleSidebar } = useSidebar()
   const { t } = useTranslation()
@@ -572,6 +674,21 @@ type SidebarMenuButtonProps = React.ComponentProps<'button'> & {
   tooltip?: string | React.ComponentProps<typeof TooltipContent>
 } & VariantProps<typeof sidebarMenuButtonVariants>
 
+/**
+ * Button component for sidebar menu items with optional tooltip.
+ *
+ * Features:
+ * - Active state styling for current page/selection
+ * - Tooltip support for collapsed sidebar mode
+ * - Motion highlight animation on hover
+ * - Size variants: sm, default, lg
+ * - Variant styles: default, outline
+ *
+ * @param isActive - Whether the button represents the active/selected state
+ * @param tooltip - Tooltip text (string) or TooltipContent props; shown when collapsed
+ * @param size - Button size: 'sm', 'default', or 'lg' (default: 'default')
+ * @param variant - Visual variant: 'default' or 'outline' (default: 'default')
+ */
 function SidebarMenuButton({
   asChild = false,
   isActive = false,
