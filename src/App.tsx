@@ -7,6 +7,7 @@ import HomePage from '@/pages/home'
 import InitPage from '@/pages/init'
 import { Toaster } from '@/shared/ui/sonner'
 import '@/styles/global.css'
+import { useEffect } from 'react'
 import { Route, Routes } from 'react-router'
 
 /**
@@ -19,6 +20,8 @@ import { Route, Routes } from 'react-router'
  * - `/error` - Error page
  *
  * Also configures the toast notification system with theme support.
+ * In production mode, disables the right-click context menu to prevent
+ * access to browser developer tools and inspect element functionality.
  *
  * @example
  * ```tsx
@@ -27,6 +30,16 @@ import { Route, Routes } from 'react-router'
  */
 function App() {
   const { theme } = useTheme()
+
+  useEffect(() => {
+    if (import.meta.env.DEV) return
+
+    const handleContextMenu = (e: Event) => e.preventDefault()
+    document.addEventListener('contextmenu', handleContextMenu, {
+      capture: true,
+    })
+    return () => document.removeEventListener('contextmenu', handleContextMenu)
+  }, [])
 
   return (
     <>
