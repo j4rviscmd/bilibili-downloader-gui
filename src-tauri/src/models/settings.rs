@@ -26,10 +26,11 @@ pub struct Settings {
 ///
 /// アプリケーションでサポートされている言語を列挙する。
 /// デフォルトは英語（En）。
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum Language {
     /// 英語
+    #[default]
     En,
     /// 日本語
     Ja,
@@ -41,10 +42,4 @@ pub enum Language {
     Zh,
     /// 韓国語
     Ko,
-}
-
-impl Default for Language {
-    fn default() -> Self {
-        Language::En
-    }
 }
