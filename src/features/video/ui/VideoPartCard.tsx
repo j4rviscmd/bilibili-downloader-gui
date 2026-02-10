@@ -79,7 +79,7 @@ function QualityRadioGroup({ options, idPrefix }: QualityRadioGroupProps) {
         <div
           key={id}
           className={cn(
-            'flex min-h-[36px] min-w-[80px] items-center space-x-2 whitespace-nowrap',
+            'flex min-h-[22px] min-w-[60px] items-center space-x-2 whitespace-nowrap',
             !isAvailable && 'text-muted-foreground/60',
           )}
         >
@@ -171,20 +171,43 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
     audio: videoPart.audioQualities,
   }
 
-  const isQualityAvailable = (
+  /**
+   * Checks if a specific quality ID is available for the current video part.
+   *
+   * @param qualityId - The quality ID to check (e.g., 80 for 1080P, 30216 for high quality audio)
+   * @param type - The quality type to check ('video' or 'audio')
+   * @returns true if the quality is available, false otherwise
+   */
+  function isQualityAvailable(
     qualityId: number,
     type: 'video' | 'audio',
-  ): boolean => partQualities[type].some((q) => q.id === qualityId)
+  ): boolean {
+    return partQualities[type].some((q) => q.id === qualityId)
+  }
 
-  // 選択状態を更新
-  const handleSelectedChange = (checked: boolean | 'indeterminate') => {
+  /**
+   * Handles changes to the part selection checkbox.
+   *
+   * Updates the Redux store to mark this part as selected or deselected
+   * for download. Only boolean true is treated as selected; indeterminate
+   * state is treated as deselected.
+   *
+   * @param checked - The new checkbox state (true, false, or 'indeterminate')
+   */
+  function handleSelectedChange(checked: boolean | 'indeterminate') {
     store.dispatch(
       updatePartSelected({ index: page - 1, selected: checked === true }),
     )
   }
 
-  // 再ダウンロード処理
-  const handleRedownload = async () => {
+  /**
+   * Initiates a re-download of this video part.
+   *
+   * Clears any previously completed download for this part from the queue
+   * and starts a new download with a unique download ID based on the current
+   * timestamp.
+   */
+  async function handleRedownload() {
     const partIndex = page - 1
     const state = store.getState()
     const partInput = state.input.partInputs[partIndex]
@@ -193,13 +216,11 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
     const videoId = extractVideoId(state.input.url)
     if (!videoId) return
 
-    // 該当パートの完了済みアイテムをクリア
     const completedItem = findCompletedItemForPart(state, page)
     if (completedItem) {
       store.dispatch(clearQueueItem(completedItem.downloadId))
     }
 
-    // 新しいdownloadIdを生成して再ダウンロード
     const newDownloadId = `${videoId}-${Date.now()}-p${page}`
 
     await downloadVideo(
@@ -213,8 +234,13 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
     )
   }
 
-  // エラー時のリトライ処理
-  const handleRetry = () => {
+  /**
+   * Retries a failed download for this part.
+   *
+   * Re-enables the part selection, allowing it to be picked up by the
+   * download queue on the next cycle.
+   */
+  function handleRetry() {
     store.dispatch(updatePartSelected({ index: page - 1, selected: true }))
   }
 
@@ -229,7 +255,18 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   })
 
   useEffect(() => {
-    const syncFormWithVideo = async (): Promise<void> => {
+    /**
+     * Synchronizes form values with video metadata.
+     *
+     * Populates the form with:
+     * - Default title (video title + part name, or just video title if single-part)
+     * - Best available video quality
+     * - Best available audio quality
+     *
+     * Preserves existing user input if available. Calls onValid2 on first
+     * load to initialize the Redux store with default values.
+     */
+    async function syncFormWithVideo(): Promise<void> {
       if (!video || video.parts.length === 0 || video.parts[0].cid === 0) {
         return
       }
@@ -240,8 +277,6 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
           ? video.title
           : `${video.title} ${videoPart.part}`
 
-      // 既にユーザーが設定した値があれば、それをフォームにセット
-      // なければデフォルト値をセットしてRedux storeに保存
       const title = existingInput?.title ?? defaultTitle
       const videoQuality =
         existingInput?.videoQuality ?? String(part.videoQualities[0]?.id ?? 80)
@@ -254,7 +289,6 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
       form.setValue('audioQuality', audioQuality, { shouldValidate: true })
 
       if (await form.trigger()) {
-        // 初期化時のみRedux storeを更新（既存値がある場合は更新しない）
         if (!existingInput) {
           onValid2(page - 1, title, videoQuality, audioQuality)
         }
@@ -373,13 +407,12 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                           <TooltipTrigger asChild>
                             <Info className="text-muted-foreground h-4 w-4 cursor-help" />
                           </TooltipTrigger>
-                          <TooltipContent side="top" className="max-w-xs">
-                            <p className="text-xs">
-                              {t('video.quality_description')}
-                            </p>
-                            <p className="mt-1 text-xs">
-                              {t('video.quality_note')}
-                            </p>
+                          <TooltipContent
+                            side="top"
+                            className="max-w-xs text-xs"
+                          >
+                            <p>{t('video.quality_description')}</p>
+                            <p className="mt-1">{t('video.quality_note')}</p>
                           </TooltipContent>
                         </Tooltip>
                       </div>
@@ -422,11 +455,12 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                           <TooltipTrigger asChild>
                             <Info className="text-muted-foreground h-4 w-4 cursor-help" />
                           </TooltipTrigger>
-                          <TooltipContent side="top" className="max-w-xs">
-                            <p className="text-xs">
-                              {t('video.audio_quality_description')}
-                            </p>
-                            <p className="mt-1 text-xs">
+                          <TooltipContent
+                            side="top"
+                            className="max-w-xs text-xs"
+                          >
+                            <p>{t('video.audio_quality_description')}</p>
+                            <p className="mt-1">
                               {t('video.audio_quality_note')}
                             </p>
                           </TooltipContent>
