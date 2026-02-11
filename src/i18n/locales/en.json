@@ -169,7 +169,20 @@
     "lib_path_dialog_title": "Select Library Directory",
     "lib_path_error": "Failed to get path",
     "lib_path_change_success": "Library storage location updated successfully",
-    "lib_path_change_error": "Failed to change library storage location"
+    "lib_path_change_error": "Failed to change library storage location",
+    "app_section_label": "Application",
+    "current_version": "Current version: {{version}}",
+    "update_check": {
+      "aria_label": "Update check",
+      "button_idle": "Check for updates",
+      "button_checking": "Checking...",
+      "button_done": "Check again",
+      "available": "{{version}} available",
+      "latest": "Latest version ({{version}})",
+      "error": "Check failed",
+      "unknown_version": "Unknown",
+      "dev_mode_disabled": "Update check disabled in development mode"
+    }
   },
   "validation": {
     "path": {

@@ -165,7 +165,20 @@
     "lib_path_dialog_title": "Sélectionner le répertoire de la bibliothèque",
     "lib_path_error": "Échec de l'obtention du chemin",
     "lib_path_change_success": "Emplacement de stockage de la bibliothèque mis à jour avec succès",
-    "lib_path_change_error": "Échec de la modification de l'emplacement de stockage de la bibliothèque"
+    "lib_path_change_error": "Échec de la modification de l'emplacement de stockage de la bibliothèque",
+    "app_section_label": "Application",
+    "current_version": "Version actuelle : {{version}}",
+    "update_check": {
+      "aria_label": "Vérification des mises à jour",
+      "button_idle": "Vérifier les mises à jour",
+      "button_checking": "Vérification...",
+      "button_done": "Vérifier à nouveau",
+      "available": "{{version}} disponible",
+      "latest": "Dernière version ({{version}})",
+      "error": "Échec de la vérification",
+      "unknown_version": "Inconnu",
+      "dev_mode_disabled": "La vérification des mises à jour est désactivée en mode développement"
+    }
   },
   "validation": {
     "path": {
