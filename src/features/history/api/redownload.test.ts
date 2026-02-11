@@ -91,6 +91,7 @@ describe('redownloadFromHistory', () => {
         30216,
         expect.anything(),
         expect.anything(),
+        120,
       )
       expect(mockDownloadVideo).toHaveBeenNthCalledWith(
         2,
@@ -101,6 +102,7 @@ describe('redownloadFromHistory', () => {
         30216,
         expect.anything(),
         expect.anything(),
+        180,
       )
     })
 
@@ -138,6 +140,7 @@ describe('redownloadFromHistory', () => {
         30251,
         expect.anything(),
         expect.anything(),
+        120,
       )
     })
 
@@ -179,6 +182,7 @@ describe('redownloadFromHistory', () => {
         30216,
         expect.anything(),
         expect.anything(),
+        180,
       )
     })
   })

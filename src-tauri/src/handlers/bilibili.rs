@@ -162,10 +162,7 @@ fn validate_api_response<T>(code: i64, _message: &str, data: Option<&T>) -> Resu
 /// - Disk space is insufficient (`ERR::DISK_FULL`)
 /// - Download fails after retry attempts (`ERR::NETWORK`)
 /// - ffmpeg merge fails (`ERR::MERGE_FAILED`)
-pub async fn download_video(
-    app: &AppHandle,
-    options: &DownloadOptions,
-) -> Result<String, String> {
+pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Result<String, String> {
     // 1. 出力ファイルパス決定 + 自動リネーム
     let output_path = auto_rename(&build_output_path(app, &options.filename).await?);
 
