@@ -196,18 +196,24 @@ function DownloadingDialog() {
                     )
                     const key = p.internalId || `${p.downloadId}:${p.stage}`
                     if (!p.stage || p.stage === 'complete') return null
+                    const ariaLabel =
+                      typeof barLabel === 'string' ? barLabel : undefined
                     return (
                       <div
                         key={key}
                         className="text-accent-foreground box-border w-full px-2"
                       >
                         <div className="mb-2 flex items-center">
-                          <span className="mr-2">{barIcon}</span>
-                          <span className="font-medium">{barLabel}</span>
+                          <span className="mr-2" aria-label={ariaLabel}>
+                            {barIcon}
+                          </span>
                         </div>
                         <div className="px-2">
                           {p.stage === 'merge' ? (
-                            <div className="flex items-center justify-between py-1 text-sm">
+                            <div
+                              className="flex items-center justify-between py-1 text-sm"
+                              aria-label={t('video.bar_merge')}
+                            >
                               <span>{t('video.bar_merge')}</span>
                               {!p.isComplete && <CircleIndicator r={10} />}
                               {p.isComplete && (

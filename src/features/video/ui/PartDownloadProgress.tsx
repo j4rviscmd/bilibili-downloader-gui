@@ -46,19 +46,23 @@ function StageProgress({
   waitingLabel,
 }: StageProgressProps) {
   const progress = progressEntries.find((p) => p.stage === stageName)
+  const stageLabel = t(labelKey)
 
   if (!progress) {
     return (
-      <div className="flex min-h-[33px] items-center">
-        {icon} {t(labelKey)}: {waitingLabel ?? t('video.stage_waiting')}
+      <div
+        className="flex min-h-[33px] items-center"
+        aria-label={`${stageLabel}: ${waitingLabel ?? t('video.stage_waiting')}`}
+      >
+        {icon}
       </div>
     )
   }
 
   return (
     <div className="flex min-h-[33px] items-center gap-1">
-      <span className="font-medium">
-        {icon} {t(labelKey)}
+      <span className="font-medium" aria-label={stageLabel}>
+        {icon}
       </span>
       <span>{progress.percentage.toFixed(0)}%</span>
       <span>{formatTransferRate(progress.transferRate || 0)}</span>
@@ -213,7 +217,7 @@ export function PartDownloadProgress({
 
       {/* Running View - third priority */}
       {isDownloading && (
-        <div className="text-muted-foreground grid min-h-[33px] grid-cols-1 gap-x-2 gap-y-1 text-xs sm:grid-cols-2 lg:grid-cols-3">
+        <div className="text-muted-foreground grid min-h-[33px] grid-cols-[4fr_4fr_2fr] gap-x-2 gap-y-1 text-xs">
           <StageProgress
             icon="🔊"
             labelKey="video.stage_audio"
@@ -241,13 +245,15 @@ export function PartDownloadProgress({
             const videoProgress = progressEntries.find(
               (p) => p.stage === 'video',
             )
+            const mergeLabel = t('video.stage_merge')
 
             if (mergeProgress) {
               return (
-                <div className="flex min-h-[33px] items-center gap-1">
-                  <span className="font-medium">
-                    🔄 {t('video.stage_merge')}
-                  </span>
+                <div
+                  className="flex min-h-[33px] items-center gap-1"
+                  aria-label={`${mergeLabel}: ${mergeProgress.percentage.toFixed(0)}%`}
+                >
+                  <span className="font-medium">🔄 {mergeLabel}</span>
                   <span>{mergeProgress.percentage.toFixed(0)}%</span>
                 </div>
               )
@@ -261,10 +267,11 @@ export function PartDownloadProgress({
 
             if (bothComplete) {
               return (
-                <div className="flex min-h-[33px] items-center gap-1">
-                  <span className="font-medium">
-                    🔄 {t('video.stage_merge')}
-                  </span>
+                <div
+                  className="flex min-h-[33px] items-center gap-1"
+                  aria-label={`${mergeLabel}: ${t('video.stage_merging')}`}
+                >
+                  <span className="font-medium">🔄 {mergeLabel}</span>
                   <span>{t('video.stage_merging')}</span>
                 </div>
               )
@@ -272,8 +279,11 @@ export function PartDownloadProgress({
 
             if (audioProgress || videoProgress) {
               return (
-                <div className="flex min-h-[33px] items-center">
-                  🔄 {t('video.stage_merge')}: {t('video.stage_waiting')}
+                <div
+                  className="flex min-h-[33px] items-center"
+                  aria-label={`${mergeLabel}: ${t('video.stage_waiting')}`}
+                >
+                  🔄 {mergeLabel}: {t('video.stage_waiting')}
                 </div>
               )
             }
