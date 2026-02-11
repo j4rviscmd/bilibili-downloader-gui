@@ -37,22 +37,23 @@ I build this in my spare time. Every star shows that my work is valued and keeps
 
 ## 💻 Installation
 
-Download from the latest release: [Releases › Latest](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest)
+Download from the [latest release](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest).
 
-- Windows (x64)
-  - Installer (recommended):
-  - EXE: [bilibili-downloader-gui_0.1.0_x64-setup.exe](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_0.1.0_x64-setup.exe)
-  - MSI (alternative):
-  - MSI: [bilibili-downloader-gui_0.1.0_x64_en-US.msi](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_0.1.0_x64_en-US.msi)
+### macOS
 
-- macOS (Intel x64 and Apple Silicon aarch64)
-  - DMG (Intel x64): [bilibili-downloader-gui_0.1.0_x64.dmg](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_0.1.0_x64.dmg)
-  - DMG (Apple Silicon aarch64): [bilibili-downloader-gui_0.1.0_aarch64.dmg](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_0.1.0_aarch64.dmg)
-  - App archive (unsigned alternative):
-    - TAR.GZ (Intel x64): [bilibili-downloader-gui_x64.app.tar.gz](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_x64.app.tar.gz)
-    - TAR.GZ (Apple Silicon aarch64): [bilibili-downloader-gui_aarch64.app.tar.gz](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_aarch64.app.tar.gz)
+- **Apple Silicon**: `bilibili-downloader-gui_<version>_aarch64.dmg`
+- **Intel x64**: `bilibili-downloader-gui_<version>_x64.dmg`
 
-Note: For unsigned builds on macOS, see the section below about Gatekeeper and xattr.
+### Windows
+
+- **Installer** (recommended): `bilibili-downloader-gui_<version>_x64-setup.exe`
+- **MSI** (alternative): `bilibili-downloader-gui_<version>_x64_en-US.msi`
+
+> **Note**: macOS builds are not signed. On first launch, right-click the app → Open → Open, or run:
+>
+> ```bash
+> xattr -dr com.apple.quarantine "/Applications/bilibili-downloader-gui.app"
+> ```
 
 ## 🍎 macOS: First Launch of Unsigned Builds
 
