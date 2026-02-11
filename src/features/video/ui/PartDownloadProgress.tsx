@@ -1,3 +1,8 @@
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/shared/animate-ui/radix/tooltip'
 import type { Progress } from '@/shared/ui/Progress'
 import { Button } from '@/shared/ui/button'
 import { invoke } from '@tauri-apps/api/core'
@@ -6,14 +11,19 @@ import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { PartDownloadStatus } from '../hooks/usePartDownloadStatus'
 
+const MIN_HEIGHT = 'min-h-[33px]'
+
 /**
- * Formats transfer rate for display.
+ * Formats transfer rate for display in human-readable units.
+ *
+ * Converts kilobytes per second to either KB/s or MB/s depending on magnitude.
+ *
+ * @param kb - Transfer rate in kilobytes per second
+ * @returns Formatted string with unit (e.g., "500KB/s", "2.5MB/s")
  */
 function formatTransferRate(kb: number): string {
-  if (kb >= 1000) {
-    return `${(kb / 1024).toFixed(1)}MB/s`
-  }
-  return `${kb.toFixed(0)}KB/s`
+  if (kb < 1000) return `${kb.toFixed(0)}KB/s`
+  return `${(kb / 1024).toFixed(1)}MB/s`
 }
 
 /**
@@ -35,7 +45,55 @@ type StageProgressProps = {
 }
 
 /**
+ * Tooltip wrapper for stage icons.
+ *
+ * Displays an emoji icon with a hover tooltip showing the stage label.
+ * Optionally applies medium font weight to emphasize active stages.
+ *
+ * @param icon - Emoji icon to display (e.g., "🔊", "🎬", "🔄")
+ * @param label - Accessible label text for the stage
+ * @param fontWeight - Optional font weight; set to "medium" for active stages
+ * @returns React component rendering a tooltip-wrapped icon
+ */
+function StageIcon({
+  icon,
+  label,
+  fontWeight,
+}: {
+  icon: string
+  label: string
+  fontWeight?: 'medium'
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          className={`cursor-help ${fontWeight ? 'font-medium' : ''}`}
+          aria-label={label}
+        >
+          {icon}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top" arrow>
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
+/**
  * Renders progress display for a single download stage.
+ *
+ * Shows either a waiting state (icon only) or active progress (icon + percentage + speed + file size).
+ * Progress data is extracted from progressEntries matching the stageName.
+ *
+ * @param icon - Emoji icon for this stage
+ * @param labelKey - Translation key for the stage label
+ * @param progressEntries - Array of all progress entries to search
+ * @param stageName - Stage identifier to match in progressEntries
+ * @param t - Translation function
+ * @param waitingLabel - Optional custom label for waiting state
+ * @returns React component rendering stage progress or null if not applicable
  */
 function StageProgress({
   icon,
@@ -51,19 +109,17 @@ function StageProgress({
   if (!progress) {
     return (
       <div
-        className="flex min-h-[33px] items-center"
+        className={`flex ${MIN_HEIGHT} items-center`}
         aria-label={`${stageLabel}: ${waitingLabel ?? t('video.stage_waiting')}`}
       >
-        {icon}
+        <StageIcon icon={icon} label={stageLabel} />
       </div>
     )
   }
 
   return (
-    <div className="flex min-h-[33px] items-center gap-1">
-      <span className="font-medium" aria-label={stageLabel}>
-        {icon}
-      </span>
+    <div className={`flex ${MIN_HEIGHT} items-center gap-1`}>
+      <StageIcon icon={icon} label={stageLabel} fontWeight="medium" />
       <span>{progress.percentage.toFixed(0)}%</span>
       <span>{formatTransferRate(progress.transferRate || 0)}</span>
       {progress.filesize != null && (
@@ -74,6 +130,84 @@ function StageProgress({
       )}
     </div>
   )
+}
+
+/**
+ * Props for merge stage progress display.
+ */
+type MergeStageProgressProps = {
+  /** Progress entries to search */
+  progressEntries: Progress[]
+  /** Translation function */
+  t: (key: string) => string
+}
+
+/**
+ * Renders progress display for the merge stage.
+ *
+ * The merge stage has special conditional logic based on audio/video completion:
+ * - **Active merge**: Shows percentage when merge is actively progressing
+ * - **Merging state**: Shows "merging" status when both audio and video are complete but no merge progress yet
+ * - **Waiting state**: Shows "waiting" status when audio or video is still downloading
+ * - **Hidden**: Returns null when no relevant progress exists
+ *
+ * @param progressEntries - Array of all progress entries to search
+ * @param t - Translation function
+ * @returns React component rendering merge stage progress or null
+ */
+function MergeStageProgress({ progressEntries, t }: MergeStageProgressProps) {
+  const mergeProgress = progressEntries.find((p) => p.stage === 'merge')
+  const audioProgress = progressEntries.find((p) => p.stage === 'audio')
+  const videoProgress = progressEntries.find((p) => p.stage === 'video')
+  const mergeLabel = t('video.stage_merge')
+
+  // Active merge with percentage
+  if (mergeProgress) {
+    return (
+      <div
+        className={`flex ${MIN_HEIGHT} items-center gap-1`}
+        aria-label={`${mergeLabel}: ${mergeProgress.percentage.toFixed(0)}%`}
+      >
+        <StageIcon icon="🔄" label={mergeLabel} fontWeight="medium" />
+        <span className="font-medium"> {mergeLabel}</span>
+        <span>{mergeProgress.percentage.toFixed(0)}%</span>
+      </div>
+    )
+  }
+
+  const audioComplete = audioProgress?.percentage ?? 0 >= 100
+  const videoComplete = videoProgress?.percentage ?? 0 >= 100
+
+  // Both complete - merging state
+  if (audioComplete && videoComplete) {
+    return (
+      <div
+        className={`flex ${MIN_HEIGHT} items-center gap-1`}
+        aria-label={`${mergeLabel}: ${t('video.stage_merging')}`}
+      >
+        <StageIcon icon="🔄" label={mergeLabel} fontWeight="medium" />
+        <span className="font-medium"> {mergeLabel}</span>
+        <span>{t('video.stage_merging')}</span>
+      </div>
+    )
+  }
+
+  // Audio or video in progress - waiting state
+  if (audioProgress || videoProgress) {
+    return (
+      <div
+        className={`flex ${MIN_HEIGHT} items-center`}
+        aria-label={`${mergeLabel}: ${t('video.stage_waiting')}`}
+      >
+        <StageIcon icon="🔄" label={mergeLabel} />
+        <span>
+          {mergeLabel}: {t('video.stage_waiting')}
+        </span>
+      </div>
+    )
+  }
+
+  return null
 }
 
 /**
@@ -115,33 +249,26 @@ export function PartDownloadProgress({
     outputPath,
     downloadId,
     progressEntries,
-    filename,
   } = status
 
   const handleOpenFile = useCallback(async () => {
     if (!outputPath) return
-    try {
-      await invoke('open_file', { path: outputPath })
-    } catch (e) {
+    await invoke('open_file', { path: outputPath }).catch((e) => {
       console.error('Failed to open file:', e)
-    }
+    })
   }, [outputPath])
 
   const handleRevealInFolder = useCallback(async () => {
     if (!outputPath) return
-    try {
-      await invoke('reveal_in_folder', { path: outputPath })
-    } catch (e) {
+    await invoke('reveal_in_folder', { path: outputPath }).catch((e) => {
       console.error('Failed to reveal in folder:', e)
-    }
+    })
   }, [outputPath])
 
   const handleRedownload = useCallback(() => {
-    if (!downloadId || !filename) return
-
-    // Trigger redownload via callback (parent will handle queue cleanup)
+    if (!downloadId) return
     onRedownload()
-  }, [downloadId, filename, onRedownload])
+  }, [downloadId, onRedownload])
 
   // No download in progress
   if (
@@ -158,7 +285,7 @@ export function PartDownloadProgress({
     <div className="bg-muted/50 mt-2 space-y-2 rounded-md p-2">
       {/* Complete View - highest priority */}
       {isComplete && (
-        <div className="flex min-h-[33px] items-center justify-between">
+        <div className={`flex ${MIN_HEIGHT} items-center justify-between`}>
           <div className="flex items-center gap-2 text-sm">
             <CheckCircle2 className="h-5 w-5 text-green-500" />
             <span className="text-muted-foreground">
@@ -199,7 +326,7 @@ export function PartDownloadProgress({
 
       {/* Error View - second priority */}
       {hasError && (
-        <div className="flex min-h-[33px] items-center justify-between">
+        <div className={`flex ${MIN_HEIGHT} items-center justify-between`}>
           <div className="text-destructive flex items-center gap-2 text-sm">
             <span>{errorMessage || t('video.download_failed_part')}</span>
           </div>
@@ -217,7 +344,7 @@ export function PartDownloadProgress({
 
       {/* Running View - third priority */}
       {isDownloading && (
-        <div className="text-muted-foreground grid min-h-[33px] grid-cols-[4fr_4fr_2fr] gap-x-2 gap-y-1 text-xs">
+        <div className="text-muted-foreground ${MIN_HEIGHT} grid grid-cols-[4fr_4fr_2fr] gap-x-2 gap-y-1 text-xs">
           <StageProgress
             icon="🔊"
             labelKey="video.stage_audio"
@@ -235,67 +362,13 @@ export function PartDownloadProgress({
           />
 
           {/* Merge Stage - has special logic for merging state */}
-          {(() => {
-            const mergeProgress = progressEntries.find(
-              (p) => p.stage === 'merge',
-            )
-            const audioProgress = progressEntries.find(
-              (p) => p.stage === 'audio',
-            )
-            const videoProgress = progressEntries.find(
-              (p) => p.stage === 'video',
-            )
-            const mergeLabel = t('video.stage_merge')
-
-            if (mergeProgress) {
-              return (
-                <div
-                  className="flex min-h-[33px] items-center gap-1"
-                  aria-label={`${mergeLabel}: ${mergeProgress.percentage.toFixed(0)}%`}
-                >
-                  <span className="font-medium">🔄 {mergeLabel}</span>
-                  <span>{mergeProgress.percentage.toFixed(0)}%</span>
-                </div>
-              )
-            }
-
-            const audioComplete =
-              audioProgress && audioProgress.percentage >= 100
-            const videoComplete =
-              videoProgress && videoProgress.percentage >= 100
-            const bothComplete = audioComplete && videoComplete
-
-            if (bothComplete) {
-              return (
-                <div
-                  className="flex min-h-[33px] items-center gap-1"
-                  aria-label={`${mergeLabel}: ${t('video.stage_merging')}`}
-                >
-                  <span className="font-medium">🔄 {mergeLabel}</span>
-                  <span>{t('video.stage_merging')}</span>
-                </div>
-              )
-            }
-
-            if (audioProgress || videoProgress) {
-              return (
-                <div
-                  className="flex min-h-[33px] items-center"
-                  aria-label={`${mergeLabel}: ${t('video.stage_waiting')}`}
-                >
-                  🔄 {mergeLabel}: {t('video.stage_waiting')}
-                </div>
-              )
-            }
-
-            return null
-          })()}
+          <MergeStageProgress progressEntries={progressEntries} t={t} />
         </div>
       )}
 
       {/* Pending View - lowest priority */}
       {(isPending || isWaitingForTurn) && (
-        <div className="text-muted-foreground flex min-h-[33px] items-center gap-2 text-sm">
+        <div className="text-muted-foreground ${MIN_HEIGHT} flex items-center gap-2 text-sm">
           <div className="h-2 w-2 animate-pulse rounded-full bg-current" />
           <span>{t('video.download_pending')}</span>
         </div>
