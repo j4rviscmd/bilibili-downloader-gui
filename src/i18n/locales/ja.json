@@ -169,7 +169,20 @@
     "lib_path_dialog_title": "ライブラリディレクトリを選択",
     "lib_path_error": "パスの取得に失敗しました",
     "lib_path_change_success": "ライブラリ保存先を変更しました",
-    "lib_path_change_error": "ライブラリ保存先の変更に失敗しました"
+    "lib_path_change_error": "ライブラリ保存先の変更に失敗しました",
+    "app_section_label": "アプリケーション",
+    "current_version": "現在のバージョン: {{version}}",
+    "update_check": {
+      "aria_label": "アップデート確認",
+      "button_idle": "アップデートを確認",
+      "button_checking": "確認中...",
+      "button_done": "再確認",
+      "available": "{{version}} が利用可能です",
+      "latest": "最新版です ({{version}})",
+      "error": "確認に失敗しました",
+      "unknown_version": "不明",
+      "dev_mode_disabled": "開発モードではアップデート確認は無効です"
+    }
   },
   "validation": {
     "path": {

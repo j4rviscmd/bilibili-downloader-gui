@@ -165,7 +165,20 @@
     "lib_path_dialog_title": "라이브러리 디렉터리 선택",
     "lib_path_error": "경로를 가져오지 못했습니다",
     "lib_path_change_success": "라이브러리 저장 위치가 성공적으로 업데이트되었습니다",
-    "lib_path_change_error": "라이브러리 저장 위치 변경 실패"
+    "lib_path_change_error": "라이브러리 저장 위치 변경 실패",
+    "app_section_label": "애플리케이션",
+    "current_version": "현재 버전: {{version}}",
+    "update_check": {
+      "aria_label": "업데이트 확인",
+      "button_idle": "업데이트 확인",
+      "button_checking": "확인 중...",
+      "button_done": "다시 확인",
+      "available": "{{version}} 사용 가능",
+      "latest": "최신 버전 ({{version}})",
+      "error": "확인 실패",
+      "unknown_version": "알 수 없음",
+      "dev_mode_disabled": "개발 모드에서는 업데이트 확인이 비활성화됩니다"
+    }
   },
   "validation": {
     "path": {

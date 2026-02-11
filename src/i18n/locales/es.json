@@ -165,7 +165,20 @@
     "lib_path_dialog_title": "Seleccionar directorio de biblioteca",
     "lib_path_error": "Error al obtener la ruta",
     "lib_path_change_success": "Ubicación de almacenamiento de biblioteca actualizada correctamente",
-    "lib_path_change_error": "Error al cambiar la ubicación de almacenamiento de biblioteca"
+    "lib_path_change_error": "Error al cambiar la ubicación de almacenamiento de biblioteca",
+    "app_section_label": "Aplicación",
+    "current_version": "Versión actual: {{version}}",
+    "update_check": {
+      "aria_label": "Verificación de actualizaciones",
+      "button_idle": "Buscar actualizaciones",
+      "button_checking": "Verificando...",
+      "button_done": "Verificar de nuevo",
+      "available": "{{version}} disponible",
+      "latest": "Versión más reciente ({{version}})",
+      "error": "Error en la verificación",
+      "unknown_version": "Desconocido",
+      "dev_mode_disabled": "La verificación de actualizaciones está deshabilitada en modo desarrollo"
+    }
   },
   "validation": {
     "path": {

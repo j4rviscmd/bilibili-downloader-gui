@@ -11,6 +11,7 @@ import {
   formSchema,
 } from '@/features/settings/dialog/formSchema'
 import { languages } from '@/features/settings/language/languages'
+import { UpdateCheckButton } from '@/features/settings/ui/UpdateCheckButton'
 import { useSettings } from '@/features/settings/useSettings'
 import {
   RadioGroup,
@@ -293,6 +294,11 @@ function SettingsForm() {
           <FormDescription>
             {t('settings.lib_path_description')}
           </FormDescription>
+        </div>
+        <Separator />
+        <div className="space-y-2">
+          <Label>{t('settings.app_section_label')}</Label>
+          <UpdateCheckButton />
         </div>
       </form>
     </Form>

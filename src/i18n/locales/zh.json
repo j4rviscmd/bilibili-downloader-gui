@@ -165,7 +165,20 @@
     "lib_path_dialog_title": "选择库目录",
     "lib_path_error": "获取路径失败",
     "lib_path_change_success": "库存储位置已成功更新",
-    "lib_path_change_error": "更改库存储位置失败"
+    "lib_path_change_error": "更改库存储位置失败",
+    "app_section_label": "应用程序",
+    "current_version": "当前版本: {{version}}",
+    "update_check": {
+      "aria_label": "更新检查",
+      "button_idle": "检查更新",
+      "button_checking": "检查中...",
+      "button_done": "再次检查",
+      "available": "{{version}} 可用",
+      "latest": "已是最新版本 ({{version}})",
+      "error": "检查失败",
+      "unknown_version": "未知",
+      "dev_mode_disabled": "开发模式下更新检查已禁用"
+    }
   },
   "validation": {
     "path": {
