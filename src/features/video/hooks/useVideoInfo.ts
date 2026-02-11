@@ -42,14 +42,9 @@ const ERROR_MAP: Record<string, string> = {
  */
 function getErrorMessage(error: string, t: (key: string) => string): string {
   for (const [code, key] of Object.entries(ERROR_MAP)) {
-    if (error.includes(code)) {
-      return t(key)
-    }
+    if (error.includes(code)) return t(key)
   }
-  if (error.includes('ERR::NETWORK::')) {
-    return t('video.network_error')
-  }
-  return error
+  return error.includes('ERR::NETWORK::') ? t('video.network_error') : error
 }
 
 /**
@@ -108,6 +103,7 @@ export const useVideoInfo = () => {
       videoQuality: (p.videoQualities[0]?.id || 80).toString(),
       audioQuality: (p.audioQualities[0]?.id || 30216).toString(),
       selected: true,
+      duration: p.duration,
     }))
     store.dispatch(initPartInputs(partInputs))
   }
@@ -190,17 +186,13 @@ export const useVideoInfo = () => {
   )
   const duplicateIndices = useSelector(selectDuplicateIndices)
   const hasDuplicates = duplicateIndices.length > 0
-  // Toast throttle local to this hook instance
   const dupToastRef = useRef(false)
   useEffect(() => {
-    if (hasDuplicates && !dupToastRef.current) {
+    if (hasDuplicates === dupToastRef.current) return
+    dupToastRef.current = hasDuplicates
+    if (hasDuplicates)
       toast.error(t('video.duplicate_titles'), { duration: 5000 })
-      dupToastRef.current = true
-    } else if (!hasDuplicates && dupToastRef.current) {
-      dupToastRef.current = false
-    }
   }, [hasDuplicates, t])
-  // 選択されたパートの数をカウント
   const selectedCount = input.partInputs.filter((pi) => pi.selected).length
 
   const isForm2ValidAll =
@@ -230,7 +222,6 @@ export const useVideoInfo = () => {
       const videoId = (extractVideoId(input.url) ?? '').trim()
       if (!videoId) return
 
-      // 選択されたパートを収集
       const selectedParts = input.partInputs
         .map((pi, idx) => ({ pi, idx }))
         .filter(({ pi }) => pi.selected)
@@ -240,15 +231,11 @@ export const useVideoInfo = () => {
           store.getState(),
           idx + 1,
         )
-        if (completedItem) {
+        if (completedItem)
           store.dispatch(clearQueueItem(completedItem.downloadId))
-        }
       }
 
-      // Parent ID
       const parentId = `${videoId}-${Date.now()}`
-
-      // Enqueue parent (placeholder filename = video.title)
       store.dispatch(
         enqueue({
           downloadId: parentId,
@@ -257,7 +244,6 @@ export const useVideoInfo = () => {
         }),
       )
 
-      // Child downloads: sequential order by selected parts only
       for (const { pi, idx } of selectedParts) {
         await downloadVideo(
           videoId,
@@ -267,6 +253,7 @@ export const useVideoInfo = () => {
           parseInt(pi.audioQuality, 10),
           `${parentId}-p${idx + 1}`,
           parentId,
+          pi.duration,
         )
       }
     } catch (e) {

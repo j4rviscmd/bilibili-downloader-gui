@@ -301,23 +301,9 @@ async fn fetch_video_info(app: AppHandle, video_id: String) -> Result<Video, Str
 #[tauri::command]
 async fn download_video(
     app: AppHandle,
-    bvid: String,
-    cid: i64,
-    filename: String,
-    quality: i32,
-    audio_quality: i32,
-    download_id: String,
+    options: bilibili::DownloadOptions,
 ) -> Result<String, String> {
-    bilibili::download_video(
-        &app,
-        &bvid,
-        cid,
-        &filename,
-        quality,
-        audio_quality,
-        download_id,
-    )
-    .await
+    bilibili::download_video(&app, &options).await
 }
 
 /// Retrieves the current application settings.

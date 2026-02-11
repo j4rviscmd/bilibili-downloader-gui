@@ -16,6 +16,8 @@ export type PartInput = {
   audioQuality: string
   /** Whether this part is selected for download */
   selected: boolean
+  /** Duration in seconds for progress calculation */
+  duration: number
 }
 
 /**

@@ -8,10 +8,33 @@
 //! - **User Authentication**: Retrieves user info using cached cookies from Firefox
 //! - **Video Download**: Parallel audio/video stream downloads merged via ffmpeg
 //!
-//! ## Parallel Download Implementation
-//!
-//! This module reduces download time by simultaneously downloading audio and video streams.
-//! A semaphore (`VIDEO_SEMAPHORE`) limits concurrent operations to protect system resources.
+
+use serde::Deserialize;
+
+/// Download options for video download command.
+///
+/// Groups all parameters needed for downloading a video part into a single struct
+/// to avoid excessive function arguments.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DownloadOptions {
+    /// Bilibili video ID (BV identifier)
+    pub bvid: String,
+    /// Content ID for the specific video part
+    pub cid: i64,
+    /// Output filename (extension optional; .mp4 added if not present)
+    pub filename: String,
+    /// Video quality ID (falls back to highest quality if unavailable)
+    pub quality: i32,
+    /// Audio quality ID (falls back to highest quality if unavailable)
+    pub audio_quality: i32,
+    /// Unique identifier for tracking this download
+    pub download_id: String,
+    /// Parent download ID for multi-part videos (optional)
+    pub parent_id: Option<String>,
+    /// Video duration in seconds for accurate merge progress
+    pub duration_seconds: i64,
+}
 
 use crate::constants::REFERER;
 use crate::handlers::cookie::read_cookie;
@@ -139,17 +162,9 @@ fn validate_api_response<T>(code: i64, _message: &str, data: Option<&T>) -> Resu
 /// - Disk space is insufficient (`ERR::DISK_FULL`)
 /// - Download fails after retry attempts (`ERR::NETWORK`)
 /// - ffmpeg merge fails (`ERR::MERGE_FAILED`)
-pub async fn download_video(
-    app: &AppHandle,
-    bvid: &str,
-    cid: i64,
-    filename: &str,
-    quality: i32,
-    audio_quality: i32,
-    download_id: String,
-) -> Result<String, String> {
+pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Result<String, String> {
     // 1. 出力ファイルパス決定 + 自動リネーム
-    let output_path = auto_rename(&build_output_path(app, filename).await?);
+    let output_path = auto_rename(&build_output_path(app, &options.filename).await?);
 
     // 2. Cookie取得（WBI署名により非ログインユーザでも動作）
     let cookies = read_cookie(app)?.unwrap_or_default();
@@ -157,7 +172,7 @@ pub async fn download_video(
     // Cookieヘッダーが空でも続行（WBI署名により画質制限付きでダウンロード可能）
 
     // 3. 動画詳細取得 (選択品質のURL抽出)
-    let details = fetch_video_details(&cookies, bvid, cid).await?;
+    let details = fetch_video_details(&cookies, &options.bvid, options.cid).await?;
 
     let dash_data = details
         .data
@@ -170,8 +185,8 @@ pub async fn download_video(
         .dash;
 
     // 選択品質が存在しなければフォールバック (先頭 = 最も高品質)
-    let video_url = select_stream_url(&dash_data.video, quality)?;
-    let audio_url = select_stream_url(&dash_data.audio, audio_quality)?;
+    let video_url = select_stream_url(&dash_data.video, options.quality)?;
+    let audio_url = select_stream_url(&dash_data.audio, options.audio_quality)?;
 
     // 5. 容量事前チェック (取得できなければスキップ)
     let video_size = head_content_length(&video_url, Some(&cookie_header)).await;
@@ -183,8 +198,8 @@ pub async fn download_video(
 
     // 6. temp ファイルパス生成
     let lib_path = get_lib_path(app);
-    let temp_video_path = lib_path.join(format!("temp_video_{}.m4s", download_id));
-    let temp_audio_path = lib_path.join(format!("temp_audio_{}.m4s", download_id));
+    let temp_video_path = lib_path.join(format!("temp_video_{}.m4s", options.download_id));
+    let temp_audio_path = lib_path.join(format!("temp_audio_{}.m4s", options.download_id));
 
     // 7. セマフォ取得 + 並列ダウンロード + マージ
     // セマフォは「マージ完了まで保持」され、並列実行数はマージ処理の負荷に基づく
@@ -205,7 +220,7 @@ pub async fn download_video(
                 temp_audio_path.clone(),
                 cookie.clone(),
                 true,
-                Some(download_id.clone()),
+                Some(options.download_id.clone()),
             )
         }),
         retry_download(|| {
@@ -215,7 +230,7 @@ pub async fn download_video(
                 temp_video_path.clone(),
                 cookie.clone(),
                 true,
-                Some(download_id.clone()),
+                Some(options.download_id.clone()),
             )
         }),
     )?;
@@ -226,7 +241,8 @@ pub async fn download_video(
         &temp_video_path,
         &temp_audio_path,
         &output_path,
-        Some(download_id.clone()),
+        Some(options.download_id.clone()),
+        Some((options.duration_seconds * 1000) as u64), // Convert seconds to milliseconds
     )
     .await
     .map_err(|_| String::from("ERR::MERGE_FAILED"))?;
@@ -249,8 +265,9 @@ pub async fn download_video(
 
     // 履歴に保存 (非同期で失敗してもダウンロードには影響しない)
     let app = app.clone();
-    let bvid = bvid.to_string();
-    let filename = filename.to_string();
+    let bvid = options.bvid.clone();
+    let filename = options.filename.clone();
+    let quality = options.quality;
     tokio::spawn(async move {
         if let Err(e) = save_to_history(&app, &bvid, quality, actual_file_size, &filename).await {
             eprintln!("Warning: Failed to save to history for {bvid}: {e}");
@@ -608,6 +625,13 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
 /// # Returns
 ///
 /// Vector of `Quality` objects sorted by quality ID in descending order.
+///
+/// # Example
+///
+/// ```ignore
+/// let qualities = convert_qualities(&api_response.dash.video);
+/// // Returns qualities sorted: [116, 112, 80, 64, 32, 16]
+/// ```
 fn convert_qualities(video: &[XPlayerApiResponseVideo]) -> Vec<Quality> {
     let mut qualities: BTreeMap<i32, &XPlayerApiResponseVideo> = BTreeMap::new();
 
@@ -837,6 +861,7 @@ async fn build_output_path(app: &AppHandle, filename: &str) -> Result<PathBuf, S
 /// Gets Content-Length of a resource via HEAD request.
 ///
 /// Sends HEAD request to check file size before download.
+/// This is a best-effort check used for disk space validation.
 ///
 /// # Arguments
 ///
@@ -852,6 +877,15 @@ async fn build_output_path(app: &AppHandle, filename: &str) -> Result<PathBuf, S
 /// Does not propagate errors; returns `None` on failure.
 /// Network and parse errors are silently ignored.
 /// Only returns Content-Length if HTTP status is 200 OK.
+///
+/// # Example
+///
+/// ```ignore
+/// let size = head_content_length(&video_url, Some(&cookie_header)).await;
+/// if let Some(bytes) = size {
+///     println!("File size: {} bytes", bytes);
+/// }
+/// ```
 async fn head_content_length(url: &str, cookie: Option<&String>) -> Option<u64> {
     let client = reqwest::Client::builder().build().ok()?;
     let mut req = client.head(url);
@@ -862,7 +896,8 @@ async fn head_content_length(url: &str, cookie: Option<&String>) -> Option<u64> 
 
     // Only accept successful responses (200 OK)
     if !response.status().is_success() {
-        eprintln!("HEAD request failed for {}: {}", url, response.status());
+        // HEAD request may fail (e.g., 403 Forbidden) but download continues normally
+        // eprintln!("HEAD request failed for {}: {}", url, response.status());
         return None;
     }
 
@@ -1004,6 +1039,13 @@ where
 /// # Errors
 ///
 /// Returns `ERR::QUALITY_NOT_FOUND` error if quality list is empty.
+///
+/// # Example
+///
+/// ```ignore
+/// let url = select_stream_url(&dash_data.video, 80)?; // Request 1080P
+/// // Falls back to highest quality if 80 not available
+/// ```
 fn select_stream_url(
     items: &[crate::models::bilibili_api::XPlayerApiResponseVideo],
     quality: i32,

@@ -231,6 +231,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
       parseInt(partInput.audioQuality || '30216', 10),
       newDownloadId,
       newDownloadId.replace(/-p\d+$/, ''),
+      partInput.duration,
     )
   }
 
@@ -255,21 +256,8 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   })
 
   useEffect(() => {
-    /**
-     * Synchronizes form values with video metadata.
-     *
-     * Populates the form with:
-     * - Default title (video title + part name, or just video title if single-part)
-     * - Best available video quality
-     * - Best available audio quality
-     *
-     * Preserves existing user input if available. Calls onValid2 on first
-     * load to initialize the Redux store with default values.
-     */
     async function syncFormWithVideo(): Promise<void> {
-      if (!video || video.parts.length === 0 || video.parts[0].cid === 0) {
-        return
-      }
+      if (!video || video.parts.length === 0 || video.parts[0].cid === 0) return
 
       const part = video.parts[page - 1]
       const defaultTitle =
@@ -288,15 +276,13 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
       form.setValue('videoQuality', videoQuality, { shouldValidate: true })
       form.setValue('audioQuality', audioQuality, { shouldValidate: true })
 
-      if (await form.trigger()) {
-        if (!existingInput) {
-          onValid2(page - 1, title, videoQuality, audioQuality)
-        }
+      if ((await form.trigger()) && !existingInput) {
+        onValid2(page - 1, title, videoQuality, audioQuality)
       }
     }
 
     syncFormWithVideo()
-  }, [video, page, existingInput, form, onValid2])
+  }, [video, page, existingInput, form, onValid2, videoPart.part])
 
   async function onSubmit(data: z.infer<typeof schema2>) {
     onValid2(page - 1, data.title, data.videoQuality, data.audioQuality)
