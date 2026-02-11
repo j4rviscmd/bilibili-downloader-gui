@@ -1,9 +1,21 @@
+import { zodResolver } from '@hookform/resolvers/zod'
+import { open } from '@tauri-apps/plugin-dialog'
+import { useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+import type { z } from 'zod'
+
 import { callGetCurrentLibPath } from '@/features/settings/api/settingApi'
 import {
   buildSettingsFormSchema,
   formSchema,
 } from '@/features/settings/dialog/formSchema'
+import { languages } from '@/features/settings/language/languages'
 import { useSettings } from '@/features/settings/useSettings'
+import {
+  RadioGroup,
+  RadioGroupItem,
+} from '@/shared/animate-ui/radix/radio-group'
 import { Button } from '@/shared/ui/button'
 import {
   Form,
@@ -15,22 +27,8 @@ import {
   FormMessage,
 } from '@/shared/ui/form'
 import { Input } from '@/shared/ui/input'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { open } from '@tauri-apps/plugin-dialog'
-import { useEffect, useState } from 'react'
-import { useForm } from 'react-hook-form'
-import type { z } from 'zod'
-
-// i18n t は useTranslation から取得
-import { languages } from '@/features/settings/language/languages'
-import {
-  RadioGroup,
-  RadioGroupItem,
-} from '@/shared/animate-ui/radix/radio-group'
-import { cn } from '@/shared/lib/utils'
 import { Label } from '@/shared/ui/label'
 import { Separator } from '@/shared/ui/separator'
-import { useTranslation } from 'react-i18next'
 
 /**
  * Settings form component.
@@ -55,7 +53,6 @@ function SettingsForm() {
   const [isUpdatingDlOutputPath, setIsUpdatingDlOutputPath] = useState(false)
   const [currentLibPath, setCurrentLibPath] = useState<string>('')
 
-  // Calculate current lib path for display
   useEffect(() => {
     const fetchCurrentLibPath = async () => {
       try {
@@ -65,41 +62,73 @@ function SettingsForm() {
         setCurrentLibPath(t('settings.lib_path_error'))
       }
     }
-
     fetchCurrentLibPath()
   }, [settings.libPath, t])
 
-  // Handle lib path change
+  /**
+   * Opens a native directory picker dialog.
+   *
+   * Uses Tauri's dialog plugin to show a platform-native directory
+   * selection dialog. Returns the selected path as a string, or null if
+   * the user cancels or an error occurs.
+   *
+   * @param titleKey - Translation key for the dialog title
+   * @param defaultPath - Optional starting directory path
+   * @returns Selected directory path, or null if cancelled/failed
+   */
+  const openDirectoryDialog = async (
+    titleKey: string,
+    defaultPath?: string,
+  ): Promise<string | null> => {
+    try {
+      return await open({
+        directory: true,
+        multiple: false,
+        title: t(titleKey),
+        defaultPath: defaultPath || undefined,
+      })
+    } catch (error) {
+      console.error('Failed to open directory dialog:', error)
+      return null
+    }
+  }
+
+  /**
+   * Handles library path directory selection.
+   *
+   * Opens a directory picker dialog for selecting the FFmpeg library path.
+   * If the user selects a directory, the path is updated via the settings
+   * API and the local state is refreshed.
+   */
   const handleLibPathChange = async () => {
     setIsUpdatingLibPath(true)
     try {
-      const selected = await open({
-        directory: true,
-        multiple: false,
-        title: t('settings.lib_path_dialog_title'),
-        defaultPath: currentLibPath || undefined,
-      })
+      const selected = await openDirectoryDialog(
+        'settings.lib_path_dialog_title',
+        currentLibPath,
+      )
       if (selected) {
-        // Backend will append /lib to the selected path
         await updateLibPath(selected)
       }
-    } catch (error) {
-      console.error('Failed to open directory dialog:', error)
     } finally {
       setIsUpdatingLibPath(false)
     }
   }
 
-  // Handle dl output path change
+  /**
+   * Handles download output directory selection.
+   *
+   * Opens a directory picker dialog for selecting where downloaded videos
+   * are saved. If the user selects a directory, the form value is updated,
+   * validated, and immediately submitted to persist the change.
+   */
   const handleDlOutputPathChange = async () => {
     setIsUpdatingDlOutputPath(true)
     try {
-      const selected = await open({
-        directory: true,
-        multiple: false,
-        title: t('settings.output_dir_dialog_title'),
-        defaultPath: settings.dlOutputPath || undefined,
-      })
+      const selected = await openDirectoryDialog(
+        'settings.output_dir_dialog_title',
+        settings.dlOutputPath,
+      )
       if (selected) {
         form.setValue('dlOutputPath', selected, {
           shouldDirty: true,
@@ -107,14 +136,11 @@ function SettingsForm() {
         })
         form.handleSubmit(onSubmit)()
       }
-    } catch (error) {
-      console.error('Failed to open directory dialog:', error)
     } finally {
       setIsUpdatingDlOutputPath(false)
     }
   }
 
-  // 言語変更ごとにスキーマを再生成 (バリデーションメッセージの多言語化)
   const schema = buildSettingsFormSchema(t)
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -126,7 +152,6 @@ function SettingsForm() {
     mode: 'onBlur',
   })
 
-  // settings が外部で更新された際にフォームへ反映
   useEffect(() => {
     form.reset({
       dlOutputPath: settings.dlOutputPath || '',
@@ -134,6 +159,15 @@ function SettingsForm() {
     })
   }, [form, settings.dlOutputPath, settings.language])
 
+  /**
+   * Form submission handler that saves changed settings.
+   *
+   * Compares form data against current settings to identify which fields
+   * have changed. If the language changed, triggers a language update
+   * immediately. All changed values are then persisted via the settings API.
+   *
+   * @param data - Validated form data matching the settings schema
+   */
   const onSubmit = async (data: z.infer<typeof formSchema>) => {
     const changedKeys = (['dlOutputPath', 'language'] as const).filter(
       (key) => data[key] !== settings[key],
@@ -151,7 +185,15 @@ function SettingsForm() {
     await saveByForm({ ...settings, ...changed })
   }
 
-  // language 変更時に即保存 (onChange トリガ)
+  /**
+   * Handles language selection change.
+   *
+   * Updates the language field value when a user selects a different
+   * language from the radio group. Marks the form as dirty and triggers
+   * immediate validation and submission to save the change.
+   *
+   * @param val - Selected language identifier (e.g., 'en', 'ja')
+   */
   const handleLanguageChange = (val: string) => {
     form.setValue('language', val as z.infer<typeof formSchema>['language'], {
       shouldDirty: true,
@@ -165,7 +207,7 @@ function SettingsForm() {
       <FormDescription className="mb-4">
         {t('settings.auto_save_note')}
       </FormDescription>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="mx-1 space-y-4">
         <FormField
           control={form.control}
           name="language"
@@ -177,21 +219,14 @@ function SettingsForm() {
                   value={String(field.value)}
                   onValueChange={handleLanguageChange}
                 >
-                  {languages.map((lang) => {
-                    const id = `lang-${lang.id}`
-                    return (
-                      <div
-                        key={lang.id}
-                        className={cn('flex items-center space-x-3')}
-                      >
-                        <RadioGroupItem value={lang.id} id={id} />
-                        <Label htmlFor={id}>{lang.label}</Label>
-                      </div>
-                    )
-                  })}
+                  {languages.map((lang) => (
+                    <div key={lang.id} className="flex items-center space-x-3">
+                      <RadioGroupItem value={lang.id} id={`lang-${lang.id}`} />
+                      <Label htmlFor={`lang-${lang.id}`}>{lang.label}</Label>
+                    </div>
+                  ))}
                 </RadioGroup>
               </FormControl>
-              <FormDescription></FormDescription>
               <FormMessage />
             </FormItem>
           )}
@@ -219,9 +254,9 @@ function SettingsForm() {
                   disabled={isUpdatingDlOutputPath}
                 >
                   {t(
-                    `settings.output_dir_${
-                      isUpdatingDlOutputPath ? 'changing' : 'button'
-                    }`,
+                    isUpdatingDlOutputPath
+                      ? 'settings.output_dir_changing'
+                      : 'settings.output_dir_button',
                   )}
                 </Button>
               </div>
@@ -249,9 +284,9 @@ function SettingsForm() {
               disabled={isUpdatingLibPath}
             >
               {t(
-                `settings.lib_path_${
-                  isUpdatingLibPath ? 'changing' : 'button'
-                }`,
+                isUpdatingLibPath
+                  ? 'settings.lib_path_changing'
+                  : 'settings.lib_path_button',
               )}
             </Button>
           </div>
