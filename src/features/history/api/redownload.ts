@@ -50,6 +50,7 @@ export const redownloadFromHistory = async (
       audioQuality,
       `${parentId}-p${part.page}`,
       parentId,
+      part.duration,
     )
   }
 }

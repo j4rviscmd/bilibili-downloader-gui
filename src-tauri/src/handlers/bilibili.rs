@@ -147,6 +147,7 @@ pub async fn download_video(
     quality: i32,
     audio_quality: i32,
     download_id: String,
+    duration_seconds: i64,
 ) -> Result<String, String> {
     // 1. 出力ファイルパス決定 + 自動リネーム
     let output_path = auto_rename(&build_output_path(app, filename).await?);
@@ -227,6 +228,7 @@ pub async fn download_video(
         &temp_audio_path,
         &output_path,
         Some(download_id.clone()),
+        Some((duration_seconds * 1000) as u64), // Convert seconds to milliseconds
     )
     .await
     .map_err(|_| String::from("ERR::MERGE_FAILED"))?;
@@ -608,6 +610,13 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
 /// # Returns
 ///
 /// Vector of `Quality` objects sorted by quality ID in descending order.
+///
+/// # Example
+///
+/// ```ignore
+/// let qualities = convert_qualities(&api_response.dash.video);
+/// // Returns qualities sorted: [116, 112, 80, 64, 32, 16]
+/// ```
 fn convert_qualities(video: &[XPlayerApiResponseVideo]) -> Vec<Quality> {
     let mut qualities: BTreeMap<i32, &XPlayerApiResponseVideo> = BTreeMap::new();
 
@@ -837,6 +846,7 @@ async fn build_output_path(app: &AppHandle, filename: &str) -> Result<PathBuf, S
 /// Gets Content-Length of a resource via HEAD request.
 ///
 /// Sends HEAD request to check file size before download.
+/// This is a best-effort check used for disk space validation.
 ///
 /// # Arguments
 ///
@@ -852,6 +862,15 @@ async fn build_output_path(app: &AppHandle, filename: &str) -> Result<PathBuf, S
 /// Does not propagate errors; returns `None` on failure.
 /// Network and parse errors are silently ignored.
 /// Only returns Content-Length if HTTP status is 200 OK.
+///
+/// # Example
+///
+/// ```ignore
+/// let size = head_content_length(&video_url, Some(&cookie_header)).await;
+/// if let Some(bytes) = size {
+///     println!("File size: {} bytes", bytes);
+/// }
+/// ```
 async fn head_content_length(url: &str, cookie: Option<&String>) -> Option<u64> {
     let client = reqwest::Client::builder().build().ok()?;
     let mut req = client.head(url);
@@ -862,7 +881,8 @@ async fn head_content_length(url: &str, cookie: Option<&String>) -> Option<u64> 
 
     // Only accept successful responses (200 OK)
     if !response.status().is_success() {
-        eprintln!("HEAD request failed for {}: {}", url, response.status());
+        // HEAD request may fail (e.g., 403 Forbidden) but download continues normally
+        // eprintln!("HEAD request failed for {}: {}", url, response.status());
         return None;
     }
 
@@ -1004,6 +1024,13 @@ where
 /// # Errors
 ///
 /// Returns `ERR::QUALITY_NOT_FOUND` error if quality list is empty.
+///
+/// # Example
+///
+/// ```ignore
+/// let url = select_stream_url(&dash_data.video, 80)?; // Request 1080P
+/// // Falls back to highest quality if 80 not available
+/// ```
 fn select_stream_url(
     items: &[crate::models::bilibili_api::XPlayerApiResponseVideo],
     quality: i32,

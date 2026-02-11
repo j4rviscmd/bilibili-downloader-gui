@@ -17,6 +17,7 @@ import { invoke } from '@tauri-apps/api/core'
  * @param audioQuality - Audio quality ID (e.g., 30216 for 64K)
  * @param downloadId - Unique download ID for tracking
  * @param parentId - Optional parent ID for grouping multi-part downloads
+ * @param durationSeconds - Video duration in seconds for accurate merge progress
  *
  * @throws Error if backend download fails (network error, quality not found, etc.)
  *
@@ -29,7 +30,8 @@ import { invoke } from '@tauri-apps/api/core'
  *   80,
  *   30216,
  *   'BV1xx411c7XD-1234567890-p1',
- *   'BV1xx411c7XD-1234567890'
+ *   'BV1xx411c7XD-1234567890',
+ *   360 // 6 minutes
  * )
  * ```
  */
@@ -41,21 +43,18 @@ export const downloadVideo = async (
   audioQuality: number,
   downloadId: string,
   parentId?: string,
+  durationSeconds?: number,
 ) => {
-  // enqueue prior to backend invoke
   store.dispatch(enqueue({ downloadId, parentId, filename, status: 'pending' }))
-  try {
-    const outputPath = await invoke<string>('download_video', {
-      bvid: videoId,
-      cid,
-      filename,
-      quality,
-      audioQuality,
-      downloadId,
-    })
-    // Store output path for post-download actions
-    store.dispatch(updateQueueItem({ downloadId, outputPath, title: filename }))
-  } finally {
-    // dequeue handled by progress events
-  }
+
+  const outputPath = await invoke<string>('download_video', {
+    bvid: videoId,
+    cid,
+    filename,
+    quality,
+    audioQuality,
+    downloadId,
+    durationSeconds: durationSeconds ?? 0,
+  })
+  store.dispatch(updateQueueItem({ downloadId, outputPath, title: filename }))
 }

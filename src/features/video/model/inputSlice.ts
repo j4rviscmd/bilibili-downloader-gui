@@ -40,6 +40,10 @@ export const inputSlice = createSlice({
     /**
      * Initializes part input settings from fetched video metadata.
      *
+     * Replaces the entire partInputs array with the provided configuration.
+     * Typically called after fetching video info to set up default quality
+     * selections and mark all parts as selected.
+     *
      * @param state - Current input state
      * @param action - Action containing the array of part input configurations
      */
@@ -53,6 +57,7 @@ export const inputSlice = createSlice({
           videoQuality: string
           audioQuality: string
           selected: boolean
+          duration: number
         }[]
       >,
     ) => {
@@ -61,6 +66,9 @@ export const inputSlice = createSlice({
     },
     /**
      * Updates specific fields of a part input by index.
+     *
+     * Only updates the fields provided in the payload; other fields remain unchanged.
+     * Safely handles out-of-bounds indices by returning early.
      *
      * @param state - Current input state
      * @param action - Action containing the index and fields to update

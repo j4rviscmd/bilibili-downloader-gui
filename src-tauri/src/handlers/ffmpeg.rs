@@ -12,9 +12,10 @@ use std::fs::File;
 use std::{
     fs,
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, Stdio},
 };
 use tauri::AppHandle;
+use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command as AsyncCommand;
 
 /// Validates whether ffmpeg is properly installed and functional.
@@ -397,6 +398,7 @@ fn copy_dir_recursive(from: &Path, to: &Path) -> std::io::Result<()> {
 /// * `audio_path` - Path to the audio file (.m4s)
 /// * `output_path` - Path for the merged output file (.mp4)
 /// * `download_id` - Optional download ID for progress tracking
+/// * `duration_ms` - Optional video duration in milliseconds for accurate progress
 ///
 /// # Returns
 ///
@@ -414,15 +416,20 @@ pub async fn merge_av(
     audio_path: &std::path::Path,
     output_path: &std::path::Path,
     download_id: Option<String>,
+    duration_ms: Option<u64>,
 ) -> Result<(), String> {
     let filename = output_path
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("output");
+
+    // Set dummy filesize of 100MB for merge progress calculation
+    // This allows percentage calculation: downloaded_bytes / (100 * 1024 * 1024) * 100
+    // We'll send percentage * 1048576 as downloaded_bytes to get correct percentage
     let emits = Emits::new(
         app.clone(),
         download_id.unwrap_or(filename.to_string()),
-        None,
+        Some(100 * 1024 * 1024), // 100MB dummy size
     );
     let _ = emits.set_stage("merge").await;
 
@@ -434,25 +441,102 @@ pub async fn merge_av(
     let audio_str = audio_path.to_str().ok_or_else(to_str_err)?;
     let output_str = output_path.to_str().ok_or_else(to_str_err)?;
 
-    let mut cmd = AsyncCommand::new(ffmpeg_path);
+    let mut cmd = AsyncCommand::new(&ffmpeg_path);
     cmd.args([
-        "-i", video_str, "-i", audio_str, "-c:v", "copy", "-c:a", "aac", "-y", output_str,
+        "-i",
+        video_str,
+        "-i",
+        audio_str,
+        "-c:v",
+        "copy",
+        "-c:a",
+        "aac",
+        "-progress",
+        "pipe:1",
+        "-y",
+        output_str,
     ]);
 
     // Windowsでコンソールウィンドウが開かないようにする
     #[cfg(target_os = "windows")]
     {
+        use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
 
-    let status = cmd
-        .status()
+    // Spawn ffmpeg with stdout and stderr piped for progress parsing and error handling
+    let mut child = cmd
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to spawn ffmpeg: {e}"))?;
+
+    let stdout = child.stdout.as_mut().ok_or("Failed to capture stdout")?;
+
+    let stderr = child.stderr.take().ok_or("Failed to capture stderr")?;
+
+    let reader = BufReader::new(stdout);
+    let mut lines = reader.lines();
+
+    // Read stderr in background for error details
+    let mut stderr_reader = BufReader::new(stderr);
+    let mut stderr_lines = String::new();
+    let stderr_task = tokio::spawn(async move {
+        let mut line = String::new();
+        while stderr_reader.read_line(&mut line).await.unwrap_or(0) > 0 {
+            stderr_lines.push_str(&line);
+            line.clear();
+        }
+        stderr_lines
+    });
+
+    // Parse progress from ffmpeg output
+    // Note: out_time_ms is in microseconds (us), not milliseconds (ms)
+    while let Ok(Some(line)) = lines.next_line().await {
+        if let Some(time_str) = line.strip_prefix("out_time_ms=") {
+            let out_time_us: u64 = time_str.trim().parse().unwrap_or(0);
+
+            // Convert microseconds to milliseconds for percentage calculation
+            let out_time_ms = out_time_us / 1000;
+
+            // Calculate percentage using actual video duration or fallback to estimate
+            let total_duration_ms = duration_ms.unwrap_or(300_000); // 5 minutes fallback
+            let percentage = if total_duration_ms > 0 {
+                (out_time_ms as f64 / total_duration_ms as f64) * 100.0
+            } else {
+                0.0
+            };
+
+            // Clamp to 95% max until completion
+            let clamped_percentage = percentage.min(95.0);
+
+            // Convert percentage to "downloaded bytes" for progress calculation
+            // With 100MB dummy filesize: percentage * 1MB = downloaded_bytes
+            emits.update_progress((clamped_percentage as u64) * 1024 * 1024);
+        }
+
+        if line == "progress=end" {
+            break;
+        }
+    }
+
+    let status = child
+        .wait()
         .await
-        .map_err(|e| format!("Failed to run ffmpeg: {e}"))?;
+        .map_err(|e| format!("Failed to wait for ffmpeg: {e}"))?;
+
+    // Get stderr output for error details
+    let stderr_output = stderr_task
+        .await
+        .unwrap_or_else(|e| format!("Failed to read stderr: {e}"));
 
     if !status.success() {
-        return Err("ffmpeg failed to merge video and audio".into());
+        return Err(format!(
+            "ffmpeg failed to merge video and audio.\nExit code: {:?}\nstderr: {}",
+            status.code(),
+            stderr_output
+        ));
     }
     // 完了ステージを送信後 complete 呼び出し (単一 Emits ライフサイクル)
     let _ = emits.set_stage("complete").await;

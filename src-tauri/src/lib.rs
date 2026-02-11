@@ -307,6 +307,7 @@ async fn download_video(
     quality: i32,
     audio_quality: i32,
     download_id: String,
+    duration_seconds: i64,
 ) -> Result<String, String> {
     bilibili::download_video(
         &app,
@@ -316,6 +317,7 @@ async fn download_video(
         quality,
         audio_quality,
         download_id,
+        duration_seconds,
     )
     .await
 }
