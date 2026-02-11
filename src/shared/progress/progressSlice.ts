@@ -1,7 +1,30 @@
+import type { PayloadAction } from '@reduxjs/toolkit'
+import { createSelector, createSlice } from '@reduxjs/toolkit'
+
+import type { RootState } from '@/app/store'
 import type { Progress } from '@/shared/ui/Progress'
 
-import type { PayloadAction } from '@reduxjs/toolkit'
-import { createSlice } from '@reduxjs/toolkit'
+/**
+ * Computes an internal ID for a progress entry.
+ *
+ * The internal ID is used to uniquely identify progress entries within
+ * a download. For the 'complete' stage, this function ensures that the
+ * 'merge' entry is replaced with 'complete' to enable button unlocking.
+ *
+ * @param state - Current progress array
+ * @param payload - Progress entry to compute ID for
+ * @returns Internal ID string in format `{downloadId}:{stage}` or just `{downloadId}`
+ */
+function computeInternalId(state: Progress[], payload: Progress): string {
+  if (payload.stage === 'complete') {
+    const mergeId = `${payload.downloadId}:merge`
+    const hasMerge = state.some((p) => p.internalId === mergeId)
+    return hasMerge ? mergeId : `${payload.downloadId}:complete`
+  }
+  return payload.stage
+    ? `${payload.downloadId}:${payload.stage}`
+    : payload.downloadId
+}
 
 const initialState: Progress[] = []
 
@@ -29,17 +52,8 @@ export const progressSlice = createSlice({
     setProgress(state, action: PayloadAction<Progress>) {
       const payload = action.payload
       // compute internal id and parent id
-      // internalId: 'complete' は既存 'merge' を上書きしてボタン解除を確実化
-      const internalId = (() => {
-        if (payload.stage === 'complete') {
-          const mergeId = `${payload.downloadId}:merge`
-          const hasMerge = state.some((p) => p.internalId === mergeId)
-          return hasMerge ? mergeId : `${payload.downloadId}:complete`
-        }
-        return payload.stage
-          ? `${payload.downloadId}:${payload.stage}`
-          : payload.downloadId
-      })()
+      // internalId: 'complete' replaces existing 'merge' to ensure button unlock
+      const internalId = computeInternalId(state, payload)
       const parentId = payload.downloadId
       const entry = { ...payload, internalId, parentId }
       const idx = state.findIndex((p) => p.internalId === internalId)
@@ -61,3 +75,14 @@ export const progressSlice = createSlice({
 
 export const { setProgress, clearProgress } = progressSlice.actions
 export default progressSlice.reducer
+
+/**
+ * Memoized selector factory for progress entries by download ID.
+ *
+ * @param downloadId - The download ID to filter by
+ * @returns A memoized selector that returns progress entries for the download
+ */
+export const selectProgressEntriesByDownloadId = (downloadId: string) =>
+  createSelector([(state: RootState) => state.progress], (progress) =>
+    progress.filter((p) => p.downloadId === downloadId),
+  )

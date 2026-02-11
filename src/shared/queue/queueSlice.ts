@@ -1,6 +1,40 @@
-import type { RootState } from '@/app/store'
 import type { PayloadAction } from '@reduxjs/toolkit'
-import { createSlice } from '@reduxjs/toolkit'
+import { createSelector, createSlice } from '@reduxjs/toolkit'
+
+import type { RootState } from '@/app/store'
+
+type QueueItemStatus = 'pending' | 'running' | 'done' | 'error'
+
+/**
+ * Aggregates parent queue item statuses based on their children.
+ *
+ * Updates parent status based on the statuses of all child items with
+ * matching parentId. Status priority: error > running > done > pending.
+ *
+ * @param state - Current queue array to modify
+ */
+function aggregateParentStatuses(state: QueueItem[]): void {
+  const parentIds = new Set(
+    state.map((i) => i.parentId).filter((id): id is string => id != null),
+  )
+
+  parentIds.forEach((parentId) => {
+    const parent = state.find((i) => i.downloadId === parentId)
+    if (!parent) return
+
+    const children = state.filter((i) => i.parentId === parentId)
+    const statuses = children.map((c) => c.status)
+
+    // Priority: error > running > done > pending
+    parent.status = statuses.includes('error')
+      ? 'error'
+      : statuses.includes('running')
+        ? 'running'
+        : children.length > 0 && statuses.every((s) => s === 'done')
+          ? 'done'
+          : parent.status || 'pending'
+  })
+}
 
 /**
  * Queue item representing a download task.
@@ -13,7 +47,7 @@ export type QueueItem = {
   /** Output filename */
   filename?: string
   /** Current status */
-  status?: 'pending' | 'running' | 'done' | 'error'
+  status?: QueueItemStatus
   /** Error message if status is 'error' */
   errorMessage?: string
   /** Output file path (available after download completes) */
@@ -82,7 +116,7 @@ export const queueSlice = createSlice({
       state,
       action: PayloadAction<{
         downloadId: string
-        status: QueueItem['status']
+        status: QueueItemStatus
         errorMessage?: string
       }>,
     ) {
@@ -93,32 +127,7 @@ export const queueSlice = createSlice({
         if (errorMessage) target.errorMessage = errorMessage
       }
 
-      // 親の自動集約
-      const uniqueParentIds = new Set(
-        state.map((i) => i.parentId).filter(Boolean) as string[],
-      )
-
-      uniqueParentIds.forEach((parentId) => {
-        const parent = state.find((i) => i.downloadId === parentId)
-        if (!parent) return
-
-        const children = state.filter((i) => i.parentId === parentId)
-        const childStatuses = children.map((c) => c.status)
-
-        // 優先度順にチェック: error > running > done > pending
-        if (childStatuses.includes('error')) {
-          parent.status = 'error'
-        } else if (childStatuses.includes('running')) {
-          parent.status = 'running'
-        } else if (
-          children.length > 0 &&
-          childStatuses.every((s) => s === 'done')
-        ) {
-          parent.status = 'done'
-        } else {
-          parent.status = parent.status || 'pending'
-        }
-      })
+      aggregateParentStatuses(state)
     },
     /**
      * Updates a queue item with new data.
@@ -201,3 +210,14 @@ export const selectDownloadIdByPartIndex = (
     return match && parseInt(match[1], 10) === partIndex + 1
   })?.downloadId
 }
+
+/**
+ * Memoized selector factory for queue item by download ID.
+ *
+ * @param downloadId - The download ID to find
+ * @returns A memoized selector that returns the queue item
+ */
+export const selectQueueItemByDownloadId = (downloadId: string) =>
+  createSelector([(state: RootState) => state.queue], (queue) =>
+    queue.find((q) => q.downloadId === downloadId),
+  )
