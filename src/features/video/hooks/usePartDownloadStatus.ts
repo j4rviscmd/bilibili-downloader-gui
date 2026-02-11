@@ -1,7 +1,13 @@
-import type { RootState } from '@/app/store'
-import { selectDownloadIdByPartIndex } from '@/shared/queue/queueSlice'
-import type { Progress } from '@/shared/ui/Progress'
+import { useMemo } from 'react'
 import { useSelector } from 'react-redux'
+
+import type { RootState } from '@/app/store'
+import { selectProgressEntriesByDownloadId } from '@/shared/progress/progressSlice'
+import {
+  selectDownloadIdByPartIndex,
+  selectQueueItemByDownloadId,
+} from '@/shared/queue/queueSlice'
+import type { Progress } from '@/shared/ui/Progress'
 
 /**
  * Result of part download status hook.
@@ -45,13 +51,17 @@ export const usePartDownloadStatus = (
     selectDownloadIdByPartIndex(state, partIndex),
   )
 
-  const queueItem = useSelector((state: RootState) =>
-    state.queue.find((q) => q.downloadId === downloadId),
+  const selectQueueItem = useMemo(
+    () => selectQueueItemByDownloadId(downloadId ?? ''),
+    [downloadId],
   )
+  const queueItem = useSelector(selectQueueItem)
 
-  const progressEntries = useSelector((state: RootState) =>
-    state.progress.filter((p) => p.downloadId === downloadId),
+  const selectProgressEntries = useMemo(
+    () => selectProgressEntriesByDownloadId(downloadId ?? ''),
+    [downloadId],
   )
+  const progressEntries = useSelector(selectProgressEntries)
 
   const isComplete = progressEntries.some((p) => p.stage === 'complete')
 
