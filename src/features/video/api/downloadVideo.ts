@@ -48,13 +48,16 @@ export const downloadVideo = async (
   store.dispatch(enqueue({ downloadId, parentId, filename, status: 'pending' }))
 
   const outputPath = await invoke<string>('download_video', {
-    bvid: videoId,
-    cid,
-    filename,
-    quality,
-    audioQuality,
-    downloadId,
-    durationSeconds: durationSeconds ?? 0,
+    options: {
+      bvid: videoId,
+      cid,
+      filename,
+      quality,
+      audioQuality,
+      downloadId,
+      parentId: parentId ?? null,
+      durationSeconds: durationSeconds ?? 0,
+    },
   })
   store.dispatch(updateQueueItem({ downloadId, outputPath, title: filename }))
 }
