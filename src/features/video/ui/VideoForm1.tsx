@@ -4,6 +4,7 @@ import {
   buildVideoFormSchema1,
   formSchema1,
 } from '@/features/video/lib/formSchema'
+import { selectHasActiveDownloads } from '@/shared/queue'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import {
   Form,
@@ -38,6 +39,7 @@ function VideoForm1() {
   const { input, onValid1, isFetching } = useVideoInfo()
   const { t } = useTranslation()
   const user = useSelector((state: RootState) => state.user)
+  const hasActiveDownloads = useSelector(selectHasActiveDownloads)
   const [lastFetchedUrl, setLastFetchedUrl] = useState<string>('')
 
   const schema1 = buildVideoFormSchema1(t)
@@ -136,23 +138,28 @@ function VideoForm1() {
                     type="url"
                     required
                     placeholder={placeholder}
-                    disabled={isFetching}
+                    disabled={isFetching || hasActiveDownloads}
                     {...field}
                   />
-                  {isFetching ? (
+                  {isFetching || hasActiveDownloads ? (
                     <div className="absolute top-1/2 right-3 -translate-y-1/2">
                       <Loader2 className="text-muted-foreground size-4 animate-spin" />
                     </div>
                   ) : field.value ? (
                     <button
                       type="button"
+                      disabled={hasActiveDownloads}
                       onClick={(e) => {
                         preventEventDefaults(e)
                         form.setValue('url', '', { shouldValidate: true })
                         field.onChange('')
                         setLastFetchedUrl('')
                       }}
-                      className="text-muted-foreground hover:text-foreground absolute top-1/2 right-3 -translate-y-1/2 transition-colors"
+                      className={`text-muted-foreground hover:text-foreground absolute top-1/2 right-3 -translate-y-1/2 transition-colors ${
+                        hasActiveDownloads
+                          ? 'cursor-not-allowed opacity-50'
+                          : ''
+                      }`}
                     >
                       <CircleX className="size-4" />
                     </button>

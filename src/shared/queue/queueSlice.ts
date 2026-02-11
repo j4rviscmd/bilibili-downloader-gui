@@ -221,3 +221,18 @@ export const selectQueueItemByDownloadId = (downloadId: string) =>
   createSelector([(state: RootState) => state.queue], (queue) =>
     queue.find((q) => q.downloadId === downloadId),
   )
+
+/**
+ * Memoized selector to check if any downloads are active.
+ *
+ * Returns true if any queue item has status 'running' or 'pending'.
+ * Used to disable UI controls during active downloads.
+ *
+ * @param state - Redux root state
+ * @returns true if any downloads are running or pending
+ */
+export const selectHasActiveDownloads = createSelector(
+  [(state: RootState) => state.queue],
+  (queue) =>
+    queue.some((q) => q.status === 'running' || q.status === 'pending'),
+)
