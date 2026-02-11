@@ -8,8 +8,15 @@ import {
   VideoForm1,
 } from '@/features/video'
 import VideoPartCard from '@/features/video/ui/VideoPartCard'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/shared/animate-ui/radix/tooltip'
 import { useIsMobile } from '@/shared/hooks/use-mobile'
 import { PageLayout } from '@/shared/layout'
+import { selectHasActiveDownloads } from '@/shared/queue'
 import { Button } from '@/shared/ui/button'
 import {
   Card,
@@ -21,6 +28,7 @@ import {
 import { Separator } from '@/shared/ui/separator'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSelector } from 'react-redux'
 import { useNavigate } from 'react-router'
 
 /**
@@ -48,6 +56,7 @@ function HomePage() {
   const { video, duplicateIndices } = useVideoInfo()
   const { t } = useTranslation()
   const isMobile = useIsMobile()
+  const hasActiveDownloads = useSelector(selectHasActiveDownloads)
 
   // Collapsed parts state for mobile (parts 3+ are collapsed by default on mobile)
   const [collapsedParts, setCollapsedParts] = useState<Set<number>>(new Set())
@@ -111,12 +120,48 @@ function HomePage() {
                 {t('video.step2_title')}
               </CardTitle>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={handleSelectAll}>
-                  {t('video.select_all')}
-                </Button>
-                <Button variant="outline" size="sm" onClick={handleDeselectAll}>
-                  {t('video.deselect_all')}
-                </Button>
+                <TooltipProvider delayDuration={0}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleSelectAll}
+                          disabled={hasActiveDownloads}
+                        >
+                          {t('video.select_all')}
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    {hasActiveDownloads && (
+                      <TooltipContent side="top" arrow>
+                        {t('video.download_in_progress')}
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+                </TooltipProvider>
+                <TooltipProvider delayDuration={0}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleDeselectAll}
+                          disabled={hasActiveDownloads}
+                        >
+                          {t('video.deselect_all')}
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    {hasActiveDownloads && (
+                      <TooltipContent side="top" arrow>
+                        {t('video.download_in_progress')}
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             </div>
           </CardHeader>
