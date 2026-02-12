@@ -44,6 +44,8 @@ export const downloadVideo = async (
   downloadId: string,
   parentId?: string,
   durationSeconds?: number,
+  thumbnailUrl?: string,
+  page?: number,
 ) => {
   store.dispatch(enqueue({ downloadId, parentId, filename, status: 'pending' }))
 
@@ -57,6 +59,8 @@ export const downloadVideo = async (
       downloadId,
       parentId: parentId ?? null,
       durationSeconds: durationSeconds ?? 0,
+      thumbnailUrl: thumbnailUrl ?? null,
+      page: page ?? null,
     },
   })
   store.dispatch(updateQueueItem({ downloadId, outputPath, title: filename }))

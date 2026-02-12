@@ -104,6 +104,7 @@ export const useVideoInfo = () => {
       audioQuality: (p.audioQualities[0]?.id || 30216).toString(),
       selected: true,
       duration: p.duration,
+      thumbnailUrl: p.thumbnail.url,
     }))
     store.dispatch(initPartInputs(partInputs))
   }
@@ -254,6 +255,8 @@ export const useVideoInfo = () => {
           `${parentId}-p${idx + 1}`,
           parentId,
           pi.duration,
+          pi.thumbnailUrl,
+          pi.page,
         )
       }
     } catch (e) {
