@@ -55,10 +55,8 @@ use crate::utils::downloads::download_url;
 use crate::utils::paths::get_lib_path;
 use crate::{constants::USER_AGENT, models::frontend_dto::User};
 use base64::Engine;
-use reqwest::{
-    header::{self},
-    Client,
-};
+use reqwest::header;
+use reqwest::Client;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -85,7 +83,6 @@ fn build_client() -> Result<Client, String> {
 /// # Arguments
 ///
 /// * `code` - API response code (0 = success)
-/// * `message` - API response message
 /// * `data` - Optional data field reference
 ///
 /// # Returns
@@ -97,23 +94,15 @@ fn build_client() -> Result<Client, String> {
 /// Returns an error if:
 /// - Response code is non-zero
 /// - Data field is None
-/// - Video not found (code -404)
-/// - Request error (code -400)
-fn validate_api_response<T>(code: i64, _message: &str, data: Option<&T>) -> Result<(), String> {
-    // Video not found (-404: "啥都木有" = nothing there)
+fn validate_api_response<T>(code: i64, data: Option<&T>) -> Result<(), String> {
     if code == -404 {
-        return Err("ERR::VIDEO_NOT_FOUND".to_string());
+        return Err("ERR::VIDEO_NOT_FOUND".into());
     }
-    // Request error (-400: "请求错误" = request error)
-    if code == -400 {
-        return Err("ERR::API_ERROR".to_string());
-    }
-    if code != 0 {
-        // Return generic error code instead of raw API message (may be in Chinese)
-        return Err("ERR::API_ERROR".to_string());
+    if code == -400 || code != 0 {
+        return Err("ERR::API_ERROR".into());
     }
     if data.is_none() {
-        return Err("ERR::API_ERROR".to_string());
+        return Err("ERR::API_ERROR".into());
     }
     Ok(())
 }
@@ -358,40 +347,42 @@ async fn save_to_history(
     use crate::models::history::HistoryEntry;
     use crate::store::HistoryStore;
     use chrono::Utc;
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::path::Path;
 
-    // ユーザーが指定したファイル名から拡張子を削除してタイトルとして使用
-    let title = filename.rsplit('.').next().unwrap_or(filename).to_string();
+    let title = Path::new(filename)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or(filename)
+        .to_string();
 
-    // 渡されたサムネイルURLを使用、なければAPIで取得
-    let thumbnail_url = if thumbnail_url.is_some() {
-        thumbnail_url
-    } else {
-        fetch_video_info_for_history(bvid, read_cookie(app)?.as_deref().unwrap_or_default())
-            .await
-            .and_then(|(_, url)| url)
+    let thumbnail_url = match thumbnail_url {
+        Some(url) => Some(url),
+        None => {
+            let cookies = read_cookie(app)?.unwrap_or_default();
+            fetch_video_info_for_history(bvid, &cookies)
+                .await
+                .and_then(|(_, url)| url)
+        }
     };
 
-    // pageパラメータを含めたURLを生成
     let url = format!(
-        "https://www.bilibili.com/video/{}{}",
-        bvid,
+        "https://www.bilibili.com/video/{bvid}{}",
         page.map_or(String::new(), |p| format!("?p={p}"))
     );
 
-    let timestamp_ms = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis();
-    let id = format!("{}_{}", bvid, timestamp_ms);
-    let downloaded_at = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let id = format!(
+        "{bvid}_{}",
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis()
+    );
 
-    let store = HistoryStore::new(app)?;
-    store.add_entry(HistoryEntry {
-        id: id.clone(),
+    HistoryStore::new(app)?.add_entry(HistoryEntry {
+        id,
         title,
         url,
-        downloaded_at,
+        downloaded_at: Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
         status: "completed".to_string(),
         file_size,
         quality: Some(quality_to_string(&quality)),
@@ -399,7 +390,6 @@ async fn save_to_history(
         version: "1.0".to_string(),
     })?;
 
-    eprintln!("History entry saved: {}", id);
     Ok(())
 }
 
@@ -416,7 +406,7 @@ fn quality_to_string(quality: &i32) -> String {
     }
 }
 
-/// Fetches video title for history entry (returns None on failure).
+/// Fetches video info for history entry (returns None on failure).
 ///
 /// Attempts to retrieve the video title from Bilibili API.
 /// Used internally when creating history entries.
@@ -433,25 +423,28 @@ async fn fetch_video_info_for_history(
     bvid: &str,
     cookies: &[CookieEntry],
 ) -> Option<(String, Option<String>)> {
-    let video = crate::models::frontend_dto::Video {
-        title: String::new(),
-        bvid: bvid.to_string(),
-        parts: Vec::new(),
-        is_limited_quality: false, // 履歴用では使用しない
-    };
+    let client = build_client().ok()?;
+    let cookie_header = build_cookie_header(cookies);
+    let url = format!("https://api.bilibili.com/x/web-interface/view?bvid={bvid}");
 
-    fetch_video_title(&video, cookies)
+    let body: WebInterfaceApiResponse = client
+        .get(url)
+        .header(header::COOKIE, cookie_header)
+        .header(reqwest::header::REFERER, REFERER)
+        .send()
         .await
-        .ok()
-        .and_then(|body| {
-            let data = body.data?;
-            let thumbnail_url = if data.pic.is_empty() {
-                None
-            } else {
-                Some(data.pic)
-            };
-            Some((data.title, thumbnail_url))
-        })
+        .ok()?
+        .json()
+        .await
+        .ok()?;
+
+    let data = body.data?;
+    let thumbnail_url = if data.pic.is_empty() {
+        None
+    } else {
+        Some(data.pic)
+    };
+    Some((data.title, thumbnail_url))
 }
 
 /// Fetches logged-in user information from Bilibili.
@@ -591,83 +584,78 @@ pub async fn get_thumbnail_base64(url: &str) -> Result<String, String> {
 /// - API request fails
 /// - Response parsing fails
 pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String> {
-    // Cookie取得（WBI署名により非ログインユーザでも動作）
     let cookies = read_cookie(app)?.unwrap_or_default();
-
-    // 画質制限の判定（Cookieがない場合は制限付き）
     let cookie_header = build_cookie_header(&cookies);
     let is_limited_quality = cookie_header.is_empty();
 
-    let mut video = Video {
+    let video = Video {
         title: String::new(),
         bvid: id.to_string(),
         parts: Vec::new(),
         is_limited_quality,
     };
 
-    let res_body_1 = fetch_video_title(&video, &cookies).await?;
-    // fetch_video_title 内で validate_api_response により data の存在が保証されている
-    let data_1 = res_body_1.data.as_ref().unwrap();
+    let res_body = fetch_video_title(&video, &cookies).await?;
+    let data = res_body.data.as_ref().unwrap();
 
-    video.title = data_1.title.clone();
-
-    let empty_pages = vec![];
-    let pages = data_1.pages.as_ref().unwrap_or(&empty_pages);
+    let pages = data.pages.as_deref().unwrap_or(&[]);
+    let bvid = &video.bvid;
 
     if pages.is_empty() {
-        let mut part = VideoPart {
-            cid: data_1.cid,
+        let details = fetch_video_details(&cookies, bvid, data.cid).await?;
+        let dash_data = details.data.unwrap().dash;
+
+        let part = VideoPart {
+            cid: data.cid,
             page: 1,
-            part: video.title.clone(),
+            part: data.title.clone(),
             duration: 0,
             thumbnail: Thumbnail {
-                url: data_1.pic.clone(),
-                base64: get_thumbnail_base64(&data_1.pic).await.unwrap_or_default(),
+                url: data.pic.clone(),
+                base64: get_thumbnail_base64(&data.pic).await.unwrap_or_default(),
             },
-            video_qualities: Vec::new(),
-            audio_qualities: Vec::new(),
+            video_qualities: convert_qualities(&dash_data.video),
+            audio_qualities: convert_qualities(&dash_data.audio),
         };
 
-        let res_body_2 = fetch_video_details(&cookies, &video.bvid, part.cid).await?;
-        let data_2 = res_body_2.data.as_ref().unwrap();
-
-        part.video_qualities = convert_qualities(&data_2.dash.video);
-        part.audio_qualities = convert_qualities(&data_2.dash.audio);
-
-        video.parts.push(part);
-    } else {
-        for page in pages.iter() {
-            let thumb_url = page.first_frame.clone().unwrap_or_default();
-            let thumb_base64 = if thumb_url.is_empty() {
-                String::new()
-            } else {
-                get_thumbnail_base64(&thumb_url).await.unwrap_or_default()
-            };
-
-            let mut part = VideoPart {
-                cid: page.cid,
-                page: page.page,
-                part: page.part.clone(),
-                duration: page.duration,
-                thumbnail: Thumbnail {
-                    url: thumb_url,
-                    base64: thumb_base64,
-                },
-                video_qualities: Vec::new(),
-                audio_qualities: Vec::new(),
-            };
-
-            let res_body_2 = fetch_video_details(&cookies, &video.bvid, part.cid).await?;
-            let data_2 = res_body_2.data.as_ref().unwrap();
-
-            part.video_qualities = convert_qualities(&data_2.dash.video);
-            part.audio_qualities = convert_qualities(&data_2.dash.audio);
-
-            video.parts.push(part);
-        }
+        return Ok(Video {
+            title: data.title.clone(),
+            parts: vec![part],
+            ..video
+        });
     }
 
-    Ok(video)
+    let mut parts = Vec::with_capacity(pages.len());
+    for page in pages {
+        let details = fetch_video_details(&cookies, bvid, page.cid).await?;
+        let dash_data = details.data.unwrap().dash;
+
+        let thumb_url = page.first_frame.as_deref().unwrap_or_default();
+        let thumb_base64 = if thumb_url.is_empty() {
+            String::new()
+        } else {
+            get_thumbnail_base64(thumb_url).await.unwrap_or_default()
+        };
+
+        parts.push(VideoPart {
+            cid: page.cid,
+            page: page.page,
+            part: page.part.clone(),
+            duration: page.duration,
+            thumbnail: Thumbnail {
+                url: thumb_url.into(),
+                base64: thumb_base64,
+            },
+            video_qualities: convert_qualities(&dash_data.video),
+            audio_qualities: convert_qualities(&dash_data.audio),
+        });
+    }
+
+    Ok(Video {
+        title: data.title.clone(),
+        parts,
+        ..video
+    })
 }
 
 /// Converts API video/audio quality data to frontend DTO format.
@@ -753,25 +741,23 @@ async fn fetch_video_title(
     cookies: &[CookieEntry],
 ) -> Result<WebInterfaceApiResponse, String> {
     let client = build_client()?;
+    let url = format!(
+        "https://api.bilibili.com/x/web-interface/view?bvid={}",
+        video.bvid
+    );
 
-    let cookie_header = build_cookie_header(cookies);
-    let res: reqwest::Response = client
-        .get(format!(
-            "https://api.bilibili.com/x/web-interface/view?bvid={}",
-            video.bvid
-        ))
-        .header(header::COOKIE, cookie_header)
+    let body: WebInterfaceApiResponse = client
+        .get(url)
+        .header(header::COOKIE, build_cookie_header(cookies))
         .header(reqwest::header::REFERER, REFERER)
         .send()
         .await
-        .map_err(|e| format!("WebInterface Api Failed to fetch video info: {e}"))?;
-
-    let body: WebInterfaceApiResponse = res
+        .map_err(|e| format!("WebInterface Api Failed to fetch video info: {e}"))?
         .json()
         .await
         .map_err(|e| format!("WebInterface Api Failed to parse response JSON: {e}"))?;
 
-    validate_api_response(body.code, &body.message, body.data.as_ref())?;
+    validate_api_response(body.code, body.data.as_ref())?;
     Ok(body)
 }
 
@@ -802,28 +788,22 @@ async fn fetch_video_details(
     cid: i64,
 ) -> Result<XPlayerApiResponse, String> {
     let client = build_client()?;
-
-    // WBI署名のためMixinKeyを取得
     let mixin_key = crate::utils::wbi::fetch_mixin_key(&client).await?;
 
-    // クエリパラメータ構築
-    let mut params = std::collections::BTreeMap::new();
-    params.insert("bvid".to_string(), bvid.to_string());
-    params.insert("cid".to_string(), cid.to_string());
-    params.insert("qn".to_string(), "116".to_string());
-    params.insert("fnval".to_string(), "2064".to_string());
-    params.insert("fnver".to_string(), "0".to_string());
-    params.insert("fourk".to_string(), "1".to_string());
+    let mut params = BTreeMap::from([
+        ("bvid".to_string(), bvid.to_string()),
+        ("cid".to_string(), cid.to_string()),
+        ("qn".to_string(), "116".to_string()),
+        ("fnval".to_string(), "2064".to_string()),
+        ("fnver".to_string(), "0".to_string()),
+        ("fourk".to_string(), "1".to_string()),
+    ]);
 
-    // WBI署名生成
     let signature = crate::utils::wbi::generate_wbi_signature(&mut params, &mixin_key)?;
 
-    // Cookieヘッダー構築（空でもOK）
-    let cookie_header = build_cookie_header(cookies);
-
-    let res: reqwest::Response = client
+    let body: XPlayerApiResponse = client
         .get("https://api.bilibili.com/x/player/wbi/playurl")
-        .header(header::COOKIE, cookie_header)
+        .header(header::COOKIE, build_cookie_header(cookies))
         .header(header::REFERER, "https://www.bilibili.com")
         .query(&[
             ("bvid", bvid),
@@ -837,14 +817,12 @@ async fn fetch_video_details(
         ])
         .send()
         .await
-        .map_err(|e| format!("XPlayerApi Failed to fetch video info: {e}"))?;
-
-    let body: XPlayerApiResponse = res
+        .map_err(|e| format!("XPlayerApi Failed to fetch video info: {e}"))?
         .json()
         .await
         .map_err(|e| format!("XPlayerApi Failed to parse response JSON: {e}"))?;
 
-    validate_api_response(body.code, &body.message, body.data.as_ref())?;
+    validate_api_response(body.code, body.data.as_ref())?;
     Ok(body)
 }
 
@@ -1066,16 +1044,14 @@ where
     Fut: std::future::Future<Output = Result<(), anyhow::Error>>,
 {
     const MAX_ATTEMPTS: u8 = 3;
+    const RETRYABLE_KEYWORDS: &[&str] = &["segment", "request error", "timeout", "connect"];
 
     for attempt in 1..=MAX_ATTEMPTS {
         match f().await {
             Ok(_) => return Ok(()),
             Err(e) => {
                 let msg = e.to_string();
-                let is_retryable = msg.contains("segment")
-                    || msg.contains("request error")
-                    || msg.contains("timeout")
-                    || msg.contains("connect");
+                let is_retryable = RETRYABLE_KEYWORDS.iter().any(|&kw| msg.contains(kw));
 
                 if attempt >= MAX_ATTEMPTS || !is_retryable {
                     return Err(if msg.contains("ERR::") {
@@ -1090,7 +1066,6 @@ where
         }
     }
 
-    // All attempts exhausted (covered by attempt >= MAX_ATTEMPTS above)
     Err("ERR::NETWORK::All retry attempts failed".to_string())
 }
 
