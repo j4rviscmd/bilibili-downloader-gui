@@ -281,6 +281,10 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
 mod tests {
     use super::*;
 
+    /// Tests conversion of quality IDs to human-readable strings.
+    ///
+    /// Verifies that known quality IDs produce the expected display names
+    /// and unknown IDs fall back to the "Q{id}" format.
     #[test]
     fn test_quality_to_string() {
         assert_eq!(quality_to_string(&116), "4K");
@@ -292,6 +296,10 @@ mod tests {
         assert_eq!(quality_to_string(&999), "Q999");
     }
 
+    /// Tests that all known quality IDs produce non-empty output.
+    ///
+    /// Ensures the quality_to_string function handles all supported
+    /// quality levels without returning empty strings.
     #[test]
     fn test_quality_to_string_coverage() {
         let known_qualities = [116, 112, 80, 64, 32, 16];
@@ -364,27 +372,16 @@ async fn save_to_history(
 }
 
 /// Converts quality ID to human-readable string representation.
-///
-/// Maps Bilibili API quality IDs to readable format strings.
-///
-/// # Arguments
-///
-/// * `quality` - Quality ID from Bilibili API
-///
-/// # Returns
-///
-/// Human-readable quality string (e.g., "1080P60")
 fn quality_to_string(quality: &i32) -> String {
     match quality {
-        116 => "4K",
-        112 => "1080P60",
-        80 => "1080P",
-        64 => "720P",
-        32 => "480P",
-        16 => "360P",
-        _ => return format!("Q{quality}"),
+        116 => "4K".to_string(),
+        112 => "1080P60".to_string(),
+        80 => "1080P".to_string(),
+        64 => "720P".to_string(),
+        32 => "480P".to_string(),
+        16 => "360P".to_string(),
+        _ => format!("Q{quality}"),
     }
-    .to_string()
 }
 
 /// Fetches video title for history entry (returns None on failure).
@@ -582,32 +579,60 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
 
     video.title = data_1.title.clone();
 
-    for page in data_1.pages.iter() {
-        let thumb_url = page.first_frame.clone();
-        let thumb_base64 = get_thumbnail_base64(&thumb_url).await.unwrap_or_default();
+    let empty_pages = vec![];
+    let pages = data_1.pages.as_ref().unwrap_or(&empty_pages);
 
+    if pages.is_empty() {
         let mut part = VideoPart {
-            cid: page.cid,
-            page: page.page,
-            part: page.part.clone(),
-            duration: page.duration,
+            cid: data_1.cid,
+            page: 1,
+            part: video.title.clone(),
+            duration: 0,
             thumbnail: Thumbnail {
-                url: thumb_url,
-                base64: thumb_base64,
+                url: data_1.pic.clone(),
+                base64: get_thumbnail_base64(&data_1.pic).await.unwrap_or_default(),
             },
             video_qualities: Vec::new(),
             audio_qualities: Vec::new(),
         };
 
-        // partごとに画質情報を取得（WBI署名付き）
         let res_body_2 = fetch_video_details(&cookies, &video.bvid, part.cid).await?;
-        // fetch_video_details 内で validate_api_response により data の存在が保証されている
         let data_2 = res_body_2.data.as_ref().unwrap();
 
         part.video_qualities = convert_qualities(&data_2.dash.video);
         part.audio_qualities = convert_qualities(&data_2.dash.audio);
 
         video.parts.push(part);
+    } else {
+        for page in pages.iter() {
+            let thumb_url = page.first_frame.clone().unwrap_or_default();
+            let thumb_base64 = if thumb_url.is_empty() {
+                String::new()
+            } else {
+                get_thumbnail_base64(&thumb_url).await.unwrap_or_default()
+            };
+
+            let mut part = VideoPart {
+                cid: page.cid,
+                page: page.page,
+                part: page.part.clone(),
+                duration: page.duration,
+                thumbnail: Thumbnail {
+                    url: thumb_url,
+                    base64: thumb_base64,
+                },
+                video_qualities: Vec::new(),
+                audio_qualities: Vec::new(),
+            };
+
+            let res_body_2 = fetch_video_details(&cookies, &video.bvid, part.cid).await?;
+            let data_2 = res_body_2.data.as_ref().unwrap();
+
+            part.video_qualities = convert_qualities(&data_2.dash.video);
+            part.audio_qualities = convert_qualities(&data_2.dash.audio);
+
+            video.parts.push(part);
+        }
     }
 
     Ok(video)
@@ -626,11 +651,26 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
 ///
 /// Vector of `Quality` objects sorted by quality ID in descending order.
 ///
-/// # Example
+/// # Examples
 ///
-/// ```ignore
-/// let qualities = convert_qualities(&api_response.dash.video);
-/// // Returns qualities sorted: [116, 112, 80, 64, 32, 16]
+/// ```
+/// # use crate::models::bilibili_api::XPlayerApiResponseVideo;
+/// # use crate::handlers::bilibili::convert_qualities;
+/// # use crate::models::frontend_dto::Quality;
+/// // Given API response with multiple codec options per quality:
+/// // - Quality 80: codecs 7 (AVC) and 12 (HEVC)
+/// // - Quality 64: codec 7 (AVC)
+/// // The function selects the highest codec (12 > 7) for each quality
+/// let api_qualities = vec![
+///     XPlayerApiResponseVideo { id: 80, codecid: 7, bandwidth: 0, width: 0, height: 0, base_url: String::new() },
+///     XPlayerApiResponseVideo { id: 80, codecid: 12, bandwidth: 0, width: 0, height: 0, base_url: String::new() },
+///     XPlayerApiResponseVideo { id: 64, codecid: 7, bandwidth: 0, width: 0, height: 0, base_url: String::new() },
+/// ];
+/// let result = convert_qualities(&api_qualities);
+/// // Returns qualities sorted: [80 (codec 12), 64 (codec 7)]
+/// assert_eq!(result[0].id, 80);
+/// assert_eq!(result[0].codecid, 12); // Highest codec selected
+/// assert_eq!(result[1].id, 64);
 /// ```
 fn convert_qualities(video: &[XPlayerApiResponseVideo]) -> Vec<Quality> {
     let mut qualities: BTreeMap<i32, &XPlayerApiResponseVideo> = BTreeMap::new();
