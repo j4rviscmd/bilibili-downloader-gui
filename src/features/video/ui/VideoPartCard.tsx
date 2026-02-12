@@ -40,38 +40,24 @@ import {
 import { Label } from '@/shared/ui/label'
 import { Textarea } from '@/shared/ui/textarea'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Info } from 'lucide-react'
+import { ImageOff, Info } from 'lucide-react'
 import { useEffect, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import { z } from 'zod'
 
-/**
- * Props for quality radio option.
- */
 type QualityRadioOption = {
-  /** Quality ID */
   id: string
-  /** Display label */
   label: string
-  /** Whether this quality is available for the current video */
   isAvailable: boolean
 }
 
-/**
- * Props for QualityRadioGroup component.
- */
 type QualityRadioGroupProps = {
-  /** Radio options to render */
   options: QualityRadioOption[]
-  /** Prefix for HTML IDs (e.g., 'vq' or 'aq') */
   idPrefix: string
 }
 
-/**
- * Reusable radio group for quality selection.
- */
 function QualityRadioGroup({ options, idPrefix }: QualityRadioGroupProps) {
   return (
     <div className="flex flex-wrap gap-x-4 gap-y-2">
@@ -103,40 +89,17 @@ function QualityRadioGroup({ options, idPrefix }: QualityRadioGroupProps) {
   )
 }
 
-/**
- * Props for VideoPartCard component.
- */
 type Props = {
-  /** Video metadata */
   video: Video
-  /** Part page number (1-indexed) */
   page: number
-  /** Whether this part's title duplicates another */
   isDuplicate?: boolean
 }
 
 /**
  * Card component for video part settings.
  *
- * Displays a card for a single video part including:
- * - Checkbox for selection
- * - Thumbnail and duration
- * - Custom filename input
- * - Video quality radio buttons (only available qualities shown)
- * - Audio quality radio buttons (only available qualities shown)
- *
- * Responsive layout:
- * - Desktop (≥768px): Horizontal grid with thumbnail, title, and quality selectors
- * - Mobile (<768px): Vertical stack with collapsible sections
- *
- * Changes are auto-saved on blur. Displays duplicate title warning if needed.
- *
- * @param props - Component props
- *
- * @example
- * ```tsx
- * <VideoPartCard video={videoData} page={1} isDuplicate={false} />
- * ```
+ * Displays thumbnail, custom filename input, and quality selectors for a video part.
+ * Changes are auto-saved on blur. Shows duplicate title warning if needed.
  */
 function VideoPartCard({ video, page, isDuplicate }: Props) {
   const { onValid2 } = useVideoInfo()
@@ -146,23 +109,19 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   const min = Math.floor(videoPart.duration / 60)
   const sec = videoPart.duration % 60
 
-  // 進捗状態を取得
   const downloadStatus = usePartDownloadStatus(page - 1)
   const { isDownloading, isPending, isComplete, downloadId } = downloadStatus
 
-  // グローバルなダウンロードアクティビティを監視
   const hasActiveDownloads = useSelector((state: RootState) =>
     state.queue.some((q) => q.status === 'running' || q.status === 'pending'),
   )
 
-  // 選択状態と既存の入力値を取得
   const partInput = useSelector(
     (state: RootState) => state.input.partInputs[page - 1],
   )
   const selected = partInput?.selected ?? true
   const existingInput = partInput
 
-  // 自分のパートが選択されていて、まだ自分の番でない場合
   const isWaitingForTurn =
     selected && !downloadId && !isComplete && hasActiveDownloads
 
@@ -173,10 +132,6 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
 
   /**
    * Checks if a specific quality ID is available for the current video part.
-   *
-   * @param qualityId - The quality ID to check (e.g., 80 for 1080P, 30216 for high quality audio)
-   * @param type - The quality type to check ('video' or 'audio')
-   * @returns true if the quality is available, false otherwise
    */
   function isQualityAvailable(
     qualityId: number,
@@ -185,28 +140,12 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
     return partQualities[type].some((q) => q.id === qualityId)
   }
 
-  /**
-   * Handles changes to the part selection checkbox.
-   *
-   * Updates the Redux store to mark this part as selected or deselected
-   * for download. Only boolean true is treated as selected; indeterminate
-   * state is treated as deselected.
-   *
-   * @param checked - The new checkbox state (true, false, or 'indeterminate')
-   */
   function handleSelectedChange(checked: boolean | 'indeterminate') {
     store.dispatch(
       updatePartSelected({ index: page - 1, selected: checked === true }),
     )
   }
 
-  /**
-   * Initiates a re-download of this video part.
-   *
-   * Clears any previously completed download for this part from the queue
-   * and starts a new download with a unique download ID based on the current
-   * timestamp.
-   */
   async function handleRedownload() {
     const partIndex = page - 1
     const state = store.getState()
@@ -235,12 +174,6 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
     )
   }
 
-  /**
-   * Retries a failed download for this part.
-   *
-   * Re-enables the part selection, allowing it to be picked up by the
-   * download queue on the next cycle.
-   */
   function handleRetry() {
     store.dispatch(updatePartSelected({ index: page - 1, selected: true }))
   }
@@ -284,7 +217,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
     syncFormWithVideo()
   }, [video, page, existingInput, form, onValid2, videoPart.part])
 
-  async function onSubmit(data: z.infer<typeof schema2>) {
+  function onSubmit(data: z.infer<typeof schema2>) {
     onValid2(page - 1, data.title, data.videoQuality, data.audioQuality)
   }
 
@@ -305,11 +238,17 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                   onCheckedChange={handleSelectedChange}
                   size="lg"
                 />
-                <img
-                  src={toThumbnailDataUrl(videoPart.thumbnail.base64)}
-                  alt={t('video.thumbnail_alt', { part: videoPart.part })}
-                  className="h-16 w-24 rounded-lg object-cover md:h-20 md:w-32"
-                />
+                {videoPart.thumbnail.base64 ? (
+                  <img
+                    src={toThumbnailDataUrl(videoPart.thumbnail.base64)}
+                    alt={t('video.thumbnail_alt', { part: videoPart.part })}
+                    className="h-16 w-24 rounded-lg object-cover md:h-20 md:w-32"
+                  />
+                ) : (
+                  <div className="bg-muted flex h-16 w-24 items-center justify-center rounded-lg md:h-20 md:w-32">
+                    <ImageOff className="text-muted-foreground/50 h-8 w-8" />
+                  </div>
+                )}
 
                 {/* Title Input */}
                 <div className="flex-1">
