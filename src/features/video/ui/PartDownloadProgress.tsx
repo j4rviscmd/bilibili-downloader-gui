@@ -22,25 +22,18 @@ const MIN_HEIGHT = 'min-h-[33px]'
  * @returns Formatted string with unit (e.g., "500KB/s", "2.5MB/s")
  */
 function formatTransferRate(kb: number): string {
-  if (kb < 1000) return `${kb.toFixed(0)}KB/s`
-  return `${(kb / 1024).toFixed(1)}MB/s`
+  return kb < 1000 ? `${kb.toFixed(0)}KB/s` : `${(kb / 1024).toFixed(1)}MB/s`
 }
 
 /**
  * Props for stage progress display.
  */
 type StageProgressProps = {
-  /** Stage emoji icon */
   icon: string
-  /** Translation key for stage name */
   labelKey: string
-  /** Progress entries to search */
   progressEntries: Progress[]
-  /** Stage identifier to find in entries */
   stageName: string
-  /** Translation function */
   t: (key: string) => string
-  /** Optional custom content when waiting */
   waitingLabel?: string
 }
 
@@ -49,11 +42,6 @@ type StageProgressProps = {
  *
  * Displays an emoji icon with a hover tooltip showing the stage label.
  * Optionally applies medium font weight to emphasize active stages.
- *
- * @param icon - Emoji icon to display (e.g., "🔊", "🎬", "🔄")
- * @param label - Accessible label text for the stage
- * @param fontWeight - Optional font weight; set to "medium" for active stages
- * @returns React component rendering a tooltip-wrapped icon
  */
 function StageIcon({
   icon,
@@ -68,7 +56,7 @@ function StageIcon({
     <Tooltip>
       <TooltipTrigger asChild>
         <span
-          className={`cursor-help ${fontWeight ? 'font-medium' : ''}`}
+          className={`cursor-help ${fontWeight === 'medium' ? 'font-medium' : ''}`}
           aria-label={label}
         >
           {icon}
@@ -85,15 +73,6 @@ function StageIcon({
  * Renders progress display for a single download stage.
  *
  * Shows either a waiting state (icon only) or active progress (icon + percentage + speed + file size).
- * Progress data is extracted from progressEntries matching the stageName.
- *
- * @param icon - Emoji icon for this stage
- * @param labelKey - Translation key for the stage label
- * @param progressEntries - Array of all progress entries to search
- * @param stageName - Stage identifier to match in progressEntries
- * @param t - Translation function
- * @param waitingLabel - Optional custom label for waiting state
- * @returns React component rendering stage progress or null if not applicable
  */
 function StageProgress({
   icon,
@@ -136,9 +115,7 @@ function StageProgress({
  * Props for merge stage progress display.
  */
 type MergeStageProgressProps = {
-  /** Progress entries to search */
   progressEntries: Progress[]
-  /** Translation function */
   t: (key: string) => string
 }
 
@@ -150,10 +127,6 @@ type MergeStageProgressProps = {
  * - **Merging state**: Shows "merging" status when both audio and video are complete but no merge progress yet
  * - **Waiting state**: Shows "waiting" status when audio or video is still downloading
  * - **Hidden**: Returns null when no relevant progress exists
- *
- * @param progressEntries - Array of all progress entries to search
- * @param t - Translation function
- * @returns React component rendering merge stage progress or null
  */
 function MergeStageProgress({ progressEntries, t }: MergeStageProgressProps) {
   const mergeProgress = progressEntries.find((p) => p.stage === 'merge')
@@ -175,8 +148,8 @@ function MergeStageProgress({ progressEntries, t }: MergeStageProgressProps) {
     )
   }
 
-  const audioComplete = audioProgress?.percentage ?? 0 >= 100
-  const videoComplete = videoProgress?.percentage ?? 0 >= 100
+  const audioComplete = (audioProgress?.percentage ?? 0) >= 100
+  const videoComplete = (videoProgress?.percentage ?? 0) >= 100
 
   // Both complete - merging state
   if (audioComplete && videoComplete) {
@@ -210,17 +183,10 @@ function MergeStageProgress({ progressEntries, t }: MergeStageProgressProps) {
   return null
 }
 
-/**
- * Props for PartDownloadProgress component.
- */
 type Props = {
-  /** Download status for this part */
   status: PartDownloadStatus
-  /** Whether this part is waiting for its turn in the queue */
   isWaitingForTurn?: boolean
-  /** Callback for redownload */
   onRedownload: () => void
-  /** Callback for retry on error */
   onRetry: () => void
 }
 
@@ -247,7 +213,6 @@ export function PartDownloadProgress({
     hasError,
     errorMessage,
     outputPath,
-    downloadId,
     progressEntries,
   } = status
 
@@ -266,9 +231,8 @@ export function PartDownloadProgress({
   }, [outputPath])
 
   const handleRedownload = useCallback(() => {
-    if (!downloadId) return
     onRedownload()
-  }, [downloadId, onRedownload])
+  }, [onRedownload])
 
   // No download in progress
   if (
@@ -344,7 +308,9 @@ export function PartDownloadProgress({
 
       {/* Running View - third priority */}
       {isDownloading && (
-        <div className="text-muted-foreground ${MIN_HEIGHT} grid grid-cols-[4fr_4fr_2fr] gap-x-2 gap-y-1 text-xs">
+        <div
+          className={`text-muted-foreground ${MIN_HEIGHT} grid grid-cols-[4fr_4fr_2fr] gap-x-2 gap-y-1 text-xs`}
+        >
           <StageProgress
             icon="🔊"
             labelKey="video.stage_audio"
@@ -368,7 +334,9 @@ export function PartDownloadProgress({
 
       {/* Pending View - lowest priority */}
       {(isPending || isWaitingForTurn) && (
-        <div className="text-muted-foreground ${MIN_HEIGHT} flex items-center gap-2 text-sm">
+        <div
+          className={`text-muted-foreground ${MIN_HEIGHT} flex items-center gap-2 text-sm`}
+        >
           <div className="h-2 w-2 animate-pulse rounded-full bg-current" />
           <span>{t('video.download_pending')}</span>
         </div>
