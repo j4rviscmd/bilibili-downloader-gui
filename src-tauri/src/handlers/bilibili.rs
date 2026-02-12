@@ -34,6 +34,12 @@ pub struct DownloadOptions {
     pub parent_id: Option<String>,
     /// Video duration in seconds for accurate merge progress
     pub duration_seconds: i64,
+    /// Thumbnail URL for this part (optional)
+    #[serde(default)]
+    pub thumbnail_url: Option<String>,
+    /// Page number for multi-part videos (optional)
+    #[serde(default)]
+    pub page: Option<i32>,
 }
 
 use crate::constants::REFERER;
@@ -268,8 +274,20 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
     let bvid = options.bvid.clone();
     let filename = options.filename.clone();
     let quality = options.quality;
+    let thumbnail_url = options.thumbnail_url.clone();
+    let page = options.page;
     tokio::spawn(async move {
-        if let Err(e) = save_to_history(&app, &bvid, quality, actual_file_size, &filename).await {
+        if let Err(e) = save_to_history(
+            &app,
+            &bvid,
+            quality,
+            actual_file_size,
+            &filename,
+            thumbnail_url,
+            page,
+        )
+        .await
+        {
             eprintln!("Warning: Failed to save to history for {bvid}: {e}");
         }
     });
@@ -326,12 +344,16 @@ mod tests {
 /// * `quality` - Video quality ID
 /// * `file_size` - Actual merged file size in bytes
 /// * `filename` - User-specified filename (without extension)
+/// * `thumbnail_url` - Optional thumbnail URL for this part
+/// * `page` - Optional page number for multi-part videos
 async fn save_to_history(
     app: &AppHandle,
     bvid: &str,
     quality: i32,
     file_size: Option<u64>,
     filename: &str,
+    thumbnail_url: Option<String>,
+    page: Option<i32>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use crate::models::history::HistoryEntry;
     use crate::store::HistoryStore;
@@ -341,11 +363,21 @@ async fn save_to_history(
     // ユーザーが指定したファイル名から拡張子を削除してタイトルとして使用
     let title = filename.rsplit('.').next().unwrap_or(filename).to_string();
 
-    // サムネイルURLを取得
-    let thumbnail_url =
+    // 渡されたサムネイルURLを使用、なければAPIで取得
+    let thumbnail_url = if thumbnail_url.is_some() {
+        thumbnail_url
+    } else {
         fetch_video_info_for_history(bvid, read_cookie(app)?.as_deref().unwrap_or_default())
             .await
-            .and_then(|(_, url)| url);
+            .and_then(|(_, url)| url)
+    };
+
+    // pageパラメータを含めたURLを生成
+    let url = format!(
+        "https://www.bilibili.com/video/{}{}",
+        bvid,
+        page.map_or(String::new(), |p| format!("?p={p}"))
+    );
 
     let timestamp_ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -358,7 +390,7 @@ async fn save_to_history(
     store.add_entry(HistoryEntry {
         id: id.clone(),
         title,
-        url: format!("https://www.bilibili.com/video/{}", bvid),
+        url,
         downloaded_at,
         status: "completed".to_string(),
         file_size,

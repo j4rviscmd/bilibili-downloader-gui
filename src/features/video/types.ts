@@ -18,6 +18,8 @@ export type PartInput = {
   selected: boolean
   /** Duration in seconds for progress calculation */
   duration: number
+  /** Thumbnail URL for this part */
+  thumbnailUrl?: string
 }
 
 /**
