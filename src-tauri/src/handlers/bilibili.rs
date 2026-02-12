@@ -277,7 +277,17 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
     let thumbnail_url = options.thumbnail_url.clone();
     let page = options.page;
     tokio::spawn(async move {
-        if let Err(e) = save_to_history(&app, &bvid, quality, actual_file_size, &filename, thumbnail_url, page).await {
+        if let Err(e) = save_to_history(
+            &app,
+            &bvid,
+            quality,
+            actual_file_size,
+            &filename,
+            thumbnail_url,
+            page,
+        )
+        .await
+        {
             eprintln!("Warning: Failed to save to history for {bvid}: {e}");
         }
     });
