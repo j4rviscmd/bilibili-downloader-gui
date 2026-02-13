@@ -316,6 +316,8 @@
     "loadMore": "もっと読み込む",
     "search": "履歴を検索...",
     "error": "視聴履歴の読み込みに失敗しました",
+    "refresh": "更新",
+    "refreshed": "更新しました",
     "filter": {
       "all": "すべて",
       "today": "今日",

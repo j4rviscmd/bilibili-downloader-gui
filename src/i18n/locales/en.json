@@ -316,6 +316,8 @@
     "loadMore": "Load More",
     "search": "Search history...",
     "error": "Failed to load watch history",
+    "refresh": "Refresh",
+    "refreshed": "Refreshed",
     "filter": {
       "all": "All",
       "today": "Today",
