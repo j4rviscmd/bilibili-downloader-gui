@@ -4,8 +4,8 @@
  * Manages state for Bilibili favorite folders and videos.
  */
 
-import type { FavoriteFolder, FavoriteVideo } from '../types'
 import { createSlice } from '@reduxjs/toolkit'
+import type { FavoriteFolder, FavoriteVideo } from '../types'
 
 export type FavoriteState = {
   folders: FavoriteFolder[]

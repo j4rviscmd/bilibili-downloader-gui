@@ -18,9 +18,7 @@ use tauri::AppHandle;
 
 use crate::constants::REFERER;
 use crate::handlers::bilibili::{build_client, build_cookie_header_from_cache};
-use crate::models::bilibili_api::{
-    FavoriteFolderListApiResponse, FavoriteResourceListApiResponse,
-};
+use crate::models::bilibili_api::{FavoriteFolderListApiResponse, FavoriteResourceListApiResponse};
 use crate::models::frontend_dto::{
     FavoriteFolder, FavoriteFolderUpperDto, FavoriteVideo, FavoriteVideoListResponse,
     FavoriteVideoUpperDto,
@@ -68,12 +66,8 @@ pub async fn fetch_favorite_folders(
 
     eprintln!("[DEBUG] Favorite folders raw response: {}", &raw_text);
 
-    let response: FavoriteFolderListApiResponse =
-        serde_json::from_str(&raw_text).map_err(|e| {
-            format!(
-                "Failed to parse favorite folders response: {e}\nRaw: {raw_text}"
-            )
-        })?;
+    let response: FavoriteFolderListApiResponse = serde_json::from_str(&raw_text)
+        .map_err(|e| format!("Failed to parse favorite folders response: {e}\nRaw: {raw_text}"))?;
 
     if response.code != 0 {
         return Err(format!(

@@ -12,11 +12,30 @@ export { default as FavoriteList } from './ui/FavoriteList'
 export { default as FolderSelector } from './ui/FolderSelector'
 
 // Public API: Hooks
-export { useFavorite, formatDuration, formatPlayCount } from './hooks/useFavorite'
+export {
+  formatDuration,
+  formatPlayCount,
+  useFavorite,
+} from './hooks/useFavorite'
 
 // Public API: Redux Slice
-export { favoriteSlice, setFolders, setSelectedFolder, setVideos, appendVideos, setLoading, setError, reset } from './model/favoriteSlice'
+export {
+  appendVideos,
+  favoriteSlice,
+  reset,
+  setError,
+  setFolders,
+  setLoading,
+  setSelectedFolder,
+  setVideos,
+} from './model/favoriteSlice'
 
 // Public API: Types
-export type { FavoriteFolder, FavoriteVideo, FavoriteVideoListResponse, FavoriteFolderUpper, FavoriteVideoUpper } from './types'
 export type { FavoriteState } from './model/favoriteSlice'
+export type {
+  FavoriteFolder,
+  FavoriteFolderUpper,
+  FavoriteVideo,
+  FavoriteVideoListResponse,
+  FavoriteVideoUpper,
+} from './types'

@@ -6,10 +6,7 @@
 
 import { invoke } from '@tauri-apps/api/core'
 
-import type {
-  FavoriteFolder,
-  FavoriteVideoListResponse,
-} from '../types'
+import type { FavoriteFolder, FavoriteVideoListResponse } from '../types'
 
 /**
  * Fetches all favorite folders for the logged-in user.
@@ -18,7 +15,9 @@ import type {
  * @returns List of favorite folders
  * @throws Error if cookies are unavailable or API request fails
  */
-export async function fetchFavoriteFolders(mid: number): Promise<FavoriteFolder[]> {
+export async function fetchFavoriteFolders(
+  mid: number,
+): Promise<FavoriteFolder[]> {
   return invoke<FavoriteFolder[]>('fetch_favorite_folders', { mid })
 }
 

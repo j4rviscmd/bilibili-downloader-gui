@@ -28,9 +28,7 @@ function FolderSelector({ folders, selectedId, onSelect, loading }: Props) {
   /** Replace API default folder name with i18n label. */
   const displayName = useCallback(
     (title: string) =>
-      title === DEFAULT_FOLDER_API_NAME
-        ? t('favorite.defaultFolder')
-        : title,
+      title === DEFAULT_FOLDER_API_NAME ? t('favorite.defaultFolder') : title,
     [t],
   )
 

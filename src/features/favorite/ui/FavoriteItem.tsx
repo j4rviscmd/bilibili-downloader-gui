@@ -5,8 +5,8 @@ import { Check, Copy, Download, RefreshCw, StarOff } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import type { FavoriteVideo } from '../types'
 import { formatDuration, formatPlayCount } from '../hooks/useFavorite'
+import type { FavoriteVideo } from '../types'
 
 /** Build web URL from bvid and page number. */
 const buildVideoUrl = (bvid: string, page: number): string =>
@@ -65,7 +65,7 @@ function FavoriteItem({ video, onDownload, disabled }: Props) {
           <img
             src={thumbnailSrc}
             alt={video.title}
-            className="size-full select-none object-cover"
+            className="size-full object-cover select-none"
             draggable={false}
           />
         ) : (
@@ -80,7 +80,7 @@ function FavoriteItem({ video, onDownload, disabled }: Props) {
             <RefreshCw size={16} />
           </button>
         )}
-        <div className="bg-black/60 absolute bottom-1 right-0.5 rounded px-1 text-xs text-white">
+        <div className="absolute right-0.5 bottom-1 rounded bg-black/60 px-1 text-xs text-white">
           {formatDuration(video.duration)}
         </div>
       </div>
@@ -91,7 +91,7 @@ function FavoriteItem({ video, onDownload, disabled }: Props) {
             {video.title}
           </h3>
           {isDeleted && (
-            <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+            <span className="bg-destructive/10 text-destructive rounded-full px-2 py-0.5 text-xs font-medium">
               <StarOff size={12} className="mr-1 inline" />
               {t('favorite.videoDeleted')}
             </span>
@@ -137,9 +137,13 @@ function FavoriteItem({ video, onDownload, disabled }: Props) {
             {video.upper.name}
           </a>
           <span>·</span>
-          <span>{formatPlayCount(video.playCount)} {t('favorite.plays')}</span>
+          <span>
+            {formatPlayCount(video.playCount)} {t('favorite.plays')}
+          </span>
           <span>·</span>
-          <span>{formatPlayCount(video.collectCount)} {t('favorite.collects')}</span>
+          <span>
+            {formatPlayCount(video.collectCount)} {t('favorite.collects')}
+          </span>
         </div>
       </div>
 

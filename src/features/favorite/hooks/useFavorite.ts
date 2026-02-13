@@ -11,6 +11,9 @@ import {
   fetchFavoriteVideos as apiFetchVideos,
 } from '@/features/favorite/api/favoriteApi'
 import type { FavoriteVideoListResponse } from '@/features/favorite/types'
+import { useCallback, useEffect } from 'react'
+import { useSelector } from 'react-redux'
+import { toast } from 'sonner'
 import {
   appendVideos,
   reset,
@@ -21,9 +24,6 @@ import {
   setSelectedFolder,
   setVideos,
 } from '../model/favoriteSlice'
-import { useCallback, useEffect } from 'react'
-import { useSelector } from 'react-redux'
-import { toast } from 'sonner'
 
 const PAGE_SIZE = 20
 
@@ -60,7 +60,17 @@ async function withErrorHandling<T>(
 export function useFavorite(mid: number | null) {
   const state = useSelector((state: RootState) => state.favorite)
 
-  const { folders, selectedFolderId, videos, hasMore, totalCount, currentPage, loading, foldersLoading, error } = state
+  const {
+    folders,
+    selectedFolderId,
+    videos,
+    hasMore,
+    totalCount,
+    currentPage,
+    loading,
+    foldersLoading,
+    error,
+  } = state
 
   /**
    * Fetches favorite folders on mount when mid is available.
@@ -155,9 +165,7 @@ export function useFavorite(mid: number | null) {
       () => apiFetchFolders(mid),
       (folders) => {
         store.dispatch(setFolders(folders))
-        const currentExists = folders.some(
-          (f) => f.id === selectedFolderId,
-        )
+        const currentExists = folders.some((f) => f.id === selectedFolderId)
         if (!currentExists) {
           if (folders.length > 0) {
             store.dispatch(setSelectedFolder(folders[0].id))

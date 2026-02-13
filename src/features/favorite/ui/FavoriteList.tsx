@@ -83,10 +83,7 @@ function FavoriteList({
       }}
       itemContent={(_index, video) => (
         <div key={video.id} className="py-1">
-          <FavoriteItem
-            video={video}
-            onDownload={onDownload}
-          />
+          <FavoriteItem video={video} onDownload={onDownload} />
         </div>
       )}
       defaultItemHeight={DEFAULT_ITEM_HEIGHT}
