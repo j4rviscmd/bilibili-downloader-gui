@@ -310,6 +310,8 @@
     "loadMore": "Charger plus",
     "search": "Rechercher dans l'historique...",
     "error": "Échec du chargement de l'historique",
+    "refresh": "Actualiser",
+    "refreshed": "Actualisé",
     "filter": {
       "all": "Tout",
       "today": "Aujourd'hui",

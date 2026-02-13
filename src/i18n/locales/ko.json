@@ -310,6 +310,8 @@
     "loadMore": "더 불러오기",
     "search": "기록 검색...",
     "error": "시청 기록을 불러오지 못했습니다",
+    "refresh": "새로고침",
+    "refreshed": "새로고침 완료",
     "filter": {
       "all": "전체",
       "today": "오늘",

@@ -310,6 +310,8 @@
     "loadMore": "Cargar más",
     "search": "Buscar historial...",
     "error": "Error al cargar el historial de visualización",
+    "refresh": "Actualizar",
+    "refreshed": "Actualizado",
     "filter": {
       "all": "Todo",
       "today": "Hoy",

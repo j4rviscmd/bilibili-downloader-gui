@@ -1,4 +1,4 @@
-import { useAppDispatch, useSelector as useAppSelector } from '@/app/store'
+import { useAppDispatch, useSelector } from '@/app/store'
 import { useCallback } from 'react'
 import { fetchWatchHistory } from '../api/fetchWatchHistory'
 import {
@@ -12,6 +12,7 @@ import {
 } from '../model/selectors'
 import {
   appendEntries,
+  reset,
   setCursor,
   setDateFilter,
   setEntries,
@@ -68,13 +69,13 @@ import {
  */
 export function useWatchHistory() {
   const dispatch = useAppDispatch()
-  const entries = useAppSelector(selectFilteredEntries)
-  const cursor = useAppSelector(selectWatchHistoryCursor)
-  const loading = useAppSelector(selectWatchHistoryLoading)
-  const loadingMore = useAppSelector(selectWatchHistoryLoadingMore)
-  const error = useAppSelector(selectWatchHistoryError)
-  const searchQuery = useAppSelector(selectSearchQuery)
-  const dateFilter = useAppSelector(selectDateFilter)
+  const entries = useSelector(selectFilteredEntries)
+  const cursor = useSelector(selectWatchHistoryCursor)
+  const loading = useSelector(selectWatchHistoryLoading)
+  const loadingMore = useSelector(selectWatchHistoryLoadingMore)
+  const error = useSelector(selectWatchHistoryError)
+  const searchQuery = useSelector(selectSearchQuery)
+  const dateFilter = useSelector(selectDateFilter)
 
   /**
    * Fetches the initial batch of watch history entries.
@@ -116,10 +117,19 @@ export function useWatchHistory() {
   )
 
   const setDate = useCallback(
-    (filter: 'all' | 'today' | 'week' | 'month') =>
-      dispatch(setDateFilter(filter)),
+    (filter: 'all' | 'today' | 'week' | 'month') => {
+      dispatch(setDateFilter(filter))
+    },
     [dispatch],
   )
+
+  /**
+   * Resets state and fetches fresh watch history.
+   */
+  const refresh = useCallback(async () => {
+    dispatch(reset())
+    await fetchInitial()
+  }, [dispatch, fetchInitial])
 
   return {
     entries,
@@ -131,6 +141,7 @@ export function useWatchHistory() {
     dateFilter,
     fetchInitial,
     fetchMore,
+    refresh,
     setSearch,
     setDate,
   }

@@ -310,6 +310,8 @@
     "loadMore": "加载更多",
     "search": "搜索历史...",
     "error": "加载观看历史失败",
+    "refresh": "刷新",
+    "refreshed": "已刷新",
     "filter": {
       "all": "全部",
       "today": "今天",

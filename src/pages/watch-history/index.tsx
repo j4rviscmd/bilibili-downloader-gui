@@ -8,9 +8,13 @@ import {
   WatchHistorySearch,
 } from '@/features/watch-history'
 import { PageLayout } from '@/shared/layout'
+import { Alert, AlertDescription } from '@/shared/ui/alert'
+import { Button } from '@/shared/ui/button'
+import { AlertCircle, RefreshCw } from 'lucide-react'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
+import { toast } from 'sonner'
 
 /**
  * Watch history page component.
@@ -35,6 +39,7 @@ function WatchHistoryPage() {
     dateFilter,
     fetchInitial,
     fetchMore,
+    refresh,
     setSearch,
     setDate,
   } = useWatchHistory()
@@ -52,6 +57,14 @@ function WatchHistoryPage() {
     }
   }, [isLoggedIn, fetchInitial])
 
+  /**
+   * Handles download request for a watch history entry.
+   *
+   * Sets the entry as pending download and navigates to the home page
+   * where the actual download flow continues.
+   *
+   * @param entry - The watch history entry to download
+   */
   const handleDownload = (entry: WatchHistoryEntry) => {
     dispatch(
       setPendingDownload({
@@ -61,6 +74,16 @@ function WatchHistoryPage() {
       }),
     )
     navigate('/home')
+  }
+
+  /**
+   * Handles manual refresh of watch history.
+   *
+   * Triggers a fresh data fetch and displays a success toast.
+   */
+  const handleRefresh = () => {
+    refresh()
+    toast.success(t('watchHistory.refreshed'))
   }
 
   if (!isLoggedIn) {
@@ -85,14 +108,28 @@ function WatchHistoryPage() {
               <WatchHistorySearch value={searchQuery} onChange={setSearch} />
               <WatchHistoryFilters value={dateFilter} onChange={setDate} />
             </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRefresh}
+                disabled={loading}
+              >
+                <RefreshCw size={18} />
+                <span className="hidden md:inline">
+                  {t('watchHistory.refresh')}
+                </span>
+              </Button>
+            </div>
           </div>
         </div>
 
         {/* Error */}
         {error && (
-          <div className="mb-4 rounded-lg border border-red-500 bg-red-50 p-4 text-red-600">
-            {error}
-          </div>
+          <Alert variant="destructive" className="m-3">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
 
         {/* List */}
@@ -100,7 +137,7 @@ function WatchHistoryPage() {
           entries={entries}
           loading={loading}
           loadingMore={loadingMore}
-          hasMore={cursor ? !cursor.isEnd : false}
+          hasMore={!!cursor && !cursor.isEnd}
           onLoadMore={fetchMore}
           onDownload={handleDownload}
           height="calc(100dvh - 2.3rem - 80px)"
