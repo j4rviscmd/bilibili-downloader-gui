@@ -5,6 +5,7 @@ import ErrorPage from '@/pages/error'
 import HistoryPage from '@/pages/history'
 import HomePage from '@/pages/home'
 import InitPage from '@/pages/init'
+import WatchHistoryPage from '@/pages/watch-history'
 import { Toaster } from '@/shared/ui/sonner'
 import '@/styles/global.css'
 import { useEffect } from 'react'
@@ -48,6 +49,7 @@ function App() {
         <Route path="/init" element={<InitPage />} />
         <Route path="/home" element={<HomePage />} />
         <Route path="/history" element={<HistoryPage />} />
+        <Route path="/watch-history" element={<WatchHistoryPage />} />
         <Route path="/error" element={<ErrorPage />} />
       </Routes>
       <UpdateNotification />

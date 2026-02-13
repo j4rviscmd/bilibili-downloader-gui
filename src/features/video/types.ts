@@ -23,6 +23,21 @@ export type PartInput = {
 }
 
 /**
+ * Pending download item from watch history.
+ *
+ * Stores the video identifier for automatic download initiation
+ * when navigating from the watch history page.
+ */
+export type PendingDownload = {
+  /** Bilibili video ID (e.g., 'BV1xx411c7XD') */
+  bvid: string
+  /** Part CID (unique identifier for the specific part) */
+  cid: number
+  /** Part page number (1-indexed) */
+  page: number
+}
+
+/**
  * Complete user input for a video download.
  */
 export type Input = {
@@ -30,6 +45,8 @@ export type Input = {
   url: string
   /** Input settings for each video part */
   partInputs: PartInput[]
+  /** Pending download from watch history navigation */
+  pendingDownload: PendingDownload | null
 }
 
 /**

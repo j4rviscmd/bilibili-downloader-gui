@@ -107,3 +107,51 @@ pub struct XPlayerApiResponseVideo {
     #[serde(rename = "baseUrl")]
     pub base_url: String,
 }
+
+/// Watch history API response from Bilibili.
+///
+/// Endpoint: `https://api.bilibili.com/x/web-interface/history/cursor`
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WatchHistoryApiResponse {
+    pub code: i64,
+    pub message: String,
+    pub data: Option<WatchHistoryApiResponseData>,
+}
+
+/// Watch history data containing list of viewed videos and pagination cursor.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WatchHistoryApiResponseData {
+    pub list: Vec<WatchHistoryApiItem>,
+    pub cursor: WatchHistoryCursor,
+}
+
+/// Individual watch history entry from API.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WatchHistoryApiItem {
+    pub title: String,
+    pub cover: String,
+    pub history: WatchHistoryApiItemHistory,
+    pub view_at: i64,
+    pub duration: i64,
+    #[serde(default)]
+    pub progress: i64,
+}
+
+/// History details within a watch history item.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WatchHistoryApiItemHistory {
+    pub bvid: String,
+    #[serde(default)]
+    pub cid: i64,
+    #[serde(default)]
+    pub page: i32,
+}
+
+/// Pagination cursor for watch history API.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WatchHistoryCursor {
+    pub view_at: i64,
+    pub max: i64,
+    #[serde(default)]
+    pub is_end: bool,
+}
