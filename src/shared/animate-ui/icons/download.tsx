@@ -59,7 +59,11 @@ function IconComponent({ size, ...props }: DownloadProps) {
       strokeLinejoin="round"
       {...props}
     >
-      <motion.g variants={variants.group}>
+      <motion.g
+        variants={variants.group}
+        initial="initial"
+        animate={controls}
+      >
         <motion.path d="M12 15V3" />
         <motion.path d="m7 10 5 5 5-5" />
       </motion.g>
