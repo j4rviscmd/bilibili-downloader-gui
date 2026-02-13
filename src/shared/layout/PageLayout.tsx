@@ -2,6 +2,7 @@ import { useTheme } from '@/app/providers/ThemeContext'
 import OpenSettingsDialogButton from '@/features/settings/dialog/OpenSettingsDialogButton'
 import SettingsDialog from '@/features/settings/dialog/SettingsDialog'
 import { useUser } from '@/features/user'
+import { Download } from '@/shared/animate-ui/icons/download'
 import {
   Sidebar,
   SidebarContent,
@@ -24,8 +25,9 @@ import AppBar from '@/shared/ui/AppBar/AppBar'
 import { Button } from '@/shared/ui/button'
 import { NavigationSidebarHeader } from '@/shared/ui/NavigationSidebar'
 import { ScrollArea, ScrollBar } from '@/shared/ui/scroll-area'
-import { Download, PanelLeft, PanelLeftClose } from 'lucide-react'
+import { PanelLeft, PanelLeftClose } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router'
 
@@ -116,6 +118,7 @@ export function PageLayout({
   const { t } = useTranslation()
   const navigate = useNavigate()
   const location = useLocation()
+  const [isDownloadHovered, setIsDownloadHovered] = useState(false)
 
   const content = (
     <div
@@ -141,9 +144,11 @@ export function PageLayout({
                   isActive={location.pathname === '/history'}
                   tooltip={t('nav.downloadHistory')}
                   onClick={() => navigate('/history')}
+                  onMouseEnter={() => setIsDownloadHovered(true)}
+                  onMouseLeave={() => setIsDownloadHovered(false)}
                   aria-label={t('nav.aria.downloadHistory')}
                 >
-                  <Download />
+                  <Download animate={isDownloadHovered} />
                   <span>{t('nav.downloadHistory')}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
