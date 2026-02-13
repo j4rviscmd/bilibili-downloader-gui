@@ -1179,8 +1179,12 @@ pub async fn fetch_watch_history(
         .await
         .map_err(|e| format!("Failed to read response text: {e}"))?;
 
-    let body: WatchHistoryApiResponse = serde_json::from_str(&response_text)
-        .map_err(|e| format!("Failed to parse watch history response: {e}. Response: {}", response_text))?;
+    let body: WatchHistoryApiResponse = serde_json::from_str(&response_text).map_err(|e| {
+        format!(
+            "Failed to parse watch history response: {e}. Response: {}",
+            response_text
+        )
+    })?;
 
     // 3. エラーハンドリング（-101: 未ログイン）
     if body.code == -101 {
@@ -1194,9 +1198,9 @@ pub async fn fetch_watch_history(
         ));
     }
 
-    let data = body.data.ok_or_else(|| {
-        "Watch history API returned no data".to_string()
-    })?;
+    let data = body
+        .data
+        .ok_or_else(|| "Watch history API returned no data".to_string())?;
 
     // 4. DTO変換（サムネイルを並列でBase64エンコード）
     let entry_futures: Vec<_> = data
