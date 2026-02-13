@@ -1,8 +1,8 @@
 import { useSelector } from '@/app/store'
 import { useFavorite } from '@/features/favorite/hooks/useFavorite'
+import type { FavoriteVideo } from '@/features/favorite/types'
 import FavoriteList from '@/features/favorite/ui/FavoriteList'
 import FolderSelector from '@/features/favorite/ui/FolderSelector'
-import type { FavoriteVideo } from '@/features/favorite/types'
 import { PageLayout } from '@/shared/layout'
 import { Button } from '@/shared/ui/button'
 import { RefreshCw } from 'lucide-react'
@@ -70,6 +70,7 @@ function FavoritePage() {
       <div className="flex h-full flex-col overflow-hidden">
         <div className="border-border shrink-0 border-b p-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h1 className="text-xl font-semibold">{t('favorite.title')}</h1>
             <div className="flex flex-1 items-center gap-2">
               <FolderSelector
                 folders={folders}

@@ -11,7 +11,7 @@ import {
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
 import { cn } from '@/shared/lib/utils'
-import { Clock, Eye, Home, Star } from 'lucide-react'
+import { Eye, Home, Star } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router'
 
@@ -24,10 +24,11 @@ type NavigationSidebarHeaderProps = {
  *
  * Provides navigation to:
  * - Home (/home) - Video download interface
- * - History (/history) - Download history
  * - Favorite (/favorite) - Favorite videos (requires login)
  * - Watch History (/watch-history) - Bilibili watch history
  *   (requires login)
+ *
+ * Note: Download history (/history) is provided separately in SidebarFooter.
  *
  * Highlights the current page with active state styling.
  * Items requiring authentication are disabled with tooltip
@@ -50,13 +51,6 @@ export function NavigationSidebarHeader({
       icon: Home,
       label: t('nav.home'),
       ariaLabel: t('nav.aria.home'),
-      requiresAuth: false,
-    },
-    {
-      path: '/history',
-      icon: Clock,
-      label: t('nav.downloadHistory'),
-      ariaLabel: t('nav.aria.downloadHistory'),
       requiresAuth: false,
     },
     {
@@ -85,26 +79,17 @@ export function NavigationSidebarHeader({
           {menuItems.map((item) => {
             const Icon = item.icon
             const isActive = currentPath === item.path
-            const isDisabled =
-              item.requiresAuth && !isLoggedIn
+            const isDisabled = item.requiresAuth && !isLoggedIn
 
             const button = (
               <SidebarMenuButton
                 isActive={isActive}
-                tooltip={
-                  isDisabled ? undefined : item.label
-                }
-                onClick={() =>
-                  !isDisabled && navigate(item.path)
-                }
+                tooltip={isDisabled ? undefined : item.label}
+                onClick={() => !isDisabled && navigate(item.path)}
                 aria-label={item.ariaLabel}
-                aria-current={
-                  isActive ? 'page' : undefined
-                }
+                aria-current={isActive ? 'page' : undefined}
                 disabled={isDisabled}
-                className={
-                  isDisabled ? 'opacity-50' : undefined
-                }
+                className={isDisabled ? 'opacity-50' : undefined}
               >
                 <Icon />
                 <span>{item.label}</span>
@@ -115,13 +100,9 @@ export function NavigationSidebarHeader({
               <SidebarMenuItem key={item.path}>
                 {isDisabled ? (
                   <Tooltip>
-                    <TooltipTrigger asChild>
-                      {button}
-                    </TooltipTrigger>
+                    <TooltipTrigger asChild>{button}</TooltipTrigger>
                     <TooltipContent>
-                      <p>
-                        {t('nav.favoriteLoginRequired')}
-                      </p>
+                      <p>{t('nav.favoriteLoginRequired')}</p>
                     </TooltipContent>
                   </Tooltip>
                 ) : (
