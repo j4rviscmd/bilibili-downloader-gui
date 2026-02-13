@@ -9,6 +9,7 @@ import updaterReducer from '@/features/updater/model/updaterSlice'
 import userReducer from '@/features/user/userSlice'
 import inputReducer from '@/features/video/model/inputSlice'
 import videoReducer from '@/features/video/model/videoSlice'
+import watchHistoryReducer from '@/features/watch-history/model/watchHistorySlice'
 import downloadStatusReducer from '@/shared/downloadStatus/downloadStatusSlice'
 import progressReducer from '@/shared/progress/progressSlice'
 import queueReducer from '@/shared/queue/queueSlice'
@@ -42,6 +43,7 @@ export const store = configureStore({
     updater: updaterReducer,
     user: userReducer,
     video: videoReducer,
+    watchHistory: watchHistoryReducer,
   },
   devTools: process.env.NODE_ENV !== 'production',
 })

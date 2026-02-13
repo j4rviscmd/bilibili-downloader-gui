@@ -47,10 +47,13 @@ use crate::handlers::cookie::read_cookie;
 use crate::handlers::ffmpeg::merge_av;
 use crate::handlers::settings;
 use crate::models::bilibili_api::{
-    UserApiResponse, WebInterfaceApiResponse, XPlayerApiResponse, XPlayerApiResponseVideo,
+    UserApiResponse, WatchHistoryApiResponse, WebInterfaceApiResponse, XPlayerApiResponse,
+    XPlayerApiResponseVideo,
 };
 use crate::models::cookie::CookieEntry;
-use crate::models::frontend_dto::{Quality, Thumbnail, UserData, Video, VideoPart};
+use crate::models::frontend_dto::{
+    Quality, Thumbnail, UserData, Video, VideoPart, WatchHistoryCursor, WatchHistoryEntry,
+};
 use crate::utils::downloads::download_url;
 use crate::utils::paths::get_lib_path;
 use crate::{constants::USER_AGENT, models::frontend_dto::User};
@@ -1130,4 +1133,141 @@ fn select_stream_url(
         .or_else(|| items.first())
         .map(|v| v.base_url.clone())
         .ok_or_else(|| "ERR::QUALITY_NOT_FOUND".into())
+}
+
+/// Response structure for watch history API.
+///
+/// Contains list of history entries and pagination cursor.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WatchHistoryResponse {
+    pub entries: Vec<WatchHistoryEntry>,
+    pub cursor: WatchHistoryCursor,
+}
+
+/// Fetches watch history from Bilibili API.
+///
+/// Retrieves the user's viewing history with pagination support.
+/// Requires valid Bilibili cookies for authentication.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle for accessing cookie cache
+/// * `max` - Maximum number of entries to fetch (0 for default)
+/// * `view_at` - Timestamp cursor for pagination (0 for first page)
+///
+/// # Returns
+///
+/// `WatchHistoryResponse` containing history entries and next cursor.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Cookies are unavailable (`ERR::COOKIE_MISSING`)
+/// - User is not logged in (`ERR::UNAUTHORIZED`, API code -101)
+/// - HTTP request fails
+/// - Response parsing fails
+pub async fn fetch_watch_history(
+    app: &AppHandle,
+    max: i32,
+    view_at: i64,
+) -> Result<WatchHistoryResponse, String> {
+    // 1. Cookie取得（必須）
+    let cookies = read_cookie(app)?.unwrap_or_default();
+
+    if cookies.is_empty() {
+        return Err("ERR::COOKIE_MISSING".into());
+    }
+
+    let cookie_header = build_cookie_header(&cookies);
+
+    // 2. API呼び出し
+    // 初回リクエストではパラメータを省略、2回目以降はmax/view_atを使用
+    let client = build_client()?;
+    let url = if max == 0 && view_at == 0 {
+        "https://api.bilibili.com/x/web-interface/history/cursor?business=archive".to_string()
+    } else {
+        format!(
+            "https://api.bilibili.com/x/web-interface/history/cursor?max={}&view_at={}&business=archive",
+            max, view_at
+        )
+    };
+
+    let response = client
+        .get(&url)
+        .header(header::COOKIE, cookie_header)
+        .header(reqwest::header::REFERER, REFERER)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch watch history: {e}"))?;
+
+    let response_text = response
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read response text: {e}"))?;
+
+    let body: WatchHistoryApiResponse = serde_json::from_str(&response_text).map_err(|e| {
+        format!(
+            "Failed to parse watch history response: {e}. Response: {}",
+            response_text
+        )
+    })?;
+
+    // 3. エラーハンドリング（-101: 未ログイン）
+    if body.code == -101 {
+        return Err("ERR::UNAUTHORIZED".into());
+    }
+
+    if body.code != 0 {
+        return Err(format!(
+            "Watch history API error (code {}): {}",
+            body.code, body.message
+        ));
+    }
+
+    let data = body
+        .data
+        .ok_or_else(|| "Watch history API returned no data".to_string())?;
+
+    // 4. DTO変換（サムネイルを並列でBase64エンコード）
+    let entry_futures: Vec<_> = data
+        .list
+        .into_iter()
+        .map(|item| {
+            let url = if item.history.page > 1 {
+                format!(
+                    "https://www.bilibili.com/video/{}?p={}",
+                    item.history.bvid, item.history.page
+                )
+            } else {
+                format!("https://www.bilibili.com/video/{}", item.history.bvid)
+            };
+
+            async move {
+                let cover_base64 = get_thumbnail_base64(&item.cover).await.unwrap_or_default();
+                WatchHistoryEntry {
+                    title: item.title,
+                    cover: item.cover,
+                    cover_base64,
+                    bvid: item.history.bvid,
+                    cid: item.history.cid,
+                    page: item.history.page,
+                    view_at: item.view_at,
+                    duration: item.duration,
+                    progress: item.progress,
+                    url,
+                }
+            }
+        })
+        .collect();
+
+    let entries = futures::future::join_all(entry_futures).await;
+
+    let cursor = WatchHistoryCursor {
+        view_at: data.cursor.view_at,
+        max: data.cursor.max,
+        is_end: data.cursor.is_end,
+    };
+
+    Ok(WatchHistoryResponse { entries, cursor })
 }

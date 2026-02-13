@@ -6,7 +6,8 @@
   },
   "nav": {
     "home": "ホーム",
-    "history": "履歴",
+    "downloadHistory": "ダウンロード履歴",
+    "watchHistory": "視聴履歴",
     "favorite": "お気に入り",
     "init": "初期化",
     "error": "エラー",
@@ -14,7 +15,8 @@
     "aria": {
       "mainNavigation": "メインナビゲーション",
       "home": "ダウンロード画面へ移動",
-      "history": "履歴画面へ移動",
+      "downloadHistory": "ダウンロード履歴画面へ移動",
+      "watchHistory": "視聴履歴に移動",
       "favorite": "お気に入り画面へ移動",
       "toggleSidebar": "サイドバーを切り替え",
       "openSidebar": "サイドバーを開く",
@@ -304,5 +306,29 @@
     "downloadConfirmTitle": "ダウンロード",
     "downloadConfirmMessage": "ホームに移動すると現在の入力がクリアされます。続けますか？",
     "defaultFolder": "デフォルト"
+  },
+  "watchHistory": {
+    "title": "視聴履歴",
+    "empty": "視聴履歴がありません",
+    "loginRequired": "視聴履歴を表示するにはログインが必要です",
+    "download": "ダウンロード",
+    "loading": "読み込み中...",
+    "loadMore": "もっと読み込む",
+    "search": "履歴を検索...",
+    "error": "視聴履歴の読み込みに失敗しました",
+    "filter": {
+      "all": "すべて",
+      "today": "今日",
+      "week": "今週",
+      "month": "今月"
+    },
+    "time": {
+      "daysAgo": "{{count}}日前",
+      "hoursAgo": "{{count}}時間前",
+      "minutesAgo": "{{count}}分前",
+      "justNow": "たった今",
+      "durationHMS": "{{hours}}時間{{minutes}}分{{seconds}}秒",
+      "durationMS": "{{minutes}}分{{seconds}}秒"
+    }
   }
 }

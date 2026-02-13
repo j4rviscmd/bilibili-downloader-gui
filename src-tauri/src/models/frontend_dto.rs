@@ -147,3 +147,36 @@ pub struct FavoriteVideoListResponse {
     pub has_more: bool,
     pub total_count: i64,
 }
+
+// ============================================================================
+// Watch History DTOs
+// ============================================================================
+
+/// Watch history entry sent to the frontend.
+///
+/// Contains video metadata and viewing progress information.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WatchHistoryEntry {
+    pub title: String,
+    pub cover: String,
+    pub cover_base64: String,
+    pub bvid: String,
+    pub cid: i64,
+    pub page: i32,
+    pub view_at: i64,
+    pub duration: i64,
+    pub progress: i64,
+    pub url: String,
+}
+
+/// Pagination cursor for watch history.
+///
+/// Used to fetch additional pages of watch history.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WatchHistoryCursor {
+    pub view_at: i64,
+    pub max: i64,
+    pub is_end: bool,
+}

@@ -6,7 +6,8 @@
   },
   "nav": {
     "home": "Accueil",
-    "history": "Historique",
+    "downloadHistory": "Historique de téléchargement",
+    "watchHistory": "Historique de visionnage",
     "favorite": "Favoris",
     "init": "Initialisation",
     "error": "Erreur",
@@ -14,7 +15,8 @@
     "aria": {
       "mainNavigation": "Navigation principale",
       "home": "Accéder à la page de téléchargement",
-      "history": "Accéder à l'historique",
+      "downloadHistory": "Accéder à l'historique de téléchargement",
+      "watchHistory": "Accéder à l'historique de visionnage",
       "favorite": "Accéder aux favoris",
       "toggleSidebar": "Basculer la barre latérale",
       "openSidebar": "Ouvrir la barre latérale",
@@ -298,5 +300,29 @@
     "downloadConfirmTitle": "Télécharger",
     "downloadConfirmMessage": "Aller à l'accueil effacera votre saisie actuelle. Continuer ?",
     "defaultFolder": "Par défaut"
+  },
+  "watchHistory": {
+    "title": "Historique de visionnage",
+    "empty": "Aucun historique de visionnage trouvé",
+    "loginRequired": "Connexion requise pour voir l'historique",
+    "download": "Télécharger",
+    "loading": "Chargement...",
+    "loadMore": "Charger plus",
+    "search": "Rechercher dans l'historique...",
+    "error": "Échec du chargement de l'historique",
+    "filter": {
+      "all": "Tout",
+      "today": "Aujourd'hui",
+      "week": "Cette semaine",
+      "month": "Ce mois-ci"
+    },
+    "time": {
+      "daysAgo": "il y a {{count}} jours",
+      "hoursAgo": "il y a {{count}} heures",
+      "minutesAgo": "il y a {{count}} minutes",
+      "justNow": "à l'instant",
+      "durationHMS": "{{hours}}:{{minutes}}:{{seconds}}",
+      "durationMS": "{{minutes}}:{{seconds}}"
+    }
   }
 }

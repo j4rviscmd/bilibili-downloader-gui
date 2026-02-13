@@ -6,7 +6,8 @@
   },
   "nav": {
     "home": "Home",
-    "history": "History",
+    "downloadHistory": "Download History",
+    "watchHistory": "Watch History",
     "favorite": "Favorites",
     "init": "Init",
     "error": "Error",
@@ -14,7 +15,8 @@
     "aria": {
       "mainNavigation": "Main navigation",
       "home": "Navigate to download page",
-      "history": "Navigate to history page",
+      "downloadHistory": "Navigate to download history",
+      "watchHistory": "Navigate to watch history",
       "favorite": "Navigate to favorites page",
       "toggleSidebar": "Toggle Sidebar",
       "openSidebar": "Open sidebar",
@@ -304,5 +306,29 @@
     "downloadConfirmTitle": "Download",
     "downloadConfirmMessage": "Navigating to home will clear your current input. Continue?",
     "defaultFolder": "Default"
+  },
+  "watchHistory": {
+    "title": "Watch History",
+    "empty": "No watch history found",
+    "loginRequired": "Login required to view watch history",
+    "download": "Download",
+    "loading": "Loading...",
+    "loadMore": "Load More",
+    "search": "Search history...",
+    "error": "Failed to load watch history",
+    "filter": {
+      "all": "All",
+      "today": "Today",
+      "week": "This Week",
+      "month": "This Month"
+    },
+    "time": {
+      "daysAgo": "{{count}} days ago",
+      "hoursAgo": "{{count}} hours ago",
+      "minutesAgo": "{{count}} minutes ago",
+      "justNow": "Just now",
+      "durationHMS": "{{hours}}:{{minutes}}:{{seconds}}",
+      "durationMS": "{{minutes}}:{{seconds}}"
+    }
   }
 }

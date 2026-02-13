@@ -122,6 +122,9 @@ function HistoryPage() {
         <div className="flex h-full flex-col overflow-hidden">
           <div className="border-border shrink-0 border-b p-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h1 className="text-xl font-semibold">
+                {t('nav.downloadHistory')}
+              </h1>
               <div className="flex flex-1 items-center gap-2">
                 <HistorySearch value={searchQuery} onChange={setSearch} />
                 <HistoryFilters
