@@ -7,12 +7,15 @@
   "nav": {
     "home": "主页",
     "history": "历史",
+    "favorite": "收藏",
     "init": "初始化",
     "error": "错误",
+    "favoriteLoginRequired": "需要登录",
     "aria": {
       "mainNavigation": "主导航",
       "home": "前往下载页面",
       "history": "前往历史页面",
+      "favorite": "前往收藏页面",
       "toggleSidebar": "切换侧边栏",
       "openSidebar": "打开侧边栏",
       "closeSidebar": "关闭侧边栏"
@@ -280,5 +283,20 @@
   "github": {
     "stars": "{{count}} 星标",
     "repo": "在 GitHub 上查看"
+  },
+  "favorite": {
+    "title": "收藏",
+    "empty": "暂无收藏视频",
+    "selectFolder": "选择收藏夹",
+    "refresh": "刷新",
+    "refreshed": "已刷新",
+    "download": "下载",
+    "plays": "次播放",
+    "collects": "收藏",
+    "loginRequired": "请登录后查看收藏",
+    "videoDeleted": "已删除",
+    "downloadConfirmTitle": "下载",
+    "downloadConfirmMessage": "前往主页将清除当前输入，确定继续吗？",
+    "defaultFolder": "默认收藏夹"
   }
 }

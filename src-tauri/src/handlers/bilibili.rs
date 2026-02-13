@@ -71,7 +71,7 @@ use tauri::AppHandle;
 /// # Errors
 ///
 /// Returns an error if client builder fails.
-fn build_client() -> Result<Client, String> {
+pub fn build_client() -> Result<Client, String> {
     Client::builder()
         .user_agent(USER_AGENT)
         .build()
@@ -475,6 +475,7 @@ pub async fn fetch_user_info(app: &AppHandle) -> Result<User, String> {
             code: 0,
             message: String::new(),
             data: UserData {
+                mid: None,
                 uname: None,
                 is_login: false,
             },
@@ -498,6 +499,7 @@ pub async fn fetch_user_info(app: &AppHandle) -> Result<User, String> {
         code: body.code,
         message: body.message,
         data: UserData {
+            mid: body.data.mid,
             uname: body.data.uname,
             is_login: body.data.is_login,
         },
@@ -529,6 +531,31 @@ fn build_cookie_header(cookies: &[CookieEntry]) -> String {
         .map(|c| format!("{}={}", c.name, c.value))
         .collect::<Vec<_>>()
         .join("; ")
+}
+
+/// Builds Cookie header string from cached cookies.
+///
+/// Convenience function that reads cookies from the app's cookie cache
+/// and formats them for HTTP requests.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle for accessing cookie cache
+///
+/// # Returns
+///
+/// Formatted cookie header string ready for HTTP requests.
+///
+/// # Errors
+///
+/// Returns an error if cookie cache cannot be accessed.
+pub fn build_cookie_header_from_cache(app: &AppHandle) -> Result<String, String> {
+    let cookies = read_cookie(app)?.unwrap_or_default();
+    let header = build_cookie_header(&cookies);
+    if header.is_empty() {
+        return Err("ERR::COOKIE_MISSING".into());
+    }
+    Ok(header)
 }
 
 /// Fetches image from URL and Base64 encodes it.

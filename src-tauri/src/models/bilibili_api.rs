@@ -16,6 +16,7 @@ pub struct UserApiResponse {
 /// User data including authentication and WBI image info.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserApiResponseData {
+    pub mid: Option<i64>,
     pub uname: Option<String>,
     #[serde(rename = "isLogin")]
     pub is_login: bool,
@@ -106,4 +107,166 @@ pub struct XPlayerApiResponseVideo {
     pub height: i16,
     #[serde(rename = "baseUrl")]
     pub base_url: String,
+}
+
+// ============================================================================
+// Favorite Folder APIs
+// ============================================================================
+
+/// Favorite folder list API response.
+///
+/// Endpoint: `https://api.bilibili.com/x/v3/fav/folder/created/list-all`
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FavoriteFolderListApiResponse {
+    pub code: i64,
+    pub message: String,
+    #[serde(default)]
+    pub data: Option<FavoriteFolderListData>,
+}
+
+/// Wrapper for the favorite folder list data.
+///
+/// The `list-all` API returns `{ "count": N, "list": [...] }`
+/// inside the `data` field.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FavoriteFolderListData {
+    pub count: i64,
+    #[serde(default)]
+    pub list: Option<Vec<FavoriteFolderApiResponseData>>,
+}
+
+/// Individual favorite folder data.
+///
+/// The `list-all` API returns a minimal subset of fields
+/// (id, fid, mid, attr, title, fav_state, media_count).
+/// Other fields are only present in the resource list API's `info`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FavoriteFolderApiResponseData {
+    pub id: i64,
+    pub fid: i64,
+    pub mid: i64,
+    pub attr: i32,
+    pub title: String,
+    #[serde(default)]
+    pub cover: Option<String>,
+    #[serde(default)]
+    pub upper: Option<FavoriteFolderUpper>,
+    #[serde(default)]
+    pub cover_type: Option<i32>,
+    #[serde(default, rename = "cnt_info")]
+    pub cnt_info: Option<FavoriteFolderCntInfo>,
+    #[serde(default, rename = "type")]
+    pub folder_type: Option<i32>,
+    #[serde(default)]
+    pub intro: Option<String>,
+    #[serde(default)]
+    pub ctime: Option<i64>,
+    #[serde(default)]
+    pub mtime: Option<i64>,
+    #[serde(default)]
+    pub state: Option<i32>,
+    #[serde(default)]
+    pub fav_state: Option<i32>,
+    pub media_count: i64,
+}
+
+/// Upper (creator) information for favorite folder.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FavoriteFolderUpper {
+    pub mid: i64,
+    pub name: String,
+    pub face: String,
+}
+
+/// Content count information for favorite folder.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FavoriteFolderCntInfo {
+    pub collect: i64,
+    pub play: i64,
+    pub thumb_up: i64,
+    pub share: i64,
+}
+
+// ============================================================================
+// Favorite Resource (Video) APIs
+// ============================================================================
+
+/// Favorite resource list API response.
+///
+/// Endpoint: `https://api.bilibili.com/x/v3/fav/resource/list`
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FavoriteResourceListApiResponse {
+    pub code: i64,
+    pub message: String,
+    #[serde(default)]
+    pub data: Option<FavoriteResourceListApiResponseData>,
+}
+
+/// Favorite resource list data with pagination info.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FavoriteResourceListApiResponseData {
+    pub info: FavoriteResourceInfo,
+    pub medias: Option<Vec<FavoriteResourceMedia>>,
+    pub has_more: bool,
+}
+
+/// Favorite folder info.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FavoriteResourceInfo {
+    pub id: i64,
+    pub fid: i64,
+    pub mid: i64,
+    pub attr: i32,
+    pub title: String,
+    pub cover: String,
+    pub upper: FavoriteFolderUpper,
+    pub cover_type: i32,
+    #[serde(rename = "cnt_info")]
+    pub cnt_info: FavoriteFolderCntInfo,
+    #[serde(rename = "type")]
+    pub folder_type: i32,
+    pub intro: String,
+    pub ctime: i64,
+    pub mtime: i64,
+    pub state: i32,
+    pub fav_state: i32,
+    pub media_count: i64,
+}
+
+/// Individual media (video) in favorite folder.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FavoriteResourceMedia {
+    pub id: i64,
+    #[serde(rename = "type")]
+    pub media_type: i32,
+    pub title: String,
+    pub cover: String,
+    pub intro: String,
+    pub page: i32,
+    pub duration: i64,
+    pub upper: FavoriteMediaUpper,
+    pub attr: i32,
+    pub cnt_info: FavoriteMediaCntInfo,
+    pub link: String,
+    pub ctime: i64,
+    pub pubtime: i64,
+    pub fav_time: i64,
+    pub bv_id: String,
+    pub bvid: String,
+}
+
+/// Upper (uploader) information for media.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FavoriteMediaUpper {
+    pub mid: i64,
+    pub name: String,
+    pub face: String,
+}
+
+/// Content count information for media.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FavoriteMediaCntInfo {
+    pub collect: i64,
+    pub play: i64,
+    pub danmaku: i64,
 }

@@ -11,11 +11,14 @@ use tauri::Manager;
 
 use crate::handlers::bilibili;
 use crate::handlers::cookie;
+use crate::handlers::favorites;
 use crate::handlers::ffmpeg;
 use crate::handlers::github;
 use crate::handlers::settings;
 use crate::handlers::updater;
 use crate::models::cookie::CookieCache;
+use crate::models::frontend_dto::FavoriteFolder;
+use crate::models::frontend_dto::FavoriteVideoListResponse;
 use crate::models::frontend_dto::User;
 use crate::models::frontend_dto::Video;
 use crate::models::history::HistoryEntry;
@@ -103,6 +106,8 @@ pub fn run() {
             open_file,
             get_release_notes,
             get_repo_stars,
+            fetch_favorite_folders,
+            fetch_favorite_videos,
             // record_download_click  // NOTE: GA4 Analytics は無効化されています
         ])
         // 開発環境以外で`app`宣言ではBuildに失敗するため、`_app`を使用
@@ -799,6 +804,59 @@ async fn get_release_notes(
 #[tauri::command]
 async fn get_repo_stars(owner: String, repo: String) -> Result<usize, String> {
     github::fetch_repo_stars(&owner, &repo)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Fetches all favorite folders for the logged-in user.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle
+/// * `mid` - User's member ID
+///
+/// # Returns
+///
+/// List of favorite folders with metadata.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Cookies are unavailable (`ERR::COOKIE_MISSING`)
+/// - API request fails
+#[tauri::command]
+async fn fetch_favorite_folders(app: AppHandle, mid: i64) -> Result<Vec<FavoriteFolder>, String> {
+    favorites::fetch_favorite_folders(&app, mid)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Fetches videos from a specific favorite folder with pagination.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle
+/// * `media_id` - Favorite folder ID
+/// * `page_num` - Page number (1-indexed)
+/// * `page_size` - Number of items per page (max 20)
+///
+/// # Returns
+///
+/// Paginated list of videos with metadata.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Cookies are unavailable (`ERR::COOKIE_MISSING`)
+/// - API request fails
+#[tauri::command]
+async fn fetch_favorite_videos(
+    app: AppHandle,
+    media_id: i64,
+    page_num: i32,
+    page_size: i32,
+) -> Result<FavoriteVideoListResponse, String> {
+    favorites::fetch_favorite_videos(&app, media_id, page_num, page_size)
         .await
         .map_err(|e| e.to_string())
 }

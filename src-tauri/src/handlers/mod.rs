@@ -4,6 +4,7 @@
 //! - **bilibili**: Video info retrieval and download operations
 //! - **concurrency**: Semaphore management for parallel downloads
 //! - **cookie**: Firefox cookie extraction and caching
+//! - **favorites**: Bilibili favorite folder and video retrieval
 //! - **ffmpeg**: Binary validation and installation, A/V merging
 //! - **github**: GitHub API integration (repository info)
 //! - **settings**: Application settings persistence
@@ -12,6 +13,7 @@
 pub mod bilibili;
 pub mod concurrency;
 pub mod cookie;
+pub mod favorites;
 pub mod ffmpeg;
 pub mod github;
 pub mod settings;
