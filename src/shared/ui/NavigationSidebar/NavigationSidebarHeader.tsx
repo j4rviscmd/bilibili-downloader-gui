@@ -1,10 +1,17 @@
+import { useSelector } from '@/app/store'
 import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
 } from '@/shared/animate-ui/radix/sidebar'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/shared/animate-ui/radix/tooltip'
 import { cn } from '@/shared/lib/utils'
-import { Clock, Home } from 'lucide-react'
+import { Eye, Home } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router'
 
@@ -18,8 +25,10 @@ type NavigationSidebarHeaderProps = {
  * Provides navigation to:
  * - Home (/home) - Video download interface
  * - History (/history) - Download history
+ * - Watch History (/watch-history) - Bilibili watch history (requires login)
  *
  * Highlights the current page with active state styling.
+ * Items requiring authentication are disabled with tooltip when not logged in.
  */
 export function NavigationSidebarHeader({
   className,
@@ -27,8 +36,12 @@ export function NavigationSidebarHeader({
   const { t } = useTranslation()
   const navigate = useNavigate()
   const location = useLocation()
+  const user = useSelector((state) => state.user)
 
   const currentPath = location.pathname
+
+  // Check if user is logged in for watch history access
+  const isLoggedIn = user.hasCookie && user.data?.isLogin
 
   const menuItems = [
     {
@@ -36,41 +49,61 @@ export function NavigationSidebarHeader({
       icon: Home,
       label: t('nav.home'),
       ariaLabel: t('nav.aria.home'),
+      requiresAuth: false,
     },
     {
-      path: '/history',
-      icon: Clock,
-      label: t('nav.history'),
-      ariaLabel: t('nav.aria.history'),
+      path: '/watch-history',
+      icon: Eye,
+      label: t('nav.watchHistory'),
+      ariaLabel: t('nav.aria.watchHistory'),
+      requiresAuth: true,
     },
   ]
 
   return (
-    <nav
-      aria-label={t('nav.aria.mainNavigation')}
-      className={cn('flex flex-col gap-2 p-2', className)}
-    >
-      <SidebarMenu>
-        {menuItems.map((item) => {
-          const Icon = item.icon
-          const isActive = currentPath === item.path
+    <TooltipProvider>
+      <nav
+        aria-label={t('nav.aria.mainNavigation')}
+        className={cn('flex flex-col gap-2 p-2', className)}
+      >
+        <SidebarMenu>
+          {menuItems.map((item) => {
+            const Icon = item.icon
+            const isActive = currentPath === item.path
+            const isDisabled = item.requiresAuth && !isLoggedIn
 
-          return (
-            <SidebarMenuItem key={item.path}>
+            const button = (
               <SidebarMenuButton
                 isActive={isActive}
-                tooltip={item.label}
-                onClick={() => navigate(item.path)}
+                tooltip={isDisabled ? undefined : item.label}
+                onClick={() => !isDisabled && navigate(item.path)}
                 aria-label={item.ariaLabel}
                 aria-current={isActive ? 'page' : undefined}
+                disabled={isDisabled}
+                className={isDisabled ? 'opacity-50' : undefined}
               >
                 <Icon />
                 <span>{item.label}</span>
               </SidebarMenuButton>
-            </SidebarMenuItem>
-          )
-        })}
-      </SidebarMenu>
-    </nav>
+            )
+
+            return (
+              <SidebarMenuItem key={item.path}>
+                {isDisabled ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>{button}</TooltipTrigger>
+                    <TooltipContent>
+                      <p>{t('watchHistory.loginRequired')}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                ) : (
+                  button
+                )}
+              </SidebarMenuItem>
+            )
+          })}
+        </SidebarMenu>
+      </nav>
+    </TooltipProvider>
   )
 }

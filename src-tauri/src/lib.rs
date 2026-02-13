@@ -103,6 +103,7 @@ pub fn run() {
             open_file,
             get_release_notes,
             get_repo_stars,
+            fetch_watch_history,
             // record_download_click  // NOTE: GA4 Analytics は無効化されています
         ])
         // 開発環境以外で`app`宣言ではBuildに失敗するため、`_app`を使用
@@ -801,4 +802,37 @@ async fn get_repo_stars(owner: String, repo: String) -> Result<usize, String> {
     github::fetch_repo_stars(&owner, &repo)
         .await
         .map_err(|e| e.to_string())
+}
+
+/// Fetches watch history from Bilibili with pagination support.
+///
+/// This command retrieves the user's viewing history from Bilibili.
+/// Requires valid Bilibili cookies for authentication.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle for accessing cookie cache
+/// * `max` - Maximum number of entries to fetch (0 for default, typically 20)
+/// * `view_at` - Timestamp cursor for pagination (0 for first page)
+///
+/// # Returns
+///
+/// Returns a `WatchHistoryResponse` containing:
+/// - `entries`: List of watch history entries with video metadata
+/// - `cursor`: Pagination cursor for fetching more entries
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Cookies are unavailable (`ERR::COOKIE_MISSING`)
+/// - User is not logged in (`ERR::UNAUTHORIZED`)
+/// - HTTP request fails
+/// - Response parsing fails
+#[tauri::command]
+async fn fetch_watch_history(
+    app: AppHandle,
+    max: i32,
+    view_at: i64,
+) -> Result<bilibili::WatchHistoryResponse, String> {
+    bilibili::fetch_watch_history(&app, max, view_at).await
 }

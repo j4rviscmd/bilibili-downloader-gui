@@ -7,9 +7,11 @@ import {
 } from '@/features/video/lib/formSchema'
 import { extractVideoId } from '@/features/video/lib/utils'
 import {
+  clearPendingDownload,
   initPartInputs,
   setUrl,
   updatePartInputByIndex,
+  updatePartSelected,
 } from '@/features/video/model/inputSlice'
 import { selectDuplicateIndices } from '@/features/video/model/selectors'
 import { setVideo } from '@/features/video/model/videoSlice'
@@ -201,6 +203,51 @@ export const useVideoInfo = () => {
     partValidFlags.every((f) => f) &&
     !hasDuplicates &&
     selectedCount > 0
+
+  // Track if we're processing a pending download to prevent race conditions
+  const isProcessingPendingRef = useRef(false)
+
+  /**
+   * Handles pending download from watch history navigation.
+   *
+   * When navigating from the watch history page with a pending download:
+   * 1. Constructs the URL from bvid and page
+   * 2. Fetches video info (triggers initPartInputs)
+   */
+  useEffect(() => {
+    if (!input.pendingDownload || isProcessingPendingRef.current) return
+
+    const { bvid, page } = input.pendingDownload
+    const url = `https://www.bilibili.com/video/${bvid}?p=${page}`
+
+    isProcessingPendingRef.current = true
+    onValid1(url)
+  }, [input.pendingDownload])
+
+  /**
+   * Handles part selection after video info is fetched for pending download.
+   *
+   * After video info is loaded (video.parts populated):
+   * 1. Deselects all parts except the target cid
+   * 2. Clears the pending download state
+   * Note: Does NOT start download automatically - user must click download button
+   */
+  useEffect(() => {
+    if (!input.pendingDownload || video.parts.length === 0) return
+    if (!isProcessingPendingRef.current) return
+
+    const { cid } = input.pendingDownload
+
+    // Deselect all parts first, then select only the target part
+    input.partInputs.forEach((pi, idx) => {
+      const shouldSelect = pi.cid === cid
+      store.dispatch(updatePartSelected({ index: idx, selected: shouldSelect }))
+    })
+
+    // Clear pending download - user can now manually trigger download
+    store.dispatch(clearPendingDownload())
+    isProcessingPendingRef.current = false
+  }, [video.parts, input.pendingDownload])
 
   /**
    * Initiates the download process for selected video parts.

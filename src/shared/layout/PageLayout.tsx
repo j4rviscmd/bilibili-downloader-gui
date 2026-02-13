@@ -8,6 +8,7 @@ import {
   SidebarFooter,
   SidebarInset,
   SidebarMenu,
+  SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
   SidebarRail,
@@ -23,9 +24,10 @@ import AppBar from '@/shared/ui/AppBar/AppBar'
 import { Button } from '@/shared/ui/button'
 import { NavigationSidebarHeader } from '@/shared/ui/NavigationSidebar'
 import { ScrollArea, ScrollBar } from '@/shared/ui/scroll-area'
-import { PanelLeft, PanelLeftClose } from 'lucide-react'
+import { Download, PanelLeft, PanelLeftClose } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useLocation, useNavigate } from 'react-router'
 
 /**
  * Props for PageLayout component.
@@ -69,12 +71,9 @@ export interface PageLayoutProps {
  * </PageLayout>
  * ```
  */
+
 /**
  * Custom sidebar trigger with dynamic icon and accessibility improvements.
- *
- * - Shows PanelLeft when collapsed, PanelLeftClose when expanded
- * - Includes aria-label for screen readers
- * - Uses sidebar Tooltip component for consistent styling
  */
 function EnhancedSidebarTrigger({ className }: { className?: string }) {
   const { state, toggleSidebar } = useSidebar()
@@ -114,6 +113,9 @@ export function PageLayout({
 }: PageLayoutProps) {
   const { user } = useUser()
   const { theme, setTheme } = useTheme()
+  const { t } = useTranslation()
+  const navigate = useNavigate()
+  const location = useLocation()
 
   const content = (
     <div
@@ -134,6 +136,17 @@ export function PageLayout({
           <SidebarContent />
           <SidebarFooter>
             <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={location.pathname === '/history'}
+                  tooltip={t('nav.downloadHistory')}
+                  onClick={() => navigate('/history')}
+                  aria-label={t('nav.aria.downloadHistory')}
+                >
+                  <Download />
+                  <span>{t('nav.downloadHistory')}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
               <SidebarMenuItem>
                 <OpenSettingsDialogButton />
               </SidebarMenuItem>

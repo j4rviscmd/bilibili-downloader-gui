@@ -17,9 +17,11 @@ export { useVideoInfo } from './hooks/useVideoInfo'
 
 // Redux slices and actions
 export {
+  clearPendingDownload,
   deselectAll,
   inputSlice,
   selectAll,
+  setPendingDownload,
   updatePartSelected,
 } from './model/inputSlice'
 export { setVideo, videoSlice } from './model/videoSlice'
@@ -50,7 +52,7 @@ export {
 } from './lib/constants'
 
 // Types
-export type { Input, Video } from './types'
+export type { Input, PendingDownload, Video } from './types'
 
 // UI components
 export { default as DownloadButton } from './ui/DownloadButton'

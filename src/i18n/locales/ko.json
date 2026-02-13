@@ -6,13 +6,15 @@
   },
   "nav": {
     "home": "홈",
-    "history": "기록",
+    "downloadHistory": "다운로드 기록",
+    "watchHistory": "시청 기록",
     "init": "초기화",
     "error": "오류",
     "aria": {
       "mainNavigation": "메인 내비게이션",
       "home": "다운로드 페이지로 이동",
-      "history": "기록 페이지로 이동",
+      "downloadHistory": "다운로드 기록 페이지로 이동",
+      "watchHistory": "시청 기록으로 이동",
       "toggleSidebar": "사이드바 토글",
       "openSidebar": "사이드바 열기",
       "closeSidebar": "사이드바 닫기"
@@ -280,5 +282,29 @@
   "github": {
     "stars": "{{count}}개 별",
     "repo": "GitHub에서 보기"
+  },
+  "watchHistory": {
+    "title": "시청 기록",
+    "empty": "시청 기록이 없습니다",
+    "loginRequired": "시청 기록을 보려면 로그인이 필요합니다",
+    "download": "다운로드",
+    "loading": "로딩 중...",
+    "loadMore": "더 불러오기",
+    "search": "기록 검색...",
+    "error": "시청 기록을 불러오지 못했습니다",
+    "filter": {
+      "all": "전체",
+      "today": "오늘",
+      "week": "이번 주",
+      "month": "이번 달"
+    },
+    "time": {
+      "daysAgo": "{{count}}일 전",
+      "hoursAgo": "{{count}}시간 전",
+      "minutesAgo": "{{count}}분 전",
+      "justNow": "방금",
+      "durationHMS": "{{hours}}시간 {{minutes}}분 {{seconds}}초",
+      "durationMS": "{{minutes}}분 {{seconds}}초"
+    }
   }
 }

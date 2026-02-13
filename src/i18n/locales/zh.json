@@ -6,13 +6,15 @@
   },
   "nav": {
     "home": "主页",
-    "history": "历史",
+    "downloadHistory": "下载历史",
+    "watchHistory": "观看历史",
     "init": "初始化",
     "error": "错误",
     "aria": {
       "mainNavigation": "主导航",
       "home": "前往下载页面",
-      "history": "前往历史页面",
+      "downloadHistory": "前往下载历史页面",
+      "watchHistory": "转到观看历史",
       "toggleSidebar": "切换侧边栏",
       "openSidebar": "打开侧边栏",
       "closeSidebar": "关闭侧边栏"
@@ -280,5 +282,29 @@
   "github": {
     "stars": "{{count}} 星标",
     "repo": "在 GitHub 上查看"
+  },
+  "watchHistory": {
+    "title": "观看历史",
+    "empty": "暂无观看历史",
+    "loginRequired": "需要登录才能查看观看历史",
+    "download": "下载",
+    "loading": "加载中...",
+    "loadMore": "加载更多",
+    "search": "搜索历史...",
+    "error": "加载观看历史失败",
+    "filter": {
+      "all": "全部",
+      "today": "今天",
+      "week": "本周",
+      "month": "本月"
+    },
+    "time": {
+      "daysAgo": "{{count}}天前",
+      "hoursAgo": "{{count}}小时前",
+      "minutesAgo": "{{count}}分钟前",
+      "justNow": "刚刚",
+      "durationHMS": "{{hours}}小时{{minutes}}分{{seconds}}秒",
+      "durationMS": "{{minutes}}分{{seconds}}秒"
+    }
   }
 }

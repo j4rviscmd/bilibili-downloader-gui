@@ -1,10 +1,11 @@
-import type { Input } from '@/features/video/types'
+import type { Input, PendingDownload } from '@/features/video/types'
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 
 const initialState: Input = {
   url: '',
   partInputs: [],
+  pendingDownload: null,
 }
 
 /**
@@ -131,17 +132,41 @@ export const inputSlice = createSlice({
     resetInput: () => {
       return initialState
     },
+    /**
+     * Sets a pending download from watch history navigation.
+     *
+     * Used to initiate automatic download when navigating from
+     * the watch history page.
+     *
+     * @param state - Current input state
+     * @param action - Action containing the pending download info
+     */
+    setPendingDownload: (state, action: PayloadAction<PendingDownload>) => {
+      state.pendingDownload = action.payload
+    },
+    /**
+     * Clears the pending download.
+     *
+     * Called after the pending download has been processed.
+     *
+     * @param state - Current input state
+     */
+    clearPendingDownload: (state) => {
+      state.pendingDownload = null
+    },
   },
 })
 
 export const {
-  setInput,
-  setUrl,
+  clearPendingDownload,
+  deselectAll,
   initPartInputs,
+  resetInput,
+  selectAll,
+  setInput,
+  setPendingDownload,
+  setUrl,
   updatePartInputByIndex,
   updatePartSelected,
-  selectAll,
-  deselectAll,
-  resetInput,
 } = inputSlice.actions
 export default inputSlice.reducer
