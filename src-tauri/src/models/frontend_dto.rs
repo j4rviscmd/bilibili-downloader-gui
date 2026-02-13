@@ -25,6 +25,8 @@ pub struct User {
 /// extracted from Bilibili API responses.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserData {
+    /// User's member ID
+    pub mid: Option<i64>,
     /// Username (display name) of the logged-in user
     pub uname: Option<String>,
     /// Authentication status flag
@@ -84,6 +86,71 @@ pub struct Quality {
     /// Codec ID
     pub codecid: i16,
 }
+
+// ============================================================================
+// Favorite DTOs
+// ============================================================================
+
+/// Favorite folder information sent to the frontend.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FavoriteFolder {
+    pub id: i64,
+    pub title: String,
+    #[serde(default)]
+    pub cover: Option<String>,
+    pub media_count: i64,
+    #[serde(default)]
+    pub upper: Option<FavoriteFolderUpperDto>,
+}
+
+/// Upper (creator) information for favorite folder DTO.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FavoriteFolderUpperDto {
+    pub mid: i64,
+    pub name: String,
+    pub face: String,
+}
+
+/// Favorite video item sent to the frontend.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FavoriteVideo {
+    pub id: i64,
+    pub bvid: String,
+    pub title: String,
+    pub cover: String,
+    pub duration: i64,
+    pub page: i32,
+    pub upper: FavoriteVideoUpperDto,
+    pub attr: i32,
+    pub play_count: i64,
+    pub collect_count: i64,
+    pub link: String,
+}
+
+/// Upper (uploader) information for favorite video DTO.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FavoriteVideoUpperDto {
+    pub mid: i64,
+    pub name: String,
+    pub face: String,
+}
+
+/// Paginated favorite video list response.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FavoriteVideoListResponse {
+    pub videos: Vec<FavoriteVideo>,
+    pub has_more: bool,
+    pub total_count: i64,
+}
+
+// ============================================================================
+// Watch History DTOs
+// ============================================================================
 
 /// Watch history entry sent to the frontend.
 ///

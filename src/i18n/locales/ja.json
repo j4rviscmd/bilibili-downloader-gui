@@ -8,13 +8,16 @@
     "home": "ホーム",
     "downloadHistory": "ダウンロード履歴",
     "watchHistory": "視聴履歴",
+    "favorite": "お気に入り",
     "init": "初期化",
     "error": "エラー",
+    "favoriteLoginRequired": "ログインが必要です",
     "aria": {
       "mainNavigation": "メインナビゲーション",
       "home": "ダウンロード画面へ移動",
       "downloadHistory": "ダウンロード履歴画面へ移動",
       "watchHistory": "視聴履歴に移動",
+      "favorite": "お気に入り画面へ移動",
       "toggleSidebar": "サイドバーを切り替え",
       "openSidebar": "サイドバーを開く",
       "closeSidebar": "サイドバーを閉じる"
@@ -288,6 +291,21 @@
   "github": {
     "stars": "{{count}} スター",
     "repo": "GitHub で見る"
+  },
+  "favorite": {
+    "title": "お気に入り",
+    "empty": "お気に入り動画がありません",
+    "selectFolder": "フォルダーを選択",
+    "refresh": "更新",
+    "refreshed": "更新しました",
+    "download": "ダウンロード",
+    "plays": "回視聴",
+    "collects": "お気に入り",
+    "loginRequired": "お気に入りを見るにはログインしてください",
+    "videoDeleted": "削除済み",
+    "downloadConfirmTitle": "ダウンロード",
+    "downloadConfirmMessage": "ホームに移動すると現在の入力がクリアされます。続けますか？",
+    "defaultFolder": "デフォルト"
   },
   "watchHistory": {
     "title": "視聴履歴",

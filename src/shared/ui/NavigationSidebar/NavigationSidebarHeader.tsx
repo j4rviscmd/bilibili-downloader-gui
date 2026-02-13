@@ -11,7 +11,7 @@ import {
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
 import { cn } from '@/shared/lib/utils'
-import { Eye, Home } from 'lucide-react'
+import { Eye, Home, Star } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router'
 
@@ -24,11 +24,15 @@ type NavigationSidebarHeaderProps = {
  *
  * Provides navigation to:
  * - Home (/home) - Video download interface
- * - History (/history) - Download history
- * - Watch History (/watch-history) - Bilibili watch history (requires login)
+ * - Favorite (/favorite) - Favorite videos (requires login)
+ * - Watch History (/watch-history) - Bilibili watch history
+ *   (requires login)
+ *
+ * Note: Download history (/history) is provided separately in SidebarFooter.
  *
  * Highlights the current page with active state styling.
- * Items requiring authentication are disabled with tooltip when not logged in.
+ * Items requiring authentication are disabled with tooltip
+ * when not logged in.
  */
 export function NavigationSidebarHeader({
   className,
@@ -37,11 +41,9 @@ export function NavigationSidebarHeader({
   const navigate = useNavigate()
   const location = useLocation()
   const user = useSelector((state) => state.user)
+  const isLoggedIn = user.hasCookie && user.data?.isLogin
 
   const currentPath = location.pathname
-
-  // Check if user is logged in for watch history access
-  const isLoggedIn = user.hasCookie && user.data?.isLogin
 
   const menuItems = [
     {
@@ -50,6 +52,13 @@ export function NavigationSidebarHeader({
       label: t('nav.home'),
       ariaLabel: t('nav.aria.home'),
       requiresAuth: false,
+    },
+    {
+      path: '/favorite',
+      icon: Star,
+      label: t('nav.favorite'),
+      ariaLabel: t('nav.aria.favorite'),
+      requiresAuth: true,
     },
     {
       path: '/watch-history',
@@ -93,7 +102,7 @@ export function NavigationSidebarHeader({
                   <Tooltip>
                     <TooltipTrigger asChild>{button}</TooltipTrigger>
                     <TooltipContent>
-                      <p>{t('watchHistory.loginRequired')}</p>
+                      <p>{t('nav.favoriteLoginRequired')}</p>
                     </TooltipContent>
                   </Tooltip>
                 ) : (

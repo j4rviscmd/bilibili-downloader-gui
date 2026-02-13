@@ -8,13 +8,16 @@
     "home": "홈",
     "downloadHistory": "다운로드 기록",
     "watchHistory": "시청 기록",
+    "favorite": "즐겨찾기",
     "init": "초기화",
     "error": "오류",
+    "favoriteLoginRequired": "로그인 필요",
     "aria": {
       "mainNavigation": "메인 내비게이션",
       "home": "다운로드 페이지로 이동",
       "downloadHistory": "다운로드 기록 페이지로 이동",
       "watchHistory": "시청 기록으로 이동",
+      "favorite": "즐겨찾기 페이지로 이동",
       "toggleSidebar": "사이드바 토글",
       "openSidebar": "사이드바 열기",
       "closeSidebar": "사이드바 닫기"
@@ -282,6 +285,21 @@
   "github": {
     "stars": "{{count}}개 별",
     "repo": "GitHub에서 보기"
+  },
+  "favorite": {
+    "title": "즐겨찾기",
+    "empty": "즐겨찾기 동영상이 없습니다",
+    "selectFolder": "폴더 선택",
+    "refresh": "새로고침",
+    "refreshed": "새로고침 완료",
+    "download": "다운로드",
+    "plays": "회 재생",
+    "collects": "즐겨찾기",
+    "loginRequired": "즐겨찾기를 보려면 로그인해주세요",
+    "videoDeleted": "삭제됨",
+    "downloadConfirmTitle": "다운로드",
+    "downloadConfirmMessage": "홈으로 이동하면 현재 입력이 지워집니다. 계속하시겠습니까?",
+    "defaultFolder": "기본"
   },
   "watchHistory": {
     "title": "시청 기록",

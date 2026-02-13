@@ -8,13 +8,16 @@
     "home": "Inicio",
     "downloadHistory": "Historial de descargas",
     "watchHistory": "Historial de visualización",
+    "favorite": "Favoritos",
     "init": "Inicialización",
     "error": "Error",
+    "favoriteLoginRequired": "Requiere inicio de sesión",
     "aria": {
       "mainNavigation": "Navegación principal",
       "home": "Ir a la página de descarga",
       "downloadHistory": "Ir al historial de descargas",
       "watchHistory": "Ir al historial de visualización",
+      "favorite": "Ir a la página de favoritos",
       "toggleSidebar": "Alternar barra lateral",
       "openSidebar": "Abrir barra lateral",
       "closeSidebar": "Cerrar barra lateral"
@@ -282,6 +285,21 @@
   "github": {
     "stars": "{{count}} estrellas",
     "repo": "Ver en GitHub"
+  },
+  "favorite": {
+    "title": "Favoritos",
+    "empty": "Sin videos favoritos",
+    "selectFolder": "Seleccionar carpeta",
+    "refresh": "Actualizar",
+    "refreshed": "Actualizado",
+    "download": "Descargar",
+    "plays": "reproducciones",
+    "collects": "favoritos",
+    "loginRequired": "Inicia sesión para ver tus favoritos",
+    "videoDeleted": "Eliminado",
+    "downloadConfirmTitle": "Descargar",
+    "downloadConfirmMessage": "Ir al inicio borrará tu entrada actual. ¿Continuar?",
+    "defaultFolder": "Predeterminado"
   },
   "watchHistory": {
     "title": "Historial de visualización",

@@ -20,6 +20,8 @@ export type User = {
  * User information data.
  */
 type UserData = {
+  /** User's member ID */
+  mid?: number
   /** Username (display name) */
   uname: string
   /** Whether the user is currently logged in */

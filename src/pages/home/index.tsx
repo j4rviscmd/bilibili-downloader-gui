@@ -29,7 +29,7 @@ import { Separator } from '@/shared/ui/separator'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
-import { useNavigate } from 'react-router'
+import { useNavigate, useSearchParams } from 'react-router'
 
 /**
  * Home page component (main application view).
@@ -44,6 +44,7 @@ import { useNavigate } from 'react-router'
  * - Download progress (inline in each part card)
  *
  * Redirects to /init if the app is not initialized.
+ * Supports autoFetch query parameter to automatically fetch video info.
  *
  * @example
  * ```tsx
@@ -53,13 +54,24 @@ import { useNavigate } from 'react-router'
 function HomePage() {
   const { initiated } = useInit()
   const navigate = useNavigate()
-  const { video, duplicateIndices } = useVideoInfo()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const { video, duplicateIndices, onValid1, isFetching } = useVideoInfo()
   const { t } = useTranslation()
   const isMobile = useIsMobile()
   const hasActiveDownloads = useSelector(selectHasActiveDownloads)
 
   // Collapsed parts state for mobile (parts 3+ are collapsed by default on mobile)
   const [collapsedParts, setCollapsedParts] = useState<Set<number>>(new Set())
+
+  // Handle autoFetch from query parameter
+  useEffect(() => {
+    const autoFetchUrl = searchParams.get('autoFetch')
+    if (autoFetchUrl && !isFetching && video.parts.length === 0) {
+      searchParams.delete('autoFetch')
+      setSearchParams(searchParams, { replace: true })
+      onValid1(autoFetchUrl)
+    }
+  }, [searchParams, isFetching, video.parts.length, onValid1, setSearchParams])
 
   // Initialize collapsed parts for mobile (parts 3+ are collapsed)
   useEffect(() => {

@@ -8,13 +8,16 @@
     "home": "Home",
     "downloadHistory": "Download History",
     "watchHistory": "Watch History",
+    "favorite": "Favorites",
     "init": "Init",
     "error": "Error",
+    "favoriteLoginRequired": "Login required",
     "aria": {
       "mainNavigation": "Main navigation",
       "home": "Navigate to download page",
       "downloadHistory": "Navigate to download history",
       "watchHistory": "Navigate to watch history",
+      "favorite": "Navigate to favorites page",
       "toggleSidebar": "Toggle Sidebar",
       "openSidebar": "Open sidebar",
       "closeSidebar": "Close sidebar"
@@ -288,6 +291,21 @@
   "github": {
     "stars": "{{count}} stars",
     "repo": "View on GitHub"
+  },
+  "favorite": {
+    "title": "Favorites",
+    "empty": "No favorite videos",
+    "selectFolder": "Select folder",
+    "refresh": "Refresh",
+    "refreshed": "Refreshed",
+    "download": "Download",
+    "plays": "plays",
+    "collects": "favorites",
+    "loginRequired": "Please log in to view your favorites",
+    "videoDeleted": "Deleted",
+    "downloadConfirmTitle": "Download",
+    "downloadConfirmMessage": "Navigating to home will clear your current input. Continue?",
+    "defaultFolder": "Default"
   },
   "watchHistory": {
     "title": "Watch History",

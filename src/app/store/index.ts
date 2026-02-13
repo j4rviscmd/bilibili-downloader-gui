@@ -1,4 +1,5 @@
 import countReducer from '@/features/count/model/countSlice'
+import favoriteReducer from '@/features/favorite/model/favoriteSlice'
 import historyReducer from '@/features/history/model/historySlice'
 import thumbnailCacheReducer from '@/features/history/model/thumbnailSlice'
 import initReducer from '@/features/init/model/initSlice'
@@ -30,6 +31,7 @@ export const store = configureStore({
   reducer: {
     count: countReducer,
     downloadStatus: downloadStatusReducer,
+    favorite: favoriteReducer,
     history: historyReducer,
     init: initReducer,
     input: inputReducer,
