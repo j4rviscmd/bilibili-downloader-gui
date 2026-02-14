@@ -46,7 +46,9 @@ function InitPage() {
         return
       }
       const validErrorCodes = [1, 2, 3, 4, 5, 6]
-      const errorCode = validErrorCodes.includes(result.code) ? result.code : 255
+      const errorCode = validErrorCodes.includes(result.code)
+        ? result.code
+        : 255
       navigate('/error', {
         state: { errorCode, errorDetail: result.detail },
         replace: true,

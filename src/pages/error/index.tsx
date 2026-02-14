@@ -69,7 +69,7 @@ function ErrorMessage({
         <>
           <span>{t('errorPage.settings_init_failed')}</span>
           {errorDetail && (
-            <div className="text-muted-foreground mt-1 max-w-md break-all text-center font-mono text-xs">
+            <div className="text-muted-foreground mt-1 max-w-md text-center font-mono text-xs break-all">
               {errorDetail}
             </div>
           )}
@@ -137,7 +137,7 @@ function ErrorPage() {
           {t('errorPage.try_restart')}
         </div>
       )}
-      <div className="flex gap-3 m-3">
+      <div className="m-3 flex gap-3">
         {errorCode === 6 && (
           <Button onClick={handleRelaunch} variant="default" className="p-3">
             {t('errorPage.restart_app')}
