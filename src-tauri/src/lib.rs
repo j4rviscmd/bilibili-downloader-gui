@@ -18,6 +18,8 @@ use crate::handlers::github;
 use crate::handlers::settings;
 use crate::handlers::updater;
 use crate::models::cookie::CookieCache;
+#[cfg(debug_assertions)]
+use crate::models::cookie::SimulateLogoutFlag;
 use crate::models::frontend_dto::FavoriteFolder;
 use crate::models::frontend_dto::FavoriteVideoListResponse;
 use crate::models::frontend_dto::User;
@@ -112,11 +114,19 @@ pub fn run() {
             fetch_watch_history,
             cleanup_temp_files,
             // record_download_click  // NOTE: GA4 Analytics は無効化されています
+            #[cfg(debug_assertions)]
+            set_simulate_logout,
         ])
         // 開発環境以外で`app`宣言ではBuildに失敗するため、`_app`を使用
         .setup(|app| {
             // Cookieキャッシュを初期化
             app.manage(CookieCache::default());
+
+            // Development mode: Initialize simulate logout flag
+            #[cfg(debug_assertions)]
+            {
+                app.manage(SimulateLogoutFlag::default());
+            }
 
             // Analytics 初期化 (非同期で失敗握りつぶし)
             // NOTE: GA4 Analytics は無効化されています
@@ -907,4 +917,39 @@ async fn fetch_watch_history(
 #[tauri::command]
 async fn cleanup_temp_files(app: AppHandle) -> Result<cleanup::CleanupResult, String> {
     Ok(cleanup::cleanup_temp_files(&app, None))
+}
+
+/// Sets the simulate logout flag for development mode.
+///
+/// When enabled, all API requests will behave as if the user is not logged in,
+/// regardless of whether valid cookies are present. This allows testing
+/// non-logged-in user behavior without actually clearing cookies.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle for accessing the flag state
+/// * `enabled` - Whether to enable or disable the simulate logout flag
+///
+/// # Returns
+///
+/// Returns `Ok(())` on success.
+///
+/// # Errors
+///
+/// Returns an error if the flag state cannot be accessed.
+///
+/// # Note
+///
+/// This command is only available in debug builds. Calling it in release
+/// builds will result in a "command not found" error.
+#[cfg(debug_assertions)]
+#[tauri::command]
+async fn set_simulate_logout(app: AppHandle, enabled: bool) -> Result<(), String> {
+    if let Some(flag) = app.try_state::<SimulateLogoutFlag>() {
+        if let Ok(mut guard) = flag.enabled.lock() {
+            *guard = enabled;
+            return Ok(());
+        }
+    }
+    Err("Failed to access simulate logout state".to_string())
 }

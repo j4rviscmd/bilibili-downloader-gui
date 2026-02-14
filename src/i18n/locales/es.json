@@ -186,6 +186,11 @@
       "error": "Error en la verificación",
       "unknown_version": "Desconocido",
       "dev_mode_disabled": "La verificación de actualizaciones está deshabilitada en modo desarrollo"
+    },
+    "dev_options": {
+      "title": "Opciones de desarrollo",
+      "simulate_logout": "Simular estado sin sesión iniciada",
+      "simulate_logout_description": "Cuando está habilitado, la aplicación funciona como si no hubieras iniciado sesión (para pruebas)."
     }
   },
   "validation": {

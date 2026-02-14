@@ -186,6 +186,11 @@
       "error": "Échec de la vérification",
       "unknown_version": "Inconnu",
       "dev_mode_disabled": "La vérification des mises à jour est désactivée en mode développement"
+    },
+    "dev_options": {
+      "title": "Options de développement",
+      "simulate_logout": "Simuler l'état non connecté",
+      "simulate_logout_description": "Lorsqu'activé, l'application se comporte comme si vous n'étiez pas connecté (à des fins de test)."
     }
   },
   "validation": {

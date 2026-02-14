@@ -30,3 +30,13 @@ pub struct CookieCache {
     /// Thread-safe storage for cookie entries
     pub cookies: Mutex<Vec<CookieEntry>>,
 }
+
+/// Development mode flag to simulate non-logged-in user state.
+///
+/// When enabled, all cookie reads return empty results, forcing
+/// non-authenticated API behavior. Only available in debug builds.
+#[derive(Default)]
+pub struct SimulateLogoutFlag {
+    /// Thread-safe flag indicating whether to simulate logout state
+    pub enabled: Mutex<bool>,
+}

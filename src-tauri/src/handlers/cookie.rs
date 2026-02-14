@@ -11,6 +11,8 @@ use tauri::Manager;
 
 use crate::models::cookie::CookieCache;
 use crate::models::cookie::CookieEntry;
+#[cfg(debug_assertions)]
+use crate::models::cookie::SimulateLogoutFlag;
 
 /// Reads cookies from the application's memory cache.
 ///
@@ -24,11 +26,24 @@ use crate::models::cookie::CookieEntry;
 /// # Returns
 ///
 /// Returns `Ok(Some(cookies))` if cookies are cached, `Ok(None)` if the cache is empty.
+/// Returns `Ok(Some([]))` if simulate logout flag is enabled (development mode only).
 ///
 /// # Errors
 ///
 /// Returns an error if the cache state cannot be accessed (should not normally occur).
 pub fn read_cookie(app: &AppHandle) -> Result<Option<Vec<CookieEntry>>, String> {
+    // Development mode: check if simulate logout is enabled
+    #[cfg(debug_assertions)]
+    {
+        if let Some(flag) = app.try_state::<SimulateLogoutFlag>() {
+            if let Ok(enabled) = flag.enabled.lock() {
+                if *enabled {
+                    return Ok(Some(vec![]));
+                }
+            }
+        }
+    }
+
     // キャッシュを参照する場合は、app.state::<CookieCache>().cookies.lock() から取出
     if let Some(cache) = app.try_state::<CookieCache>() {
         if let Ok(guard) = cache.cookies.lock() {
