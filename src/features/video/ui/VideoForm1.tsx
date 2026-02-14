@@ -3,6 +3,7 @@ import {
   buildVideoFormSchema1,
   formSchema1,
 } from '@/features/video/lib/formSchema'
+import { cn } from '@/shared/lib/utils'
 import { selectHasActiveDownloads } from '@/shared/queue'
 import {
   Form,
@@ -12,7 +13,6 @@ import {
   FormMessage,
 } from '@/shared/ui/form'
 import { Input } from '@/shared/ui/input'
-import { cn } from '@/shared/lib/utils'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { CircleX, Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
