@@ -140,6 +140,9 @@
     "user_info_failed": "No se pudo obtener la información del usuario.",
     "user_info_failed_other": "No se pudo obtener la información del usuario (no relacionado con sesión).",
     "version_check_failed": "Falló la verificación de la versión de la aplicación.",
+    "settings_init_failed": "Error al inicializar el archivo de configuración.",
+    "try_restart": "Reiniciar la aplicación podría resolver este problema.",
+    "restart_app": "Reiniciar aplicación",
     "unexpected": "Ocurrió un error inesperado.",
     "visit_and_login": "Asegúrate de haber iniciado sesión en",
     "quit_app": "Salir de la aplicación"

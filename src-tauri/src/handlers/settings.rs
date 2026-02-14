@@ -6,9 +6,7 @@
 use std::{fs, path::PathBuf};
 
 use crate::{models::settings::Settings, utils::paths};
-use anyhow::Result;
 use tauri::{AppHandle, Manager};
-use tokio::{fs::File, io::AsyncWriteExt};
 
 /// Saves application settings to the settings.json file.
 ///
@@ -59,9 +57,9 @@ pub async fn set_settings(app: &AppHandle, settings: &Settings) -> Result<(), St
 
 /// Loads application settings from the settings.json file.
 ///
-/// If the settings file doesn't exist, it creates one with default values.
 /// Falls back to the system's default download directory if no custom path
-/// is configured.
+/// is configured. If the file doesn't exist or is corrupted, returns default
+/// settings without creating the file (file is only created on `set_settings`).
 ///
 /// # Arguments
 ///
@@ -70,80 +68,53 @@ pub async fn set_settings(app: &AppHandle, settings: &Settings) -> Result<(), St
 /// # Returns
 ///
 /// Returns the current application settings with defaults applied as needed.
-///
-/// # Errors
-///
-/// Returns an error if:
-/// - JSON parsing fails
-/// - File read fails (after initial creation attempt)
+/// Never fails - returns defaults on any error.
 pub async fn get_settings(app: &AppHandle) -> Result<Settings, String> {
     let filepath = paths::get_settings_path(app);
-    let _ = validate_settings(app, &filepath).await;
 
-    let settings_str = fs::read_to_string(&filepath).unwrap_or_default();
-    let mut settings: Settings = serde_json::from_str(&settings_str)
-        .map_err(|e| format!("Failed to parse settings.json: {}", e))?;
+    // Try to read settings from file
+    let settings: Settings = if filepath.exists() {
+        match fs::read_to_string(&filepath) {
+            Ok(content) if !content.trim().is_empty() => match serde_json::from_str(&content) {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("Failed to parse settings.json: {}. Using defaults.", e);
+                    Settings::default()
+                }
+            },
+            Ok(_) => {
+                // Empty file - use defaults
+                Settings::default()
+            }
+            Err(e) => {
+                eprintln!("Failed to read settings.json: {}. Using defaults.", e);
+                Settings::default()
+            }
+        }
+    } else {
+        // File doesn't exist - use defaults without creating file
+        Settings::default()
+    };
 
-    // Set default download directory if not configured
-    if settings
+    // Apply default download directory if not set
+    let settings = if settings
         .dl_output_path
         .as_ref()
         .is_none_or(|p| p.is_empty())
     {
-        if let Ok(download_dir) = app.path().download_dir() {
-            if let Some(path_str) = download_dir.to_str() {
-                settings.dl_output_path = Some(path_str.to_string());
-            }
+        let default_path = app
+            .path()
+            .download_dir()
+            .ok()
+            .and_then(|p| p.to_str().map(|s| s.to_string()));
+
+        Settings {
+            dl_output_path: default_path.or(settings.dl_output_path),
+            ..settings
         }
-    }
-
-    Ok(settings.clone())
-}
-
-/// Validates that the settings file exists, creating it with defaults if missing.
-///
-/// This internal function ensures the settings file and its parent directory
-/// exist, creating them with sensible defaults if they don't.
-///
-/// # Arguments
-///
-/// * `app` - Tauri application handle for accessing system paths
-/// * `filepath` - Path to the settings.json file
-///
-/// # Returns
-///
-/// Returns `Ok(true)` whether the file existed or was newly created.
-///
-/// # Errors
-///
-/// Returns an error if:
-/// - Directory creation fails
-/// - File creation fails
-/// - JSON serialization fails
-async fn validate_settings(app: &AppHandle, filepath: &PathBuf) -> Result<bool> {
-    if filepath.exists() {
-        return Ok(true);
-    }
-
-    // Create parent directory if it doesn't exist
-    if let Some(parent) = filepath.parent() {
-        fs::create_dir_all(parent)?;
-    }
-
-    // Build default settings with download directory fallback
-    let default_dl_path = app
-        .path()
-        .download_dir()
-        .ok()
-        .and_then(|p| p.to_str().map(|s| s.to_string()));
-    let default_settings = Settings {
-        dl_output_path: default_dl_path,
-        ..Default::default()
+    } else {
+        settings
     };
-    let json = serde_json::to_string_pretty(&default_settings)?;
 
-    let mut file = File::create(filepath).await?;
-    file.write_all(json.as_bytes()).await?;
-
-    Ok(true)
+    Ok(settings)
 }

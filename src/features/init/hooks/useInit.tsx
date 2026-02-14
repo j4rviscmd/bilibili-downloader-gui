@@ -13,6 +13,11 @@ import { exit } from '@tauri-apps/plugin-process'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 
+export interface InitResult {
+  code: number
+  detail?: string
+}
+
 /**
  * Custom hook for managing application initialization sequence.
  *
@@ -32,10 +37,10 @@ import { useSelector } from 'react-redux'
  *   quitApp
  * } = useInit()
  *
- * const resultCode = await initApp()
- * if (resultCode !== 0) {
+ * const result = await initApp()
+ * if (result.code !== 0) {
  *   // Handle initialization error
- *   console.error('Init failed with code:', resultCode)
+ *   console.error('Init failed with code:', result.code, 'detail:', result.detail)
  * }
  * ```
  */
@@ -90,15 +95,16 @@ export const useInit = () => {
    *
    * TODO: Move invoke calls to api/ directory.
    *
-   * @returns A status code indicating the result:
+   * @returns An object containing status code and optional error detail:
    * - 0: Success
    * - 1: ffmpeg check failed
    * - 2: Cookie check failed
    * - 3: User info fetch failed (not logged in)
    * - 4: User info fetch failed (other error)
+   * - 5: Version check failed
    * - 255: Unexpected error
    */
-  const initApp = async (): Promise<number> => {
+  const initApp = async (): Promise<InitResult> => {
     console.log('Application initialization started')
     // Fire & forget OS detection (don't await)
     getOs().then((os) => console.log('Detected OS:', os))
@@ -120,7 +126,7 @@ export const useInit = () => {
     // Early exit on version check failure
     if (!(await checkVersion())) {
       await finalizeInit(5)
-      return 5
+      return { code: 5 }
     }
 
     const settings = await getAppSettings()
@@ -129,7 +135,7 @@ export const useInit = () => {
     // Early exit on ffmpeg check failure
     if (!(await checkFfmpeg())) {
       await finalizeInit(1)
-      return 1
+      return { code: 1 }
     }
 
     // Cookie check (continue for non-logged-in users even without cookie)
@@ -138,7 +144,7 @@ export const useInit = () => {
     await getUserInfo()
 
     await finalizeInit(0)
-    return 0
+    return { code: 0 }
   }
 
   /**

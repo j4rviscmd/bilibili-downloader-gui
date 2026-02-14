@@ -1,6 +1,7 @@
 import { useInit } from '@/features/init'
 import { Button } from '@/shared/ui/button'
 import { openUrl } from '@tauri-apps/plugin-opener'
+import { relaunch } from '@tauri-apps/plugin-process'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router'
@@ -11,6 +12,8 @@ import { useLocation } from 'react-router'
 interface ErrorMessageProps {
   /** Initialization error code */
   errorCode: number
+  /** Optional error detail from backend */
+  errorDetail?: string
   /** Callback to open Bilibili in browser */
   onClickUri: () => void
 }
@@ -24,11 +27,16 @@ interface ErrorMessageProps {
  * - 3: User info failed (not logged in)
  * - 4: User info failed (other error)
  * - 5: Version check failed
+ * - 6: Settings initialization failed
  * - default: Unexpected error
  *
  * @param props - Component props
  */
-function ErrorMessage({ errorCode, onClickUri }: ErrorMessageProps): ReactNode {
+function ErrorMessage({
+  errorCode,
+  errorDetail,
+  onClickUri,
+}: ErrorMessageProps): ReactNode {
   const { t } = useTranslation()
 
   switch (errorCode) {
@@ -56,6 +64,17 @@ function ErrorMessage({ errorCode, onClickUri }: ErrorMessageProps): ReactNode {
       return t('errorPage.user_info_failed_other')
     case 5:
       return t('errorPage.version_check_failed')
+    case 6:
+      return (
+        <>
+          <span>{t('errorPage.settings_init_failed')}</span>
+          {errorDetail && (
+            <div className="text-muted-foreground mt-1 max-w-md text-center font-mono text-xs break-all">
+              {errorDetail}
+            </div>
+          )}
+        </>
+      )
     default:
       return t('errorPage.unexpected')
   }
@@ -75,12 +94,16 @@ function ErrorMessage({ errorCode, onClickUri }: ErrorMessageProps): ReactNode {
  */
 function ErrorPage() {
   const location = useLocation()
-  const { errorCode } = location.state || { errorCode: 0 }
+  const { errorCode, errorDetail } = location.state || { errorCode: 0 }
   const { quitApp } = useInit()
   const { t } = useTranslation()
 
   const handleOpenBilibili = async () => {
     await openUrl('https://www.bilibili.com')
+  }
+
+  const handleRelaunch = async () => {
+    await relaunch()
   }
 
   return (
@@ -100,6 +123,7 @@ function ErrorPage() {
           <span>
             <ErrorMessage
               errorCode={errorCode}
+              errorDetail={errorDetail}
               onClickUri={handleOpenBilibili}
             />
           </span>
@@ -108,9 +132,21 @@ function ErrorPage() {
           {t('errorPage.code_label')} {errorCode}
         </div>
       </div>
-      <Button onClick={quitApp} variant={'destructive'} className="m-3 p-3">
-        {t('errorPage.quit_app')}
-      </Button>
+      {errorCode === 6 && (
+        <div className="text-muted-foreground text-sm">
+          {t('errorPage.try_restart')}
+        </div>
+      )}
+      <div className="m-3 flex gap-3">
+        {errorCode === 6 && (
+          <Button onClick={handleRelaunch} variant="default" className="p-3">
+            {t('errorPage.restart_app')}
+          </Button>
+        )}
+        <Button onClick={quitApp} variant="destructive" className="p-3">
+          {t('errorPage.quit_app')}
+        </Button>
+      </div>
     </div>
   )
 }
