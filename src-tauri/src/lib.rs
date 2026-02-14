@@ -10,6 +10,7 @@ use tauri::AppHandle;
 use tauri::Manager;
 
 use crate::handlers::bilibili;
+use crate::handlers::cleanup;
 use crate::handlers::cookie;
 use crate::handlers::favorites;
 use crate::handlers::ffmpeg;
@@ -109,6 +110,7 @@ pub fn run() {
             fetch_favorite_folders,
             fetch_favorite_videos,
             fetch_watch_history,
+            cleanup_temp_files,
             // record_download_click  // NOTE: GA4 Analytics は無効化されています
         ])
         // 開発環境以外で`app`宣言ではBuildに失敗するため、`_app`を使用
@@ -156,7 +158,6 @@ pub fn run() {
 /// Returns `true` if ffmpeg is installed and functional, `false` otherwise.
 #[tauri::command]
 async fn validate_ffmpeg(app: AppHandle) -> bool {
-    // ffmpegの有効性チェック処理
     ffmpeg::validate_ffmpeg(&app)
 }
 
@@ -209,10 +210,7 @@ async fn install_ffmpeg(app: AppHandle) -> Result<bool, String> {
 /// - Database read operation fails
 #[tauri::command]
 async fn get_cookie(app: AppHandle) -> Result<bool, String> {
-    // firefoxのCookie取得処理
-    let res = cookie::get_cookie(&app).await.map_err(|e| e.to_string())?;
-
-    Ok(res)
+    cookie::get_cookie(&app).await.map_err(|e| e.to_string())
 }
 
 /// Fetches the logged-in user information from Bilibili.
@@ -237,12 +235,9 @@ async fn get_cookie(app: AppHandle) -> Result<bool, String> {
 /// - Response parsing fails (when cookies are available)
 #[tauri::command]
 async fn fetch_user(app: AppHandle) -> Result<User, String> {
-    // firefoxのCookie取得処理
-    let user = bilibili::fetch_user_info(&app)
+    bilibili::fetch_user_info(&app)
         .await
-        .map_err(|e| e.to_string())?;
-
-    Ok(user)
+        .map_err(|e| e.to_string())
 }
 
 /// Retrieves comprehensive metadata for a Bilibili video.
@@ -268,11 +263,9 @@ async fn fetch_user(app: AppHandle) -> Result<User, String> {
 /// - Video is not found or inaccessible
 #[tauri::command]
 async fn fetch_video_info(app: AppHandle, video_id: String) -> Result<Video, String> {
-    let res = bilibili::fetch_video_info(&app, &video_id)
+    bilibili::fetch_video_info(&app, &video_id)
         .await
-        .map_err(|e| e.to_string())?;
-
-    Ok(res)
+        .map_err(|e| e.to_string())
 }
 
 /// Downloads a Bilibili video with specified quality settings.
@@ -333,11 +326,9 @@ async fn download_video(
 /// - JSON parsing fails
 #[tauri::command]
 async fn get_settings(app: AppHandle) -> Result<Settings, String> {
-    let res = settings::get_settings(&app)
+    settings::get_settings(&app)
         .await
-        .map_err(|e| e.to_string())?;
-
-    Ok(res)
+        .map_err(|e| e.to_string())
 }
 
 /// Updates and persists the application settings.
@@ -893,4 +884,27 @@ async fn fetch_watch_history(
     view_at: i64,
 ) -> Result<bilibili::WatchHistoryResponse, String> {
     bilibili::fetch_watch_history(&app, max, view_at).await
+}
+
+/// Cleans up orphaned temporary files from interrupted downloads.
+///
+/// Scans the lib directory for temp files matching:
+/// - `temp_video_*.m4s`
+/// - `temp_audio_*.m4s`
+///
+/// Files older than 24 hours are deleted. This is a fire-and-forget
+/// operation that logs errors instead of returning them.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle for accessing lib path
+///
+/// # Returns
+///
+/// Returns a `CleanupResult` containing:
+/// - `deleted_count`: Number of files successfully deleted
+/// - `failed_count`: Number of files that failed to delete
+#[tauri::command]
+async fn cleanup_temp_files(app: AppHandle) -> Result<cleanup::CleanupResult, String> {
+    Ok(cleanup::cleanup_temp_files(&app, None))
 }

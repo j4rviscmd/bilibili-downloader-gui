@@ -103,6 +103,20 @@ export const useInit = () => {
     // Fire & forget OS detection (don't await)
     getOs().then((os) => console.log('Detected OS:', os))
 
+    // Clean up orphaned temp files (fire-and-forget, non-blocking)
+    invoke<{ deletedCount: number; failedCount: number }>('cleanup_temp_files')
+      .then((result) => {
+        if (result.deletedCount > 0) {
+          console.log(`Cleaned up ${result.deletedCount} orphaned temp files`)
+        }
+        if (result.failedCount > 0) {
+          console.warn(`Failed to delete ${result.failedCount} temp files`)
+        }
+      })
+      .catch((e) => {
+        console.warn('Temp file cleanup failed:', e)
+      })
+
     // Early exit on version check failure
     if (!(await checkVersion())) {
       await finalizeInit(5)
@@ -170,25 +184,22 @@ export const useInit = () => {
    * false otherwise.
    */
   const checkFfmpeg = async (): Promise<boolean> => {
-    let res = false
-
     setMessage(t('init.checking_ffmpeg'))
     const isValidFfmpeg = await invoke<boolean>('validate_ffmpeg')
     if (isValidFfmpeg) {
       setMessage(t('init.ffmpeg_ok'))
-      res = true
-    } else {
-      setMessage(t('init.installing_ffmpeg'))
-      const isInstalled = await invoke('install_ffmpeg')
-      if (isInstalled) {
-        setMessage(t('init.ffmpeg_install_ok'))
-        res = true
-      } else {
-        setMessage(t('init.ffmpeg_install_failed'))
-      }
+      return true
     }
 
-    return res
+    setMessage(t('init.installing_ffmpeg'))
+    const isInstalled = await invoke<boolean>('install_ffmpeg')
+    if (isInstalled) {
+      setMessage(t('init.ffmpeg_install_ok'))
+      return true
+    }
+
+    setMessage(t('init.ffmpeg_install_failed'))
+    return false
   }
 
   /**
@@ -198,8 +209,7 @@ export const useInit = () => {
    */
   const getAppSettings = async () => {
     setMessage(t('init.fetch_settings'))
-    const settings = await getSettings()
-    return settings
+    return getSettings()
   }
 
   /**
@@ -211,11 +221,7 @@ export const useInit = () => {
    *
    * @returns Always true to continue initialization.
    */
-  const checkVersion = async (): Promise<boolean> => {
-    // Version check is now handled by UpdaterProvider with user dialog
-    // Always return true to continue initialization
-    return true
-  }
+  const checkVersion = async (): Promise<boolean> => true
 
   /**
    * Validates Bilibili cookies from Firefox.
@@ -229,9 +235,7 @@ export const useInit = () => {
    * @returns True to continue initialization.
    */
   const checkCookie = async (): Promise<boolean> => {
-    // Cookie check (detailed results hidden - use generic progress message)
     await invoke('get_cookie')
-
     return true
   }
 
