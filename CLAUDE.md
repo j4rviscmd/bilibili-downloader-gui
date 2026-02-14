@@ -6,15 +6,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Bilibili動画ダウンローダーのデスクトップアプリケーション。フロントエンドはReact + Vite + TypeScript、バックエンドはTauri (Rust)で構築されたクロスプラットフォームアプリ。
 
-## 環境変数
-
-開発時のGA4アナリティクスを有効化する場合は`.env`を作成（本番はGitHub Secretsで管理）:
-
-```env
-GA_MEASUREMENT_ID=G-XXXXXXX
-GA_API_SECRET=xxxxxxxxxxxxxxxxxxxxxxxx
-```
-
 ## アーキテクチャ
 
 ### フロントエンド構造 (src/)
