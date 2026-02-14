@@ -106,6 +106,9 @@ jobs:
           node-version: 20.x
           cache: npm
 
+      - name: Upgrade npm
+        run: npm install -g npm@11.8.0
+
       - name: Install Rust (stable)
         uses: dtolnay/rust-toolchain@stable
         with:
