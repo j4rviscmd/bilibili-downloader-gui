@@ -1,3 +1,4 @@
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { createContext, useContext, useEffect, useState } from 'react'
 
 /**
@@ -54,7 +55,6 @@ export function ThemeProvider({
   children,
   defaultTheme = 'system',
   storageKey = 'vite-ui-theme',
-  ...props
 }: ThemeProviderProps) {
   const [theme, setTheme] = useState<Theme>(
     () => (localStorage.getItem(storageKey) as Theme) || defaultTheme,
@@ -65,29 +65,34 @@ export function ThemeProvider({
 
     root.classList.remove('light', 'dark')
 
+    let effectiveTheme: 'dark' | 'light'
     if (theme === 'system') {
-      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)')
-        .matches
+      effectiveTheme = window.matchMedia('(prefers-color-scheme: dark)').matches
         ? 'dark'
         : 'light'
-
-      root.classList.add(systemTheme)
-      return
+    } else {
+      effectiveTheme = theme
     }
 
-    root.classList.add(theme)
+    root.classList.add(effectiveTheme)
+
+    // Sync Tauri window theme with the effective theme
+    getCurrentWindow()
+      .setTheme(effectiveTheme)
+      .catch(() => {
+        // Ignore errors when running outside Tauri (e.g., browser preview)
+      })
   }, [theme])
 
-  const value = {
-    theme,
-    setTheme: (theme: Theme) => {
-      localStorage.setItem(storageKey, theme)
-      setTheme(theme)
-    },
+  const setThemeAndPersist = (newTheme: Theme): void => {
+    localStorage.setItem(storageKey, newTheme)
+    setTheme(newTheme)
   }
 
+  const value = { theme, setTheme: setThemeAndPersist }
+
   return (
-    <ThemeProviderContext.Provider {...props} value={value}>
+    <ThemeProviderContext.Provider value={value}>
       {children}
     </ThemeProviderContext.Provider>
   )
