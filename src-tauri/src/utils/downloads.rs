@@ -225,9 +225,21 @@ pub async fn download_url(
             const MAX_SEG_RETRIES: u8 = 3;
             let size = e - s + 1;
             let mut reconnect_attempt: u8 = 0;
+            // Track bytes this segment has added to dl_total_c
+            // for rollback on retry
+            let seg_bytes_added = Arc::new(AtomicU64::new(0));
 
             loop {
                 attempt += 1;
+
+                // Roll back previously added bytes on retry
+                let prev = seg_bytes_added.swap(0, Ordering::Relaxed);
+                if prev > 0 {
+                    dl_total_c.fetch_sub(prev, Ordering::Relaxed);
+                    // Reset progress display after rollback
+                    emits_c.update_progress(dl_total_c.load(Ordering::Relaxed));
+                }
+
                 let req = apply_cookie(
                     client_c
                         .get(&url_c)
@@ -255,8 +267,10 @@ pub async fn download_url(
                             ));
                         }
 
-                        // Download segment with speed check and progress updates
-                        let emits_c_for_callback = emits_c.clone();
+                        // Download segment with progress tracking
+                        let emits_cb = emits_c.clone();
+                        let dl_total_cb = dl_total_c.clone();
+                        let seg_bytes_cb = seg_bytes_added.clone();
                         let download_result = download_segment_with_speed_check(
                             &mut resp,
                             idx,
@@ -265,15 +279,15 @@ pub async fn download_url(
                             MAX_SEG_RETRIES,
                             reconnect_attempt,
                             |chunk_len| {
-                                // Emit progress update via watch channel (non-blocking)
-                                // Note: Use relaxed ordering for progress tracking only
-                                let current = dl_total_c.load(Ordering::Relaxed);
-                                emits_c_for_callback.update_progress(current + chunk_len);
+                                seg_bytes_cb.fetch_add(chunk_len, Ordering::Relaxed);
+                                let new_total =
+                                    dl_total_cb.fetch_add(chunk_len, Ordering::Relaxed) + chunk_len;
+                                emits_cb.update_progress(new_total);
                             },
                         )
                         .await;
 
-                        let (buf, received, _reconnect_needed) = match download_result {
+                        let (buf, received, _) = match download_result {
                             Ok(result) => result,
                             Err(reconnect) if reconnect => {
                                 reconnect_attempt += 1;
@@ -296,10 +310,6 @@ pub async fn download_url(
 
                         // Write to file
                         write_segment(&path_c, s, &buf).await?;
-
-                        // Add confirmed segment size to total (matching pre-change behavior)
-                        let new_total = dl_total_c.fetch_add(size, Ordering::Relaxed) + size;
-                        emits_c.update_progress(new_total);
 
                         return Ok(());
                     }
