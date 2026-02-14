@@ -2,6 +2,7 @@
 //!
 //! Organized by functionality:
 //! - **bilibili**: Video info retrieval and download operations
+//! - **cleanup**: Orphaned temp file cleanup on app init
 //! - **concurrency**: Semaphore management for parallel downloads
 //! - **cookie**: Firefox cookie extraction and caching
 //! - **favorites**: Bilibili favorite folder and video retrieval
@@ -11,6 +12,7 @@
 //! - **updater**: GitHub release notes fetching
 
 pub mod bilibili;
+pub mod cleanup;
 pub mod concurrency;
 pub mod cookie;
 pub mod favorites;
