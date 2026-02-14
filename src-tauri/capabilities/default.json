@@ -5,6 +5,7 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
+    "core:window:allow-set-theme",
     "process:default",
     "opener:default",
     "shell:allow-open",
