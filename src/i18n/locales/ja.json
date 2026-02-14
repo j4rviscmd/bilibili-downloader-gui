@@ -144,6 +144,9 @@
     "user_info_failed": "ユーザ情報が取得できませんでした。",
     "user_info_failed_other": "ユーザ情報が取得できません（未ログイン以外）。",
     "version_check_failed": "アプリバージョンのチェックに失敗しました。",
+    "settings_init_failed": "設定ファイルの初期化に失敗しました。",
+    "try_restart": "アプリを再起動すると解決する場合があります。",
+    "restart_app": "アプリを再起動",
     "unexpected": "想定外のエラーが発生しました。",
     "visit_and_login": "Firefoxでログインしていることを確認してください",
     "quit_app": "アプリを終了する"

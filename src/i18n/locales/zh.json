@@ -140,6 +140,9 @@
     "user_info_failed": "无法获取用户信息。",
     "user_info_failed_other": "无法获取用户信息（非未登录原因）。",
     "version_check_failed": "应用版本检查失败。",
+    "settings_init_failed": "设置文件初始化失败。",
+    "try_restart": "重新启动应用可能会解决此问题。",
+    "restart_app": "重启应用",
     "unexpected": "发生意外错误。",
     "visit_and_login": "请确认已登录",
     "quit_app": "退出应用"

@@ -40,14 +40,17 @@ function InitPage() {
 
   useEffect(() => {
     const runInit = async (): Promise<void> => {
-      const resCode = await initApp()
-      if (resCode === 0) {
+      const result = await initApp()
+      if (result.code === 0) {
         navigate('/home')
         return
       }
-      // Error codes: 1=ffmpeg, 2=Cookie, 3=not logged in, 4=user info, 5=update check
-      const errorCode = [1, 2, 3, 4, 5].includes(resCode) ? resCode : 255
-      navigate('/error', { state: { errorCode }, replace: true })
+      const validErrorCodes = [1, 2, 3, 4, 5, 6]
+      const errorCode = validErrorCodes.includes(result.code) ? result.code : 255
+      navigate('/error', {
+        state: { errorCode, errorDetail: result.detail },
+        replace: true,
+      })
     }
 
     runInit()

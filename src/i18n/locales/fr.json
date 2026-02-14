@@ -140,6 +140,9 @@
     "user_info_failed": "Impossible d'obtenir les informations utilisateur.",
     "user_info_failed_other": "Impossible d'obtenir les informations utilisateur (autre qu'absence de connexion).",
     "version_check_failed": "Échec de la vérification de la version de l'application.",
+    "settings_init_failed": "Échec de l'initialisation du fichier de configuration.",
+    "try_restart": "Redémarrer l'application pourrait résoudre ce problème.",
+    "restart_app": "Redémarrer l'application",
     "unexpected": "Une erreur inattendue est survenue.",
     "visit_and_login": "Assurez-vous d'être connecté à",
     "quit_app": "Quitter l'application"

@@ -144,6 +144,9 @@
     "user_info_failed": "Failed to obtain user information.",
     "user_info_failed_other": "Failed to obtain user information (not login related).",
     "version_check_failed": "Failed to check application version.",
+    "settings_init_failed": "Failed to initialize settings file.",
+    "try_restart": "This issue may be resolved by restarting the app.",
+    "restart_app": "Restart App",
     "unexpected": "An unexpected error occurred.",
     "visit_and_login": "Make sure you are logged in to",
     "quit_app": "Quit App"
