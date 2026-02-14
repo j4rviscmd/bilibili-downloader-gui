@@ -12,7 +12,7 @@ use tokio::{spawn, sync::watch, sync::Mutex, time};
 
 /// Progress update interval in milliseconds.
 /// The background task emits progress events at this frequency.
-const PROGRESS_UPDATE_INTERVAL_MS: u64 = 100;
+const PROGRESS_UPDATE_INTERVAL_MS: u64 = 500;
 
 /// Progress information structure sent to the frontend.
 ///
@@ -125,7 +125,7 @@ impl Emits {
         let inner = Arc::new(Mutex::new(EmitsInner {
             progress: Progress {
                 download_id,
-                filesize: filesize_bytes.map(bytes_to_mb),
+                filesize: filesize_bytes.map(|b| round_to(bytes_to_mb(b), 1)),
                 ..Default::default()
             },
             start_instant: now,
@@ -235,7 +235,7 @@ impl Emits {
     ///
     /// * `filesize_bytes` - Total file size in bytes
     pub async fn update_total(&self, filesize_bytes: u64) {
-        let filesize_mb = filesize_bytes as f64 / (1024.0 * 1024.0);
+        let filesize_mb = round_to(filesize_bytes as f64 / (1024.0 * 1024.0), 1);
         let mut guard = self.inner.lock().await;
 
         // Skip if already set to the same value
@@ -291,7 +291,6 @@ impl Emits {
 
             // Round values for display
             if inner.progress.filesize.is_some() {
-                inner.progress.filesize = inner.progress.filesize.map(|v| round_to(v, 1));
                 inner.progress.downloaded =
                     Some(round_to(current_bytes as f64 / (1024.0 * 1024.0), 1));
                 inner.progress.percentage = round_to(inner.progress.percentage, 0);
