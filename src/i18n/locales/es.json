@@ -11,7 +11,7 @@
     "favorite": "Favoritos",
     "init": "Inicialización",
     "error": "Error",
-    "favoriteLoginRequired": "Requiere inicio de sesión",
+    "favoriteLoginRequired": "Disponible tras iniciar sesión",
     "aria": {
       "mainNavigation": "Navegación principal",
       "home": "Ir a la página de descarga",
@@ -91,12 +91,15 @@
     "download_failed_part": "Descarga fallida",
     "time_remaining": "{{time}} restante",
     "quality_limited_title": "Calidad Limitada",
-    "quality_limited_description": "Sin cookies, solo disponible menor calidad (480p o inferior).",
+    "quality_limited_description": "Si no ha iniciado sesión (sin cookies), solo 480p o inferior está disponible.",
     "quality_limited_link": "Inicia sesión en Firefox",
     "quality_limited_link_suffix": " para desbloquear mayor calidad.",
     "quality_limited_restart_note": "※ Reinicie la aplicación después de iniciar sesión.",
     "quality_limited_notice": "Menor calidad disponible debido a cookies de inicio de sesión faltantes",
-    "quality_limited_notice_detail": "Todavía puede descargar, pero la calidad se limitará a 480p o inferior. Agregue cookies de Firefox en configuración para desbloquear opciones de mayor calidad."
+    "quality_limited_notice_detail": "Todavía puede descargar, pero la calidad se limitará a 480p o inferior. Agregue cookies de Firefox en configuración para desbloquear opciones de mayor calidad.",
+    "login_benefits_title": "Descargar en HD",
+    "login_benefits_description": "Inicie sesión en <1>bilibili.com</1> en Firefox para seleccionar 1080p y calidad superior. También tendrá acceso a favoritos e historial.",
+    "login_benefits_restart_note": "※ Reinicie la aplicación después de iniciar sesión."
   },
   "progress": {
     "elapsed": "Transcurrido",

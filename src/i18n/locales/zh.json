@@ -11,7 +11,7 @@
     "favorite": "收藏",
     "init": "初始化",
     "error": "错误",
-    "favoriteLoginRequired": "需要登录",
+    "favoriteLoginRequired": "登录后可用",
     "aria": {
       "mainNavigation": "主导航",
       "home": "前往下载页面",
@@ -91,12 +91,15 @@
     "download_failed_part": "下载失败",
     "time_remaining": "剩余 {{time}}",
     "quality_limited_title": "画质受限",
-    "quality_limited_description": "没有Cookie的情况下，仅可用较低画质（480p或以下）。",
+    "quality_limited_description": "未登录（没有Cookie）的情况下，仅可用480p或以下画质。",
     "quality_limited_link": "通过Firefox登录",
     "quality_limited_link_suffix": "即可使用更高画质。",
     "quality_limited_restart_note": "※ 登录后请重启应用程序。",
     "quality_limited_notice": "由于缺少登录Cookie，仅可用较低画质",
-    "quality_limited_notice_detail": "您仍然可以下载，但画质将限制为480p或以下。在设置中添加Firefox的Cookie可解锁更高画质选项。"
+    "quality_limited_notice_detail": "您仍然可以下载，但画质将限制为480p或以下。在设置中添加Firefox的Cookie可解锁更高画质选项。",
+    "login_benefits_title": "高清下载",
+    "login_benefits_description": "在Firefox上登录 <1>bilibili.com</1> 后即可选择1080p等更高画质。收藏和观看历史也可用。",
+    "login_benefits_restart_note": "※ 登录后请重启应用程序。"
   },
   "progress": {
     "elapsed": "已用时间",

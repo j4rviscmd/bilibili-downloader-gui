@@ -11,7 +11,7 @@
     "favorite": "즐겨찾기",
     "init": "초기화",
     "error": "오류",
-    "favoriteLoginRequired": "로그인 필요",
+    "favoriteLoginRequired": "로그인 후 이용할 수 있습니다",
     "aria": {
       "mainNavigation": "메인 내비게이션",
       "home": "다운로드 페이지로 이동",
@@ -91,12 +91,15 @@
     "download_failed_part": "다운로드 실패",
     "time_remaining": "{{time}} 남음",
     "quality_limited_title": "화질 제한됨",
-    "quality_limited_description": "Cookie가 없으면 480p 이하의 낮은 화질만 이용할 수 있습니다.",
+    "quality_limited_description": "미로그인（Cookie 없음）시 480p 이하의 화질만 이용할 수 있습니다.",
     "quality_limited_link": "Firefox에서 로그인",
     "quality_limited_link_suffix": "하면 더 높은 화질을 이용할 수 있습니다.",
     "quality_limited_restart_note": "※ 로그인 후 앱을 다시 시작해 주세요.",
     "quality_limited_notice": "로그인 Cookie가 없어 낮은 화질만 이용 가능",
-    "quality_limited_notice_detail": "다운로드는 가능하지만 480p 이하로 제한됩니다. 설정에서 Firefox Cookie를 추가하면 더 높은 화질 옵션이 해제됩니다."
+    "quality_limited_notice_detail": "다운로드는 가능하지만 480p 이하로 제한됩니다. 설정에서 Firefox Cookie를 추가하면 더 높은 화질 옵션이 해제됩니다.",
+    "login_benefits_title": "고화질 다운로드",
+    "login_benefits_description": "Firefox에서 <1>bilibili.com</1>에 로그인하면 1080p 등 고화질을 선택할 수 있습니다. 즐겨찾기와 시청 기록도 이용할 수 있습니다.",
+    "login_benefits_restart_note": "※ 로그인 후 앱을 다시 시작해 주세요."
   },
   "progress": {
     "elapsed": "경과",

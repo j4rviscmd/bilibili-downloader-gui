@@ -88,8 +88,10 @@ export function NavigationSidebarHeader({
                 onClick={() => !isDisabled && navigate(item.path)}
                 aria-label={item.ariaLabel}
                 aria-current={isActive ? 'page' : undefined}
-                disabled={isDisabled}
-                className={isDisabled ? 'opacity-50' : undefined}
+                aria-disabled={isDisabled || undefined}
+                className={
+                  isDisabled ? 'cursor-not-allowed opacity-50' : undefined
+                }
               >
                 <Icon />
                 <span>{item.label}</span>
