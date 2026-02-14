@@ -190,6 +190,11 @@
       "error": "Check failed",
       "unknown_version": "Unknown",
       "dev_mode_disabled": "Update check disabled in development mode"
+    },
+    "dev_options": {
+      "title": "Developer Options",
+      "simulate_logout": "Simulate non-logged-in state",
+      "simulate_logout_description": "When enabled, the app behaves as if you are not logged in (for testing purposes)."
     }
   },
   "validation": {

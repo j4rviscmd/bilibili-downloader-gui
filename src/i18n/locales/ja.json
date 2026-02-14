@@ -190,6 +190,11 @@
       "error": "確認に失敗しました",
       "unknown_version": "不明",
       "dev_mode_disabled": "開発モードではアップデート確認は無効です"
+    },
+    "dev_options": {
+      "title": "開発者オプション",
+      "simulate_logout": "非ログイン状態をシミュレート",
+      "simulate_logout_description": "有効にすると、アプリはログインしていない状態として動作します（テスト用）。"
     }
   },
   "validation": {

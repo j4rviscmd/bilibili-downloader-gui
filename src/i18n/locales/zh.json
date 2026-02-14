@@ -186,6 +186,11 @@
       "error": "检查失败",
       "unknown_version": "未知",
       "dev_mode_disabled": "开发模式下更新检查已禁用"
+    },
+    "dev_options": {
+      "title": "开发者选项",
+      "simulate_logout": "模拟未登录状态",
+      "simulate_logout_description": "启用后，应用将以未登录状态运行（用于测试）。"
     }
   },
   "validation": {

@@ -141,7 +141,7 @@ function VideoForm1() {
                     disabled={isFetching || hasActiveDownloads}
                     {...field}
                   />
-                  {isFetching || hasActiveDownloads ? (
+                  {isFetching ? (
                     <div className="absolute top-1/2 right-3 -translate-y-1/2">
                       <Loader2 className="text-muted-foreground size-4 animate-spin" />
                     </div>

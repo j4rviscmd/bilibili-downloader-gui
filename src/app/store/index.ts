@@ -3,6 +3,7 @@ import favoriteReducer from '@/features/favorite/model/favoriteSlice'
 import historyReducer from '@/features/history/model/historySlice'
 import thumbnailCacheReducer from '@/features/history/model/thumbnailSlice'
 import initReducer from '@/features/init/model/initSlice'
+import devReducer from '@/features/settings/devSlice'
 import settingReducer from '@/features/settings/settingsSlice'
 import { sidebarReducer } from '@/features/sidebar'
 import updaterReducer from '@/features/updater/model/updaterSlice'
@@ -30,6 +31,7 @@ import {
 export const store = configureStore({
   reducer: {
     count: countReducer,
+    dev: devReducer,
     downloadStatus: downloadStatusReducer,
     favorite: favoriteReducer,
     history: historyReducer,
