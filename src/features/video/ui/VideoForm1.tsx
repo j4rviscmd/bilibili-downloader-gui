@@ -1,11 +1,10 @@
-import type { RootState } from '@/app/store'
 import { useVideoInfo } from '@/features/video/hooks/useVideoInfo'
 import {
   buildVideoFormSchema1,
   formSchema1,
 } from '@/features/video/lib/formSchema'
+import { cn } from '@/shared/lib/utils'
 import { selectHasActiveDownloads } from '@/shared/queue'
-import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import {
   Form,
   FormControl,
@@ -15,8 +14,7 @@ import {
 } from '@/shared/ui/form'
 import { Input } from '@/shared/ui/input'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { open } from '@tauri-apps/plugin-shell'
-import { AlertTriangle, CircleX, Info, Loader2 } from 'lucide-react'
+import { CircleX, Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -38,7 +36,6 @@ import { z } from 'zod'
 function VideoForm1() {
   const { input, onValid1, isFetching } = useVideoInfo()
   const { t } = useTranslation()
-  const user = useSelector((state: RootState) => state.user)
   const hasActiveDownloads = useSelector(selectHasActiveDownloads)
   const [lastFetchedUrl, setLastFetchedUrl] = useState<string>('')
 
@@ -63,21 +60,6 @@ function VideoForm1() {
     onValid1(trimmedUrl)
   }
 
-  /**
-   * Prevents default anchor/button behavior and stops event propagation.
-   *
-   * Used for links that should open in an external browser via Tauri's
-   * shell API instead of navigating within the app.
-   *
-   * @param e - The mouse event from an anchor or button element
-   */
-  function preventEventDefaults(
-    e: React.MouseEvent<HTMLAnchorElement | HTMLButtonElement>,
-  ) {
-    e.preventDefault()
-    e.stopPropagation()
-  }
-
   const placeholder =
     t('video.url_placeholder_example') ||
     'e.g. https://www.bilibili.com/video/BV1xxxxxx'
@@ -88,43 +70,6 @@ function VideoForm1() {
         onBlur={form.handleSubmit(onSubmit)}
         className="space-y-3"
       >
-        {/* Cookie Status Badge */}
-        {!user.hasCookie && (
-          <div className="bg-muted mb-4 flex items-center gap-2 rounded-md px-3 py-2 text-sm">
-            <Info className="text-muted-foreground h-4 w-4" />
-            <span className="text-muted-foreground">
-              {t('user.cookie_missing')}
-            </span>
-          </div>
-        )}
-
-        {/* Quality Limit Warning for Non-logged-in Users */}
-        {user.hasCookie && !user.data.isLogin && (
-          <Alert variant="warning" className="mb-4">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>{t('video.quality_limited_title')}</AlertTitle>
-            <AlertDescription>
-              <p className="inline">
-                {t('video.quality_limited_description')}{' '}
-                <a
-                  href="#"
-                  className="font-medium underline hover:text-amber-700 dark:hover:text-amber-300"
-                  onClick={(e) => {
-                    preventEventDefaults(e)
-                    open('https://www.bilibili.com').catch(console.error)
-                  }}
-                >
-                  {t('video.quality_limited_link')}
-                </a>
-                {t('video.quality_limited_link_suffix')}
-              </p>
-              <p className="text-xs">
-                {t('video.quality_limited_restart_note')}
-              </p>
-            </AlertDescription>
-          </Alert>
-        )}
-
         <FormField
           control={form.control}
           name="url"
@@ -149,17 +94,15 @@ function VideoForm1() {
                     <button
                       type="button"
                       disabled={hasActiveDownloads}
-                      onClick={(e) => {
-                        preventEventDefaults(e)
+                      onClick={() => {
                         form.setValue('url', '', { shouldValidate: true })
                         field.onChange('')
                         setLastFetchedUrl('')
                       }}
-                      className={`text-muted-foreground hover:text-foreground absolute top-1/2 right-3 -translate-y-1/2 transition-colors ${
-                        hasActiveDownloads
-                          ? 'cursor-not-allowed opacity-50'
-                          : ''
-                      }`}
+                      className={cn(
+                        'text-muted-foreground hover:text-foreground absolute top-1/2 right-3 -translate-y-1/2 transition-colors',
+                        hasActiveDownloads && 'cursor-not-allowed opacity-50',
+                      )}
                     >
                       <CircleX className="size-4" />
                     </button>

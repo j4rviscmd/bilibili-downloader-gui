@@ -1,4 +1,4 @@
-import { store } from '@/app/store'
+import { store, useSelector } from '@/app/store'
 import { useInit } from '@/features/init'
 import {
   deselectAll,
@@ -17,6 +17,7 @@ import {
 import { useIsMobile } from '@/shared/hooks/use-mobile'
 import { PageLayout } from '@/shared/layout'
 import { selectHasActiveDownloads } from '@/shared/queue'
+import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
 import {
   Card,
@@ -26,9 +27,10 @@ import {
   CardTitle,
 } from '@/shared/ui/card'
 import { Separator } from '@/shared/ui/separator'
+import { openUrl } from '@tauri-apps/plugin-opener'
+import { Info } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
+import { Trans, useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router'
 
 /**
@@ -59,6 +61,8 @@ function HomePage() {
   const { t } = useTranslation()
   const isMobile = useIsMobile()
   const hasActiveDownloads = useSelector(selectHasActiveDownloads)
+  const user = useSelector((state) => state.user)
+  const isLoggedIn = user.hasCookie && user.data?.isLogin
 
   // Collapsed parts state for mobile (parts 3+ are collapsed by default on mobile)
   const [collapsedParts, setCollapsedParts] = useState<Set<number>>(new Set())
@@ -111,6 +115,31 @@ function HomePage() {
 
   return (
     <PageLayout>
+      {/* Login Benefits Info - shown only when not logged in */}
+      {!isLoggedIn && (
+        <Alert variant="info">
+          <Info />
+          <AlertTitle>{t('video.login_benefits_title')}</AlertTitle>
+          <AlertDescription className="flex flex-wrap">
+            <Trans
+              i18nKey="video.login_benefits_description"
+              components={{
+                1: (
+                  <button
+                    type="button"
+                    onClick={() => openUrl('https://www.bilibili.com')}
+                    className="inline cursor-pointer text-blue-600 underline hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                  />
+                ),
+              }}
+            />
+            <span className="mt-1 w-full text-xs opacity-80">
+              {t('video.login_benefits_restart_note')}
+            </span>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Step 1: URL Input Card */}
       <Card>
         <CardHeader>
