@@ -12,8 +12,9 @@
 export { downloadVideo } from './api/downloadVideo'
 export { fetchVideoInfo } from './api/fetchVideoInfo'
 
-// Hooks
-export { useVideoInfo } from './hooks/useVideoInfo'
+// Context
+export { VideoInfoProvider, useVideoInfo } from './context/VideoInfoContext'
+export type { VideoInfoContextValue } from './context/VideoInfoContext'
 
 // Redux slices and actions
 export {

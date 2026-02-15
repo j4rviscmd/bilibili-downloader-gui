@@ -1,5 +1,5 @@
 import { type RootState, useAppDispatch, useSelector } from '@/app/store'
-import { useVideoInfo } from '@/features/video/hooks/useVideoInfo'
+import { useVideoInfo } from '@/features/video'
 import { resetInput } from '@/features/video/model/inputSlice'
 import { resetVideo } from '@/features/video/model/videoSlice'
 import {
@@ -18,53 +18,47 @@ import { Download, Music, Play, Video } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 /**
- * Determines the label and icon for a progress bar based on download stage.
+ * ダウンロードステージに基づいてプログレスバーのラベルとアイコンを決定します。
  *
- * @param id - Download ID (for temp stage detection)
- * @param stage - Download stage ('audio', 'video', 'merge')
- * @param t - Translation function
- * @returns A tuple of [label, icon]
+ * @param id - ダウンロードID（一時ステージ検出用）
+ * @param stage - ダウンロードステージ（'audio'、'video'、'merge'）
+ * @param t - 翻訳関数
+ * @returns [ラベル, アイコン] のタプル
+ *
+ * @private
  */
 const getBarInfo = (
   id: string | undefined,
   stage: string | undefined,
   t: (k: string) => string,
-) => {
+): [string, React.ReactNode] => {
   const key = stage || id
-  let label = ''
-  let icon: React.ReactNode = null
 
   switch (key) {
     case 'audio':
     case 'temp_audio':
-      label = t('video.bar_audio')
-      icon = <Music size={13} />
-      break
+      return [t('video.bar_audio'), <Music key="audio" size={13} />]
     case 'video':
     case 'temp_video':
-      label = t('video.bar_video')
-      icon = <Video size={13} />
-      break
+      return [t('video.bar_video'), <Video key="video" size={13} />]
     case 'merge':
-      label = t('video.bar_merge')
-      icon = <Play size={13} />
-      break
+      return [t('video.bar_merge'), <Play key="merge" size={13} />]
+    default:
+      return ['', null]
   }
-
-  return [label, icon]
 }
 
 /**
- * Modal dialog displaying download progress.
+ * ダウンロード進捗を表示するモーダルダイアログコンポーネント。
  *
- * Shows real-time progress for all active downloads with:
- * - Grouped progress bars by parent ID (multi-part downloads)
- * - Separate bars for audio, video, and merge stages
- * - Queue waiting list for parts not yet started
- * - Error display with reload prompt
- * - Completion button to reload the page
+ * すべてのアクティブなダウンロードのリアルタイム進捗を表示します：
+ * - 親IDでグループ化されたプログレスバー（マルチパートダウンロード）
+ * - オーディオ、動画、マージステージの個別バー
+ * - 未開始のパートのキュー待機リスト
+ * - エラー表示と再読み込みプロンプト
+ * - ページをリロードする完了ボタン
  *
- * The dialog is modal and cannot be closed until downloads complete or error.
+ * ダイアログはモーダルで、ダウンロードが完了またはエラーになるまで閉じることができません。
  *
  * @example
  * ```tsx
@@ -77,25 +71,29 @@ function DownloadingDialog() {
   const dispatch = useAppDispatch()
 
   /**
-   * Derives the display title for a progress entry.
-   * For multi-part downloads (pattern: -p{number}), returns the part title.
-   * For single downloads, returns the video title.
+   * プログレスエントリーの表示タイトルを導出します。
    *
-   * @param p - Progress entry to derive title from
-   * @returns The derived title or undefined if not found
+   * マルチパートダウンロード（パターン: -p{number}）の場合はパートタイトルを返し、
+   * シングルダウンロードの場合は動画タイトルを返します。
+   *
+   * @param p - プログレス情報
+   * @returns 表示タイトル
+   *
+   * @private
    */
   const deriveTitle = (p: Progress): string | undefined => {
-    const m = p.downloadId.match(/-p(\d+)$/)
-    if (m) {
-      const idx = parseInt(m[1], 10) - 1
-      return input.partInputs[idx]?.title
-    }
-    return video?.title
+    const match = p.downloadId.match(/-p(\d+)$/)
+    if (!match) return video?.title
+    const idx = parseInt(match[1], 10) - 1
+    return input.partInputs[idx]?.title
   }
 
   /**
-   * Resets all download-related state when user closes the dialog.
-   * Clears input, video info, progress, and error states.
+   * ユーザーがダイアログを閉じる際に、ダウンロード関連の状態をすべてリセットします。
+   *
+   * 入力、動画情報、プログレス、エラー状態をクリアします。
+   *
+   * @private
    */
   const onClick = () => {
     dispatch(resetInput())
@@ -106,8 +104,9 @@ function DownloadingDialog() {
 
   const hasDlQue = progress.length > 0
 
+  const phaseOrder = ['audio', 'video', 'merge']
+
   // Group progress entries by parentId for multi-part downloads
-  // Entries without parentId use their downloadId as the group key
   const groups = progress.reduce<Record<string, Progress[]>>((acc, p) => {
     const parent = p.parentId || p.downloadId
     if (!acc[parent]) acc[parent] = []
@@ -115,25 +114,23 @@ function DownloadingDialog() {
     return acc
   }, {})
 
-  // Extract active page numbers from progress entries (pattern: -p{number})
+  // Extract active page numbers from progress entries
   const activePages = new Set(
     Object.values(groups)
-      .flatMap((entries) => entries)
+      .flat()
       .map((p) => p.downloadId.match(/-p(\d+)$/)?.[1])
       .filter((page): page is string => page !== undefined)
       .map(Number),
   )
 
-  // Filter parts that are selected but not yet in progress (waiting in queue)
+  // Parts waiting in queue
   const notInProgress = input.partInputs.filter(
     (part) => part.selected && !activePages.has(part.page),
   )
 
-  const phaseOrder = ['audio', 'video', 'merge']
-
-  // Filter to only active stages (exclude complete stage for downloading state)
+  // Active stages (exclude complete)
   const activeStages = progress.filter((p) =>
-    ['audio', 'video', 'merge'].includes(p.stage || ''),
+    phaseOrder.includes(p.stage || ''),
   )
 
   const { hasError, errorMessage } = useSelector(
@@ -141,10 +138,25 @@ function DownloadingDialog() {
   )
 
   // Determine if download is still in progress
-  // Error state takes precedence to enable the reload button immediately
   const isDownloading =
     !hasError &&
     (activeStages.some((p) => !p.isComplete) || notInProgress.length > 0)
+
+  /**
+   * ダイアログのボタンテキストを決定します。
+   *
+   * ダウンロード中は空文字、エラー時は再読み込みメッセージ、
+   * 完了時は完了メッセージを返します。
+   *
+   * @returns ボタンテキスト
+   *
+   * @private
+   */
+  function getButtonText(): string {
+    if (isDownloading) return ''
+    if (hasError) return t('video.reload_after_error')
+    return t('video.download_completed')
+  }
 
   return (
     <Dialog modal open={hasDlQue}>
@@ -271,13 +283,7 @@ function DownloadingDialog() {
             onClick={onClick}
             className="h-11 px-6"
           >
-            {isDownloading ? (
-              <CircleIndicator r={10} />
-            ) : hasError ? (
-              t('video.reload_after_error')
-            ) : (
-              t('video.download_completed')
-            )}
+            {isDownloading ? <CircleIndicator r={10} /> : getButtonText()}
           </Button>
         </div>
       </DialogContent>

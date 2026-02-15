@@ -6,6 +6,7 @@ import {
   selectAll,
   useVideoInfo,
   VideoForm1,
+  VideoInfoProvider,
 } from '@/features/video'
 import VideoPartCard from '@/features/video/ui/VideoPartCard'
 import {
@@ -39,7 +40,16 @@ type TooltipButtonProps = {
 }
 
 /**
- * Button with optional tooltip for disabled state.
+ * 無効状態時にツールチップを表示するボタンコンポーネント。
+ *
+ * 無効な状態の場合、ツールチップでその理由を表示します。
+ *
+ * @param props.label - ボタンのラベル
+ * @param props.onClick - クリック時のコールバック
+ * @param props.disabled - 無効状態かどうか
+ * @param props.tooltip - ツールチップに表示するテキスト（オプション）
+ *
+ * @private
  */
 function TooltipButton({
   label,
@@ -53,9 +63,7 @@ function TooltipButton({
     </Button>
   )
 
-  if (!tooltip) {
-    return button
-  }
+  if (!tooltip) return button
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -72,30 +80,22 @@ function TooltipButton({
 }
 
 /**
- * Home page content component (main application view).
+ * ホームページの内部コンテンツコンポーネント。
  *
- * This is the content portion of the home page without the layout wrapper.
- * It should be rendered inside a PageLayoutShell or similar layout.
+ * VideoInfoContextを使用して、動画URL入力フォームとパート設定カードを表示します。
+ * このコンポーネントは`VideoInfoProvider`内でレンダリングされる必要があります。
  *
- * Displays the primary UI for video downloads including:
- * - Video URL input form (Step 1)
- * - Video parts configuration forms (Step 2)
- * - Select all/deselect all buttons
- * - Download button
- * - Download progress (inline in each part card)
+ * 機能：
+ * - ログイン未登录時のベネフィット表示
+ * - 動画URL入力（ステップ1）
+ * - パート選択と設定（ステップ2）
+ * - 全選択/全解除ボタン
+ * - ダウンロードボタン
+ * - autoFetchクエリパラメータによる自動取得
  *
- * Redirects to /init if the app is not initialized.
- * Supports autoFetch query parameter to automatically fetch video info.
- *
- * @example
- * ```tsx
- * // Inside PersistentPageLayout
- * <HomeContent />
- * ```
+ * @private
  */
-export function HomeContent() {
-  const { initiated } = useInit()
-  const navigate = useNavigate()
+function HomeContentInner() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { video, duplicateIndices, onValid1, isFetching } = useVideoInfo()
   const { t } = useTranslation()
@@ -121,10 +121,10 @@ export function HomeContent() {
     store.dispatch(deselectAll())
   }
 
-  useEffect(() => {
-    if (initiated) return
-    navigate('/init')
-  }, [initiated, navigate])
+  function getSelectTooltip(): string | undefined {
+    if (hasActiveDownloads) return t('video.download_in_progress')
+    return undefined
+  }
 
   return (
     <>
@@ -178,21 +178,13 @@ export function HomeContent() {
                   label={t('video.select_all')}
                   onClick={handleSelectAll}
                   disabled={hasActiveDownloads}
-                  tooltip={
-                    hasActiveDownloads
-                      ? t('video.download_in_progress')
-                      : undefined
-                  }
+                  tooltip={getSelectTooltip()}
                 />
                 <TooltipButton
                   label={t('video.deselect_all')}
                   onClick={handleDeselectAll}
                   disabled={hasActiveDownloads}
-                  tooltip={
-                    hasActiveDownloads
-                      ? t('video.download_in_progress')
-                      : undefined
-                  }
+                  tooltip={getSelectTooltip()}
                 />
               </div>
             </div>
@@ -219,6 +211,44 @@ export function HomeContent() {
         </Card>
       )}
     </>
+  )
+}
+
+/**
+ * Home page content component (main application view).
+ *
+ * This is the content portion of the home page without the layout wrapper.
+ * It should be rendered inside a PageLayoutShell or similar layout.
+ *
+ * Displays the primary UI for video downloads including:
+ * - Video URL input form (Step 1)
+ * - Video parts configuration forms (Step 2)
+ * - Select all/deselect all buttons
+ * - Download button
+ * - Download progress (inline in each part card)
+ *
+ * Redirects to /init if the app is not initialized.
+ * Supports autoFetch query parameter to automatically fetch video info.
+ *
+ * @example
+ * ```tsx
+ * // Inside PersistentPageLayout
+ * <HomeContent />
+ * ```
+ */
+export function HomeContent() {
+  const { initiated } = useInit()
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    if (initiated) return
+    navigate('/init')
+  }, [initiated, navigate])
+
+  return (
+    <VideoInfoProvider>
+      <HomeContentInner />
+    </VideoInfoProvider>
   )
 }
 

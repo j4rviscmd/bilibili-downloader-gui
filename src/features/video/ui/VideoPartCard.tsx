@@ -1,8 +1,8 @@
 import type { RootState } from '@/app/store'
 import { store } from '@/app/store'
+import { useVideoInfo } from '@/features/video'
 import { downloadVideo } from '@/features/video/api/downloadVideo'
 import { usePartDownloadStatus } from '@/features/video/hooks/usePartDownloadStatus'
-import { useVideoInfo } from '@/features/video/hooks/useVideoInfo'
 import {
   AUDIO_QUALITIES_MAP,
   AUDIO_QUALITIES_ORDER,
@@ -41,7 +41,7 @@ import { Label } from '@/shared/ui/label'
 import { Textarea } from '@/shared/ui/textarea'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ImageOff, Info } from 'lucide-react'
-import { useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
@@ -58,6 +58,17 @@ type QualityRadioGroupProps = {
   idPrefix: string
 }
 
+/**
+ * 画質選択のラジオグループコンポーネント。
+ *
+ * 利用可能な画質オプションをラジオボタンとして表示します。
+ * 利用不可能な画質は無効化され、視覚的に区別されます。
+ *
+ * @param props.options - 画質オプションの配列
+ * @param props.idPrefix - ラジオボタンのID接頭辞
+ *
+ * @private
+ */
 function QualityRadioGroup({ options, idPrefix }: QualityRadioGroupProps) {
   return (
     <div className="flex flex-wrap gap-x-4 gap-y-2">
@@ -96,10 +107,29 @@ type Props = {
 }
 
 /**
- * Card component for video part settings.
+ * 動画パートの設定カードコンポーネント。
  *
- * Displays thumbnail, custom filename input, and quality selectors for a video part.
- * Changes are auto-saved on blur. Shows duplicate title warning if needed.
+ * 動画パートごとの以下のUI要素を表示します：
+ * - サムネイル画像
+ * - カスタムファイル名入力
+ * - 動画画質セレクター
+ * - オーディオ画質セレクター
+ * - ダウンロード進捗表示
+ *
+ * 変更はブラー時に自動保存されます。重複タイトルの場合は警告を表示します。
+ *
+ * @param props.video - 動画情報オブジェクト
+ * @param props.page - パート番号（1始まり）
+ * @param props.isDuplicate - タイトルが重複しているかどうか
+ *
+ * @example
+ * ```tsx
+ * <VideoPartCard
+ *   video={videoData}
+ *   page={1}
+ *   isDuplicate={false}
+ * />
+ * ```
  */
 function VideoPartCard({ video, page, isDuplicate }: Props) {
   const { onValid2 } = useVideoInfo()
@@ -125,20 +155,26 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   const isWaitingForTurn =
     selected && !downloadId && !isComplete && hasActiveDownloads
 
-  const partQualities = {
-    video: videoPart.videoQualities,
-    audio: videoPart.audioQualities,
-  }
+  const partQualities = useMemo(
+    () => ({
+      video: videoPart.videoQualities,
+      audio: videoPart.audioQualities,
+    }),
+    [videoPart.videoQualities, videoPart.audioQualities],
+  )
 
   /**
-   * Checks if a specific quality ID is available for the current video part.
+   * 指定された画質IDが現在の動画パートで利用可能かどうかを判定します。
+   *
+   * @param qualityId - 画質ID
+   * @param type - 'video' または 'audio'
+   * @returns 画質が利用可能な場合は true
    */
-  function isQualityAvailable(
-    qualityId: number,
-    type: 'video' | 'audio',
-  ): boolean {
-    return partQualities[type].some((q) => q.id === qualityId)
-  }
+  const isQualityAvailable = useCallback(
+    (qualityId: number, type: 'video' | 'audio'): boolean =>
+      partQualities[type].some((q) => q.id === qualityId),
+    [partQualities],
+  )
 
   function handleSelectedChange(checked: boolean | 'indeterminate') {
     store.dispatch(
@@ -146,6 +182,14 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
     )
   }
 
+  /**
+   * パートの再ダウンロードを実行します。
+   *
+   * 既に完了したダウンロードをキューから削除し、
+   * 新しいダウンロードIDでダウンロードを開始します。
+   *
+   * @private
+   */
   async function handleRedownload() {
     const partIndex = page - 1
     const state = store.getState()
@@ -174,6 +218,14 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
     )
   }
 
+  /**
+   * 失敗したダウンロードのリトライ処理を実行します。
+   *
+   * パートを再選択状態にすることで、次回のダウンロード実行時に
+   * 含まれるようにします。
+   *
+   * @private
+   */
   function handleRetry() {
     store.dispatch(updatePartSelected({ index: page - 1, selected: true }))
   }
