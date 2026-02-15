@@ -2,6 +2,12 @@
 
 import { useThumbnailCache } from '@/features/history'
 import type { HistoryEntry } from '@/features/history/model/historySlice'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/shared/animate-ui/radix/tooltip'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
 import { Check, Copy, Download, RefreshCw, Trash2 } from 'lucide-react'
@@ -10,36 +16,72 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 /**
- * Mapping of i18next language codes to BCP 47 language tags.
+ * Pads a number with leading zeros to ensure 2-digit formatting.
  *
- * Used for locale-aware date formatting in history entries.
+ * @param n - The number to pad (0-99)
+ * @returns Two-digit string with leading zero if needed
+ *
+ * @example
+ * ```ts
+ * pad(5)  // "05"
+ * pad(12) // "12"
+ * ```
  */
-const I18N_LOCALE_MAP: Record<string, string> = {
-  zh: 'zh-CN',
-  ja: 'ja-JP',
-  en: 'en-US',
-  fr: 'fr-FR',
-  es: 'es-ES',
-  ko: 'ko-KR',
+const pad = (n: number): string => n.toString().padStart(2, '0')
+
+/**
+ * Formats duration in seconds to MM:SS or HH:MM:SS format.
+ */
+function formatDuration(seconds: number): string {
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  const secs = seconds % 60
+
+  if (hours > 0) {
+    return `${hours}:${pad(minutes)}:${pad(secs)}`
+  }
+  return `${minutes}:${pad(secs)}`
 }
 
 /**
- * Formats an ISO 8601 date string to a localized date representation.
+ * Formats an ISO 8601 date string to a relative time string.
  *
  * @param dateString - ISO 8601 date string
- * @param locale - i18next language code (e.g., "en", "ja")
- * @returns Localized date string (e.g., "Jan 1, 2025, 12:00 PM")
+ * @param t - Translation function
+ * @returns Relative time string (e.g., "3分前", "Just now")
  */
-function formatDate(dateString: string, locale: string): string {
+function formatRelativeTime(
+  dateString: string,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): string {
+  const now = Date.now()
   const date = new Date(dateString)
-  const mappedLocale = I18N_LOCALE_MAP[locale] || locale
-  return date.toLocaleDateString(mappedLocale, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  const diff = now - date.getTime()
+
+  const seconds = Math.floor(diff / 1000)
+  const minutes = Math.floor(seconds / 60)
+  const hours = Math.floor(minutes / 60)
+  const days = Math.floor(hours / 24)
+
+  if (days > 0) return t('watchHistory.time.daysAgo', { count: days })
+  if (hours > 0) return t('watchHistory.time.hoursAgo', { count: hours })
+  if (minutes > 0) return t('watchHistory.time.minutesAgo', { count: minutes })
+  return t('watchHistory.time.justNow')
+}
+
+/**
+ * Formats an ISO 8601 date string to a short absolute format.
+ *
+ * @param dateString - ISO 8601 date string
+ * @returns Short date string (e.g., "2026/02/15 14:28")
+ */
+function formatAbsoluteDate(dateString: string): string {
+  const date = new Date(dateString)
+  const month = date.getMonth() + 1
+  const day = date.getDate()
+  const hour = date.getHours()
+  const minute = date.getMinutes()
+  return `${date.getFullYear()}/${pad(month)}/${pad(day)} ${pad(hour)}:${pad(minute)}`
 }
 
 /** Bytes per kilobyte */
@@ -71,6 +113,12 @@ const ThumbnailPlaceholder = () => (
   </div>
 )
 
+/**
+ * Props for the HistoryItem component.
+ *
+ * @property entry - The history entry data to display
+ * @property onDelete - Callback function invoked when the delete button is clicked
+ */
 type Props = {
   entry: HistoryEntry
   onDelete: () => void
@@ -88,22 +136,31 @@ type Props = {
  * ```
  */
 function HistoryItem({ entry, onDelete }: Props) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
 
+  // Data URLs can be used directly; fetch remote thumbnails via cache
+  const thumbnailUrl = entry.thumbnailUrl
+  const isDataUrl = thumbnailUrl?.startsWith('data:')
+
   const {
-    data: thumbnailSrc,
+    data: cachedThumbnail,
     loading: thumbnailLoading,
     error,
     retry,
-  } = useThumbnailCache(
-    entry.thumbnailUrl?.startsWith('data:') ? undefined : entry.thumbnailUrl,
-  )
+  } = useThumbnailCache(isDataUrl ? undefined : thumbnailUrl)
 
-  const displayThumbnail = entry.thumbnailUrl?.startsWith('data:')
-    ? entry.thumbnailUrl
-    : thumbnailSrc
+  const displayThumbnail = isDataUrl ? thumbnailUrl : cachedThumbnail
 
+  /**
+   * Copies the video URL to the clipboard.
+   *
+   * Shows a success toast notification and temporarily changes the copy button
+   * icon to a checkmark for 2 seconds. If clipboard access fails, shows an
+   * error toast notification.
+   *
+   * @async
+   */
   const handleCopyUrl = async () => {
     try {
       await navigator.clipboard.writeText(entry.url)
@@ -119,7 +176,7 @@ function HistoryItem({ entry, onDelete }: Props) {
 
   return (
     <div className="border-border hover:bg-accent/50 group flex items-center gap-3 rounded-lg border p-3 transition-colors">
-      <div className="bg-muted relative flex size-20 shrink-0 items-center justify-center overflow-hidden rounded">
+      <div className="bg-muted relative flex size-20 shrink-0 items-center justify-center overflow-hidden rounded select-none">
         {thumbnailLoading ? (
           <ThumbnailPlaceholder />
         ) : displayThumbnail ? (
@@ -127,9 +184,15 @@ function HistoryItem({ entry, onDelete }: Props) {
             src={displayThumbnail}
             alt={entry.title}
             className="size-full object-cover"
+            draggable={false}
           />
         ) : (
           <ThumbnailPlaceholder />
+        )}
+        {entry.duration && (
+          <div className="absolute right-0.5 bottom-1 rounded bg-black/60 px-1 text-xs text-white">
+            {formatDuration(entry.duration)}
+          </div>
         )}
         {error && (
           <button
@@ -159,33 +222,8 @@ function HistoryItem({ entry, onDelete }: Props) {
           </span>
         </div>
 
-        {entry.filename && (
-          <p className="text-muted-foreground truncate text-sm">
-            {entry.filename}
-          </p>
-        )}
-
-        <div className="text-muted-foreground flex flex-wrap gap-x-4 gap-y-0.5 text-xs">
-          <span>{formatDate(entry.downloadedAt, i18n.language)}</span>
-          {entry.fileSize && (
-            <>
-              <span>•</span>
-              <span>{formatFileSize(entry.fileSize)}</span>
-            </>
-          )}
-          {entry.quality && (
-            <>
-              <span>•</span>
-              <span>{entry.quality}</span>
-            </>
-          )}
-        </div>
-
-        {entry.status === 'failed' && entry.errorMessage && (
-          <p className="text-destructive mt-1 text-xs">{entry.errorMessage}</p>
-        )}
-
-        <div className="mt-1 flex items-center gap-2 text-xs">
+        {/* URL with copy button */}
+        <div className="flex items-center gap-2 text-xs">
           <Button
             variant="ghost"
             size="icon"
@@ -204,6 +242,44 @@ function HistoryItem({ entry, onDelete }: Props) {
             {entry.url}
           </a>
         </div>
+
+        {/* Metadata row: filename | date | size | quality */}
+        <div className="text-muted-foreground flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs">
+          {entry.filename && (
+            <>
+              <span className="truncate max-w-[200px]">{entry.filename}</span>
+              <span aria-hidden="true">•</span>
+            </>
+          )}
+          <TooltipProvider delayDuration={300}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="cursor-default">
+                  {formatRelativeTime(entry.downloadedAt, t)}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top" arrow>
+                {formatAbsoluteDate(entry.downloadedAt)}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          {entry.fileSize && (
+            <>
+              <span aria-hidden="true">•</span>
+              <span>{formatFileSize(entry.fileSize)}</span>
+            </>
+          )}
+          {entry.quality && (
+            <>
+              <span aria-hidden="true">•</span>
+              <span>{entry.quality}</span>
+            </>
+          )}
+        </div>
+
+        {entry.status === 'failed' && entry.errorMessage && (
+          <p className="text-destructive mt-1 text-xs">{entry.errorMessage}</p>
+        )}
       </div>
 
       <Button
