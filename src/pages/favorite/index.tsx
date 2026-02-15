@@ -3,6 +3,7 @@ import { useFavorite } from '@/features/favorite/hooks/useFavorite'
 import type { FavoriteVideo } from '@/features/favorite/types'
 import FavoriteList from '@/features/favorite/ui/FavoriteList'
 import FolderSelector from '@/features/favorite/ui/FolderSelector'
+import { selectHasActiveDownloads } from '@/shared/queue'
 import { Button } from '@/shared/ui/button'
 import { RefreshCw } from 'lucide-react'
 import { useEffect } from 'react'
@@ -32,6 +33,7 @@ export function FavoriteContent() {
   const navigate = useNavigate()
 
   const user = useSelector((state) => state.user)
+  const hasActiveDownloads = useSelector(selectHasActiveDownloads)
 
   const mid = user.data?.isLogin && user.data?.mid ? user.data.mid : null
 
@@ -107,6 +109,7 @@ export function FavoriteContent() {
         onLoadMore={loadMore}
         onDownload={handleDownload}
         height="calc(100dvh - 2.3rem - 80px)"
+        disabled={hasActiveDownloads}
       />
     </div>
   )

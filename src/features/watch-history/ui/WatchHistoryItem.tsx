@@ -1,3 +1,9 @@
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/shared/animate-ui/radix/tooltip'
 import { Button } from '@/shared/ui/button'
 import { Check, Copy, Download } from 'lucide-react'
 import { useState } from 'react'
@@ -15,6 +21,8 @@ type Props = {
   entry: WatchHistoryEntry
   /** Callback when user clicks download button */
   onDownload: (entry: WatchHistoryEntry) => void
+  /** Whether the download button should be disabled */
+  disabled?: boolean
 }
 
 /**
@@ -38,7 +46,7 @@ type Props = {
  * />
  * ```
  */
-export function WatchHistoryItem({ entry, onDownload }: Props) {
+export function WatchHistoryItem({ entry, onDownload, disabled }: Props) {
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
   const progressPercent = calculateProgress(entry.progress, entry.duration)
@@ -111,10 +119,27 @@ export function WatchHistoryItem({ entry, onDownload }: Props) {
       </div>
 
       {/* Download Button */}
-      <Button size="sm" onClick={() => onDownload(entry)}>
-        <Download className="mr-1 h-4 w-4" />
-        {t('watchHistory.download')}
-      </Button>
+      <TooltipProvider delayDuration={0}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span>
+              <Button
+                size="sm"
+                onClick={() => onDownload(entry)}
+                disabled={disabled}
+              >
+                <Download className="mr-1 h-4 w-4" />
+                {t('watchHistory.download')}
+              </Button>
+            </span>
+          </TooltipTrigger>
+          {disabled && (
+            <TooltipContent side="top" arrow>
+              {t('video.download_in_progress')}
+            </TooltipContent>
+          )}
+        </Tooltip>
+      </TooltipProvider>
     </div>
   )
 }

@@ -7,6 +7,7 @@ import {
   WatchHistoryList,
   WatchHistorySearch,
 } from '@/features/watch-history'
+import { selectHasActiveDownloads } from '@/shared/queue'
 import { Alert, AlertDescription } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
 import { AlertCircle, RefreshCw } from 'lucide-react'
@@ -36,6 +37,7 @@ export function WatchHistoryContent() {
   const navigate = useNavigate()
   const dispatch = useAppDispatch()
   const user = useSelector((state) => state.user)
+  const hasActiveDownloads = useSelector(selectHasActiveDownloads)
 
   const {
     entries,
@@ -146,6 +148,7 @@ export function WatchHistoryContent() {
         onLoadMore={fetchMore}
         onDownload={handleDownload}
         height="calc(100dvh - 2.3rem - 80px)"
+        disabled={hasActiveDownloads}
       />
     </div>
   )

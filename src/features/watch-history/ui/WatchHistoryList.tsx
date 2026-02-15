@@ -19,6 +19,8 @@ type Props = {
   onDownload: (entry: WatchHistoryEntry) => void
   /** Fixed height for the list container (e.g., "calc(100dvh - 200px)") */
   height?: string
+  /** Whether download buttons should be disabled */
+  disabled?: boolean
 }
 
 /** Approximate height in pixels for each WatchHistoryItem (used for virtual scrolling) */
@@ -51,6 +53,7 @@ export function WatchHistoryList({
   onLoadMore,
   onDownload,
   height,
+  disabled,
 }: Props) {
   const { t } = useTranslation()
 
@@ -76,7 +79,11 @@ export function WatchHistoryList({
       data={entries}
       itemContent={(_index, entry) => (
         <div className="py-1">
-          <WatchHistoryItem entry={entry} onDownload={onDownload} />
+          <WatchHistoryItem
+            entry={entry}
+            onDownload={onDownload}
+            disabled={disabled}
+          />
         </div>
       )}
       defaultItemHeight={DEFAULT_ITEM_HEIGHT}
