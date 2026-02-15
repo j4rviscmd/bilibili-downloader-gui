@@ -177,6 +177,18 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
    */
   const onValid1 = useCallback(
     async (url: string) => {
+      const schema1 = buildVideoFormSchema1(t)
+      const result = schema1.safeParse({ url })
+      if (!result.success) {
+        const message = result.error.issues[0]?.message
+        toast.error(t('video.fetch_info'), {
+          duration: 5000,
+          description: message,
+        })
+        store.dispatch(clearPendingDownload())
+        return
+      }
+
       store.dispatch(setUrl(url))
       const id = extractVideoId(url)
       if (id) {

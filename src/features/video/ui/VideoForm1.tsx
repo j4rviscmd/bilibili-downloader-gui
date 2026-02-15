@@ -50,7 +50,7 @@ function VideoForm1() {
 
   useEffect(() => {
     const trimmedUrl = input.url.trim()
-    form.setValue('url', trimmedUrl, { shouldValidate: false })
+    form.setValue('url', trimmedUrl, { shouldValidate: true })
   }, [form, input.url])
 
   function onSubmit(data: z.infer<typeof formSchema1>): void {
