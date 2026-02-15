@@ -65,6 +65,7 @@
     "network_error": "Error de red durante la descarga.",
     "video_not_found": "Video no encontrado. Por favor, verifica la URL.",
     "api_error": "Error al obtener información del video.",
+    "rate_limited": "Demasiadas solicitudes. Por favor, espere un momento e inténtelo de nuevo.",
     "video_quality_fallback": "La calidad de video seleccionada ({{from}}) no está disponible. Usando {{to}}.",
     "audio_quality_fallback": "La calidad de audio seleccionada ({{from}}) no está disponible. Usando {{to}}.",
     "queue_waiting_prefix": "En cola:",
