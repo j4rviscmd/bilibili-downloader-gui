@@ -26,21 +26,40 @@ use crate::models::frontend_dto::{
 
 /// Fetches all favorite folders for the logged-in user.
 ///
+/// This function retrieves the user's collection of favorite folders from Bilibili's API,
+/// converting the raw API response into the frontend-friendly DTO format.
+///
 /// # Arguments
 ///
 /// * `app` - Tauri application handle for accessing cookie cache
-/// * `mid` - User's member ID (mid)
+/// * `mid` - User's member ID (mid) - identifies which user's folders to fetch
 ///
 /// # Returns
 ///
-/// List of favorite folders with metadata.
+/// `Vec<FavoriteFolder>` - A list of favorite folders containing:
+/// - `id`: Unique folder identifier
+/// - `title`: Display name of the folder
+/// - `cover`: Cover image URL
+/// - `media_count`: Number of videos in the folder
+/// - `upper`: Optional creator information (for public folders)
 ///
 /// # Errors
 ///
 /// Returns an error if:
-/// - Cookies are unavailable
-/// - API request fails
-/// - Response parsing fails
+/// - `CookieMissing`: Authentication cookies are not available in cache
+/// - `ApiRequestFailed`: Network request to Bilibili API fails
+/// - `ApiResponseParseFailed`: JSON response cannot be parsed
+/// - `ApiErrorCode`: Bilibili API returns non-zero error code with message
+///
+/// # Examples
+///
+/// ```rust
+/// use tauri::AppHandle;
+///
+/// // Fetch favorite folders for user with mid = 123456
+/// let folders = fetch_favorite_folders(&app, 123456).await?;
+/// println!("Found {} favorite folders", folders.len());
+/// ```
 pub async fn fetch_favorite_folders(
     app: &AppHandle,
     mid: i64,
@@ -64,8 +83,6 @@ pub async fn fetch_favorite_folders(
         .await
         .map_err(|e| format!("Failed to read favorite folders response: {e}"))?;
 
-    eprintln!("[DEBUG] Favorite folders raw response: {}", &raw_text);
-
     let response: FavoriteFolderListApiResponse = serde_json::from_str(&raw_text)
         .map_err(|e| format!("Failed to parse favorite folders response: {e}\nRaw: {raw_text}"))?;
 
@@ -76,6 +93,8 @@ pub async fn fetch_favorite_folders(
         ));
     }
 
+    // Convert API response to frontend DTO
+    // Safely extract folder list with option chaining, default to empty if missing
     let folders = response
         .data
         .and_then(|d| d.list)
@@ -86,6 +105,7 @@ pub async fn fetch_favorite_folders(
             title: f.title,
             cover: f.cover,
             media_count: f.media_count,
+            // Convert optional creator info to DTO
             upper: f.upper.map(|u| FavoriteFolderUpperDto {
                 mid: u.mid,
                 name: u.name,
@@ -99,23 +119,52 @@ pub async fn fetch_favorite_folders(
 
 /// Fetches videos from a specific favorite folder with pagination.
 ///
+/// This function retrieves videos from a specific favorite folder, supporting pagination
+/// to handle large collections. The API supports up to 20 items per page.
+///
 /// # Arguments
 ///
 /// * `app` - Tauri application handle for accessing cookie cache
-/// * `media_id` - Favorite folder ID
-/// * `page_num` - Page number (1-indexed)
-/// * `page_size` - Number of items per page (max 20)
+/// * `media_id` - Favorite folder ID (identifies which folder to fetch videos from)
+/// * `page_num` - Page number (1-indexed, starts from 1)
+/// * `page_size` - Number of items per page (maximum 20, Bilibili API limitation)
 ///
 /// # Returns
 ///
-/// Paginated list of videos with metadata.
+/// `FavoriteVideoListResponse` containing:
+/// - `videos`: List of video metadata
+/// - `has_more`: Boolean indicating if more pages are available
+/// - `total_count`: Total number of videos in the folder
+///
+/// Each video in the list includes:
+/// - Basic info: `id`, `bvid`, `title`, `cover`, `duration`
+/// - Creator info: `upper` (mid, name, face)
+/// - Engagement metrics: `play_count`, `collect_count`
+/// - Additional metadata: `page`, `attr`, `link`
 ///
 /// # Errors
 ///
 /// Returns an error if:
-/// - Cookies are unavailable
-/// - API request fails
-/// - Response parsing fails
+/// - `CookieMissing`: Authentication cookies are not available in cache
+/// - `ApiRequestFailed`: Network request to Bilibili API fails
+/// - `ApiResponseParseFailed`: JSON response cannot be parsed
+/// - `ApiErrorCode`: Bilibili API returns non-zero error code with message
+/// - `NoDataInResponse`: API response contains no data field
+///
+/// # Examples
+///
+/// ```rust
+/// use tauri::AppHandle;
+///
+/// // Fetch first page (10 items) from folder with ID 98765
+/// let response = fetch_favorite_videos(&app, 98765, 1, 10).await?;
+/// println!("Retrieved {} videos, has_more: {}", response.videos.len(), response.has_more);
+///
+/// // Fetch next page if available
+/// if response.has_more {
+///     let next_page = fetch_favorite_videos(&app, 98765, 2, 10).await?;
+/// }
+/// ```
 pub async fn fetch_favorite_videos(
     app: &AppHandle,
     media_id: i64,
@@ -151,6 +200,8 @@ pub async fn fetch_favorite_videos(
     let data = response.data.ok_or("No data in response")?;
     let total_count = data.info.media_count;
 
+    // Convert API response to frontend DTO
+    // Handle optional media list safely, map each media item to video DTO
     let videos = data
         .medias
         .unwrap_or_default()
@@ -162,12 +213,14 @@ pub async fn fetch_favorite_videos(
             cover: m.cover,
             duration: m.duration,
             page: m.page,
+            // Creator info is guaranteed in video response
             upper: FavoriteVideoUpperDto {
                 mid: m.upper.mid,
                 name: m.upper.name,
                 face: m.upper.face,
             },
             attr: m.attr,
+            // Extract engagement metrics from nested structure
             play_count: m.cnt_info.play,
             collect_count: m.cnt_info.collect,
             link: m.link,
