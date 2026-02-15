@@ -1,4 +1,4 @@
-import { useVideoInfo } from '@/features/video/hooks/useVideoInfo'
+import { useVideoInfo } from '@/features/video'
 import {
   buildVideoFormSchema1,
   formSchema1,
@@ -14,7 +14,7 @@ import {
 } from '@/shared/ui/form'
 import { Input } from '@/shared/ui/input'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Loader2, X } from 'lucide-react'
+import { CircleX, Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -53,14 +53,6 @@ function VideoForm1() {
     form.setValue('url', trimmedUrl, { shouldValidate: false })
   }, [form, input.url])
 
-  /**
-   * Handles form submission by validating and processing the video URL.
-   *
-   * Prevents redundant API calls by tracking the last fetched URL and
-   * skipping submission if the same URL is submitted again.
-   *
-   * @param data - Form data containing the validated URL
-   */
   function onSubmit(data: z.infer<typeof formSchema1>): void {
     const trimmedUrl = data.url.trim()
     if (trimmedUrl === lastFetchedUrl) return
@@ -68,9 +60,45 @@ function VideoForm1() {
     onValid1(trimmedUrl)
   }
 
+  function handleClear(fieldOnChange: (value: string) => void) {
+    form.setValue('url', '', { shouldValidate: true })
+    fieldOnChange('')
+    setLastFetchedUrl('')
+  }
+
   const placeholder =
     t('video.url_placeholder_example') ||
     'e.g. https://www.bilibili.com/video/BV1xxxxxx'
+
+  function renderInputIcon(
+    value: string,
+    fieldOnChange: (value: string) => void,
+  ) {
+    if (isFetching) {
+      return (
+        <div className="absolute top-1/2 right-3 -translate-y-1/2">
+          <Loader2 className="text-muted-foreground size-4 animate-spin" />
+        </div>
+      )
+    }
+    if (value) {
+      return (
+        <button
+          type="button"
+          disabled={hasActiveDownloads}
+          onClick={() => handleClear(fieldOnChange)}
+          className={cn(
+            'text-muted-foreground hover:text-foreground absolute top-1/2 right-3 -translate-y-1/2 transition-colors',
+            hasActiveDownloads && 'cursor-not-allowed opacity-50',
+          )}
+        >
+          <CircleX className="size-4" />
+        </button>
+      )
+    }
+    return null
+  }
+
   return (
     <Form {...form}>
       <form
@@ -94,26 +122,7 @@ function VideoForm1() {
                     disabled={isFetching || hasActiveDownloads}
                     {...field}
                   />
-                  {isFetching ? (
-                    <div className="absolute top-1/2 right-3 -translate-y-1/2">
-                      <Loader2 className="text-muted-foreground size-4 animate-spin" />
-                    </div>
-                  ) : field.value ? (
-                    <button
-                      type="button"
-                      disabled={hasActiveDownloads}
-                      onClick={() => {
-                        form.setValue('url', '', { shouldValidate: true })
-                        setLastFetchedUrl('')
-                      }}
-                      className={cn(
-                        'text-muted-foreground hover:bg-muted hover:text-foreground absolute top-1/2 right-2 -translate-y-1/2 rounded-full p-1 transition-colors',
-                        hasActiveDownloads && 'cursor-not-allowed opacity-50',
-                      )}
-                    >
-                      <X className="size-4" />
-                    </button>
-                  ) : null}
+                  {renderInputIcon(field.value, field.onChange)}
                 </div>
               </FormControl>
               <FormMessage />

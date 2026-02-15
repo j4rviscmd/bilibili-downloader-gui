@@ -1,4 +1,4 @@
-import { store, useSelector } from '@/app/store'
+import { type RootState, store, useSelector } from '@/app/store'
 import { downloadVideo } from '@/features/video/api/downloadVideo'
 import { fetchVideoInfo } from '@/features/video/api/fetchVideoInfo'
 import {
@@ -22,9 +22,17 @@ import {
   enqueue,
   findCompletedItemForPart,
 } from '@/shared/queue/queueSlice'
-import { useEffect, useRef, useState } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import type { Input, Video } from '../types'
 
 /**
  * Error code to translation key mapping.
@@ -49,55 +57,101 @@ function getErrorMessage(error: string, t: (key: string) => string): string {
   return error.includes('ERR::NETWORK::') ? t('video.network_error') : error
 }
 
+export type VideoInfoContextValue = {
+  progress: RootState['progress']
+  video: Video
+  input: Input
+  onValid1: (url: string) => Promise<void>
+  onValid2: (
+    index: number,
+    title: string,
+    videoQuality: string,
+    audioQuality?: string,
+  ) => void
+  isForm1Valid: boolean
+  isForm2ValidAll: boolean
+  duplicateIndices: number[]
+  selectedCount: number
+  isFetching: boolean
+  download: () => Promise<void>
+}
+
+const VideoInfoContext = createContext<VideoInfoContextValue | null>(null)
+
 /**
- * Custom hook for managing video information and download workflow.
+ * VideoInfoContextにアクセスするためのフック。
  *
- * Handles video URL submission, fetching video metadata from Bilibili,
- * multi-part video selection, quality settings, validation, and download
- * orchestration. Also manages error handling with i18n error messages.
+ * このフックは`VideoInfoProvider`内でのみ使用可能です。
+ * プロバイダーの外で使用した場合はエラーをスローします。
  *
- * @returns An object containing video state, validation status, and
- * action methods.
+ * @returns VideoInfoContextの値
+ * @throws {Error} VideoInfoProvider外で使用された場合
  *
  * @example
- * ```typescript
- * const {
- *   video,
- *   input,
- *   onValid1,
- *   onValid2,
- *   isForm1Valid,
- *   isForm2ValidAll,
- *   download,
- *   isFetching
- * } = useVideoInfo()
- *
- * // Step 1: Submit video URL
- * await onValid1('https://www.bilibili.com/video/BV1xx411c7XD')
- *
- * // Step 2: Update part settings
- * onValid2(0, 'Custom Title', '80', '30216')
- *
- * // Step 3: Start download
- * await download()
+ * ```tsx
+ * function MyComponent() {
+ *   const { video, download, isForm1Valid } = useVideoInfo()
+ *   // ...
+ * }
  * ```
  */
-export const useVideoInfo = () => {
+export function useVideoInfo(): VideoInfoContextValue {
+  const context = useContext(VideoInfoContext)
+  if (!context) {
+    throw new Error('useVideoInfo must be used within a VideoInfoProvider')
+  }
+  return context
+}
+
+type VideoInfoProviderProps = {
+  children: React.ReactNode
+}
+
+/**
+ * 動画情報とダウンロードワークフローを管理するプロバイダーコンポーネント。
+ *
+ * このプロバイダーは、動画情報の取得ロジックが一度だけ実行されることを保証し、
+ * 複数のコンポーネントが動画情報にアクセスする際の重複したAPI呼び出しを防止します。
+ *
+ * 以下の機能を提供します：
+ * - 動画URLのバリデーションと動画メタデータの取得
+ * - 各パートの設定（タイトル、画質）の管理
+ * - 重複タイトルの検出
+ * - ダウンロード処理の実行
+ * - 履歴/お気に入りからの保留中ダウンロードの処理
+ *
+ * @param props.children - 子コンポーネント
+ *
+ * @example
+ * ```tsx
+ * <VideoInfoProvider>
+ *   <YourComponents />
+ * </VideoInfoProvider>
+ * ```
+ */
+export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
   const { t } = useTranslation()
   const progress = useSelector((state) => state.progress)
   const video = useSelector((state) => state.video)
   const input = useSelector((state) => state.input)
   const [isFetching, setIsFetching] = useState(false)
 
+  // Track the pending download being processed (singleton ref)
+  const processingPendingRef = useRef<{
+    bvid: string
+    cid: number | null
+    page: number
+  } | null>(null)
+
   /**
-   * Initializes part input fields based on fetched video metadata.
+   * 動画メタデータに基づいてパート入力フィールドを初期化します。
    *
-   * Creates input entries for each video part with default quality
-   * selections and marks all parts as selected.
+   * 各パートのデフォルト値（タイトル、画質）を設定し、
+   * Reduxストアに初期状態をディスパッチします。
    *
-   * @param v - The video metadata object.
+   * @param v - 動画情報オブジェクト
    */
-  const initInputsForVideo = (v: typeof video) => {
+  const initInputsForVideo = useCallback((v: Video) => {
     const partInputs = v.parts.map((p) => ({
       cid: p.cid,
       page: p.page,
@@ -109,70 +163,75 @@ export const useVideoInfo = () => {
       thumbnailUrl: p.thumbnail.url,
     }))
     store.dispatch(initPartInputs(partInputs))
-  }
+  }, [])
 
   /**
-   * Handles validation and update of video part settings (Form 2).
+   * 動画URLのバリデーションと送信を処理します（フォーム1）。
    *
-   * Updates a specific part's title, video quality, and audio quality.
+   * URLから動画IDを抽出し、バリデーション後に動画情報を非同期で取得します。
+   * 取得した情報はReduxストアに保存され、パート入力フィールドが初期化されます。
    *
-   * @param index - The part index.
-   * @param title - The custom filename for this part.
-   * @param videoQuality - The selected video quality ID as a string.
-   * @param audioQuality - The selected audio quality ID as a string
-   * (optional).
+   * @param url - 動画URL
+   *
+   * @throws {Error} 動画情報の取得に失敗した場合
    */
-  const onValid2 = (
-    index: number,
-    title: string,
-    videoQuality: string,
-    audioQuality?: string,
-  ) => {
-    store.dispatch(
-      updatePartInputByIndex({
-        index,
-        title,
-        videoQuality,
-        ...(audioQuality ? { audioQuality } : {}),
-      }),
-    )
-  }
-
-  /**
-   * Handles validation and submission of the video URL (Form 1).
-   *
-   * Extracts the video ID from the URL, fetches metadata from Bilibili,
-   * and initializes part inputs. Clears the queue before fetching new video
-   * info to prevent showing stale completion status from previous downloads.
-   * Sets the fetching state during the operation.
-   *
-   * @param url - The Bilibili video URL.
-   */
-  const onValid1 = async (url: string) => {
-    store.dispatch(setUrl(url))
-    const id = extractVideoId(url)
-    if (id) {
-      setIsFetching(true)
-      try {
-        // Clear queue before fetching new video to prevent stale UI states
-        store.dispatch(clearQueue())
-        const v = await fetchVideoInfo(id)
-        console.log('Fetched video info:', v)
-        store.dispatch(setVideo(v))
-        initInputsForVideo(v)
-      } catch (e) {
-        const raw = String(e)
-        const description = getErrorMessage(raw, t)
-        toast.error(t('video.fetch_info'), {
-          duration: 5000,
-          description,
-        })
-        console.error('Failed to fetch video info:', raw)
-      } finally {
-        setIsFetching(false)
+  const onValid1 = useCallback(
+    async (url: string) => {
+      store.dispatch(setUrl(url))
+      const id = extractVideoId(url)
+      if (id) {
+        setIsFetching(true)
+        try {
+          store.dispatch(clearQueue())
+          const v = await fetchVideoInfo(id)
+          console.log('Fetched video info:', v)
+          store.dispatch(setVideo(v))
+          initInputsForVideo(v)
+        } catch (e) {
+          const raw = String(e)
+          const description = getErrorMessage(raw, t)
+          toast.error(t('video.fetch_info'), {
+            duration: 5000,
+            description,
+          })
+          console.error('Failed to fetch video info:', raw)
+        } finally {
+          setIsFetching(false)
+        }
       }
-    }
-  }
+    },
+    [t, initInputsForVideo],
+  )
+
+  /**
+   * 動画パートの設定（タイトル、画質）のバリデーションと更新を処理します（フォーム2）。
+   *
+   * 指定されたインデックスのパートの設定値を更新し、Reduxストアに反映します。
+   * 変更はブラー時に自動保存されます。
+   *
+   * @param index - パートのインデックス（0始まり）
+   * @param title - カスタムファイル名
+   * @param videoQuality - 動画画質ID
+   * @param audioQuality - オーディオ画質ID（オプション）
+   */
+  const onValid2 = useCallback(
+    (
+      index: number,
+      title: string,
+      videoQuality: string,
+      audioQuality?: string,
+    ) => {
+      store.dispatch(
+        updatePartInputByIndex({
+          index,
+          title,
+          videoQuality,
+          ...(audioQuality ? { audioQuality } : {}),
+        }),
+      )
+    },
+    [],
+  )
 
   // Validation
   const schema1 = buildVideoFormSchema1(t)
@@ -190,34 +249,22 @@ export const useVideoInfo = () => {
   const duplicateIndices = useSelector(selectDuplicateIndices)
   const hasDuplicates = duplicateIndices.length > 0
   const dupToastRef = useRef(false)
+
   useEffect(() => {
     if (hasDuplicates === dupToastRef.current) return
     dupToastRef.current = hasDuplicates
     if (hasDuplicates)
       toast.error(t('video.duplicate_titles'), { duration: 5000 })
   }, [hasDuplicates, t])
+
   const selectedCount = input.partInputs.filter((pi) => pi.selected).length
 
   const isForm2ValidAll =
-    input.partInputs.length > 0 &&
-    partValidFlags.every((f) => f) &&
-    !hasDuplicates &&
-    selectedCount > 0
-
-  // Track the pending download being processed
-  const processingPendingRef = useRef<{
-    bvid: string
-    cid: number | null
-    page: number
-  } | null>(null)
+    partValidFlags.every(Boolean) && !hasDuplicates && selectedCount > 0
 
   /**
    * Handles pending download from watch history or favorites navigation.
-   *
-   * When navigating with a pending download:
-   * 1. Constructs the URL from bvid and page
-   * 2. Stores the pending info for part selection
-   * 3. Fetches video info (triggers initPartInputs)
+   * Runs only once per unique pending download.
    */
   useEffect(() => {
     if (!input.pendingDownload) return
@@ -238,15 +285,10 @@ export const useVideoInfo = () => {
 
     const url = `https://www.bilibili.com/video/${bvid}?p=${page}`
     onValid1(url)
-  }, [input.pendingDownload])
+  }, [input.pendingDownload, onValid1])
 
   /**
    * Handles part selection after video info is fetched for pending download.
-   *
-   * After video info is loaded (video.parts populated):
-   * 1. Deselects all parts except the target cid or page
-   * 2. Clears the pending download state
-   * Note: Does NOT start download automatically - user must click download button
    */
   useEffect(() => {
     if (!processingPendingRef.current || video.parts.length === 0) return
@@ -254,7 +296,6 @@ export const useVideoInfo = () => {
     const { cid, page } = processingPendingRef.current
 
     // Deselect all parts first, then select only the target part
-    // Use cid for watch history (has cid), or page for favorites (no cid)
     input.partInputs.forEach((pi, idx) => {
       const shouldSelect = cid !== null ? pi.cid === cid : pi.page === page
       store.dispatch(updatePartSelected({ index: idx, selected: shouldSelect }))
@@ -266,20 +307,19 @@ export const useVideoInfo = () => {
   }, [video.parts, input.partInputs])
 
   /**
-   * Initiates the download process for selected video parts.
+   * 選択された動画パートのダウンロード処理を開始します。
    *
-   * Validates both forms, generates a unique parent download ID,
-   * enqueues the download, and sequentially downloads all selected parts.
-   * Handles various error codes from the backend (e.g., ERR::FILE_EXISTS,
-   * ERR::DISK_FULL, ERR::MERGE_FAILED) and displays localized error
-   * messages.
+   * 以下の手順でダウンロードを実行します：
+   * 1. フォームのバリデーションを確認
+   * 2. 既に完了したパートのキューをクリア
+   * 3. 親ダウンロードエントリーをキューに追加
+   * 4. 各選択パートのダウンロードを順次実行
    *
-   * Note: Downloads are processed sequentially to maintain order and avoid
-   * overwhelming system resources.
+   * ダウンロードは動画IDとタイムスタンプに基づく一意のIDで管理されます。
    *
-   * @throws Displays toast error notification on failure.
+   * @throws {Error} ダウンロードの開始に失敗した場合
    */
-  const download = async () => {
+  const download = useCallback(async () => {
     try {
       if (!isForm1Valid || !isForm2ValidAll) return
 
@@ -333,9 +373,16 @@ export const useVideoInfo = () => {
       console.error('Download failed:', raw)
       store.dispatch(setError(description))
     }
-  }
+  }, [
+    isForm1Valid,
+    isForm2ValidAll,
+    input.url,
+    input.partInputs,
+    video.title,
+    t,
+  ])
 
-  return {
+  const value: VideoInfoContextValue = {
     progress,
     video,
     input,
@@ -348,4 +395,10 @@ export const useVideoInfo = () => {
     isFetching,
     download,
   }
+
+  return (
+    <VideoInfoContext.Provider value={value}>
+      {children}
+    </VideoInfoContext.Provider>
+  )
 }
