@@ -247,7 +247,7 @@ function HistoryItem({ entry, onDelete }: Props) {
         <div className="text-muted-foreground flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs">
           {entry.filename && (
             <>
-              <span className="truncate max-w-[200px]">{entry.filename}</span>
+              <span className="max-w-[200px] truncate">{entry.filename}</span>
               <span aria-hidden="true">•</span>
             </>
           )}
