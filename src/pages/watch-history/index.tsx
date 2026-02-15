@@ -117,7 +117,7 @@ export function WatchHistoryContent() {
             <Button
               variant="outline"
               size="sm"
-            onClick={handleRefresh}
+              onClick={handleRefresh}
               disabled={loading}
             >
               <RefreshCw size={18} />

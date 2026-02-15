@@ -93,9 +93,7 @@ export function FavoriteContent() {
               disabled={loading || !selectedFolderId}
             >
               <RefreshCw size={18} />
-              <span className="hidden md:inline">
-                {t('favorite.refresh')}
-              </span>
+              <span className="hidden md:inline">{t('favorite.refresh')}</span>
             </Button>
           </div>
         </div>
