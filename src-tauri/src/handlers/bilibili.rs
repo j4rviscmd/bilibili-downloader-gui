@@ -111,6 +111,29 @@ fn validate_api_response<T>(code: i64, data: Option<&T>) -> Result<(), String> {
     Ok(())
 }
 
+/// Checks HTTP response status and returns appropriate error code.
+///
+/// # Arguments
+///
+/// * `status` - HTTP response status code
+///
+/// # Returns
+///
+/// `Ok(())` if status is success (2xx).
+///
+/// # Errors
+///
+/// Returns `ERR::RATE_LIMITED` for HTTP 429, `ERR::API_ERROR` for other errors.
+fn check_http_status(status: reqwest::StatusCode) -> Result<(), String> {
+    if status.is_success() {
+        return Ok(());
+    }
+    if status.as_u16() == 429 {
+        return Err("ERR::RATE_LIMITED".into());
+    }
+    Err("ERR::API_ERROR".into())
+}
+
 /// Downloads a Bilibili video with the specified quality settings.
 ///
 /// This function orchestrates the entire download process:
@@ -436,16 +459,15 @@ async fn fetch_video_info_for_history(
     let cookie_header = build_cookie_header(cookies);
     let url = format!("https://api.bilibili.com/x/web-interface/view?bvid={bvid}");
 
-    let body: WebInterfaceApiResponse = client
+    let response = client
         .get(url)
         .header(header::COOKIE, cookie_header)
         .header(reqwest::header::REFERER, REFERER)
         .send()
         .await
-        .ok()?
-        .json()
-        .await
         .ok()?;
+    check_http_status(response.status()).ok()?;
+    let body: WebInterfaceApiResponse = response.json().await.ok()?;
 
     let data = body.data?;
     let thumbnail_url = if data.pic.is_empty() {
@@ -493,13 +515,15 @@ pub async fn fetch_user_info(app: &AppHandle) -> Result<User, String> {
     }
 
     let client = build_client()?;
-    let body = client
+    let response = client
         .get("https://api.bilibili.com/x/web-interface/nav")
         .header(header::COOKIE, cookie_header)
         .header(reqwest::header::REFERER, REFERER)
         .send()
         .await
-        .map_err(|e| format!("Failed to fetch user info: {e}"))?
+        .map_err(|e| format!("Failed to fetch user info: {e}"))?;
+    check_http_status(response.status())?;
+    let body = response
         .json::<UserApiResponse>()
         .await
         .map_err(|e| format!("UserApi Failed to parse response JSON:: {e}"))?;
@@ -782,13 +806,15 @@ async fn fetch_video_title(
         video.bvid
     );
 
-    let body: WebInterfaceApiResponse = client
+    let response = client
         .get(url)
         .header(header::COOKIE, build_cookie_header(cookies))
         .header(reqwest::header::REFERER, REFERER)
         .send()
         .await
-        .map_err(|e| format!("WebInterface Api Failed to fetch video info: {e}"))?
+        .map_err(|e| format!("WebInterface Api Failed to fetch video info: {e}"))?;
+    check_http_status(response.status())?;
+    let body: WebInterfaceApiResponse = response
         .json()
         .await
         .map_err(|e| format!("WebInterface Api Failed to parse response JSON: {e}"))?;
@@ -837,7 +863,7 @@ async fn fetch_video_details(
 
     let signature = crate::utils::wbi::generate_wbi_signature(&mut params, &mixin_key)?;
 
-    let body: XPlayerApiResponse = client
+    let response = client
         .get("https://api.bilibili.com/x/player/wbi/playurl")
         .header(header::COOKIE, build_cookie_header(cookies))
         .header(header::REFERER, "https://www.bilibili.com")
@@ -853,7 +879,9 @@ async fn fetch_video_details(
         ])
         .send()
         .await
-        .map_err(|e| format!("XPlayerApi Failed to fetch video info: {e}"))?
+        .map_err(|e| format!("XPlayerApi Failed to fetch video info: {e}"))?;
+    check_http_status(response.status())?;
+    let body: XPlayerApiResponse = response
         .json()
         .await
         .map_err(|e| format!("XPlayerApi Failed to parse response JSON: {e}"))?;
