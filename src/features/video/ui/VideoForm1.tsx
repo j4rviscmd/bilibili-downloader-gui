@@ -14,7 +14,7 @@ import {
 } from '@/shared/ui/form'
 import { Input } from '@/shared/ui/input'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { CircleX, Loader2 } from 'lucide-react'
+import { Loader2, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -60,20 +60,14 @@ function VideoForm1() {
     onValid1(trimmedUrl)
   }
 
-  function handleClear(fieldOnChange: (value: string) => void) {
-    form.setValue('url', '', { shouldValidate: true })
-    fieldOnChange('')
-    setLastFetchedUrl('')
-  }
-
   const placeholder =
-    t('video.url_placeholder_example') ||
+    t('video.url_placeholder_example') ??
     'e.g. https://www.bilibili.com/video/BV1xxxxxx'
 
   function renderInputIcon(
     value: string,
-    fieldOnChange: (value: string) => void,
-  ) {
+    onChange: (value: string) => void,
+  ): React.ReactNode {
     if (isFetching) {
       return (
         <div className="absolute top-1/2 right-3 -translate-y-1/2">
@@ -81,22 +75,28 @@ function VideoForm1() {
         </div>
       )
     }
-    if (value) {
-      return (
-        <button
-          type="button"
-          disabled={hasActiveDownloads}
-          onClick={() => handleClear(fieldOnChange)}
-          className={cn(
-            'text-muted-foreground hover:text-foreground absolute top-1/2 right-3 -translate-y-1/2 transition-colors',
-            hasActiveDownloads && 'cursor-not-allowed opacity-50',
-          )}
-        >
-          <CircleX className="size-4" />
-        </button>
-      )
+
+    if (!value) return null
+
+    function handleClear(): void {
+      form.setValue('url', '', { shouldValidate: true })
+      onChange('')
+      setLastFetchedUrl('')
     }
-    return null
+
+    return (
+      <button
+        type="button"
+        disabled={hasActiveDownloads}
+        onClick={handleClear}
+        className={cn(
+          'text-muted-foreground hover:bg-muted hover:text-foreground absolute top-1/2 right-2 -translate-y-1/2 rounded-full p-1 transition-colors',
+          hasActiveDownloads && 'cursor-not-allowed opacity-50',
+        )}
+      >
+        <X className="size-4" />
+      </button>
+    )
   }
 
   return (
