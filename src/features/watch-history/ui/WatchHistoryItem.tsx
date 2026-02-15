@@ -51,6 +51,11 @@ export function WatchHistoryItem({ entry, onDownload, disabled }: Props) {
   const [copied, setCopied] = useState(false)
   const progressPercent = calculateProgress(entry.progress, entry.duration)
 
+  /**
+   * Copies the video URL to the clipboard and shows a success toast.
+   * Displays error toast if clipboard access fails.
+   * Temporarily shows checkmark icon for 2 seconds on success.
+   */
   const handleCopyUrl = async () => {
     try {
       await navigator.clipboard.writeText(entry.url)
@@ -64,7 +69,6 @@ export function WatchHistoryItem({ entry, onDownload, disabled }: Props) {
 
   return (
     <div className="border-border hover:bg-accent/50 flex items-center gap-3 rounded-lg border p-3">
-      {/* Thumbnail with progress overlay */}
       <div className="relative size-20 shrink-0 overflow-hidden rounded select-none">
         <img
           src={entry.coverBase64 || entry.cover}
@@ -75,11 +79,9 @@ export function WatchHistoryItem({ entry, onDownload, disabled }: Props) {
             e.currentTarget.src = '/placeholder.png'
           }}
         />
-        {/* Duration badge */}
         <div className="absolute right-0.5 bottom-1 rounded bg-black/60 px-1 text-xs text-white">
           {formatDurationShort(entry.duration)}
         </div>
-        {/* Progress bar overlay */}
         <div className="absolute right-0 bottom-0 left-0 h-1.5 bg-black/60">
           <div
             className="h-full bg-gradient-to-r from-pink-500 to-red-500"
@@ -88,11 +90,9 @@ export function WatchHistoryItem({ entry, onDownload, disabled }: Props) {
         </div>
       </div>
 
-      {/* Content */}
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <h3 className="truncate font-semibold">{entry.title}</h3>
 
-        {/* URL with copy button */}
         <div className="flex items-center gap-2 text-xs">
           <Button
             variant="ghost"
@@ -118,17 +118,17 @@ export function WatchHistoryItem({ entry, onDownload, disabled }: Props) {
         </span>
       </div>
 
-      {/* Download Button */}
       <TooltipProvider delayDuration={0}>
         <Tooltip>
           <TooltipTrigger asChild>
             <span>
               <Button
+                variant="default"
                 size="sm"
                 onClick={() => onDownload(entry)}
                 disabled={disabled}
               >
-                <Download className="mr-1 h-4 w-4" />
+                <Download size={16} />
                 {t('watchHistory.download')}
               </Button>
             </span>
