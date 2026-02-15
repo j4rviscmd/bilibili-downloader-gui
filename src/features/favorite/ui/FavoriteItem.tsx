@@ -1,4 +1,10 @@
 import { useThumbnailCache } from '@/features/history'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/shared/animate-ui/radix/tooltip'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
 import { Check, Copy, Download, RefreshCw, StarOff } from 'lucide-react'
@@ -59,9 +65,7 @@ function FavoriteItem({ video, onDownload, disabled }: Props) {
       )}
     >
       <div className="bg-muted relative flex size-20 shrink-0 items-center justify-center overflow-hidden rounded">
-        {thumbnailLoading ? (
-          <ThumbnailPlaceholder />
-        ) : thumbnailSrc ? (
+        {thumbnailSrc && !thumbnailLoading ? (
           <img
             src={thumbnailSrc}
             alt={video.title}
@@ -147,16 +151,28 @@ function FavoriteItem({ video, onDownload, disabled }: Props) {
         </div>
       </div>
 
-      <Button
-        variant="default"
-        size="sm"
-        onClick={handleDownload}
-        disabled={disabled}
-        title={t('favorite.download')}
-      >
-        <Download size={16} />
-        {t('favorite.download')}
-      </Button>
+      <TooltipProvider delayDuration={0}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleDownload}
+                disabled={disabled}
+              >
+                <Download size={16} />
+                {t('favorite.download')}
+              </Button>
+            </span>
+          </TooltipTrigger>
+          {disabled && (
+            <TooltipContent side="top" arrow>
+              {t('video.download_in_progress')}
+            </TooltipContent>
+          )}
+        </Tooltip>
+      </TooltipProvider>
     </div>
   )
 }

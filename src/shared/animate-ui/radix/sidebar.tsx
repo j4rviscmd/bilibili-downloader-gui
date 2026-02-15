@@ -14,19 +14,11 @@ import {
   MotionHighlightItem,
 } from '@/shared/animate-ui/effects/motion-highlight'
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@/shared/animate-ui/radix/sheet'
-import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
-import { useIsMobile } from '@/shared/hooks/use-mobile'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
@@ -35,7 +27,6 @@ import { Skeleton } from '@/shared/ui/skeleton'
 import { useTranslation } from 'react-i18next'
 
 const SIDEBAR_WIDTH = '16rem'
-const SIDEBAR_WIDTH_MOBILE = '18rem'
 const SIDEBAR_WIDTH_ICON = '3rem'
 const SIDEBAR_KEYBOARD_SHORTCUT = 'b'
 
@@ -58,12 +49,6 @@ type SidebarContextProps = {
   open: boolean
   /** サイドバーの開閉を設定する関数 */
   setOpen: (open: boolean) => void
-  /** モバイル表示でサイドバーが開いているか */
-  openMobile: boolean
-  /** モバイルサイドバーの開閉を設定する関数 */
-  setOpenMobile: (open: boolean) => void
-  /** 現在モバイル画面かどうか */
-  isMobile: boolean
   /** サイドバーの開閉を切り替える関数 */
   toggleSidebar: () => void
 }
@@ -132,9 +117,6 @@ function SidebarProvider({
   children,
   ...props
 }: SidebarProviderProps) {
-  const isMobile = useIsMobile()
-  const [openMobile, setOpenMobile] = React.useState(false)
-
   const dispatch = useAppDispatch()
   const [fallbackOpen] = React.useState(defaultOpen)
   const [cachedSettings, setCachedSettings] = React.useState<Settings | null>(
@@ -194,8 +176,8 @@ function SidebarProvider({
   )
 
   const toggleSidebar = React.useCallback(() => {
-    return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open)
-  }, [isMobile, setOpen, setOpenMobile])
+    return setOpen((open) => !open)
+  }, [setOpen])
 
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -219,12 +201,9 @@ function SidebarProvider({
       state,
       open,
       setOpen,
-      isMobile,
-      openMobile,
-      setOpenMobile,
       toggleSidebar,
     }),
-    [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar],
+    [state, open, setOpen, toggleSidebar],
   )
 
   return (
@@ -299,7 +278,7 @@ function Sidebar({
   transition = { type: 'spring', stiffness: 350, damping: 35 },
   ...props
 }: SidebarProps) {
-  const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
+  const { state } = useSidebar()
 
   if (collapsible === 'none') {
     return (
@@ -322,40 +301,6 @@ function Sidebar({
           {children}
         </div>
       </MotionHighlight>
-    )
-  }
-
-  if (isMobile) {
-    return (
-      <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
-        <SheetContent
-          data-sidebar="sidebar"
-          data-slot="sidebar"
-          data-mobile="true"
-          className="bg-sidebar text-sidebar-foreground w-(--sidebar-width) p-0 [&>button]:hidden"
-          style={
-            {
-              '--sidebar-width': SIDEBAR_WIDTH_MOBILE,
-            } as React.CSSProperties
-          }
-          side={side}
-        >
-          <SheetHeader className="sr-only">
-            <SheetTitle>Sidebar</SheetTitle>
-            <SheetDescription>Displays the mobile sidebar.</SheetDescription>
-          </SheetHeader>
-          <MotionHighlight
-            enabled={animateOnHover}
-            hover
-            controlledItems
-            mode="parent"
-            containerClassName={cn('h-full', containerClassName)}
-            transition={transition}
-          >
-            <div className="flex h-full w-full flex-col">{children}</div>
-          </MotionHighlight>
-        </SheetContent>
-      </Sheet>
     )
   }
 
@@ -842,7 +787,7 @@ function SidebarMenuButton({
   ...props
 }: SidebarMenuButtonProps) {
   const Comp = asChild ? Slot.Root : 'button'
-  const { isMobile, state } = useSidebar()
+  const { state } = useSidebar()
 
   const button = (
     <MotionHighlightItem
@@ -872,7 +817,7 @@ function SidebarMenuButton({
       <TooltipContent
         side="right"
         align="center"
-        hidden={state !== 'collapsed' || isMobile}
+        hidden={state !== 'collapsed'}
         {...tooltipContent}
       />
     </Tooltip>

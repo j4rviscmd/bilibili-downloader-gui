@@ -11,6 +11,7 @@ type Props = {
   onLoadMore: () => void
   onDownload: (video: FavoriteVideo) => void
   height?: string
+  disabled?: boolean
 }
 
 const DEFAULT_ITEM_HEIGHT = 120
@@ -46,6 +47,7 @@ function FavoriteList({
   onLoadMore,
   onDownload,
   height,
+  disabled,
 }: Props) {
   const { t } = useTranslation()
 
@@ -83,7 +85,11 @@ function FavoriteList({
       }}
       itemContent={(_index, video) => (
         <div key={video.id} className="py-1">
-          <FavoriteItem video={video} onDownload={onDownload} />
+          <FavoriteItem
+            video={video}
+            onDownload={onDownload}
+            disabled={disabled}
+          />
         </div>
       )}
       defaultItemHeight={DEFAULT_ITEM_HEIGHT}

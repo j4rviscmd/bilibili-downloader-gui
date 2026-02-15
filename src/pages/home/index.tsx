@@ -14,7 +14,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
-import { useIsMobile } from '@/shared/hooks/use-mobile'
 import { selectHasActiveDownloads } from '@/shared/queue'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
@@ -28,9 +27,49 @@ import {
 import { Separator } from '@/shared/ui/separator'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { Info } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router'
+
+type TooltipButtonProps = {
+  label: string
+  onClick: () => void
+  disabled?: boolean
+  tooltip?: string
+}
+
+/**
+ * Button with optional tooltip for disabled state.
+ */
+function TooltipButton({
+  label,
+  onClick,
+  disabled,
+  tooltip,
+}: TooltipButtonProps) {
+  const button = (
+    <Button variant="outline" size="sm" onClick={onClick} disabled={disabled}>
+      {label}
+    </Button>
+  )
+
+  if (!tooltip) {
+    return button
+  }
+
+  return (
+    <TooltipProvider delayDuration={0}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span>{button}</span>
+        </TooltipTrigger>
+        <TooltipContent side="top" arrow>
+          {tooltip}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
 
 /**
  * Home page content component (main application view).
@@ -60,13 +99,9 @@ export function HomeContent() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { video, duplicateIndices, onValid1, isFetching } = useVideoInfo()
   const { t } = useTranslation()
-  const isMobile = useIsMobile()
   const hasActiveDownloads = useSelector(selectHasActiveDownloads)
   const user = useSelector((state) => state.user)
   const isLoggedIn = user.hasCookie && user.data?.isLogin
-
-  // Collapsed parts state for mobile (parts 3+ are collapsed by default on mobile)
-  const [collapsedParts, setCollapsedParts] = useState<Set<number>>(new Set())
 
   // Handle autoFetch from query parameter
   useEffect(() => {
@@ -77,29 +112,6 @@ export function HomeContent() {
       onValid1(autoFetchUrl)
     }
   }, [searchParams, isFetching, video.parts.length, onValid1, setSearchParams])
-
-  // Initialize collapsed parts for mobile (parts 3+ are collapsed)
-  useEffect(() => {
-    if (isMobile && video.parts.length > 2) {
-      setCollapsedParts(
-        new Set(
-          Array.from({ length: video.parts.length - 2 }, (_, i) => i + 2),
-        ),
-      )
-    }
-  }, [isMobile, video.parts.length])
-
-  const togglePartCollapsed = (index: number) => {
-    setCollapsedParts((prev) => {
-      const next = new Set(prev)
-      if (next.has(index)) {
-        next.delete(index)
-      } else {
-        next.add(index)
-      }
-      return next
-    })
-  }
 
   const handleSelectAll = () => {
     store.dispatch(selectAll())
@@ -162,83 +174,41 @@ export function HomeContent() {
                 {t('video.step2_title')}
               </CardTitle>
               <div className="flex items-center gap-2">
-                <TooltipProvider delayDuration={0}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleSelectAll}
-                          disabled={hasActiveDownloads}
-                        >
-                          {t('video.select_all')}
-                        </Button>
-                      </span>
-                    </TooltipTrigger>
-                    {hasActiveDownloads && (
-                      <TooltipContent side="top" arrow>
-                        {t('video.download_in_progress')}
-                      </TooltipContent>
-                    )}
-                  </Tooltip>
-                </TooltipProvider>
-                <TooltipProvider delayDuration={0}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleDeselectAll}
-                          disabled={hasActiveDownloads}
-                        >
-                          {t('video.deselect_all')}
-                        </Button>
-                      </span>
-                    </TooltipTrigger>
-                    {hasActiveDownloads && (
-                      <TooltipContent side="top" arrow>
-                        {t('video.download_in_progress')}
-                      </TooltipContent>
-                    )}
-                  </Tooltip>
-                </TooltipProvider>
+                <TooltipButton
+                  label={t('video.select_all')}
+                  onClick={handleSelectAll}
+                  disabled={hasActiveDownloads}
+                  tooltip={
+                    hasActiveDownloads
+                      ? t('video.download_in_progress')
+                      : undefined
+                  }
+                />
+                <TooltipButton
+                  label={t('video.deselect_all')}
+                  onClick={handleDeselectAll}
+                  disabled={hasActiveDownloads}
+                  tooltip={
+                    hasActiveDownloads
+                      ? t('video.download_in_progress')
+                      : undefined
+                  }
+                />
               </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-0">
             {video.parts.map((_v, idx) => {
-              const isCollapsed = collapsedParts.has(idx)
-              const showCollapseButton = isMobile && idx >= 2
               const isLast = idx === video.parts.length - 1
 
               return (
                 <div key={idx}>
-                  {showCollapseButton && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => togglePartCollapsed(idx)}
-                      className="mb-2 h-9 w-full"
-                    >
-                      <span>
-                        {isCollapsed
-                          ? t('video.expand_part', { num: idx + 1 })
-                          : t('video.collapse_part', { num: idx + 1 })}
-                      </span>
-                    </Button>
-                  )}
-                  {!isCollapsed && (
-                    <>
-                      <VideoPartCard
-                        video={video}
-                        page={idx + 1}
-                        isDuplicate={duplicateIndices.includes(idx)}
-                      />
-                      {!isLast && <Separator className="my-3" />}
-                    </>
-                  )}
+                  <VideoPartCard
+                    video={video}
+                    page={idx + 1}
+                    isDuplicate={duplicateIndices.includes(idx)}
+                  />
+                  {!isLast && <Separator className="my-3" />}
                 </div>
               )
             })}
