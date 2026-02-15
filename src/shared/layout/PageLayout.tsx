@@ -44,35 +44,12 @@ export interface PageLayoutProps {
 }
 
 /**
- * Standardized page layout component with sidebar navigation.
- *
- * Provides consistent layout structure across all pages including:
- * - Collapsible sidebar with navigation
- * - App bar with user info and theme toggle
- * - Optional scrollable content area
- * - Centered content with max-width constraint
- *
- * @example
- * ```tsx
- * // With scroll area (default)
- * <PageLayout>
- *   <YourPageContent />
- * </PageLayout>
- *
- * // Without scroll area
- * <PageLayout withScrollArea={false}>
- *   <YourPageContent />
- * </PageLayout>
- *
- * // With custom classes
- * <PageLayout
- *   withScrollArea={false}
- *   innerClassName="gap-6"
- * >
- *   <YourPageContent />
- * </PageLayout>
- * ```
+ * Props for PageLayoutShell component.
  */
+export interface PageLayoutShellProps {
+  /** Page content to render (directly in SidebarInset) */
+  children: ReactNode
+}
 
 /**
  * Custom sidebar trigger with dynamic icon and accessibility improvements.
@@ -108,28 +85,31 @@ function EnhancedSidebarTrigger({ className }: { className?: string }) {
   )
 }
 
-export function PageLayout({
-  children,
-  withScrollArea = true,
-  innerClassName,
-}: PageLayoutProps) {
+/**
+ * Page layout shell component with sidebar and app bar.
+ *
+ * Provides the common layout structure including:
+ * - Collapsible sidebar with navigation
+ * - App bar with user info and theme toggle
+ * - Settings dialog
+ *
+ * Children are rendered directly in the SidebarInset without any wrapper,
+ * giving full control over the content layout to the parent.
+ *
+ * @example
+ * ```tsx
+ * <PageLayoutShell>
+ *   <YourPageContent />
+ * </PageLayoutShell>
+ * ```
+ */
+export function PageLayoutShell({ children }: PageLayoutShellProps) {
   const { user } = useUser()
   const { theme, setTheme } = useTheme()
   const { t } = useTranslation()
   const navigate = useNavigate()
   const location = useLocation()
   const [isDownloadHovered, setIsDownloadHovered] = useState(false)
-
-  const content = (
-    <div
-      className={cn(
-        'mx-auto flex w-full max-w-5xl flex-col gap-3 p-3 sm:px-6',
-        innerClassName,
-      )}
-    >
-      {children}
-    </div>
-  )
 
   return (
     <>
@@ -165,21 +145,77 @@ export function PageLayout({
               <EnhancedSidebarTrigger />
               <AppBar user={user} theme={theme} setTheme={setTheme} />
             </header>
-            {withScrollArea ? (
-              <ScrollArea
-                style={{ height: 'calc(100dvh - 2.3rem)' }}
-                className="flex w-full"
-              >
-                {content}
-                <ScrollBar />
-              </ScrollArea>
-            ) : (
-              content
-            )}
+            {children}
           </div>
         </SidebarInset>
       </SidebarProvider>
       <SettingsDialog />
     </>
+  )
+}
+
+/**
+ * Standardized page layout component with sidebar navigation.
+ *
+ * Provides consistent layout structure across all pages including:
+ * - Collapsible sidebar with navigation
+ * - App bar with user info and theme toggle
+ * - Optional scrollable content area
+ * - Centered content with max-width constraint
+ *
+ * This is a convenience wrapper around PageLayoutShell that provides
+ * common content styling. For more control, use PageLayoutShell directly.
+ *
+ * @example
+ * ```tsx
+ * // With scroll area (default)
+ * <PageLayout>
+ *   <YourPageContent />
+ * </PageLayout>
+ *
+ * // Without scroll area
+ * <PageLayout withScrollArea={false}>
+ *   <YourPageContent />
+ * </PageLayout>
+ *
+ * // With custom classes
+ * <PageLayout
+ *   withScrollArea={false}
+ *   innerClassName="gap-6"
+ * >
+ *   <YourPageContent />
+ * </PageLayout>
+ * ```
+ */
+export function PageLayout({
+  children,
+  withScrollArea = true,
+  innerClassName,
+}: PageLayoutProps) {
+  const content = (
+    <div
+      className={cn(
+        'mx-auto flex w-full max-w-5xl flex-col gap-3 p-3 sm:px-6',
+        innerClassName,
+      )}
+    >
+      {children}
+    </div>
+  )
+
+  return (
+    <PageLayoutShell>
+      {withScrollArea ? (
+        <ScrollArea
+          style={{ height: 'calc(100dvh - 2.3rem)' }}
+          className="flex w-full"
+        >
+          {content}
+          <ScrollBar />
+        </ScrollArea>
+      ) : (
+        content
+      )}
+    </PageLayoutShell>
   )
 }

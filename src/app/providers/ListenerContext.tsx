@@ -1,4 +1,6 @@
 import { store } from '@/app/store'
+import type { HistoryEntry } from '@/features/history/model/historySlice'
+import { addEntry } from '@/features/history/model/historySlice'
 import i18n from '@/i18n'
 import type { Progress } from '@/shared/progress'
 import { setProgress } from '@/shared/progress/progressSlice'
@@ -35,10 +37,12 @@ const ListenerContext = createContext<boolean>(false)
  */
 export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
   useEffect(() => {
-    let unlisten: UnlistenFn | undefined
+    let unlistenProgress: UnlistenFn | undefined
+    let unlistenHistory: UnlistenFn | undefined
 
-    const setupListener = async (): Promise<void> => {
-      unlisten = await listen('progress', (event) => {
+    const setupListeners = async (): Promise<void> => {
+      // Setup progress event listener
+      unlistenProgress = await listen('progress', (event) => {
         const payload = event.payload as Progress
         const { stage, downloadId } = payload
         store.dispatch(setProgress(payload))
@@ -68,12 +72,19 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
           })
         }
       })
+
+      // Setup history entry added event listener
+      unlistenHistory = await listen('history:entry_added', (event) => {
+        const entry = event.payload as HistoryEntry
+        store.dispatch(addEntry(entry))
+      })
     }
 
-    setupListener()
+    setupListeners()
 
     return () => {
-      unlisten?.()
+      unlistenProgress?.()
+      unlistenHistory?.()
     }
   }, [])
   return (

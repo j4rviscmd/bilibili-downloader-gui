@@ -15,7 +15,6 @@ import {
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
 import { useIsMobile } from '@/shared/hooks/use-mobile'
-import { PageLayout } from '@/shared/layout'
 import { selectHasActiveDownloads } from '@/shared/queue'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
@@ -34,11 +33,12 @@ import { Trans, useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router'
 
 /**
- * Home page component (main application view).
+ * Home page content component (main application view).
+ *
+ * This is the content portion of the home page without the layout wrapper.
+ * It should be rendered inside a PageLayoutShell or similar layout.
  *
  * Displays the primary UI for video downloads including:
- * - Sidebar with settings button
- * - App bar with user info, language selector, and theme toggle
  * - Video URL input form (Step 1)
  * - Video parts configuration forms (Step 2)
  * - Select all/deselect all buttons
@@ -50,10 +50,11 @@ import { useNavigate, useSearchParams } from 'react-router'
  *
  * @example
  * ```tsx
- * <Route path="/home" element={<HomePage />} />
+ * // Inside PersistentPageLayout
+ * <HomeContent />
  * ```
  */
-function HomePage() {
+export function HomeContent() {
   const { initiated } = useInit()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -114,7 +115,7 @@ function HomePage() {
   }, [initiated, navigate])
 
   return (
-    <PageLayout>
+    <>
       {/* Login Benefits Info - shown only when not logged in */}
       {!isLoggedIn && (
         <Alert variant="info">
@@ -247,8 +248,8 @@ function HomePage() {
           </CardFooter>
         </Card>
       )}
-    </PageLayout>
+    </>
   )
 }
 
-export default HomePage
+export default HomeContent
