@@ -45,6 +45,7 @@ const ERROR_MAP: Record<string, string> = {
   'ERR::DISK_FULL': 'video.disk_full',
   'ERR::MERGE_FAILED': 'video.merge_failed',
   'ERR::QUALITY_NOT_FOUND': 'video.quality_not_found',
+  'ERR::RATE_LIMITED': 'video.rate_limited',
 }
 
 /**
@@ -79,21 +80,9 @@ export type VideoInfoContextValue = {
 const VideoInfoContext = createContext<VideoInfoContextValue | null>(null)
 
 /**
- * VideoInfoContextにアクセスするためのフック。
- *
- * このフックは`VideoInfoProvider`内でのみ使用可能です。
- * プロバイダーの外で使用した場合はエラーをスローします。
- *
- * @returns VideoInfoContextの値
- * @throws {Error} VideoInfoProvider外で使用された場合
- *
- * @example
- * ```tsx
- * function MyComponent() {
- *   const { video, download, isForm1Valid } = useVideoInfo()
- *   // ...
- * }
- * ```
+ * Hook to access the VideoInfoContext.
+ * Must be used within a VideoInfoProvider.
+ * @throws {Error} When used outside VideoInfoProvider
  */
 export function useVideoInfo(): VideoInfoContextValue {
   const context = useContext(VideoInfoContext)
@@ -108,26 +97,8 @@ type VideoInfoProviderProps = {
 }
 
 /**
- * 動画情報とダウンロードワークフローを管理するプロバイダーコンポーネント。
- *
- * このプロバイダーは、動画情報の取得ロジックが一度だけ実行されることを保証し、
- * 複数のコンポーネントが動画情報にアクセスする際の重複したAPI呼び出しを防止します。
- *
- * 以下の機能を提供します：
- * - 動画URLのバリデーションと動画メタデータの取得
- * - 各パートの設定（タイトル、画質）の管理
- * - 重複タイトルの検出
- * - ダウンロード処理の実行
- * - 履歴/お気に入りからの保留中ダウンロードの処理
- *
- * @param props.children - 子コンポーネント
- *
- * @example
- * ```tsx
- * <VideoInfoProvider>
- *   <YourComponents />
- * </VideoInfoProvider>
- * ```
+ * Provider for managing video information and download workflow.
+ * Provides video info fetching, part settings management, duplicate detection, and download execution.
  */
 export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
   const { t } = useTranslation()
@@ -144,12 +115,7 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
   } | null>(null)
 
   /**
-   * 動画メタデータに基づいてパート入力フィールドを初期化します。
-   *
-   * 各パートのデフォルト値（タイトル、画質）を設定し、
-   * Reduxストアに初期状態をディスパッチします。
-   *
-   * @param v - 動画情報オブジェクト
+   * Initializes part input fields based on video metadata.
    */
   const initInputsForVideo = useCallback((v: Video) => {
     const partInputs = v.parts.map((p) => ({
@@ -166,14 +132,7 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
   }, [])
 
   /**
-   * 動画URLのバリデーションと送信を処理します（フォーム1）。
-   *
-   * URLから動画IDを抽出し、バリデーション後に動画情報を非同期で取得します。
-   * 取得した情報はReduxストアに保存され、パート入力フィールドが初期化されます。
-   *
-   * @param url - 動画URL
-   *
-   * @throws {Error} 動画情報の取得に失敗した場合
+   * Validates video URL and fetches information (form 1).
    */
   const onValid1 = useCallback(
     async (url: string) => {
@@ -216,15 +175,7 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
   )
 
   /**
-   * 動画パートの設定（タイトル、画質）のバリデーションと更新を処理します（フォーム2）。
-   *
-   * 指定されたインデックスのパートの設定値を更新し、Reduxストアに反映します。
-   * 変更はブラー時に自動保存されます。
-   *
-   * @param index - パートのインデックス（0始まり）
-   * @param title - カスタムファイル名
-   * @param videoQuality - 動画画質ID
-   * @param audioQuality - オーディオ画質ID（オプション）
+   * Updates part settings (title, quality) (form 2).
    */
   const onValid2 = useCallback(
     (
@@ -275,8 +226,7 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
     partValidFlags.every(Boolean) && !hasDuplicates && selectedCount > 0
 
   /**
-   * Handles pending download from watch history or favorites navigation.
-   * Runs only once per unique pending download.
+   * Processes pending download from history/favorites.
    */
   useEffect(() => {
     if (!input.pendingDownload) return
@@ -300,7 +250,7 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
   }, [input.pendingDownload, onValid1])
 
   /**
-   * Handles part selection after video info is fetched for pending download.
+   * Handles part selection for pending download (after video info is fetched).
    */
   useEffect(() => {
     if (!processingPendingRef.current || video.parts.length === 0) return
@@ -319,17 +269,7 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
   }, [video.parts, input.partInputs])
 
   /**
-   * 選択された動画パートのダウンロード処理を開始します。
-   *
-   * 以下の手順でダウンロードを実行します：
-   * 1. フォームのバリデーションを確認
-   * 2. 既に完了したパートのキューをクリア
-   * 3. 親ダウンロードエントリーをキューに追加
-   * 4. 各選択パートのダウンロードを順次実行
-   *
-   * ダウンロードは動画IDとタイムスタンプに基づく一意のIDで管理されます。
-   *
-   * @throws {Error} ダウンロードの開始に失敗した場合
+   * Executes download for selected video parts.
    */
   const download = useCallback(async () => {
     try {

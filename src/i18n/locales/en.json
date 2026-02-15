@@ -65,6 +65,7 @@
     "network_error": "Network error during download.",
     "video_not_found": "Video not found. Please check the URL.",
     "api_error": "Failed to fetch video information.",
+    "rate_limited": "Too many requests. Please wait a moment and try again.",
     "video_quality_fallback": "Selected video quality ({{from}}) unavailable. Using {{to}}.",
     "audio_quality_fallback": "Selected audio quality ({{from}}) unavailable. Using {{to}}.",
     "queue_waiting_prefix": "Queued:",
