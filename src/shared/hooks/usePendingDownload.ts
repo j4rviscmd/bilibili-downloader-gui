@@ -25,11 +25,7 @@ export const usePendingDownload = () => {
   const dispatch = useAppDispatch()
   const navigate = useNavigate()
 
-  const handleDownload = (
-    bvid: string,
-    cid: number | null,
-    page: number,
-  ) => {
+  const handleDownload = (bvid: string, cid: number | null, page: number) => {
     dispatch(setPendingDownload({ bvid, cid, page }))
     navigate('/home')
   }

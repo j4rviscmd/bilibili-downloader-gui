@@ -3,8 +3,8 @@ import { useFavorite } from '@/features/favorite/hooks/useFavorite'
 import type { FavoriteVideo } from '@/features/favorite/types'
 import FavoriteList from '@/features/favorite/ui/FavoriteList'
 import FolderSelector from '@/features/favorite/ui/FolderSelector'
-import { selectHasActiveDownloads } from '@/shared/queue'
 import { usePendingDownload } from '@/shared/hooks/usePendingDownload'
+import { selectHasActiveDownloads } from '@/shared/queue'
 import { Button } from '@/shared/ui/button'
 import { RefreshCw } from 'lucide-react'
 import { useEffect } from 'react'
@@ -34,7 +34,7 @@ export function FavoriteContent() {
   const hasActiveDownloads = useSelector(selectHasActiveDownloads)
   const handleDownload = usePendingDownload()
 
-  const mid = user.data?.isLogin ? user.data.mid ?? null : null
+  const mid = user.data?.isLogin ? (user.data.mid ?? null) : null
 
   const {
     folders,

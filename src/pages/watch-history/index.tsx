@@ -6,8 +6,8 @@ import {
   WatchHistoryList,
   WatchHistorySearch,
 } from '@/features/watch-history'
-import { selectHasActiveDownloads } from '@/shared/queue'
 import { usePendingDownload } from '@/shared/hooks/usePendingDownload'
+import { selectHasActiveDownloads } from '@/shared/queue'
 import { Alert, AlertDescription } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
 import { AlertCircle, RefreshCw } from 'lucide-react'
