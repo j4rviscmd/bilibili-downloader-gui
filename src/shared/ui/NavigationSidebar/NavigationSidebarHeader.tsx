@@ -1,4 +1,5 @@
 import { useSelector } from '@/app/store'
+import { Download } from '@/shared/animate-ui/icons/download'
 import {
   SidebarMenu,
   SidebarMenuButton,
@@ -11,6 +12,7 @@ import {
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
 import { cn } from '@/shared/lib/utils'
+import { selectHasActiveDownloads } from '@/shared/queue'
 import { Eye, Home, Star } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router'
@@ -42,8 +44,7 @@ export function NavigationSidebarHeader({
   const location = useLocation()
   const user = useSelector((state) => state.user)
   const isLoggedIn = user.hasCookie && user.data?.isLogin
-
-  const currentPath = location.pathname
+  const hasActiveDownloads = useSelector(selectHasActiveDownloads)
 
   const menuItems = [
     {
@@ -78,8 +79,9 @@ export function NavigationSidebarHeader({
         <SidebarMenu>
           {menuItems.map((item) => {
             const Icon = item.icon
-            const isActive = currentPath === item.path
+            const isActive = location.pathname === item.path
             const isDisabled = item.requiresAuth && !isLoggedIn
+            const isHome = item.path === '/home'
 
             const button = (
               <SidebarMenuButton
@@ -93,7 +95,16 @@ export function NavigationSidebarHeader({
                   isDisabled ? 'cursor-not-allowed opacity-50' : undefined
                 }
               >
-                <Icon />
+                {isHome && hasActiveDownloads ? (
+                  <Download
+                    animate={true}
+                    animation="default-loop"
+                    loop={true}
+                    size={16}
+                  />
+                ) : (
+                  <Icon />
+                )}
                 <span>{item.label}</span>
               </SidebarMenuButton>
             )
