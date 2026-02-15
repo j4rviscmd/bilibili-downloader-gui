@@ -3,12 +3,12 @@ import { useFavorite } from '@/features/favorite/hooks/useFavorite'
 import type { FavoriteVideo } from '@/features/favorite/types'
 import FavoriteList from '@/features/favorite/ui/FavoriteList'
 import FolderSelector from '@/features/favorite/ui/FolderSelector'
+import { usePendingDownload } from '@/shared/hooks/usePendingDownload'
 import { selectHasActiveDownloads } from '@/shared/queue'
 import { Button } from '@/shared/ui/button'
 import { RefreshCw } from 'lucide-react'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
 
 /**
@@ -30,12 +30,11 @@ import { toast } from 'sonner'
  */
 export function FavoriteContent() {
   const { t } = useTranslation()
-  const navigate = useNavigate()
-
   const user = useSelector((state) => state.user)
   const hasActiveDownloads = useSelector(selectHasActiveDownloads)
+  const handleDownload = usePendingDownload()
 
-  const mid = user.data?.isLogin && user.data?.mid ? user.data.mid : null
+  const mid = user.data?.isLogin ? (user.data.mid ?? null) : null
 
   const {
     folders,
@@ -53,11 +52,23 @@ export function FavoriteContent() {
     document.title = `${t('favorite.title')} - ${t('app.title')}`
   }, [t])
 
-  const handleDownload = (video: FavoriteVideo) => {
-    const url = `https://www.bilibili.com/video/${video.bvid}${video.page > 1 ? `?p=${video.page}` : ''}`
-    navigate(`/home?autoFetch=${encodeURIComponent(url)}`)
+  /**
+   * Handles download request for a favorite video.
+   *
+   * Sets the video as pending download and navigates to the home page
+   * where the actual download flow continues.
+   *
+   * @param video - The favorite video to download
+   */
+  const onDownload = (video: FavoriteVideo) => {
+    handleDownload(video.bvid, null, video.page)
   }
 
+  /**
+   * お気に入りリストの手動更新を処理します。
+   *
+   * データを再取得し、成功トーストを表示します。
+   */
   const handleRefresh = () => {
     refresh()
     toast.success(t('favorite.refreshed'))
@@ -107,7 +118,7 @@ export function FavoriteContent() {
         foldersLoading={foldersLoading}
         hasMore={hasMore}
         onLoadMore={loadMore}
-        onDownload={handleDownload}
+        onDownload={onDownload}
         height="calc(100dvh - 2.3rem - 80px)"
         disabled={hasActiveDownloads}
       />

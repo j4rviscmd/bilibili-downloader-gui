@@ -1,5 +1,4 @@
-import { useAppDispatch, useSelector } from '@/app/store'
-import { setPendingDownload } from '@/features/video'
+import { useSelector } from '@/app/store'
 import type { WatchHistoryEntry } from '@/features/watch-history'
 import {
   useWatchHistory,
@@ -7,13 +6,13 @@ import {
   WatchHistoryList,
   WatchHistorySearch,
 } from '@/features/watch-history'
+import { usePendingDownload } from '@/shared/hooks/usePendingDownload'
 import { selectHasActiveDownloads } from '@/shared/queue'
 import { Alert, AlertDescription } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
 import { AlertCircle, RefreshCw } from 'lucide-react'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
 
 /**
@@ -34,10 +33,9 @@ import { toast } from 'sonner'
  */
 export function WatchHistoryContent() {
   const { t } = useTranslation()
-  const navigate = useNavigate()
-  const dispatch = useAppDispatch()
   const user = useSelector((state) => state.user)
   const hasActiveDownloads = useSelector(selectHasActiveDownloads)
+  const handleDownload = usePendingDownload()
 
   const {
     entries,
@@ -54,8 +52,7 @@ export function WatchHistoryContent() {
     setDate,
   } = useWatchHistory()
 
-  // Check if user is logged in
-  const isLoggedIn = user.hasCookie && user.data?.isLogin
+  const isLoggedIn = Boolean(user.hasCookie && user.data?.isLogin)
 
   useEffect(() => {
     document.title = `${t('watchHistory.title')} - ${t('app.title')}`
@@ -75,15 +72,8 @@ export function WatchHistoryContent() {
    *
    * @param entry - The watch history entry to download
    */
-  const handleDownload = (entry: WatchHistoryEntry) => {
-    dispatch(
-      setPendingDownload({
-        bvid: entry.bvid,
-        cid: entry.cid,
-        page: entry.page,
-      }),
-    )
-    navigate('/home')
+  const onDownload = (entry: WatchHistoryEntry) => {
+    handleDownload(entry.bvid, entry.cid, entry.page)
   }
 
   /**
@@ -146,7 +136,7 @@ export function WatchHistoryContent() {
         loadingMore={loadingMore}
         hasMore={!!cursor && !cursor.isEnd}
         onLoadMore={fetchMore}
-        onDownload={handleDownload}
+        onDownload={onDownload}
         height="calc(100dvh - 2.3rem - 80px)"
         disabled={hasActiveDownloads}
       />

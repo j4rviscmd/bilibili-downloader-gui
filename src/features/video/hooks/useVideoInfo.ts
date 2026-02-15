@@ -204,23 +204,39 @@ export const useVideoInfo = () => {
     !hasDuplicates &&
     selectedCount > 0
 
-  // Track if we're processing a pending download to prevent race conditions
-  const isProcessingPendingRef = useRef(false)
+  // Track the pending download being processed
+  const processingPendingRef = useRef<{
+    bvid: string
+    cid: number | null
+    page: number
+  } | null>(null)
 
   /**
-   * Handles pending download from watch history navigation.
+   * Handles pending download from watch history or favorites navigation.
    *
-   * When navigating from the watch history page with a pending download:
+   * When navigating with a pending download:
    * 1. Constructs the URL from bvid and page
-   * 2. Fetches video info (triggers initPartInputs)
+   * 2. Stores the pending info for part selection
+   * 3. Fetches video info (triggers initPartInputs)
    */
   useEffect(() => {
-    if (!input.pendingDownload || isProcessingPendingRef.current) return
+    if (!input.pendingDownload) return
 
-    const { bvid, page } = input.pendingDownload
+    const { bvid, cid, page } = input.pendingDownload
+
+    // Skip if already processing the same pending download
+    if (
+      processingPendingRef.current &&
+      processingPendingRef.current.bvid === bvid &&
+      processingPendingRef.current.page === page
+    ) {
+      return
+    }
+
+    // Store pending info for part selection after video info is loaded
+    processingPendingRef.current = { bvid, cid, page }
+
     const url = `https://www.bilibili.com/video/${bvid}?p=${page}`
-
-    isProcessingPendingRef.current = true
     onValid1(url)
   }, [input.pendingDownload])
 
@@ -228,26 +244,26 @@ export const useVideoInfo = () => {
    * Handles part selection after video info is fetched for pending download.
    *
    * After video info is loaded (video.parts populated):
-   * 1. Deselects all parts except the target cid
+   * 1. Deselects all parts except the target cid or page
    * 2. Clears the pending download state
    * Note: Does NOT start download automatically - user must click download button
    */
   useEffect(() => {
-    if (!input.pendingDownload || video.parts.length === 0) return
-    if (!isProcessingPendingRef.current) return
+    if (!processingPendingRef.current || video.parts.length === 0) return
 
-    const { cid } = input.pendingDownload
+    const { cid, page } = processingPendingRef.current
 
     // Deselect all parts first, then select only the target part
+    // Use cid for watch history (has cid), or page for favorites (no cid)
     input.partInputs.forEach((pi, idx) => {
-      const shouldSelect = pi.cid === cid
+      const shouldSelect = cid !== null ? pi.cid === cid : pi.page === page
       store.dispatch(updatePartSelected({ index: idx, selected: shouldSelect }))
     })
 
-    // Clear pending download - user can now manually trigger download
+    // Clear pending download and processing state
     store.dispatch(clearPendingDownload())
-    isProcessingPendingRef.current = false
-  }, [video.parts, input.pendingDownload])
+    processingPendingRef.current = null
+  }, [video.parts, input.partInputs])
 
   /**
    * Initiates the download process for selected video parts.
@@ -270,9 +286,9 @@ export const useVideoInfo = () => {
       const videoId = (extractVideoId(input.url) ?? '').trim()
       if (!videoId) return
 
-      const selectedParts = input.partInputs
-        .map((pi, idx) => ({ pi, idx }))
-        .filter(({ pi }) => pi.selected)
+      const selectedParts = input.partInputs.flatMap((pi, idx) =>
+        pi.selected ? [{ pi, idx }] : [],
+      )
 
       for (const { idx } of selectedParts) {
         const completedItem = findCompletedItemForPart(
