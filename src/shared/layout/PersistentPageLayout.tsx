@@ -13,13 +13,14 @@ interface PageConfig {
   readonly path: string
   readonly Component: FC
   readonly withScrollArea?: boolean
+  readonly maxWidth?: boolean
 }
 
 const PAGES: readonly PageConfig[] = [
   { path: '/home', Component: HomeContent, withScrollArea: true },
-  { path: '/history', Component: HistoryContent },
-  { path: '/favorite', Component: FavoriteContent },
-  { path: '/watch-history', Component: WatchHistoryContent },
+  { path: '/history', Component: HistoryContent, maxWidth: true },
+  { path: '/favorite', Component: FavoriteContent, maxWidth: true },
+  { path: '/watch-history', Component: WatchHistoryContent, maxWidth: true },
 ] as const
 
 const VALID_PATHS: readonly string[] = PAGES.map((p) => p.path)
@@ -66,7 +67,7 @@ export function PersistentPageLayout(): ReactElement {
 
   return (
     <PageLayoutShell>
-      {PAGES.map(({ path, Component, withScrollArea }) =>
+      {PAGES.map(({ path, Component, withScrollArea, maxWidth }) =>
         mountedPages.has(path) ? (
           <div
             key={path}
@@ -84,7 +85,11 @@ export function PersistentPageLayout(): ReactElement {
                 <ScrollBar />
               </ScrollArea>
             ) : (
-              <Component />
+              <div
+                className={`h-full w-full ${maxWidth ? 'mx-auto max-w-5xl' : ''}`}
+              >
+                <Component />
+              </div>
             )}
           </div>
         ) : null,
