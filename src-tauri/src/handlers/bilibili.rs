@@ -10,6 +10,7 @@
 //!
 
 use serde::Deserialize;
+use tauri::Emitter;
 
 /// Download options for video download command.
 ///
@@ -381,7 +382,7 @@ async fn save_to_history(
             .as_millis()
     );
 
-    HistoryStore::new(app)?.add_entry(HistoryEntry {
+    let entry = HistoryEntry {
         id,
         title,
         url,
@@ -391,7 +392,12 @@ async fn save_to_history(
         quality: Some(quality_to_string(&quality)),
         thumbnail_url,
         version: "1.0".to_string(),
-    })?;
+    };
+
+    HistoryStore::new(app)?.add_entry(entry.clone())?;
+
+    // Emit event to notify frontend of new history entry
+    let _ = app.emit("history:entry_added", &entry);
 
     Ok(())
 }

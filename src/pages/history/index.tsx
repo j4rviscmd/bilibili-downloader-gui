@@ -1,11 +1,8 @@
-import { useAppDispatch } from '@/app/store'
-import { clearExpiredEntries } from '@/features/history'
 import { useHistory } from '@/features/history/hooks/useHistory'
 import HistoryExportDialog from '@/features/history/ui/HistoryExportDialog'
 import HistoryFilters from '@/features/history/ui/HistoryFilters'
 import HistoryList from '@/features/history/ui/HistoryList'
 import HistorySearch from '@/features/history/ui/HistorySearch'
-import { PageLayout } from '@/shared/layout'
 import { Button } from '@/shared/ui/button'
 import { confirm, save } from '@tauri-apps/plugin-dialog'
 import { writeTextFile } from '@tauri-apps/plugin-fs'
@@ -15,18 +12,25 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 /**
- * History page component.
+ * History page content component.
+ *
+ * This is the content portion of the history page without the layout wrapper.
+ * It should be rendered inside a PageLayoutShell or similar layout.
  *
  * Provides a full-featured history management interface including:
  * - Search and filter functionality
  * - Export to JSON/CSV
  * - Clear all history with confirmation
  * - Virtual scrolling for large lists
- * - Automatic thumbnail cache cleanup on unmount
+ *
+ * @example
+ * ```tsx
+ * // Inside PersistentPageLayout
+ * <HistoryContent />
+ * ```
  */
-function HistoryPage() {
+export function HistoryContent() {
   const { t } = useTranslation()
-  const dispatch = useAppDispatch()
 
   const {
     entries,
@@ -48,17 +52,6 @@ function HistoryPage() {
   useEffect(() => {
     document.title = `${t('history.title')} - ${t('app.title')}`
   }, [t])
-
-  /**
-   * Cleanup expired thumbnail cache entries when page unmounts.
-   *
-   * This ensures memory is freed up when leaving the history page.
-   */
-  useEffect(() => {
-    return () => {
-      dispatch(clearExpiredEntries())
-    }
-  }, [dispatch])
 
   /**
    * Handles clearing all history entries with confirmation.
@@ -117,64 +110,56 @@ function HistoryPage() {
   }
 
   return (
-    <>
-      <PageLayout withScrollArea={false} innerClassName="h-full gap-0 p-0">
-        <div className="flex h-full flex-col overflow-hidden">
-          <div className="border-border shrink-0 border-b p-3">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h1 className="text-xl font-semibold">
-                {t('nav.downloadHistory')}
-              </h1>
-              <div className="flex flex-1 items-center gap-2">
-                <HistorySearch value={searchQuery} onChange={setSearch} />
-                <HistoryFilters
-                  value={filters.status || 'all'}
-                  onChange={(status) => updateFilters({ status })}
-                />
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setExportDialogOpen(true)}
-                >
-                  <FileText size={18} />
-                  <span className="hidden md:inline">
-                    {t('history.exportTitle')}
-                  </span>
-                </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={handleClearAll}
-                  disabled={entries.length === 0}
-                >
-                  <Trash2 size={18} />
-                  <span className="hidden md:inline">
-                    {t('history.clearAll')}
-                  </span>
-                </Button>
-              </div>
-            </div>
+    <div className="flex h-full flex-col overflow-hidden">
+      <div className="border-border shrink-0 border-b p-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="text-xl font-semibold">{t('nav.downloadHistory')}</h1>
+          <div className="flex flex-1 items-center gap-2">
+            <HistorySearch value={searchQuery} onChange={setSearch} />
+            <HistoryFilters
+              value={filters.status || 'all'}
+              onChange={(status) => updateFilters({ status })}
+            />
           </div>
 
-          <HistoryList
-            entries={entries}
-            loading={loading}
-            onDelete={remove}
-            height="calc(100dvh - 2.3rem - 80px)"
-          />
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setExportDialogOpen(true)}
+            >
+              <FileText size={18} />
+              <span className="hidden md:inline">
+                {t('history.exportTitle')}
+              </span>
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleClearAll}
+              disabled={entries.length === 0}
+            >
+              <Trash2 size={18} />
+              <span className="hidden md:inline">{t('history.clearAll')}</span>
+            </Button>
+          </div>
         </div>
-      </PageLayout>
+      </div>
+
+      <HistoryList
+        entries={entries}
+        loading={loading}
+        onDelete={remove}
+        height="calc(100dvh - 2.3rem - 80px)"
+      />
 
       <HistoryExportDialog
         open={exportDialogOpen}
         onOpenChange={setExportDialogOpen}
         onExport={handleExport}
       />
-    </>
+    </div>
   )
 }
 
-export default HistoryPage
+export default HistoryContent
