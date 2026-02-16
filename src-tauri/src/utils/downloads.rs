@@ -38,12 +38,10 @@ use tokio::{fs, io::AsyncSeekExt, io::AsyncWriteExt};
 /// * `emits` - Reference to the progress emitter for stage updates
 /// * `filename` - The filename to examine for stage detection
 async fn set_stage_from_filename(emits: &Emits, filename: &str) {
-    let stage = if filename.starts_with("temp_audio") {
-        Some("audio")
-    } else if filename.starts_with("temp_video") {
-        Some("video")
-    } else {
-        None
+    let stage = match filename {
+        f if f.starts_with("temp_audio") => Some("audio"),
+        f if f.starts_with("temp_video") => Some("video"),
+        _ => None,
     };
     if let Some(s) = stage {
         let _ = emits.set_stage(s).await;
@@ -112,41 +110,24 @@ fn check_initial_speed(
     SpeedCheckResult::Acceptable
 }
 
-/// Downloads a file from a URL with segmented parallel downloading.
+/// Downloads a file from URL with CDN rotation support.
 ///
-/// This function implements a sophisticated download strategy:
-/// 1. Attempts to determine file size via HEAD or Range probe
-/// 2. If size is known and Range is supported, splits download into segments
-/// 3. Downloads segments in parallel (default: 1 concurrent for Bilibili stability)
-/// 4. Emits progress updates every 100ms
-/// 5. Falls back to single-stream download if Range is not supported
-///
-/// The function automatically retries failed segments up to 3 times with
-/// exponential backoff.
+/// When download speed drops below threshold, automatically switches to
+/// backup CDN URLs if provided.
 ///
 /// # Arguments
 ///
-/// * `app` - Tauri application handle for event emission
-/// * `url` - URL to download from
+/// * `app` - Tauri app handle for progress emission
+/// * `url` - Primary CDN URL
+/// * `backup_urls` - Optional list of backup CDN URLs for rotation
 /// * `output_path` - Destination file path
-/// * `cookie` - Optional cookie header for authentication
-/// * `is_override` - Whether to overwrite existing files
-/// * `download_id` - Optional identifier for progress tracking
-///
-/// # Returns
-///
-/// Returns `Ok(())` on successful download.
-///
-/// # Errors
-///
-/// Returns an error if:
-/// - File already exists and `is_override` is false (`ERR::FILE_EXISTS`)
-/// - Disk space is insufficient (`ERR::DISK_FULL`)
-/// - Network requests fail after retries
-/// - File size mismatch occurs
+/// * `cookie` - Optional authentication cookie
+/// * `is_override` - Whether to overwrite existing file
+/// * `download_id` - Optional download tracking ID
 pub async fn download_url(
     app: &AppHandle,
     url: String,
+    backup_urls: Option<Vec<String>>,
     output_path: PathBuf,
     cookie: Option<String>,
     is_override: bool,
@@ -171,6 +152,12 @@ pub async fn download_url(
         .timeout(Duration::from_secs(120))
         .build()?;
 
+    // Build list of all CDN URLs (primary + backups)
+    let mut cdn_urls = vec![url.clone()];
+    if let Some(ref backups) = backup_urls {
+        cdn_urls.extend(backups.clone());
+    }
+
     // ---- 1. Determine total file size ----
     let total_size = fetch_total_size(&client, &url, &cookie).await;
 
@@ -181,6 +168,7 @@ pub async fn download_url(
             return single_stream_fallback(
                 app,
                 url,
+                backup_urls,
                 output_path,
                 cookie,
                 is_override,
@@ -212,7 +200,7 @@ pub async fn download_url(
     // ---- 5. Download segments in parallel ----
     let mut futs = FuturesUnordered::new();
     for (idx, (s, e)) in segments.iter().cloned().enumerate() {
-        let url_c = url.clone();
+        let cdn_urls_c = cdn_urls.clone();
         let cookie_c = cookie.clone();
         let path_c = output_path.clone();
         let client_c = client.clone();
@@ -240,9 +228,13 @@ pub async fn download_url(
                     emits_c.update_progress(dl_total_c.load(Ordering::Relaxed));
                 }
 
+                // Select CDN URL based on reconnect attempt (CDN rotation with loop)
+                let cdn_idx = (reconnect_attempt as usize) % cdn_urls_c.len();
+                let current_url = &cdn_urls_c[cdn_idx];
+
                 let req = apply_cookie(
                     client_c
-                        .get(&url_c)
+                        .get(current_url)
                         .header(header::RANGE, format!("bytes={}-{}", s, e))
                         .header(header::REFERER, REFERER),
                     &cookie_c,
@@ -290,6 +282,13 @@ pub async fn download_url(
                         let (buf, received, _) = match download_result {
                             Ok(result) => result,
                             Err(reconnect) if reconnect => {
+                                // Switch to next CDN URL on reconnect (loops back to start)
+                                let next_cdn_idx =
+                                    (reconnect_attempt as usize + 1) % cdn_urls_c.len();
+                                eprintln!(
+                                    "[CDN] Segment {}: rotating CDN #{} → #{}",
+                                    idx, cdn_idx, next_cdn_idx
+                                );
                                 reconnect_attempt += 1;
                                 backoff_sleep(reconnect_attempt).await;
                                 continue;
@@ -449,9 +448,13 @@ async fn write_segment(path: &PathBuf, pos: u64, buf: &[u8]) -> Result<(), anyho
 }
 
 /// Fallback single-stream download for when Range requests are not supported.
+///
+/// Note: CDN rotation is not implemented in fallback mode since parallel
+/// downloads are not possible without Range support.
 async fn single_stream_fallback(
     app: &AppHandle,
     url: String,
+    _backup_urls: Option<Vec<String>>, // Unused in fallback mode
     output_path: PathBuf,
     cookie: Option<String>,
     is_override: bool,

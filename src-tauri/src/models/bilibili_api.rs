@@ -107,6 +107,9 @@ pub struct XPlayerApiResponseVideo {
     pub height: i16,
     #[serde(rename = "baseUrl")]
     pub base_url: String,
+    /// Backup CDN URLs for fallback when primary URL is slow.
+    #[serde(default, rename = "backupUrl")]
+    pub backup_urls: Option<Vec<String>>,
 }
 
 // ============================================================================

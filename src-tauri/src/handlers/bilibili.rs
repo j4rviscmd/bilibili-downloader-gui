@@ -207,8 +207,9 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
         .dash;
 
     // 選択品質が存在しなければフォールバック (先頭 = 最も高品質)
-    let video_url = select_stream_url(&dash_data.video, options.quality)?;
-    let audio_url = select_stream_url(&dash_data.audio, options.audio_quality)?;
+    let (video_url, video_backup_urls) = select_stream_url(&dash_data.video, options.quality)?;
+    let (audio_url, audio_backup_urls) =
+        select_stream_url(&dash_data.audio, options.audio_quality)?;
 
     // 5. 容量事前チェック (取得できなければスキップ)
     let video_size = head_content_length(&video_url, Some(&cookie_header)).await;
@@ -239,6 +240,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
             download_url(
                 app,
                 audio_url.clone(),
+                audio_backup_urls.clone(),
                 temp_audio_path.clone(),
                 cookie.clone(),
                 true,
@@ -249,6 +251,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
             download_url(
                 app,
                 video_url.clone(),
+                video_backup_urls.clone(),
                 temp_video_path.clone(),
                 cookie.clone(),
                 true,
@@ -392,10 +395,9 @@ async fn save_to_history(
         }
     };
 
-    let url = format!(
-        "https://www.bilibili.com/video/{bvid}{}",
-        page.map_or(String::new(), |p| format!("?p={p}"))
-    );
+    let page_suffix = page.map_or(String::new(), |p| format!("?p={p}"));
+
+    let url = format!("https://www.bilibili.com/video/{bvid}{page_suffix}");
 
     let id = format!(
         "{bvid}_{}",
@@ -1160,12 +1162,12 @@ where
 fn select_stream_url(
     items: &[crate::models::bilibili_api::XPlayerApiResponseVideo],
     quality: i32,
-) -> Result<String, String> {
+) -> Result<(String, Option<Vec<String>>), String> {
     items
         .iter()
         .find(|v| v.id == quality)
         .or_else(|| items.first())
-        .map(|v| v.base_url.clone())
+        .map(|v| (v.base_url.clone(), v.backup_urls.clone()))
         .ok_or_else(|| "ERR::QUALITY_NOT_FOUND".into())
 }
 
