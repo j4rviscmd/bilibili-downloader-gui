@@ -9,6 +9,7 @@ import {
   VideoInfoProvider,
 } from '@/features/video'
 import VideoPartCard from '@/features/video/ui/VideoPartCard'
+import VideoPartCardSkeleton from '@/features/video/ui/VideoPartCardSkeleton'
 import {
   Tooltip,
   TooltipContent,
@@ -40,14 +41,14 @@ type TooltipButtonProps = {
 }
 
 /**
- * 無効状態時にツールチップを表示するボタンコンポーネント。
+ * Button component that displays a tooltip when disabled.
  *
- * 無効な状態の場合、ツールチップでその理由を表示します。
+ * Shows a tooltip explaining why the button is disabled.
  *
- * @param props.label - ボタンのラベル
- * @param props.onClick - クリック時のコールバック
- * @param props.disabled - 無効状態かどうか
- * @param props.tooltip - ツールチップに表示するテキスト（オプション）
+ * @param props.label - Button label text
+ * @param props.onClick - Click callback handler
+ * @param props.disabled - Whether the button is disabled
+ * @param props.tooltip - Tooltip text to display (optional)
  *
  * @private
  */
@@ -80,18 +81,18 @@ function TooltipButton({
 }
 
 /**
- * ホームページの内部コンテンツコンポーネント。
+ * Internal home page content component.
  *
- * VideoInfoContextを使用して、動画URL入力フォームとパート設定カードを表示します。
- * このコンポーネントは`VideoInfoProvider`内でレンダリングされる必要があります。
+ * Uses VideoInfoContext to display video URL input form and part configuration cards.
+ * This component must be rendered within a `VideoInfoProvider`.
  *
- * 機能：
- * - ログイン未登录時のベネフィット表示
- * - 動画URL入力（ステップ1）
- * - パート選択と設定（ステップ2）
- * - 全選択/全解除ボタン
- * - ダウンロードボタン
- * - autoFetchクエリパラメータによる自動取得
+ * Features:
+ * - Login benefits info (shown when not logged in)
+ * - Video URL input (Step 1)
+ * - Part selection and configuration (Step 2)
+ * - Select all / Deselect all buttons
+ * - Download button
+ * - Auto-fetch via autoFetch query parameter
  *
  * @private
  */
@@ -113,18 +114,11 @@ function HomeContentInner() {
     }
   }, [searchParams, isFetching, video.parts.length, onValid1, setSearchParams])
 
-  const handleSelectAll = () => {
-    store.dispatch(selectAll())
-  }
-
-  const handleDeselectAll = () => {
-    store.dispatch(deselectAll())
-  }
-
-  function getSelectTooltip(): string | undefined {
-    if (hasActiveDownloads) return t('video.download_in_progress')
-    return undefined
-  }
+  const handleSelectAll = () => store.dispatch(selectAll())
+  const handleDeselectAll = () => store.dispatch(deselectAll())
+  const selectTooltip = hasActiveDownloads
+    ? t('video.download_in_progress')
+    : undefined
 
   return (
     <>
@@ -166,48 +160,56 @@ function HomeContentInner() {
       </Card>
 
       {/* Step 2: Video Parts Configuration */}
-      {video.parts.length > 0 && (
+      {(isFetching || video.parts.length > 0) && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="font-display text-lg">
                 {t('video.step2_title')}
               </CardTitle>
-              <div className="flex items-center gap-2">
-                <TooltipButton
-                  label={t('video.select_all')}
-                  onClick={handleSelectAll}
-                  disabled={hasActiveDownloads}
-                  tooltip={getSelectTooltip()}
-                />
-                <TooltipButton
-                  label={t('video.deselect_all')}
-                  onClick={handleDeselectAll}
-                  disabled={hasActiveDownloads}
-                  tooltip={getSelectTooltip()}
-                />
-              </div>
+              {!isFetching && (
+                <div className="flex items-center gap-2">
+                  <TooltipButton
+                    label={t('video.select_all')}
+                    onClick={handleSelectAll}
+                    disabled={hasActiveDownloads}
+                    tooltip={selectTooltip}
+                  />
+                  <TooltipButton
+                    label={t('video.deselect_all')}
+                    onClick={handleDeselectAll}
+                    disabled={hasActiveDownloads}
+                    tooltip={selectTooltip}
+                  />
+                </div>
+              )}
             </div>
           </CardHeader>
           <CardContent className="space-y-0">
-            {video.parts.map((_v, idx) => {
-              const isLast = idx === video.parts.length - 1
+            {isFetching ? (
+              <VideoPartCardSkeleton />
+            ) : (
+              video.parts.map((_v, idx) => {
+                const isLast = idx === video.parts.length - 1
 
-              return (
-                <div key={idx}>
-                  <VideoPartCard
-                    video={video}
-                    page={idx + 1}
-                    isDuplicate={duplicateIndices.includes(idx)}
-                  />
-                  {!isLast && <Separator className="my-3" />}
-                </div>
-              )
-            })}
+                return (
+                  <div key={idx}>
+                    <VideoPartCard
+                      video={video}
+                      page={idx + 1}
+                      isDuplicate={duplicateIndices.includes(idx)}
+                    />
+                    {!isLast && <Separator className="my-3" />}
+                  </div>
+                )
+              })
+            )}
           </CardContent>
-          <CardFooter>
-            <DownloadButton />
-          </CardFooter>
+          {!isFetching && (
+            <CardFooter>
+              <DownloadButton />
+            </CardFooter>
+          )}
         </Card>
       )}
     </>
