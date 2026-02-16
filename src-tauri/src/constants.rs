@@ -31,7 +31,7 @@ pub const SPEED_CHECK_SIZE: u64 = 1024 * 1024; // 1 MiB
 /// If the initial download speed is below this threshold, the connection
 /// is considered slow and will be reconnected to attempt getting a faster
 /// CDN node.
-pub const MIN_SPEED_THRESHOLD: u64 = 1024 * 1024; // 1MB/s
+pub const MIN_SPEED_THRESHOLD: u64 = 3 * 1024 * 1024; // 3MB/s
 
 /// Maximum number of reconnect attempts for slow connections.
 ///
