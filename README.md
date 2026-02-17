@@ -1,5 +1,7 @@
 # BILIBILI-DOWNLOADER-GUI
 
+[English](README.md) | [日本語](README.ja.md) | [简体中文](README.zh.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Français](README.fr.md)
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 ![Built with Tauri](https://img.shields.io/badge/Built%20with-Tauri-24C8DB)
 ![React + Vite + TS](https://img.shields.io/badge/React%20%2B%20Vite-TypeScript-2ea44f)
