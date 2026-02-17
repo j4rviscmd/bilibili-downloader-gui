@@ -21,7 +21,7 @@
 
 > Aviso: Esta aplicación está destinada a uso educativo y personal. Respeta los términos de servicio y las leyes de derechos de autor. No descargues ni redistribuyas contenido sin permiso de los titulares de derechos.
 
-![Imagen de la aplicación](public/app-image_es.png)
+![Imagen de la aplicación](public/app-image_en.png)
 
 ## ⭐ Dale una estrella a este repositorio para mantenerme motivado
 
