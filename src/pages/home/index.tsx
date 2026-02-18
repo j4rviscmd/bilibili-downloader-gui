@@ -148,7 +148,7 @@ function HomeContentInner() {
       )}
 
       {/* Step 1: URL Input Card */}
-      <Card>
+      <Card className="bg-card sticky top-0 z-10">
         <CardHeader>
           <CardTitle className="font-display text-lg">
             {t('video.step1_title')}
