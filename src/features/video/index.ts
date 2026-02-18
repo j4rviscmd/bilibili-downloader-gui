@@ -11,6 +11,11 @@
 // API functions
 export { downloadVideo } from './api/downloadVideo'
 export { fetchVideoInfo } from './api/fetchVideoInfo'
+export {
+  useFetchVideoInfoQuery,
+  useLazyFetchVideoInfoQuery,
+  videoApi,
+} from './api/videoApi'
 
 // Context
 export { VideoInfoProvider, useVideoInfo } from './context/VideoInfoContext'

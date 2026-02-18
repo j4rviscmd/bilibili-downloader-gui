@@ -1,6 +1,6 @@
 import { type RootState, store, useSelector } from '@/app/store'
 import { downloadVideo } from '@/features/video/api/downloadVideo'
-import { fetchVideoInfo } from '@/features/video/api/fetchVideoInfo'
+import { useLazyFetchVideoInfoQuery } from '@/features/video/api/videoApi'
 import {
   buildVideoFormSchema1,
   buildVideoFormSchema2,
@@ -28,7 +28,6 @@ import {
   useContext,
   useEffect,
   useRef,
-  useState,
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -36,6 +35,9 @@ import type { Input, Video } from '../types'
 
 /**
  * Error code to translation key mapping.
+ *
+ * Maps backend error codes (ERR::* format) to i18n translation keys for
+ * user-facing error messages.
  */
 const ERROR_MAP: Record<string, string> = {
   'ERR::VIDEO_NOT_FOUND': 'video.video_not_found',
@@ -50,6 +52,13 @@ const ERROR_MAP: Record<string, string> = {
 
 /**
  * Extracts localized error message from error string.
+ *
+ * Maps backend error codes to user-facing translation keys. Returns the original
+ * error message if no known error code is found. Handles network errors specifically.
+ *
+ * @param error - The error string returned from the backend
+ * @param t - Translation function from react-i18next
+ * @returns Localized error message string
  */
 function getErrorMessage(error: string, t: (key: string) => string): string {
   for (const [code, key] of Object.entries(ERROR_MAP)) {
@@ -77,6 +86,12 @@ export type VideoInfoContextValue = {
   download: () => Promise<void>
 }
 
+/**
+ * React context for managing video information and download workflow state.
+ *
+ * Provides access to video data, form inputs, validation status, and download
+ * orchestration functions throughout the video feature component tree.
+ */
 const VideoInfoContext = createContext<VideoInfoContextValue | null>(null)
 
 /**
@@ -105,7 +120,7 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
   const progress = useSelector((state) => state.progress)
   const video = useSelector((state) => state.video)
   const input = useSelector((state) => state.input)
-  const [isFetching, setIsFetching] = useState(false)
+  const [triggerFetch, { isFetching }] = useLazyFetchVideoInfoQuery()
 
   // Track the pending download being processed (singleton ref)
   const processingPendingRef = useRef<{
@@ -133,6 +148,8 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
 
   /**
    * Validates video URL and fetches information (form 1).
+   * Uses RTK Query for caching - subsequent requests for the same videoId
+   * will be served from cache for 1 hour.
    */
   const onValid1 = useCallback(
     async (url: string) => {
@@ -151,27 +168,25 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
       store.dispatch(setUrl(url))
       const id = extractVideoId(url)
       if (id) {
-        setIsFetching(true)
-        try {
-          store.dispatch(clearQueue())
-          const v = await fetchVideoInfo(id)
-          console.log('Fetched video info:', v)
+        store.dispatch(clearQueue())
+
+        const fetchResult = await triggerFetch(id, true) // preferCacheValue: use cache if available
+        if (fetchResult.data) {
+          const v = fetchResult.data
           store.dispatch(setVideo(v))
           initInputsForVideo(v)
-        } catch (e) {
-          const raw = String(e)
+        } else if (fetchResult.error) {
+          const raw = String(fetchResult.error)
           const description = getErrorMessage(raw, t)
           toast.error(t('video.fetch_info'), {
             duration: 5000,
             description,
           })
           console.error('Failed to fetch video info:', raw)
-        } finally {
-          setIsFetching(false)
         }
       }
     },
-    [t, initInputsForVideo],
+    [t, initInputsForVideo, triggerFetch],
   )
 
   /**
