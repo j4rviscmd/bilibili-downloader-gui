@@ -326,9 +326,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
     .await;
 
     // Cleanup: Remove cancellation token from registry
-    DOWNLOAD_CANCEL_REGISTRY
-        .remove(&options.download_id)
-        .await;
+    DOWNLOAD_CANCEL_REGISTRY.remove(&options.download_id).await;
 
     // On error, clean up temp files
     if result.is_err() {
