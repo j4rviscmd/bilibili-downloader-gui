@@ -17,7 +17,7 @@ interface PageConfig {
 }
 
 const PAGES: readonly PageConfig[] = [
-  { path: '/home', Component: HomeContent, withScrollArea: true },
+  { path: '/home', Component: HomeContent },
   { path: '/history', Component: HistoryContent, maxWidth: true },
   { path: '/favorite', Component: FavoriteContent, maxWidth: true },
   { path: '/watch-history', Component: WatchHistoryContent, maxWidth: true },
@@ -72,7 +72,7 @@ export function PersistentPageLayout(): ReactElement {
           <div
             key={path}
             style={{ display: pathname === path ? undefined : 'none' }}
-            className="h-full w-full"
+            className="min-h-0 w-full flex-1"
           >
             {withScrollArea ? (
               <ScrollArea
