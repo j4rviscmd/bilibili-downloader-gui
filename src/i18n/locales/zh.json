@@ -100,7 +100,10 @@
     "quality_limited_notice_detail": "您仍然可以下载，但画质将限制为480p或以下。在设置中添加Firefox的Cookie可解锁更高画质选项。",
     "login_benefits_title": "高清下载",
     "login_benefits_description": "在Firefox上登录 <1>bilibili.com</1> 后即可选择1080p等更高画质。收藏和观看历史也可用。",
-    "login_benefits_restart_note": "※ 登录后请重启应用程序。"
+    "login_benefits_restart_note": "※ 登录后请重启应用程序。",
+    "cancel_all": "全部取消",
+    "cancel_download": "取消下载",
+    "download_cancelled": "下载已取消"
   },
   "progress": {
     "elapsed": "已用时间",

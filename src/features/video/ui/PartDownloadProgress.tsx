@@ -1,3 +1,5 @@
+import { IconButton } from '@/components/animate-ui/components/buttons/icon'
+import { CircleX } from '@/components/animate-ui/icons/circle-x'
 import {
   Tooltip,
   TooltipContent,
@@ -14,19 +16,22 @@ import type { PartDownloadStatus } from '../hooks/usePartDownloadStatus'
 const MIN_HEIGHT = 'min-h-[33px]'
 
 /**
- * Formats transfer rate for display in human-readable units.
+ * 転送速度を人間が読みやすい単位でフォーマットします。
  *
- * Converts kilobytes per second to either KB/s or MB/s depending on magnitude.
+ * キロバイト/秒を、大きさに応じて KB/s または MB/s に変換します。
  *
- * @param kb - Transfer rate in kilobytes per second
- * @returns Formatted string with unit (e.g., "500KB/s", "2.5MB/s")
+ * @param kb - 転送速度（キロバイト/秒）
+ * @returns 単位付きのフォーマットされた文字列（例: "500KB/s", "2.5MB/s"）
  */
 function formatTransferRate(kb: number): string {
-  return kb < 1000 ? `${kb.toFixed(0)}KB/s` : `${(kb / 1024).toFixed(1)}MB/s`
+  if (kb < 1000) {
+    return `${kb.toFixed(0)}KB/s`
+  }
+  return `${(kb / 1024).toFixed(1)}MB/s`
 }
 
 /**
- * Props for stage progress display.
+ * ステージ進捗表示用の props。
  */
 type StageProgressProps = {
   icon: string
@@ -38,10 +43,10 @@ type StageProgressProps = {
 }
 
 /**
- * Tooltip wrapper for stage icons.
+ * ステージアイコン用のツールチップラッパー。
  *
- * Displays an emoji icon with a hover tooltip showing the stage label.
- * Optionally applies medium font weight to emphasize active stages.
+ * ステージラベルをホバーツールチップで表示する絵文字アイコンを表示します。
+ * アクティブなステージを強調するために、オプションで中太字を適用します。
  */
 function StageIcon({
   icon,
@@ -70,9 +75,9 @@ function StageIcon({
 }
 
 /**
- * Renders progress display for a single download stage.
+ * 単一のダウンロードステージの進捗表示を描画します。
  *
- * Shows either a waiting state (icon only) or active progress (icon + percentage + speed + file size).
+ * 待機状態（アイコンのみ）またはアクティブな進捗（アイコン + パーセンテージ + 速度 + ファイルサイズ）のいずれかを表示します。
  */
 function StageProgress({
   icon,
@@ -112,7 +117,7 @@ function StageProgress({
 }
 
 /**
- * Props for merge stage progress display.
+ * マージステージ進捗表示用の props。
  */
 type MergeStageProgressProps = {
   progressEntries: Progress[]
@@ -120,13 +125,13 @@ type MergeStageProgressProps = {
 }
 
 /**
- * Renders progress display for the merge stage.
+ * マージステージの進捗表示を描画します。
  *
- * The merge stage has special conditional logic based on audio/video completion:
- * - **Active merge**: Shows percentage when merge is actively progressing
- * - **Merging state**: Shows "merging" status when both audio and video are complete but no merge progress yet
- * - **Waiting state**: Shows "waiting" status when audio or video is still downloading
- * - **Hidden**: Returns null when no relevant progress exists
+ * マージステージには、音声/動画の完了状態に基づいた特殊な条件ロジックがあります：
+ * - **アクティブなマージ**: マージが進行中の場合にパーセンテージを表示
+ * - **マージ中状態**: 音声と動画の両方が完了しているが、マージ進捗がまだない場合に「マージ中」ステータスを表示
+ * - **待機状態**: 音声または動画がまだダウンロード中の場合に「待機中」ステータスを表示
+ * - **非表示**: 関連する進捗がない場合は null を返す
  */
 function MergeStageProgress({ progressEntries, t }: MergeStageProgressProps) {
   const mergeProgress = progressEntries.find((p) => p.stage === 'merge')
@@ -188,22 +193,24 @@ type Props = {
   isWaitingForTurn?: boolean
   onRedownload: () => void
   onRetry: () => void
+  onCancel?: () => void
 }
 
 /**
- * Component displaying download progress for a video part.
+ * 動画パートのダウンロード進捗を表示するコンポーネント。
  *
- * Shows different states:
- * - Pending: Grayed progress bar with "Waiting..."
- * - Running: Progress bar with percentage, speed, and time remaining
- * - Done: Green checkmark with action buttons (open file/folder, redownload)
- * - Error: Error message with retry button
+ * 以下の状態を表示します：
+ * - 保留中: グレー表示のプログレスバーと「待機中...」およびキャンセルボタン
+ * - 実行中: パーセンテージ、速度、残り時間、キャンセルボタンを含むプログレスバー
+ * - 完了: 緑色のチェックマークとアクションボタン（ファイル/フォルダを開く、再ダウンロード）
+ * - エラー: エラーメッセージとリトライボタン
  */
 export function PartDownloadProgress({
   status,
   isWaitingForTurn = false,
   onRedownload,
   onRetry,
+  onCancel,
 }: Props) {
   const { t } = useTranslation()
   const {
@@ -214,7 +221,18 @@ export function PartDownloadProgress({
     errorMessage,
     outputPath,
     progressEntries,
+    isCancelling,
+    isCancelled,
   } = status
+
+  // Check if currently in merge stage (not cancellable)
+  const isInMergeStage = progressEntries.some(
+    (p) => p.stage === 'merge' && !p.isComplete,
+  )
+
+  // Can cancel if pending/downloading and not in merge stage
+  const canCancel =
+    (isPending || isDownloading) && !isInMergeStage && onCancel
 
   const handleOpenFile = useCallback(async () => {
     if (!outputPath) return
@@ -309,36 +327,101 @@ export function PartDownloadProgress({
       {/* Running View - third priority */}
       {isDownloading && (
         <div
-          className={`text-muted-foreground ${MIN_HEIGHT} grid grid-cols-[4fr_4fr_2fr] gap-x-2 gap-y-1 text-xs`}
+          className={`text-muted-foreground ${MIN_HEIGHT} flex items-center gap-x-3 text-xs`}
         >
-          <StageProgress
-            icon="🔊"
-            labelKey="video.stage_audio"
-            progressEntries={progressEntries}
-            stageName="audio"
-            t={t}
-          />
+          <div className="flex-1">
+            <StageProgress
+              icon="🔊"
+              labelKey="video.stage_audio"
+              progressEntries={progressEntries}
+              stageName="audio"
+              t={t}
+            />
+          </div>
 
-          <StageProgress
-            icon="🎬"
-            labelKey="video.stage_video"
-            progressEntries={progressEntries}
-            stageName="video"
-            t={t}
-          />
+          <div className="flex-1">
+            <StageProgress
+              icon="🎬"
+              labelKey="video.stage_video"
+              progressEntries={progressEntries}
+              stageName="video"
+              t={t}
+            />
+          </div>
 
-          {/* Merge Stage - has special logic for merging state */}
-          <MergeStageProgress progressEntries={progressEntries} t={t} />
+          <div className="flex-1">
+            {/* Merge Stage - has special logic for merging state */}
+            <MergeStageProgress progressEntries={progressEntries} t={t} />
+          </div>
+
+          {/* Cancel button - inline */}
+          {canCancel && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <IconButton
+                  variant="ghost"
+                  size="sm"
+                  onClick={onCancel}
+                  className="text-muted-foreground hover:text-destructive shrink-0"
+                >
+                  <CircleX animateOnHover />
+                </IconButton>
+              </TooltipTrigger>
+              <TooltipContent side="top" arrow>
+                {t('video.cancel_download')}
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </div>
+      )}
+
+      {/* Cancelling View */}
+      {isCancelling && (
+        <div
+          className={`text-muted-foreground ${MIN_HEIGHT} flex items-center gap-2 text-sm`}
+        >
+          <div className="h-2 w-2 animate-pulse rounded-full bg-current" />
+          <span>{t('video.cancelling') || 'Cancelling...'}</span>
+        </div>
+      )}
+
+      {/* Cancelled View */}
+      {isCancelled && (
+        <div
+          className={`text-muted-foreground ${MIN_HEIGHT} flex items-center justify-between text-sm`}
+        >
+          <span>{t('video.download_cancelled')}</span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onRedownload}
+            className="h-8 px-2 text-xs"
+          >
+            <Download className="mr-1 h-3 w-3" />
+            {t('video.redownload')}
+          </Button>
         </div>
       )}
 
       {/* Pending View - lowest priority */}
-      {(isPending || isWaitingForTurn) && (
+      {(isPending || isWaitingForTurn) && !isCancelling && (
         <div
           className={`text-muted-foreground ${MIN_HEIGHT} flex items-center gap-2 text-sm`}
         >
           <div className="h-2 w-2 animate-pulse rounded-full bg-current" />
           <span>{t('video.download_pending')}</span>
+          {/* Cancel button with label */}
+          {onCancel && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onCancel}
+              className="text-muted-foreground hover:text-destructive ml-auto h-7 px-2 text-xs"
+            >
+              <CircleX animateOnHover className="size-4" />
+              {t('actions.cancel')}
+            </Button>
+          )}
         </div>
       )}
     </div>

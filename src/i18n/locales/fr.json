@@ -100,7 +100,10 @@
     "quality_limited_notice_detail": "Vous pouvez toujours télécharger, mais la qualité sera limitée à 480p ou moins. Ajoutez les cookies Firefox dans les paramètres pour débloquer les options de qualité supérieure.",
     "login_benefits_title": "Télécharger en HD",
     "login_benefits_description": "Connectez-vous à <1>bilibili.com</1> sur Firefox pour sélectionner 1080p et une qualité supérieure. Vous aurez également accès aux favoris et à l'historique.",
-    "login_benefits_restart_note": "※ Veuillez redémarrer l'application après vous être connecté."
+    "login_benefits_restart_note": "※ Veuillez redémarrer l'application après vous être connecté.",
+    "cancel_all": "Tout annuler",
+    "cancel_download": "Annuler le téléchargement",
+    "download_cancelled": "Téléchargement annulé"
   },
   "progress": {
     "elapsed": "Temps écoulé",

@@ -272,58 +272,79 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
    * Executes download for selected video parts.
    */
   const download = useCallback(async () => {
-    try {
-      if (!isForm1Valid || !isForm2ValidAll) return
+    if (!isForm1Valid || !isForm2ValidAll) return
 
-      const videoId = (extractVideoId(input.url) ?? '').trim()
-      if (!videoId) return
+    const videoId = (extractVideoId(input.url) ?? '').trim()
+    if (!videoId) return
 
-      const selectedParts = input.partInputs.flatMap((pi, idx) =>
-        pi.selected ? [{ pi, idx }] : [],
+    const selectedParts = input.partInputs.flatMap((pi, idx) =>
+      pi.selected ? [{ pi, idx }] : [],
+    )
+
+    for (const { idx } of selectedParts) {
+      const completedItem = findCompletedItemForPart(
+        store.getState(),
+        idx + 1,
       )
+      if (completedItem)
+        store.dispatch(clearQueueItem(completedItem.downloadId))
+    }
 
-      for (const { idx } of selectedParts) {
-        const completedItem = findCompletedItemForPart(
-          store.getState(),
-          idx + 1,
-        )
-        if (completedItem)
-          store.dispatch(clearQueueItem(completedItem.downloadId))
+    const parentId = `${videoId}-${Date.now()}`
+    store.dispatch(
+      enqueue({
+        downloadId: parentId,
+        filename: video.title,
+        status: 'pending',
+      }),
+    )
+
+    // Download each part sequentially, checking selection before each download
+    for (const { pi, idx } of selectedParts) {
+      // Check if part is still selected (user may have cancelled while waiting)
+      const currentPartInput = store.getState().input.partInputs[idx]
+      if (!currentPartInput?.selected) {
+        continue // Skip this part if deselected
       }
 
-      const parentId = `${videoId}-${Date.now()}`
-      store.dispatch(
-        enqueue({
-          downloadId: parentId,
-          filename: video.title,
-          status: 'pending',
-        }),
-      )
-
-      for (const { pi, idx } of selectedParts) {
+      const downloadId = `${parentId}-p${idx + 1}`
+      try {
         await downloadVideo(
           videoId,
           pi.cid,
           pi.title.trim(),
           parseInt(pi.videoQuality, 10),
           parseInt(pi.audioQuality, 10),
-          `${parentId}-p${idx + 1}`,
+          downloadId,
           parentId,
           pi.duration,
           pi.thumbnailUrl,
           pi.page,
         )
+      } catch (e) {
+        const raw = String(e)
+        // Skip error handling for cancelled downloads - continue to next
+        if (raw.includes('ERR::CANCELLED')) {
+          continue
+        }
+        const description = getErrorMessage(raw, t)
+        toast.error(t('video.download_failed'), {
+          duration: Infinity,
+          description,
+          closeButton: true,
+        })
+        console.error('Download failed:', raw)
+        store.dispatch(setError(description))
+        break // Stop on non-cancellation errors
       }
-    } catch (e) {
-      const raw = String(e)
-      const description = getErrorMessage(raw, t)
-      toast.error(t('video.download_failed'), {
-        duration: Infinity,
-        description,
-        closeButton: true,
-      })
-      console.error('Download failed:', raw)
-      store.dispatch(setError(description))
+    }
+
+    // Clean up parent if all downloads completed or were cancelled
+    const finalChildren = store.getState().queue.filter(
+      (i) => i.parentId === parentId,
+    )
+    if (finalChildren.length === 0) {
+      store.dispatch(clearQueueItem(parentId))
     }
   }, [
     isForm1Valid,

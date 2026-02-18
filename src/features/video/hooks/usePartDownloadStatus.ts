@@ -16,7 +16,14 @@ export type PartDownloadStatus = {
   /** Download ID for this part */
   downloadId: string | undefined
   /** Current status */
-  status: 'pending' | 'running' | 'done' | 'error' | undefined
+  status:
+    | 'pending'
+    | 'running'
+    | 'cancelling'
+    | 'cancelled'
+    | 'done'
+    | 'error'
+    | undefined
   /** Error message if status is 'error' */
   errorMessage: string | undefined
   /** Output file path (available after download completes) */
@@ -33,6 +40,10 @@ export type PartDownloadStatus = {
   isPending: boolean
   /** Whether download has an error */
   hasError: boolean
+  /** Whether download is being cancelled */
+  isCancelling: boolean
+  /** Whether download was cancelled */
+  isCancelled: boolean
 }
 
 /**
@@ -76,5 +87,7 @@ export const usePartDownloadStatus = (
     isDownloading: queueItem?.status === 'running' && !isComplete,
     isPending: queueItem?.status === 'pending',
     hasError: queueItem?.status === 'error',
+    isCancelling: queueItem?.status === 'cancelling',
+    isCancelled: queueItem?.status === 'cancelled',
   }
 }

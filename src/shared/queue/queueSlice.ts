@@ -1,116 +1,203 @@
 import type { PayloadAction } from '@reduxjs/toolkit'
-import { createSelector, createSlice } from '@reduxjs/toolkit'
+import { createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit'
 
 import type { RootState } from '@/app/store'
+import { callCancelAllDownloads, callCancelDownload } from './api/cancelApi'
 
-type QueueItemStatus = 'pending' | 'running' | 'done' | 'error'
+type QueueItemStatus = 'pending' | 'running' | 'cancelling' | 'cancelled' | 'done' | 'error'
 
 /**
- * Aggregates parent queue item statuses based on their children.
+ * 子アイテムに基づいて親キューアイテムのステータスを集約します。
  *
- * Updates parent status based on the statuses of all child items with
- * matching parentId. Status priority: error > running > done > pending.
+ * 一致する parentId を持つすべての子アイテムのステータスに基づいて親ステータスを更新します。
+ * ステータスの優先順位: error > cancelling > running > done > cancelled > pending。
+ * 子が存在せず、親が 'cancelling' 状態でない場合、キューから親を削除します。
  *
- * @param state - Current queue array to modify
+ * @param state - 変更する現在のキュー配列
  */
 function aggregateParentStatuses(state: QueueItem[]): void {
   const parentIds = new Set(
     state.map((i) => i.parentId).filter((id): id is string => id != null),
   )
 
+  // Collect parent IDs to remove (those with no children and not cancelling)
+  const parentsToRemove: string[] = []
+
   parentIds.forEach((parentId) => {
     const parent = state.find((i) => i.downloadId === parentId)
     if (!parent) return
 
     const children = state.filter((i) => i.parentId === parentId)
+
+    // If no children, mark parent for removal only if not in cancelling state
+    if (children.length === 0) {
+      // Keep parent during cancellation transition (waiting for next download)
+      if (parent.status !== 'cancelling') {
+        parentsToRemove.push(parentId)
+      }
+      return
+    }
+
     const statuses = children.map((c) => c.status)
 
-    // Priority: error > running > done > pending
-    parent.status = statuses.includes('error')
-      ? 'error'
-      : statuses.includes('running')
-        ? 'running'
-        : children.length > 0 && statuses.every((s) => s === 'done')
-          ? 'done'
-          : parent.status || 'pending'
+    // Priority: error > cancelling > running > done > cancelled > pending
+    // Always derive status from children when they exist
+    if (statuses.includes('error')) {
+      parent.status = 'error'
+    } else if (statuses.includes('cancelling')) {
+      parent.status = 'cancelling'
+    } else if (statuses.includes('running')) {
+      parent.status = 'running'
+    } else if (statuses.every((s) => s === 'done')) {
+      parent.status = 'done'
+    } else if (statuses.includes('cancelled')) {
+      parent.status = 'cancelled'
+    } else {
+      parent.status = 'pending'
+    }
+  })
+
+  // Remove parents with no children (and not cancelling)
+  parentsToRemove.forEach((parentId) => {
+    const index = state.findIndex((i) => i.downloadId === parentId)
+    if (index !== -1) {
+      state.splice(index, 1)
+    }
   })
 }
 
 /**
- * Queue item representing a download task.
+ * ダウンロードタスクを表すキューアイテム。
  */
 export type QueueItem = {
-  /** Unique download identifier */
+  /** ユニークなダウンロード識別子 */
   downloadId: string
-  /** Optional parent ID for grouping multi-part downloads */
+  /** マルチパートダウンロードのグループ化のためのオプションの親 ID */
   parentId?: string
-  /** Output filename */
+  /** 出力ファイル名 */
   filename?: string
-  /** Current status */
+  /** 現在のステータス */
   status?: QueueItemStatus
-  /** Error message if status is 'error' */
+  /** ステータスが 'error' の場合のエラーメッセージ */
   errorMessage?: string
-  /** Output file path (available after download completes) */
+  /** 出力ファイルパス（ダウンロード完了後に利用可能） */
   outputPath?: string
-  /** Video title */
+  /** 動画タイトル */
   title?: string
 }
 
 const initialState: QueueItem[] = []
 
 /**
- * Redux slice for download queue management.
+ * 特定のダウンロードをキャンセルする非同期 thunk。
  *
- * Manages the queue of pending, running, and completed downloads.
- * Automatically updates parent status based on children.
+ * バックエンドを呼び出す前にダウンロードステータスを 'cancelling' に設定し、
+ * その後、'download_cancelled' イベントを通じてステータスが 'cancelled' に更新されます。
+ *
+ * @param downloadId - キャンセルするダウンロードのユニーク識別子
+ */
+export const cancelDownload = createAsyncThunk(
+  'queue/cancelDownload',
+  async (downloadId: string, { getState }) => {
+    // Check if download exists
+    const state = getState() as RootState
+    const item = state.queue.find((i) => i.downloadId === downloadId)
+    if (!item) {
+      throw new Error(`Download not found: ${downloadId}`)
+    }
+    // Note: status may already be 'cancelling' due to pending reducer
+    // Allow cancelling if status is pending, running, or cancelling
+    const cancellableStatuses = ['pending', 'running', 'cancelling']
+    if (!cancellableStatuses.includes(item.status || '')) {
+      throw new Error(`Download is not cancellable: ${downloadId} (status: ${item.status})`)
+    }
+
+    const wasCancelled = await callCancelDownload(downloadId)
+    if (!wasCancelled) {
+      // Download may have completed before cancellation
+      console.warn(`Download was not found in backend: ${downloadId}`)
+    }
+    return { downloadId, wasCancelled }
+  },
+)
+
+/**
+ * すべてのアクティブなダウンロードをキャンセルする非同期 thunk。
+ *
+ * バックエンドを呼び出す前に、すべての保留中/実行中のダウンロードを 'cancelling' に設定します。
+ */
+export const cancelAllDownloads = createAsyncThunk(
+  'queue/cancelAllDownloads',
+  async (_, { getState }) => {
+    const state = getState() as RootState
+    const cancellableIds = state.queue
+      .filter((i) => i.status === 'pending' || i.status === 'running')
+      .map((i) => i.downloadId)
+
+    if (cancellableIds.length === 0) {
+      return { count: 0, downloadIds: [] as string[] }
+    }
+
+    const count = await callCancelAllDownloads()
+    return { count, downloadIds: cancellableIds }
+  },
+)
+
+/**
+ * ダウンロードキューマネジメント用の Redux slice。
+ *
+ * 保留中、実行中、完了したダウンロードのキューを管理します。
+ * 子に基づいて親ステータスを自動的に更新します。
  */
 export const queueSlice = createSlice({
   name: 'queue',
   initialState,
   reducers: {
     /**
-     * Adds a download to the queue.
+     * ダウンロードをキューに追加します。
      *
-     * Skips if an item with the same downloadId already exists.
+     * 同じ downloadId を持つアイテムが既に存在する場合はスキップします。
+     * 追加後に子に基づいて親ステータスを更新します。
      *
-     * @param state - Current queue state
-     * @param action - Action containing the queue item
+     * @param state - 現在のキューステート
+     * @param action - キューアイテムを含むアクション
      */
     enqueue(state, action: PayloadAction<QueueItem>) {
       const payload = action.payload
       if (!state.find((i) => i.downloadId === payload.downloadId)) {
         state.push({ ...payload, status: payload.status || 'pending' })
       }
+      aggregateParentStatuses(state)
     },
     /**
-     * Removes a download from the queue.
+     * キューからダウンロードを削除します。
      *
-     * Also removes all children if the provided ID is a parent.
+     * 指定された ID が親である場合、すべての子も削除します。
      *
-     * @param state - Current queue state
-     * @param action - Action containing the download ID to remove
+     * @param state - 現在のキューステート
+     * @param action - 削除するダウンロード ID を含むアクション
      */
     dequeue(state, action: PayloadAction<string>) {
       const id = action.payload
       return state.filter((i) => i.downloadId !== id && i.parentId !== id)
     },
     /**
-     * Clears all items from the queue.
+     * キューからすべてのアイテムをクリアします。
      */
     clearQueue() {
       return []
     },
     /**
-     * Updates the status of a queue item.
+     * キューアイテムのステータスを更新します。
      *
-     * Automatically aggregates parent status based on children:
-     * - If any child is 'error', parent becomes 'error'
-     * - Else if any child is 'running', parent becomes 'running'
-     * - Else if all children are 'done', parent becomes 'done'
-     * - Otherwise, parent becomes 'pending'
+     * 子に基づいて親ステータスを自動的に集約します：
+     * - 子が 'error' の場合、親は 'error' になります
+     * - それ以外で子が 'running' の場合、親は 'running' になります
+     * - すべての子が 'done' の場合、親は 'done' になります
+     * - それ以外の場合、親は 'pending' になります
      *
-     * @param state - Current queue state
-     * @param action - Action containing the download ID and new status
+     * @param state - 現在のキューステート
+     * @param action - ダウンロード ID と新しいステータスを含むアクション
      */
     updateQueueStatus(
       state,
@@ -130,12 +217,12 @@ export const queueSlice = createSlice({
       aggregateParentStatuses(state)
     },
     /**
-     * Updates a queue item with new data.
+     * 新しいデータでキューアイテムを更新します。
      *
-     * Merges provided fields with existing item data.
+     * 提供されたフィールドを既存のアイテムデータにマージします。
      *
-     * @param state - Current queue state
-     * @param action - Action containing the download ID and fields to update
+     * @param state - 現在のキューステート
+     * @param action - ダウンロード ID と更新するフィールドを含むアクション
      */
     updateQueueItem(
       state,
@@ -148,14 +235,39 @@ export const queueSlice = createSlice({
       }
     },
     /**
-     * Removes a single queue item by download ID.
+     * ダウンロード ID による単一のキューアイテムを削除します。
+     * 削除後に親ステータスを更新します。
      *
-     * @param state - Current queue state
-     * @param action - Action containing the download ID to remove
+     * @param state - 現在のキューステート
+     * @param action - 削除するダウンロード ID を含むアクション
      */
     clearQueueItem(state, action: PayloadAction<string>) {
-      return state.filter((i) => i.downloadId !== action.payload)
+      const id = action.payload
+      const filtered = state.filter((i) => i.downloadId !== id)
+      state.length = 0
+      state.push(...filtered)
+      aggregateParentStatuses(state)
     },
+  },
+  extraReducers: (builder) => {
+    // cancelDownload pending: set status to 'cancelling'
+    builder.addCase(cancelDownload.pending, (state, action) => {
+      const item = state.find((i) => i.downloadId === action.meta.arg)
+      if (item) {
+        item.status = 'cancelling'
+      }
+      aggregateParentStatuses(state)
+    })
+
+    // cancelAllDownloads pending: set all pending/running to 'cancelling'
+    builder.addCase(cancelAllDownloads.pending, (state) => {
+      state.forEach((item) => {
+        if (item.status === 'pending' || item.status === 'running') {
+          item.status = 'cancelling'
+        }
+      })
+      aggregateParentStatuses(state)
+    })
   },
 })
 
@@ -170,14 +282,14 @@ export const {
 export default queueSlice.reducer
 
 /**
- * Finds a completed queue item for a specific part index.
+ * 特定のパートインデックスに対して完了したキューアイテムを検索します。
  *
- * Extracts part index from downloadId using regex pattern `-p(\d+)$`.
- * Returns the item if found, matches the part index, and has status 'done'.
+ * 正規表現パターン `-p(\d+)$` を使用して downloadId からパートインデックスを抽出します。
+ * アイテムが見つかり、パートインデックスが一致し、ステータスが 'done' の場合にそのアイテムを返します。
  *
- * @param state - Redux root state
- * @param partIndex - One-based part number (matches the number in downloadId)
- * @returns Queue item if found and completed, undefined otherwise
+ * @param state - Redux ルートステート
+ * @param partIndex - 1始まりのパート番号（downloadId 内の数字と一致）
+ * @returns 見つかり、完了している場合はキューアイテム、それ以外の場合は undefined
  */
 export function findCompletedItemForPart(
   state: RootState,
@@ -192,14 +304,14 @@ export function findCompletedItemForPart(
 }
 
 /**
- * Selects download ID by part index from queue.
+ * パートインデックスによるキューからのダウンロード ID を選択します。
  *
- * Extracts part index from downloadId using regex pattern `-p(\d+)$`.
- * Returns the download ID if found and matches the part index.
+ * 正規表現パターン `-p(\d+)$` を使用して downloadId からパートインデックスを抽出します。
+ * 見つかり、パートインデックスが一致する場合にダウンロード ID を返します。
  *
- * @param state - Redux root state
- * @param partIndex - Zero-based part index (will match +1 in downloadId)
- * @returns Download ID if found, undefined otherwise
+ * @param state - Redux ルートステート
+ * @param partIndex - 0始まりのパートインデックス（downloadId では +1 と一致）
+ * @returns 見つかった場合はダウンロード ID、それ以外の場合は undefined
  */
 export const selectDownloadIdByPartIndex = (
   state: { queue: QueueItem[] },
@@ -212,10 +324,10 @@ export const selectDownloadIdByPartIndex = (
 }
 
 /**
- * Memoized selector factory for queue item by download ID.
+ * ダウンロード ID によるキューアイテムのメモ化セレクターファクトリー。
  *
- * @param downloadId - The download ID to find
- * @returns A memoized selector that returns the queue item
+ * @param downloadId - 検索するダウンロード ID
+ * @returns キューアイテムを返すメモ化セレクター
  */
 export const selectQueueItemByDownloadId = (downloadId: string) =>
   createSelector([(state: RootState) => state.queue], (queue) =>
@@ -223,16 +335,38 @@ export const selectQueueItemByDownloadId = (downloadId: string) =>
   )
 
 /**
- * Memoized selector to check if any downloads are active.
+ * いずれかのダウンロードがアクティブかどうかを確認するメモ化セレクター。
  *
- * Returns true if any queue item has status 'running' or 'pending'.
- * Used to disable UI controls during active downloads.
+ * 以下の場合に true を返します：
+ * - 子アイテムが 'running' または 'pending' ステータスの場合
+ * - 親アイテムが 'cancelling' ステータスの場合（ダウンロード間の遷移中）
+ * - 親アイテムが 'pending' ステータスで子を持つ場合
  *
- * @param state - Redux root state
- * @returns true if any downloads are running or pending
+ * @param state - Redux ルートステート
+ * @returns いずれかのダウンロードがアクティブな場合は true
  */
 export const selectHasActiveDownloads = createSelector(
   [(state: RootState) => state.queue],
-  (queue) =>
-    queue.some((q) => q.status === 'running' || q.status === 'pending'),
+  (queue) => {
+    // Get parent IDs that have children
+    const parentIdsWithChildren = new Set(
+      queue.map((i) => i.parentId).filter((id): id is string => id != null),
+    )
+
+    return queue.some((q) => {
+      // Child items: check running/pending
+      if (q.parentId) {
+        return q.status === 'running' || q.status === 'pending'
+      }
+      // Parent in cancelling state is always active (transitioning)
+      if (q.status === 'cancelling') {
+        return true
+      }
+      // Parent with pending status is only active if it has children
+      if (q.status === 'pending') {
+        return parentIdsWithChildren.has(q.downloadId)
+      }
+      return false
+    })
+  },
 )

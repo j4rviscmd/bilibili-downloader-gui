@@ -1,4 +1,6 @@
 export {
+  cancelAllDownloads,
+  cancelDownload,
   clearQueue,
   clearQueueItem,
   // Default export

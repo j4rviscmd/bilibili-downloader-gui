@@ -26,8 +26,10 @@ import {
 } from '@/shared/animate-ui/radix/tooltip'
 import { cn } from '@/shared/lib/utils'
 import {
+  cancelDownload,
   clearQueueItem,
   findCompletedItemForPart,
+  selectHasActiveDownloads,
 } from '@/shared/queue/queueSlice'
 import {
   Form,
@@ -142,9 +144,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   const downloadStatus = usePartDownloadStatus(page - 1)
   const { isDownloading, isPending, isComplete, downloadId } = downloadStatus
 
-  const hasActiveDownloads = useSelector((state: RootState) =>
-    state.queue.some((q) => q.status === 'running' || q.status === 'pending'),
-  )
+  const hasActiveDownloads = useSelector(selectHasActiveDownloads)
 
   const partInput = useSelector(
     (state: RootState) => state.input.partInputs[page - 1],
@@ -230,6 +230,20 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
     store.dispatch(updatePartSelected({ index: page - 1, selected: true }))
   }
 
+  /**
+   * ダウンロードをキャンセルします。
+   * キャンセル後は選択状態を解除して、DL前の状態に戻します。
+   *
+   * @private
+   */
+  function handleCancel() {
+    if (downloadStatus.downloadId) {
+      store.dispatch(cancelDownload(downloadStatus.downloadId))
+    }
+    // Deselect to return to pre-download state (no waiting indicator)
+    store.dispatch(updatePartSelected({ index: page - 1, selected: false }))
+  }
+
   const schema2 = useMemo(() => buildVideoFormSchema2(t), [t])
   const form = useForm<z.infer<typeof schema2>>({
     resolver: zodResolver(schema2),
@@ -241,32 +255,30 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   })
 
   useEffect(() => {
-    async function syncFormWithVideo(): Promise<void> {
-      if (!video || video.parts.length === 0 || video.parts[0].cid === 0) return
+    if (!video || video.parts.length === 0 || video.parts[0].cid === 0) return
 
-      const part = video.parts[page - 1]
-      const defaultTitle =
-        video.title === videoPart.part
-          ? video.title
-          : `${video.title} ${videoPart.part}`
+    const part = video.parts[page - 1]
+    const defaultTitle =
+      video.title === videoPart.part
+        ? video.title
+        : `${video.title} ${videoPart.part}`
 
-      const title = existingInput?.title ?? defaultTitle
-      const videoQuality =
-        existingInput?.videoQuality ?? String(part.videoQualities[0]?.id ?? 80)
-      const audioQuality =
-        existingInput?.audioQuality ??
-        String(part.audioQualities[0]?.id ?? 30216)
+    const title = existingInput?.title ?? defaultTitle
+    const videoQuality =
+      existingInput?.videoQuality ?? String(part.videoQualities[0]?.id ?? 80)
+    const audioQuality =
+      existingInput?.audioQuality ??
+      String(part.audioQualities[0]?.id ?? 30216)
 
-      form.setValue('title', title, { shouldValidate: true })
-      form.setValue('videoQuality', videoQuality, { shouldValidate: true })
-      form.setValue('audioQuality', audioQuality, { shouldValidate: true })
+    form.setValue('title', title, { shouldValidate: true })
+    form.setValue('videoQuality', videoQuality, { shouldValidate: true })
+    form.setValue('audioQuality', audioQuality, { shouldValidate: true })
 
-      if ((await form.trigger()) && !existingInput) {
+    form.trigger().then((isValid) => {
+      if (isValid && !existingInput) {
         onValid2(page - 1, title, videoQuality, audioQuality)
       }
-    }
-
-    syncFormWithVideo()
+    })
   }, [video, page, existingInput, form, onValid2, videoPart.part])
 
   function onSubmit(data: z.infer<typeof schema2>) {
@@ -276,7 +288,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   return (
     <div className="p-3 md:p-4">
       <Form {...form}>
-        <fieldset disabled={disabled || isDownloading || isPending}>
+        <fieldset disabled={disabled || isDownloading || isPending || hasActiveDownloads}>
           <form
             onSubmit={form.handleSubmit(onSubmit)}
             onBlur={form.handleSubmit(onSubmit)}
@@ -484,6 +496,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
             isWaitingForTurn={isWaitingForTurn}
             onRedownload={handleRedownload}
             onRetry={handleRetry}
+            onCancel={handleCancel}
           />
         )}
       </Form>

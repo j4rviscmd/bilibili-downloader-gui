@@ -184,7 +184,15 @@ fn check_http_status(status: reqwest::StatusCode) -> Result<(), String> {
 /// - Disk space is insufficient (`ERR::DISK_FULL`)
 /// - Download fails after retry attempts (`ERR::NETWORK`)
 /// - ffmpeg merge fails (`ERR::MERGE_FAILED`)
+/// - Download is cancelled (`ERR::CANCELLED`)
 pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Result<String, String> {
+    use crate::handlers::concurrency::DOWNLOAD_CANCEL_REGISTRY;
+
+    // Register cancellation token for this download
+    let _cancel_token = DOWNLOAD_CANCEL_REGISTRY
+        .register(&options.download_id)
+        .await;
+
     // 1. 出力ファイルパス決定 + 自動リネーム
     let output_path = auto_rename(&build_output_path(app, &options.filename).await?);
 
@@ -224,94 +232,111 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
     let temp_video_path = lib_path.join(format!("temp_video_{}.m4s", options.download_id));
     let temp_audio_path = lib_path.join(format!("temp_audio_{}.m4s", options.download_id));
 
-    // 7. セマフォ取得 + 並列ダウンロード + マージ
-    // セマフォは「マージ完了まで保持」され、並列実行数はマージ処理の負荷に基づく
-    let permit = crate::handlers::concurrency::VIDEO_SEMAPHORE
-        .clone()
-        .acquire_owned()
-        .await
-        .map_err(|e| format!("Failed to acquire video semaphore permit: {}", e))?;
+    // Result to track success/failure for cleanup
+    let result = async {
+        // 7. セマフォ取得 + 並列ダウンロード + マージ
+        // セマフォは「マージ完了まで保持」され、並列実行数はマージ処理の負荷に基づく
+        let permit = crate::handlers::concurrency::VIDEO_SEMAPHORE
+            .clone()
+            .acquire_owned()
+            .await
+            .map_err(|e| format!("Failed to acquire video semaphore permit: {}", e))?;
 
-    let cookie = Some(cookie_header);
+        let cookie = Some(cookie_header);
 
-    // 音声と動画を並列ダウンロード (片方失敗で即時キャンセル)
-    tokio::try_join!(
-        retry_download(|| {
-            download_url(
-                app,
-                audio_url.clone(),
-                audio_backup_urls.clone(),
-                temp_audio_path.clone(),
-                cookie.clone(),
-                true,
-                Some(options.download_id.clone()),
-            )
-        }),
-        retry_download(|| {
-            download_url(
-                app,
-                video_url.clone(),
-                video_backup_urls.clone(),
-                temp_video_path.clone(),
-                cookie.clone(),
-                true,
-                Some(options.download_id.clone()),
-            )
-        }),
-    )?;
+        // 音声と動画を並列ダウンロード (片方失敗で即時キャンセル)
+        tokio::try_join!(
+            retry_download(|| {
+                download_url(
+                    app,
+                    audio_url.clone(),
+                    audio_backup_urls.clone(),
+                    temp_audio_path.clone(),
+                    cookie.clone(),
+                    true,
+                    Some(options.download_id.clone()),
+                )
+            }),
+            retry_download(|| {
+                download_url(
+                    app,
+                    video_url.clone(),
+                    video_backup_urls.clone(),
+                    temp_video_path.clone(),
+                    cookie.clone(),
+                    true,
+                    Some(options.download_id.clone()),
+                )
+            }),
+        )?;
 
-    // マージ実行 (merge stage emitはffmpeg::merge_av内で送信)
-    merge_av(
-        app,
-        &temp_video_path,
-        &temp_audio_path,
-        &output_path,
-        Some(options.download_id.clone()),
-        Some((options.duration_seconds * 1000) as u64), // Convert seconds to milliseconds
-    )
-    .await
-    .map_err(|_| String::from("ERR::MERGE_FAILED"))?;
-
-    // マージ完了後にセマフォを解放
-    drop(permit);
-
-    // temp 削除
-    let _ = tokio::fs::remove_file(&temp_video_path).await;
-    let _ = tokio::fs::remove_file(&temp_audio_path).await;
-
-    // 出力パスを保持 (クローンで履歴保存に渡す)
-    let output_path_str = output_path.to_string_lossy().to_string();
-
-    // 実際のファイルサイズを取得
-    let actual_file_size = tokio::fs::metadata(&output_path)
-        .await
-        .ok()
-        .map(|m| m.len());
-
-    // 履歴に保存 (非同期で失敗してもダウンロードには影響しない)
-    let app = app.clone();
-    let bvid = options.bvid.clone();
-    let filename = options.filename.clone();
-    let quality = options.quality;
-    let thumbnail_url = options.thumbnail_url.clone();
-    let page = options.page;
-    tokio::spawn(async move {
-        if let Err(e) = save_to_history(
-            &app,
-            &bvid,
-            quality,
-            actual_file_size,
-            &filename,
-            thumbnail_url,
-            page,
+        // マージ実行 (merge stage emitはffmpeg::merge_av内で送信)
+        merge_av(
+            app,
+            &temp_video_path,
+            &temp_audio_path,
+            &output_path,
+            Some(options.download_id.clone()),
+            Some((options.duration_seconds * 1000) as u64), // Convert seconds to milliseconds
         )
         .await
-        {
-            eprintln!("Warning: Failed to save to history for {bvid}: {e}");
-        }
-    });
+        .map_err(|_| String::from("ERR::MERGE_FAILED"))?;
 
-    Ok(output_path_str)
+        // マージ完了後にセマフォを解放
+        drop(permit);
+
+        // temp 削除
+        let _ = tokio::fs::remove_file(&temp_video_path).await;
+        let _ = tokio::fs::remove_file(&temp_audio_path).await;
+
+        // 出力パスを保持 (クローンで履歴保存に渡す)
+        let output_path_str = output_path.to_string_lossy().to_string();
+
+        // 実際のファイルサイズを取得
+        let actual_file_size = tokio::fs::metadata(&output_path)
+            .await
+            .ok()
+            .map(|m| m.len());
+
+        // 履歴に保存 (非同期で失敗してもダウンロードには影響しない)
+        let app = app.clone();
+        let bvid = options.bvid.clone();
+        let filename = options.filename.clone();
+        let quality = options.quality;
+        let thumbnail_url = options.thumbnail_url.clone();
+        let page = options.page;
+        tokio::spawn(async move {
+            if let Err(e) = save_to_history(
+                &app,
+                &bvid,
+                quality,
+                actual_file_size,
+                &filename,
+                thumbnail_url,
+                page,
+            )
+            .await
+            {
+                eprintln!("Warning: Failed to save to history for {bvid}: {e}");
+            }
+        });
+
+        Ok(output_path_str)
+    }
+    .await;
+
+    // Cleanup: Remove cancellation token from registry
+    DOWNLOAD_CANCEL_REGISTRY
+        .remove(&options.download_id)
+        .await;
+
+    // On error, clean up temp files
+    if result.is_err() {
+        let _ = tokio::fs::remove_file(&temp_video_path).await;
+        let _ = tokio::fs::remove_file(&temp_audio_path).await;
+    }
+
+    result
 }
 
 #[cfg(test)]
