@@ -38,4 +38,4 @@ pub const MIN_SPEED_THRESHOLD: u64 = 3 * 1024 * 1024; // 3MB/s
 /// When initial speed check fails (below MIN_SPEED_THRESHOLD), the system
 /// will reconnect up to this many times. After exceeding this limit,
 /// download continues even if slow to ensure completion.
-pub const MAX_RECONNECT_ATTEMPTS: u8 = 5;
+pub const MAX_RECONNECT_ATTEMPTS: u8 = 2;
