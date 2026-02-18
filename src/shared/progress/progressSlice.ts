@@ -5,15 +5,15 @@ import type { RootState } from '@/app/store'
 import type { Progress } from '@/shared/ui/Progress'
 
 /**
- * 進捗エントリの内部 ID を計算します。
+ * Computes an internal ID for a progress entry.
  *
- * 内部 ID は、ダウンロード内の進捗エントリを一意に識別するために使用されます。
- * 'complete' ステージの場合、ボタンロック解除を有効にするために
- * 'merge' エントリが 'complete' に置き換えられることを保証します。
+ * The internal ID is used to uniquely identify progress entries within
+ * a download. For the 'complete' stage, this function ensures that the
+ * 'merge' entry is replaced with 'complete' to enable button unlocking.
  *
- * @param state - 現在の進捗配列
- * @param payload - ID を計算する進捗エントリ
- * @returns `{downloadId}:{stage}` 形式または単に `{downloadId}` の内部 ID 文字列
+ * @param state - Current progress array
+ * @param payload - Progress entry to compute ID for
+ * @returns Internal ID string in format `{downloadId}:{stage}` or just `{downloadId}`
  */
 function computeInternalId(state: Progress[], payload: Progress): string {
   if (payload.stage === 'complete') {
@@ -29,27 +29,25 @@ function computeInternalId(state: Progress[], payload: Progress): string {
 const initialState: Progress[] = []
 
 /**
- * ダウンロード進捗追跡用の Redux slice。
+ * Redux slice for download progress tracking.
  *
- * 各ダウンロードのフェーズごとの進捗エントリを保存します。
- * 各エントリは downloadId とステージ（音声、動画、マージ）から計算された
- * 内部 ID を持ちます。'complete' ステージはボタンロック解除を有効にするために
- * 'merge' エントリを置き換えます。
+ * Stores per-phase progress entries for each download. Each entry has an
+ * internal ID computed from downloadId and stage (audio, video, merge).
+ * The 'complete' stage replaces the 'merge' entry to enable button unlocking.
  */
 export const progressSlice = createSlice({
   name: 'progress',
   initialState,
   reducers: {
     /**
-     * 進捗エントリを更新または追加します。
+     * Updates or adds a progress entry.
      *
-     * downloadId とステージに基づいて内部 ID を計算します。
-     * 同じ内部 ID のエントリが存在する場合は更新され、
-     * それ以外の場合は新しいエントリが追加されます。
-     * 'complete' ステージは、存在する場合は 'merge' エントリを置き換えます。
+     * Computes an internal ID based on downloadId and stage. If an entry
+     * with the same internal ID exists, it is updated; otherwise, a new
+     * entry is added. The 'complete' stage replaces the 'merge' entry if it exists.
      *
-     * @param state - 現在の進捗配列
-     * @param action - 進捗データを含むアクション
+     * @param state - Current progress array
+     * @param action - Action containing the progress data
      */
     setProgress(state, action: PayloadAction<Progress>) {
       const payload = action.payload
@@ -67,18 +65,18 @@ export const progressSlice = createSlice({
       }
     },
     /**
-     * すべての進捗エントリをクリアします。
+     * Clears all progress entries.
      */
     clearProgress() {
       return []
     },
     /**
-     * 特定のダウンロードの進捗エントリをクリアします。
+     * Clears progress entries for a specific download.
      *
-     * ダウンロードがキャンセルされたときに進捗データを削除するために使用されます。
+     * Used when a download is cancelled to remove its progress data.
      *
-     * @param state - 現在の進捗配列
-     * @param action - クリアするダウンロード ID を含むアクション
+     * @param state - Current progress array
+     * @param action - Action containing the download ID to clear
      */
     clearProgressByDownloadId(state, action: PayloadAction<string>) {
       const downloadId = action.payload
@@ -92,10 +90,10 @@ export const { setProgress, clearProgress, clearProgressByDownloadId } =
 export default progressSlice.reducer
 
 /**
- * ダウンロード ID による進捗エントリのメモ化セレクターファクトリー。
+ * Memoized selector factory for progress entries by download ID.
  *
- * @param downloadId - フィルタリングするダウンロード ID
- * @returns ダウンロードの進捗エントリを返すメモ化セレクター
+ * @param downloadId - The download ID to filter by
+ * @returns A memoized selector that returns progress entries for the download
  */
 export const selectProgressEntriesByDownloadId = (downloadId: string) =>
   createSelector([(state: RootState) => state.progress], (progress) =>

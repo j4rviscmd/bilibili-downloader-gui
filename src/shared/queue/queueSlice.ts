@@ -13,13 +13,13 @@ type QueueItemStatus =
   | 'error'
 
 /**
- * 子アイテムに基づいて親キューアイテムのステータスを集約します。
+ * Aggregates parent queue item statuses based on their children.
  *
- * 一致する parentId を持つすべての子アイテムのステータスに基づいて親ステータスを更新します。
- * ステータスの優先順位: error > cancelling > running > done > cancelled > pending。
- * 子が存在せず、親が 'cancelling' 状態でない場合、キューから親を削除します。
+ * Updates parent status based on the statuses of all child items with
+ * matching parentId. Status priority: error > cancelling > running > done > cancelled > pending.
+ * If no children exist and parent is not in 'cancelling' state, removes the parent from the queue.
  *
- * @param state - 変更する現在のキュー配列
+ * @param state - Current queue array to modify
  */
 function aggregateParentStatuses(state: QueueItem[]): void {
   const parentIds = new Set(
@@ -73,34 +73,34 @@ function aggregateParentStatuses(state: QueueItem[]): void {
 }
 
 /**
- * ダウンロードタスクを表すキューアイテム。
+ * Queue item representing a download task.
  */
 export type QueueItem = {
-  /** ユニークなダウンロード識別子 */
+  /** Unique download identifier */
   downloadId: string
-  /** マルチパートダウンロードのグループ化のためのオプションの親 ID */
+  /** Optional parent ID for grouping multi-part downloads */
   parentId?: string
-  /** 出力ファイル名 */
+  /** Output filename */
   filename?: string
-  /** 現在のステータス */
+  /** Current status */
   status?: QueueItemStatus
-  /** ステータスが 'error' の場合のエラーメッセージ */
+  /** Error message if status is 'error' */
   errorMessage?: string
-  /** 出力ファイルパス（ダウンロード完了後に利用可能） */
+  /** Output file path (available after download completes) */
   outputPath?: string
-  /** 動画タイトル */
+  /** Video title */
   title?: string
 }
 
 const initialState: QueueItem[] = []
 
 /**
- * 特定のダウンロードをキャンセルする非同期 thunk。
+ * Async thunk to cancel a specific download.
  *
- * バックエンドを呼び出す前にダウンロードステータスを 'cancelling' に設定し、
- * その後、'download_cancelled' イベントを通じてステータスが 'cancelled' に更新されます。
+ * Sets the download status to 'cancelling' before calling the backend,
+ * then the status will be updated to 'cancelled' via the 'download_cancelled' event.
  *
- * @param downloadId - キャンセルするダウンロードのユニーク識別子
+ * @param downloadId - Unique identifier of the download to cancel
  */
 export const cancelDownload = createAsyncThunk(
   'queue/cancelDownload',
@@ -130,9 +130,9 @@ export const cancelDownload = createAsyncThunk(
 )
 
 /**
- * すべてのアクティブなダウンロードをキャンセルする非同期 thunk。
+ * Async thunk to cancel all active downloads.
  *
- * バックエンドを呼び出す前に、すべての保留中/実行中のダウンロードを 'cancelling' に設定します。
+ * Sets all pending/running downloads to 'cancelling' before calling the backend.
  */
 export const cancelAllDownloads = createAsyncThunk(
   'queue/cancelAllDownloads',
@@ -152,23 +152,23 @@ export const cancelAllDownloads = createAsyncThunk(
 )
 
 /**
- * ダウンロードキューマネジメント用の Redux slice。
+ * Redux slice for download queue management.
  *
- * 保留中、実行中、完了したダウンロードのキューを管理します。
- * 子に基づいて親ステータスを自動的に更新します。
+ * Manages the queue of pending, running, and completed downloads.
+ * Automatically updates parent status based on children.
  */
 export const queueSlice = createSlice({
   name: 'queue',
   initialState,
   reducers: {
     /**
-     * ダウンロードをキューに追加します。
+     * Adds a download to the queue.
      *
-     * 同じ downloadId を持つアイテムが既に存在する場合はスキップします。
-     * 追加後に子に基づいて親ステータスを更新します。
+     * Skips if an item with the same downloadId already exists.
+     * Updates parent status based on children after adding.
      *
-     * @param state - 現在のキューステート
-     * @param action - キューアイテムを含むアクション
+     * @param state - Current queue state
+     * @param action - Action containing the queue item
      */
     enqueue(state, action: PayloadAction<QueueItem>) {
       const payload = action.payload
@@ -178,34 +178,34 @@ export const queueSlice = createSlice({
       aggregateParentStatuses(state)
     },
     /**
-     * キューからダウンロードを削除します。
+     * Removes a download from the queue.
      *
-     * 指定された ID が親である場合、すべての子も削除します。
+     * Also removes all children if the provided ID is a parent.
      *
-     * @param state - 現在のキューステート
-     * @param action - 削除するダウンロード ID を含むアクション
+     * @param state - Current queue state
+     * @param action - Action containing the download ID to remove
      */
     dequeue(state, action: PayloadAction<string>) {
       const id = action.payload
       return state.filter((i) => i.downloadId !== id && i.parentId !== id)
     },
     /**
-     * キューからすべてのアイテムをクリアします。
+     * Clears all items from the queue.
      */
     clearQueue() {
       return []
     },
     /**
-     * キューアイテムのステータスを更新します。
+     * Updates the status of a queue item.
      *
-     * 子に基づいて親ステータスを自動的に集約します：
-     * - 子が 'error' の場合、親は 'error' になります
-     * - それ以外で子が 'running' の場合、親は 'running' になります
-     * - すべての子が 'done' の場合、親は 'done' になります
-     * - それ以外の場合、親は 'pending' になります
+     * Automatically aggregates parent status based on children:
+     * - If any child is 'error', parent becomes 'error'
+     * - Else if any child is 'running', parent becomes 'running'
+     * - Else if all children are 'done', parent becomes 'done'
+     * - Otherwise, parent becomes 'pending'
      *
-     * @param state - 現在のキューステート
-     * @param action - ダウンロード ID と新しいステータスを含むアクション
+     * @param state - Current queue state
+     * @param action - Action containing the download ID and new status
      */
     updateQueueStatus(
       state,
@@ -225,12 +225,12 @@ export const queueSlice = createSlice({
       aggregateParentStatuses(state)
     },
     /**
-     * 新しいデータでキューアイテムを更新します。
+     * Updates a queue item with new data.
      *
-     * 提供されたフィールドを既存のアイテムデータにマージします。
+     * Merges provided fields with existing item data.
      *
-     * @param state - 現在のキューステート
-     * @param action - ダウンロード ID と更新するフィールドを含むアクション
+     * @param state - Current queue state
+     * @param action - Action containing the download ID and fields to update
      */
     updateQueueItem(
       state,
@@ -243,11 +243,11 @@ export const queueSlice = createSlice({
       }
     },
     /**
-     * ダウンロード ID による単一のキューアイテムを削除します。
-     * 削除後に親ステータスを更新します。
+     * Removes a single queue item by download ID.
+     * Updates parent status after removal.
      *
-     * @param state - 現在のキューステート
-     * @param action - 削除するダウンロード ID を含むアクション
+     * @param state - Current queue state
+     * @param action - Action containing the download ID to remove
      */
     clearQueueItem(state, action: PayloadAction<string>) {
       const id = action.payload
@@ -290,14 +290,14 @@ export const {
 export default queueSlice.reducer
 
 /**
- * 特定のパートインデックスに対して完了したキューアイテムを検索します。
+ * Finds a completed queue item for a specific part index.
  *
- * 正規表現パターン `-p(\d+)$` を使用して downloadId からパートインデックスを抽出します。
- * アイテムが見つかり、パートインデックスが一致し、ステータスが 'done' の場合にそのアイテムを返します。
+ * Extracts part index from downloadId using regex pattern `-p(\d+)$`.
+ * Returns the item if found, matches the part index, and has status 'done'.
  *
- * @param state - Redux ルートステート
- * @param partIndex - 1始まりのパート番号（downloadId 内の数字と一致）
- * @returns 見つかり、完了している場合はキューアイテム、それ以外の場合は undefined
+ * @param state - Redux root state
+ * @param partIndex - One-based part number (matches the number in downloadId)
+ * @returns Queue item if found and completed, undefined otherwise
  */
 export function findCompletedItemForPart(
   state: RootState,
@@ -312,14 +312,14 @@ export function findCompletedItemForPart(
 }
 
 /**
- * パートインデックスによるキューからのダウンロード ID を選択します。
+ * Selects download ID by part index from queue.
  *
- * 正規表現パターン `-p(\d+)$` を使用して downloadId からパートインデックスを抽出します。
- * 見つかり、パートインデックスが一致する場合にダウンロード ID を返します。
+ * Extracts part index from downloadId using regex pattern `-p(\d+)$`.
+ * Returns the download ID if found and matches the part index.
  *
- * @param state - Redux ルートステート
- * @param partIndex - 0始まりのパートインデックス（downloadId では +1 と一致）
- * @returns 見つかった場合はダウンロード ID、それ以外の場合は undefined
+ * @param state - Redux root state
+ * @param partIndex - Zero-based part index (will match +1 in downloadId)
+ * @returns Download ID if found, undefined otherwise
  */
 export const selectDownloadIdByPartIndex = (
   state: { queue: QueueItem[] },
@@ -332,10 +332,10 @@ export const selectDownloadIdByPartIndex = (
 }
 
 /**
- * ダウンロード ID によるキューアイテムのメモ化セレクターファクトリー。
+ * Memoized selector factory for queue item by download ID.
  *
- * @param downloadId - 検索するダウンロード ID
- * @returns キューアイテムを返すメモ化セレクター
+ * @param downloadId - The download ID to find
+ * @returns A memoized selector that returns the queue item
  */
 export const selectQueueItemByDownloadId = (downloadId: string) =>
   createSelector([(state: RootState) => state.queue], (queue) =>
@@ -343,15 +343,15 @@ export const selectQueueItemByDownloadId = (downloadId: string) =>
   )
 
 /**
- * いずれかのダウンロードがアクティブかどうかを確認するメモ化セレクター。
+ * Memoized selector to check if any downloads are active.
  *
- * 以下の場合に true を返します：
- * - 子アイテムが 'running' または 'pending' ステータスの場合
- * - 親アイテムが 'cancelling' ステータスの場合（ダウンロード間の遷移中）
- * - 親アイテムが 'pending' ステータスで子を持つ場合
+ * Returns true if:
+ * - Any child item has status 'running' or 'pending'
+ * - Any parent item has status 'cancelling' (transitioning between downloads)
+ * - Any parent item has status 'pending' and has children
  *
- * @param state - Redux ルートステート
- * @returns いずれかのダウンロードがアクティブな場合は true
+ * @param state - Redux root state
+ * @returns true if any downloads are active
  */
 export const selectHasActiveDownloads = createSelector(
   [(state: RootState) => state.queue],

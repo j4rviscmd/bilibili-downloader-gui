@@ -16,12 +16,12 @@ import type { PartDownloadStatus } from '../hooks/usePartDownloadStatus'
 const MIN_HEIGHT = 'min-h-[33px]'
 
 /**
- * 転送速度を人間が読みやすい単位でフォーマットします。
+ * Formats transfer rate in human-readable units.
  *
- * キロバイト/秒を、大きさに応じて KB/s または MB/s に変換します。
+ * Converts kilobytes per second to KB/s or MB/s depending on size.
  *
- * @param kb - 転送速度（キロバイト/秒）
- * @returns 単位付きのフォーマットされた文字列（例: "500KB/s", "2.5MB/s"）
+ * @param kb - Transfer rate in kilobytes per second
+ * @returns Formatted string with units (e.g., "500KB/s", "2.5MB/s")
  */
 function formatTransferRate(kb: number): string {
   if (kb < 1000) {
@@ -31,7 +31,7 @@ function formatTransferRate(kb: number): string {
 }
 
 /**
- * ステージ進捗表示用の props。
+ * Props for stage progress display.
  */
 type StageProgressProps = {
   icon: string
@@ -43,10 +43,10 @@ type StageProgressProps = {
 }
 
 /**
- * ステージアイコン用のツールチップラッパー。
+ * Tooltip wrapper for stage icons.
  *
- * ステージラベルをホバーツールチップで表示する絵文字アイコンを表示します。
- * アクティブなステージを強調するために、オプションで中太字を適用します。
+ * Displays an emoji icon with a hover tooltip showing the stage label.
+ * Optionally applies medium font weight to highlight active stages.
  */
 function StageIcon({
   icon,
@@ -75,9 +75,9 @@ function StageIcon({
 }
 
 /**
- * 単一のダウンロードステージの進捗表示を描画します。
+ * Renders progress display for a single download stage.
  *
- * 待機状態（アイコンのみ）またはアクティブな進捗（アイコン + パーセンテージ + 速度 + ファイルサイズ）のいずれかを表示します。
+ * Shows either waiting state (icon only) or active progress (icon + percentage + speed + file size).
  */
 function StageProgress({
   icon,
@@ -117,7 +117,7 @@ function StageProgress({
 }
 
 /**
- * マージステージ進捗表示用の props。
+ * Props for merge stage progress display.
  */
 type MergeStageProgressProps = {
   progressEntries: Progress[]
@@ -125,13 +125,13 @@ type MergeStageProgressProps = {
 }
 
 /**
- * マージステージの進捗表示を描画します。
+ * Renders progress display for the merge stage.
  *
- * マージステージには、音声/動画の完了状態に基づいた特殊な条件ロジックがあります：
- * - **アクティブなマージ**: マージが進行中の場合にパーセンテージを表示
- * - **マージ中状態**: 音声と動画の両方が完了しているが、マージ進捗がまだない場合に「マージ中」ステータスを表示
- * - **待機状態**: 音声または動画がまだダウンロード中の場合に「待機中」ステータスを表示
- * - **非表示**: 関連する進捗がない場合は null を返す
+ * The merge stage has special conditional logic based on audio/video completion:
+ * - **Active merge**: Shows percentage when merge is in progress
+ * - **Merging state**: Shows "merging" status when both audio and video are complete but no merge progress yet
+ * - **Waiting state**: Shows "waiting" status when audio or video is still downloading
+ * - **Hidden**: Returns null when no relevant progress exists
  */
 function MergeStageProgress({ progressEntries, t }: MergeStageProgressProps) {
   const mergeProgress = progressEntries.find((p) => p.stage === 'merge')
@@ -197,13 +197,13 @@ type Props = {
 }
 
 /**
- * 動画パートのダウンロード進捗を表示するコンポーネント。
+ * Component displaying download progress for a video part.
  *
- * 以下の状態を表示します：
- * - 保留中: グレー表示のプログレスバーと「待機中...」およびキャンセルボタン
- * - 実行中: パーセンテージ、速度、残り時間、キャンセルボタンを含むプログレスバー
- * - 完了: 緑色のチェックマークとアクションボタン（ファイル/フォルダを開く、再ダウンロード）
- * - エラー: エラーメッセージとリトライボタン
+ * Displays the following states:
+ * - Pending: Grayed-out progress bar with "Waiting..." and cancel button
+ * - Running: Progress bar with percentage, speed, remaining time, and cancel button
+ * - Complete: Green checkmark with action buttons (open file/folder, redownload)
+ * - Error: Error message with retry button
  */
 export function PartDownloadProgress({
   status,

@@ -61,13 +61,13 @@ type QualityRadioGroupProps = {
 }
 
 /**
- * 画質選択のラジオグループコンポーネント。
+ * Radio group component for quality selection.
  *
- * 利用可能な画質オプションをラジオボタンとして表示します。
- * 利用不可能な画質は無効化され、視覚的に区別されます。
+ * Displays available quality options as radio buttons.
+ * Unavailable qualities are disabled and visually distinguished.
  *
- * @param props.options - 画質オプションの配列
- * @param props.idPrefix - ラジオボタンのID接頭辞
+ * @param props.options - Array of quality options
+ * @param props.idPrefix - ID prefix for radio buttons
  *
  * @private
  */
@@ -109,20 +109,20 @@ type Props = {
 }
 
 /**
- * 動画パートの設定カードコンポーネント。
+ * Video part configuration card component.
  *
- * 動画パートごとの以下のUI要素を表示します：
- * - サムネイル画像
- * - カスタムファイル名入力
- * - 動画画質セレクター
- * - オーディオ画質セレクター
- * - ダウンロード進捗表示
+ * Displays the following UI elements for each video part:
+ * - Thumbnail image
+ * - Custom filename input
+ * - Video quality selector
+ * - Audio quality selector
+ * - Download progress display
  *
- * 変更はブラー時に自動保存されます。重複タイトルの場合は警告を表示します。
+ * Changes are auto-saved on blur. Shows a warning for duplicate titles.
  *
- * @param props.video - 動画情報オブジェクト
- * @param props.page - パート番号（1始まり）
- * @param props.isDuplicate - タイトルが重複しているかどうか
+ * @param props.video - Video information object
+ * @param props.page - Part number (1-based)
+ * @param props.isDuplicate - Whether the title is a duplicate
  *
  * @example
  * ```tsx
@@ -164,11 +164,11 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   )
 
   /**
-   * 指定された画質IDが現在の動画パートで利用可能かどうかを判定します。
+   * Checks if a quality ID is available for the current video part.
    *
-   * @param qualityId - 画質ID
-   * @param type - 'video' または 'audio'
-   * @returns 画質が利用可能な場合は true
+   * @param qualityId - Quality ID
+   * @param type - 'video' or 'audio'
+   * @returns True if the quality is available
    */
   const isQualityAvailable = useCallback(
     (qualityId: number, type: 'video' | 'audio'): boolean =>
@@ -183,10 +183,10 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   }
 
   /**
-   * パートの再ダウンロードを実行します。
+   * Executes redownload for the part.
    *
-   * 既に完了したダウンロードをキューから削除し、
-   * 新しいダウンロードIDでダウンロードを開始します。
+   * Removes the completed download from the queue and
+   * starts a new download with a fresh download ID.
    *
    * @private
    */
@@ -219,10 +219,10 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   }
 
   /**
-   * 失敗したダウンロードのリトライ処理を実行します。
+   * Executes retry for a failed download.
    *
-   * パートを再選択状態にすることで、次回のダウンロード実行時に
-   * 含まれるようにします。
+   * Re-selects the part so it will be included
+   * in the next download execution.
    *
    * @private
    */
@@ -231,8 +231,8 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   }
 
   /**
-   * ダウンロードをキャンセルします。
-   * キャンセル後は選択状態を解除して、DL前の状態に戻します。
+   * Cancels the download.
+   * After cancellation, deselects to return to pre-download state.
    *
    * @private
    */

@@ -1,14 +1,14 @@
 import { invoke } from '@tauri-apps/api/core'
 
 /**
- * ID による特定のダウンロードをキャンセルします。
+ * Cancels a specific download by ID.
  *
- * ダウンロードを停止するために 'cancel_download' Tauri コマンドを呼び出します。
- * バックエンドは一時ファイルをクリーンアップし、'download_cancelled' イベントを発行します。
+ * Calls the 'cancel_download' Tauri command to stop the download.
+ * The backend cleans up temporary files and emits a 'download_cancelled' event.
  *
- * @param downloadId - キャンセルするダウンロードのユニーク識別子
- * @returns ダウンロードが見つかりキャンセルされた場合は `true` に解決される Promise、
- *          ダウンロードが見つからなかった場合は `false`（既に完了している可能性があります）
+ * @param downloadId - Unique identifier of the download to cancel
+ * @returns Promise that resolves to `true` if download was found and cancelled,
+ *          or `false` if download was not found (may have already completed)
  *
  * @example
  * ```typescript
@@ -23,12 +23,12 @@ export const callCancelDownload = async (
 ): Promise<boolean> => invoke<boolean>('cancel_download', { downloadId })
 
 /**
- * すべてのアクティブなダウンロードをキャンセルします。
+ * Cancels all active downloads.
  *
- * 進行中のすべてのダウンロードを停止するために 'cancel_all_downloads' Tauri コマンドを呼び出します。
- * キャンセルされた各ダウンロードは 'download_cancelled' イベントを発行します。
+ * Calls the 'cancel_all_downloads' Tauri command to stop all in-progress downloads.
+ * Each cancelled download emits a 'download_cancelled' event.
  *
- * @returns キャンセルされたダウンロード数に解決される Promise
+ * @returns Promise that resolves to the number of cancelled downloads
  *
  * @example
  * ```typescript

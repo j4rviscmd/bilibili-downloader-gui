@@ -17,23 +17,23 @@ interface DownloadCancelledPayload {
 }
 
 /**
- * Tauri イベントリスナー管理用の React Context。
+ * React Context for managing Tauri event listeners.
  *
- * Rust バックエンドから発行されるプログレスイベントのリスナーを
- * 自動的にセットアップするためのコンテキスト。
+ * This context enables automatic setup of event listeners for progress
+ * events emitted from the Rust backend.
  */
 const ListenerContext = createContext<boolean>(false)
 
 /**
- * Tauri イベントリスナー用の Provider コンポーネント。
+ * Provider component for Tauri event listeners.
  *
- * Tauri バックエンドからの 'progress' イベントのリスナーをセットアップします。
- * プログレスイベントを受信すると、Redux ステートにディスパッチし、
- * 画質フォールバック警告に対してトースト通知を表示します。
- * コンポーネントのアンマウント時にリスナーは自動的にクリーンアップされます。
+ * Sets up a listener for 'progress' events from the Tauri backend.
+ * When progress events are received, it dispatches them to Redux state
+ * and displays toast notifications for quality fallback warnings.
+ * The listener is automatically cleaned up when the component unmounts.
  *
- * @param props - コンポーネント props
- * @param props.children - このプロバイダーでラップする子コンポーネント
+ * @param props - Component props
+ * @param props.children - Child components to be wrapped by this provider
  *
  * @example
  * ```tsx
