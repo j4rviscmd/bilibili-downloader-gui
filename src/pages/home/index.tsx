@@ -28,12 +28,21 @@ import {
 } from '@/shared/ui/card'
 import { ScrollArea, ScrollBar } from '@/shared/ui/scroll-area'
 import { Separator } from '@/shared/ui/separator'
+import { Skeleton } from '@/shared/ui/skeleton'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { Info } from 'lucide-react'
 import { useEffect } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router'
 
+/**
+ * Props for the TooltipButton component.
+ *
+ * @property label - Button label text to display
+ * @property onClick - Click event handler callback
+ * @property disabled - Whether the button is disabled (optional)
+ * @property tooltip - Tooltip text to show when disabled (optional)
+ */
 type TooltipButtonProps = {
   label: string
   onClick: () => void
@@ -115,16 +124,18 @@ function HomeContentInner() {
     }
   }, [searchParams, isFetching, video.parts.length, onValid1, setSearchParams])
 
-  const handleSelectAll = () => store.dispatch(selectAll())
-  const handleDeselectAll = () => store.dispatch(deselectAll())
   const selectTooltip = hasActiveDownloads
     ? t('video.download_in_progress')
     : undefined
+  const selectDisabled = {
+    disabled: hasActiveDownloads,
+    tooltip: selectTooltip,
+  }
 
   return (
     <div className="flex h-full flex-col">
       {/* Step 1: Fixed Area (outside scroll) */}
-      <div className="mx-auto w-full max-w-5xl px-3 pb-3 pt-3 sm:px-6">
+      <div className="mx-auto w-full max-w-5xl px-3 pt-3 pb-3 sm:px-6">
         {/* Login Benefits Info - shown only when not logged in */}
         {!isLoggedIn && (
           <Alert variant="info" className="mb-3">
@@ -165,62 +176,66 @@ function HomeContentInner() {
 
       {/* Step 2: Scrollable Area */}
       {(isFetching || video.parts.length > 0) && (
-        <ScrollArea style={{ height: 'calc(100dvh - 2.3rem - 140px)' }}>
-            <div className="mx-auto w-full max-w-5xl px-3 pb-3 pt-3 sm:px-6">
-              <Card>
-                <CardHeader className="bg-card sticky top-0 z-10 pt-3 rounded-t-lg">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="font-display text-lg">
-                      {t('video.step2_title')}
-                    </CardTitle>
-                    {!isFetching && (
-                      <div className="flex items-center gap-2">
-                        <DownloadButton />
-                        <TooltipButton
-                          label={t('video.select_all')}
-                          onClick={handleSelectAll}
-                          disabled={hasActiveDownloads}
-                          tooltip={selectTooltip}
-                        />
-                        <TooltipButton
-                          label={t('video.deselect_all')}
-                          onClick={handleDeselectAll}
-                          disabled={hasActiveDownloads}
-                          tooltip={selectTooltip}
-                        />
-                      </div>
-                    )}
+        <div className="mx-auto w-full max-w-5xl px-3 pb-3 sm:px-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="font-display text-lg">
+                  {t('video.step2_title')}
+                </CardTitle>
+                {isFetching ? (
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-10 w-[88px]" />
+                    <Skeleton className="h-8 w-[68px]" />
+                    <Skeleton className="h-8 w-[68px]" />
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-0 pt-3">
-                  {isFetching ? (
-                    <VideoPartCardSkeleton />
-                  ) : (
-                    video.parts.map((_v, idx) => {
-                      const isLast = idx === video.parts.length - 1
-
-                      return (
-                        <div key={idx}>
-                          <VideoPartCard
-                            video={video}
-                            page={idx + 1}
-                            isDuplicate={duplicateIndices.includes(idx)}
-                          />
-                          {!isLast && <Separator className="my-3" />}
-                        </div>
-                      )
-                    })
-                  )}
-                </CardContent>
-                {!isFetching && (
-                  <CardFooter>
+                ) : (
+                  <div className="flex items-center gap-2">
                     <DownloadButton />
-                  </CardFooter>
+                    <TooltipButton
+                      label={t('video.select_all')}
+                      onClick={() => store.dispatch(selectAll())}
+                      {...selectDisabled}
+                    />
+                    <TooltipButton
+                      label={t('video.deselect_all')}
+                      onClick={() => store.dispatch(deselectAll())}
+                      {...selectDisabled}
+                    />
+                  </div>
                 )}
-              </Card>
-            </div>
-            <ScrollBar />
-          </ScrollArea>
+              </div>
+            </CardHeader>
+            <ScrollArea style={{ height: 'calc(100dvh - 2.3rem - 13.5rem)' }}>
+              <CardContent className="space-y-0">
+                {isFetching ? (
+                  <VideoPartCardSkeleton />
+                ) : (
+                  video.parts.map((_v, idx) => {
+                    const isLast = idx === video.parts.length - 1
+
+                    return (
+                      <div key={idx}>
+                        <VideoPartCard
+                          video={video}
+                          page={idx + 1}
+                          isDuplicate={duplicateIndices.includes(idx)}
+                        />
+                        {!isLast && <Separator className="my-3" />}
+                      </div>
+                    )
+                  })
+                )}
+              </CardContent>
+              {!isFetching && (
+                <CardFooter>
+                  <DownloadButton />
+                </CardFooter>
+              )}
+              <ScrollBar />
+            </ScrollArea>
+          </Card>
+        </div>
       )}
     </div>
   )
