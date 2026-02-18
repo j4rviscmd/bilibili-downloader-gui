@@ -3,14 +3,21 @@ import type { HistoryEntry } from '@/features/history/model/historySlice'
 import { addEntry } from '@/features/history/model/historySlice'
 import i18n from '@/i18n'
 import type { Progress } from '@/shared/progress'
-import { setProgress } from '@/shared/progress/progressSlice'
-import { updateQueueStatus } from '@/shared/queue/queueSlice'
+import {
+  clearProgressByDownloadId,
+  setProgress,
+} from '@/shared/progress/progressSlice'
+import { clearQueueItem, updateQueueStatus } from '@/shared/queue/queueSlice'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { createContext, useEffect, type FC, type ReactNode } from 'react'
 import { toast } from 'sonner'
 
+interface DownloadCancelledPayload {
+  downloadId: string
+}
+
 /**
- * React context for managing Tauri event listeners.
+ * React Context for managing Tauri event listeners.
  *
  * This context enables automatic setup of event listeners for progress
  * events emitted from the Rust backend.
@@ -39,6 +46,7 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
   useEffect(() => {
     let unlistenProgress: UnlistenFn | undefined
     let unlistenHistory: UnlistenFn | undefined
+    let unlistenCancelled: UnlistenFn | undefined
 
     const setupListeners = async (): Promise<void> => {
       // Setup progress event listener
@@ -78,6 +86,20 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
         const entry = event.payload as HistoryEntry
         store.dispatch(addEntry(entry))
       })
+
+      // Setup download cancelled event listener
+      unlistenCancelled = await listen<DownloadCancelledPayload>(
+        'download_cancelled',
+        (event) => {
+          const { downloadId } = event.payload
+          // Remove queue item to restore pre-download state
+          store.dispatch(clearQueueItem(downloadId))
+          // Clear progress entries for this download
+          store.dispatch(clearProgressByDownloadId(downloadId))
+          // Show toast notification
+          toast.info(i18n.t('video.download_cancelled'))
+        },
+      )
     }
 
     setupListeners()
@@ -85,6 +107,7 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     return () => {
       unlistenProgress?.()
       unlistenHistory?.()
+      unlistenCancelled?.()
     }
   }, [])
   return (

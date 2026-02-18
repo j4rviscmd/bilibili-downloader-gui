@@ -101,7 +101,10 @@
     "quality_limited_notice_detail": "ダウンロードは可能ですが、480p以下に制限されます。設定でFirefoxのCookieを追加すると高画質オプションが解放されます。",
     "login_benefits_title": "高画質でダウンロード",
     "login_benefits_description": "Firefoxで <1>bilibili.com</1> にログインすると1080pなどの高画質が選択できます。お気に入り・視聴履歴も利用可能になります。",
-    "login_benefits_restart_note": "※ログインしたらアプリを再起動してください。"
+    "login_benefits_restart_note": "※ログインしたらアプリを再起動してください。",
+    "cancel_all": "すべてキャンセル",
+    "cancel_download": "ダウンロードをキャンセル",
+    "download_cancelled": "ダウンロードをキャンセルしました"
   },
   "progress": {
     "elapsed": "経過",

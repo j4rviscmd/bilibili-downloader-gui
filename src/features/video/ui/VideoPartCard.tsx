@@ -26,8 +26,10 @@ import {
 } from '@/shared/animate-ui/radix/tooltip'
 import { cn } from '@/shared/lib/utils'
 import {
+  cancelDownload,
   clearQueueItem,
   findCompletedItemForPart,
+  selectHasActiveDownloads,
 } from '@/shared/queue/queueSlice'
 import {
   Form,
@@ -59,13 +61,13 @@ type QualityRadioGroupProps = {
 }
 
 /**
- * 画質選択のラジオグループコンポーネント。
+ * Radio group component for quality selection.
  *
- * 利用可能な画質オプションをラジオボタンとして表示します。
- * 利用不可能な画質は無効化され、視覚的に区別されます。
+ * Displays available quality options as radio buttons.
+ * Unavailable qualities are disabled and visually distinguished.
  *
- * @param props.options - 画質オプションの配列
- * @param props.idPrefix - ラジオボタンのID接頭辞
+ * @param props.options - Array of quality options
+ * @param props.idPrefix - ID prefix for radio buttons
  *
  * @private
  */
@@ -107,20 +109,20 @@ type Props = {
 }
 
 /**
- * 動画パートの設定カードコンポーネント。
+ * Video part configuration card component.
  *
- * 動画パートごとの以下のUI要素を表示します：
- * - サムネイル画像
- * - カスタムファイル名入力
- * - 動画画質セレクター
- * - オーディオ画質セレクター
- * - ダウンロード進捗表示
+ * Displays the following UI elements for each video part:
+ * - Thumbnail image
+ * - Custom filename input
+ * - Video quality selector
+ * - Audio quality selector
+ * - Download progress display
  *
- * 変更はブラー時に自動保存されます。重複タイトルの場合は警告を表示します。
+ * Changes are auto-saved on blur. Shows a warning for duplicate titles.
  *
- * @param props.video - 動画情報オブジェクト
- * @param props.page - パート番号（1始まり）
- * @param props.isDuplicate - タイトルが重複しているかどうか
+ * @param props.video - Video information object
+ * @param props.page - Part number (1-based)
+ * @param props.isDuplicate - Whether the title is a duplicate
  *
  * @example
  * ```tsx
@@ -142,9 +144,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   const downloadStatus = usePartDownloadStatus(page - 1)
   const { isDownloading, isPending, isComplete, downloadId } = downloadStatus
 
-  const hasActiveDownloads = useSelector((state: RootState) =>
-    state.queue.some((q) => q.status === 'running' || q.status === 'pending'),
-  )
+  const hasActiveDownloads = useSelector(selectHasActiveDownloads)
 
   const partInput = useSelector(
     (state: RootState) => state.input.partInputs[page - 1],
@@ -164,11 +164,11 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   )
 
   /**
-   * 指定された画質IDが現在の動画パートで利用可能かどうかを判定します。
+   * Checks if a quality ID is available for the current video part.
    *
-   * @param qualityId - 画質ID
-   * @param type - 'video' または 'audio'
-   * @returns 画質が利用可能な場合は true
+   * @param qualityId - Quality ID
+   * @param type - 'video' or 'audio'
+   * @returns True if the quality is available
    */
   const isQualityAvailable = useCallback(
     (qualityId: number, type: 'video' | 'audio'): boolean =>
@@ -183,10 +183,10 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   }
 
   /**
-   * パートの再ダウンロードを実行します。
+   * Executes redownload for the part.
    *
-   * 既に完了したダウンロードをキューから削除し、
-   * 新しいダウンロードIDでダウンロードを開始します。
+   * Removes the completed download from the queue and
+   * starts a new download with a fresh download ID.
    *
    * @private
    */
@@ -219,15 +219,29 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   }
 
   /**
-   * 失敗したダウンロードのリトライ処理を実行します。
+   * Executes retry for a failed download.
    *
-   * パートを再選択状態にすることで、次回のダウンロード実行時に
-   * 含まれるようにします。
+   * Re-selects the part so it will be included
+   * in the next download execution.
    *
    * @private
    */
   function handleRetry() {
     store.dispatch(updatePartSelected({ index: page - 1, selected: true }))
+  }
+
+  /**
+   * Cancels the download.
+   * After cancellation, deselects to return to pre-download state.
+   *
+   * @private
+   */
+  function handleCancel() {
+    if (downloadStatus.downloadId) {
+      store.dispatch(cancelDownload(downloadStatus.downloadId))
+    }
+    // Deselect to return to pre-download state (no waiting indicator)
+    store.dispatch(updatePartSelected({ index: page - 1, selected: false }))
   }
 
   const schema2 = useMemo(() => buildVideoFormSchema2(t), [t])
@@ -241,32 +255,29 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   })
 
   useEffect(() => {
-    async function syncFormWithVideo(): Promise<void> {
-      if (!video || video.parts.length === 0 || video.parts[0].cid === 0) return
+    if (!video || video.parts.length === 0 || video.parts[0].cid === 0) return
 
-      const part = video.parts[page - 1]
-      const defaultTitle =
-        video.title === videoPart.part
-          ? video.title
-          : `${video.title} ${videoPart.part}`
+    const part = video.parts[page - 1]
+    const defaultTitle =
+      video.title === videoPart.part
+        ? video.title
+        : `${video.title} ${videoPart.part}`
 
-      const title = existingInput?.title ?? defaultTitle
-      const videoQuality =
-        existingInput?.videoQuality ?? String(part.videoQualities[0]?.id ?? 80)
-      const audioQuality =
-        existingInput?.audioQuality ??
-        String(part.audioQualities[0]?.id ?? 30216)
+    const title = existingInput?.title ?? defaultTitle
+    const videoQuality =
+      existingInput?.videoQuality ?? String(part.videoQualities[0]?.id ?? 80)
+    const audioQuality =
+      existingInput?.audioQuality ?? String(part.audioQualities[0]?.id ?? 30216)
 
-      form.setValue('title', title, { shouldValidate: true })
-      form.setValue('videoQuality', videoQuality, { shouldValidate: true })
-      form.setValue('audioQuality', audioQuality, { shouldValidate: true })
+    form.setValue('title', title, { shouldValidate: true })
+    form.setValue('videoQuality', videoQuality, { shouldValidate: true })
+    form.setValue('audioQuality', audioQuality, { shouldValidate: true })
 
-      if ((await form.trigger()) && !existingInput) {
+    form.trigger().then((isValid) => {
+      if (isValid && !existingInput) {
         onValid2(page - 1, title, videoQuality, audioQuality)
       }
-    }
-
-    syncFormWithVideo()
+    })
   }, [video, page, existingInput, form, onValid2, videoPart.part])
 
   function onSubmit(data: z.infer<typeof schema2>) {
@@ -276,7 +287,11 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   return (
     <div className="p-3 md:p-4">
       <Form {...form}>
-        <fieldset disabled={disabled || isDownloading || isPending}>
+        <fieldset
+          disabled={
+            disabled || isDownloading || isPending || hasActiveDownloads
+          }
+        >
           <form
             onSubmit={form.handleSubmit(onSubmit)}
             onBlur={form.handleSubmit(onSubmit)}
@@ -484,6 +499,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
             isWaitingForTurn={isWaitingForTurn}
             onRedownload={handleRedownload}
             onRetry={handleRetry}
+            onCancel={handleCancel}
           />
         )}
       </Form>

@@ -70,10 +70,23 @@ export const progressSlice = createSlice({
     clearProgress() {
       return []
     },
+    /**
+     * Clears progress entries for a specific download.
+     *
+     * Used when a download is cancelled to remove its progress data.
+     *
+     * @param state - Current progress array
+     * @param action - Action containing the download ID to clear
+     */
+    clearProgressByDownloadId(state, action: PayloadAction<string>) {
+      const downloadId = action.payload
+      return state.filter((p) => p.downloadId !== downloadId)
+    },
   },
 })
 
-export const { setProgress, clearProgress } = progressSlice.actions
+export const { setProgress, clearProgress, clearProgressByDownloadId } =
+  progressSlice.actions
 export default progressSlice.reducer
 
 /**

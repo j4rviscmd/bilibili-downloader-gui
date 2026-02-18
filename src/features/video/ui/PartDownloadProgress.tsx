@@ -1,3 +1,5 @@
+import { IconButton } from '@/components/animate-ui/components/buttons/icon'
+import { CircleX } from '@/components/animate-ui/icons/circle-x'
 import {
   Tooltip,
   TooltipContent,
@@ -14,15 +16,18 @@ import type { PartDownloadStatus } from '../hooks/usePartDownloadStatus'
 const MIN_HEIGHT = 'min-h-[33px]'
 
 /**
- * Formats transfer rate for display in human-readable units.
+ * Formats transfer rate in human-readable units.
  *
- * Converts kilobytes per second to either KB/s or MB/s depending on magnitude.
+ * Converts kilobytes per second to KB/s or MB/s depending on size.
  *
  * @param kb - Transfer rate in kilobytes per second
- * @returns Formatted string with unit (e.g., "500KB/s", "2.5MB/s")
+ * @returns Formatted string with units (e.g., "500KB/s", "2.5MB/s")
  */
 function formatTransferRate(kb: number): string {
-  return kb < 1000 ? `${kb.toFixed(0)}KB/s` : `${(kb / 1024).toFixed(1)}MB/s`
+  if (kb < 1000) {
+    return `${kb.toFixed(0)}KB/s`
+  }
+  return `${(kb / 1024).toFixed(1)}MB/s`
 }
 
 /**
@@ -41,7 +46,7 @@ type StageProgressProps = {
  * Tooltip wrapper for stage icons.
  *
  * Displays an emoji icon with a hover tooltip showing the stage label.
- * Optionally applies medium font weight to emphasize active stages.
+ * Optionally applies medium font weight to highlight active stages.
  */
 function StageIcon({
   icon,
@@ -72,7 +77,7 @@ function StageIcon({
 /**
  * Renders progress display for a single download stage.
  *
- * Shows either a waiting state (icon only) or active progress (icon + percentage + speed + file size).
+ * Shows either waiting state (icon only) or active progress (icon + percentage + speed + file size).
  */
 function StageProgress({
   icon,
@@ -123,7 +128,7 @@ type MergeStageProgressProps = {
  * Renders progress display for the merge stage.
  *
  * The merge stage has special conditional logic based on audio/video completion:
- * - **Active merge**: Shows percentage when merge is actively progressing
+ * - **Active merge**: Shows percentage when merge is in progress
  * - **Merging state**: Shows "merging" status when both audio and video are complete but no merge progress yet
  * - **Waiting state**: Shows "waiting" status when audio or video is still downloading
  * - **Hidden**: Returns null when no relevant progress exists
@@ -188,15 +193,16 @@ type Props = {
   isWaitingForTurn?: boolean
   onRedownload: () => void
   onRetry: () => void
+  onCancel?: () => void
 }
 
 /**
  * Component displaying download progress for a video part.
  *
- * Shows different states:
- * - Pending: Grayed progress bar with "Waiting..."
- * - Running: Progress bar with percentage, speed, and time remaining
- * - Done: Green checkmark with action buttons (open file/folder, redownload)
+ * Displays the following states:
+ * - Pending: Grayed-out progress bar with "Waiting..." and cancel button
+ * - Running: Progress bar with percentage, speed, remaining time, and cancel button
+ * - Complete: Green checkmark with action buttons (open file/folder, redownload)
  * - Error: Error message with retry button
  */
 export function PartDownloadProgress({
@@ -204,6 +210,7 @@ export function PartDownloadProgress({
   isWaitingForTurn = false,
   onRedownload,
   onRetry,
+  onCancel,
 }: Props) {
   const { t } = useTranslation()
   const {
@@ -214,7 +221,17 @@ export function PartDownloadProgress({
     errorMessage,
     outputPath,
     progressEntries,
+    isCancelling,
+    isCancelled,
   } = status
+
+  // Check if currently in merge stage (not cancellable)
+  const isInMergeStage = progressEntries.some(
+    (p) => p.stage === 'merge' && !p.isComplete,
+  )
+
+  // Can cancel if pending/downloading and not in merge stage
+  const canCancel = (isPending || isDownloading) && !isInMergeStage && onCancel
 
   const handleOpenFile = useCallback(async () => {
     if (!outputPath) return
@@ -309,36 +326,101 @@ export function PartDownloadProgress({
       {/* Running View - third priority */}
       {isDownloading && (
         <div
-          className={`text-muted-foreground ${MIN_HEIGHT} grid grid-cols-[4fr_4fr_2fr] gap-x-2 gap-y-1 text-xs`}
+          className={`text-muted-foreground ${MIN_HEIGHT} flex items-center gap-x-3 text-xs`}
         >
-          <StageProgress
-            icon="🔊"
-            labelKey="video.stage_audio"
-            progressEntries={progressEntries}
-            stageName="audio"
-            t={t}
-          />
+          <div className="flex-1">
+            <StageProgress
+              icon="🔊"
+              labelKey="video.stage_audio"
+              progressEntries={progressEntries}
+              stageName="audio"
+              t={t}
+            />
+          </div>
 
-          <StageProgress
-            icon="🎬"
-            labelKey="video.stage_video"
-            progressEntries={progressEntries}
-            stageName="video"
-            t={t}
-          />
+          <div className="flex-1">
+            <StageProgress
+              icon="🎬"
+              labelKey="video.stage_video"
+              progressEntries={progressEntries}
+              stageName="video"
+              t={t}
+            />
+          </div>
 
-          {/* Merge Stage - has special logic for merging state */}
-          <MergeStageProgress progressEntries={progressEntries} t={t} />
+          <div className="flex-1">
+            {/* Merge Stage - has special logic for merging state */}
+            <MergeStageProgress progressEntries={progressEntries} t={t} />
+          </div>
+
+          {/* Cancel button - inline */}
+          {canCancel && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <IconButton
+                  variant="ghost"
+                  size="sm"
+                  onClick={onCancel}
+                  className="text-muted-foreground hover:text-destructive shrink-0"
+                >
+                  <CircleX animateOnHover />
+                </IconButton>
+              </TooltipTrigger>
+              <TooltipContent side="top" arrow>
+                {t('video.cancel_download')}
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </div>
+      )}
+
+      {/* Cancelling View */}
+      {isCancelling && (
+        <div
+          className={`text-muted-foreground ${MIN_HEIGHT} flex items-center gap-2 text-sm`}
+        >
+          <div className="h-2 w-2 animate-pulse rounded-full bg-current" />
+          <span>{t('video.cancelling') || 'Cancelling...'}</span>
+        </div>
+      )}
+
+      {/* Cancelled View */}
+      {isCancelled && (
+        <div
+          className={`text-muted-foreground ${MIN_HEIGHT} flex items-center justify-between text-sm`}
+        >
+          <span>{t('video.download_cancelled')}</span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onRedownload}
+            className="h-8 px-2 text-xs"
+          >
+            <Download className="mr-1 h-3 w-3" />
+            {t('video.redownload')}
+          </Button>
         </div>
       )}
 
       {/* Pending View - lowest priority */}
-      {(isPending || isWaitingForTurn) && (
+      {(isPending || isWaitingForTurn) && !isCancelling && (
         <div
           className={`text-muted-foreground ${MIN_HEIGHT} flex items-center gap-2 text-sm`}
         >
           <div className="h-2 w-2 animate-pulse rounded-full bg-current" />
           <span>{t('video.download_pending')}</span>
+          {/* Cancel button with label */}
+          {onCancel && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onCancel}
+              className="text-muted-foreground hover:text-destructive ml-auto h-7 px-2 text-xs"
+            >
+              <CircleX animateOnHover className="size-4" />
+              {t('actions.cancel')}
+            </Button>
+          )}
         </div>
       )}
     </div>

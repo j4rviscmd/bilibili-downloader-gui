@@ -93,6 +93,8 @@ pub fn run() {
             fetch_user,
             fetch_video_info,
             download_video,
+            cancel_download,
+            cancel_all_downloads,
             get_settings,
             set_settings,
             update_lib_path,
@@ -307,12 +309,89 @@ async fn fetch_video_info(app: AppHandle, video_id: String) -> Result<Video, Str
 /// - Disk space is insufficient (`ERR::DISK_FULL`)
 /// - Download fails due to network issues (`ERR::NETWORK`)
 /// - ffmpeg merge fails (`ERR::MERGE_FAILED`)
+/// - Download is cancelled (`ERR::CANCELLED`)
 #[tauri::command]
 async fn download_video(
     app: AppHandle,
     options: bilibili::DownloadOptions,
 ) -> Result<String, String> {
     bilibili::download_video(&app, &options).await
+}
+
+/// Cancels a specific download by its ID.
+///
+/// This command signals the download to stop and cleans up any temporary files.
+/// The download will receive an `ERR::CANCELLED` error and emit a
+/// `download_cancelled` event to the frontend.
+///
+/// # Arguments
+///
+/// * `download_id` - Unique identifier of the download to cancel
+///
+/// # Returns
+///
+/// Returns `Ok(true)` if the download was found and cancelled,
+/// `Ok(false)` if the download was not found (may have already completed).
+///
+/// # Example
+///
+/// ```typescript
+/// const wasCancelled = await invoke<boolean>('cancel_download', { downloadId: 'BV123-p1' });
+/// ```
+#[tauri::command]
+async fn cancel_download(app: AppHandle, download_id: String) -> Result<bool, String> {
+    use crate::handlers::concurrency::DOWNLOAD_CANCEL_REGISTRY;
+    use tauri::Emitter;
+
+    // Signal cancellation
+    let was_found = DOWNLOAD_CANCEL_REGISTRY.cancel(&download_id).await;
+
+    if was_found {
+        // Emit cancellation event to frontend
+        let _ = app.emit(
+            "download_cancelled",
+            serde_json::json!({ "downloadId": download_id }),
+        );
+    }
+
+    Ok(was_found)
+}
+
+/// Cancels all active downloads.
+///
+/// This command signals all in-progress downloads to stop and cleans up
+/// their temporary files. Each cancelled download will emit a
+/// `download_cancelled` event to the frontend.
+///
+/// # Returns
+///
+/// Returns the number of downloads that were cancelled.
+///
+/// # Example
+///
+/// ```typescript
+/// const count = await invoke<number>('cancel_all_downloads');
+/// ```
+#[tauri::command]
+async fn cancel_all_downloads(app: AppHandle) -> Result<usize, String> {
+    use crate::handlers::concurrency::DOWNLOAD_CANCEL_REGISTRY;
+    use tauri::Emitter;
+
+    // Get all active download IDs before cancelling
+    let download_ids = DOWNLOAD_CANCEL_REGISTRY.get_all_ids().await;
+
+    // Cancel all downloads
+    let count = DOWNLOAD_CANCEL_REGISTRY.cancel_all().await;
+
+    // Emit cancellation events for each download
+    for download_id in download_ids {
+        let _ = app.emit(
+            "download_cancelled",
+            serde_json::json!({ "downloadId": download_id }),
+        );
+    }
+
+    Ok(count)
 }
 
 /// Retrieves the current application settings.

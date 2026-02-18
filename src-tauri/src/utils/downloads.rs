@@ -6,12 +6,14 @@
 //! - Progress tracking and emission to frontend
 //! - Disk space checking
 //! - Fallback to single-stream download when Range is not supported
+//! - Download cancellation support
 
 use crate::{
     constants::{
         MAX_RECONNECT_ATTEMPTS, MIN_SPEED_THRESHOLD, REFERER, SPEED_CHECK_SIZE, USER_AGENT,
     },
     emits::Emits,
+    handlers::concurrency::DOWNLOAD_CANCEL_REGISTRY,
 };
 use anyhow::Result;
 use futures::stream::FuturesUnordered;
@@ -113,7 +115,8 @@ fn check_initial_speed(
 /// Downloads a file from URL with CDN rotation support.
 ///
 /// When download speed drops below threshold, automatically switches to
-/// backup CDN URLs if provided.
+/// backup CDN URLs if provided. Supports cancellation via the global
+/// cancel registry when a download_id is provided.
 ///
 /// # Arguments
 ///
@@ -123,7 +126,7 @@ fn check_initial_speed(
 /// * `output_path` - Destination file path
 /// * `cookie` - Optional authentication cookie
 /// * `is_override` - Whether to overwrite existing file
-/// * `download_id` - Optional download tracking ID
+/// * `download_id` - Optional download tracking ID (used for cancellation)
 pub async fn download_url(
     app: &AppHandle,
     url: String,
@@ -133,6 +136,28 @@ pub async fn download_url(
     is_override: bool,
     download_id: Option<String>,
 ) -> Result<()> {
+    use tokio_util::sync::CancellationToken;
+
+    // Get cancellation token from registry if download_id is provided
+    let cancel_token: Option<CancellationToken> = if let Some(ref id) = download_id {
+        DOWNLOAD_CANCEL_REGISTRY.get_token(id).await
+    } else {
+        None
+    };
+
+    // Helper to check cancellation
+    let check_cancelled = |token: &Option<CancellationToken>| -> Result<()> {
+        if let Some(t) = token {
+            if t.is_cancelled() {
+                return Err(anyhow::anyhow!("ERR::CANCELLED"));
+            }
+        }
+        Ok(())
+    };
+
+    // Initial cancellation check
+    check_cancelled(&cancel_token)?;
+
     // File existence check
     if output_path.exists() {
         if is_override {
@@ -207,8 +232,17 @@ pub async fn download_url(
         let dl_total_c = downloaded_total.clone();
         let emits_c = emits.clone();
         let sem_c = sem.clone();
+        let cancel_token_c = cancel_token.clone();
         futs.push(tokio::spawn(async move {
             let _permit = sem_c.acquire().await.unwrap();
+
+            // Check cancellation before starting segment
+            if let Some(ref t) = cancel_token_c {
+                if t.is_cancelled() {
+                    return Err(anyhow::anyhow!("ERR::CANCELLED"));
+                }
+            }
+
             let mut attempt: u8 = 0;
             const MAX_SEG_RETRIES: u8 = 3;
             let size = e - s + 1;
@@ -219,6 +253,13 @@ pub async fn download_url(
 
             loop {
                 attempt += 1;
+
+                // Check cancellation on each retry
+                if let Some(ref t) = cancel_token_c {
+                    if t.is_cancelled() {
+                        return Err(anyhow::anyhow!("ERR::CANCELLED"));
+                    }
+                }
 
                 // Roll back previously added bytes on retry
                 let prev = seg_bytes_added.swap(0, Ordering::Relaxed);
@@ -460,6 +501,22 @@ async fn single_stream_fallback(
     is_override: bool,
     download_id: Option<String>,
 ) -> Result<()> {
+    use tokio_util::sync::CancellationToken;
+
+    // Get cancellation token from registry if download_id is provided
+    let cancel_token: Option<CancellationToken> = if let Some(ref id) = download_id {
+        DOWNLOAD_CANCEL_REGISTRY.get_token(id).await
+    } else {
+        None
+    };
+
+    // Initial cancellation check
+    if let Some(ref t) = cancel_token {
+        if t.is_cancelled() {
+            return Err(anyhow::anyhow!("ERR::CANCELLED"));
+        }
+    }
+
     // Check file existence
     if output_path.exists() {
         if is_override {
@@ -496,6 +553,13 @@ async fn single_stream_fallback(
     let mut downloaded: u64 = 0;
     let emits_for_callback = emits.clone();
     while let Some(chunk) = resp.chunk().await? {
+        // Check cancellation on each chunk
+        if let Some(ref t) = cancel_token {
+            if t.is_cancelled() {
+                return Err(anyhow::anyhow!("ERR::CANCELLED"));
+            }
+        }
+
         file.write_all(&chunk).await.map_err(map_io_error)?;
         downloaded += chunk.len() as u64;
         // Emit progress update via watch channel (non-blocking)

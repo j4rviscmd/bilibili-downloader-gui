@@ -28,6 +28,7 @@ serde_json = "1"
 anyhow = "1.0.98"
 reqwest = { version = "0.12.24", features = ["json", "stream", "blocking"] }
 tokio = { version = "1.47.1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["rt"] }
 octocrab = "0.42"
 semver = "0.11"
 xz2 = "0.1.7"
