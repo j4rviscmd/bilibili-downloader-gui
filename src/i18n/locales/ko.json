@@ -103,7 +103,10 @@
     "login_benefits_restart_note": "※ 로그인 후 앱을 다시 시작해 주세요.",
     "cancel_all": "전체 취소",
     "cancel_download": "다운로드 취소",
-    "download_cancelled": "다운로드가 취소되었습니다"
+    "download_cancelled": "다운로드가 취소되었습니다",
+    "copy_title": "제목 복사",
+    "title_copied": "제목이 클립보드에 복사되었습니다",
+    "copy_failed": "제목 복사에 실패했습니다"
   },
   "progress": {
     "elapsed": "경과",

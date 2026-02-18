@@ -103,7 +103,10 @@
     "login_benefits_restart_note": "※ Reinicie la aplicación después de iniciar sesión.",
     "cancel_all": "Cancelar todo",
     "cancel_download": "Cancelar descarga",
-    "download_cancelled": "Descarga cancelada"
+    "download_cancelled": "Descarga cancelada",
+    "copy_title": "Copiar título",
+    "title_copied": "Título copiado al portapapeles",
+    "copy_failed": "Error al copiar el título"
   },
   "progress": {
     "elapsed": "Transcurrido",

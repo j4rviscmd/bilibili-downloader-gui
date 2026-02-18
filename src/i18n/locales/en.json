@@ -104,7 +104,10 @@
     "login_benefits_restart_note": "※ Please restart the app after logging in.",
     "cancel_all": "Cancel All",
     "cancel_download": "Cancel download",
-    "download_cancelled": "Download cancelled"
+    "download_cancelled": "Download cancelled",
+    "copy_title": "Copy title",
+    "title_copied": "Title copied to clipboard",
+    "copy_failed": "Failed to copy title"
   },
   "progress": {
     "elapsed": "Elapsed",

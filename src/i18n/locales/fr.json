@@ -103,7 +103,10 @@
     "login_benefits_restart_note": "※ Veuillez redémarrer l'application après vous être connecté.",
     "cancel_all": "Tout annuler",
     "cancel_download": "Annuler le téléchargement",
-    "download_cancelled": "Téléchargement annulé"
+    "download_cancelled": "Téléchargement annulé",
+    "copy_title": "Copier le titre",
+    "title_copied": "Titre copié dans le presse-papiers",
+    "copy_failed": "Échec de la copie du titre"
   },
   "progress": {
     "elapsed": "Temps écoulé",
