@@ -8,6 +8,7 @@ import settingReducer from '@/features/settings/settingsSlice'
 import { sidebarReducer } from '@/features/sidebar'
 import updaterReducer from '@/features/updater/model/updaterSlice'
 import userReducer from '@/features/user/userSlice'
+import { videoApi } from '@/features/video/api/videoApi'
 import inputReducer from '@/features/video/model/inputSlice'
 import videoReducer from '@/features/video/model/videoSlice'
 import watchHistoryReducer from '@/features/watch-history/model/watchHistorySlice'
@@ -46,7 +47,10 @@ export const store = configureStore({
     user: userReducer,
     video: videoReducer,
     watchHistory: watchHistoryReducer,
+    [videoApi.reducerPath]: videoApi.reducer,
   },
+  middleware: (getDefaultMiddleware) =>
+    getDefaultMiddleware().concat(videoApi.middleware),
   devTools: process.env.NODE_ENV !== 'production',
 })
 
