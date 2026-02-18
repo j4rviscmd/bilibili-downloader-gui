@@ -26,13 +26,23 @@ import {
   CardHeader,
   CardTitle,
 } from '@/shared/ui/card'
+import { ScrollArea, ScrollBar } from '@/shared/ui/scroll-area'
 import { Separator } from '@/shared/ui/separator'
+import { Skeleton } from '@/shared/ui/skeleton'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { Info } from 'lucide-react'
 import { useEffect } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router'
 
+/**
+ * Props for the TooltipButton component.
+ *
+ * @property label - Button label text to display
+ * @property onClick - Click event handler callback
+ * @property disabled - Whether the button is disabled (optional)
+ * @property tooltip - Tooltip text to show when disabled (optional)
+ */
 type TooltipButtonProps = {
   label: string
   onClick: () => void
@@ -114,105 +124,120 @@ function HomeContentInner() {
     }
   }, [searchParams, isFetching, video.parts.length, onValid1, setSearchParams])
 
-  const handleSelectAll = () => store.dispatch(selectAll())
-  const handleDeselectAll = () => store.dispatch(deselectAll())
   const selectTooltip = hasActiveDownloads
     ? t('video.download_in_progress')
     : undefined
+  const selectDisabled = {
+    disabled: hasActiveDownloads,
+    tooltip: selectTooltip,
+  }
 
   return (
-    <>
-      {/* Login Benefits Info - shown only when not logged in */}
-      {!isLoggedIn && (
-        <Alert variant="info">
-          <Info />
-          <AlertTitle>{t('video.login_benefits_title')}</AlertTitle>
-          <AlertDescription className="flex flex-wrap">
-            <Trans
-              i18nKey="video.login_benefits_description"
-              components={{
-                1: (
-                  <button
-                    type="button"
-                    onClick={() => openUrl('https://www.bilibili.com')}
-                    className="inline cursor-pointer text-blue-600 underline hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-                  />
-                ),
-              }}
-            />
-            <span className="mt-1 w-full text-xs opacity-80">
-              {t('video.login_benefits_restart_note')}
-            </span>
-          </AlertDescription>
-        </Alert>
-      )}
+    <div className="flex h-full flex-col">
+      {/* Step 1: Fixed Area (outside scroll) */}
+      <div className="mx-auto w-full max-w-5xl px-3 pt-3 pb-3 sm:px-6">
+        {/* Login Benefits Info - shown only when not logged in */}
+        {!isLoggedIn && (
+          <Alert variant="info" className="mb-3">
+            <Info />
+            <AlertTitle>{t('video.login_benefits_title')}</AlertTitle>
+            <AlertDescription className="flex flex-wrap">
+              <Trans
+                i18nKey="video.login_benefits_description"
+                components={{
+                  1: (
+                    <button
+                      type="button"
+                      onClick={() => openUrl('https://www.bilibili.com')}
+                      className="inline cursor-pointer text-blue-600 underline hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                    />
+                  ),
+                }}
+              />
+              <span className="mt-1 w-full text-xs opacity-80">
+                {t('video.login_benefits_restart_note')}
+              </span>
+            </AlertDescription>
+          </Alert>
+        )}
 
-      {/* Step 1: URL Input Card */}
-      <Card className="bg-card sticky top-0 z-10">
-        <CardHeader>
-          <CardTitle className="font-display text-lg">
-            {t('video.step1_title')}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <VideoForm1 />
-        </CardContent>
-      </Card>
-
-      {/* Step 2: Video Parts Configuration */}
-      {(isFetching || video.parts.length > 0) && (
+        {/* Step 1: URL Input Card */}
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="font-display text-lg">
-                {t('video.step2_title')}
-              </CardTitle>
-              {!isFetching && (
-                <div className="flex items-center gap-2">
-                  <TooltipButton
-                    label={t('video.select_all')}
-                    onClick={handleSelectAll}
-                    disabled={hasActiveDownloads}
-                    tooltip={selectTooltip}
-                  />
-                  <TooltipButton
-                    label={t('video.deselect_all')}
-                    onClick={handleDeselectAll}
-                    disabled={hasActiveDownloads}
-                    tooltip={selectTooltip}
-                  />
-                </div>
-              )}
-            </div>
+            <CardTitle className="font-display text-lg">
+              {t('video.step1_title')}
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-0">
-            {isFetching ? (
-              <VideoPartCardSkeleton />
-            ) : (
-              video.parts.map((_v, idx) => {
-                const isLast = idx === video.parts.length - 1
-
-                return (
-                  <div key={idx}>
-                    <VideoPartCard
-                      video={video}
-                      page={idx + 1}
-                      isDuplicate={duplicateIndices.includes(idx)}
-                    />
-                    {!isLast && <Separator className="my-3" />}
-                  </div>
-                )
-              })
-            )}
+          <CardContent>
+            <VideoForm1 />
           </CardContent>
-          {!isFetching && (
-            <CardFooter>
-              <DownloadButton />
-            </CardFooter>
-          )}
         </Card>
+      </div>
+
+      {/* Step 2: Scrollable Area */}
+      {(isFetching || video.parts.length > 0) && (
+        <div className="mx-auto w-full max-w-5xl px-3 pb-3 sm:px-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="font-display text-lg">
+                  {t('video.step2_title')}
+                </CardTitle>
+                {isFetching ? (
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-10 w-[88px]" />
+                    <Skeleton className="h-8 w-[68px]" />
+                    <Skeleton className="h-8 w-[68px]" />
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <DownloadButton />
+                    <TooltipButton
+                      label={t('video.select_all')}
+                      onClick={() => store.dispatch(selectAll())}
+                      {...selectDisabled}
+                    />
+                    <TooltipButton
+                      label={t('video.deselect_all')}
+                      onClick={() => store.dispatch(deselectAll())}
+                      {...selectDisabled}
+                    />
+                  </div>
+                )}
+              </div>
+            </CardHeader>
+            <ScrollArea style={{ height: 'calc(100dvh - 2.3rem - 13.5rem)' }}>
+              <CardContent className="space-y-0">
+                {isFetching ? (
+                  <VideoPartCardSkeleton />
+                ) : (
+                  video.parts.map((_v, idx) => {
+                    const isLast = idx === video.parts.length - 1
+
+                    return (
+                      <div key={idx}>
+                        <VideoPartCard
+                          video={video}
+                          page={idx + 1}
+                          isDuplicate={duplicateIndices.includes(idx)}
+                        />
+                        {!isLast && <Separator className="my-3" />}
+                      </div>
+                    )
+                  })
+                )}
+              </CardContent>
+              {!isFetching && (
+                <CardFooter>
+                  <DownloadButton />
+                </CardFooter>
+              )}
+              <ScrollBar />
+            </ScrollArea>
+          </Card>
+        </div>
       )}
-    </>
+    </div>
   )
 }
 
