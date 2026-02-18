@@ -42,11 +42,12 @@ import {
 import { Label } from '@/shared/ui/label'
 import { Textarea } from '@/shared/ui/textarea'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ImageOff, Info } from 'lucide-react'
-import { useCallback, useEffect, useMemo } from 'react'
+import { Check, Copy, ImageOff, Info } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
+import { toast } from 'sonner'
 import { z } from 'zod'
 
 type QualityRadioOption = {
@@ -61,13 +62,13 @@ type QualityRadioGroupProps = {
 }
 
 /**
- * Radio group component for quality selection.
+ * 品質選択用ラジオグループコンポーネント
  *
- * Displays available quality options as radio buttons.
- * Unavailable qualities are disabled and visually distinguished.
+ * 利用可能な品質オプションをラジオボタンとして表示します。
+ * 利用不可の品質は無効化され、視覚的に区別されます。
  *
- * @param props.options - Array of quality options
- * @param props.idPrefix - ID prefix for radio buttons
+ * @param props.options - 品質オプションの配列
+ * @param props.idPrefix - ラジオボタンのIDプレフィックス
  *
  * @private
  */
@@ -109,20 +110,20 @@ type Props = {
 }
 
 /**
- * Video part configuration card component.
+ * 動画パート設定カードコンポーネント
  *
- * Displays the following UI elements for each video part:
- * - Thumbnail image
- * - Custom filename input
- * - Video quality selector
- * - Audio quality selector
- * - Download progress display
+ * 各動画パートに対して以下のUI要素を表示します：
+ * - サムネイル画像
+ * - カスタムファイル名入力
+ * - 映像品質セレクタ
+ * - 音声品質セレクタ
+ * - ダウンロード進捗表示
  *
- * Changes are auto-saved on blur. Shows a warning for duplicate titles.
+ * 変更はフォーカス消失時に自動保存されます。重複タイトルの場合は警告を表示します。
  *
- * @param props.video - Video information object
- * @param props.page - Part number (1-based)
- * @param props.isDuplicate - Whether the title is a duplicate
+ * @param props.video - 動画情報オブジェクト
+ * @param props.page - パート番号（1始まり）
+ * @param props.isDuplicate - タイトルが重複しているかどうか
  *
  * @example
  * ```tsx
@@ -136,6 +137,7 @@ type Props = {
 function VideoPartCard({ video, page, isDuplicate }: Props) {
   const { onValid2 } = useVideoInfo()
   const { t } = useTranslation()
+  const [copied, setCopied] = useState(false)
   const disabled = video.parts.length === 0
   const videoPart = video.parts[page - 1]
   const min = Math.floor(videoPart.duration / 60)
@@ -155,26 +157,20 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   const isWaitingForTurn =
     selected && !downloadId && !isComplete && hasActiveDownloads
 
-  const partQualities = useMemo(
-    () => ({
-      video: videoPart.videoQualities,
-      audio: videoPart.audioQualities,
-    }),
-    [videoPart.videoQualities, videoPart.audioQualities],
-  )
+  const videoQualities = videoPart.videoQualities
+  const audioQualities = videoPart.audioQualities
 
   /**
-   * Checks if a quality ID is available for the current video part.
+   * 指定された品質IDが現在の動画パートで利用可能かを判定します。
    *
-   * @param qualityId - Quality ID
-   * @param type - 'video' or 'audio'
-   * @returns True if the quality is available
+   * @param qualityId - 品質ID
+   * @param type - 'video' または 'audio'
+   * @returns 品質が利用可能な場合は true
    */
-  const isQualityAvailable = useCallback(
-    (qualityId: number, type: 'video' | 'audio'): boolean =>
-      partQualities[type].some((q) => q.id === qualityId),
-    [partQualities],
-  )
+  function isQualityAvailable(qualityId: number, type: 'video' | 'audio') {
+    const qualities = type === 'video' ? videoQualities : audioQualities
+    return qualities.some((q) => q.id === qualityId)
+  }
 
   function handleSelectedChange(checked: boolean | 'indeterminate') {
     store.dispatch(
@@ -183,10 +179,10 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   }
 
   /**
-   * Executes redownload for the part.
+   * パートの再ダウンロードを実行します。
    *
-   * Removes the completed download from the queue and
-   * starts a new download with a fresh download ID.
+   * キューから完了したダウンロードを削除し、
+   * 新しいダウンロードIDで新規ダウンロードを開始します。
    *
    * @private
    */
@@ -219,10 +215,10 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   }
 
   /**
-   * Executes retry for a failed download.
+   * 失敗したダウンロードのリトライを実行します。
    *
-   * Re-selects the part so it will be included
-   * in the next download execution.
+   * パートを再選択することで、次回のダウンロード実行時に
+   * 含まれるようにします。
    *
    * @private
    */
@@ -231,8 +227,8 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   }
 
   /**
-   * Cancels the download.
-   * After cancellation, deselects to return to pre-download state.
+   * ダウンロードをキャンセルします。
+   * キャンセル後、選択を解除してダウンロード前の状態に戻します。
    *
    * @private
    */
@@ -242,6 +238,25 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
     }
     // Deselect to return to pre-download state (no waiting indicator)
     store.dispatch(updatePartSelected({ index: page - 1, selected: false }))
+  }
+
+  /**
+   * 動画パート名をクリップボードにコピーします。
+   *
+   * 成功時はトースト通知を表示し、コピーボタンのアイコンを
+   * 2秒間チェックマークに変更します。
+   *
+   * @private
+   */
+  async function handleCopyPartName() {
+    try {
+      await navigator.clipboard.writeText(videoPart.part)
+      setCopied(true)
+      toast.success(t('video.title_copied'))
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      toast.error(t('video.copy_failed'))
+    }
   }
 
   const schema2 = useMemo(() => buildVideoFormSchema2(t), [t])
@@ -347,6 +362,18 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                 className="text-muted-foreground mt-1.5 flex items-center text-sm"
                 style={{ marginLeft: '2.25rem' }}
               >
+                <button
+                  type="button"
+                  onClick={handleCopyPartName}
+                  className="hover:bg-muted mr-0.5 rounded p-1 transition-colors"
+                  title={t('video.copy_title')}
+                >
+                  {copied ? (
+                    <Check className="h-3.5 w-3.5" />
+                  ) : (
+                    <Copy className="h-3.5 w-3.5" />
+                  )}
+                </button>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span
@@ -361,7 +388,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                   </TooltipContent>
                 </Tooltip>
                 <span className="px-1">/</span>
-                {min > 0 && <span className="mr-1">{min}m</span>}
+                {min > 0 && <span>{min}m</span>}
                 <span>{sec}s</span>
               </div>
             </div>

@@ -103,7 +103,10 @@
     "login_benefits_restart_note": "※ 登录后请重启应用程序。",
     "cancel_all": "全部取消",
     "cancel_download": "取消下载",
-    "download_cancelled": "下载已取消"
+    "download_cancelled": "下载已取消",
+    "copy_title": "复制标题",
+    "title_copied": "标题已复制到剪贴板",
+    "copy_failed": "复制标题失败"
   },
   "progress": {
     "elapsed": "已用时间",
