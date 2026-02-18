@@ -1,16 +1,15 @@
-'use client';
+'use client'
 
-import * as React from 'react';
-import { motion, type Variants } from 'motion/react';
+import { motion, type Variants } from 'motion/react'
 
 import {
   getVariants,
-  useAnimateIconContext,
   IconWrapper,
+  useAnimateIconContext,
   type IconProps,
-} from '@/components/animate-ui/icons/icon';
+} from '@/components/animate-ui/icons/icon'
 
-type SquareXProps = IconProps<keyof typeof animations>;
+type SquareXProps = IconProps<keyof typeof animations>
 
 const animations = {
   default: {
@@ -36,11 +35,11 @@ const animations = {
       },
     },
   } satisfies Record<string, Variants>,
-} as const;
+} as const
 
 function IconComponent({ size, ...props }: SquareXProps) {
-  const { controls } = useAnimateIconContext();
-  const variants = getVariants(animations);
+  const { controls } = useAnimateIconContext()
+  const variants = getVariants(animations)
 
   return (
     <motion.svg
@@ -85,17 +84,17 @@ function IconComponent({ size, ...props }: SquareXProps) {
         animate={controls}
       />
     </motion.svg>
-  );
+  )
 }
 
 function SquareX(props: SquareXProps) {
-  return <IconWrapper icon={IconComponent} {...props} />;
+  return <IconWrapper icon={IconComponent} {...props} />
 }
 
 export {
   animations,
   SquareX,
   SquareX as SquareXIcon,
-  type SquareXProps,
   type SquareXProps as SquareXIconProps,
-};
+  type SquareXProps,
+}

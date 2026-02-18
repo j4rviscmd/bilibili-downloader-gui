@@ -231,8 +231,7 @@ export function PartDownloadProgress({
   )
 
   // Can cancel if pending/downloading and not in merge stage
-  const canCancel =
-    (isPending || isDownloading) && !isInMergeStage && onCancel
+  const canCancel = (isPending || isDownloading) && !isInMergeStage && onCancel
 
   const handleOpenFile = useCallback(async () => {
     if (!outputPath) return

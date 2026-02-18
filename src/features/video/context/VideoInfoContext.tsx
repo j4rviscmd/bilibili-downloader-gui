@@ -282,10 +282,7 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
     )
 
     for (const { idx } of selectedParts) {
-      const completedItem = findCompletedItemForPart(
-        store.getState(),
-        idx + 1,
-      )
+      const completedItem = findCompletedItemForPart(store.getState(), idx + 1)
       if (completedItem)
         store.dispatch(clearQueueItem(completedItem.downloadId))
     }
@@ -340,9 +337,9 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
     }
 
     // Clean up parent if all downloads completed or were cancelled
-    const finalChildren = store.getState().queue.filter(
-      (i) => i.parentId === parentId,
-    )
+    const finalChildren = store
+      .getState()
+      .queue.filter((i) => i.parentId === parentId)
     if (finalChildren.length === 0) {
       store.dispatch(clearQueueItem(parentId))
     }

@@ -267,8 +267,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
     const videoQuality =
       existingInput?.videoQuality ?? String(part.videoQualities[0]?.id ?? 80)
     const audioQuality =
-      existingInput?.audioQuality ??
-      String(part.audioQualities[0]?.id ?? 30216)
+      existingInput?.audioQuality ?? String(part.audioQualities[0]?.id ?? 30216)
 
     form.setValue('title', title, { shouldValidate: true })
     form.setValue('videoQuality', videoQuality, { shouldValidate: true })
@@ -288,7 +287,11 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   return (
     <div className="p-3 md:p-4">
       <Form {...form}>
-        <fieldset disabled={disabled || isDownloading || isPending || hasActiveDownloads}>
+        <fieldset
+          disabled={
+            disabled || isDownloading || isPending || hasActiveDownloads
+          }
+        >
           <form
             onSubmit={form.handleSubmit(onSubmit)}
             onBlur={form.handleSubmit(onSubmit)}

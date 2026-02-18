@@ -18,8 +18,9 @@ import { invoke } from '@tauri-apps/api/core'
  * }
  * ```
  */
-export const callCancelDownload = async (downloadId: string): Promise<boolean> =>
-  invoke<boolean>('cancel_download', { downloadId })
+export const callCancelDownload = async (
+  downloadId: string,
+): Promise<boolean> => invoke<boolean>('cancel_download', { downloadId })
 
 /**
  * すべてのアクティブなダウンロードをキャンセルします。

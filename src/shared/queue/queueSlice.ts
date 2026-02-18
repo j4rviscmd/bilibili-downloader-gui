@@ -4,7 +4,13 @@ import { createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit'
 import type { RootState } from '@/app/store'
 import { callCancelAllDownloads, callCancelDownload } from './api/cancelApi'
 
-type QueueItemStatus = 'pending' | 'running' | 'cancelling' | 'cancelled' | 'done' | 'error'
+type QueueItemStatus =
+  | 'pending'
+  | 'running'
+  | 'cancelling'
+  | 'cancelled'
+  | 'done'
+  | 'error'
 
 /**
  * 子アイテムに基づいて親キューアイテムのステータスを集約します。
@@ -109,7 +115,9 @@ export const cancelDownload = createAsyncThunk(
     // Allow cancelling if status is pending, running, or cancelling
     const cancellableStatuses = ['pending', 'running', 'cancelling']
     if (!cancellableStatuses.includes(item.status || '')) {
-      throw new Error(`Download is not cancellable: ${downloadId} (status: ${item.status})`)
+      throw new Error(
+        `Download is not cancellable: ${downloadId} (status: ${item.status})`,
+      )
     }
 
     const wasCancelled = await callCancelDownload(downloadId)
