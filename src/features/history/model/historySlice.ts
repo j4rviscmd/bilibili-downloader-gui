@@ -2,63 +2,65 @@ import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 
 /**
- * History entry representing a completed download.
+ * 完了したダウンロードを表す履歴エントリ。
  */
 export type HistoryEntry = {
-  /** Unique history identifier */
+  /** 履歴の一意識別子 */
   id: string
-  /** Video title */
+  /** 動画タイトル */
   title: string
-  /** Source URL */
+  /** Bilibili動画ID（BV識別子、後方互換性のために省略可能） */
+  bvid?: string
+  /** ソースURL */
   url: string
-  /** Output filename */
+  /** 出力ファイル名 */
   filename?: string
-  /** Output directory path */
+  /** 出力ディレクトリパス */
   outputPath?: string
-  /** Download timestamp in ISO 8601 format */
+  /** ダウンロードタイムスタンプ（ISO 8601形式） */
   downloadedAt: string
-  /** Video duration in seconds */
+  /** 動画長（秒単位） */
   duration?: number
-  /** Download status */
+  /** ダウンロードステータス */
   status: 'completed' | 'failed'
-  /** Error message if status is 'failed' */
+  /** ステータスが 'failed' の場合のエラーメッセージ */
   errorMessage?: string
-  /** File size in bytes */
+  /** ファイルサイズ（バイト単位） */
   fileSize?: number
-  /** Video quality (e.g., '1080p', '720p') */
+  /** 動画品質（例: '1080p', '720p'） */
   quality?: string
-  /** Thumbnail image URL */
+  /** サムネイル画像URL */
   thumbnailUrl?: string
 }
 
 /**
- * Alias for HistoryEntry to maintain compatibility with existing code.
+ * 既存コードとの互換性を維持するためのHistoryEntryのエイリアス。
  */
 export type HistoryItem = HistoryEntry
 
 /**
- * History filters for filtering entries.
+ * エントリフィルタリング用の履歴フィルタ。
  */
 export type HistoryFilters = {
-  /** Status filter (all = no filtering) */
+  /** ステータスフィルタ（all = フィルタリングなし） */
   status?: 'all' | 'completed' | 'failed'
-  /** Optional date range start (ISO 8601) */
+  /** オプションの日付範囲開始（ISO 8601形式） */
   dateFrom?: string
 }
 
 /**
- * History state managing download history.
+ * ダウンロード履歴を管理する履歴ステート。
  */
 export type HistoryState = {
-  /** Array of history entries */
+  /** 履歴エントリの配列 */
   entries: HistoryEntry[]
-  /** Loading state for history operations */
+  /** 履歴操作用のローディング状態 */
   loading: boolean
-  /** Error message if any operation failed */
+  /** 操作が失敗した場合のエラーメッセージ */
   error: string | null
-  /** Current filters applied */
+  /** 適用中の現在のフィルタ */
   filters: HistoryFilters
-  /** Search query string */
+  /** 検索クエリ文字列 */
   searchQuery: string
 }
 
@@ -71,86 +73,86 @@ const initialState: HistoryState = {
 }
 
 /**
- * Redux slice for download history management.
+ * ダウンロード履歴管理用Reduxスライス。
  *
- * Manages completed download history with filtering and search capabilities.
- * History entries are persisted separately (not handled by this slice).
+ * フィルタリングと検索機能を備えた完了したダウンロード履歴を管理します。
+ * 履歴エントリは別途永続化されます（このスライスでは処理されません）。
  */
 export const historySlice = createSlice({
   name: 'history',
   initialState,
   reducers: {
     /**
-     * Replaces all entries in history.
+     * 履歴のすべてのエントリを置き換えます。
      *
-     * Used when loading history from backend.
+     * バックエンドから履歴を読み込むときに使用されます。
      *
-     * @param state - Current history state
-     * @param action - Action containing array of entries
+     * @param state - 現在の履歴ステート
+     * @param action - エントリの配列を含むアクション
      */
     setEntries(state, action: PayloadAction<HistoryEntry[]>) {
       state.entries = action.payload
     },
     /**
-     * Adds a single entry to history.
+     * 履歴に単一のエントリを追加します。
      *
-     * Prepends entry to array (newest first).
+     * エントリを配列の先頭に追加します（新しい順）。
      *
-     * @param state - Current history state
-     * @param action - Action containing entry to add
+     * @param state - 現在の履歴ステート
+     * @param action - 追加するエントリを含むアクション
      */
     addEntry(state, action: PayloadAction<HistoryEntry>) {
       state.entries.unshift(action.payload)
     },
     /**
-     * Removes a history entry by ID.
+     * IDで履歴エントリを削除します。
      *
-     * @param state - Current history state
-     * @param action - Action containing entry ID to remove
+     * @param state - 現在の履歴ステート
+     * @param action - 削除するエントリIDを含むアクション
      */
     removeEntry(state, action: PayloadAction<string>) {
       state.entries = state.entries.filter((e) => e.id !== action.payload)
     },
     /**
-     * Clears all history entries.
+     * すべての履歴エントリをクリアします。
      *
-     * @param state - Current history state
+     * @param state - 現在の履歴ステート
      */
     clearHistory(state) {
       state.entries = []
     },
     /**
-     * Updates history filters.
+     * 履歴フィルタを更新します。
      *
-     * @param state - Current history state
-     * @param action - Action containing new filters
+     * @param state - 現在の履歴ステート
+     * @param action - 新しいフィルタを含むアクション
      */
     setFilters(state, action: PayloadAction<HistoryFilters>) {
       state.filters = action.payload
     },
     /**
-     * Updates search query.
+     * 検索クエリを更新します。
      *
-     * @param state - Current history state
-     * @param action - Action containing search query string
+     * @param state - 現在の履歴ステート
+     * @param action - 検索クエリ文字列を含むアクション
      */
     setSearchQuery(state, action: PayloadAction<string>) {
       state.searchQuery = action.payload
     },
     /**
-     * Sets loading state.
+     * ローディング状態を設定します。
      *
-     * @param state - Current history state
-     * @param action - Action containing loading boolean
+     * @param state - 現在の履歴ステート
+     * @param action - ローディング真偽値を含むアクション
      */
     setLoading(state, action: PayloadAction<boolean>) {
       state.loading = action.payload
     },
     /**
-     * Sets error message.
+     * エラーメッセージを設定します。
      *
-     * @param state - Current history state
-     * @param action - Action containing error message or null
+     * @param state - 現在の履歴ステート
+     * @param action - エラーメッセージまたはnullを含むアクション
      */
     setError(state, action: PayloadAction<string | null>) {
       state.error = action.payload

@@ -16,10 +16,10 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 /**
- * Pads a number with leading zeros to ensure 2-digit formatting.
+ * 2桁フォーマットを保証するために数値をゼロ埋めします。
  *
- * @param n - The number to pad (0-99)
- * @returns Two-digit string with leading zero if needed
+ * @param n - ゼロ埋めする数値（0-99）
+ * @returns 必要に応じて先頭ゼロ付きの2桁文字列
  *
  * @example
  * ```ts
@@ -30,7 +30,7 @@ import { toast } from 'sonner'
 const pad = (n: number): string => n.toString().padStart(2, '0')
 
 /**
- * Formats duration in seconds to MM:SS or HH:MM:SS format.
+ * 秒単位の長さをMM:SSまたはHH:MM:SS形式にフォーマットします。
  */
 function formatDuration(seconds: number): string {
   const hours = Math.floor(seconds / 3600)
@@ -44,22 +44,18 @@ function formatDuration(seconds: number): string {
 }
 
 /**
- * Formats an ISO 8601 date string to a relative time string.
+ * ISO 8601日付文字列を相対時間文字列にフォーマットします。
  *
- * @param dateString - ISO 8601 date string
- * @param t - Translation function
- * @returns Relative time string (e.g., "3分前", "Just now")
+ * @param dateString - ISO 8601日付文字列
+ * @param t - 翻訳関数
+ * @returns 相対時間文字列（例: "3分前", "Just now"）
  */
 function formatRelativeTime(
   dateString: string,
   t: (key: string, options?: Record<string, unknown>) => string,
 ): string {
-  const now = Date.now()
-  const date = new Date(dateString)
-  const diff = now - date.getTime()
-
-  const seconds = Math.floor(diff / 1000)
-  const minutes = Math.floor(seconds / 60)
+  const diffMs = Date.now() - new Date(dateString).getTime()
+  const minutes = Math.floor(diffMs / 60_000)
   const hours = Math.floor(minutes / 60)
   const days = Math.floor(hours / 24)
 
@@ -70,10 +66,10 @@ function formatRelativeTime(
 }
 
 /**
- * Formats an ISO 8601 date string to a short absolute format.
+ * ISO 8601日付文字列を短い絶対形式にフォーマットします。
  *
- * @param dateString - ISO 8601 date string
- * @returns Short date string (e.g., "2026/02/15 14:28")
+ * @param dateString - ISO 8601日付文字列
+ * @returns 短い日付文字列（例: "2026/02/15 14:28"）
  */
 function formatAbsoluteDate(dateString: string): string {
   const date = new Date(dateString)
@@ -84,16 +80,16 @@ function formatAbsoluteDate(dateString: string): string {
   return `${date.getFullYear()}/${pad(month)}/${pad(day)} ${pad(hour)}:${pad(minute)}`
 }
 
-/** Bytes per kilobyte */
+/** キロバイトあたりのバイト数 */
 const KB = 1000
-/** Bytes per megabyte */
+/** メガバイトあたりのバイト数 */
 const MB = 1_000_000
 
 /**
- * Formats a byte count to a human-readable file size string.
+ * バイト数を人間が読めるファイルサイズ文字列にフォーマットします。
  *
- * @param bytes - File size in bytes
- * @returns Formatted string (e.g., "1.5 MB", "500 KB", "-")
+ * @param bytes - バイト単位のファイルサイズ
+ * @returns フォーマットされた文字列（例: "1.5 MB", "500 KB", "-"）
  */
 function formatFileSize(bytes?: number): string {
   if (!bytes) return '-'
@@ -103,9 +99,9 @@ function formatFileSize(bytes?: number): string {
 }
 
 /**
- * Thumbnail placeholder component.
+ * サムネイルプレースホルダーコンポーネント。
  *
- * Displays a download icon when no thumbnail is available or loading.
+ * サムネイルが利用できない、または読み込み中のときにダウンロードアイコンを表示します。
  */
 const ThumbnailPlaceholder = () => (
   <div className="text-muted-foreground flex size-full items-center justify-center">
@@ -114,28 +110,34 @@ const ThumbnailPlaceholder = () => (
 )
 
 /**
- * Props for the HistoryItem component.
+ * HistoryItemコンポーネントのプロパティ。
  *
- * @property entry - The history entry data to display
- * @property onDelete - Callback function invoked when the delete button is clicked
+ * @property entry - 表示する履歴エントリデータ
+ * @property onDelete - 削除ボタンクリック時に呼び出されるコールバック関数
+ * @property onDownload - ダウンロードボタンクリック時に呼び出されるコールバック関数
+ * @property disabled - ダウンロードボタンを無効にするかどうか
  */
 type Props = {
   entry: HistoryEntry
   onDelete: () => void
+  onDownload?: () => void
+  disabled?: boolean
 }
 
 /**
- * Single history entry component.
+ * 単一の履歴エントリコンポーネント。
  *
  * @example
  * ```tsx
  * <HistoryItem
  *   entry={historyEntry}
  *   onDelete={() => handleDelete(historyEntry.id)}
+ *   onDownload={() => handleDownload(historyEntry)}
+ *   disabled={hasActiveDownloads}
  * />
  * ```
  */
-function HistoryItem({ entry, onDelete }: Props) {
+function HistoryItem({ entry, onDelete, onDownload, disabled }: Props) {
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
 
@@ -153,11 +155,10 @@ function HistoryItem({ entry, onDelete }: Props) {
   const displayThumbnail = isDataUrl ? thumbnailUrl : cachedThumbnail
 
   /**
-   * Copies the video URL to the clipboard.
+   * 動画URLをクリップボードにコピーします。
    *
-   * Shows a success toast notification and temporarily changes the copy button
-   * icon to a checkmark for 2 seconds. If clipboard access fails, shows an
-   * error toast notification.
+   * 成功トースト通知を表示し、コピーボタンのアイコンを2秒間一時的にチェックマークに変更します。
+   * クリップボードアクセスが失敗した場合はエラートースト通知を表示します。
    *
    * @async
    */
@@ -210,16 +211,6 @@ function HistoryItem({ entry, onDelete }: Props) {
           <h3 className="min-w-0 flex-1 truncate font-semibold">
             {entry.title}
           </h3>
-          <span
-            className={cn(
-              'rounded-full px-2 py-0.5 text-xs font-medium',
-              isSuccess
-                ? 'bg-chart-2/10 text-chart-2'
-                : 'bg-destructive/10 text-destructive',
-            )}
-          >
-            {t(isSuccess ? 'history.filterSuccess' : 'history.filterFailed')}
-          </span>
         </div>
 
         {/* URL with copy button */}
@@ -243,38 +234,61 @@ function HistoryItem({ entry, onDelete }: Props) {
           </a>
         </div>
 
-        {/* Metadata row: filename | date | size | quality */}
-        <div className="text-muted-foreground flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs">
-          {entry.filename && (
-            <>
-              <span className="max-w-[200px] truncate">{entry.filename}</span>
-              <span aria-hidden="true">•</span>
-            </>
-          )}
-          <TooltipProvider delayDuration={300}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="cursor-default">
-                  {formatRelativeTime(entry.downloadedAt, t)}
-                </span>
-              </TooltipTrigger>
-              <TooltipContent side="top" arrow>
-                {formatAbsoluteDate(entry.downloadedAt)}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          {entry.fileSize && (
-            <>
-              <span aria-hidden="true">•</span>
-              <span>{formatFileSize(entry.fileSize)}</span>
-            </>
-          )}
-          {entry.quality && (
-            <>
-              <span aria-hidden="true">•</span>
-              <span>{entry.quality}</span>
-            </>
-          )}
+        {/* Metadata row: filename | date | size | quality | status | delete */}
+        <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs">
+          <div className="text-muted-foreground flex flex-wrap items-center gap-x-1">
+            {entry.filename && (
+              <>
+                <span className="max-w-[200px] truncate">{entry.filename}</span>
+                <span aria-hidden="true">•</span>
+              </>
+            )}
+            <TooltipProvider delayDuration={300}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="cursor-default">
+                    {formatRelativeTime(entry.downloadedAt, t)}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" arrow>
+                  {formatAbsoluteDate(entry.downloadedAt)}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            {entry.fileSize && (
+              <>
+                <span aria-hidden="true">•</span>
+                <span>{formatFileSize(entry.fileSize)}</span>
+              </>
+            )}
+            {entry.quality && (
+              <>
+                <span aria-hidden="true">•</span>
+                <span>{entry.quality}</span>
+              </>
+            )}
+          </div>
+          <div className="flex items-center gap-1">
+            <span
+              className={cn(
+                'rounded-full px-2 py-0.5 text-xs font-medium',
+                isSuccess
+                  ? 'bg-chart-2/10 text-chart-2'
+                  : 'bg-destructive/10 text-destructive',
+              )}
+            >
+              {t(isSuccess ? 'history.filterSuccess' : 'history.filterFailed')}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onDelete}
+              title={t('history.deleteConfirm')}
+              className="text-destructive hover:bg-destructive/10 size-6"
+            >
+              <Trash2 size={14} />
+            </Button>
+          </div>
         </div>
 
         {entry.status === 'failed' && entry.errorMessage && (
@@ -282,15 +296,31 @@ function HistoryItem({ entry, onDelete }: Props) {
         )}
       </div>
 
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={onDelete}
-        title={t('history.deleteConfirm')}
-        className="text-destructive hover:bg-destructive/10"
-      >
-        <Trash2 size={18} />
-      </Button>
+      {/* Download button - only show if bvid exists */}
+      {entry.bvid && onDownload && (
+        <TooltipProvider delayDuration={0}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={onDownload}
+                  disabled={disabled}
+                >
+                  <Download size={16} />
+                  {t('watchHistory.download')}
+                </Button>
+              </span>
+            </TooltipTrigger>
+            {disabled && (
+              <TooltipContent side="top" arrow>
+                {t('video.download_in_progress')}
+              </TooltipContent>
+            )}
+          </Tooltip>
+        </TooltipProvider>
+      )}
     </div>
   )
 }

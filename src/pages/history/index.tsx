@@ -1,8 +1,12 @@
+import { useSelector } from '@/app/store'
 import { useHistory } from '@/features/history/hooks/useHistory'
+import type { HistoryEntry } from '@/features/history/model/historySlice'
 import HistoryExportDialog from '@/features/history/ui/HistoryExportDialog'
 import HistoryFilters from '@/features/history/ui/HistoryFilters'
 import HistoryList from '@/features/history/ui/HistoryList'
 import HistorySearch from '@/features/history/ui/HistorySearch'
+import { usePendingDownload } from '@/shared/hooks/usePendingDownload'
+import { selectHasActiveDownloads } from '@/shared/queue'
 import { Button } from '@/shared/ui/button'
 import { confirm, save } from '@tauri-apps/plugin-dialog'
 import { writeTextFile } from '@tauri-apps/plugin-fs'
@@ -12,25 +16,27 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 /**
- * History page content component.
+ * 履歴ページコンテンツコンポーネント。
  *
- * This is the content portion of the history page without the layout wrapper.
- * It should be rendered inside a PageLayoutShell or similar layout.
+ * これはレイアウトラッパーなしの履歴ページのコンテンツ部分です。
+ * PageLayoutShellまたは同様のレイアウト内でレンダリングする必要があります。
  *
- * Provides a full-featured history management interface including:
- * - Search and filter functionality
- * - Export to JSON/CSV
- * - Clear all history with confirmation
- * - Virtual scrolling for large lists
+ * 以下を含む完全な機能を持つ履歴管理インターフェースを提供します：
+ * - 検索・フィルタ機能
+ * - JSON/CSVへのエクスポート
+ * - 確認付き全履歴消去
+ * - 大きなリスト用仮想スクロール
  *
  * @example
  * ```tsx
- * // Inside PersistentPageLayout
+ * // PersistentPageLayout内
  * <HistoryContent />
  * ```
  */
 export function HistoryContent() {
   const { t } = useTranslation()
+  const hasActiveDownloads = useSelector(selectHasActiveDownloads)
+  const handleDownload = usePendingDownload()
 
   const {
     entries,
@@ -47,16 +53,42 @@ export function HistoryContent() {
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
 
   /**
-   * Update document title when component mounts or language changes.
+   * Bilibili URLからページ番号を抽出します。
+   *
+   * @param url - Bilibili動画URL（例: "https://www.bilibili.com/video/BVxxx?p=2"）
+   * @returns ページ番号（見つからない場合は1がデフォルト）
+   */
+  const extractPageFromUrl = (url: string): number => {
+    const match = url.match(/[?&]p=(\d+)/)
+    return match ? parseInt(match[1], 10) : 1
+  }
+
+  /**
+   * 履歴エントリのダウンロードリクエストを処理します。
+   *
+   * エントリを保留中のダウンロードとして設定し、
+   * 実際のダウンロードフローが続くホームページに移動します。
+   *
+   * @param entry - ダウンロードする履歴エントリ
+   */
+  const onDownload = (entry: HistoryEntry) => {
+    if (entry.bvid) {
+      const page = extractPageFromUrl(entry.url)
+      handleDownload(entry.bvid, null, page)
+    }
+  }
+
+  /**
+   * コンポーネントマウント時または言語変更時にドキュメントタイトルを更新します。
    */
   useEffect(() => {
     document.title = `${t('history.title')} - ${t('app.title')}`
   }, [t])
 
   /**
-   * Handles clearing all history entries with confirmation.
+   * 確認付きですべての履歴エントリを消去します。
    *
-   * Shows a native confirm dialog before proceeding to prevent accidental deletion.
+   * 誤削除を防止するために、続行前にネイティブ確認ダイアログを表示します。
    */
   const handleClearAll = async () => {
     if (await confirm(t('history.deleteAllConfirm'))) {
@@ -65,15 +97,15 @@ export function HistoryContent() {
   }
 
   /**
-   * Handles exporting history data to JSON or CSV format.
+   * 履歴データをJSONまたはCSV形式でエクスポートします。
    *
-   * Process:
-   * 1. Convert history entries to the selected format
-   * 2. Show native file save dialog
-   * 3. Write data to the selected file path
-   * 4. Display success/error toast notification
+   * プロセス:
+   * 1. 履歴エントリを選択した形式に変換
+   * 2. ネイティブファイル保存ダイアログを表示
+   * 3. 選択したファイルパスにデータを書き込み
+   * 4. 成功/エラートースト通知を表示
    *
-   * @param format - Export format ('json' or 'csv')
+   * @param format - エクスポート形式（'json'または'csv'）
    */
   const handleExport = async (format: 'json' | 'csv') => {
     try {
@@ -150,6 +182,8 @@ export function HistoryContent() {
         entries={entries}
         loading={loading}
         onDelete={remove}
+        onDownload={onDownload}
+        disabled={hasActiveDownloads}
         height="calc(100dvh - 2.3rem - 80px)"
       />
 

@@ -1,57 +1,60 @@
-//! Download History Model
+//! ダウンロード履歴モデル
 //!
-//! This module defines the HistoryEntry structure for tracking
-//! downloaded videos in persistent storage.
+//! このモジュールは、永続ストレージでダウンロード済み動画を追跡するための
+//! HistoryEntry構造体を定義します。
 
 use serde::{Deserialize, Serialize};
 
-/// Download history entry.
+/// ダウンロード履歴エントリ。
 ///
-/// Represents a single downloaded video record with metadata
-/// for history tracking and search functionality.
+/// 履歴追跡および検索機能のためのメタデータを含む、
+/// 単一のダウンロード済み動画レコードを表します。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HistoryEntry {
-    /// Unique identifier for the history entry.
+    /// 履歴エントリの一意識別子。
     pub id: String,
-    /// Video title from Bilibili.
+    /// Bilibiliから取得した動画タイトル。
     pub title: String,
-    /// Bilibili video URL.
+    /// Bilibili動画ID（BV識別子、後方互換性のために省略可能）。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bvid: Option<String>,
+    /// Bilibili動画URL。
     pub url: String,
-    /// Download completion timestamp in ISO 8601 format.
+    /// ダウンロード完了タイムスタンプ（ISO 8601形式）。
     pub downloaded_at: String,
-    /// Download status: "success" or "failed".
+    /// ダウンロードステータス: "success" または "failed"。
     pub status: String,
-    /// Downloaded file size in bytes (optional).
+    /// ダウンロード済みファイルサイズ（バイト単位、省略可能）。
     pub file_size: Option<u64>,
-    /// Video quality (e.g., "1080P60", optional).
+    /// 動画品質（例: "1080P60"、省略可能）。
     pub quality: Option<String>,
-    /// Thumbnail URL (original Bilibili URL).
-    /// Frontend fetches and converts to base64 on-demand via API.
+    /// サムネイルURL（元のBilibili URL）。
+    /// フロントエンドはAPI経由でオンデマンドで取得・base64変換します。
     pub thumbnail_url: Option<String>,
-    /// Version for data migration support.
+    /// データ移行サポート用バージョン。
     #[serde(default = "default_version")]
     pub version: String,
 }
 
-/// Returns the default version string for new history entries.
+/// 新規履歴エントリのデフォルトバージョン文字列を返します。
 ///
-/// Used as the default value for the `version` field when deserializing
-/// history entries that don't have a version specified.
+/// バージョンが指定されていない履歴エントリをデシリアライズする際の
+/// `version`フィールドのデフォルト値として使用されます。
 fn default_version() -> String {
     "1.0".to_string()
 }
 
-/// Search filters for history queries.
+/// 履歴検索用フィルタ。
 ///
-/// Allows filtering by status, quality, date range, and text search.
+/// ステータス、品質、日付範囲、テキスト検索によるフィルタリングをサポートします。
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HistoryFilters {
-    /// Filter by download status.
+    /// ダウンロードステータスによるフィルタ。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
-    /// Filter by date range start (ISO 8601).
+    /// 日付範囲の開始によるフィルタ（ISO 8601形式）。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub date_from: Option<String>,
 }
