@@ -104,7 +104,10 @@
     "login_benefits_restart_note": "※ログインしたらアプリを再起動してください。",
     "cancel_all": "すべてキャンセル",
     "cancel_download": "ダウンロードをキャンセル",
-    "download_cancelled": "ダウンロードをキャンセルしました"
+    "download_cancelled": "ダウンロードをキャンセルしました",
+    "copy_title": "タイトルをコピー",
+    "title_copied": "タイトルをコピーしました",
+    "copy_failed": "タイトルのコピーに失敗しました"
   },
   "progress": {
     "elapsed": "経過",

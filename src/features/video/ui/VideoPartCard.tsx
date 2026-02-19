@@ -42,11 +42,12 @@ import {
 import { Label } from '@/shared/ui/label'
 import { Textarea } from '@/shared/ui/textarea'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ImageOff, Info } from 'lucide-react'
-import { useCallback, useEffect, useMemo } from 'react'
+import { Check, Copy, ImageOff, Info } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
+import { toast } from 'sonner'
 import { z } from 'zod'
 
 type QualityRadioOption = {
@@ -136,6 +137,7 @@ type Props = {
 function VideoPartCard({ video, page, isDuplicate }: Props) {
   const { onValid2 } = useVideoInfo()
   const { t } = useTranslation()
+  const [copied, setCopied] = useState(false)
   const disabled = video.parts.length === 0
   const videoPart = video.parts[page - 1]
   const min = Math.floor(videoPart.duration / 60)
@@ -155,13 +157,8 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   const isWaitingForTurn =
     selected && !downloadId && !isComplete && hasActiveDownloads
 
-  const partQualities = useMemo(
-    () => ({
-      video: videoPart.videoQualities,
-      audio: videoPart.audioQualities,
-    }),
-    [videoPart.videoQualities, videoPart.audioQualities],
-  )
+  const videoQualities = videoPart.videoQualities
+  const audioQualities = videoPart.audioQualities
 
   /**
    * Checks if a quality ID is available for the current video part.
@@ -170,11 +167,10 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
    * @param type - 'video' or 'audio'
    * @returns True if the quality is available
    */
-  const isQualityAvailable = useCallback(
-    (qualityId: number, type: 'video' | 'audio'): boolean =>
-      partQualities[type].some((q) => q.id === qualityId),
-    [partQualities],
-  )
+  function isQualityAvailable(qualityId: number, type: 'video' | 'audio') {
+    const qualities = type === 'video' ? videoQualities : audioQualities
+    return qualities.some((q) => q.id === qualityId)
+  }
 
   function handleSelectedChange(checked: boolean | 'indeterminate') {
     store.dispatch(
@@ -242,6 +238,25 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
     }
     // Deselect to return to pre-download state (no waiting indicator)
     store.dispatch(updatePartSelected({ index: page - 1, selected: false }))
+  }
+
+  /**
+   * Copies the video part name to clipboard.
+   *
+   * Shows a success toast notification and temporarily changes the copy button
+   * icon to a checkmark for 2 seconds.
+   *
+   * @private
+   */
+  async function handleCopyPartName() {
+    try {
+      await navigator.clipboard.writeText(videoPart.part)
+      setCopied(true)
+      toast.success(t('video.title_copied'))
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      toast.error(t('video.copy_failed'))
+    }
   }
 
   const schema2 = useMemo(() => buildVideoFormSchema2(t), [t])
@@ -347,6 +362,18 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                 className="text-muted-foreground mt-1.5 flex items-center text-sm"
                 style={{ marginLeft: '2.25rem' }}
               >
+                <button
+                  type="button"
+                  onClick={handleCopyPartName}
+                  className="hover:bg-muted mr-0.5 rounded p-1 transition-colors"
+                  title={t('video.copy_title')}
+                >
+                  {copied ? (
+                    <Check className="h-3.5 w-3.5" />
+                  ) : (
+                    <Copy className="h-3.5 w-3.5" />
+                  )}
+                </button>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span
@@ -361,7 +388,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                   </TooltipContent>
                 </Tooltip>
                 <span className="px-1">/</span>
-                {min > 0 && <span className="mr-1">{min}m</span>}
+                {min > 0 && <span>{min}m</span>}
                 <span>{sec}s</span>
               </div>
             </div>
