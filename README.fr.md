@@ -11,7 +11,7 @@
   <tr>
     <td width="80%">
       <p><strong>Interface graphique de téléchargement de vidéos Bilibili pour Windows et macOS.</strong></p>
-      <p>Le frontend est construit avec React + Vite ; l'application de bureau est propulsée par Tauri (Rust).</p>
+      <p>Aucune configuration requise. Installez et commencez à télécharger des vidéos immédiatement.</p>
     </td>
     <td width="20%">
       <img src="public/icon.png" alt="App Icon" width="128">
@@ -19,11 +19,11 @@
   </tr>
 </table>
 
-> [!WARNING]
-> Cette application est destinée à un usage éducatif et personnel. Respectez les conditions d'utilisation et les lois sur le droit d'auteur. Ne téléchargez ni ne redistribuez de contenu sans l'autorisation des détenteurs de droits.
-
 ![Image de l'application (recherche)](<public/app-image(searched)_en.png>)
 ![Image de l'application (fusion)](<public/app-image(merging)_en.png>)
+
+> [!WARNING]
+> Cette application est destinée à un usage éducatif et personnel. Respectez les conditions d'utilisation et les lois sur le droit d'auteur. Ne téléchargez ni ne redistribuez de contenu sans l'autorisation des détenteurs de droits.
 
 ## ⭐ Mettez une étoile à ce dépôt pour me motiver
 
