@@ -676,7 +676,11 @@ async fn export_history(app: AppHandle, format: String) -> Result<String, String
                     escape_csv(&entry.status),
                     entry.file_size.map_or(String::new(), |s| s.to_string()),
                     entry.quality.as_deref().map(escape_csv).unwrap_or_default(),
-                    entry.thumbnail_url.as_deref().map(escape_csv).unwrap_or_default(),
+                    entry
+                        .thumbnail_url
+                        .as_deref()
+                        .map(escape_csv)
+                        .unwrap_or_default(),
                     escape_csv(&entry.version),
                 ));
             }
