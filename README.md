@@ -11,7 +11,7 @@
   <tr>
     <td width="80%">
       <p><strong>Windows and macOS Bilibili video downloader GUI.</strong></p>
-      <p>Frontend is built with React + Vite; the desktop app is powered by Tauri (Rust).</p>
+      <p>No configuration needed. Install and start downloading videos right away.</p>
     </td>
     <td width="20%">
       <img src="public/icon.png" alt="App Icon" width="128">
@@ -19,11 +19,11 @@
   </tr>
 </table>
 
-> [!WARNING]
-> This app is intended for educational and personal use. Respect the terms of service and copyright laws. Do not download or redistribute content without permission from rights holders.
-
 ![App Image(searched)](<public/app-image(searched)_en.png>)
 ![App Image(merged)](<public/app-image(merging)_en.png>)
+
+> [!WARNING]
+> This app is intended for educational and personal use. Respect the terms of service and copyright laws. Do not download or redistribute content without permission from rights holders.
 
 ## Star this repo to keep me motivated ⭐
 

@@ -11,7 +11,7 @@
   <tr>
     <td width="80%">
       <p><strong>Windows 및 macOS용 Bilibili 동영상 다운로더 GUI 애플리케이션</strong></p>
-      <p>프론트엔드는 React + Vite로 구축되었으며, 데스크톱 앱은 Tauri(Rust)로 구동됩니다.</p>
+      <p>설정 불필요. 설치 후 바로 동영상을 다운로드하세요.</p>
     </td>
     <td width="20%">
       <img src="public/icon.png" alt="App Icon" width="128">
@@ -19,11 +19,11 @@
   </tr>
 </table>
 
-> [!WARNING]
-> 이 앱은 교육 및 개인 사용 목적으로 제공됩니다. 이용 약관과 저작권법을 준수해 주세요. 저작권자의 허가 없이 콘텐츠를 다운로드하거나 재배포하지 마세요.
-
 ![앱 이미지(검색)](<public/app-image(searched)_en.png>)
 ![앱 이미지(병합 중)](<public/app-image(merging)_en.png>)
+
+> [!WARNING]
+> 이 앱은 교육 및 개인 사용 목적으로 제공됩니다. 이용 약관과 저작권법을 준수해 주세요. 저작권자의 허가 없이 콘텐츠를 다운로드하거나 재배포하지 마세요.
 
 ## ⭐ 이 저장소에 Star를 눌러주세요
 

@@ -11,7 +11,7 @@
   <tr>
     <td width="80%">
       <p><strong>Windows / macOS対応のBilibili動画ダウンローダーGUIアプリ</strong></p>
-      <p>フロントエンドはReact + Vite、デスクトップアプリはTauri（Rust）で構築されています。</p>
+      <p>設定不要。インストールするだけですぐ使える動画ダウンローダー</p>
     </td>
     <td width="20%">
       <img src="public/icon.png" alt="App Icon" width="128">
@@ -19,11 +19,11 @@
   </tr>
 </table>
 
-> [!WARNING]
-> このアプリは教育目的および個人利用を目的としています。利用規約と著作権法を遵守してください。権利者の許可なくコンテンツをダウンロードまたは再配布しないでください。
-
 ![アプリ画像（検索）](<public/app-image(searched)_en.png>)
 ![アプリ画像（マージ中）](<public/app-image(merging)_en.png>)
+
+> [!WARNING]
+> このアプリは教育目的および個人利用を目的としています。利用規約と著作権法を遵守してください。権利者の許可なくコンテンツをダウンロードまたは再配布しないでください。
 
 ## ⭐ このリポジトリにスターをお願いします
 

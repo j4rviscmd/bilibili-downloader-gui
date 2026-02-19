@@ -11,7 +11,7 @@
   <tr>
     <td width="80%">
       <p><strong>Windows 和 macOS Bilibili 视频下载器图形界面应用</strong></p>
-      <p>前端使用 React + Vite 构建，桌面应用由 Tauri (Rust) 驱动。</p>
+      <p>无需配置。安装后即可立即开始下载视频。</p>
     </td>
     <td width="20%">
       <img src="public/icon.png" alt="App Icon" width="128">
@@ -19,11 +19,11 @@
   </tr>
 </table>
 
-> [!WARNING]
-> 注意：本应用仅供教育和个人使用。请遵守服务条款和版权法。未经版权所有者许可，请勿下载或重新分发内容。
-
 ![应用截图（搜索）](<public/app-image(searched)_en.png>)
 ![应用截图（合并中）](<public/app-image(merging)_en.png>)
+
+> [!WARNING]
+> 注意：本应用仅供教育和个人使用。请遵守服务条款和版权法。未经版权所有者许可，请勿下载或重新分发内容。
 
 ## ⭐ 给这个仓库点个 Star 吧
 
