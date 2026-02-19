@@ -45,6 +45,7 @@ type StaticAnimations = keyof typeof staticAnimations
 type TriggerProp<T = string> = boolean | StaticAnimations | T
 type Trigger = TriggerProp<string>
 
+/** Context value type for AnimateIcon component state. */
 type AnimateIconContextValue = {
   controls: LegacyAnimationControls | undefined
   animation: StaticAnimations | string
@@ -58,6 +59,7 @@ type AnimateIconContextValue = {
   delay?: number
 }
 
+/** Default animation props for icon components. */
 type DefaultIconProps<T = string> = {
   animate?: TriggerProp<T>
   animateOnHover?: TriggerProp<T>
@@ -74,6 +76,7 @@ type DefaultIconProps<T = string> = {
   delay?: number
 }
 
+/** Props for the AnimateIcon wrapper component. */
 type AnimateIconProps<T = string> = WithAsChild<
   HTMLMotionProps<'span'> &
     DefaultIconProps<T> & {
@@ -82,11 +85,13 @@ type AnimateIconProps<T = string> = WithAsChild<
     }
 >
 
+/** Props for individual icon components. */
 type IconProps<T> = DefaultIconProps<T> &
   Omit<SVGMotionProps<SVGSVGElement>, 'animate'> & {
     size?: number
   }
 
+/** Props for the IconWrapper component that wraps icon components. */
 type IconWrapperProps<T> = IconProps<T> & {
   icon: React.ComponentType<IconProps<T>>
 }
@@ -95,6 +100,7 @@ const AnimateIconContext = React.createContext<AnimateIconContextValue | null>(
   null,
 )
 
+/** Hook to access the AnimateIcon context. Returns default values if context is not provided. */
 function useAnimateIconContext() {
   const context = React.useContext(AnimateIconContext)
   if (!context)
@@ -113,6 +119,7 @@ function useAnimateIconContext() {
   return context
 }
 
+/** Composes multiple event handlers into a single function. Executes all handlers in order. */
 function composeEventHandlers<E extends React.SyntheticEvent<unknown>>(
   theirs?: (event: E) => void,
   ours?: (event: E) => void,
@@ -126,6 +133,7 @@ function composeEventHandlers<E extends React.SyntheticEvent<unknown>>(
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyProps = Record<string, any>
 
+/** Root component that provides animation context and handles animation triggers. */
 function AnimateIcon({
   asChild = false,
   animate = false,
@@ -446,9 +454,11 @@ function AnimateIcon({
   )
 }
 
+/** CSS class name for path animation dasharray correction. */
 const pathClassName =
   "[&_[stroke-dasharray='1px_1px']]:![stroke-dasharray:1px_0px]"
 
+/** Wrapper component that applies animation context to icon components. */
 function IconWrapper<T extends string>({
   size = 28,
   animation: animationProp,
@@ -615,6 +625,7 @@ function IconWrapper<T extends string>({
   )
 }
 
+/** Gets animation variants based on the current animation type from context. */
 function getVariants<
   V extends { default: T; [key: string]: T },
   T extends Record<string, Variants>,

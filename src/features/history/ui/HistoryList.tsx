@@ -3,16 +3,10 @@ import { Virtuoso } from 'react-virtuoso'
 import type { HistoryEntry } from '../model/historySlice'
 import HistoryItem from './HistoryItem'
 
-/**
- * HistoryListコンポーネントのプロパティ。
- *
- * @property entries - 表示する履歴エントリの配列
- * @property loading - 履歴データが現在読み込み中かどうか
- * @property onDelete - エントリ削除時のコールバック関数
- * @property onDownload - ダウンロードボタンクリック時のコールバック関数
- * @property disabled - ダウンロードボタンを無効にするかどうか
- * @property height - 仮想スクロールコンテナのオプションの高さ
- */
+/** Approximate height of each HistoryItem in pixels (for virtual scrolling). */
+const DEFAULT_ITEM_HEIGHT = 120
+
+/** Props for the HistoryList component. */
 type Props = {
   entries: HistoryEntry[]
   loading: boolean
@@ -22,14 +16,7 @@ type Props = {
   height?: string
 }
 
-/** 各HistoryItemのおおよその高さ（ピクセル単位、仮想スクロール用） */
-const DEFAULT_ITEM_HEIGHT = 120 // 各HistoryItemのおおよその高さ
-
-/**
- * 空状態アイコンコンポーネント。
- *
- * 履歴エントリがないことを表すスタイライズされたフィルム/グリッドアイコンを表示します。
- */
+/** Empty state icon component. Displays an icon representing no history entries. */
 const EmptyStateIcon = () => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -48,26 +35,8 @@ const EmptyStateIcon = () => (
 )
 
 /**
- * ローディング、空状態、仮想スクロールを備えた履歴リストコンポーネント。
- *
- * 機能:
- * - スピナー付きローディング状態
- * - アイコンとメッセージ付き空状態
- * - 大きなリストの効率的なレンダリング用仮想スクロール
- * - レスポンシブ高さ計算
- * - bvidを持つエントリのダウンロードボタン
- *
- * @example
- * ```tsx
- * <HistoryList
- *   entries={history.entries}
- *   loading={history.loading}
- *   onDelete={(id) => history.remove(id)}
- *   onDownload={(entry) => handleDownload(entry)}
- *   disabled={hasActiveDownloads}
- *   height="calc(100dvh - 2.3rem - 80px)"
- * />
- * ```
+ * History list component with loading, empty state, and virtual scrolling.
+ * Shows download button for entries with bvid.
  */
 function HistoryList({
   entries,

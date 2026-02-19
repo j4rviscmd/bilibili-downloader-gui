@@ -16,22 +16,10 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 /**
- * 履歴ページコンテンツコンポーネント。
+ * History page content component.
  *
- * これはレイアウトラッパーなしの履歴ページのコンテンツ部分です。
- * PageLayoutShellまたは同様のレイアウト内でレンダリングする必要があります。
- *
- * 以下を含む完全な機能を持つ履歴管理インターフェースを提供します：
- * - 検索・フィルタ機能
- * - JSON/CSVへのエクスポート
- * - 確認付き全履歴消去
- * - 大きなリスト用仮想スクロール
- *
- * @example
- * ```tsx
- * // PersistentPageLayout内
- * <HistoryContent />
- * ```
+ * Provides search and filter functionality, JSON/CSV export, clear all with confirmation,
+ * and virtual scrolling for the history list.
  */
 export function HistoryContent() {
   const { t } = useTranslation()
@@ -53,10 +41,9 @@ export function HistoryContent() {
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
 
   /**
-   * Bilibili URLからページ番号を抽出します。
-   *
-   * @param url - Bilibili動画URL（例: "https://www.bilibili.com/video/BVxxx?p=2"）
-   * @returns ページ番号（見つからない場合は1がデフォルト）
+   * Extracts the page number from a Bilibili URL.
+   * @param url - The Bilibili video URL
+   * @returns The page number (defaults to 1 if not found)
    */
   const extractPageFromUrl = (url: string): number => {
     const match = url.match(/[?&]p=(\d+)/)
@@ -64,12 +51,9 @@ export function HistoryContent() {
   }
 
   /**
-   * 履歴エントリのダウンロードリクエストを処理します。
-   *
-   * エントリを保留中のダウンロードとして設定し、
-   * 実際のダウンロードフローが続くホームページに移動します。
-   *
-   * @param entry - ダウンロードする履歴エントリ
+   * Handles download request from a history entry.
+   * Extracts bvid and page number, then navigates to home page.
+   * @param entry - The history entry to download
    */
   const onDownload = (entry: HistoryEntry) => {
     if (entry.bvid) {
@@ -79,16 +63,16 @@ export function HistoryContent() {
   }
 
   /**
-   * コンポーネントマウント時または言語変更時にドキュメントタイトルを更新します。
+   * Updates document title on mount or language change.
+   * Sets the page title for browser history and tab display.
    */
   useEffect(() => {
     document.title = `${t('history.title')} - ${t('app.title')}`
   }, [t])
 
   /**
-   * 確認付きですべての履歴エントリを消去します。
-   *
-   * 誤削除を防止するために、続行前にネイティブ確認ダイアログを表示します。
+   * Clears all history entries with user confirmation.
+   * Shows a confirmation dialog before clearing the history.
    */
   const handleClearAll = async () => {
     if (await confirm(t('history.deleteAllConfirm'))) {
@@ -97,15 +81,9 @@ export function HistoryContent() {
   }
 
   /**
-   * 履歴データをJSONまたはCSV形式でエクスポートします。
-   *
-   * プロセス:
-   * 1. 履歴エントリを選択した形式に変換
-   * 2. ネイティブファイル保存ダイアログを表示
-   * 3. 選択したファイルパスにデータを書き込み
-   * 4. 成功/エラートースト通知を表示
-   *
-   * @param format - エクスポート形式（'json'または'csv'）
+   * Exports history data to JSON or CSV format.
+   * Shows a file save dialog and writes the exported data to the selected location.
+   * @param format - The export format ('json' or 'csv')
    */
   const handleExport = async (format: 'json' | 'csv') => {
     try {

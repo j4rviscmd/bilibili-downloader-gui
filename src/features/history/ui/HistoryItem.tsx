@@ -15,23 +15,10 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-/**
- * 2桁フォーマットを保証するために数値をゼロ埋めします。
- *
- * @param n - ゼロ埋めする数値（0-99）
- * @returns 必要に応じて先頭ゼロ付きの2桁文字列
- *
- * @example
- * ```ts
- * pad(5)  // "05"
- * pad(12) // "12"
- * ```
- */
+/** Pads a number with leading zeros to ensure 2-digit format. */
 const pad = (n: number): string => n.toString().padStart(2, '0')
 
-/**
- * 秒単位の長さをMM:SSまたはHH:MM:SS形式にフォーマットします。
- */
+/** Formats a duration in seconds to MM:SS or HH:MM:SS format. */
 function formatDuration(seconds: number): string {
   const hours = Math.floor(seconds / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)
@@ -43,13 +30,7 @@ function formatDuration(seconds: number): string {
   return `${minutes}:${pad(secs)}`
 }
 
-/**
- * ISO 8601日付文字列を相対時間文字列にフォーマットします。
- *
- * @param dateString - ISO 8601日付文字列
- * @param t - 翻訳関数
- * @returns 相対時間文字列（例: "3分前", "Just now"）
- */
+/** Formats an ISO 8601 date string to a relative time string. */
 function formatRelativeTime(
   dateString: string,
   t: (key: string, options?: Record<string, unknown>) => string,
@@ -65,12 +46,7 @@ function formatRelativeTime(
   return t('watchHistory.time.justNow')
 }
 
-/**
- * ISO 8601日付文字列を短い絶対形式にフォーマットします。
- *
- * @param dateString - ISO 8601日付文字列
- * @returns 短い日付文字列（例: "2026/02/15 14:28"）
- */
+/** Formats an ISO 8601 date string to a short absolute format (e.g., "2026/02/15 14:28"). */
 function formatAbsoluteDate(dateString: string): string {
   const date = new Date(dateString)
   const month = date.getMonth() + 1
@@ -80,43 +56,24 @@ function formatAbsoluteDate(dateString: string): string {
   return `${date.getFullYear()}/${pad(month)}/${pad(day)} ${pad(hour)}:${pad(minute)}`
 }
 
-/** キロバイトあたりのバイト数 */
-const KB = 1000
-/** メガバイトあたりのバイト数 */
-const MB = 1_000_000
-
-/**
- * バイト数を人間が読めるファイルサイズ文字列にフォーマットします。
- *
- * @param bytes - バイト単位のファイルサイズ
- * @returns フォーマットされた文字列（例: "1.5 MB", "500 KB", "-"）
- */
+/** Formats a byte count to a human-readable file size string (e.g., "1.5 MB"). */
 function formatFileSize(bytes?: number): string {
+  const KB = 1000
+  const MB = 1_000_000
   if (!bytes) return '-'
   if (bytes < KB) return `${bytes} B`
   if (bytes < MB) return `${(bytes / KB).toFixed(1)} KB`
   return `${(bytes / MB).toFixed(1)} MB`
 }
 
-/**
- * サムネイルプレースホルダーコンポーネント。
- *
- * サムネイルが利用できない、または読み込み中のときにダウンロードアイコンを表示します。
- */
+/** Displays a download icon when thumbnail is unavailable or loading. */
 const ThumbnailPlaceholder = () => (
   <div className="text-muted-foreground flex size-full items-center justify-center">
     <Download size={32} />
   </div>
 )
 
-/**
- * HistoryItemコンポーネントのプロパティ。
- *
- * @property entry - 表示する履歴エントリデータ
- * @property onDelete - 削除ボタンクリック時に呼び出されるコールバック関数
- * @property onDownload - ダウンロードボタンクリック時に呼び出されるコールバック関数
- * @property disabled - ダウンロードボタンを無効にするかどうか
- */
+/** Props for the HistoryItem component. */
 type Props = {
   entry: HistoryEntry
   onDelete: () => void
@@ -124,19 +81,7 @@ type Props = {
   disabled?: boolean
 }
 
-/**
- * 単一の履歴エントリコンポーネント。
- *
- * @example
- * ```tsx
- * <HistoryItem
- *   entry={historyEntry}
- *   onDelete={() => handleDelete(historyEntry.id)}
- *   onDownload={() => handleDownload(historyEntry)}
- *   disabled={hasActiveDownloads}
- * />
- * ```
- */
+/** Component displaying a single history entry. */
 function HistoryItem({ entry, onDelete, onDownload, disabled }: Props) {
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
@@ -154,14 +99,7 @@ function HistoryItem({ entry, onDelete, onDownload, disabled }: Props) {
 
   const displayThumbnail = isDataUrl ? thumbnailUrl : cachedThumbnail
 
-  /**
-   * 動画URLをクリップボードにコピーします。
-   *
-   * 成功トースト通知を表示し、コピーボタンのアイコンを2秒間一時的にチェックマークに変更します。
-   * クリップボードアクセスが失敗した場合はエラートースト通知を表示します。
-   *
-   * @async
-   */
+  /** Copies the video URL to clipboard with toast notification. */
   const handleCopyUrl = async () => {
     try {
       await navigator.clipboard.writeText(entry.url)
