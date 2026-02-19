@@ -67,6 +67,21 @@ function getErrorMessage(error: string, t: (key: string) => string): string {
   return error.includes('ERR::NETWORK::') ? t('video.network_error') : error
 }
 
+/**
+ * Context value type for VideoInfoProvider.
+ *
+ * @property progress - Download progress state from Redux store
+ * @property video - Current video information (title, parts, qualities, etc.)
+ * @property input - Form input state (URL, part inputs, pending download)
+ * @property onValid1 - Validates video URL and fetches video info (Step 1)
+ * @property onValid2 - Updates part settings (title, quality) (Step 2)
+ * @property isForm1Valid - Whether the URL form is valid
+ * @property isForm2ValidAll - Whether all part forms are valid and no duplicates exist
+ * @property duplicateIndices - Indices of parts with duplicate titles
+ * @property selectedCount - Number of parts selected for download
+ * @property isFetching - Whether video info is being fetched
+ * @property download - Executes download for selected parts
+ */
 export type VideoInfoContextValue = {
   progress: RootState['progress']
   video: Video
@@ -133,16 +148,19 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
    * Initializes part input fields based on video metadata.
    */
   const initInputsForVideo = useCallback((v: Video) => {
-    const partInputs = v.parts.map((p) => ({
-      cid: p.cid,
-      page: p.page,
-      title: `${v.title} ${p.part}`,
-      videoQuality: (p.videoQualities[0]?.id || 80).toString(),
-      audioQuality: (p.audioQualities[0]?.id || 30216).toString(),
-      selected: true,
-      duration: p.duration,
-      thumbnailUrl: p.thumbnail.url,
-    }))
+    const partInputs = v.parts.map((p) => {
+      const title = v.title === p.part ? v.title : `${v.title} ${p.part}`
+      return {
+        cid: p.cid,
+        page: p.page,
+        title,
+        videoQuality: (p.videoQualities[0]?.id ?? 80).toString(),
+        audioQuality: (p.audioQualities[0]?.id ?? 30216).toString(),
+        selected: true,
+        duration: p.duration,
+        thumbnailUrl: p.thumbnail.url,
+      }
+    })
     store.dispatch(initPartInputs(partInputs))
   }, [])
 
@@ -211,19 +229,10 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
     [],
   )
 
-  // Validation
   const schema1 = buildVideoFormSchema1(t)
   const schema2 = buildVideoFormSchema2(t)
   const isForm1Valid = schema1.safeParse({ url: input.url }).success
 
-  const partValidFlags = input.partInputs.map(
-    (pi) =>
-      schema2.safeParse({
-        title: pi.title,
-        videoQuality: pi.videoQuality,
-        audioQuality: pi.audioQuality,
-      }).success,
-  )
   const duplicateIndices = useSelector(selectDuplicateIndices)
   const hasDuplicates = duplicateIndices.length > 0
   const dupToastRef = useRef(false)
@@ -231,54 +240,67 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
   useEffect(() => {
     if (hasDuplicates === dupToastRef.current) return
     dupToastRef.current = hasDuplicates
-    if (hasDuplicates)
+    if (hasDuplicates) {
       toast.error(t('video.duplicate_titles'), { duration: 5000 })
+    }
   }, [hasDuplicates, t])
 
   const selectedCount = input.partInputs.filter((pi) => pi.selected).length
 
   const isForm2ValidAll =
-    partValidFlags.every(Boolean) && !hasDuplicates && selectedCount > 0
+    input.partInputs.every(
+      (pi) =>
+        schema2.safeParse({
+          title: pi.title,
+          videoQuality: pi.videoQuality,
+          audioQuality: pi.audioQuality,
+        }).success,
+    ) &&
+    !hasDuplicates &&
+    selectedCount > 0
 
   /**
    * Processes pending download from history/favorites.
+   *
+   * When a user initiates a download from history or favorites, a pendingDownload
+   * is set in the input state. This effect triggers the video info fetch for
+   * that video. The ref prevents re-processing the same pending download.
    */
   useEffect(() => {
-    if (!input.pendingDownload) return
+    const pending = input.pendingDownload
+    if (!pending) return
 
-    const { bvid, cid, page } = input.pendingDownload
+    const { bvid, cid, page } = pending
+    const processing = processingPendingRef.current
 
-    // Skip if already processing the same pending download
-    if (
-      processingPendingRef.current &&
-      processingPendingRef.current.bvid === bvid &&
-      processingPendingRef.current.page === page
-    ) {
-      return
-    }
+    // Skip if already processing this exact video/part
+    if (processing?.bvid === bvid && processing.page === page) return
 
-    // Store pending info for part selection after video info is loaded
     processingPendingRef.current = { bvid, cid, page }
-
-    const url = `https://www.bilibili.com/video/${bvid}?p=${page}`
-    onValid1(url)
+    onValid1(`https://www.bilibili.com/video/${bvid}?p=${page}`)
   }, [input.pendingDownload, onValid1])
 
   /**
    * Handles part selection for pending download (after video info is fetched).
+   *
+   * Once video info is loaded, this effect automatically selects the specific
+   * part that was requested from history/favorites. Selection is based on
+   * either cid (preferred) or page number as fallback.
    */
   useEffect(() => {
-    if (!processingPendingRef.current || video.parts.length === 0) return
+    const processing = processingPendingRef.current
+    if (!processing || video.parts.length === 0) return
 
-    const { cid, page } = processingPendingRef.current
+    const { cid, page } = processing
 
-    // Deselect all parts first, then select only the target part
+    // Select only the target part; deselect all others
+    // Prefer cid matching for accuracy, fall back to page matching
     input.partInputs.forEach((pi, idx) => {
       const shouldSelect = cid !== null ? pi.cid === cid : pi.page === page
       store.dispatch(updatePartSelected({ index: idx, selected: shouldSelect }))
     })
 
-    // Clear pending download and processing state
+    // Clear pending state after selection is complete
     store.dispatch(clearPendingDownload())
     processingPendingRef.current = null
   }, [video.parts, input.partInputs])
@@ -292,14 +314,22 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
     const videoId = (extractVideoId(input.url) ?? '').trim()
     if (!videoId) return
 
-    const selectedParts = input.partInputs.flatMap((pi, idx) =>
-      pi.selected ? [{ pi, idx }] : [],
-    )
+    // Extract selected parts with their indices for download processing
+    // Type predicate filter ensures non-null items with proper type narrowing
+    const selectedParts = input.partInputs
+      .map((pi, idx) => (pi.selected ? { pi, idx } : null))
+      .filter(
+        (item): item is { pi: (typeof input.partInputs)[0]; idx: number } =>
+          item !== null,
+      )
 
+    // Clear previously completed items for the selected parts to allow re-download
+    // This removes finished queue entries so they can be queued again
     for (const { idx } of selectedParts) {
       const completedItem = findCompletedItemForPart(store.getState(), idx + 1)
-      if (completedItem)
+      if (completedItem) {
         store.dispatch(clearQueueItem(completedItem.downloadId))
+      }
     }
 
     const parentId = `${videoId}-${Date.now()}`
@@ -311,13 +341,9 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
       }),
     )
 
-    // Download each part sequentially, checking selection before each download
     for (const { pi, idx } of selectedParts) {
-      // Check if part is still selected (user may have cancelled while waiting)
       const currentPartInput = store.getState().input.partInputs[idx]
-      if (!currentPartInput?.selected) {
-        continue // Skip this part if deselected
-      }
+      if (!currentPartInput?.selected) continue
 
       const downloadId = `${parentId}-p${idx + 1}`
       try {
@@ -335,10 +361,8 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
         )
       } catch (e) {
         const raw = String(e)
-        // Skip error handling for cancelled downloads - continue to next
-        if (raw.includes('ERR::CANCELLED')) {
-          continue
-        }
+        if (raw.includes('ERR::CANCELLED')) continue
+
         const description = getErrorMessage(raw, t)
         toast.error(t('video.download_failed'), {
           duration: Infinity,
@@ -347,11 +371,10 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
         })
         console.error('Download failed:', raw)
         store.dispatch(setError(description))
-        break // Stop on non-cancellation errors
+        break
       }
     }
 
-    // Clean up parent if all downloads completed or were cancelled
     const finalChildren = store
       .getState()
       .queue.filter((i) => i.parentId === parentId)
