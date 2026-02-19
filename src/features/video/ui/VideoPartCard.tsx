@@ -61,17 +61,7 @@ type QualityRadioGroupProps = {
   idPrefix: string
 }
 
-/**
- * Radio group component for quality selection.
- *
- * Displays available quality options as radio buttons.
- * Unavailable qualities are disabled and visually distinguished.
- *
- * @param props.options - Array of quality options
- * @param props.idPrefix - ID prefix for radio buttons
- *
- * @private
- */
+/** Radio group component for quality selection. Unavailable qualities are disabled. */
 function QualityRadioGroup({ options, idPrefix }: QualityRadioGroupProps) {
   return (
     <div className="flex flex-wrap gap-x-4 gap-y-2">
@@ -112,27 +102,8 @@ type Props = {
 /**
  * Video part configuration card component.
  *
- * Displays the following UI elements for each video part:
- * - Thumbnail image
- * - Custom filename input
- * - Video quality selector
- * - Audio quality selector
- * - Download progress display
- *
+ * Displays thumbnail, filename input, quality selectors, and download progress.
  * Changes are auto-saved on blur. Shows a warning for duplicate titles.
- *
- * @param props.video - Video information object
- * @param props.page - Part number (1-based)
- * @param props.isDuplicate - Whether the title is a duplicate
- *
- * @example
- * ```tsx
- * <VideoPartCard
- *   video={videoData}
- *   page={1}
- *   isDuplicate={false}
- * />
- * ```
  */
 function VideoPartCard({ video, page, isDuplicate }: Props) {
   const { onValid2 } = useVideoInfo()
@@ -162,9 +133,8 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
 
   /**
    * Checks if a quality ID is available for the current video part.
-   *
-   * @param qualityId - Quality ID
-   * @param type - 'video' or 'audio'
+   * @param qualityId - The quality ID to check
+   * @param type - Either 'video' or 'audio'
    * @returns True if the quality is available
    */
   function isQualityAvailable(qualityId: number, type: 'video' | 'audio') {
@@ -179,12 +149,8 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   }
 
   /**
-   * Executes redownload for the part.
-   *
-   * Removes the completed download from the queue and
-   * starts a new download with a fresh download ID.
-   *
-   * @private
+   * Executes redownload by removing completed item and starting fresh download.
+   * Clears the queue item and initiates a new download with a new ID.
    */
   async function handleRedownload() {
     const partIndex = page - 1
@@ -215,22 +181,16 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   }
 
   /**
-   * Executes retry for a failed download.
-   *
-   * Re-selects the part so it will be included
-   * in the next download execution.
-   *
-   * @private
+   * Re-selects the part for next download execution.
+   * Enables the checkbox to allow retrying the download.
    */
   function handleRetry() {
     store.dispatch(updatePartSelected({ index: page - 1, selected: true }))
   }
 
   /**
-   * Cancels the download.
-   * After cancellation, deselects to return to pre-download state.
-   *
-   * @private
+   * Cancels the download and deselects to return to pre-download state.
+   * Dispatches cancel action and unchecks the part selection.
    */
   function handleCancel() {
     if (downloadStatus.downloadId) {
@@ -241,12 +201,8 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   }
 
   /**
-   * Copies the video part name to clipboard.
-   *
-   * Shows a success toast notification and temporarily changes the copy button
-   * icon to a checkmark for 2 seconds.
-   *
-   * @private
+   * Copies the video part name to clipboard with toast notification.
+   * Shows success or error toast based on clipboard operation result.
    */
   async function handleCopyPartName() {
     try {

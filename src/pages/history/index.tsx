@@ -1,8 +1,12 @@
+import { useSelector } from '@/app/store'
 import { useHistory } from '@/features/history/hooks/useHistory'
+import type { HistoryEntry } from '@/features/history/model/historySlice'
 import HistoryExportDialog from '@/features/history/ui/HistoryExportDialog'
 import HistoryFilters from '@/features/history/ui/HistoryFilters'
 import HistoryList from '@/features/history/ui/HistoryList'
 import HistorySearch from '@/features/history/ui/HistorySearch'
+import { usePendingDownload } from '@/shared/hooks/usePendingDownload'
+import { selectHasActiveDownloads } from '@/shared/queue'
 import { Button } from '@/shared/ui/button'
 import { confirm, save } from '@tauri-apps/plugin-dialog'
 import { writeTextFile } from '@tauri-apps/plugin-fs'
@@ -14,23 +18,13 @@ import { toast } from 'sonner'
 /**
  * History page content component.
  *
- * This is the content portion of the history page without the layout wrapper.
- * It should be rendered inside a PageLayoutShell or similar layout.
- *
- * Provides a full-featured history management interface including:
- * - Search and filter functionality
- * - Export to JSON/CSV
- * - Clear all history with confirmation
- * - Virtual scrolling for large lists
- *
- * @example
- * ```tsx
- * // Inside PersistentPageLayout
- * <HistoryContent />
- * ```
+ * Provides search and filter functionality, JSON/CSV export, clear all with confirmation,
+ * and virtual scrolling for the history list.
  */
 export function HistoryContent() {
   const { t } = useTranslation()
+  const hasActiveDownloads = useSelector(selectHasActiveDownloads)
+  const handleDownload = usePendingDownload()
 
   const {
     entries,
@@ -47,16 +41,38 @@ export function HistoryContent() {
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
 
   /**
-   * Update document title when component mounts or language changes.
+   * Extracts the page number from a Bilibili URL.
+   * @param url - The Bilibili video URL
+   * @returns The page number (defaults to 1 if not found)
+   */
+  const extractPageFromUrl = (url: string): number => {
+    const match = url.match(/[?&]p=(\d+)/)
+    return match ? parseInt(match[1], 10) : 1
+  }
+
+  /**
+   * Handles download request from a history entry.
+   * Extracts bvid and page number, then navigates to home page.
+   * @param entry - The history entry to download
+   */
+  const onDownload = (entry: HistoryEntry) => {
+    if (entry.bvid) {
+      const page = extractPageFromUrl(entry.url)
+      handleDownload(entry.bvid, null, page)
+    }
+  }
+
+  /**
+   * Updates document title on mount or language change.
+   * Sets the page title for browser history and tab display.
    */
   useEffect(() => {
     document.title = `${t('history.title')} - ${t('app.title')}`
   }, [t])
 
   /**
-   * Handles clearing all history entries with confirmation.
-   *
-   * Shows a native confirm dialog before proceeding to prevent accidental deletion.
+   * Clears all history entries with user confirmation.
+   * Shows a confirmation dialog before clearing the history.
    */
   const handleClearAll = async () => {
     if (await confirm(t('history.deleteAllConfirm'))) {
@@ -65,15 +81,9 @@ export function HistoryContent() {
   }
 
   /**
-   * Handles exporting history data to JSON or CSV format.
-   *
-   * Process:
-   * 1. Convert history entries to the selected format
-   * 2. Show native file save dialog
-   * 3. Write data to the selected file path
-   * 4. Display success/error toast notification
-   *
-   * @param format - Export format ('json' or 'csv')
+   * Exports history data to JSON or CSV format.
+   * Shows a file save dialog and writes the exported data to the selected location.
+   * @param format - The export format ('json' or 'csv')
    */
   const handleExport = async (format: 'json' | 'csv') => {
     try {
@@ -150,6 +160,8 @@ export function HistoryContent() {
         entries={entries}
         loading={loading}
         onDelete={remove}
+        onDownload={onDownload}
+        disabled={hasActiveDownloads}
         height="calc(100dvh - 2.3rem - 80px)"
       />
 

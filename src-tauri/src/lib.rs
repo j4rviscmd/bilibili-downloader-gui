@@ -662,17 +662,26 @@ async fn export_history(app: AppHandle, format: String) -> Result<String, String
     match format.as_str() {
         "json" => serde_json::to_string_pretty(&entries).map_err(|e| e.to_string()),
         "csv" => {
-            let mut csv = String::from("id,title,url,status,downloaded_at,file_size,quality\n");
+            let mut csv = String::from(
+                "id,title,bvid,url,downloaded_at,status,file_size,quality,thumbnail_url,version\n",
+            );
             for entry in entries {
                 csv.push_str(&format!(
-                    "{},{},{},{},{},{},{}\n",
+                    "{},{},{},{},{},{},{},{},{},{}\n",
                     escape_csv(&entry.id),
                     escape_csv(&entry.title),
+                    entry.bvid.as_deref().map(escape_csv).unwrap_or_default(),
                     escape_csv(&entry.url),
-                    escape_csv(&entry.status),
                     escape_csv(&entry.downloaded_at),
+                    escape_csv(&entry.status),
                     entry.file_size.map_or(String::new(), |s| s.to_string()),
-                    entry.quality.unwrap_or_default()
+                    entry.quality.as_deref().map(escape_csv).unwrap_or_default(),
+                    entry
+                        .thumbnail_url
+                        .as_deref()
+                        .map(escape_csv)
+                        .unwrap_or_default(),
+                    escape_csv(&entry.version),
                 ));
             }
             Ok(csv)

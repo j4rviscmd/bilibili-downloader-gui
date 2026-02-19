@@ -3,29 +3,20 @@ import { Virtuoso } from 'react-virtuoso'
 import type { HistoryEntry } from '../model/historySlice'
 import HistoryItem from './HistoryItem'
 
-/**
- * Props for the HistoryList component.
- *
- * @property entries - Array of history entries to display
- * @property loading - Whether the history data is currently loading
- * @property onDelete - Callback function when an entry is deleted
- * @property height - Optional height for the virtual scroll container
- */
+/** Approximate height of each HistoryItem in pixels (for virtual scrolling). */
+const DEFAULT_ITEM_HEIGHT = 120
+
+/** Props for the HistoryList component. */
 type Props = {
   entries: HistoryEntry[]
   loading: boolean
   onDelete: (id: string) => void
+  onDownload?: (entry: HistoryEntry) => void
+  disabled?: boolean
   height?: string
 }
 
-/** Approximate height in pixels for each HistoryItem (used for virtual scrolling) */
-const DEFAULT_ITEM_HEIGHT = 120 // Approximate height for each HistoryItem
-
-/**
- * Empty state icon component.
- *
- * Displays a stylized film/grid icon to represent no history entries.
- */
+/** Empty state icon component. Displays an icon representing no history entries. */
 const EmptyStateIcon = () => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -44,25 +35,17 @@ const EmptyStateIcon = () => (
 )
 
 /**
- * History list component with loading, empty states, and virtual scrolling.
- *
- * Features:
- * - Loading state with spinner
- * - Empty state with icon and message
- * - Virtual scrolling for efficient rendering of large lists
- * - Responsive height calculation
- *
- * @example
- * ```tsx
- * <HistoryList
- *   entries={history.entries}
- *   loading={history.loading}
- *   onDelete={(id) => history.remove(id)}
- *   height="calc(100dvh - 2.3rem - 80px)"
- * />
- * ```
+ * History list component with loading, empty state, and virtual scrolling.
+ * Shows download button for entries with bvid.
  */
-function HistoryList({ entries, loading, onDelete, height }: Props) {
+function HistoryList({
+  entries,
+  loading,
+  onDelete,
+  onDownload,
+  disabled,
+  height,
+}: Props) {
   const { t } = useTranslation()
 
   // Loading state - shows animated text
@@ -97,7 +80,12 @@ function HistoryList({ entries, loading, onDelete, height }: Props) {
       data={entries}
       itemContent={(_index, entry) => (
         <div key={entry.id} className="py-1">
-          <HistoryItem entry={entry} onDelete={() => onDelete(entry.id)} />
+          <HistoryItem
+            entry={entry}
+            onDelete={() => onDelete(entry.id)}
+            onDownload={onDownload ? () => onDownload(entry) : undefined}
+            disabled={disabled}
+          />
         </div>
       )}
       defaultItemHeight={DEFAULT_ITEM_HEIGHT}
