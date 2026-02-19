@@ -19,24 +19,38 @@
   </tr>
 </table>
 
-> 注意: このアプリは教育目的および個人利用を目的としています。利用規約と著作権法を遵守してください。権利者の許可なくコンテンツをダウンロードまたは再配布しないでください。
+> [!WARNING]
+> このアプリは教育目的および個人利用を目的としています。利用規約と著作権法を遵守してください。権利者の許可なくコンテンツをダウンロードまたは再配布しないでください。
 
 ![アプリ画像（検索）](<public/app-image(searched)_en.png>)
 ![アプリ画像（マージ中）](<public/app-image(merging)_en.png>)
 
 ## ⭐ このリポジトリにスターをお願いします
 
-余暇に開発しています。スターをいただけるたびに、この開発が続けられるモチベーションになります！
+趣味で開発してます。スターなければ閉鎖します 😄
 
 ![Star](docs/images/star-github.gif)
 
 ## 🎯 機能
 
-- Bilibili動画情報の取得とダウンロード支援
-- Tauriで構築された軽量・高速なデスクトップアプリ
-- ライト/ダークテーマ切り替え（shadcn/uiベース）
-- 進捗表示とトースト通知
-- 多言語UI対応（English / 日本語 / Français / Español / 中文 / 한국어）
+### ダウンロード
+
+- **高品質動画のダウンロード** - 4K/1080p/720pなど任意の品質を選択可能
+- **マルチパート動画の一括保存** - 講義・番組など複数パート構成も自動で全話ダウンロード
+- **高速・安定ダウンロード** - 低速時に自動でCDNを切り替え、最大5回までリトライ
+- **バックグラウンド処理** - キュー管理で複数動画を順次ダウンロード、進捗はリアルタイム表示
+
+### 使いやすさ
+
+- **6言語対応UI** - English / 日本語 / Français / Español / 中文 / 한국어
+- **ワンクリックセットアップ** - FFmpegは自動インストール、面倒な設定不要
+- **履歴検索・エクスポート** - ダウンロード履歴をJSON/CSVで出力、検索も可能
+- **ダークモード対応** - ライト/ダークテーマ切り替え
+
+### ログイン不要・プライバシー重視
+
+- **Firefox Cookie自動検出** - 手動ログイン作業なしで高画質ダウンロード可能
+- **ローカル完結** - すべてのデータはお使いのPCにのみ保存
 
 ## 💻 インストール
 
@@ -52,7 +66,8 @@
 - **インストーラー**（推奨）: `bilibili-downloader-gui_<version>_x64-setup.exe`
 - **MSI**（代替）: `bilibili-downloader-gui_<version>_x64_en-US.msi`
 
-> **注意**: macOSビルドは署名されていません。初回起動時は、アプリを右クリック → 開く → 開く を選択するか、以下を実行してください:
+> [!NOTE]
+> macOSビルドは署名されていません。初回起動時は以下を実行してください:
 >
 > ```bash
 > xattr -dr com.apple.quarantine "/Applications/bilibili-downloader-gui.app"
@@ -74,197 +89,9 @@ xattr -c "/Applications/bilibili-downloader-gui.app"
 
 /Applications以外にインストールした場合は、パスを適宜調整してください。
 
----
-
-## 👨‍💻 開発者向け
-
-以下のセクションは、このプロジェクトをビルド、変更、または貢献したい開発者向けです。
-
-## 📦 必要条件
-
-- Node.js 18以上（LTS推奨）
-- Rust（stable）
-- Tauriビルドに必要なツールチェーン（例: macOSではXcode Command Line Tools）
-
-詳細: [Tauri公式ドキュメント](https://tauri.app/)
-
-## 💻 対応OS
-
-- Windows 10/11
-- macOS 12以上（Intel および Apple Silicon）
-
-## 🚀 クイックスタート（開発）
-
-1. 依存関係をインストール
-   - `npm i`
-2. Tauri開発サーバーを起動
-   - `npm run tauri dev`
-
-## 🔨 ビルド（配布用バイナリ）
-
-- `npm run tauri build`
-  - 成果物は通常 `src-tauri/target/release/` に生成されます（OSにより異なります）。
-
-## ディレクトリ構造（Co-location）
-
-**フィーチャーベース・コロケーション**のフォルダ戦略を採用しています。
-
-```txt
-src/
-  ├── app/                      # アプリケーション設定
-  │   ├── providers/            # グローバルProvider (Theme, Listener)
-  │   └── store/                # Redux store設定
-  ├── pages/                    # ルートレベル画面
-  │   ├── home/
-  │   │   └── index.tsx
-  │   ├── init/
-  │   │   └── index.tsx
-  │   └── error/
-  │       └── index.tsx
-  ├── features/                 # 機能モジュール
-  │   ├── video/
-  │   │   ├── ui/               # VideoForm1, VideoForm2, DownloadButton等
-  │   │   ├── model/            # videoSlice, inputSlice, selectors
-  │   │   ├── hooks/            # useVideoInfo
-  │   │   ├── api/              # fetchVideoInfo, downloadVideo
-  │   │   ├── lib/              # utils, formSchema, constants
-  │   │   ├── types.ts
-  │   │   └── index.ts          # Public API
-  │   ├── init/
-  │   │   ├── model/            # initSlice
-  │   │   ├── hooks/            # useInit
-  │   │   └── index.ts
-  │   ├── settings/
-  │   │   ├── ui/               # SettingsDialog, LanguagesDropdown
-  │   │   ├── model/            # settingsSlice
-  │   │   ├── api/              # settingApi
-  │   │   └── index.ts
-  │   ├── user/
-  │   │   ├── model/            # userSlice
-  │   │   ├── hooks/            # useUser
-  │   │   ├── api/              # fetchUser
-  │   │   └── index.ts
-  │   └── preference/
-  │       ├── ui/               # ToggleThemeButton
-  │       └── index.ts
-  ├── shared/                   # 共通リソース
-  │   ├── ui/                   # shadcn/uiコンポーネント, AppBar, Progress
-  │   ├── animate-ui/           # アニメーションUIコンポーネント
-  │   ├── hooks/                # useIsMobile等
-  │   ├── lib/                  # cn(), ユーティリティ
-  │   ├── progress/             # 進捗状態管理
-  │   ├── downloadStatus/       # ダウンロード状態管理
-  │   ├── queue/                # キュー状態
-  │   └── os/                   # OS検出API
-  ├── i18n/                     # 国際化
-  │   └── locales/              # 翻訳ファイル
-  ├── styles/                   # グローバルスタイル
-  └── assets/                   # 静的アセット
-```
-
-### ディレクトリの役割
-
-#### `src/app/`
-
-ルートレベルのアプリケーション設定。グローバルプロバイダーとストアのセットアップを行います。
-
-#### `src/pages/`
-
-ルートレベルの画面。ページは主にフィーチャーと共有UIを**構成**します。ビジネスロジック/状態は `features/` 内に保持してください。
-
-#### `src/features/`
-
-再利用可能なプロダクトフィーチャー（ユーザー向け機能）。各フィーチャーはReduxロジック、APIコール、UIをコロケーションします。
-
-典型的なフィーチャーフォルダには以下が含まれます:
-
-- `ui/` — フィーチャー固有のUIコンポーネント
-- `model/` — Redux Toolkit slice、selectors
-- `hooks/` — フィーチャーフック
-- `api/` — フィーチャー固有のAPI関数
-- `lib/` — フィーチャー内部のユーティリティ
-- `types.ts` — フィーチャーローカル型
-- `index.ts` — フィーチャー**Public API**（インポートの推奨エントリーポイント）
-
-#### `src/shared/`
-
-アプリ全体で使用される再利用可能なドメイン非依存のビルディングブロック。
-
-- `shared/ui/` — アプリ全体で再利用可能なUIプリミティブ（shadcn/ui、カスタムコンポーネント）
-- `shared/animate-ui/` — アニメーションUIコンポーネント
-- `shared/lib/` — 汎用ユーティリティ（例: `cn()`）
-- `shared/hooks/` — 再利用可能なReactフック
-
-### インポートルール
-
-- `pages` → `features`、`shared` からインポート可能
-- `features` → `pages` からインポート禁止
-- 他の `features` から直接インポートは避ける。`pages` で構成することを推奨
-- フィーチャーの `index.ts`（Public API）からインポートすることを推奨（深いパスは避ける）
-
-### パスエイリアス
-
-- `@/app/*`
-- `@/pages/*`
-- `@/features/*`
-- `@/shared/*`
-
-### バックエンド（Tauri / Rust）
-
-```txt
-src-tauri/src/
-  main.rs            ← エントリーポイント（シンプルに保つ）
-  lib.rs             ← アプリのルートモジュール / コマンド定義
-  handlers/          ← コマンドの実装
-  models/            ← データ構造（リクエスト/レスポンス等）
-  utils/             ← ユーティリティ
-```
-
-## ⚙️ スクリプト
-
-- 開発: `npm run tauri dev`
-- ビルド: `npm run tauri build`
-
-## 🛠️ 技術スタック
-
-- フロントエンド: React, Vite, TypeScript, Redux Toolkit, shadcn/ui, animate‑ui
-- デスクトップ: Tauri (Rust)
-
-## ❌ エラーコード
-
-返されるエラーコード（フロントエンドでi18nにマッピング）:
-
-- `ERR::COOKIE_MISSING` Cookieが見つからない、または無効
-- `ERR::QUALITY_NOT_FOUND` リクエストされた品質IDが利用できない
-- `ERR::DISK_FULL` ディスクの空き容量不足
-- `ERR::FILE_EXISTS` ファイル競合が自動解決できない
-- `ERR::NETWORK::<detail>` リトライ後もネットワークエラー
-- `ERR::MERGE_FAILED` ffmpegマージプロセスが失敗
-
-## 🔮 今後の予定
-
-- [ ] ダウンロード先の選択
-- [ ] 既存ファイルの上書き許可
-- [ ] 複数アイテムのキューダウンロード
-- [ ] ダウンロード履歴の保持
-- [ ] シングルインスタンス起動（複数同時起動の防止）
-
-## 🌍 ローカライゼーション（i18n）
-
-現在サポートされている言語:
-
-- English (en)
-- 日本語 (ja)
-- Français (fr)
-- Español (es)
-- 中文 (zh)
-- 한국어 (ko)
-
-追加言語の貢献を歓迎します。不自然な表現を見つけた場合は、Pull Requestを開いてください。
-
 ## 🤝 コントリビュート
 
-IssueとPRを歓迎します。大きな変更がある場合は、まずIssueで議論を開始してください。小さな修正（ドキュメント、誤字、軽微なUI調整）も感謝します。
+IssueとPRを歓迎します。翻訳の貢献も大歓迎です — 詳細は[CONTRIBUTING.md](./CONTRIBUTING.md)をご覧ください。
 
 ## 📜 ライセンス
 
@@ -274,7 +101,3 @@ MIT License — 詳細は[LICENSE](./LICENSE)を参照してください。
 
 - Tauriチームとコミュニティ
 - shadcn/ui、Radix UI、sonnerなどのOSS
-
----
-
-このプロジェクトが役に立ったら、リポジトリにスターを付けていただけると、継続的な開発のモチベーションになります。
