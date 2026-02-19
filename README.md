@@ -31,7 +31,7 @@ I build this as a hobby. No stars, I'll shut it down 😄
 
 ![Star](docs/images/star-github.gif)
 
-## 🎯 Features
+## Features
 
 ### Download
 
@@ -52,7 +52,7 @@ I build this as a hobby. No stars, I'll shut it down 😄
 - **Firefox cookie auto-detection** - High-quality downloads without manual login
 - **Local-only storage** - All data stored only on your PC
 
-## 💻 Installation
+## Installation
 
 Download from the [latest release](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest).
 
@@ -73,31 +73,17 @@ Download from the [latest release](https://github.com/j4rviscmd/bilibili-downloa
 > xattr -dr com.apple.quarantine "/Applications/bilibili-downloader-gui.app"
 > ```
 
-## 🍎 macOS: First Launch of Unsigned Builds
+## Contributing
 
-If you run a build that is not notarized/signed with an Apple Developer certificate (e.g., CI artifacts), macOS Gatekeeper may block the app. You can either:
+Issues and PRs are welcome.
 
-- Right-click the app → Open → Open, or
-- Remove the quarantine/extended attributes:
+Translations are also appreciated — see [CONTRIBUTING.md](./CONTRIBUTING.md) for development setup and guidelines.
 
-```bash
-# Replace the path with your actual installed app name/location
-xattr -dr com.apple.quarantine "/Applications/bilibili-downloader-gui.app"
-# or clear all extended attributes
-xattr -c "/Applications/bilibili-downloader-gui.app"
-```
-
-If you installed the app outside /Applications, adjust the path accordingly.
-
-## 🤝 Contributing
-
-Issues and PRs are welcome. Translations are also appreciated — see [CONTRIBUTING.md](./CONTRIBUTING.md) for development setup and guidelines.
-
-## 📜 License
-
-MIT License — see [LICENSE](./LICENSE) for details.
-
-## 🙏 Acknowledgements
+## Acknowledgements
 
 - The Tauri team and community
 - OSS such as shadcn/ui, Radix UI, sonner
+
+## License
+
+MIT License — see [LICENSE](./LICENSE) for details.

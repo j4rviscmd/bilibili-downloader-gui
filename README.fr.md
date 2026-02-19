@@ -31,7 +31,7 @@ Je développe cela en tant que loisir. Sans étoiles, je fermerai le projet 😄
 
 ![Star](docs/images/star-github.gif)
 
-## 🎯 Fonctionnalités
+## Fonctionnalités
 
 ### Téléchargement
 
@@ -52,7 +52,7 @@ Je développe cela en tant que loisir. Sans étoiles, je fermerai le projet 😄
 - **Détection automatique des cookies Firefox** - Téléchargements haute qualité sans connexion manuelle
 - **Stockage local uniquement** - Toutes les données sont stockées uniquement sur votre PC
 
-## 💻 Installation
+## Installation
 
 Téléchargez depuis la [dernière version](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest).
 
@@ -73,31 +73,17 @@ Téléchargez depuis la [dernière version](https://github.com/j4rviscmd/bilibil
 > xattr -dr com.apple.quarantine "/Applications/bilibili-downloader-gui.app"
 > ```
 
-## 🍎 macOS : Premier lancement des builds non signés
+## Contribuer
 
-Si vous utilisez un build qui n'est pas signé/notarié avec un certificat Apple Developer (par exemple, artefacts CI), macOS Gatekeeper peut bloquer l'application. Vous pouvez :
+Les Issues et PR sont les bienvenus.
 
-- Faire un clic droit sur l'application → Ouvrir → Ouvrir, ou
-- Supprimer les attributs de quarantaine/étendus :
+Les traductions sont également appréciées — consultez [CONTRIBUTING.md](./CONTRIBUTING.md) pour plus de détails.
 
-```bash
-# Remplacez le chemin par le nom/emplacement réel de votre application installée
-xattr -dr com.apple.quarantine "/Applications/bilibili-downloader-gui.app"
-# ou effacez tous les attributs étendus
-xattr -c "/Applications/bilibili-downloader-gui.app"
-```
-
-Si vous avez installé l'application en dehors de /Applications, ajustez le chemin en conséquence.
-
-## 🤝 Contribuer
-
-Les Issues et PR sont les bienvenus. Les traductions sont également appréciées — consultez [CONTRIBUTING.md](./CONTRIBUTING.md) pour plus de détails.
-
-## 📜 Licence
-
-MIT License — voir [LICENSE](./LICENSE) pour plus de détails.
-
-## 🙏 Remerciements
+## Remerciements
 
 - L'équipe et la communauté Tauri
 - OSS comme shadcn/ui, Radix UI, sonner
+
+## Licence
+
+MIT License — voir [LICENSE](./LICENSE) pour plus de détails.

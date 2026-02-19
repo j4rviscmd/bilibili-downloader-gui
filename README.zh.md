@@ -31,7 +31,7 @@
 
 ![Star](docs/images/star-github.gif)
 
-## 🎯 功能特性
+## 功能特性
 
 ### 下载
 
@@ -52,7 +52,7 @@
 - **Firefox Cookie 自动检测** - 无需手动登录即可下载高清视频
 - **本地存储** - 所有数据仅保存在您的电脑上
 
-## 💻 安装
+## 安装
 
 从[最新发布](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest)下载。
 
@@ -73,31 +73,17 @@
 > xattr -dr com.apple.quarantine "/Applications/bilibili-downloader-gui.app"
 > ```
 
-## 🍎 macOS: 未签名构建的首次启动
+## 贡献
 
-如果使用未经 Apple Developer 证书签名/公证的构建（例如 CI 构建产物），macOS Gatekeeper 可能会阻止应用。您可以：
+欢迎 Issue 和 PR。
 
-- 右键点击应用 → 打开 → 打开，或
-- 移除隔离属性/扩展属性：
+也欢迎翻译贡献 — 详情请参阅 [CONTRIBUTING.md](./CONTRIBUTING.md)。
 
-```bash
-# 将路径替换为您的实际安装应用名称/位置
-xattr -dr com.apple.quarantine "/Applications/bilibili-downloader-gui.app"
-# 或清除所有扩展属性
-xattr -c "/Applications/bilibili-downloader-gui.app"
-```
-
-如果安装到 /Applications 以外的位置，请相应调整路径。
-
-## 🤝 贡献
-
-欢迎 Issue 和 PR。也欢迎翻译贡献 — 详情请参阅 [CONTRIBUTING.md](./CONTRIBUTING.md)。
-
-## 📜 许可证
-
-MIT License — 详情请参阅 [LICENSE](./LICENSE)。
-
-## 🙏 致谢
+## 致谢
 
 - Tauri 团队和社区
 - shadcn/ui、Radix UI、sonner 等开源项目
+
+## 许可证
+
+MIT License — 详情请参阅 [LICENSE](./LICENSE)。

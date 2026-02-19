@@ -31,7 +31,7 @@ Desarrollo esto como hobby. Sin estrellas, cerraré el proyecto 😄
 
 ![Star](docs/images/star-github.gif)
 
-## 🎯 Características
+## Características
 
 ### Descarga
 
@@ -52,7 +52,7 @@ Desarrollo esto como hobby. Sin estrellas, cerraré el proyecto 😄
 - **Detección automática de cookies de Firefox** - Descargas de alta calidad sin inicio de sesión manual
 - **Almacenamiento solo local** - Todos los datos se guardan solo en tu PC
 
-## 💻 Instalación
+## Instalación
 
 Descarga desde el [último lanzamiento](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest).
 
@@ -73,31 +73,17 @@ Descarga desde el [último lanzamiento](https://github.com/j4rviscmd/bilibili-do
 > xattr -dr com.apple.quarantine "/Applications/bilibili-downloader-gui.app"
 > ```
 
-## 🍎 macOS: Primer inicio de compilaciones no firmadas
+## Contribuir
 
-Si usas una compilación que no está firmada/notarizada con un certificado de Apple Developer (por ejemplo, artefactos de CI), es posible que macOS Gatekeeper bloquee la aplicación. Puedes:
+Issues y PRs son bienvenidos.
 
-- Hacer clic derecho en la aplicación → Abrir → Abrir, o
-- Eliminar los atributos de cuarentena/extendidos:
+Las traducciones también son apreciadas — consulta [CONTRIBUTING.md](./CONTRIBUTING.md) para más detalles.
 
-```bash
-# Reemplaza la ruta con el nombre/ubicación real de tu aplicación instalada
-xattr -dr com.apple.quarantine "/Applications/bilibili-downloader-gui.app"
-# o borra todos los atributos extendidos
-xattr -c "/Applications/bilibili-downloader-gui.app"
-```
-
-Si instalaste la aplicación fuera de /Applications, ajusta la ruta en consecuencia.
-
-## 🤝 Contribuir
-
-Issues y PRs son bienvenidos. Las traducciones también son apreciadas — consulta [CONTRIBUTING.md](./CONTRIBUTING.md) para más detalles.
-
-## 📜 Licencia
-
-MIT License — consulta [LICENSE](./LICENSE) para más detalles.
-
-## 🙏 Agradecimientos
+## Agradecimientos
 
 - El equipo y la comunidad de Tauri
 - OSS como shadcn/ui, Radix UI, sonner
+
+## Licencia
+
+MIT License — consulta [LICENSE](./LICENSE) para más detalles.
