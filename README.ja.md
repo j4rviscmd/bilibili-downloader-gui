@@ -31,7 +31,7 @@
 
 ![Star](docs/images/star-github.gif)
 
-## 🎯 機能
+## 機能
 
 ### ダウンロード
 
@@ -52,7 +52,7 @@
 - **Firefox Cookie自動検出** - 手動ログイン作業なしで高画質ダウンロード可能
 - **ローカル完結** - すべてのデータはお使いのPCにのみ保存
 
-## 💻 インストール
+## インストール
 
 [最新リリース](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest)からダウンロードしてください。
 
@@ -73,31 +73,17 @@
 > xattr -dr com.apple.quarantine "/Applications/bilibili-downloader-gui.app"
 > ```
 
-## 🍎 macOS: 署名されていないビルドの初回起動
+## コントリビュート
 
-Apple Developer証明書で署名/公証されていないビルド（例: CIアーティファクト）を使用する場合、macOS Gatekeeperがアプリをブロックする可能性があります。以下のいずれかの方法で対処できます:
+IssueとPRを歓迎します。
 
-- アプリを右クリック → 開く → 開く を選択
-- 検疫属性/拡張属性を削除:
+翻訳の貢献も大歓迎です — 詳細は[CONTRIBUTING.md](./CONTRIBUTING.md)をご覧ください。
 
-```bash
-# パスは実際のインストール済みアプリ名/場所に置き換えてください
-xattr -dr com.apple.quarantine "/Applications/bilibili-downloader-gui.app"
-# または、すべての拡張属性をクリア
-xattr -c "/Applications/bilibili-downloader-gui.app"
-```
-
-/Applications以外にインストールした場合は、パスを適宜調整してください。
-
-## 🤝 コントリビュート
-
-IssueとPRを歓迎します。翻訳の貢献も大歓迎です — 詳細は[CONTRIBUTING.md](./CONTRIBUTING.md)をご覧ください。
-
-## 📜 ライセンス
-
-MIT License — 詳細は[LICENSE](./LICENSE)を参照してください。
-
-## 🙏 謝辞
+## 謝辞
 
 - Tauriチームとコミュニティ
 - shadcn/ui、Radix UI、sonnerなどのOSS
+
+## ライセンス
+
+MIT License — 詳細は[LICENSE](./LICENSE)を参照してください。
