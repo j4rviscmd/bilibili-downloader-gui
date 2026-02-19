@@ -21,7 +21,8 @@
 
 > Notice: This app is intended for educational and personal use. Respect the terms of service and copyright laws. Do not download or redistribute content without permission from rights holders.
 
-![App Image](public/app-image_en.png)
+![App Image(searched)](<public/app-image(searched)_en.png>)
+![App Image(merged)](<public/app-image(merging)_en.png>)
 
 ## Star this repo to keep me motivated ⭐
 

@@ -21,7 +21,8 @@
 
 > 注意：本应用仅供教育和个人使用。请遵守服务条款和版权法。未经版权所有者许可，请勿下载或重新分发内容。
 
-![应用截图](public/app-image_en.png)
+![应用截图（搜索）](<public/app-image(searched)_en.png>)
+![应用截图（合并中）](<public/app-image(merging)_en.png>)
 
 ## ⭐ 给这个仓库点个 Star 吧
 

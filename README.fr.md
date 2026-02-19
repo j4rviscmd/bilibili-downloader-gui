@@ -21,7 +21,8 @@
 
 > Remarque : Cette application est destinée à un usage éducatif et personnel. Respectez les conditions d'utilisation et les lois sur le droit d'auteur. Ne téléchargez ni ne redistribuez de contenu sans l'autorisation des détenteurs de droits.
 
-![Image de l'application](public/app-image_en.png)
+![Image de l'application (recherche)](<public/app-image(searched)_en.png>)
+![Image de l'application (fusion)](<public/app-image(merging)_en.png>)
 
 ## ⭐ Mettez une étoile à ce dépôt pour me motiver
 
