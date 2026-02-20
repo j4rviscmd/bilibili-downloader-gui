@@ -1,0 +1,59 @@
+---
+/**
+ * Button - A versatile button component that can render as a link or button.
+ *
+ * Supports multiple visual variants and sizes. When an href is provided,
+ * renders as an anchor tag; otherwise renders as a button element.
+ */
+interface Props {
+  /** URL to navigate to (renders as <a> when provided) */
+  href?: string;
+  /** Visual style variant */
+  variant?: 'default' | 'outline' | 'ghost';
+  /** Size of the button */
+  size?: 'sm' | 'md' | 'lg';
+  /** Additional CSS classes to apply */
+  class?: string;
+  /** Rel attribute for link rendering */
+  rel?: string;
+}
+
+const {
+  href,
+  variant = 'default',
+  size = 'md',
+  class: className = '',
+  rel,
+} = Astro.props;
+
+const baseClasses =
+  'inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50';
+
+const variantClasses: Record<string, string> = {
+  default:
+    'bg-primary text-primary-foreground hover:bg-primary/90 shadow',
+  outline:
+    'border border-input bg-background hover:bg-accent hover:text-accent-foreground',
+  ghost: 'hover:bg-accent hover:text-accent-foreground',
+};
+
+const sizeClasses: Record<string, string> = {
+  sm: 'h-9 px-3 text-sm',
+  md: 'h-10 px-4 py-2',
+  lg: 'h-11 px-8 text-lg',
+};
+
+const combinedClasses = `${baseClasses} ${variantClasses[variant]} ${sizeClasses[size]} ${className}`.trim();
+---
+
+{
+  href ? (
+    <a href={href} class={combinedClasses} rel={rel}>
+      <slot />
+    </a>
+  ) : (
+    <button class={combinedClasses}>
+      <slot />
+    </button>
+  )
+}

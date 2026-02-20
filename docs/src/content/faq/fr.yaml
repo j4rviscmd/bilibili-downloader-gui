@@ -1,0 +1,11 @@
+items:
+  - question: Comment télécharger une vidéo ?
+    answer: "Collez simplement l'URL de la vidéo Bilibili dans l'application et cliquez sur télécharger. La vidéo sera enregistrée dans le dossier spécifié dans les paramètres (par défaut, il s'agit du dossier Downloads).\n\nRemarque: Cette application est destinée à un usage éducatif et personnel. Respectez les conditions d'utilisation et les lois sur le droit d'auteur. Ne téléchargez ni ne redistribuez pas de contenu sans l'autorisation des détenteurs de droits. Le développeur décline toute responsabilité pour les problèmes découlant de l'utilisation de cette application."
+  - question: Comment se connecter ?
+    answer: "L'application détecte automatiquement les cookies de Firefox. Connectez-vous simplement à Bilibili dans Firefox au préalable, aucune connexion manuelle n'est nécessaire dans l'application. Pour télécharger en 1080p ou plus, veuillez d'abord vous connecter à Bilibili dans Firefox."
+  - question: Quelles qualités vidéo sont prises en charge ?
+    answer: "Nous prenons en charge 360p, 480p, 720p, 1080p, 1080p60fps, 4K et plus. La qualité disponible dépend de l'état de connexion et de l'abonnement Bilibili. Sans connexion: jusqu'à 480p. Avec connexion: jusqu'à 1080p. Avec abonnement premium: 1080p+ haut débit, 1080p60fps, 4K et autres options de haute qualité."
+  - question: Puis-je télécharger des sous-titres ?
+    answer: "Non, le téléchargement de sous-titres n'est pas pris en charge actuellement. Il pourrait être ajouté dans une version future."
+  - question: Est-ce gratuit ?
+    answer: "Oui, Bilibili Downloader GUI est entièrement gratuit et open source. Vous pouvez trouver le code source sur GitHub."

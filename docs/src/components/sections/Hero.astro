@@ -1,0 +1,40 @@
+---
+/**
+ * Hero - Main hero section with title, description, and CTAs.
+ *
+ * Displays the page headline, description, and call-to-action buttons.
+ * The download button triggers a highlight animation on the download section.
+ */
+import Button from '../ui/Button.astro';
+import { getLangFromUrl, useTranslations } from '../../i18n/ui';
+
+const url = Astro.url;
+const lang = getLangFromUrl(url);
+const t = useTranslations(lang);
+---
+
+<section class="container mx-auto px-4 py-20 text-center">
+  <h1 class="text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl">
+    {t('hero.title')}
+  </h1>
+  <p class="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
+    {t('hero.description')}
+  </p>
+  <div class="mt-10 flex w-full flex-wrap justify-center gap-4">
+    <Button
+      href="#download"
+      size="lg"
+      onclick="event.preventDefault(); const target = document.getElementById('download'); target.classList.remove('highlight'); void target.offsetWidth; target.classList.add('highlight'); location.hash = '#download';"
+    >
+      {t('hero.download')}
+    </Button>
+    <Button
+      href="https://github.com/j4rviscmd/bilibili-downloader-gui"
+      variant="outline"
+      size="lg"
+      rel="noopener noreferrer"
+    >
+      GitHub
+    </Button>
+  </div>
+</section>

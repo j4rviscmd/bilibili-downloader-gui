@@ -1,0 +1,52 @@
+---
+/**
+ * Accordion - A collapsible content component using native HTML details/summary.
+ *
+ * Displays a list of items that can be expanded/collapsed to show
+ * additional content. Each item has a title and content area with
+ * smooth transition animations.
+ */
+interface AccordionItem {
+  /** Title displayed in the collapsible header */
+  title: string;
+  /** Content shown when the item is expanded */
+  content: string;
+}
+
+interface Props {
+  /** Array of accordion items to display */
+  items: AccordionItem[];
+  /** Additional CSS classes to apply */
+  class?: string;
+}
+
+const { items, class: className = '' } = Astro.props;
+---
+
+<div class={`space-y-2 ${className}`.trim()}>
+  {
+    items.map((item) => (
+      <details class="group">
+        <summary class="flex cursor-pointer items-center justify-between rounded-lg border bg-card p-4 text-card-foreground transition-colors hover:bg-accent [&::-webkit-details-marker]:hidden">
+          <span class="font-medium">{item.title}</span>
+          <svg
+            class="h-5 w-5 transition-transform group-open:rotate-180"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M19 9l-7 7-7-7"
+            />
+          </svg>
+        </summary>
+        <div class="mt-2 rounded-lg border bg-card p-4 text-card-foreground">
+          <p class="whitespace-pre-line text-muted-foreground">{item.content}</p>
+        </div>
+      </details>
+    ))
+  }
+</div>

@@ -1,0 +1,27 @@
+---
+/**
+ * FAQ - Frequently Asked Questions section component.
+ *
+ * Displays a list of questions and answers using an accordion pattern.
+ * Automatically localizes the section title based on the current URL.
+ */
+import Accordion from '../ui/Accordion.astro';
+import { getLangFromUrl, useTranslations } from '../../i18n/ui';
+
+interface Props {
+  /** Array of FAQ items with title and content */
+  items: { title: string; content: string }[];
+}
+
+const { items } = Astro.props;
+const url = Astro.url;
+const lang = getLangFromUrl(url);
+const t = useTranslations(lang);
+---
+
+<section class="container mx-auto px-4 py-16">
+  <h2 class="text-center text-3xl font-bold">{t('nav.faq')}</h2>
+  <div class="mx-auto mt-10 max-w-2xl">
+    <Accordion items={items} />
+  </div>
+</section>

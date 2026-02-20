@@ -1,0 +1,184 @@
+---
+/**
+ * BaseLayout - Root layout component for all pages.
+ *
+ * Provides the HTML structure, meta tags, navigation header,
+ * and footer. Handles internationalization, dark mode initialization,
+ * and language switching.
+ */
+import '../styles/global.css';
+import Footer from '../components/layouts/Footer.astro';
+import {
+  getLangFromUrl,
+  useTranslations,
+  languages,
+  type Lang,
+} from '../i18n/ui';
+
+/**
+ * Props for the BaseLayout component.
+ */
+interface Props {
+  /** Page title displayed in the browser tab and OGP */
+  title: string;
+  /** Page description for SEO and social sharing (defaults to hero description) */
+  description?: string;
+  /** Language code for the page (defaults to detecting from URL) */
+  lang?: Lang;
+}
+
+const url = Astro.url;
+const lang = Astro.props.lang || getLangFromUrl(url);
+const t = useTranslations(lang);
+const basePath = import.meta.env.BASE_URL;
+const isProd = import.meta.env.PROD;
+
+// In development, the base path is not simulated, so use empty string
+const prefix = isProd ? basePath : '';
+
+const { title, description = t('hero.description') } = Astro.props;
+const canonicalURL = new URL(Astro.url.pathname, Astro.site);
+---
+
+<!doctype html>
+<html lang={lang}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="description" content={description} />
+    <meta name="viewport" content="width=device-width" />
+    <link rel="icon" type="image/png" href={`${basePath}/icon.png`} />
+    <meta name="generator" content={Astro.generator} />
+    <link rel="canonical" href={canonicalURL} />
+
+    <!-- OGP -->
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={url.href} />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <title>{title}</title>
+
+    <!-- Dark mode script -->
+    <script is:inline>
+      const theme = localStorage.getItem('theme');
+      if (
+        theme === 'dark' ||
+        (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)
+      ) {
+        document.documentElement.classList.add('dark');
+      }
+    </script>
+  </head>
+  <body
+    class="min-h-screen bg-background text-foreground antialiased"
+  >
+    <!-- Header -->
+    <header
+      class="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+    >
+      <nav
+        class="container mx-auto flex h-14 items-center justify-between px-4"
+      >
+        <a
+          href={lang === 'en' ? `${prefix}/` : `${prefix}/${lang}/`}
+          class="flex items-center gap-2 font-semibold"
+        >
+          <img src={`${basePath}/icon.png`} alt="Icon" class="h-8 w-8" />
+          {t('hero.title')}
+        </a>
+        <div class="flex items-center gap-4">
+          <a
+            href={lang === 'en' ? `${prefix}/faq` : `${prefix}/${lang}/faq`}
+            class="text-sm text-muted-foreground hover:text-foreground"
+            >{t('nav.faq')}</a
+          >
+
+          <!-- Language Switcher -->
+          <select
+            id="lang-switcher"
+            class="rounded-md border bg-background px-2 py-1 text-sm"
+          >
+            {
+              Object.entries(languages).map(([code, name]) => {
+                const pathWithoutLang = url.pathname
+                  .replace(new RegExp(`^${basePath}`), '')
+                  .replace(/^\/(en|ja|zh|ko|es|fr)/, '');
+                const newPath = code === 'en'
+                  ? `${prefix}${pathWithoutLang || '/'}`
+                  : `${prefix}/${code}${pathWithoutLang || '/'}`;
+                return (
+                  <option value={newPath} selected={code === lang}>
+                    {name}
+                  </option>
+                );
+              })
+            }
+          </select>
+
+          <!-- Dark Mode Toggle -->
+          <button
+            id="theme-toggle"
+            class="rounded-md p-2 hover:bg-accent"
+          >
+            <svg
+              class="h-5 w-5 dark:hidden"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
+              />
+            </svg>
+            <svg
+              class="hidden h-5 w-5 dark:block"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"
+              />
+            </svg>
+          </button>
+        </div>
+      </nav>
+    </header>
+
+    <main>
+      <slot />
+    </main>
+
+    <Footer />
+
+    <script>
+      document.getElementById('lang-switcher')?.addEventListener('change', (e) => {
+        window.location.href = e.target.value;
+      });
+
+      document.getElementById('theme-toggle')?.addEventListener('click', () => {
+        const isDark = document.documentElement.classList.toggle('dark');
+        localStorage.setItem('theme', isDark ? 'dark' : 'light');
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,28 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import FAQ from '../../components/sections/FAQ.astro';
+import { languages, type Lang } from '../../i18n/ui';
+import { getCollection } from 'astro:content';
+
+export function getStaticPaths() {
+  return Object.keys(languages)
+    .filter((lang) => lang !== 'en')
+    .map((lang) => ({
+      params: { lang },
+    }));
+}
+
+const { lang } = Astro.params;
+
+const faqEntry = await getCollection('faq', (entry) => entry.id === lang);
+const faqItems = faqEntry[0]?.data.items || [];
+---
+
+<BaseLayout title="FAQ - Bilibili Downloader GUI" lang={lang as Lang}>
+  <FAQ
+    items={faqItems.map((item) => ({
+      title: item.question,
+      content: item.answer,
+    }))}
+  />
+</BaseLayout>

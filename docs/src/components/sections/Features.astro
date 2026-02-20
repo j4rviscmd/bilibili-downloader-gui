@@ -1,0 +1,35 @@
+---
+/**
+ * Features - Feature showcase section with hover cards.
+ *
+ * Displays a grid of feature cards that reveal detailed descriptions
+ * on hover. Features are loaded from translation files and rendered
+ * using the client-side FeaturesSection component.
+ */
+import { FeaturesSection } from './FeaturesSection';
+import { getLangFromUrl, useTranslations } from '../../i18n/ui';
+
+const url = Astro.url;
+const lang = getLangFromUrl(url);
+const t = useTranslations(lang);
+
+/**
+ * Feature keys mapped to their emoji icons.
+ */
+const featureIcons: Record<string, string> = {
+  download: '📥',
+  quality: '🎬',
+  cdn: '⚡',
+  batch: '📦',
+};
+
+const featureKeys = ['download', 'quality', 'cdn', 'batch'] as const;
+const features = featureKeys.map((key) => ({
+  key,
+  icon: featureIcons[key],
+  title: t(`features.list.${key}`),
+  description: t(`features.descriptions.${key}`),
+}));
+---
+
+<FeaturesSection title={t('features.title')} hoverHint={t('features.hoverHint')} features={features} client:load />
