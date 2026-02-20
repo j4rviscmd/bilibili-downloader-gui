@@ -38,6 +38,45 @@ const prefix = isProd ? basePath : "";
 
 const { title, description = t("hero.description") } = Astro.props;
 const canonicalURL = new URL(Astro.url.pathname, Astro.site);
+const siteUrl =
+  Astro.site?.toString() ||
+  "https://j4rviscmd.github.io/bilibili-downloader-gui/";
+
+// OGP image URL
+const ogImageUrl = new URL(`${basePath}/app-image(merging)_en.png`, siteUrl);
+
+/**
+ * Language code to locale mapping for OGP meta tags.
+ * Converts internal language codes to locale strings compatible with Open Graph protocol.
+ */
+const localeMap: Record<Lang, string> = {
+  en: "en_US",
+  ja: "ja_JP",
+  zh: "zh_CN",
+  ko: "ko_KR",
+  es: "es_ES",
+  fr: "fr_FR",
+};
+
+/**
+ * Regex pattern for detecting and extracting language codes from URL paths.
+ * Matches any of the supported language codes at the beginning of a path.
+ */
+const langPattern = /^(en|ja|zh|ko|es|fr)/;
+
+/**
+ * Extracts the current page path without language prefix for hreflang links.
+ * This allows generating alternate language URLs for the same page content.
+ *
+ * @example
+ * - Input: "/en/faq" → Output: "/faq"
+ * - Input: "/ja/" → Output: "/"
+ * - Input: "/" → Output: "/"
+ */
+const pathWithoutLang =
+  url.pathname
+    .replace(new RegExp(`^${basePath}`), "")
+    .replace(langPattern, "") || "/";
 ---
 
 <!doctype html>
@@ -46,20 +85,92 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     <meta charset="UTF-8" />
     <meta name="description" content={description} />
     <meta name="viewport" content="width=device-width" />
+    <meta name="robots" content="index, follow" />
     <link rel="icon" type="image/png" href={`${basePath}/icon.png`} />
     <meta name="generator" content={Astro.generator} />
     <link rel="canonical" href={canonicalURL} />
+
+    <!--
+      Hreflang links for multilingual SEO.
+      Tells search engines which language version to show users based on their location.
+      - First link: English (default) version without language prefix
+      - Mapped links: All other supported language versions with their respective prefixes
+      - x-default: Fallback version for unmatched languages (points to English)
+    -->
+    <link
+      rel="alternate"
+      hreflang="en"
+      href={new URL(`${basePath}${pathWithoutLang}`, siteUrl).toString()}
+    />
+    {
+      Object.keys(languages)
+        .filter((code) => code !== "en")
+        .map((code) => (
+          <link
+            rel="alternate"
+            hreflang={code}
+            href={new URL(
+              `${basePath}/${code}${pathWithoutLang}`,
+              siteUrl,
+            ).toString()}
+          />
+        ))
+    }
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href={new URL(`${basePath}${pathWithoutLang}`, siteUrl).toString()}
+    />
 
     <!-- OGP -->
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
     <meta property="og:url" content={url.href} />
+    <meta property="og:image" content={ogImageUrl.toString()} />
+    <meta property="og:site_name" content="Bilibili Downloader GUI" />
+    <meta property="og:locale" content={localeMap[lang]} />
+    {
+      Object.keys(languages)
+        .filter((code): code is Lang => code !== lang && code in localeMap)
+        .map((code) => (
+          <meta property="og:locale:alternate" content={localeMap[code]} />
+        ))
+    }
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImageUrl.toString()} />
+
+    <!--
+      JSON-LD Structured Data for rich search results.
+      Provides search engines with machine-readable metadata about the software.
+      Includes: name, description, category, supported platforms, pricing (free), and author info.
+    -->
+    <script
+      type="application/ld+json"
+      set:html={JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        name: "Bilibili Downloader GUI",
+        description: description,
+        url: canonicalURL.toString(),
+        applicationCategory: "MultimediaApplication",
+        operatingSystem: ["Windows", "macOS"],
+        offers: {
+          "@type": "Offer",
+          price: "0",
+          priceCurrency: "USD",
+        },
+        author: {
+          "@type": "Organization",
+          name: "j4rviscmd",
+          url: "https://github.com/j4rviscmd",
+        },
+      })}
+    />
 
     <!-- Google Fonts: Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -72,6 +183,10 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     <title>{title}</title>
 
     <!-- Dark mode script -->
+    <!--
+      Inline script runs immediately during page load to prevent flash of wrong theme.
+      Priority: user preference > system preference > light theme default
+    -->
     <script is:inline>
       const theme = localStorage.getItem("theme");
       if (
@@ -105,19 +220,21 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
           >
 
           <!-- Language Switcher -->
+          <!--
+            Dropdown menu for switching between supported languages.
+            Each option value is the full path to the current page in that language.
+            The select listener redirects to the chosen language version on change.
+          -->
           <select
             id="lang-switcher"
             class="rounded-md border bg-background px-2 py-1 text-sm"
           >
             {
               Object.entries(languages).map(([code, name]) => {
-                const pathWithoutLang = url.pathname
-                  .replace(new RegExp(`^${basePath}`), "")
-                  .replace(/^\/(en|ja|zh|ko|es|fr)/, "");
                 const newPath =
                   code === "en"
-                    ? `${prefix}${pathWithoutLang || "/"}`
-                    : `${prefix}/${code}${pathWithoutLang || "/"}`;
+                    ? `${prefix}${pathWithoutLang}`
+                    : `${prefix}/${code}${pathWithoutLang}`;
                 return (
                   <option value={newPath} selected={code === lang}>
                     {name}
@@ -166,6 +283,11 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 
     <Footer />
 
+    <!--
+      Client-side event handlers for user interactions:
+      - Language switcher: redirects to selected language version of current page
+      - Theme toggle: toggles dark mode and persists preference to localStorage
+    -->
     <script>
       document
         .getElementById("lang-switcher")
