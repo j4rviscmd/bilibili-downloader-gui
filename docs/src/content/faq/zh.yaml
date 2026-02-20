@@ -1,0 +1,11 @@
+items:
+  - question: 如何下载视频？
+    answer: "只需将Bilibili视频URL粘贴到应用程序中并点击下载。视频将保存到设置中指定的保存文件夹（默认为Downloads文件夹）。\n\n注意：本应用仅供教育和个人使用。请遵守服务条款和版权法，未经权利人许可请勿下载或再分发内容。开发者对使用本应用所产生的任何问题不承担责任。"
+  - question: 如何登录？
+    answer: "应用会自动检测Firefox的Cookie。只需在Firefox中登录Bilibili，无需在应用中手动登录。要下载1080p或更高画质，请先在Firefox中登录Bilibili。"
+  - question: 支持哪些视频质量？
+    answer: "支持360p、480p、720p、1080p、1080p60fps、4K等多种画质。可用画质取决于登录状态和Bilibili大会员。未登录：最高480p。已登录：最高1080p。大会员：1080P+高码率、1080P60帧、4K超清等高画质。"
+  - question: 可以下载字幕吗？
+    answer: "不可以，目前不支持字幕下载。可能会在未来的版本中添加。"
+  - question: 免费使用吗？
+    answer: "是的，Bilibili Downloader GUI完全免费且开源。您可以在GitHub上找到源代码。"

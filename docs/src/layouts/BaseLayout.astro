@@ -1,0 +1,304 @@
+---
+/**
+ * BaseLayout - Root layout component for all pages.
+ *
+ * Provides the HTML structure, meta tags, navigation header,
+ * and footer. Handles internationalization, dark mode initialization,
+ * and language switching.
+ */
+import "../styles/global.css";
+import Footer from "../components/layouts/Footer.astro";
+import {
+  getLangFromUrl,
+  useTranslations,
+  languages,
+  type Lang,
+} from "../i18n/ui";
+
+/**
+ * Props for the BaseLayout component.
+ */
+interface Props {
+  /** Page title displayed in the browser tab and OGP */
+  title: string;
+  /** Page description for SEO and social sharing (defaults to hero description) */
+  description?: string;
+  /** Language code for the page (defaults to detecting from URL) */
+  lang?: Lang;
+}
+
+const url = Astro.url;
+const lang = Astro.props.lang || getLangFromUrl(url);
+const t = useTranslations(lang);
+const basePath = import.meta.env.BASE_URL;
+const isProd = import.meta.env.PROD;
+
+// In development, the base path is not simulated, so use empty string
+const prefix = isProd ? basePath : "";
+
+const { title, description = t("hero.description") } = Astro.props;
+const canonicalURL = new URL(Astro.url.pathname, Astro.site);
+const siteUrl =
+  Astro.site?.toString() ||
+  "https://j4rviscmd.github.io/bilibili-downloader-gui/";
+
+// OGP image URL
+const ogImageUrl = new URL(`${basePath}/app-image(merging)_en.png`, siteUrl);
+
+/**
+ * Language code to locale mapping for OGP meta tags.
+ * Converts internal language codes to locale strings compatible with Open Graph protocol.
+ */
+const localeMap: Record<Lang, string> = {
+  en: "en_US",
+  ja: "ja_JP",
+  zh: "zh_CN",
+  ko: "ko_KR",
+  es: "es_ES",
+  fr: "fr_FR",
+};
+
+/**
+ * Regex pattern for detecting and extracting language codes from URL paths.
+ * Matches any of the supported language codes at the beginning of a path.
+ */
+const langPattern = /^(en|ja|zh|ko|es|fr)/;
+
+/**
+ * Extracts the current page path without language prefix for hreflang links.
+ * This allows generating alternate language URLs for the same page content.
+ *
+ * @example
+ * - Input: "/en/faq" → Output: "/faq"
+ * - Input: "/ja/" → Output: "/"
+ * - Input: "/" → Output: "/"
+ */
+const pathWithoutLang =
+  url.pathname
+    .replace(new RegExp(`^${basePath}`), "")
+    .replace(langPattern, "") || "/";
+---
+
+<!doctype html>
+<html lang={lang}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="description" content={description} />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="robots" content="index, follow" />
+    <link rel="icon" type="image/png" href={`${basePath}/icon.png`} />
+    <meta name="generator" content={Astro.generator} />
+    <link rel="canonical" href={canonicalURL} />
+
+    <!--
+      Hreflang links for multilingual SEO.
+      Tells search engines which language version to show users based on their location.
+      - First link: English (default) version without language prefix
+      - Mapped links: All other supported language versions with their respective prefixes
+      - x-default: Fallback version for unmatched languages (points to English)
+    -->
+    <link
+      rel="alternate"
+      hreflang="en"
+      href={new URL(`${basePath}${pathWithoutLang}`, siteUrl).toString()}
+    />
+    {
+      Object.keys(languages)
+        .filter((code) => code !== "en")
+        .map((code) => (
+          <link
+            rel="alternate"
+            hreflang={code}
+            href={new URL(
+              `${basePath}/${code}${pathWithoutLang}`,
+              siteUrl,
+            ).toString()}
+          />
+        ))
+    }
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href={new URL(`${basePath}${pathWithoutLang}`, siteUrl).toString()}
+    />
+
+    <!-- OGP -->
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={url.href} />
+    <meta property="og:image" content={ogImageUrl.toString()} />
+    <meta property="og:site_name" content="Bilibili Downloader GUI" />
+    <meta property="og:locale" content={localeMap[lang]} />
+    {
+      Object.keys(languages)
+        .filter((code): code is Lang => code !== lang && code in localeMap)
+        .map((code) => (
+          <meta property="og:locale:alternate" content={localeMap[code]} />
+        ))
+    }
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImageUrl.toString()} />
+
+    <!--
+      JSON-LD Structured Data for rich search results.
+      Provides search engines with machine-readable metadata about the software.
+      Includes: name, description, category, supported platforms, pricing (free), and author info.
+    -->
+    <script
+      type="application/ld+json"
+      set:html={JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        name: "Bilibili Downloader GUI",
+        description: description,
+        url: canonicalURL.toString(),
+        applicationCategory: "MultimediaApplication",
+        operatingSystem: ["Windows", "macOS"],
+        offers: {
+          "@type": "Offer",
+          price: "0",
+          priceCurrency: "USD",
+        },
+        author: {
+          "@type": "Organization",
+          name: "j4rviscmd",
+          url: "https://github.com/j4rviscmd",
+        },
+      })}
+    />
+
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <title>{title}</title>
+
+    <!-- Dark mode script -->
+    <!--
+      Inline script runs immediately during page load to prevent flash of wrong theme.
+      Priority: user preference > system preference > light theme default
+    -->
+    <script is:inline>
+      const theme = localStorage.getItem("theme");
+      if (
+        theme === "dark" ||
+        (!theme && window.matchMedia("(prefers-color-scheme: dark)").matches)
+      ) {
+        document.documentElement.classList.add("dark");
+      }
+    </script>
+  </head>
+  <body class="min-h-screen bg-background text-foreground antialiased">
+    <!-- Header -->
+    <header
+      class="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+    >
+      <nav
+        class="container mx-auto flex h-14 items-center justify-between px-4"
+      >
+        <a
+          href={lang === "en" ? `${prefix}/` : `${prefix}/${lang}/`}
+          class="flex items-center gap-2 font-semibold"
+        >
+          <img src={`${basePath}/icon.png`} alt="Icon" class="h-8 w-8" />
+          {t("hero.title")}
+        </a>
+        <div class="flex items-center gap-4">
+          <a
+            href={lang === "en" ? `${prefix}/faq` : `${prefix}/${lang}/faq`}
+            class="text-sm text-muted-foreground hover:text-foreground"
+            >{t("nav.faq")}</a
+          >
+
+          <!-- Language Switcher -->
+          <!--
+            Dropdown menu for switching between supported languages.
+            Each option value is the full path to the current page in that language.
+            The select listener redirects to the chosen language version on change.
+          -->
+          <select
+            id="lang-switcher"
+            class="rounded-md border bg-background px-2 py-1 text-sm"
+          >
+            {
+              Object.entries(languages).map(([code, name]) => {
+                const newPath =
+                  code === "en"
+                    ? `${prefix}${pathWithoutLang}`
+                    : `${prefix}/${code}${pathWithoutLang}`;
+                return (
+                  <option value={newPath} selected={code === lang}>
+                    {name}
+                  </option>
+                );
+              })
+            }
+          </select>
+
+          <!-- Dark Mode Toggle -->
+          <button id="theme-toggle" class="rounded-md p-2 hover:bg-accent">
+            <svg
+              class="h-5 w-5 dark:hidden"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
+              ></path>
+            </svg>
+            <svg
+              class="hidden h-5 w-5 dark:block"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"
+              ></path>
+            </svg>
+          </button>
+        </div>
+      </nav>
+    </header>
+
+    <main>
+      <slot />
+    </main>
+
+    <Footer />
+
+    <!--
+      Client-side event handlers for user interactions:
+      - Language switcher: redirects to selected language version of current page
+      - Theme toggle: toggles dark mode and persists preference to localStorage
+    -->
+    <script>
+      document
+        .getElementById("lang-switcher")
+        ?.addEventListener("change", (e) => {
+          window.location.href = e.target.value;
+        });
+
+      document.getElementById("theme-toggle")?.addEventListener("click", () => {
+        const isDark = document.documentElement.classList.toggle("dark");
+        localStorage.setItem("theme", isDark ? "dark" : "light");
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,70 @@
+---
+/**
+ * AppScreenshots - Application screenshot showcase with dark mode support.
+ *
+ * Displays two application screenshots side by side. Automatically switches
+ * between light and dark themed images based on the current theme.
+ * Uses MutationObserver to detect theme changes.
+ */
+import { getLangFromUrl, useTranslations } from "../../i18n/ui";
+
+const url = Astro.url;
+const lang = getLangFromUrl(url);
+const t = useTranslations(lang);
+
+const basePath = import.meta.env.BASE_URL;
+---
+
+<section class="container mx-auto px-4 py-8">
+  <div
+    class="flex flex-col items-center gap-6 md:flex-row md:items-start md:justify-center md:gap-8"
+  >
+    <div class="w-full max-w-2xl">
+      <img
+        id="screenshot-searched"
+        src={`${basePath}/app-image(searched)_en_light.png`}
+        alt={t("hero.title")}
+        class="w-full rounded-lg border shadow-lg"
+        loading="lazy"
+      />
+    </div>
+    <div class="w-full max-w-2xl">
+      <img
+        id="screenshot-merging"
+        src={`${basePath}/app-image(merging)_en_light.png`}
+        alt={t("hero.title")}
+        class="w-full rounded-lg border shadow-lg"
+        loading="lazy"
+      />
+    </div>
+  </div>
+</section>
+
+<script define:vars={{ basePath }}>
+  function updateScreenshots() {
+    const isDark = document.documentElement.classList.contains("dark");
+    const suffix = isDark ? "" : "_light";
+
+    const searchedImg = document.getElementById("screenshot-searched");
+    const mergingImg = document.getElementById("screenshot-merging");
+
+    if (searchedImg) {
+      searchedImg.src = `${basePath}/app-image(searched)_en${suffix}.png`;
+    }
+    if (mergingImg) {
+      mergingImg.src = `${basePath}/app-image(merging)_en${suffix}.png`;
+    }
+  }
+
+  updateScreenshots();
+
+  const observer = new MutationObserver((mutations) => {
+    if (mutations.some((m) => m.attributeName === "class")) {
+      updateScreenshots();
+    }
+  });
+
+  observer.observe(document.documentElement, { attributes: true });
+
+  window.addEventListener("beforeunload", () => observer.disconnect());
+</script>

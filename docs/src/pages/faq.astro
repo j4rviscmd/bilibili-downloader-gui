@@ -1,0 +1,17 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import FAQ from "../components/sections/FAQ.astro";
+import { getCollection } from "astro:content";
+
+const faqEntry = await getCollection("faq", (entry) => entry.id === "en");
+const faqItems = faqEntry[0]?.data.items || [];
+---
+
+<BaseLayout title="FAQ - Bilibili Downloader GUI" lang="en">
+  <FAQ
+    items={faqItems.map((item) => ({
+      title: item.question,
+      content: item.answer,
+    }))}
+  />
+</BaseLayout>

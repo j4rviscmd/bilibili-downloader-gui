@@ -1,0 +1,20 @@
+---
+/**
+ * Card - A container component with consistent styling for content grouping.
+ *
+ * Provides a bordered, shadowed container with a card background color.
+ * Useful for grouping related content or creating elevated sections.
+ */
+interface Props {
+  /** Additional CSS classes to apply */
+  class?: string;
+}
+
+const { class: className = "" } = Astro.props;
+---
+
+<div
+  class={`rounded-lg border bg-card text-card-foreground shadow-sm ${className}`.trim()}
+>
+  <slot />
+</div>

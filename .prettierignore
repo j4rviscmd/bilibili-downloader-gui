@@ -24,3 +24,6 @@ dist-ssr/
 # Worktrees
 .worktrees/
 remotion/
+
+# Astro docs (has own prettier config)
+docs/
