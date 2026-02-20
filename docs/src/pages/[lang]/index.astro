@@ -1,14 +1,14 @@
 ---
-import BaseLayout from '../../layouts/BaseLayout.astro';
-import Hero from '../../components/sections/Hero.astro';
-import AppScreenshots from '../../components/sections/AppScreenshots.astro';
-import Features from '../../components/sections/Features.astro';
-import Download from '../../components/sections/Download.astro';
-import { languages, type Lang } from '../../i18n/ui';
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import Hero from "../../components/sections/Hero.astro";
+import AppScreenshots from "../../components/sections/AppScreenshots.astro";
+import Features from "../../components/sections/Features.astro";
+import Download from "../../components/sections/Download.astro";
+import { languages, type Lang } from "../../i18n/ui";
 
 export function getStaticPaths() {
   return Object.keys(languages)
-    .filter((lang) => lang !== 'en')
+    .filter((lang) => lang !== "en")
     .map((lang) => ({
       params: { lang },
     }));

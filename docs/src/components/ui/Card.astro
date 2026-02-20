@@ -10,9 +10,11 @@ interface Props {
   class?: string;
 }
 
-const { class: className = '' } = Astro.props;
+const { class: className = "" } = Astro.props;
 ---
 
-<div class={`rounded-lg border bg-card text-card-foreground shadow-sm ${className}`.trim()}>
+<div
+  class={`rounded-lg border bg-card text-card-foreground shadow-sm ${className}`.trim()}
+>
   <slot />
 </div>

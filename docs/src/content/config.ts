@@ -1,7 +1,7 @@
-import { defineCollection, z } from 'astro:content'
+import { defineCollection, z } from "astro:content";
 
 const faq = defineCollection({
-  type: 'data',
+  type: "data",
   schema: z.object({
     items: z.array(
       z.object({
@@ -10,6 +10,6 @@ const faq = defineCollection({
       }),
     ),
   }),
-})
+});
 
-export const collections = { faq }
+export const collections = { faq };

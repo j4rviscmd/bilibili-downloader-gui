@@ -1,6 +1,6 @@
-'use client'
+"use client";
 
-import * as HoverCardPrimitive from '@radix-ui/react-hover-card'
+import * as HoverCardPrimitive from "@radix-ui/react-hover-card";
 import {
   AnimatePresence,
   motion,
@@ -9,28 +9,28 @@ import {
   type HTMLMotionProps,
   type MotionValue,
   type SpringOptions,
-} from 'motion/react'
-import * as React from 'react'
+} from "motion/react";
+import * as React from "react";
 
-import { useControlledState } from '@/hooks/use-controlled-state'
-import { getStrictContext } from '@/lib/get-strict-context'
+import { useControlledState } from "@/hooks/use-controlled-state";
+import { getStrictContext } from "@/lib/get-strict-context";
 
 type HoverCardContextType = {
-  isOpen: boolean
-  setIsOpen: (isOpen: boolean) => void
-  x: MotionValue<number>
-  y: MotionValue<number>
-  followCursor?: boolean | 'x' | 'y'
-  followCursorSpringOptions?: SpringOptions
-}
+  isOpen: boolean;
+  setIsOpen: (isOpen: boolean) => void;
+  x: MotionValue<number>;
+  y: MotionValue<number>;
+  followCursor?: boolean | "x" | "y";
+  followCursorSpringOptions?: SpringOptions;
+};
 
 const [HoverCardProvider, useHoverCard] =
-  getStrictContext<HoverCardContextType>('HoverCardContext')
+  getStrictContext<HoverCardContextType>("HoverCardContext");
 
 type HoverCardProps = React.ComponentProps<typeof HoverCardPrimitive.Root> & {
-  followCursor?: boolean | 'x' | 'y'
-  followCursorSpringOptions?: SpringOptions
-}
+  followCursor?: boolean | "x" | "y";
+  followCursorSpringOptions?: SpringOptions;
+};
 
 function HoverCard({
   followCursor = false,
@@ -41,9 +41,9 @@ function HoverCard({
     value: props?.open,
     defaultValue: props?.defaultOpen,
     onChange: props?.onOpenChange,
-  })
-  const x = useMotionValue(0)
-  const y = useMotionValue(0)
+  });
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
 
   return (
     <HoverCardProvider
@@ -62,33 +62,33 @@ function HoverCard({
         onOpenChange={setIsOpen}
       />
     </HoverCardProvider>
-  )
+  );
 }
 
 type HoverCardTriggerProps = React.ComponentProps<
   typeof HoverCardPrimitive.Trigger
->
+>;
 
 function HoverCardTrigger({ onMouseMove, ...props }: HoverCardTriggerProps) {
-  const { x, y, followCursor } = useHoverCard()
+  const { x, y, followCursor } = useHoverCard();
 
   const handleMouseMove = (event: React.MouseEvent<HTMLAnchorElement>) => {
-    onMouseMove?.(event)
+    onMouseMove?.(event);
 
-    const target = event.currentTarget.getBoundingClientRect()
+    const target = event.currentTarget.getBoundingClientRect();
 
-    if (followCursor === 'x' || followCursor === true) {
-      const eventOffsetX = event.clientX - target.left
-      const offsetXFromCenter = (eventOffsetX - target.width / 2) / 2
-      x.set(offsetXFromCenter)
+    if (followCursor === "x" || followCursor === true) {
+      const eventOffsetX = event.clientX - target.left;
+      const offsetXFromCenter = (eventOffsetX - target.width / 2) / 2;
+      x.set(offsetXFromCenter);
     }
 
-    if (followCursor === 'y' || followCursor === true) {
-      const eventOffsetY = event.clientY - target.top
-      const offsetYFromCenter = (eventOffsetY - target.height / 2) / 2
-      y.set(offsetYFromCenter)
+    if (followCursor === "y" || followCursor === true) {
+      const eventOffsetY = event.clientY - target.top;
+      const offsetYFromCenter = (eventOffsetY - target.height / 2) / 2;
+      y.set(offsetYFromCenter);
     }
-  }
+  };
 
   return (
     <HoverCardPrimitive.Trigger
@@ -96,16 +96,16 @@ function HoverCardTrigger({ onMouseMove, ...props }: HoverCardTriggerProps) {
       onMouseMove={handleMouseMove}
       {...props}
     />
-  )
+  );
 }
 
 type HoverCardPortalProps = Omit<
   React.ComponentProps<typeof HoverCardPrimitive.Portal>,
-  'forceMount'
->
+  "forceMount"
+>;
 
 function HoverCardPortal(props: HoverCardPortalProps) {
-  const { isOpen } = useHoverCard()
+  const { isOpen } = useHoverCard();
 
   return (
     <AnimatePresence>
@@ -117,13 +117,13 @@ function HoverCardPortal(props: HoverCardPortalProps) {
         />
       )}
     </AnimatePresence>
-  )
+  );
 }
 
 type HoverCardContentProps = React.ComponentProps<
   typeof HoverCardPrimitive.Content
 > &
-  HTMLMotionProps<'div'>
+  HTMLMotionProps<"div">;
 
 function HoverCardContent({
   align,
@@ -137,12 +137,12 @@ function HoverCardContent({
   sticky,
   hideWhenDetached,
   style,
-  transition = { type: 'spring', stiffness: 300, damping: 25 },
+  transition = { type: "spring", stiffness: 300, damping: 25 },
   ...props
 }: HoverCardContentProps) {
-  const { x, y, followCursor, followCursorSpringOptions } = useHoverCard()
-  const translateX = useSpring(x, followCursorSpringOptions)
-  const translateY = useSpring(y, followCursorSpringOptions)
+  const { x, y, followCursor, followCursorSpringOptions } = useHoverCard();
+  const translateX = useSpring(x, followCursorSpringOptions);
+  const translateY = useSpring(y, followCursorSpringOptions);
 
   return (
     <HoverCardPrimitive.Content
@@ -168,11 +168,11 @@ function HoverCardContent({
         transition={transition}
         style={{
           x:
-            followCursor === 'x' || followCursor === true
+            followCursor === "x" || followCursor === true
               ? translateX
               : undefined,
           y:
-            followCursor === 'y' || followCursor === true
+            followCursor === "y" || followCursor === true
               ? translateY
               : undefined,
           ...style,
@@ -180,13 +180,15 @@ function HoverCardContent({
         {...props}
       />
     </HoverCardPrimitive.Content>
-  )
+  );
 }
 
-type HoverCardArrowProps = React.ComponentProps<typeof HoverCardPrimitive.Arrow>
+type HoverCardArrowProps = React.ComponentProps<
+  typeof HoverCardPrimitive.Arrow
+>;
 
 function HoverCardArrow(props: HoverCardArrowProps) {
-  return <HoverCardPrimitive.Arrow data-slot="hover-card-arrow" {...props} />
+  return <HoverCardPrimitive.Arrow data-slot="hover-card-arrow" {...props} />;
 }
 
 export {
@@ -202,4 +204,4 @@ export {
   type HoverCardPortalProps,
   type HoverCardProps,
   type HoverCardTriggerProps,
-}
+};

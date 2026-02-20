@@ -1,9 +1,9 @@
 ---
-import BaseLayout from '../layouts/BaseLayout.astro';
-import FAQ from '../components/sections/FAQ.astro';
-import { getCollection } from 'astro:content';
+import BaseLayout from "../layouts/BaseLayout.astro";
+import FAQ from "../components/sections/FAQ.astro";
+import { getCollection } from "astro:content";
 
-const faqEntry = await getCollection('faq', (entry) => entry.id === 'en');
+const faqEntry = await getCollection("faq", (entry) => entry.id === "en");
 const faqItems = faqEntry[0]?.data.items || [];
 ---
 

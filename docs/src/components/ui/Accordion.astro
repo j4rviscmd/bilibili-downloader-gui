@@ -20,7 +20,7 @@ interface Props {
   class?: string;
 }
 
-const { items, class: className = '' } = Astro.props;
+const { items, class: className = "" } = Astro.props;
 ---
 
 <div class={`space-y-2 ${className}`.trim()}>
@@ -44,7 +44,9 @@ const { items, class: className = '' } = Astro.props;
           </svg>
         </summary>
         <div class="mt-2 rounded-lg border bg-card p-4 text-card-foreground">
-          <p class="whitespace-pre-line text-muted-foreground">{item.content}</p>
+          <p class="whitespace-pre-line text-muted-foreground">
+            {item.content}
+          </p>
         </div>
       </details>
     ))

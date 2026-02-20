@@ -1,20 +1,20 @@
-'use client'
+"use client";
 
-import * as React from 'react'
-import { FeatureCard } from '../ui/FeatureCard'
+import * as React from "react";
+import { FeatureCard } from "../ui/FeatureCard";
 
 /**
  * Feature data structure.
  */
 interface Feature {
   /** Unique identifier for the feature */
-  key: string
+  key: string;
   /** Emoji icon representing the feature */
-  icon: string
+  icon: string;
   /** Feature title */
-  title: string
+  title: string;
   /** Detailed description shown on hover */
-  description: string
+  description: string;
 }
 
 /**
@@ -22,11 +22,11 @@ interface Feature {
  */
 interface FeaturesSectionProps {
   /** Section heading */
-  title: string
+  title: string;
   /** Hint text shown below feature titles */
-  hoverHint: string
+  hoverHint: string;
   /** Array of features to display */
-  features: Feature[]
+  features: Feature[];
 }
 
 /**
@@ -55,5 +55,5 @@ export function FeaturesSection({
         ))}
       </div>
     </section>
-  )
+  );
 }
