@@ -29,7 +29,9 @@
 
 Je développe cela en tant que loisir. Sans étoiles, je fermerai le projet 😄
 
-![Star](assets/star-github.gif)
+<div align="center">
+  <img src="assets/star-github.gif" alt="Star">
+</div>
 
 ## Fonctionnalités
 
