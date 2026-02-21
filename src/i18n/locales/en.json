@@ -118,7 +118,8 @@
     "subtitle_hard_warning": "Hard sub encoding takes longer to process",
     "subtitle_description": "Choose how to embed subtitles into the video.",
     "subtitle_note": "※ Soft sub allows toggling subtitles in the player. Hard sub burns subtitles into the video.",
-    "other_options": "Other Options"
+    "other_options": "Other Options",
+    "subtitle_select_required": "Please select at least one language"
   },
   "progress": {
     "elapsed": "Elapsed",

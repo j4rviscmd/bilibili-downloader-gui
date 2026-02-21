@@ -59,7 +59,6 @@ pub struct DownloadOptions {
 
 use crate::constants::REFERER;
 use crate::handlers::cookie::read_cookie;
-use crate::handlers::ffmpeg::merge_av;
 use crate::handlers::settings;
 use crate::models::bilibili_api::{
     PlayerV2ApiResponse, UserApiResponse, WatchHistoryApiResponse, WebInterfaceApiResponse,
@@ -251,14 +250,81 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
             }),
         )?;
 
-        // マージ実行 (merge stage emitはffmpeg::merge_av内で送信)
-        merge_av(
+        // 字幕処理
+        let subtitle_mode = if let Some(ref sub_opts) = options.subtitle {
+            if sub_opts.mode == "off" || sub_opts.selected_lans.is_empty() {
+                crate::handlers::ffmpeg::MergeMode::None
+            } else {
+                // 字幕情報を再取得（クライアントを再利用）
+                let client = build_client()?;
+                let available_subs = fetch_subtitles(&client, &cookies, &options.bvid, options.cid).await;
+
+                // 選択された言語の字幕をフィルタリング
+                let selected_subs: Vec<_> = available_subs
+                    .iter()
+                    .filter(|s| sub_opts.selected_lans.contains(&s.lan))
+                    .collect();
+
+                if selected_subs.is_empty() {
+                    crate::handlers::ffmpeg::MergeMode::None
+                } else {
+                    // 字幕をダウンロードしてSRTに変換
+                    let mut subtitle_files: Vec<crate::handlers::ffmpeg::SubtitleMergeOptions> = Vec::new();
+
+                    for sub in selected_subs {
+                        let srt_path = lib_path.join(format!("temp_sub_{}_{}.srt", options.download_id, sub.lan));
+
+                        if let Err(e) = download_subtitle(&client, &sub.subtitle_url, &srt_path).await {
+                            eprintln!("Warning: Failed to download subtitle {}: {}", sub.lan, e);
+                            continue;
+                        }
+
+                        subtitle_files.push(crate::handlers::ffmpeg::SubtitleMergeOptions {
+                            path: srt_path,
+                            language: crate::utils::subtitle::lan_to_iso639(&sub.lan).to_string(),
+                            title: sub.lan_doc.clone(),
+                        });
+                    }
+
+                    if subtitle_files.is_empty() {
+                        crate::handlers::ffmpeg::MergeMode::None
+                    } else if sub_opts.mode == "hard" {
+                        // ハードサブ: 最初の字幕のみ使用
+                        if let Some(first_sub) = subtitle_files.into_iter().next() {
+                            crate::handlers::ffmpeg::MergeMode::HardSub(first_sub)
+                        } else {
+                            crate::handlers::ffmpeg::MergeMode::None
+                        }
+                    } else {
+                        // ソフトサブ: すべての字幕を使用
+                        crate::handlers::ffmpeg::MergeMode::SoftSub(subtitle_files)
+                    }
+                }
+            }
+        } else {
+            crate::handlers::ffmpeg::MergeMode::None
+        };
+
+        // 字幕ファイルのパスを保持（クリーンアップ用）
+        let subtitle_paths: Vec<PathBuf> = match &subtitle_mode {
+            crate::handlers::ffmpeg::MergeMode::SoftSub(subs) => {
+                subs.iter().map(|s| s.path.clone()).collect()
+            }
+            crate::handlers::ffmpeg::MergeMode::HardSub(sub) => {
+                vec![sub.path.clone()]
+            }
+            _ => vec![],
+        };
+
+        // マージ実行
+        crate::handlers::ffmpeg::merge_avs(
             app,
             &temp_video_path,
             &temp_audio_path,
             &output_path,
             Some(options.download_id.clone()),
-            Some((options.duration_seconds * 1000) as u64), // Convert seconds to milliseconds
+            Some((options.duration_seconds * 1000) as u64),
+            subtitle_mode,
         )
         .await
         .map_err(|_| String::from("ERR::MERGE_FAILED"))?;
@@ -269,6 +335,9 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
         // temp 削除
         let _ = tokio::fs::remove_file(&temp_video_path).await;
         let _ = tokio::fs::remove_file(&temp_audio_path).await;
+        for sub_path in subtitle_paths {
+            let _ = tokio::fs::remove_file(&sub_path).await;
+        }
 
         // 出力パスを保持 (クローンで履歴保存に渡す)
         let output_path_str = output_path.to_string_lossy().to_string();
@@ -313,9 +382,25 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
     if result.is_err() {
         let _ = tokio::fs::remove_file(&temp_video_path).await;
         let _ = tokio::fs::remove_file(&temp_audio_path).await;
+        // Clean up any subtitle files that may have been downloaded
+        cleanup_subtitle_files(&lib_path, &options.download_id);
     }
 
     result
+}
+
+/// 字幕一時ファイルをクリーンアップする
+fn cleanup_subtitle_files(lib_path: &std::path::Path, download_id: &str) {
+    let prefix = format!("temp_sub_{}_", download_id);
+    if let Ok(entries) = std::fs::read_dir(lib_path) {
+        for entry in entries.flatten() {
+            if let Some(name) = entry.file_name().to_str() {
+                if name.starts_with(&prefix) && name.ends_with(".srt") {
+                    let _ = std::fs::remove_file(entry.path());
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1048,9 +1133,6 @@ pub async fn fetch_subtitles(
         .and_then(|s| s.subtitles)
         .unwrap_or_default();
 
-    #[cfg(debug_assertions)]
-    eprintln!("[subtitle] Found {} subtitles for bvid={} cid={}", subtitles.len(), bvid, cid);
-
     subtitles
         .into_iter()
         .map(|item| {
@@ -1063,4 +1145,42 @@ pub async fn fetch_subtitles(
             }
         })
         .collect()
+}
+
+/// 字幕をダウンロードしてSRT形式で保存する
+///
+/// BCC形式のJSON字幕をダウンロードし、SRT形式に変換して保存する。
+pub async fn download_subtitle(
+    client: &Client,
+    subtitle_url: &str,
+    output_path: &std::path::Path,
+) -> Result<(), String> {
+    let url = if subtitle_url.starts_with("//") {
+        format!("https:{}", subtitle_url)
+    } else {
+        subtitle_url.to_string()
+    };
+
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to download subtitle: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("HTTP error: {}", response.status()));
+    }
+
+    let bcc: crate::models::bilibili_api::BccSubtitle = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse subtitle JSON: {}", e))?;
+
+    let srt_content = crate::utils::subtitle::bcc_to_srt(&bcc);
+
+    tokio::fs::write(output_path, srt_content)
+        .await
+        .map_err(|e| format!("Failed to write subtitle file: {}", e))?;
+
+    Ok(())
 }

@@ -117,7 +117,8 @@
     "subtitle_hard_warning": "하드 서브 인코딩은 시간이 더 걸립니다",
     "subtitle_description": "자막을 비디오에 포함하는 방법을 선택합니다.",
     "subtitle_note": "※ 소프트 서브는 플레이어에서 자막 켜기/끄기가 가능합니다. 하드 서브는 비디오에 자막이 굽혀집니다.",
-    "other_options": "기타 옵션"
+    "other_options": "기타 옵션",
+    "subtitle_select_required": "최소 하나의 언어를 선택해 주세요"
   },
   "progress": {
     "elapsed": "경과",

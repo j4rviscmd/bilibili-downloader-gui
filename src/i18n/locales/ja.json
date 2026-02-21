@@ -118,7 +118,8 @@
     "subtitle_hard_warning": "ハードサブはエンコードに時間がかかります",
     "subtitle_description": "動画に字幕を埋め込む方法を選択します。",
     "subtitle_note": "※ ソフトサブは再生プレイヤーで字幕のON/OFFが可能。ハードサブは動画に焼き付けられます。",
-    "other_options": "その他のオプション"
+    "other_options": "その他のオプション",
+    "subtitle_select_required": "字幕を使用する場合は言語を選択してください"
   },
   "progress": {
     "elapsed": "経過",

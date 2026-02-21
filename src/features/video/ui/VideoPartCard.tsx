@@ -299,6 +299,10 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   const isWaitingForTurn =
     selected && !downloadId && !isComplete && hasActiveDownloads
 
+  const isSubtitleInvalid =
+    partInput?.subtitle?.mode !== 'off' &&
+    (partInput?.subtitle?.selectedLans?.length ?? 0) === 0
+
   const videoQualities = videoPart.videoQualities
   const audioQualities = videoPart.audioQualities
 
@@ -348,6 +352,9 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
       newDownloadId,
       newDownloadId.replace(/-p\d+$/, ''),
       partInput.duration,
+      partInput.thumbnailUrl,
+      partInput.page,
+      partInput.subtitle,
     )
   }
 
@@ -431,7 +438,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
       <Form {...form}>
         <fieldset
           disabled={
-            disabled || isDownloading || isPending || hasActiveDownloads
+            disabled || isDownloading || isPending || hasActiveDownloads || isSubtitleInvalid
           }
         >
           <form
@@ -676,6 +683,11 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                                 )
                               }}
                             />
+                          </div>
+                        )}
+                        {isSubtitleInvalid && (
+                          <div className="text-destructive text-xs">
+                            {t('video.subtitle_select_required')}
                           </div>
                         )}
                       </div>

@@ -358,6 +358,7 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
           pi.duration,
           pi.thumbnailUrl,
           pi.page,
+          pi.subtitle,
         )
       } catch (e) {
         const raw = String(e)

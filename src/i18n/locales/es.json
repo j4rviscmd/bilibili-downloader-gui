@@ -117,7 +117,8 @@
     "subtitle_hard_warning": "La codificación Hard Sub lleva más tiempo",
     "subtitle_description": "Elige cómo incrustar subtítulos en el video.",
     "subtitle_note": "※ Soft Sub permite activar/desactivar subtítulos en el reproductor. Hard Sub graba los subtítulos en el video.",
-    "other_options": "Otras opciones"
+    "other_options": "Otras opciones",
+    "subtitle_select_required": "Por favor selecciona al menos un idioma"
   },
   "progress": {
     "elapsed": "Transcurrido",
