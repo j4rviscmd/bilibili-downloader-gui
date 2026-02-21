@@ -1,6 +1,11 @@
-import type { Input, PendingDownload } from '@/features/video/types'
+import type { Input, PendingDownload, SubtitleConfig } from '@/features/video/types'
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
+
+export const defaultSubtitleConfig: SubtitleConfig = {
+  mode: 'off',
+  selectedLans: [],
+}
 
 const initialState: Input = {
   url: '',
@@ -59,11 +64,14 @@ export const inputSlice = createSlice({
           audioQuality: string
           selected: boolean
           duration: number
+          subtitle?: SubtitleConfig
         }[]
       >,
     ) => {
-      // 既存互換: legacy quality を持つ要素が来た場合のガードは呼び出し側で保証する前提
-      state.partInputs = action.payload
+      state.partInputs = action.payload.map((p) => ({
+        ...p,
+        subtitle: p.subtitle ?? defaultSubtitleConfig,
+      }))
     },
     /**
      * Updates specific fields of a part input by index.
@@ -154,6 +162,22 @@ export const inputSlice = createSlice({
     clearPendingDownload: (state) => {
       state.pendingDownload = null
     },
+    /**
+     * Updates subtitle configuration for a specific part.
+     *
+     * @param state - Current input state
+     * @param action - Action containing the index and subtitle config
+     */
+    updateSubtitleConfig: (
+      state,
+      action: PayloadAction<{ index: number; config: SubtitleConfig }>,
+    ) => {
+      const { index, config } = action.payload
+      const target = state.partInputs[index]
+      if (target) {
+        target.subtitle = config
+      }
+    },
   },
 })
 
@@ -168,5 +192,6 @@ export const {
   setUrl,
   updatePartInputByIndex,
   updatePartSelected,
+  updateSubtitleConfig,
 } = inputSlice.actions
 export default inputSlice.reducer

@@ -10,9 +10,19 @@ import {
 } from '@/features/video/lib/constants'
 import { buildVideoFormSchema2 } from '@/features/video/lib/formSchema'
 import { extractVideoId, toThumbnailDataUrl } from '@/features/video/lib/utils'
-import { updatePartSelected } from '@/features/video/model/inputSlice'
-import type { Video } from '@/features/video/types'
+import {
+  defaultSubtitleConfig,
+  updatePartSelected,
+  updateSubtitleConfig,
+} from '@/features/video/model/inputSlice'
+import type { SubtitleConfig, SubtitleInfo, Video } from '@/features/video/types'
 import { PartDownloadProgress } from '@/features/video/ui/PartDownloadProgress'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/animate-ui/components/radix/accordion'
 import { Checkbox } from '@/shared/animate-ui/radix/checkbox'
 import {
   RadioGroup,
@@ -42,7 +52,7 @@ import {
 import { Label } from '@/shared/ui/label'
 import { Textarea } from '@/shared/ui/textarea'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Check, Copy, ImageOff, Info } from 'lucide-react'
+import { AlertTriangle, Check, Copy, ImageOff, Info } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -89,6 +99,167 @@ function QualityRadioGroup({ options, idPrefix }: QualityRadioGroupProps) {
           </Label>
         </div>
       ))}
+    </div>
+  )
+}
+
+function AiBadge() {
+  return (
+    <span className="rounded bg-blue-100 px-1 text-[10px] text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+      AI
+    </span>
+  )
+}
+
+type SubtitleSectionProps = {
+  subtitles: Pick<SubtitleInfo, 'lan' | 'lanDoc' | 'isAi'>[]
+  config: SubtitleConfig
+  disabled: boolean
+  page: number
+  onConfigChange: (config: SubtitleConfig) => void
+}
+
+function SubtitleSection({
+  subtitles,
+  config,
+  disabled,
+  page,
+  onConfigChange,
+}: SubtitleSectionProps) {
+  const { t } = useTranslation()
+
+  if (subtitles.length === 0) return null
+
+  const modeOptions = [
+    { id: 'off', label: t('video.subtitle_off') },
+    { id: 'soft', label: t('video.subtitle_soft') },
+    { id: 'hard', label: t('video.subtitle_hard') },
+  ]
+
+  function handleModeChange(mode: 'off' | 'soft' | 'hard') {
+    if (mode === 'off') {
+      onConfigChange({ mode: 'off', selectedLans: [] })
+    } else if (mode === 'soft') {
+      onConfigChange({
+        mode: 'soft',
+        selectedLans: subtitles.map((s) => s.lan),
+      })
+    } else {
+      onConfigChange({
+        mode: 'hard',
+        selectedLans: subtitles[0] ? [subtitles[0].lan] : [],
+      })
+    }
+  }
+
+  function handleSoftSubtitleToggle(lan: string, checked: boolean) {
+    const newSelectedLans = checked
+      ? [...config.selectedLans, lan]
+      : config.selectedLans.filter((l) => l !== lan)
+    onConfigChange({ ...config, selectedLans: newSelectedLans })
+  }
+
+  function handleHardSubtitleChange(lan: string) {
+    onConfigChange({ ...config, selectedLans: [lan] })
+  }
+
+  return (
+    <div className="space-y-3">
+      <RadioGroup
+        value={config.mode}
+        onValueChange={(value) =>
+          handleModeChange(value as 'off' | 'soft' | 'hard')
+        }
+      >
+        <div className="flex flex-wrap gap-x-4 gap-y-2">
+          {modeOptions.map(({ id, label }) => (
+            <div
+              key={id}
+              className="flex min-h-[22px] min-w-[60px] items-center space-x-2 whitespace-nowrap"
+            >
+              <RadioGroupItem
+                disabled={disabled}
+                value={id}
+                id={`sub-mode-${page}-${id}`}
+              />
+              <Label
+                htmlFor={`sub-mode-${page}-${id}`}
+                className={cn(
+                  'cursor-pointer',
+                  disabled && 'cursor-not-allowed',
+                )}
+              >
+                {label}
+              </Label>
+            </div>
+          ))}
+        </div>
+      </RadioGroup>
+
+      {config.mode === 'soft' && (
+        <div className="space-y-2">
+          <div className="text-xs text-muted-foreground">
+            {t('video.subtitle_select_multiple')}
+          </div>
+          <div className="flex flex-wrap gap-x-4 gap-y-2">
+            {subtitles.map((sub) => (
+              <div
+                key={sub.lan}
+                className="flex min-h-[22px] items-center space-x-2"
+              >
+                <Checkbox
+                  disabled={disabled}
+                  checked={config.selectedLans.includes(sub.lan)}
+                  onCheckedChange={(checked) =>
+                    handleSoftSubtitleToggle(sub.lan, checked === true)
+                  }
+                />
+                <Label className="flex items-center gap-1">
+                  {sub.lanDoc}
+                  {sub.isAi && <AiBadge />}
+                </Label>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {config.mode === 'hard' && (
+        <div className="space-y-2">
+          <RadioGroup
+            value={config.selectedLans[0] || ''}
+            onValueChange={handleHardSubtitleChange}
+          >
+            <div className="flex flex-wrap gap-x-4 gap-y-2">
+              {subtitles.map((sub) => (
+                <div
+                  key={sub.lan}
+                  className="flex min-h-[22px] items-center space-x-2"
+                >
+                  <RadioGroupItem
+                    disabled={disabled}
+                    value={sub.lan}
+                    id={`sub-hard-${page}-${sub.lan}`}
+                  />
+                  <Label
+                    htmlFor={`sub-hard-${page}-${sub.lan}`}
+                    className="flex items-center gap-1"
+                  >
+                    {sub.lanDoc}
+                    {sub.isAi && <AiBadge />}
+                  </Label>
+                </div>
+              ))}
+            </div>
+          </RadioGroup>
+          <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs dark:border-amber-800 dark:bg-amber-950">
+            <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+            <p className="text-amber-700 dark:text-amber-300">
+              {t('video.subtitle_hard_warning')}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -416,53 +587,101 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                   )}
                 />
 
-                {/* Audio Quality */}
-                <FormField
-                  control={form.control}
-                  name="audioQuality"
-                  render={({ field }) => (
-                    <FormItem>
-                      <div className="flex items-center gap-1.5">
-                        <FormLabel className="text-sm font-medium">
-                          {t('video.audio_quality_label')}
-                        </FormLabel>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Info className="text-muted-foreground h-4 w-4 cursor-help" />
-                          </TooltipTrigger>
-                          <TooltipContent
-                            side="top"
-                            className="max-w-xs text-xs"
-                          >
-                            <p>{t('video.audio_quality_description')}</p>
-                            <p className="mt-1">
-                              {t('video.audio_quality_note')}
-                            </p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </div>
-                      <FormControl>
-                        <RadioGroup
-                          value={String(field.value)}
-                          onValueChange={field.onChange}
-                        >
-                          <QualityRadioGroup
-                            idPrefix={`aq-${page}`}
-                            options={AUDIO_QUALITIES_ORDER.map((id) => ({
-                              id: String(id),
-                              label: AUDIO_QUALITIES_MAP[id],
-                              isAvailable: isQualityAvailable(
-                                Number(id),
-                                'audio',
-                              ),
-                            }))}
+                {/* Other Options Accordion */}
+                <Accordion type="multiple" className="w-full">
+                  <AccordionItem value="other-options">
+                    <AccordionTrigger className="py-2 text-sm">
+                      {t('video.other_options')}
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="space-y-4">
+                        {/* Audio Quality Section */}
+                        <div>
+                          <div className="mb-2 flex items-center gap-1.5">
+                            <span className="text-sm font-medium">
+                              {t('video.audio_quality_label')}
+                            </span>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Info className="text-muted-foreground h-4 w-4 cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent
+                                side="right"
+                                className="max-w-xs text-xs"
+                              >
+                                <p>{t('video.audio_quality_description')}</p>
+                                <p className="mt-1">
+                                  {t('video.audio_quality_note')}
+                                </p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <FormField
+                            control={form.control}
+                            name="audioQuality"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormControl>
+                                  <RadioGroup
+                                    value={String(field.value)}
+                                    onValueChange={field.onChange}
+                                  >
+                                    <QualityRadioGroup
+                                      idPrefix={`aq-${page}`}
+                                      options={AUDIO_QUALITIES_ORDER.map((id) => ({
+                                        id: String(id),
+                                        label: AUDIO_QUALITIES_MAP[id],
+                                        isAvailable: isQualityAvailable(
+                                          Number(id),
+                                          'audio',
+                                        ),
+                                      }))}
+                                    />
+                                  </RadioGroup>
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
                           />
-                        </RadioGroup>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                        </div>
+
+                        {/* Subtitle Section */}
+                        {videoPart.subtitles.length > 0 && (
+                          <div>
+                            <div className="mb-2 flex items-center gap-1.5">
+                              <span className="text-sm font-medium">
+                                {t('video.subtitle')}
+                              </span>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Info className="text-muted-foreground h-4 w-4 cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent
+                                  side="right"
+                                  className="max-w-xs text-xs"
+                                >
+                                  <p>{t('video.subtitle_description')}</p>
+                                  <p className="mt-1">{t('video.subtitle_note')}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
+                            <SubtitleSection
+                              subtitles={videoPart.subtitles}
+                              config={partInput?.subtitle ?? defaultSubtitleConfig}
+                              disabled={disabled || isDownloading || isPending || hasActiveDownloads}
+                              page={page}
+                              onConfigChange={(config) => {
+                                store.dispatch(
+                                  updateSubtitleConfig({ index: page - 1, config }),
+                                )
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
               </div>
             </TooltipProvider>
 

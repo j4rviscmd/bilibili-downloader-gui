@@ -12,10 +12,21 @@
 use serde::Deserialize;
 use tauri::Emitter;
 
-/// Download options for the video download command.
+/// 字幕オプション（ダウンロード用）
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubtitleOptions {
+    /// 字幕モード: "off", "soft", "hard"
+    pub mode: String,
+    /// 選択された字幕言語コード
+    #[serde(default)]
+    pub selected_lans: Vec<String>,
+}
+
+/// ダウンロードオプション
 ///
-/// Groups all parameters required for downloading a video part into a single
-/// structure to avoid excessive function arguments.
+/// 動画パートのダウンロードに必要なすべてのパラメータをグループ化し、
+/// 関数の引数が過多になるのを防ぎます。
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DownloadOptions {
@@ -41,6 +52,9 @@ pub struct DownloadOptions {
     /// マルチパート動画のページ番号（省略可能）
     #[serde(default)]
     pub page: Option<i32>,
+    /// 字幕オプション（省略可能）
+    #[serde(default)]
+    pub subtitle: Option<SubtitleOptions>,
 }
 
 use crate::constants::REFERER;
@@ -48,12 +62,13 @@ use crate::handlers::cookie::read_cookie;
 use crate::handlers::ffmpeg::merge_av;
 use crate::handlers::settings;
 use crate::models::bilibili_api::{
-    UserApiResponse, WatchHistoryApiResponse, WebInterfaceApiResponse, XPlayerApiResponse,
-    XPlayerApiResponseVideo,
+    PlayerV2ApiResponse, UserApiResponse, WatchHistoryApiResponse, WebInterfaceApiResponse,
+    XPlayerApiResponse, XPlayerApiResponseVideo,
 };
 use crate::models::cookie::CookieEntry;
 use crate::models::frontend_dto::{
-    Quality, Thumbnail, UserData, Video, VideoPart, WatchHistoryCursor, WatchHistoryEntry,
+    Quality, SubtitleDto, Thumbnail, UserData, Video, VideoPart, WatchHistoryCursor,
+    WatchHistoryEntry,
 };
 use crate::utils::downloads::download_url;
 use crate::utils::paths::get_lib_path;
@@ -543,9 +558,12 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
     let pages = data.pages.as_deref().unwrap_or(&[]);
     let bvid = &video.bvid;
 
+    let client = build_client()?;
+
     if pages.is_empty() {
         let details = fetch_video_details(&cookies, bvid, data.cid).await?;
         let dash_data = details.data.unwrap().dash;
+        let subtitles = fetch_subtitles(&client, &cookies, bvid, data.cid).await;
 
         let part = VideoPart {
             cid: data.cid,
@@ -558,6 +576,7 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
             },
             video_qualities: convert_qualities(&dash_data.video),
             audio_qualities: convert_qualities(&dash_data.audio),
+            subtitles,
         };
 
         return Ok(Video {
@@ -571,6 +590,7 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
     for page in pages {
         let details = fetch_video_details(&cookies, bvid, page.cid).await?;
         let dash_data = details.data.unwrap().dash;
+        let subtitles = fetch_subtitles(&client, &cookies, bvid, page.cid).await;
 
         let thumb_url = page.first_frame.as_deref().unwrap_or_default();
         let thumb_base64 = if thumb_url.is_empty() {
@@ -590,6 +610,7 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
             },
             video_qualities: convert_qualities(&dash_data.video),
             audio_qualities: convert_qualities(&dash_data.audio),
+            subtitles,
         });
     }
 
@@ -964,4 +985,82 @@ pub async fn fetch_watch_history(
     };
 
     Ok(WatchHistoryResponse { entries, cursor })
+}
+
+/// Fetches available subtitles for a video part from the Player v2 API.
+///
+/// Uses WBI signature for authentication.
+/// Returns an empty vector if no subtitles are available or on error.
+pub async fn fetch_subtitles(
+    client: &Client,
+    cookies: &[CookieEntry],
+    bvid: &str,
+    cid: i64,
+) -> Vec<SubtitleDto> {
+    let mixin_key = match crate::utils::wbi::fetch_mixin_key(client).await {
+        Ok(key) => key,
+        Err(_) => return Vec::new(),
+    };
+
+    let mut params = BTreeMap::from([
+        ("bvid".to_string(), bvid.to_string()),
+        ("cid".to_string(), cid.to_string()),
+    ]);
+
+    let signature = match crate::utils::wbi::generate_wbi_signature(&mut params, &mixin_key) {
+        Ok(sig) => sig,
+        Err(_) => return Vec::new(),
+    };
+
+    let response = match client
+        .get("https://api.bilibili.com/x/player/wbi/v2")
+        .header(header::COOKIE, build_cookie_header(cookies))
+        .header(header::REFERER, "https://www.bilibili.com")
+        .query(&[
+            ("bvid", bvid),
+            ("cid", &cid.to_string()),
+            ("w_rid", &signature.w_rid),
+            ("wts", &signature.wts),
+        ])
+        .send()
+        .await
+    {
+        Ok(resp) => resp,
+        Err(_) => return Vec::new(),
+    };
+
+    if !response.status().is_success() {
+        return Vec::new();
+    }
+
+    let body: PlayerV2ApiResponse = match response.json().await {
+        Ok(b) => b,
+        Err(_) => return Vec::new(),
+    };
+
+    if body.code != 0 {
+        return Vec::new();
+    }
+
+    let subtitles = body
+        .data
+        .and_then(|d| d.subtitle)
+        .and_then(|s| s.subtitles)
+        .unwrap_or_default();
+
+    #[cfg(debug_assertions)]
+    eprintln!("[subtitle] Found {} subtitles for bvid={} cid={}", subtitles.len(), bvid, cid);
+
+    subtitles
+        .into_iter()
+        .map(|item| {
+            let is_ai = item.subtitle_url.contains("/ai_subtitle/");
+            SubtitleDto {
+                lan: item.lan,
+                lan_doc: item.lan_doc,
+                subtitle_url: item.subtitle_url,
+                is_ai,
+            }
+        })
+        .collect()
 }

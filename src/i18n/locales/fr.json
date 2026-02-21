@@ -106,7 +106,18 @@
     "download_cancelled": "Téléchargement annulé",
     "copy_title": "Copier le titre",
     "title_copied": "Titre copié dans le presse-papiers",
-    "copy_failed": "Échec de la copie du titre"
+    "copy_failed": "Échec de la copie du titre",
+    "subtitle": "Sous-titres",
+    "subtitle_off": "Aucun",
+    "subtitle_soft": "Soft Sub",
+    "subtitle_hard": "Hard Sub",
+    "subtitle_soft_label": "Soft Sub ({{count}} langues)",
+    "subtitle_hard_label": "Hard Sub ({{lang}})",
+    "subtitle_select_multiple": "Sélection multiple (tous sélectionnés par défaut)",
+    "subtitle_hard_warning": "L'encodage Hard Sub prend plus de temps",
+    "subtitle_description": "Choisissez comment intégrer les sous-titres dans la vidéo.",
+    "subtitle_note": "※ Soft Sub permet d'activer/désactiver les sous-titres dans le lecteur. Hard Sub grave les sous-titres dans la vidéo.",
+    "other_options": "Autres options"
   },
   "progress": {
     "elapsed": "Temps écoulé",
