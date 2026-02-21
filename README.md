@@ -29,7 +29,9 @@
 
 I build this as a hobby. No stars, I'll shut it down 😄
 
-![Star](docs/images/star-github.gif)
+<div align="center">
+  <img src="assets/star-github.gif" alt="Star">
+</div>
 
 ## Features
 

@@ -29,7 +29,9 @@
 
 这是我的业余爱好项目。没有 Star 的话就关了 😄
 
-![Star](docs/images/star-github.gif)
+<div align="center">
+  <img src="assets/star-github.gif" alt="Star">
+</div>
 
 ## 功能特性
 
