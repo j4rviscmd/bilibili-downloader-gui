@@ -29,7 +29,7 @@
 
 Desarrollo esto como hobby. Sin estrellas, cerraré el proyecto 😄
 
-![Star](docs/images/star-github.gif)
+![Star](assets/star-github.gif)
 
 ## Características
 

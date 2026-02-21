@@ -29,7 +29,7 @@
 
 Je développe cela en tant que loisir. Sans étoiles, je fermerai le projet 😄
 
-![Star](docs/images/star-github.gif)
+![Star](assets/star-github.gif)
 
 ## Fonctionnalités
 

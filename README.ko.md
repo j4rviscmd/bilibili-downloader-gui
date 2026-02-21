@@ -29,7 +29,7 @@
 
 취미로 개발하고 있습니다. Star가 없으면 폐쇄하겠습니다 😄
 
-![Star](docs/images/star-github.gif)
+![Star](assets/star-github.gif)
 
 ## 기능
 

@@ -29,7 +29,7 @@
 
 I build this as a hobby. No stars, I'll shut it down 😄
 
-![Star](docs/images/star-github.gif)
+![Star](assets/star-github.gif)
 
 ## Features
 

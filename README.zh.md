@@ -29,7 +29,7 @@
 
 这是我的业余爱好项目。没有 Star 的话就关了 😄
 
-![Star](docs/images/star-github.gif)
+![Star](assets/star-github.gif)
 
 ## 功能特性
 
