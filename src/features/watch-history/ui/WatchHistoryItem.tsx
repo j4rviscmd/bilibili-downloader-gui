@@ -28,34 +28,12 @@ type Props = {
 /**
  * Displays a single watch history entry with thumbnail, progress,
  * metadata, and download button.
- *
- * Features:
- * - Thumbnail with duration badge and progress bar overlay
- * - Video title with relative time (e.g., "2 hours ago")
- * - URL display with copy-to-clipboard button
- * - Download button to navigate to download page
- *
- * @example
- * ```tsx
- * <WatchHistoryItem
- *   entry={historyEntry}
- *   onDownload={(entry) => {
- *     dispatch(setPendingDownload({ bvid: entry.bvid, cid: entry.cid }))
- *     navigate('/home')
- *   }}
- * />
- * ```
  */
 export function WatchHistoryItem({ entry, onDownload, disabled }: Props) {
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
   const progressPercent = calculateProgress(entry.progress, entry.duration)
 
-  /**
-   * Copies the video URL to the clipboard and shows a success toast.
-   * Displays error toast if clipboard access fails.
-   * Temporarily shows checkmark icon for 2 seconds on success.
-   */
   const handleCopyUrl = async () => {
     try {
       await navigator.clipboard.writeText(entry.url)
@@ -71,10 +49,11 @@ export function WatchHistoryItem({ entry, onDownload, disabled }: Props) {
     <div className="border-border hover:bg-accent/50 flex items-center gap-3 rounded-lg border p-3">
       <div className="relative size-20 shrink-0 overflow-hidden rounded select-none">
         <img
-          src={entry.coverBase64 || entry.cover}
+          src={entry.cover}
           alt={entry.title}
           className="size-full object-cover"
           draggable={false}
+          referrerPolicy="no-referrer"
           onError={(e) => {
             e.currentTarget.src = '/placeholder.png'
           }}

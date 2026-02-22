@@ -68,15 +68,14 @@ pub struct VideoPart {
     #[serde(default)]
     pub subtitles: Vec<SubtitleDto>,
 }
-/// Thumbnail information including both URL and Base64-encoded data.
+/// Thumbnail information with the image URL.
 ///
-/// Provides flexibility for the frontend to use either the URL or embedded data.
+/// The frontend uses the URL directly with referrerPolicy="no-referrer"
+/// to bypass Bilibili's hotlink protection.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Thumbnail {
     /// Original thumbnail URL
     pub url: String,
-    /// Base64-encoded thumbnail image data
-    pub base64: String,
 }
 
 /// Quality option for video or audio streams.
@@ -163,7 +162,6 @@ pub struct FavoriteVideoListResponse {
 pub struct WatchHistoryEntry {
     pub title: String,
     pub cover: String,
-    pub cover_base64: String,
     pub bvid: String,
     pub cid: i64,
     pub page: i32,

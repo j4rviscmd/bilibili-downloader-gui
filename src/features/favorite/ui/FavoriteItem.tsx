@@ -1,4 +1,3 @@
-import { useThumbnailCache } from '@/features/history'
 import {
   Tooltip,
   TooltipContent,
@@ -7,48 +6,65 @@ import {
 } from '@/shared/animate-ui/radix/tooltip'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
-import { Check, Copy, Download, RefreshCw, StarOff } from 'lucide-react'
+import { Check, Copy, Download, ImageOff, StarOff } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { formatDuration, formatPlayCount } from '../hooks/useFavorite'
 import type { FavoriteVideo } from '../types'
 
-/** Build web URL from bvid and page number. */
+/**
+ * Builds a Bilibili web URL from a video ID and page number.
+ *
+ * @param bvid - Bilibili video ID (e.g., 'BV1xx411c7XD')
+ * @param page - Part page number (1-indexed). Page 1 omits the query parameter.
+ * @returns Full Bilibili video URL
+ *
+ * @example
+ * ```typescript
+ * buildVideoUrl('BV1xx411c7XD', 1) // 'https://www.bilibili.com/video/BV1xx411c7XD'
+ * buildVideoUrl('BV1xx411c7XD', 2) // 'https://www.bilibili.com/video/BV1xx411c7XD?p=2'
+ * ```
+ */
 const buildVideoUrl = (bvid: string, page: number): string =>
   `https://www.bilibili.com/video/${bvid}${page > 1 ? `?p=${page}` : ''}`
 
+/**
+ * Props for the FavoriteItem component.
+ */
 type Props = {
+  /** Favorite video data to display */
   video: FavoriteVideo
+  /** Callback invoked when the download button is clicked */
   onDownload: (video: FavoriteVideo) => void
+  /** Whether the download button should be disabled */
   disabled?: boolean
 }
 
 /**
- * Single favorite video item component.
+ * Displays a single favorite video item with thumbnail, metadata, and download button.
+ *
+ * Shows video information including title, uploader, play count, and collect count.
+ * Handles deleted videos with visual indication and disables interactions accordingly.
+ *
+ * @example
+ * ```tsx
+ * <FavoriteItem
+ *   video={favoriteVideo}
+ *   onDownload={(v) => handleDownload(v)}
+ *   disabled={isDownloading}
+ * />
+ * ```
  */
 function FavoriteItem({ video, onDownload, disabled }: Props) {
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
-
-  const {
-    data: thumbnailSrc,
-    loading: thumbnailLoading,
-    error,
-    retry,
-  } = useThumbnailCache(video.cover)
-
-  const { data: avatarSrc } = useThumbnailCache(video.upper.face)
-
   const isDeleted = video.attr !== 0
-
-  const handleDownload = () => {
-    onDownload(video)
-  }
+  const videoUrl = buildVideoUrl(video.bvid, video.page)
 
   const handleCopyUrl = async () => {
     try {
-      await navigator.clipboard.writeText(buildVideoUrl(video.bvid, video.page))
+      await navigator.clipboard.writeText(videoUrl)
       setCopied(true)
       toast.success(t('history.copySuccess'))
       setTimeout(() => setCopied(false), 2000)
@@ -65,24 +81,16 @@ function FavoriteItem({ video, onDownload, disabled }: Props) {
       )}
     >
       <div className="bg-muted relative flex size-20 shrink-0 items-center justify-center overflow-hidden rounded">
-        {thumbnailSrc && !thumbnailLoading ? (
+        {video.cover ? (
           <img
-            src={thumbnailSrc}
+            src={video.cover}
             alt={video.title}
             className="size-full object-cover select-none"
             draggable={false}
+            referrerPolicy="no-referrer"
           />
         ) : (
           <ThumbnailPlaceholder />
-        )}
-        {error && (
-          <button
-            onClick={retry}
-            className="bg-background/80 hover:bg-background absolute rounded p-1 opacity-0 transition-opacity group-hover:opacity-100"
-            title={t('history.retryThumbnail')}
-          >
-            <RefreshCw size={16} />
-          </button>
         )}
         <div className="absolute right-0.5 bottom-1 rounded bg-black/60 px-1 text-xs text-white">
           {formatDuration(video.duration)}
@@ -113,21 +121,22 @@ function FavoriteItem({ video, onDownload, disabled }: Props) {
             {copied ? <Check size={14} /> : <Copy size={14} />}
           </Button>
           <a
-            href={buildVideoUrl(video.bvid, video.page)}
+            href={videoUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="text-muted-foreground hover:text-primary truncate"
           >
-            {buildVideoUrl(video.bvid, video.page)}
+            {videoUrl}
           </a>
         </div>
 
         <div className="text-muted-foreground flex items-center gap-1 text-xs">
-          {avatarSrc ? (
+          {video.upper.face ? (
             <img
-              src={avatarSrc}
+              src={video.upper.face}
               alt={video.upper.name}
               className="mr-0.5 size-4 rounded-full"
+              referrerPolicy="no-referrer"
             />
           ) : (
             <div className="bg-muted mr-0.5 size-4 rounded-full" />
@@ -158,7 +167,7 @@ function FavoriteItem({ video, onDownload, disabled }: Props) {
               <Button
                 variant="default"
                 size="sm"
-                onClick={handleDownload}
+                onClick={() => onDownload(video)}
                 disabled={disabled}
               >
                 <Download size={16} />
@@ -178,11 +187,11 @@ function FavoriteItem({ video, onDownload, disabled }: Props) {
 }
 
 /**
- * Thumbnail placeholder component.
+ * Placeholder component displayed when thumbnail is unavailable.
  */
 const ThumbnailPlaceholder = () => (
   <div className="text-muted-foreground flex size-full items-center justify-center">
-    <Download size={32} />
+    <ImageOff size={24} />
   </div>
 )
 

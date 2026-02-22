@@ -1,6 +1,5 @@
 'use client'
 
-import { useThumbnailCache } from '@/features/history'
 import type { HistoryEntry } from '@/features/history/model/historySlice'
 import {
   Tooltip,
@@ -10,15 +9,31 @@ import {
 } from '@/shared/animate-ui/radix/tooltip'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
-import { Check, Copy, Download, RefreshCw, Trash2 } from 'lucide-react'
+import { Check, Copy, Download, ImageOff, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-/** Pads a number with leading zeros to ensure 2-digit format. */
+/**
+ * Pads a number with leading zeros to ensure 2-digit format.
+ *
+ * @param n - Number to pad
+ * @returns Zero-padded string (e.g., 5 -> "05")
+ */
 const pad = (n: number): string => n.toString().padStart(2, '0')
 
-/** Formats a duration in seconds to MM:SS or HH:MM:SS format. */
+/**
+ * Formats a duration in seconds to MM:SS or HH:MM:SS format.
+ *
+ * @param seconds - Duration in seconds
+ * @returns Formatted time string
+ *
+ * @example
+ * ```typescript
+ * formatDuration(125) // '2:05'
+ * formatDuration(3661) // '1:01:01'
+ * ```
+ */
 function formatDuration(seconds: number): string {
   const hours = Math.floor(seconds / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)
@@ -30,7 +45,13 @@ function formatDuration(seconds: number): string {
   return `${minutes}:${pad(secs)}`
 }
 
-/** Formats an ISO 8601 date string to a relative time string. */
+/**
+ * Formats an ISO 8601 date string to a relative time string.
+ *
+ * @param dateString - ISO 8601 date string
+ * @param t - Translation function from react-i18next
+ * @returns Localized relative time string (e.g., "2 days ago")
+ */
 function formatRelativeTime(
   dateString: string,
   t: (key: string, options?: Record<string, unknown>) => string,
@@ -46,7 +67,12 @@ function formatRelativeTime(
   return t('watchHistory.time.justNow')
 }
 
-/** Formats an ISO 8601 date string to a short absolute format (e.g., "2026/02/15 14:28"). */
+/**
+ * Formats an ISO 8601 date string to a short absolute format.
+ *
+ * @param dateString - ISO 8601 date string
+ * @returns Formatted date string (e.g., "2026/02/15 14:28")
+ */
 function formatAbsoluteDate(dateString: string): string {
   const date = new Date(dateString)
   const month = date.getMonth() + 1
@@ -56,7 +82,12 @@ function formatAbsoluteDate(dateString: string): string {
   return `${date.getFullYear()}/${pad(month)}/${pad(day)} ${pad(hour)}:${pad(minute)}`
 }
 
-/** Formats a byte count to a human-readable file size string (e.g., "1.5 MB"). */
+/**
+ * Formats a byte count to a human-readable file size string.
+ *
+ * @param bytes - File size in bytes (optional)
+ * @returns Formatted size string (e.g., "1.5 MB") or "-" if undefined
+ */
 function formatFileSize(bytes?: number): string {
   const KB = 1000
   const MB = 1_000_000
@@ -66,40 +97,50 @@ function formatFileSize(bytes?: number): string {
   return `${(bytes / MB).toFixed(1)} MB`
 }
 
-/** Displays a download icon when thumbnail is unavailable or loading. */
+/**
+ * Placeholder component displayed when thumbnail is unavailable.
+ */
 const ThumbnailPlaceholder = () => (
   <div className="text-muted-foreground flex size-full items-center justify-center">
-    <Download size={32} />
+    <ImageOff size={24} />
   </div>
 )
 
-/** Props for the HistoryItem component. */
+/**
+ * Props for the HistoryItem component.
+ */
 type Props = {
+  /** History entry data to display */
   entry: HistoryEntry
+  /** Callback invoked when the delete button is clicked */
   onDelete: () => void
+  /** Callback invoked when the download button is clicked (optional) */
   onDownload?: () => void
+  /** Whether the download button should be disabled */
   disabled?: boolean
 }
 
-/** Component displaying a single history entry. */
+/**
+ * Displays a single download history entry with thumbnail, metadata, and actions.
+ *
+ * Shows video information including title, URL, download date, file size,
+ * quality, and status. Supports re-downloading videos and deleting entries.
+ *
+ * @example
+ * ```tsx
+ * <HistoryItem
+ *   entry={historyEntry}
+ *   onDelete={() => handleDelete(entry.id)}
+ *   onDownload={() => handleRedownload(entry)}
+ *   disabled={isDownloading}
+ * />
+ * ```
+ */
 function HistoryItem({ entry, onDelete, onDownload, disabled }: Props) {
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
+  const isSuccess = entry.status === 'completed'
 
-  // Data URLs can be used directly; fetch remote thumbnails via cache
-  const thumbnailUrl = entry.thumbnailUrl
-  const isDataUrl = thumbnailUrl?.startsWith('data:')
-
-  const {
-    data: cachedThumbnail,
-    loading: thumbnailLoading,
-    error,
-    retry,
-  } = useThumbnailCache(isDataUrl ? undefined : thumbnailUrl)
-
-  const displayThumbnail = isDataUrl ? thumbnailUrl : cachedThumbnail
-
-  /** Copies the video URL to clipboard with toast notification. */
   const handleCopyUrl = async () => {
     try {
       await navigator.clipboard.writeText(entry.url)
@@ -111,19 +152,16 @@ function HistoryItem({ entry, onDelete, onDownload, disabled }: Props) {
     }
   }
 
-  const isSuccess = entry.status === 'completed'
-
   return (
     <div className="border-border hover:bg-accent/50 group flex items-center gap-3 rounded-lg border p-3 transition-colors">
       <div className="bg-muted relative flex size-20 shrink-0 items-center justify-center overflow-hidden rounded select-none">
-        {thumbnailLoading ? (
-          <ThumbnailPlaceholder />
-        ) : displayThumbnail ? (
+        {entry.thumbnailUrl ? (
           <img
-            src={displayThumbnail}
+            src={entry.thumbnailUrl}
             alt={entry.title}
             className="size-full object-cover"
             draggable={false}
+            referrerPolicy="no-referrer"
           />
         ) : (
           <ThumbnailPlaceholder />
@@ -132,15 +170,6 @@ function HistoryItem({ entry, onDelete, onDownload, disabled }: Props) {
           <div className="absolute right-0.5 bottom-1 rounded bg-black/60 px-1 text-xs text-white">
             {formatDuration(entry.duration)}
           </div>
-        )}
-        {error && (
-          <button
-            onClick={retry}
-            className="bg-background/80 hover:bg-background absolute rounded p-1 opacity-0 transition-opacity group-hover:opacity-100"
-            title={t('history.retryThumbnail')}
-          >
-            <RefreshCw size={16} />
-          </button>
         )}
       </div>
 
