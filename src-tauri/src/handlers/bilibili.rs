@@ -12,47 +12,49 @@
 use serde::Deserialize;
 use tauri::Emitter;
 
-/// 字幕オプション（ダウンロード用）
+/// Subtitle configuration options for video downloads.
+///
+/// Specifies how subtitles should be embedded into the output file.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SubtitleOptions {
-    /// 字幕モード: "off", "soft", "hard"
+    /// Subtitle embedding mode: "off" (no subtitles), "soft" (soft-sub), or "hard" (burned-in)
     pub mode: String,
-    /// 選択された字幕言語コード
+    /// Selected subtitle language codes (e.g., "zh-CN", "en")
     #[serde(default)]
     pub selected_lans: Vec<String>,
 }
 
-/// ダウンロードオプション
+/// Download options for a video part.
 ///
-/// 動画パートのダウンロードに必要なすべてのパラメータをグループ化し、
-/// 関数の引数が過多になるのを防ぎます。
+/// Groups all parameters required for downloading a video part,
+/// preventing function parameter bloat.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DownloadOptions {
-    /// Bilibili動画ID（BV識別子）
+    /// Bilibili video ID (BV identifier, e.g., "BV1xx411c7XD")
     pub bvid: String,
-    /// 特定の動画パートのためのコンテンツID
+    /// Content ID for the specific video part
     pub cid: i64,
-    /// 出力ファイル名（拡張子は省略可能、存在しない場合は.mp4が追加されます）
+    /// Output filename (extension optional; .mp4 added if missing)
     pub filename: String,
-    /// 動画品質ID（利用できない場合は最高品質にフォールバック）
+    /// Video quality ID (falls back to highest quality if unavailable)
     pub quality: i32,
-    /// 音声品質ID（利用できない場合は最高品質にフォールバック）
+    /// Audio quality ID (falls back to highest quality if unavailable)
     pub audio_quality: i32,
-    /// このダウンロードを追跡するための一意識別子
+    /// Unique identifier for tracking this download
     pub download_id: String,
-    /// マルチパート動画用の親ダウンロードID（省略可能）
+    /// Parent download ID for multi-part videos (optional)
     pub parent_id: Option<String>,
-    /// 正確なマージ進捗表示のための動画長（秒単位）
+    /// Video duration in seconds for accurate merge progress display
     pub duration_seconds: i64,
-    /// このパートのサムネイルURL（省略可能）
+    /// Thumbnail URL for this part (optional, used for history entry)
     #[serde(default)]
     pub thumbnail_url: Option<String>,
-    /// マルチパート動画のページ番号（省略可能）
+    /// Page number for multi-part videos (optional)
     #[serde(default)]
     pub page: Option<i32>,
-    /// 字幕オプション（省略可能）
+    /// Subtitle configuration options (optional)
     #[serde(default)]
     pub subtitle: Option<SubtitleOptions>,
 }
@@ -72,7 +74,6 @@ use crate::models::frontend_dto::{
 use crate::utils::downloads::download_url;
 use crate::utils::paths::get_lib_path;
 use crate::{constants::USER_AGENT, models::frontend_dto::User};
-use base64::Engine;
 use reqwest::header;
 use reqwest::Client;
 use std::collections::BTreeMap;
@@ -394,7 +395,9 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
     result
 }
 
-/// 字幕一時ファイルをクリーンアップする
+/// Cleans up temporary subtitle files for a download.
+///
+/// Removes any `.srt` files matching the download ID prefix from the lib directory.
 fn cleanup_subtitle_files(lib_path: &std::path::Path, download_id: &str) {
     let prefix = format!("temp_sub_{}_", download_id);
     if let Ok(entries) = std::fs::read_dir(lib_path) {
@@ -616,19 +619,6 @@ pub fn build_cookie_header_from_cache(app: &AppHandle) -> Result<String, String>
     Ok(header)
 }
 
-/// Fetches an image from a URL and returns it as a Base64-encoded data URI.
-pub async fn get_thumbnail_base64(url: &str) -> Result<String, String> {
-    let bytes = reqwest::get(url)
-        .await
-        .map_err(|e| format!("Failed to fetch thumbnail image: {e}"))?
-        .bytes()
-        .await
-        .map_err(|e| format!("Failed to read thumbnail image bytes: {e}"))?;
-
-    let encoded = base64::engine::general_purpose::STANDARD.encode(&bytes);
-    Ok(format!("data:image/jpeg;base64,{encoded}"))
-}
-
 /// Fetches video metadata from Bilibili (title, parts, quality options, thumbnails).
 pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String> {
     let cookies = read_cookie(app)?.unwrap_or_default();
@@ -655,7 +645,6 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
             duration: 0,
             thumbnail: Thumbnail {
                 url: data.pic.clone(),
-                base64: String::new(),
             },
             video_qualities: vec![],
             audio_qualities: vec![],
@@ -680,7 +669,6 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
             duration: page.duration,
             thumbnail: Thumbnail {
                 url: thumb_url.into(),
-                base64: String::new(),
             },
             video_qualities: vec![],
             audio_qualities: vec![],
@@ -1036,7 +1024,6 @@ pub async fn fetch_watch_history(
                 WatchHistoryEntry {
                     title: item.title,
                     cover: item.cover,
-                    cover_base64: String::new(),
                     bvid: item.history.bvid,
                     cid: item.history.cid,
                     page: item.history.page,
@@ -1135,9 +1122,21 @@ pub async fn fetch_subtitles(
         .collect()
 }
 
-/// 個別パートの字幕を取得するコマンド
+/// Fetches available subtitles for a specific video part.
 ///
-/// アコーディオン開閉時の遅延ロード用
+/// Used for lazy-loading subtitles when the user opens the subtitle accordion
+/// in the UI.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle for accessing cookie cache
+/// * `bvid` - Bilibili video ID (BV identifier)
+/// * `cid` - Content ID for the specific video part
+///
+/// # Returns
+///
+/// Returns a list of available subtitles with language info and URLs.
+/// Returns an empty vector if no subtitles are available or on error.
 pub async fn fetch_subtitles_for_part(
     app: &AppHandle,
     bvid: &str,
@@ -1148,9 +1147,20 @@ pub async fn fetch_subtitles_for_part(
     Ok(fetch_subtitles(&client, &cookies, bvid, cid).await)
 }
 
-/// 個別パートの画質・音質情報を取得する
+/// Fetches available video and audio qualities for a specific part.
 ///
-/// 遅延ロード用（パート描画時に呼び出し）
+/// Used for lazy-loading qualities when the part is rendered in the UI
+/// (virtual scrolling optimization).
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle for accessing cookie cache
+/// * `bvid` - Bilibili video ID (BV identifier)
+/// * `cid` - Content ID for the specific video part
+///
+/// # Returns
+///
+/// Returns a tuple of (video_qualities, audio_qualities).
 pub async fn fetch_part_qualities(
     app: &AppHandle,
     bvid: &str,
@@ -1166,9 +1176,24 @@ pub async fn fetch_part_qualities(
     Ok((video_qualities, audio_qualities))
 }
 
-/// 字幕をダウンロードしてSRT形式で保存する
+/// Downloads a subtitle and saves it in SRT format.
 ///
-/// BCC形式のJSON字幕をダウンロードし、SRT形式に変換して保存する。
+/// Fetches a BCC-format JSON subtitle from Bilibili, converts it to SRT format,
+/// and saves it to the specified output path.
+///
+/// # Arguments
+///
+/// * `client` - HTTP client for making the request
+/// * `subtitle_url` - URL to the BCC subtitle JSON (may start with "//")
+/// * `output_path` - Path where the SRT file will be saved
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The download fails
+/// - HTTP response is not successful
+/// - JSON parsing fails
+/// - File write fails
 pub async fn download_subtitle(
     client: &Client,
     subtitle_url: &str,

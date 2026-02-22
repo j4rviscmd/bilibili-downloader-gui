@@ -41,7 +41,7 @@ describe('redownloadFromHistory', () => {
             duration: 120,
             videoQualities: [{ quality: '1080p', id: 80 }],
             audioQualities: [{ quality: '64K', id: 30216 }],
-            thumbnail: { url: 'thumb.jpg', base64: 'data' },
+            thumbnail: { url: 'thumb.jpg' },
           },
         ],
       }
@@ -64,7 +64,7 @@ describe('redownloadFromHistory', () => {
             duration: 120,
             videoQualities: [{ quality: '1080p', id: 80 }],
             audioQualities: [{ quality: '64K', id: 30216 }],
-            thumbnail: { url: 'thumb.jpg', base64: 'data' },
+            thumbnail: { url: 'thumb.jpg' },
           },
           {
             part: 'Part 2',
@@ -124,7 +124,7 @@ describe('redownloadFromHistory', () => {
               { quality: 'Hi-Res', id: 30251 },
               { quality: '64K', id: 30216 },
             ],
-            thumbnail: { url: 'thumb.jpg', base64: 'data' },
+            thumbnail: { url: 'thumb.jpg' },
           },
         ],
       }
@@ -156,7 +156,7 @@ describe('redownloadFromHistory', () => {
             duration: 120,
             videoQualities: [{ quality: '1080p', id: 80 }],
             audioQualities: [{ quality: '64K', id: 30216 }],
-            thumbnail: { url: 'thumb.jpg', base64: 'data' },
+            thumbnail: { url: 'thumb.jpg' },
           },
           {
             part: 'Part 2',

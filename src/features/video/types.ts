@@ -105,8 +105,6 @@ export type VideoPart = {
 export type Thumbnail = {
   /** Thumbnail URL */
   url: string
-  /** Base64-encoded thumbnail image */
-  base64: string
 }
 
 /**

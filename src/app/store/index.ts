@@ -1,7 +1,6 @@
 import countReducer from '@/features/count/model/countSlice'
 import favoriteReducer from '@/features/favorite/model/favoriteSlice'
 import historyReducer from '@/features/history/model/historySlice'
-import thumbnailCacheReducer from '@/features/history/model/thumbnailSlice'
 import initReducer from '@/features/init/model/initSlice'
 import devReducer from '@/features/settings/devSlice'
 import settingReducer from '@/features/settings/settingsSlice'
@@ -42,7 +41,6 @@ export const store = configureStore({
     queue: queueReducer,
     settings: settingReducer,
     sidebar: sidebarReducer,
-    thumbnailCache: thumbnailCacheReducer,
     updater: updaterReducer,
     user: userReducer,
     video: videoReducer,

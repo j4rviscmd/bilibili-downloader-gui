@@ -110,7 +110,6 @@ pub fn run() {
             clear_history,
             search_history,
             export_history,
-            get_thumbnail_base64,
             reveal_in_folder,
             open_file,
             get_release_notes,
@@ -743,31 +742,6 @@ async fn export_history(app: AppHandle, format: String) -> Result<String, String
         }
         _ => Err(format!("Invalid format: {}. Supported: json, csv", format)),
     }
-}
-
-/// Fetches and encodes a thumbnail image as base64 data URL.
-///
-/// Downloads the image from the given URL and returns a base64-encoded
-/// data URL that can be directly used in an `<img>` tag.
-/// This bypasses Referer/CORS restrictions by using the backend to fetch.
-///
-/// # Arguments
-///
-/// * `url` - Thumbnail image URL (e.g., from Bilibili)
-///
-/// # Returns
-///
-/// Base64-encoded data URL (e.g., "data:image/jpeg;base64,...").
-///
-/// # Errors
-///
-/// Returns an error if:
-/// - HTTP request fails
-/// - Response byte reading fails
-/// - Base64 encoding fails
-#[tauri::command]
-async fn get_thumbnail_base64(url: String) -> Result<String, String> {
-    crate::handlers::bilibili::get_thumbnail_base64(&url).await
 }
 
 /// Reveals a file in the system's file manager.

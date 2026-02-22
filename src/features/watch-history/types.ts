@@ -9,8 +9,6 @@ export type WatchHistoryEntry = {
   title: string
   /** Thumbnail cover image URL */
   cover: string
-  /** Base64-encoded thumbnail image */
-  coverBase64: string
   /** Bilibili video ID (e.g., 'BV1xx411c7XD') */
   bvid: string
   /** Part CID (unique identifier for the specific part) */
