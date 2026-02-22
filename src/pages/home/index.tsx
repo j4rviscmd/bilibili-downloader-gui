@@ -1,5 +1,7 @@
+import type { RootState } from '@/app/store'
 import { store, useSelector } from '@/app/store'
 import { useInit } from '@/features/init'
+import type { Video } from '@/features/video'
 import {
   deselectAll,
   DownloadButton,
@@ -26,14 +28,14 @@ import {
   CardHeader,
   CardTitle,
 } from '@/shared/ui/card'
-import { ScrollArea, ScrollBar } from '@/shared/ui/scroll-area'
 import { Separator } from '@/shared/ui/separator'
 import { Skeleton } from '@/shared/ui/skeleton'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { Info } from 'lucide-react'
-import { useEffect } from 'react'
+import { useCallback, useEffect } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router'
+import { Virtuoso } from 'react-virtuoso'
 
 /**
  * Props for the TooltipButton component.
@@ -90,6 +92,77 @@ function TooltipButton({
   )
 }
 
+/** Approximate height of each VideoPartCard in pixels. */
+const DEFAULT_PART_HEIGHT = 220
+
+/** Props for the ScrollablePartList component. */
+type ScrollablePartListProps = {
+  video: Video
+  duplicateIndices: number[]
+  isFetching: boolean
+}
+
+/**
+ * Virtualized part list that replaces the previous ScrollArea.
+ *
+ * Uses `react-virtuoso` to render only visible VideoPartCards,
+ * significantly reducing DOM nodes for videos with many parts.
+ *
+ * @private
+ */
+function ScrollablePartList({
+  video,
+  duplicateIndices,
+  isFetching,
+}: ScrollablePartListProps) {
+  const itemContent = useCallback(
+    (idx: number) => (
+      <div>
+        <VideoPartCard
+          video={video}
+          page={idx + 1}
+          isDuplicate={duplicateIndices.includes(idx)}
+        />
+        {idx < video.parts.length - 1 && <Separator className="my-3" />}
+      </div>
+    ),
+    [video, duplicateIndices],
+  )
+
+  const Footer = useCallback(
+    () => (
+      <CardFooter>
+        <DownloadButton />
+      </CardFooter>
+    ),
+    [],
+  )
+
+  const computeItemKey = useCallback(
+    (idx: number) => video.parts[idx].cid,
+    [video.parts],
+  )
+
+  if (isFetching) {
+    return (
+      <CardContent className="space-y-0">
+        <VideoPartCardSkeleton />
+      </CardContent>
+    )
+  }
+
+  return (
+    <Virtuoso
+      style={{ height: 'calc(100dvh - 2.3rem - 13.5rem)' }}
+      totalCount={video.parts.length}
+      defaultItemHeight={DEFAULT_PART_HEIGHT}
+      computeItemKey={computeItemKey}
+      itemContent={itemContent}
+      components={{ Footer }}
+    />
+  )
+}
+
 /**
  * Internal home page content component.
  *
@@ -111,7 +184,7 @@ function HomeContentInner() {
   const { video, duplicateIndices, onValid1, isFetching } = useVideoInfo()
   const { t } = useTranslation()
   const hasActiveDownloads = useSelector(selectHasActiveDownloads)
-  const user = useSelector((state) => state.user)
+  const user = useSelector((state: RootState) => state.user)
   const isLoggedIn = user.hasCookie && user.data?.isLogin
 
   // Handle autoFetch from query parameter
@@ -124,13 +197,10 @@ function HomeContentInner() {
     }
   }, [searchParams, isFetching, video.parts.length, onValid1, setSearchParams])
 
+  const selectDisabled = hasActiveDownloads
   const selectTooltip = hasActiveDownloads
     ? t('video.download_in_progress')
     : undefined
-  const selectDisabled = {
-    disabled: hasActiveDownloads,
-    tooltip: selectTooltip,
-  }
 
   return (
     <div className="flex h-full flex-col">
@@ -195,45 +265,24 @@ function HomeContentInner() {
                     <TooltipButton
                       label={t('video.select_all')}
                       onClick={() => store.dispatch(selectAll())}
-                      {...selectDisabled}
+                      disabled={selectDisabled}
+                      tooltip={selectTooltip}
                     />
                     <TooltipButton
                       label={t('video.deselect_all')}
                       onClick={() => store.dispatch(deselectAll())}
-                      {...selectDisabled}
+                      disabled={selectDisabled}
+                      tooltip={selectTooltip}
                     />
                   </div>
                 )}
               </div>
             </CardHeader>
-            <ScrollArea style={{ height: 'calc(100dvh - 2.3rem - 13.5rem)' }}>
-              <CardContent className="space-y-0">
-                {isFetching ? (
-                  <VideoPartCardSkeleton />
-                ) : (
-                  video.parts.map((_v, idx) => {
-                    const isLast = idx === video.parts.length - 1
-
-                    return (
-                      <div key={idx}>
-                        <VideoPartCard
-                          video={video}
-                          page={idx + 1}
-                          isDuplicate={duplicateIndices.includes(idx)}
-                        />
-                        {!isLast && <Separator className="my-3" />}
-                      </div>
-                    )
-                  })
-                )}
-              </CardContent>
-              {!isFetching && (
-                <CardFooter>
-                  <DownloadButton />
-                </CardFooter>
-              )}
-              <ScrollBar />
-            </ScrollArea>
+            <ScrollablePartList
+              video={video}
+              duplicateIndices={duplicateIndices}
+              isFetching={isFetching}
+            />
           </Card>
         </div>
       )}

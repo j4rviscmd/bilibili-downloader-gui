@@ -262,6 +262,25 @@ export const inputSlice = createSlice({
         }
       }
     },
+    /**
+     * Sets the accordion open state for a specific part.
+     *
+     * Persists the open/closed state so that virtual scroll can
+     * restore it when the component is re-mounted.
+     *
+     * @param state - Current input state
+     * @param action - Action containing the index and open state
+     */
+    setAccordionOpen: (
+      state,
+      action: PayloadAction<{ index: number; open: boolean }>,
+    ) => {
+      const { index, open } = action.payload
+      const target = state.partInputs[index]
+      if (target) {
+        target.accordionOpen = open
+      }
+    },
   },
 })
 
@@ -271,6 +290,7 @@ export const {
   initPartInputs,
   resetInput,
   selectAll,
+  setAccordionOpen,
   setInput,
   setPartQualities,
   setPartSubtitles,

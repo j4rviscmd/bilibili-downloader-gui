@@ -22,6 +22,7 @@ import { buildVideoFormSchema2 } from '@/features/video/lib/formSchema'
 import { extractVideoId } from '@/features/video/lib/utils'
 import {
   defaultSubtitleConfig,
+  setAccordionOpen,
   setPartQualities,
   setPartSubtitles,
   setQualitiesLoading,
@@ -29,24 +30,18 @@ import {
   updatePartSelected,
   updateSubtitleConfig,
 } from '@/features/video/model/inputSlice'
-import type {
-  SubtitleConfig,
-  SubtitleInfo,
-  Video,
-} from '@/features/video/types'
+import type { Video } from '@/features/video/types'
 import { PartDownloadProgress } from '@/features/video/ui/PartDownloadProgress'
+import { QualityRadioGroup } from '@/features/video/ui/QualityRadioGroup'
+import { SubtitleSection } from '@/features/video/ui/SubtitleSection'
 import { Checkbox } from '@/shared/animate-ui/radix/checkbox'
-import {
-  RadioGroup,
-  RadioGroupItem,
-} from '@/shared/animate-ui/radix/radio-group'
+import { RadioGroup } from '@/shared/animate-ui/radix/radio-group'
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
-import { cn } from '@/shared/lib/utils'
 import {
   cancelDownload,
   clearQueueItem,
@@ -61,221 +56,16 @@ import {
   FormLabel,
   FormMessage,
 } from '@/shared/ui/form'
-import { Label } from '@/shared/ui/label'
 import { Skeleton } from '@/shared/ui/skeleton'
 import { Textarea } from '@/shared/ui/textarea'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { AlertTriangle, Check, Copy, ImageOff, Info } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Check, Copy, ImageOff, Info } from 'lucide-react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import { toast } from 'sonner'
 import { z } from 'zod'
-
-type QualityRadioOption = {
-  id: string
-  label: string
-  isAvailable: boolean
-}
-
-type QualityRadioGroupProps = {
-  options: QualityRadioOption[]
-  idPrefix: string
-}
-
-/** Radio group component for quality selection. Unavailable qualities are disabled. */
-function QualityRadioGroup({ options, idPrefix }: QualityRadioGroupProps) {
-  return (
-    <div className="flex flex-wrap gap-x-4 gap-y-2">
-      {options.map(({ id, label, isAvailable }) => (
-        <div
-          key={id}
-          className={cn(
-            'flex min-h-[22px] min-w-[60px] items-center space-x-2 whitespace-nowrap',
-            !isAvailable && 'text-muted-foreground/60',
-          )}
-        >
-          <RadioGroupItem
-            disabled={!isAvailable}
-            value={id}
-            id={`${idPrefix}-${id}`}
-          />
-          <Label
-            htmlFor={`${idPrefix}-${id}`}
-            className={cn(
-              'cursor-pointer',
-              !isAvailable && 'cursor-not-allowed',
-            )}
-          >
-            {label}
-          </Label>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function AiBadge() {
-  return (
-    <span className="rounded bg-blue-100 px-1 text-[10px] text-blue-700 dark:bg-blue-900 dark:text-blue-300">
-      AI
-    </span>
-  )
-}
-
-type SubtitleSectionProps = {
-  subtitles: Pick<SubtitleInfo, 'lan' | 'lanDoc' | 'isAi'>[]
-  config: SubtitleConfig
-  disabled: boolean
-  page: number
-  onConfigChange: (config: SubtitleConfig) => void
-}
-
-function SubtitleSection({
-  subtitles,
-  config,
-  disabled,
-  page,
-  onConfigChange,
-}: SubtitleSectionProps) {
-  const { t } = useTranslation()
-
-  if (subtitles.length === 0) return null
-
-  const modeOptions = [
-    { id: 'off', label: t('video.subtitle_off') },
-    { id: 'soft', label: t('video.subtitle_soft') },
-    { id: 'hard', label: t('video.subtitle_hard') },
-  ]
-
-  function handleModeChange(mode: 'off' | 'soft' | 'hard') {
-    if (mode === 'off') {
-      onConfigChange({ mode: 'off', selectedLans: [] })
-    } else if (mode === 'soft') {
-      onConfigChange({
-        mode: 'soft',
-        selectedLans: subtitles.map((s) => s.lan),
-      })
-    } else {
-      onConfigChange({
-        mode: 'hard',
-        selectedLans: subtitles[0] ? [subtitles[0].lan] : [],
-      })
-    }
-  }
-
-  function handleSoftSubtitleToggle(lan: string, checked: boolean) {
-    const newSelectedLans = checked
-      ? [...config.selectedLans, lan]
-      : config.selectedLans.filter((l) => l !== lan)
-    onConfigChange({ ...config, selectedLans: newSelectedLans })
-  }
-
-  function handleHardSubtitleChange(lan: string) {
-    onConfigChange({ ...config, selectedLans: [lan] })
-  }
-
-  return (
-    <div className="space-y-3">
-      <RadioGroup
-        value={config.mode}
-        onValueChange={(value) =>
-          handleModeChange(value as 'off' | 'soft' | 'hard')
-        }
-      >
-        <div className="flex flex-wrap gap-x-4 gap-y-2">
-          {modeOptions.map(({ id, label }) => (
-            <div
-              key={id}
-              className="flex min-h-[22px] min-w-[60px] items-center space-x-2 whitespace-nowrap"
-            >
-              <RadioGroupItem
-                disabled={disabled}
-                value={id}
-                id={`sub-mode-${page}-${id}`}
-              />
-              <Label
-                htmlFor={`sub-mode-${page}-${id}`}
-                className={cn(
-                  'cursor-pointer',
-                  disabled && 'cursor-not-allowed',
-                )}
-              >
-                {label}
-              </Label>
-            </div>
-          ))}
-        </div>
-      </RadioGroup>
-
-      {config.mode === 'soft' && (
-        <div className="space-y-2">
-          <div className="text-muted-foreground text-xs">
-            {t('video.subtitle_select_multiple')}
-          </div>
-          <div className="flex flex-wrap gap-x-4 gap-y-2">
-            {subtitles.map((sub) => (
-              <div
-                key={sub.lan}
-                className="flex min-h-[22px] items-center space-x-2"
-              >
-                <Checkbox
-                  disabled={disabled}
-                  checked={config.selectedLans.includes(sub.lan)}
-                  onCheckedChange={(checked) =>
-                    handleSoftSubtitleToggle(sub.lan, checked === true)
-                  }
-                />
-                <Label className="flex items-center gap-1">
-                  {sub.lanDoc}
-                  {sub.isAi && <AiBadge />}
-                </Label>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {config.mode === 'hard' && (
-        <div className="space-y-2">
-          <RadioGroup
-            value={config.selectedLans[0] || ''}
-            onValueChange={handleHardSubtitleChange}
-          >
-            <div className="flex flex-wrap gap-x-4 gap-y-2">
-              {subtitles.map((sub) => (
-                <div
-                  key={sub.lan}
-                  className="flex min-h-[22px] items-center space-x-2"
-                >
-                  <RadioGroupItem
-                    disabled={disabled}
-                    value={sub.lan}
-                    id={`sub-hard-${page}-${sub.lan}`}
-                  />
-                  <Label
-                    htmlFor={`sub-hard-${page}-${sub.lan}`}
-                    className="flex items-center gap-1"
-                  >
-                    {sub.lanDoc}
-                    {sub.isAi && <AiBadge />}
-                  </Label>
-                </div>
-              ))}
-            </div>
-          </RadioGroup>
-          <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs dark:border-amber-800 dark:bg-amber-950">
-            <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
-            <p className="text-amber-700 dark:text-amber-300">
-              {t('video.subtitle_hard_warning')}
-            </p>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
 
 type Props = {
   video: Video
@@ -284,16 +74,39 @@ type Props = {
 }
 
 /**
+ * Computes the default title for a video part.
+ *
+ * Returns the video title for single-part videos, or combines video
+ * title with part name for multi-part videos.
+ */
+function computeDefaultTitle(
+  video: Video,
+  videoPart: { part: string },
+): string {
+  if (!video || video.parts.length === 0 || video.parts[0].cid === 0) {
+    return ''
+  }
+  return video.title === videoPart.part
+    ? video.title
+    : `${video.title} ${videoPart.part}`
+}
+
+/**
  * Video part configuration card component.
  *
- * Displays thumbnail, filename input, quality selectors, and download progress.
- * Changes are auto-saved on blur. Shows a warning for duplicate titles.
+ * Displays thumbnail, filename input, quality selectors, and download
+ * progress. Changes are auto-saved on blur. Shows a warning for
+ * duplicate titles. Wrapped with `React.memo` to skip re-renders when
+ * props are shallowly equal.
  */
-function VideoPartCard({ video, page, isDuplicate }: Props) {
+const VideoPartCard = memo(function VideoPartCard({
+  video,
+  page,
+  isDuplicate,
+}: Props) {
   const { onValid2 } = useVideoInfo()
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
-  const [accordionValue, setAccordionValue] = useState<string[]>([])
   const cardRef = useRef<HTMLDivElement>(null)
   const disabled = video.parts.length === 0
   const videoPart = video.parts[page - 1]
@@ -316,7 +129,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
 
   const isSubtitleInvalid =
     partInput?.subtitle?.mode !== 'off' &&
-    (partInput?.subtitle?.selectedLans?.length ?? 0) === 0
+    !partInput?.subtitle?.selectedLans?.length
 
   const subtitles = partInput?.subtitles ?? []
   const subtitlesLoading = partInput?.subtitlesLoading ?? false
@@ -324,6 +137,28 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   const videoQualities = partInput?.videoQualities ?? []
   const audioQualities = partInput?.audioQualities ?? []
   const qualitiesLoading = partInput?.qualitiesLoading ?? false
+
+  // Derive accordion value from Redux so state survives unmount/remount
+  const accordionValue = useMemo(
+    () => (partInput?.accordionOpen ? ['other-options'] : []),
+    [partInput?.accordionOpen],
+  )
+
+  // Skip the open animation on mount when restoring an already-open
+  // accordion (e.g. after Virtuoso re-mounts). The ref flips to true
+  // after the first render so subsequent user-initiated toggles still
+  // animate normally.
+  const mountedRef = useRef(false)
+  useEffect(() => {
+    mountedRef.current = true
+  }, [])
+  const accordionTransition = useMemo(
+    () =>
+      !mountedRef.current && partInput?.accordionOpen
+        ? { duration: 0 }
+        : undefined,
+    [],
+  )
 
   useEffect(() => {
     if (!cardRef.current) return
@@ -365,28 +200,31 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
     return () => observer.disconnect()
   }, [page, video.bvid, videoPart.cid, videoQualities.length, qualitiesLoading])
 
-  async function handleAccordionChange(value: string[]) {
-    setAccordionValue(value)
-    if (
-      value.includes('other-options') &&
-      subtitles.length === 0 &&
-      !subtitlesLoading
-    ) {
-      store.dispatch(setSubtitlesLoading({ index: page - 1, loading: true }))
-      try {
-        const fetchedSubtitles = await fetchSubtitlesForPart(
-          video.bvid,
-          videoPart.cid,
-        )
-        store.dispatch(
-          setPartSubtitles({ index: page - 1, subtitles: fetchedSubtitles }),
-        )
-      } catch (e) {
-        console.error('Failed to fetch subtitles:', e)
-        store.dispatch(setPartSubtitles({ index: page - 1, subtitles: [] }))
+  const handleAccordionChange = useCallback(
+    async (value: string[]) => {
+      const isOpen = value.includes('other-options')
+      store.dispatch(setAccordionOpen({ index: page - 1, open: isOpen }))
+      if (isOpen && subtitles.length === 0 && !subtitlesLoading) {
+        store.dispatch(setSubtitlesLoading({ index: page - 1, loading: true }))
+        try {
+          const fetchedSubtitles = await fetchSubtitlesForPart(
+            video.bvid,
+            videoPart.cid,
+          )
+          store.dispatch(
+            setPartSubtitles({
+              index: page - 1,
+              subtitles: fetchedSubtitles,
+            }),
+          )
+        } catch (e) {
+          console.error('Failed to fetch subtitles:', e)
+          store.dispatch(setPartSubtitles({ index: page - 1, subtitles: [] }))
+        }
       }
-    }
-  }
+    },
+    [page, video.bvid, videoPart.cid, subtitles.length, subtitlesLoading],
+  )
 
   /**
    * Checks if a quality ID is available for the current video part.
@@ -394,26 +232,36 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
    * @param type - Either 'video' or 'audio'
    * @returns True if the quality is available
    */
-  function isQualityAvailable(qualityId: number, type: 'video' | 'audio') {
-    const qualities = type === 'video' ? videoQualities : audioQualities
-    return qualities.some((q) => q.id === qualityId)
-  }
+  const isQualityAvailable = useCallback(
+    (qualityId: number, type: 'video' | 'audio') => {
+      const qualities = type === 'video' ? videoQualities : audioQualities
+      return qualities.some((q) => q.id === qualityId)
+    },
+    [videoQualities, audioQualities],
+  )
 
-  function handleSelectedChange(checked: boolean | 'indeterminate') {
-    store.dispatch(
-      updatePartSelected({ index: page - 1, selected: checked === true }),
-    )
-  }
+  const handleSelectedChange = useCallback(
+    (checked: boolean | 'indeterminate') => {
+      store.dispatch(
+        updatePartSelected({
+          index: page - 1,
+          selected: checked === true,
+        }),
+      )
+    },
+    [page],
+  )
 
   /**
-   * Executes redownload by removing completed item and starting fresh download.
-   * Clears the queue item and initiates a new download with a new ID.
+   * Executes redownload by removing completed item and starting
+   * fresh download. Clears the queue item and initiates a new
+   * download with a new ID.
    */
-  async function handleRedownload() {
+  const handleRedownload = useCallback(async () => {
     const partIndex = page - 1
     const state = store.getState()
-    const partInput = state.input.partInputs[partIndex]
-    if (!partInput) return
+    const pi = state.input.partInputs[partIndex]
+    if (!pi) return
 
     const videoId = extractVideoId(state.input.url)
     if (!videoId) return
@@ -427,44 +275,43 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
 
     await downloadVideo(
       videoId,
-      partInput.cid,
-      partInput.title.trim(),
-      parseInt(partInput.videoQuality || '80', 10),
-      parseInt(partInput.audioQuality || '30216', 10),
+      pi.cid,
+      pi.title.trim(),
+      parseInt(pi.videoQuality || '80', 10),
+      parseInt(pi.audioQuality || '30216', 10),
       newDownloadId,
       newDownloadId.replace(/-p\d+$/, ''),
-      partInput.duration,
-      partInput.thumbnailUrl,
-      partInput.page,
-      partInput.subtitle,
+      pi.duration,
+      pi.thumbnailUrl,
+      pi.page,
+      pi.subtitle,
     )
-  }
+  }, [page])
 
   /**
    * Re-selects the part for next download execution.
    * Enables the checkbox to allow retrying the download.
    */
-  function handleRetry() {
+  const handleRetry = useCallback(() => {
     store.dispatch(updatePartSelected({ index: page - 1, selected: true }))
-  }
+  }, [page])
 
   /**
-   * Cancels the download and deselects to return to pre-download state.
-   * Dispatches cancel action and unchecks the part selection.
+   * Cancels the download and deselects to return to pre-download
+   * state. Dispatches cancel action and unchecks the part selection.
    */
-  function handleCancel() {
+  const handleCancel = useCallback(() => {
     if (downloadStatus.downloadId) {
       store.dispatch(cancelDownload(downloadStatus.downloadId))
     }
-    // Deselect to return to pre-download state (no waiting indicator)
     store.dispatch(updatePartSelected({ index: page - 1, selected: false }))
-  }
+  }, [page, downloadStatus.downloadId])
 
   /**
    * Copies the video part name to clipboard with toast notification.
    * Shows success or error toast based on clipboard operation result.
    */
-  async function handleCopyPartName() {
+  const handleCopyPartName = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(videoPart.part)
       setCopied(true)
@@ -473,29 +320,41 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
     } catch {
       toast.error(t('video.copy_failed'))
     }
-  }
+  }, [videoPart.part, t])
+
+  const handleSubtitleConfigChange = useCallback(
+    (config: Parameters<typeof updateSubtitleConfig>[0]['config']) => {
+      store.dispatch(updateSubtitleConfig({ index: page - 1, config }))
+    },
+    [page],
+  )
 
   const schema2 = useMemo(() => buildVideoFormSchema2(t), [t])
+
+  // Compute the initial title once for defaultValues (mirrors the
+  // useEffect logic that follows, but runs synchronously on mount so
+  // that the form is hydrated from Redux immediately after Virtuoso
+  // re-mounts the component).
+  const initialTitle = useMemo(
+    () => existingInput?.title ?? computeDefaultTitle(video, videoPart),
+    [existingInput?.title, video, videoPart],
+  )
+
   const form = useForm<z.infer<typeof schema2>>({
     resolver: zodResolver(schema2),
     defaultValues: {
-      title: '',
-      videoQuality: '80',
-      audioQuality: '30216',
+      title: initialTitle,
+      videoQuality: existingInput?.videoQuality || '80',
+      audioQuality: existingInput?.audioQuality || '30216',
     },
   })
 
   useEffect(() => {
     if (!video || video.parts.length === 0 || video.parts[0].cid === 0) return
 
-    const defaultTitle =
-      video.title === videoPart.part
-        ? video.title
-        : `${video.title} ${videoPart.part}`
-
-    const title = existingInput?.title ?? defaultTitle
+    const title = existingInput?.title ?? computeDefaultTitle(video, videoPart)
     form.setValue('title', title, { shouldValidate: true })
-  }, [video, page, existingInput?.title, form, videoPart.part])
+  }, [video, existingInput?.title, form, videoPart])
 
   useEffect(() => {
     if (videoQualities.length === 0 || audioQualities.length === 0) return
@@ -504,8 +363,12 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
     const defaultVideoQuality = String(videoQualities[0]?.id ?? 80)
     const defaultAudioQuality = String(audioQualities[0]?.id ?? 30216)
 
-    form.setValue('videoQuality', defaultVideoQuality, { shouldValidate: true })
-    form.setValue('audioQuality', defaultAudioQuality, { shouldValidate: true })
+    form.setValue('videoQuality', defaultVideoQuality, {
+      shouldValidate: true,
+    })
+    form.setValue('audioQuality', defaultAudioQuality, {
+      shouldValidate: true,
+    })
 
     const title = existingInput?.title ?? videoPart.part
     form.trigger().then((isValid) => {
@@ -525,9 +388,12 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
     videoPart.part,
   ])
 
-  function onSubmit(data: z.infer<typeof schema2>) {
-    onValid2(page - 1, data.title, data.videoQuality, data.audioQuality)
-  }
+  const onSubmit = useCallback(
+    (data: z.infer<typeof schema2>) => {
+      onValid2(page - 1, data.title, data.videoQuality, data.audioQuality)
+    },
+    [onValid2, page, schema2],
+  )
 
   return (
     <div ref={cardRef} className="p-3 md:p-4">
@@ -652,7 +518,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                 {qualitiesLoading || videoQualities.length === 0 ? (
                   <div className="space-y-2">
                     <Skeleton className="h-4 w-16" />
-                    <Skeleton className="h-20 w-full" />
+                    <Skeleton className="h-10 w-full" />
                   </div>
                 ) : (
                   <FormField
@@ -714,7 +580,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                     <AccordionTrigger className="py-2 text-sm">
                       {t('video.other_options')}
                     </AccordionTrigger>
-                    <AccordionContent>
+                    <AccordionContent transition={accordionTransition}>
                       <div className="space-y-4">
                         {/* Audio Quality Section */}
                         <div>
@@ -807,14 +673,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                                 hasActiveDownloads
                               }
                               page={page}
-                              onConfigChange={(config) => {
-                                store.dispatch(
-                                  updateSubtitleConfig({
-                                    index: page - 1,
-                                    config,
-                                  }),
-                                )
-                              }}
+                              onConfigChange={handleSubtitleConfigChange}
                             />
                           </div>
                         ) : null}
@@ -852,6 +711,6 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
       </Form>
     </div>
   )
-}
+})
 
 export default VideoPartCard
