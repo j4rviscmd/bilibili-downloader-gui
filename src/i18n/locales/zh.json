@@ -78,6 +78,7 @@
     "collapse_part": "▼ 折叠第 {{num}} 部分",
     "download_pending": "等待下载...",
     "download_in_progress": "下载中",
+    "qualities_loading": "正在获取画质信息...",
     "stage_audio": "音频",
     "stage_video": "视频",
     "stage_merge": "合并",

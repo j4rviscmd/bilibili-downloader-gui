@@ -78,6 +78,7 @@
     "collapse_part": "▼ Contraer parte {{num}}",
     "download_pending": "Esperando para descargar...",
     "download_in_progress": "Descarga en curso",
+    "qualities_loading": "Cargando opciones de calidad...",
     "stage_audio": "Audio",
     "stage_video": "Video",
     "stage_merge": "Fusionar",

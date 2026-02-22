@@ -10,6 +10,12 @@ import {
   VideoForm1,
   VideoInfoProvider,
 } from '@/features/video'
+import { fetchPartQualities } from '@/features/video/api/fetchVideoInfo'
+import { createConcurrencyLimiter } from '@/features/video/lib/concurrency'
+import {
+  setPartQualities,
+  setQualitiesLoading,
+} from '@/features/video/model/inputSlice'
 import VideoPartCard from '@/features/video/ui/VideoPartCard'
 import VideoPartCardSkeleton from '@/features/video/ui/VideoPartCardSkeleton'
 import {
@@ -32,9 +38,10 @@ import { Separator } from '@/shared/ui/separator'
 import { Skeleton } from '@/shared/ui/skeleton'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { Info } from 'lucide-react'
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router'
+import type { ListRange } from 'react-virtuoso'
 import { Virtuoso } from 'react-virtuoso'
 
 /**
@@ -103,18 +110,89 @@ type ScrollablePartListProps = {
 }
 
 /**
+ * API呼び出しの同時実行数リミッター。
+ *
+ * 最大3並列で画質取得APIを呼び出し、429レート制限を回避する。
+ * コンポーネントのライフサイクル外で保持し、再レンダリングで
+ * リセットされないようにする。
+ */
+const qualityLimiter = createConcurrencyLimiter(3)
+
+/**
+ * 指定されたインデックス範囲のパートの画質情報を取得する。
+ *
+ * 既に取得済み・ロード中のパートはスキップし、
+ * concurrency limiter で同時実行数を制限する。
+ *
+ * @param video - 動画情報
+ * @param startIndex - 範囲の開始インデックス
+ * @param endIndex - 範囲の終了インデックス
+ */
+function fetchQualitiesForRange(
+  video: Video,
+  startIndex: number,
+  endIndex: number,
+) {
+  const state = store.getState()
+  for (let i = startIndex; i <= endIndex; i++) {
+    const part = video.parts[i]
+    if (!part) continue
+    const partInput = state.input.partInputs[i]
+    // 既に取得済みまたはロード中ならスキップ
+    if (
+      partInput?.qualitiesLoading ||
+      (partInput?.videoQualities?.length ?? 0) > 0
+    ) {
+      continue
+    }
+    store.dispatch(setQualitiesLoading({ index: i, loading: true }))
+    qualityLimiter
+      .run(() => fetchPartQualities(video.bvid, part.cid))
+      .then(([vq, aq]) => {
+        store.dispatch(
+          setPartQualities({
+            index: i,
+            videoQualities: vq,
+            audioQualities: aq,
+          }),
+        )
+      })
+      .catch((e) => {
+        console.error('Failed to fetch qualities:', e)
+        store.dispatch(
+          setPartQualities({
+            index: i,
+            videoQualities: [],
+            audioQualities: [],
+          }),
+        )
+      })
+  }
+}
+
+/**
  * Virtualized part list that replaces the previous ScrollArea.
  *
  * Uses `react-virtuoso` to render only visible VideoPartCards,
  * significantly reducing DOM nodes for videos with many parts.
  *
+ * 画質情報の取得は `rangeChanged` コールバックで可視範囲を
+ * 検知し、concurrency limiter 経由で順次実行する。
+ * 個々の `VideoPartCard` では画質取得を行わない。
+ *
  * @private
  */
+/** スクロール停止を検出するデバウンス時間（ms） */
+const RANGE_DEBOUNCE_MS = 300
+
 function ScrollablePartList({
   video,
   duplicateIndices,
   isFetching,
 }: ScrollablePartListProps) {
+  const lastRangeRef = useRef<ListRange | null>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
+
   const itemContent = useCallback(
     (idx: number) => (
       <div>
@@ -143,6 +221,46 @@ function ScrollablePartList({
     [video.parts],
   )
 
+  /**
+   * Virtuoso の可視範囲変更コールバック（デバウンス付き）。
+   *
+   * スクロールが停止してから RANGE_DEBOUNCE_MS 後に、
+   * 最終的な可視範囲のパートの画質情報を取得する。
+   * 高速スクロールで通過しただけのパートはコール対象外。
+   */
+  const handleRangeChanged = useCallback(
+    (range: ListRange) => {
+      lastRangeRef.current = range
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current)
+      }
+      debounceRef.current = setTimeout(() => {
+        fetchQualitiesForRange(video, range.startIndex, range.endIndex)
+      }, RANGE_DEBOUNCE_MS)
+    },
+    [video],
+  )
+
+  // デバウンスタイマーのクリーンアップ
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current)
+      }
+    }
+  }, [])
+
+  // 動画が変わった時に初期可視範囲の画質を取得
+  useEffect(() => {
+    if (video.parts.length > 0 && lastRangeRef.current) {
+      fetchQualitiesForRange(
+        video,
+        lastRangeRef.current.startIndex,
+        lastRangeRef.current.endIndex,
+      )
+    }
+  }, [video])
+
   if (isFetching) {
     return (
       <CardContent className="space-y-0">
@@ -156,8 +274,10 @@ function ScrollablePartList({
       style={{ height: 'calc(100dvh - 2.3rem - 13.5rem)' }}
       totalCount={video.parts.length}
       defaultItemHeight={DEFAULT_PART_HEIGHT}
+      increaseViewportBy={200}
       computeItemKey={computeItemKey}
       itemContent={itemContent}
+      rangeChanged={handleRangeChanged}
       components={{ Footer }}
     />
   )
@@ -198,7 +318,7 @@ function HomeContentInner() {
   }, [searchParams, isFetching, video.parts.length, onValid1, setSearchParams])
 
   const selectDisabled = hasActiveDownloads
-  const selectTooltip = hasActiveDownloads
+  const selectTooltip = selectDisabled
     ? t('video.download_in_progress')
     : undefined
 
