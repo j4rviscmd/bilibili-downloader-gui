@@ -58,6 +58,7 @@ pub fn lan_to_iso639(lan: &str) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::bilibili_api::{BccSubtitle, BccSubtitleBody};
 
     #[test]
     fn test_format_srt_time() {
@@ -70,8 +71,79 @@ mod tests {
     #[test]
     fn test_lan_to_iso639() {
         assert_eq!(lan_to_iso639("zh-CN"), "chi");
+        assert_eq!(lan_to_iso639("zh-Hans"), "chi");
+        assert_eq!(lan_to_iso639("zh-TW"), "chi");
+        assert_eq!(lan_to_iso639("zh-Hant"), "chi");
         assert_eq!(lan_to_iso639("en"), "eng");
         assert_eq!(lan_to_iso639("ja"), "jpn");
+        assert_eq!(lan_to_iso639("ko"), "kor");
+        assert_eq!(lan_to_iso639("es"), "spa");
+        assert_eq!(lan_to_iso639("fr"), "fre");
         assert_eq!(lan_to_iso639("unknown"), "und");
+    }
+
+    #[test]
+    fn test_bcc_to_srt_single_entry() {
+        let bcc = BccSubtitle {
+            font_size: 0.4,
+            font_color: "0xFFFFFF".to_string(),
+            background_alpha: 0.5,
+            background_color: "0x000000".to_string(),
+            stroke: "none".to_string(),
+            body: vec![BccSubtitleBody {
+                from: 0.0,
+                to: 2.5,
+                location: 0,
+                content: "Hello world".to_string(),
+            }],
+        };
+
+        let srt = bcc_to_srt(&bcc);
+        let expected = "1\n00:00:00,000 --> 00:00:02,500\nHello world\n";
+        assert_eq!(srt, expected);
+    }
+
+    #[test]
+    fn test_bcc_to_srt_multiple_entries() {
+        let bcc = BccSubtitle {
+            font_size: 0.4,
+            font_color: "0xFFFFFF".to_string(),
+            background_alpha: 0.5,
+            background_color: "0x000000".to_string(),
+            stroke: "none".to_string(),
+            body: vec![
+                BccSubtitleBody {
+                    from: 0.0,
+                    to: 2.5,
+                    location: 0,
+                    content: "First line".to_string(),
+                },
+                BccSubtitleBody {
+                    from: 3.0,
+                    to: 5.5,
+                    location: 0,
+                    content: "Second line".to_string(),
+                },
+            ],
+        };
+
+        let srt = bcc_to_srt(&bcc);
+        assert!(srt.contains("1\n00:00:00,000 --> 00:00:02,500\nFirst line"));
+        assert!(srt.contains("2\n00:00:03,000 --> 00:00:05,500\nSecond line"));
+    }
+
+    #[test]
+    fn test_bcc_to_srt_empty_body() {
+        let bcc = BccSubtitle {
+            font_size: 0.4,
+            font_color: "0xFFFFFF".to_string(),
+            background_alpha: 0.5,
+            background_color: "0x000000".to_string(),
+            stroke: "none".to_string(),
+            body: vec![],
+        };
+
+        let srt = bcc_to_srt(&bcc);
+        assert_eq!(srt, "");
     }
 }
