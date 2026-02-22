@@ -146,17 +146,29 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
 
   /**
    * Initializes part input fields based on video metadata.
+   *
+   * When a pending download exists (from history/favorites), only the
+   * target part is marked as selected. This prevents a race condition
+   * where all parts would briefly be selected, triggering duplicate
+   * title detection before the selection effect could run.
    */
   const initInputsForVideo = useCallback((v: Video) => {
+    const pending = processingPendingRef.current
     const partInputs = v.parts.map((p) => {
       const title = v.title === p.part ? v.title : `${v.title} ${p.part}`
+
+      // Pending download selects only target part; otherwise all selected
+      const selected =
+        !pending ||
+        (pending.cid !== null ? p.cid === pending.cid : p.page === pending.page)
+
       return {
         cid: p.cid,
         page: p.page,
         title,
         videoQuality: '',
         audioQuality: '',
-        selected: true,
+        selected,
         duration: p.duration,
         thumbnailUrl: p.thumbnail.url,
         subtitles: [],
@@ -167,6 +179,11 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
       }
     })
     store.dispatch(initPartInputs(partInputs))
+
+    if (pending) {
+      store.dispatch(clearPendingDownload())
+      processingPendingRef.current = null
+    }
   }, [])
 
   /**
@@ -252,17 +269,22 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
 
   const selectedCount = input.partInputs.filter((pi) => pi.selected).length
 
-  const isForm2ValidAll =
-    input.partInputs.every(
-      (pi) =>
-        schema2.safeParse({
+  const isForm2ValidAll = (() => {
+    if (!selectedCount || hasDuplicates) return false
+    return input.partInputs
+      .filter((pi) => pi.selected)
+      .every((pi) => {
+        const valid = schema2.safeParse({
           title: pi.title,
           videoQuality: pi.videoQuality,
           audioQuality: pi.audioQuality,
-        }).success,
-    ) &&
-    !hasDuplicates &&
-    selectedCount > 0
+        }).success
+        const subtitleOk =
+          pi.subtitle?.mode === 'off' ||
+          (pi.subtitle?.selectedLans?.length ?? 0) > 0
+        return valid && subtitleOk
+      })
+  })()
 
   /**
    * Processes pending download from history/favorites.

@@ -29,14 +29,19 @@ export const selectNormalizedTitles = createSelector(
 /**
  * Memoized selector for indices of duplicate part titles.
  *
- * Returns an array of indices where the normalized title matches another
- * part's title. Empty if no duplicates exist.
+ * Only considers selected (checked) parts for duplicate detection.
+ * Unselected parts are excluded so their titles do not trigger
+ * duplicate warnings or block the download button.
+ *
+ * Returns an array of indices where the normalized title matches
+ * another selected part's title. Empty if no duplicates exist.
  */
 export const selectDuplicateIndices = createSelector(
-  [selectNormalizedTitles],
-  (titles) => {
+  [selectNormalizedTitles, selectPartInputs],
+  (titles, partInputs) => {
     const map: Record<string, number[]> = {}
     titles.forEach((t, idx) => {
+      if (!partInputs[idx]?.selected) return
       if (!map[t]) map[t] = []
       map[t].push(idx)
     })
@@ -70,14 +75,18 @@ export const selectIsForm1Valid = (tFn: TFunction) => (state: RootState) => {
 /**
  * Selector factory for all parts validation status.
  *
+ * Only validates selected (checked) parts. Unselected parts are
+ * skipped so their validation errors do not block downloads.
+ *
  * @param tFn - Translation function for localized error messages
- * @returns A selector that checks if all part inputs are valid
+ * @returns A selector that checks if all selected part inputs are valid
  */
 export const selectAllPartValid = (tFn: TFunction) => (state: RootState) => {
   const schema2 = buildVideoFormSchema2(tFn)
+  const selectedParts = state.input.partInputs.filter((pi) => pi.selected)
   return (
-    state.input.partInputs.length > 0 &&
-    state.input.partInputs.every(
+    selectedParts.length > 0 &&
+    selectedParts.every(
       (pi) =>
         schema2.safeParse({
           title: pi.title,
@@ -144,16 +153,15 @@ export const selectParentProgress =
       }
     })
 
-    let ratio: number | null = null
-    if (filesizeSum > 0) {
-      ratio = downloadedSum / filesizeSum
-    } else if (percentageCount > 0) {
-      ratio = percentageSum / percentageCount / 100
-    } else if (stageCount > 0) {
-      ratio = stageSum / stageCount
-    } else {
-      ratio = 0
-    }
+    // Priority: filesize > percentage > stage > 0
+    const ratio =
+      filesizeSum > 0
+        ? downloadedSum / filesizeSum
+        : percentageCount > 0
+          ? percentageSum / percentageCount / 100
+          : stageCount > 0
+            ? stageSum / stageCount
+            : 0
 
     return Math.max(0, Math.min(1, ratio))
   }
