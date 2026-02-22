@@ -32,6 +32,8 @@ export type PartInput = {
   audioQualities?: AudioQuality[]
   /** Whether qualities are currently loading */
   qualitiesLoading?: boolean
+  /** Whether the "other options" accordion is open (persisted for virtual scroll) */
+  accordionOpen?: boolean
 }
 
 /**
