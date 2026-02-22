@@ -62,9 +62,15 @@ import { useSelector } from 'react-redux'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
+/**
+ * Props for the VideoPartCard component.
+ */
 type Props = {
+  /** Video data containing all parts and metadata. */
   video: Video
+  /** 1-based page number indicating which part to display. */
   page: number
+  /** Whether the title is a duplicate of another part's title. */
   isDuplicate?: boolean
 }
 
@@ -108,7 +114,7 @@ const VideoPartCard = memo(function VideoPartCard({
   const sec = videoPart.duration % 60
 
   const downloadStatus = usePartDownloadStatus(page - 1)
-  const { isDownloading, isPending, isComplete, downloadId } = downloadStatus
+  const { isDownloading, isPending, isComplete } = downloadStatus
 
   const hasActiveDownloads = useSelector(selectHasActiveDownloads)
 
@@ -116,14 +122,13 @@ const VideoPartCard = memo(function VideoPartCard({
     (state: RootState) => state.input.partInputs[page - 1],
   )
   const selected = partInput?.selected ?? true
-  const existingInput = partInput
 
   const isWaitingForTurn =
-    selected && !downloadId && !isComplete && hasActiveDownloads
+    selected && !downloadStatus.downloadId && !isComplete && hasActiveDownloads
 
+  const subtitle = partInput?.subtitle
   const isSubtitleInvalid =
-    partInput?.subtitle?.mode !== 'off' &&
-    !partInput?.subtitle?.selectedLans?.length
+    subtitle && subtitle.mode !== 'off' && !subtitle.selectedLans?.length
 
   const subtitles = partInput?.subtitles ?? []
   const subtitlesLoading = partInput?.subtitlesLoading ?? false
@@ -132,28 +137,25 @@ const VideoPartCard = memo(function VideoPartCard({
   const audioQualities = partInput?.audioQualities ?? []
   const qualitiesLoading = partInput?.qualitiesLoading ?? false
 
-  // Derive accordion value from Redux so state survives unmount/remount
   const accordionValue = useMemo(
     () => (partInput?.accordionOpen ? ['other-options'] : []),
     [partInput?.accordionOpen],
   )
 
-  // Skip the open animation on mount when restoring an already-open
-  // accordion (e.g. after Virtuoso re-mounts). The ref flips to true
-  // after the first render so subsequent user-initiated toggles still
-  // animate normally.
+  // Skip animation on mount when restoring an already-open accordion
   const mountedRef = useRef(false)
   useEffect(() => {
     mountedRef.current = true
   }, [])
-  const accordionTransition = useMemo(
-    () =>
-      !mountedRef.current && partInput?.accordionOpen
-        ? { duration: 0 }
-        : undefined,
-    [],
-  )
+  const accordionTransition =
+    !mountedRef.current && partInput?.accordionOpen
+      ? { duration: 0 }
+      : undefined
 
+  /**
+   * Handles accordion open/close state changes.
+   * Fetches subtitles when the accordion is opened for the first time.
+   */
   const handleAccordionChange = useCallback(
     async (value: string[]) => {
       const isOpen = value.includes('other-options')
@@ -194,6 +196,9 @@ const VideoPartCard = memo(function VideoPartCard({
     [videoQualities, audioQualities],
   )
 
+  /**
+   * Handles checkbox selection state changes for the video part.
+   */
   const handleSelectedChange = useCallback(
     (checked: boolean | 'indeterminate') =>
       store.dispatch(
@@ -223,12 +228,17 @@ const VideoPartCard = memo(function VideoPartCard({
 
     const newDownloadId = `${videoId}-${Date.now()}-p${page}`
 
+    // Use existing quality or first available from API response
+    // No hardcoded fallback - quality info should always be available for redownload
+    const videoQuality = pi.videoQuality || String(pi.videoQualities?.[0]?.id)
+    const audioQuality = pi.audioQuality || String(pi.audioQualities?.[0]?.id)
+
     await downloadVideo(
       videoId,
       pi.cid,
       pi.title.trim(),
-      parseInt(pi.videoQuality || '80', 10),
-      parseInt(pi.audioQuality || '30216', 10),
+      parseInt(videoQuality, 10),
+      parseInt(audioQuality, 10),
       newDownloadId,
       newDownloadId.replace(/-p\d+$/, ''),
       pi.duration,
@@ -239,16 +249,14 @@ const VideoPartCard = memo(function VideoPartCard({
   }, [page])
 
   /**
-   * Re-selects the part for next download execution.
-   * Enables the checkbox to allow retrying the download.
+   * Handles retry action by re-selecting the part for download.
    */
   const handleRetry = useCallback(() => {
     store.dispatch(updatePartSelected({ index: page - 1, selected: true }))
   }, [page])
 
   /**
-   * Cancels the download and deselects to return to pre-download
-   * state. Dispatches cancel action and unchecks the part selection.
+   * Handles cancel action by stopping the current download and deselecting the part.
    */
   const handleCancel = useCallback(() => {
     if (downloadStatus.downloadId) {
@@ -258,8 +266,8 @@ const VideoPartCard = memo(function VideoPartCard({
   }, [page, downloadStatus.downloadId])
 
   /**
-   * Copies the video part name to clipboard with toast notification.
-   * Shows success or error toast based on clipboard operation result.
+   * Copies the video part name to clipboard.
+   * Shows a success toast and resets the copied state after 2 seconds.
    */
   const handleCopyPartName = useCallback(async () => {
     try {
@@ -272,6 +280,10 @@ const VideoPartCard = memo(function VideoPartCard({
     }
   }, [videoPart.part, t])
 
+  /**
+   * Handles subtitle configuration changes.
+   * Dispatches the updated config to Redux store.
+   */
   const handleSubtitleConfigChange = useCallback(
     (config: Parameters<typeof updateSubtitleConfig>[0]['config']) => {
       store.dispatch(updateSubtitleConfig({ index: page - 1, config }))
@@ -281,63 +293,66 @@ const VideoPartCard = memo(function VideoPartCard({
 
   const schema2 = useMemo(() => buildVideoFormSchema2(t), [t])
 
-  // Compute the initial title once for defaultValues (mirrors the
-  // useEffect logic that follows, but runs synchronously on mount so
-  // that the form is hydrated from Redux immediately after Virtuoso
-  // re-mounts the component).
+  // Compute initial title synchronously for form defaultValues
   const initialTitle = useMemo(
-    () => existingInput?.title ?? computeDefaultTitle(video, videoPart),
-    [existingInput?.title, video, videoPart],
+    () => partInput?.title ?? computeDefaultTitle(video, videoPart),
+    [partInput?.title, video, videoPart],
   )
 
+  // React Hook Form instance for managing title and quality selections.
+  // Uses Zod schema validation and auto-saves on blur events.
   const form = useForm<z.infer<typeof schema2>>({
     resolver: zodResolver(schema2),
     defaultValues: {
       title: initialTitle,
-      videoQuality: existingInput?.videoQuality || '80',
-      audioQuality: existingInput?.audioQuality || '30216',
+      videoQuality: partInput?.videoQuality || '',
+      audioQuality: partInput?.audioQuality || '',
     },
   })
 
   useEffect(() => {
     if (!video || video.parts.length === 0 || video.parts[0].cid === 0) return
 
-    const title = existingInput?.title ?? computeDefaultTitle(video, videoPart)
+    const title = partInput?.title ?? computeDefaultTitle(video, videoPart)
     form.setValue('title', title, { shouldValidate: true })
-  }, [video, existingInput?.title, form, videoPart])
+  }, [video, partInput?.title, form, videoPart])
 
   useEffect(() => {
     if (videoQualities.length === 0 || audioQualities.length === 0) return
-    if (existingInput?.videoQuality && existingInput?.audioQuality) return
 
-    const defaultVideoQuality = String(videoQualities[0]?.id ?? 80)
-    const defaultAudioQuality = String(audioQualities[0]?.id ?? 30216)
+    // Use Redux value if already set, otherwise use first available quality (highest)
+    const videoQuality = partInput?.videoQuality || String(videoQualities[0].id)
+    const audioQuality = partInput?.audioQuality || String(audioQualities[0].id)
 
-    form.setValue('videoQuality', defaultVideoQuality, {
-      shouldValidate: true,
-    })
-    form.setValue('audioQuality', defaultAudioQuality, {
-      shouldValidate: true,
-    })
+    // Always sync form with current values
+    form.setValue('videoQuality', videoQuality, { shouldValidate: true })
+    form.setValue('audioQuality', audioQuality, { shouldValidate: true })
 
-    const title = existingInput?.title ?? videoPart.part
-    form.trigger().then((isValid) => {
-      if (isValid && !existingInput?.videoQuality) {
-        onValid2(page - 1, title, defaultVideoQuality, defaultAudioQuality)
-      }
-    })
+    // Only dispatch to Redux if not already set
+    if (!partInput?.videoQuality || !partInput?.audioQuality) {
+      const title = partInput?.title ?? videoPart.part
+      form.trigger().then((isValid) => {
+        if (isValid) {
+          onValid2(page - 1, title, videoQuality, audioQuality)
+        }
+      })
+    }
   }, [
     videoQualities.length,
     audioQualities.length,
-    existingInput?.videoQuality,
-    existingInput?.audioQuality,
-    existingInput?.title,
+    partInput?.videoQuality,
+    partInput?.audioQuality,
+    partInput?.title,
     form,
     onValid2,
     page,
     videoPart.part,
   ])
 
+  /**
+   * Form submission handler that dispatches validated form data to Redux.
+   * Called on form submit and blur events for auto-save behavior.
+   */
   const onSubmit = useCallback(
     (data: z.infer<typeof schema2>) => {
       onValid2(page - 1, data.title, data.videoQuality, data.audioQuality)
