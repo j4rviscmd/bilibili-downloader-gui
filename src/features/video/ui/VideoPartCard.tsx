@@ -8,10 +8,7 @@ import {
 } from '@/components/animate-ui/components/radix/accordion'
 import { useVideoInfo } from '@/features/video'
 import { downloadVideo } from '@/features/video/api/downloadVideo'
-import {
-  fetchPartQualities,
-  fetchSubtitlesForPart,
-} from '@/features/video/api/fetchVideoInfo'
+import { fetchSubtitlesForPart } from '@/features/video/api/fetchVideoInfo'
 import { usePartDownloadStatus } from '@/features/video/hooks/usePartDownloadStatus'
 import {
   AUDIO_QUALITIES_MAP,
@@ -23,9 +20,7 @@ import { extractVideoId } from '@/features/video/lib/utils'
 import {
   defaultSubtitleConfig,
   setAccordionOpen,
-  setPartQualities,
   setPartSubtitles,
-  setQualitiesLoading,
   setSubtitlesLoading,
   updatePartSelected,
   updateSubtitleConfig,
@@ -107,7 +102,6 @@ const VideoPartCard = memo(function VideoPartCard({
   const { onValid2 } = useVideoInfo()
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
-  const cardRef = useRef<HTMLDivElement>(null)
   const disabled = video.parts.length === 0
   const videoPart = video.parts[page - 1]
   const min = Math.floor(videoPart.duration / 60)
@@ -160,46 +154,6 @@ const VideoPartCard = memo(function VideoPartCard({
     [],
   )
 
-  useEffect(() => {
-    if (!cardRef.current) return
-    if (videoQualities.length > 0 || qualitiesLoading) return
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          store.dispatch(
-            setQualitiesLoading({ index: page - 1, loading: true }),
-          )
-          fetchPartQualities(video.bvid, videoPart.cid)
-            .then(([vq, aq]) => {
-              store.dispatch(
-                setPartQualities({
-                  index: page - 1,
-                  videoQualities: vq,
-                  audioQualities: aq,
-                }),
-              )
-            })
-            .catch((e) => {
-              console.error('Failed to fetch qualities:', e)
-              store.dispatch(
-                setPartQualities({
-                  index: page - 1,
-                  videoQualities: [],
-                  audioQualities: [],
-                }),
-              )
-            })
-          observer.disconnect()
-        }
-      },
-      { threshold: 0.1 },
-    )
-
-    observer.observe(cardRef.current)
-    return () => observer.disconnect()
-  }, [page, video.bvid, videoPart.cid, videoQualities.length, qualitiesLoading])
-
   const handleAccordionChange = useCallback(
     async (value: string[]) => {
       const isOpen = value.includes('other-options')
@@ -241,14 +195,10 @@ const VideoPartCard = memo(function VideoPartCard({
   )
 
   const handleSelectedChange = useCallback(
-    (checked: boolean | 'indeterminate') => {
+    (checked: boolean | 'indeterminate') =>
       store.dispatch(
-        updatePartSelected({
-          index: page - 1,
-          selected: checked === true,
-        }),
-      )
-    },
+        updatePartSelected({ index: page - 1, selected: checked === true }),
+      ),
     [page],
   )
 
@@ -396,15 +346,11 @@ const VideoPartCard = memo(function VideoPartCard({
   )
 
   return (
-    <div ref={cardRef} className="p-3 md:p-4">
+    <div className="p-3 md:p-4">
       <Form {...form}>
         <fieldset
           disabled={
-            disabled ||
-            isDownloading ||
-            isPending ||
-            hasActiveDownloads ||
-            isSubtitleInvalid
+            disabled || isDownloading || isPending || hasActiveDownloads
           }
         >
           <form
@@ -452,7 +398,7 @@ const VideoPartCard = memo(function VideoPartCard({
                             {...field}
                           />
                         </FormControl>
-                        <FormMessage />
+                        {selected && <FormMessage />}
                       </FormItem>
                     )}
                   />
@@ -563,7 +509,7 @@ const VideoPartCard = memo(function VideoPartCard({
                             />
                           </RadioGroup>
                         </FormControl>
-                        <FormMessage />
+                        {selected && <FormMessage />}
                       </FormItem>
                     )}
                   />
@@ -628,7 +574,7 @@ const VideoPartCard = memo(function VideoPartCard({
                                     />
                                   </RadioGroup>
                                 </FormControl>
-                                <FormMessage />
+                                {selected && <FormMessage />}
                               </FormItem>
                             )}
                           />
@@ -677,7 +623,7 @@ const VideoPartCard = memo(function VideoPartCard({
                             />
                           </div>
                         ) : null}
-                        {isSubtitleInvalid && (
+                        {selected && isSubtitleInvalid && (
                           <div className="text-destructive text-xs">
                             {t('video.subtitle_select_required')}
                           </div>
@@ -690,7 +636,7 @@ const VideoPartCard = memo(function VideoPartCard({
             </TooltipProvider>
 
             {/* Duplicate Warning */}
-            {isDuplicate && (
+            {selected && isDuplicate && (
               <div className="text-destructive mt-1 text-sm">
                 {t('validation.video.title.duplicate')}
               </div>

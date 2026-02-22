@@ -79,6 +79,7 @@
     "download_pending": "Waiting to download...",
     "downloading": "Downloading...",
     "download_in_progress": "Download in progress",
+    "qualities_loading": "Loading quality options...",
     "stage_audio": "Audio",
     "stage_video": "Video",
     "stage_merge": "Merge",

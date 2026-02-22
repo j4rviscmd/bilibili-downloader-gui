@@ -79,6 +79,7 @@
     "download_pending": "ダウンロード待機中...",
     "downloading": "ダウンロード中...",
     "download_in_progress": "ダウンロード実行中",
+    "qualities_loading": "画質情報を取得中...",
     "stage_audio": "音声",
     "stage_video": "動画",
     "stage_merge": "マージ",
