@@ -641,15 +641,8 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
     let data = res_body.data.as_ref().unwrap();
 
     let pages = data.pages.as_deref().unwrap_or(&[]);
-    let bvid = &video.bvid;
-
-    let client = build_client()?;
 
     if pages.is_empty() {
-        let details = fetch_video_details(&cookies, bvid, data.cid).await?;
-        let dash_data = details.data.unwrap().dash;
-        let subtitles = fetch_subtitles(&client, &cookies, bvid, data.cid).await;
-
         let part = VideoPart {
             cid: data.cid,
             page: 1,
@@ -657,11 +650,11 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
             duration: 0,
             thumbnail: Thumbnail {
                 url: data.pic.clone(),
-                base64: get_thumbnail_base64(&data.pic).await.unwrap_or_default(),
+                base64: String::new(),
             },
-            video_qualities: convert_qualities(&dash_data.video),
-            audio_qualities: convert_qualities(&dash_data.audio),
-            subtitles,
+            video_qualities: vec![],
+            audio_qualities: vec![],
+            subtitles: vec![],
         };
 
         return Ok(Video {
@@ -673,16 +666,7 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
 
     let mut parts = Vec::with_capacity(pages.len());
     for page in pages {
-        let details = fetch_video_details(&cookies, bvid, page.cid).await?;
-        let dash_data = details.data.unwrap().dash;
-        let subtitles = fetch_subtitles(&client, &cookies, bvid, page.cid).await;
-
         let thumb_url = page.first_frame.as_deref().unwrap_or_default();
-        let thumb_base64 = if thumb_url.is_empty() {
-            String::new()
-        } else {
-            get_thumbnail_base64(thumb_url).await.unwrap_or_default()
-        };
 
         parts.push(VideoPart {
             cid: page.cid,
@@ -691,11 +675,11 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
             duration: page.duration,
             thumbnail: Thumbnail {
                 url: thumb_url.into(),
-                base64: thumb_base64,
+                base64: String::new(),
             },
-            video_qualities: convert_qualities(&dash_data.video),
-            audio_qualities: convert_qualities(&dash_data.audio),
-            subtitles,
+            video_qualities: vec![],
+            audio_qualities: vec![],
+            subtitles: vec![],
         });
     }
 
@@ -1044,11 +1028,10 @@ pub async fn fetch_watch_history(
             };
 
             async move {
-                let cover_base64 = get_thumbnail_base64(&item.cover).await.unwrap_or_default();
                 WatchHistoryEntry {
                     title: item.title,
                     cover: item.cover,
-                    cover_base64,
+                    cover_base64: String::new(),
                     bvid: item.history.bvid,
                     cid: item.history.cid,
                     page: item.history.page,
@@ -1145,6 +1128,37 @@ pub async fn fetch_subtitles(
             }
         })
         .collect()
+}
+
+/// 個別パートの字幕を取得するコマンド
+///
+/// アコーディオン開閉時の遅延ロード用
+pub async fn fetch_subtitles_for_part(
+    app: &AppHandle,
+    bvid: &str,
+    cid: i64,
+) -> Result<Vec<SubtitleDto>, String> {
+    let cookies = read_cookie(app)?.unwrap_or_default();
+    let client = build_client()?;
+    Ok(fetch_subtitles(&client, &cookies, bvid, cid).await)
+}
+
+/// 個別パートの画質・音質情報を取得する
+///
+/// 遅延ロード用（パート描画時に呼び出し）
+pub async fn fetch_part_qualities(
+    app: &AppHandle,
+    bvid: &str,
+    cid: i64,
+) -> Result<(Vec<Quality>, Vec<Quality>), String> {
+    let cookies = read_cookie(app)?.unwrap_or_default();
+    let details = fetch_video_details(&cookies, bvid, cid).await?;
+    let dash_data = details.data.unwrap().dash;
+
+    let video_qualities = convert_qualities(&dash_data.video);
+    let audio_qualities = convert_qualities(&dash_data.audio);
+
+    Ok((video_qualities, audio_qualities))
 }
 
 /// 字幕をダウンロードしてSRT形式で保存する

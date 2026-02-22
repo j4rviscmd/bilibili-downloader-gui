@@ -2,6 +2,7 @@ import type { RootState } from '@/app/store'
 import { store } from '@/app/store'
 import { useVideoInfo } from '@/features/video'
 import { downloadVideo } from '@/features/video/api/downloadVideo'
+import { fetchPartQualities, fetchSubtitlesForPart } from '@/features/video/api/fetchVideoInfo'
 import { usePartDownloadStatus } from '@/features/video/hooks/usePartDownloadStatus'
 import {
   AUDIO_QUALITIES_MAP,
@@ -9,9 +10,13 @@ import {
   VIDEO_QUALITIES_MAP,
 } from '@/features/video/lib/constants'
 import { buildVideoFormSchema2 } from '@/features/video/lib/formSchema'
-import { extractVideoId, toThumbnailDataUrl } from '@/features/video/lib/utils'
+import { extractVideoId } from '@/features/video/lib/utils'
 import {
   defaultSubtitleConfig,
+  setPartQualities,
+  setPartSubtitles,
+  setQualitiesLoading,
+  setSubtitlesLoading,
   updatePartSelected,
   updateSubtitleConfig,
 } from '@/features/video/model/inputSlice'
@@ -41,6 +46,7 @@ import {
   findCompletedItemForPart,
   selectHasActiveDownloads,
 } from '@/shared/queue/queueSlice'
+import { Skeleton } from '@/shared/ui/skeleton'
 import {
   Form,
   FormControl,
@@ -53,7 +59,7 @@ import { Label } from '@/shared/ui/label'
 import { Textarea } from '@/shared/ui/textarea'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { AlertTriangle, Check, Copy, ImageOff, Info } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
@@ -280,6 +286,8 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   const { onValid2 } = useVideoInfo()
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
+  const [accordionValue, setAccordionValue] = useState<string[]>([])
+  const cardRef = useRef<HTMLDivElement>(null)
   const disabled = video.parts.length === 0
   const videoPart = video.parts[page - 1]
   const min = Math.floor(videoPart.duration / 60)
@@ -303,8 +311,56 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
     partInput?.subtitle?.mode !== 'off' &&
     (partInput?.subtitle?.selectedLans?.length ?? 0) === 0
 
-  const videoQualities = videoPart.videoQualities
-  const audioQualities = videoPart.audioQualities
+  const subtitles = partInput?.subtitles ?? []
+  const subtitlesLoading = partInput?.subtitlesLoading ?? false
+
+  const videoQualities = partInput?.videoQualities ?? []
+  const audioQualities = partInput?.audioQualities ?? []
+  const qualitiesLoading = partInput?.qualitiesLoading ?? false
+
+  useEffect(() => {
+    if (!cardRef.current) return
+    if (videoQualities.length > 0 || qualitiesLoading) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          store.dispatch(setQualitiesLoading({ index: page - 1, loading: true }))
+          fetchPartQualities(video.bvid, videoPart.cid)
+            .then(([vq, aq]) => {
+              store.dispatch(
+                setPartQualities({ index: page - 1, videoQualities: vq, audioQualities: aq }),
+              )
+            })
+            .catch((e) => {
+              console.error('Failed to fetch qualities:', e)
+              store.dispatch(
+                setPartQualities({ index: page - 1, videoQualities: [], audioQualities: [] }),
+              )
+            })
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.1 },
+    )
+
+    observer.observe(cardRef.current)
+    return () => observer.disconnect()
+  }, [page, video.bvid, videoPart.cid, videoQualities.length, qualitiesLoading])
+
+  async function handleAccordionChange(value: string[]) {
+    setAccordionValue(value)
+    if (value.includes('other-options') && subtitles.length === 0 && !subtitlesLoading) {
+      store.dispatch(setSubtitlesLoading({ index: page - 1, loading: true }))
+      try {
+        const fetchedSubtitles = await fetchSubtitlesForPart(video.bvid, videoPart.cid)
+        store.dispatch(setPartSubtitles({ index: page - 1, subtitles: fetchedSubtitles }))
+      } catch (e) {
+        console.error('Failed to fetch subtitles:', e)
+        store.dispatch(setPartSubtitles({ index: page - 1, subtitles: [] }))
+      }
+    }
+  }
 
   /**
    * Checks if a quality ID is available for the current video part.
@@ -406,35 +462,49 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
   useEffect(() => {
     if (!video || video.parts.length === 0 || video.parts[0].cid === 0) return
 
-    const part = video.parts[page - 1]
     const defaultTitle =
       video.title === videoPart.part
         ? video.title
         : `${video.title} ${videoPart.part}`
 
     const title = existingInput?.title ?? defaultTitle
-    const videoQuality =
-      existingInput?.videoQuality ?? String(part.videoQualities[0]?.id ?? 80)
-    const audioQuality =
-      existingInput?.audioQuality ?? String(part.audioQualities[0]?.id ?? 30216)
-
     form.setValue('title', title, { shouldValidate: true })
-    form.setValue('videoQuality', videoQuality, { shouldValidate: true })
-    form.setValue('audioQuality', audioQuality, { shouldValidate: true })
+  }, [video, page, existingInput?.title, form, videoPart.part])
 
+  useEffect(() => {
+    if (videoQualities.length === 0 || audioQualities.length === 0) return
+    if (existingInput?.videoQuality && existingInput?.audioQuality) return
+
+    const defaultVideoQuality = String(videoQualities[0]?.id ?? 80)
+    const defaultAudioQuality = String(audioQualities[0]?.id ?? 30216)
+
+    form.setValue('videoQuality', defaultVideoQuality, { shouldValidate: true })
+    form.setValue('audioQuality', defaultAudioQuality, { shouldValidate: true })
+
+    const title = existingInput?.title ?? videoPart.part
     form.trigger().then((isValid) => {
-      if (isValid && !existingInput) {
-        onValid2(page - 1, title, videoQuality, audioQuality)
+      if (isValid && !existingInput?.videoQuality) {
+        onValid2(page - 1, title, defaultVideoQuality, defaultAudioQuality)
       }
     })
-  }, [video, page, existingInput, form, onValid2, videoPart.part])
+  }, [
+    videoQualities.length,
+    audioQualities.length,
+    existingInput?.videoQuality,
+    existingInput?.audioQuality,
+    existingInput?.title,
+    form,
+    onValid2,
+    page,
+    videoPart.part,
+  ])
 
   function onSubmit(data: z.infer<typeof schema2>) {
     onValid2(page - 1, data.title, data.videoQuality, data.audioQuality)
   }
 
   return (
-    <div className="p-3 md:p-4">
+    <div ref={cardRef} className="p-3 md:p-4">
       <Form {...form}>
         <fieldset
           disabled={
@@ -454,11 +524,13 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                   onCheckedChange={handleSelectedChange}
                   size="lg"
                 />
-                {videoPart.thumbnail.base64 ? (
+                {videoPart.thumbnail.url ? (
                   <img
-                    src={toThumbnailDataUrl(videoPart.thumbnail.base64)}
+                    src={videoPart.thumbnail.url}
                     alt={t('video.thumbnail_alt', { part: videoPart.part })}
                     className="h-16 w-24 rounded-lg object-cover md:h-20 md:w-32"
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
                   />
                 ) : (
                   <div className="bg-muted flex h-16 w-24 items-center justify-center rounded-lg md:h-20 md:w-32">
@@ -547,55 +619,67 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                   </div>
                 )}
                 {/* Video Quality */}
-                <FormField
-                  control={form.control}
-                  name="videoQuality"
-                  render={({ field }) => (
-                    <FormItem>
-                      <div className="flex items-center gap-1.5">
-                        <FormLabel className="text-sm font-medium">
-                          {t('video.quality_label')}
-                        </FormLabel>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Info className="text-muted-foreground h-4 w-4 cursor-help" />
-                          </TooltipTrigger>
-                          <TooltipContent
-                            side="top"
-                            className="max-w-xs text-xs"
+                {qualitiesLoading || videoQualities.length === 0 ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-16" />
+                    <Skeleton className="h-20 w-full" />
+                  </div>
+                ) : (
+                  <FormField
+                    control={form.control}
+                    name="videoQuality"
+                    render={({ field }) => (
+                      <FormItem>
+                        <div className="flex items-center gap-1.5">
+                          <FormLabel className="text-sm font-medium">
+                            {t('video.quality_label')}
+                          </FormLabel>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Info className="text-muted-foreground h-4 w-4 cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent
+                              side="top"
+                              className="max-w-xs text-xs"
+                            >
+                              <p>{t('video.quality_description')}</p>
+                              <p className="mt-1">{t('video.quality_note')}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <FormControl>
+                          <RadioGroup
+                            value={String(field.value)}
+                            onValueChange={field.onChange}
                           >
-                            <p>{t('video.quality_description')}</p>
-                            <p className="mt-1">{t('video.quality_note')}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </div>
-                      <FormControl>
-                        <RadioGroup
-                          value={String(field.value)}
-                          onValueChange={field.onChange}
-                        >
-                          <QualityRadioGroup
-                            idPrefix={`vq-${page}`}
-                            options={Object.entries(VIDEO_QUALITIES_MAP)
-                              .reverse()
-                              .map(([id, label]) => ({
-                                id,
-                                label,
-                                isAvailable: isQualityAvailable(
-                                  Number(id),
-                                  'video',
-                                ),
-                              }))}
-                          />
-                        </RadioGroup>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                            <QualityRadioGroup
+                              idPrefix={`vq-${page}`}
+                              options={Object.entries(VIDEO_QUALITIES_MAP)
+                                .reverse()
+                                .map(([id, label]) => ({
+                                  id,
+                                  label,
+                                  isAvailable: isQualityAvailable(
+                                    Number(id),
+                                    'video',
+                                  ),
+                                }))}
+                            />
+                          </RadioGroup>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
 
                 {/* Other Options Accordion */}
-                <Accordion type="multiple" className="w-full">
+                <Accordion
+                  type="multiple"
+                  className="w-full"
+                  value={accordionValue}
+                  onValueChange={handleAccordionChange}
+                >
                   <AccordionItem value="other-options">
                     <AccordionTrigger className="py-2 text-sm">
                       {t('video.other_options')}
@@ -653,7 +737,12 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                         </div>
 
                         {/* Subtitle Section */}
-                        {videoPart.subtitles.length > 0 && (
+                        {subtitlesLoading ? (
+                          <div className="space-y-2">
+                            <Skeleton className="h-4 w-16" />
+                            <Skeleton className="h-8 w-full" />
+                          </div>
+                        ) : subtitles.length > 0 ? (
                           <div>
                             <div className="mb-2 flex items-center gap-1.5">
                               <span className="text-sm font-medium">
@@ -673,7 +762,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                               </Tooltip>
                             </div>
                             <SubtitleSection
-                              subtitles={videoPart.subtitles}
+                              subtitles={subtitles}
                               config={partInput?.subtitle ?? defaultSubtitleConfig}
                               disabled={disabled || isDownloading || isPending || hasActiveDownloads}
                               page={page}
@@ -684,7 +773,7 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                               }}
                             />
                           </div>
-                        )}
+                        ) : null}
                         {isSubtitleInvalid && (
                           <div className="text-destructive text-xs">
                             {t('video.subtitle_select_required')}

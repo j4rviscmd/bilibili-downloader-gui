@@ -154,11 +154,16 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
         cid: p.cid,
         page: p.page,
         title,
-        videoQuality: (p.videoQualities[0]?.id ?? 80).toString(),
-        audioQuality: (p.audioQualities[0]?.id ?? 30216).toString(),
+        videoQuality: '',
+        audioQuality: '',
         selected: true,
         duration: p.duration,
         thumbnailUrl: p.thumbnail.url,
+        subtitles: [],
+        subtitlesLoading: false,
+        videoQualities: [],
+        audioQualities: [],
+        qualitiesLoading: false,
       }
     })
     store.dispatch(initPartInputs(partInputs))

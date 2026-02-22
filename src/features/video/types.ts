@@ -22,6 +22,16 @@ export type PartInput = {
   thumbnailUrl?: string
   /** Subtitle configuration */
   subtitle: SubtitleConfig
+  /** Available subtitles (lazy-loaded) */
+  subtitles?: SubtitleInfo[]
+  /** Whether subtitles are currently loading */
+  subtitlesLoading?: boolean
+  /** Available video qualities (lazy-loaded) */
+  videoQualities?: VideoQuality[]
+  /** Available audio qualities (lazy-loaded) */
+  audioQualities?: AudioQuality[]
+  /** Whether qualities are currently loading */
+  qualitiesLoading?: boolean
 }
 
 /**
