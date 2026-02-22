@@ -110,23 +110,22 @@ type ScrollablePartListProps = {
 }
 
 /**
- * API呼び出しの同時実行数リミッター。
+ * Concurrency limiter for API calls.
  *
- * 最大3並列で画質取得APIを呼び出し、429レート制限を回避する。
- * コンポーネントのライフサイクル外で保持し、再レンダリングで
- * リセットされないようにする。
+ * Limits quality fetch API calls to 3 concurrent requests to avoid 429 rate limiting.
+ * Kept outside component lifecycle to persist across re-renders.
  */
 const qualityLimiter = createConcurrencyLimiter(3)
 
 /**
- * 指定されたインデックス範囲のパートの画質情報を取得する。
+ * Fetches quality info for parts in the specified index range.
  *
- * 既に取得済み・ロード中のパートはスキップし、
- * concurrency limiter で同時実行数を制限する。
+ * Skips parts that are already fetched or loading, and limits
+ * concurrent execution via the concurrency limiter.
  *
- * @param video - 動画情報
- * @param startIndex - 範囲の開始インデックス
- * @param endIndex - 範囲の終了インデックス
+ * @param video - Video information
+ * @param startIndex - Start index of the range
+ * @param endIndex - End index of the range
  */
 function fetchQualitiesForRange(
   video: Video,
@@ -138,7 +137,7 @@ function fetchQualitiesForRange(
     const part = video.parts[i]
     if (!part) continue
     const partInput = state.input.partInputs[i]
-    // 既に取得済みまたはロード中ならスキップ
+    // Skip if already fetched or loading
     if (
       partInput?.qualitiesLoading ||
       (partInput?.videoQualities?.length ?? 0) > 0
@@ -176,13 +175,17 @@ function fetchQualitiesForRange(
  * Uses `react-virtuoso` to render only visible VideoPartCards,
  * significantly reducing DOM nodes for videos with many parts.
  *
- * 画質情報の取得は `rangeChanged` コールバックで可視範囲を
- * 検知し、concurrency limiter 経由で順次実行する。
- * 個々の `VideoPartCard` では画質取得を行わない。
+ * Quality info fetching is handled via `rangeChanged` callback
+ * to detect visible range, executed through the concurrency limiter.
+ * Individual `VideoPartCard` components do not fetch qualities.
+ *
+ * @param props.video - Video information
+ * @param props.duplicateIndices - Indices of parts with duplicate titles
+ * @param props.isFetching - Whether video info is being fetched
  *
  * @private
  */
-/** スクロール停止を検出するデバウンス時間（ms） */
+/** Debounce time to detect scroll stop (ms) */
 const RANGE_DEBOUNCE_MS = 300
 
 function ScrollablePartList({
@@ -222,11 +225,11 @@ function ScrollablePartList({
   )
 
   /**
-   * Virtuoso の可視範囲変更コールバック（デバウンス付き）。
+   * Virtuoso visible range change callback (with debounce).
    *
-   * スクロールが停止してから RANGE_DEBOUNCE_MS 後に、
-   * 最終的な可視範囲のパートの画質情報を取得する。
-   * 高速スクロールで通過しただけのパートはコール対象外。
+   * Fetches quality info for parts in the final visible range
+   * after scroll stops for RANGE_DEBOUNCE_MS.
+   * Parts passed during fast scrolling are not fetched.
    */
   const handleRangeChanged = useCallback(
     (range: ListRange) => {
@@ -241,7 +244,7 @@ function ScrollablePartList({
     [video],
   )
 
-  // デバウンスタイマーのクリーンアップ
+  // Cleanup debounce timer
   useEffect(() => {
     return () => {
       if (debounceRef.current) {
@@ -250,7 +253,7 @@ function ScrollablePartList({
     }
   }, [])
 
-  // 動画が変わった時に初期可視範囲の画質を取得
+  // Fetch quality for initial visible range when video changes
   useEffect(() => {
     if (video.parts.length > 0 && lastRangeRef.current) {
       fetchQualitiesForRange(
@@ -318,7 +321,7 @@ function HomeContentInner() {
   }, [searchParams, isFetching, video.parts.length, onValid1, setSearchParams])
 
   const selectDisabled = hasActiveDownloads
-  const selectTooltip = selectDisabled
+  const selectTooltip = hasActiveDownloads
     ? t('video.download_in_progress')
     : undefined
 

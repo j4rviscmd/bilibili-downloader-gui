@@ -27,6 +27,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
 } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -36,8 +37,8 @@ import type { Input, Video } from '../types'
 /**
  * Error code to translation key mapping.
  *
- * Maps backend error codes (ERR::* format) to i18n translation keys for
- * user-facing error messages.
+ * Maps backend error codes (ERR::* format) to i18n translation keys
+ * for user-facing error messages.
  */
 const ERROR_MAP: Record<string, string> = {
   'ERR::VIDEO_NOT_FOUND': 'video.video_not_found',
@@ -112,6 +113,7 @@ const VideoInfoContext = createContext<VideoInfoContextValue | null>(null)
 /**
  * Hook to access the VideoInfoContext.
  * Must be used within a VideoInfoProvider.
+ *
  * @throws {Error} When used outside VideoInfoProvider
  */
 export function useVideoInfo(): VideoInfoContextValue {
@@ -129,6 +131,15 @@ type VideoInfoProviderProps = {
 /**
  * Provider for managing video information and download workflow.
  * Provides video info fetching, part settings management, duplicate detection, and download execution.
+ *
+ * @param props.children - Child components
+ *
+ * @example
+ * ```tsx
+ * <VideoInfoProvider>
+ *   <HomeContent />
+ * </VideoInfoProvider>
+ * ```
  */
 export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
   const { t } = useTranslation()
@@ -151,6 +162,8 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
    * target part is marked as selected. This prevents a race condition
    * where all parts would briefly be selected, triggering duplicate
    * title detection before the selection effect could run.
+   *
+   * @param v - Video object
    */
   const initInputsForVideo = useCallback((v: Video) => {
     const pending = processingPendingRef.current
@@ -190,6 +203,8 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
    * Validates video URL and fetches information (form 1).
    * Uses RTK Query for caching - subsequent requests for the same videoId
    * will be served from cache for 1 hour.
+   *
+   * @param url - Video URL to validate and fetch
    */
   const onValid1 = useCallback(
     async (url: string) => {
@@ -231,6 +246,11 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
 
   /**
    * Updates part settings (title, quality) (form 2).
+   *
+   * @param index - Index of the part to update
+   * @param title - New title
+   * @param videoQuality - Video quality ID
+   * @param audioQuality - Audio quality ID (optional)
    */
   const onValid2 = useCallback(
     (
@@ -269,7 +289,7 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
 
   const selectedCount = input.partInputs.filter((pi) => pi.selected).length
 
-  const isForm2ValidAll = (() => {
+  const isForm2ValidAll = useMemo(() => {
     if (!selectedCount || hasDuplicates) return false
     return input.partInputs
       .filter((pi) => pi.selected)
@@ -284,7 +304,7 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
           (pi.subtitle?.selectedLans?.length ?? 0) > 0
         return valid && subtitleOk
       })
-  })()
+  }, [selectedCount, hasDuplicates, input.partInputs, schema2])
 
   /**
    * Processes pending download from history/favorites.
@@ -334,6 +354,9 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
 
   /**
    * Executes download for selected video parts.
+   *
+   * Starts download process for each selected part, creating queue entries.
+   * Shows appropriate toast notifications on errors.
    */
   const download = useCallback(async () => {
     if (!isForm1Valid || !isForm2ValidAll) return
