@@ -53,10 +53,10 @@ async fn set_stage_from_filename(emits: &Emits, filename: &str) {
 /// Converts an I/O error to an appropriate anyhow error.
 /// Returns `ERR::DISK_FULL` for ENOSPC (error code 28), otherwise wraps the original error.
 fn map_io_error(e: std::io::Error) -> anyhow::Error {
-    if matches!(e.raw_os_error(), Some(28)) {
-        return anyhow::anyhow!("ERR::DISK_FULL");
+    match e.raw_os_error() {
+        Some(28) => anyhow::anyhow!("ERR::DISK_FULL"),
+        _ => e.into(),
     }
-    e.into()
 }
 
 /// Adds cookie header to a request builder if provided.
@@ -204,7 +204,7 @@ pub async fn download_url(
     };
 
     // ---- 2. Plan segments ----
-    const DEFAULT_SEGMENT_MB: u64 = 16;
+    const DEFAULT_SEGMENT_MB: u64 = 8;
     let segment_size = DEFAULT_SEGMENT_MB * 1024 * 1024;
     let segments: Vec<(u64, u64)> = calculate_segments(total, segment_size);
 
@@ -615,6 +615,10 @@ async fn fetch_total_size(
 }
 
 /// Calculates segment ranges for segmented download.
+///
+/// Divides the total file size into segments of the specified size.
+/// Each segment is represented as a (start, end) byte range tuple.
+/// The last segment may be smaller if the total size is not evenly divisible.
 fn calculate_segments(total: u64, segment_size: u64) -> Vec<(u64, u64)> {
     let mut segments = Vec::new();
     let mut start = 0;
