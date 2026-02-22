@@ -325,3 +325,78 @@ pub struct WatchHistoryCursor {
     #[serde(default)]
     pub is_end: bool,
 }
+
+// ============================================================================
+// Subtitle APIs
+// ============================================================================
+
+/// Player v2 API response for subtitle information.
+///
+/// Endpoint: `https://api.bilibili.com/x/player/wbi/v2?bvid={bvid}&cid={cid}`
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlayerV2ApiResponse {
+    pub code: i64,
+    pub message: String,
+    #[serde(default)]
+    pub data: Option<PlayerV2ApiData>,
+}
+
+/// Player v2 API data containing subtitle information.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlayerV2ApiData {
+    #[serde(default)]
+    pub subtitle: Option<PlayerV2Subtitle>,
+}
+
+/// Subtitle container in player v2 API response.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlayerV2Subtitle {
+    #[serde(default)]
+    pub subtitles: Option<Vec<PlayerV2SubtitleItem>>,
+}
+
+/// Individual subtitle item with language and URL information.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlayerV2SubtitleItem {
+    /// Language code (e.g., "zh-CN", "en")
+    pub lan: String,
+    /// Language display text (e.g., "中文（简体）")
+    #[serde(rename = "lan_doc")]
+    pub lan_doc: String,
+    /// Subtitle URL (BCC JSON format)
+    pub subtitle_url: String,
+}
+
+/// BCC format subtitle data.
+///
+/// Bilibili's native subtitle format stored as JSON.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BccSubtitle {
+    /// Font size (typically 0.4)
+    pub font_size: f32,
+    /// Font color (typically "0xFFFFFF")
+    pub font_color: String,
+    /// Background alpha (typically 0.5)
+    pub background_alpha: f32,
+    /// Background color (typically "0x000000")
+    pub background_color: String,
+    /// Stroke color (typically "none")
+    #[serde(rename = "Stroke")]
+    pub stroke: String,
+    /// Subtitle body containing text entries
+    pub body: Vec<BccSubtitleBody>,
+}
+
+/// Individual subtitle entry in BCC format.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BccSubtitleBody {
+    /// Start time in seconds
+    pub from: f64,
+    /// End time in seconds
+    pub to: f64,
+    /// Location code (0 = default position)
+    #[serde(default)]
+    pub location: i32,
+    /// Subtitle text content
+    pub content: String,
+}

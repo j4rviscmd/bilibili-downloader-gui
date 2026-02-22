@@ -18,6 +18,28 @@ use tauri::AppHandle;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command as AsyncCommand;
 
+/// 字幕オプション
+#[derive(Debug, Clone, PartialEq)]
+pub struct SubtitleMergeOptions {
+    /// 字幕ファイルのパス
+    pub path: PathBuf,
+    /// 言語コード (ISO 639-2)
+    pub language: String,
+    /// トラックタイトル（表示名）
+    pub title: String,
+}
+
+/// マージモード
+#[derive(Debug, Clone, PartialEq)]
+pub enum MergeMode {
+    /// 字幕なし（従来の動画+音声のみ）
+    None,
+    /// ソフトサブ（字幕をトラックとして埋め込み）
+    SoftSub(Vec<SubtitleMergeOptions>),
+    /// ハードサブ（字幕を動画に焼き付け）
+    HardSub(SubtitleMergeOptions),
+}
+
 /// Validates whether ffmpeg is properly installed and functional.
 ///
 /// This function checks if:
@@ -547,6 +569,225 @@ pub async fn merge_av(
         ));
     }
     // 完了ステージを送信後 complete 呼び出し (単一 Emits ライフサイクル)
+    let _ = emits.set_stage("complete").await;
+    emits.complete().await;
+
+    Ok(())
+}
+
+/// 動画・音声・字幕をマージしてMP4ファイルを生成する
+///
+/// 字幕オプションに応じて以下のモードをサポート:
+/// - None: 従来の動画+音声のみ（merge_avと同等）
+/// - SoftSub: 字幕をトラックとして埋め込み（再生時にON/OFF可能）
+/// - HardSub: 字幕を動画に焼き付け（再エンコード必要）
+///
+/// # Arguments
+///
+/// * `app` - Tauriアプリケーションハンドル
+/// * `video_path` - 動画ファイルのパス
+/// * `audio_path` - 音声ファイルのパス
+/// * `output_path` - 出力ファイルのパス
+/// * `download_id` - ダウンロードID（進捗通知用）
+/// * `duration_ms` - 動画の長さ（ミリ秒、進捗計算用）
+/// * `subtitle_mode` - 字幕マージモード
+pub async fn merge_avs(
+    app: &AppHandle,
+    video_path: &std::path::Path,
+    audio_path: &std::path::Path,
+    output_path: &std::path::Path,
+    download_id: Option<String>,
+    duration_ms: Option<u64>,
+    subtitle_mode: MergeMode,
+) -> Result<(), String> {
+    let filename = output_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("output");
+
+    let emits = Emits::new(
+        app.clone(),
+        download_id.unwrap_or(filename.to_string()),
+        Some(100 * 1024 * 1024),
+    );
+    let _ = emits.set_stage("merge").await;
+
+    let ffmpeg_path = get_ffmpeg_path(app);
+
+    let to_str_err = || "Invalid path".to_string();
+    let video_str = video_path.to_str().ok_or_else(to_str_err)?;
+    let audio_str = audio_path.to_str().ok_or_else(to_str_err)?;
+    let output_str = output_path.to_str().ok_or_else(to_str_err)?;
+
+    let mut cmd = AsyncCommand::new(&ffmpeg_path);
+
+    match &subtitle_mode {
+        MergeMode::None => {
+            cmd.args([
+                "-i",
+                video_str,
+                "-i",
+                audio_str,
+                "-c:v",
+                "copy",
+                "-c:a",
+                "aac",
+                "-progress",
+                "pipe:1",
+                "-y",
+                output_str,
+            ]);
+        }
+        MergeMode::SoftSub(subtitles) => {
+            let mut input_args: Vec<String> = vec![
+                "-i".to_string(),
+                video_str.to_string(),
+                "-i".to_string(),
+                audio_str.to_string(),
+            ];
+
+            for sub in subtitles {
+                let sub_str = sub.path.to_str().ok_or_else(to_str_err)?;
+                input_args.push("-i".to_string());
+                input_args.push(sub_str.to_string());
+            }
+
+            let sub_count = subtitles.len();
+
+            let mut map_args: Vec<String> = vec![
+                "-map".to_string(),
+                "0:v".to_string(),
+                "-map".to_string(),
+                "1:a".to_string(),
+            ];
+
+            for i in 0..sub_count {
+                map_args.push("-map".to_string());
+                map_args.push(format!("{}:0", i + 2));
+            }
+
+            let mut metadata_args: Vec<String> = Vec::new();
+            for (i, sub) in subtitles.iter().enumerate() {
+                metadata_args.push(format!("-metadata:s:s:{}", i));
+                metadata_args.push(format!("language={}", sub.language));
+                metadata_args.push(format!("-metadata:s:s:{}", i));
+                metadata_args.push(format!("title={}", sub.title));
+            }
+
+            let codec_args: Vec<String> = vec![
+                "-c:v".to_string(),
+                "copy".to_string(),
+                "-c:a".to_string(),
+                "aac".to_string(),
+                "-c:s".to_string(),
+                "mov_text".to_string(),
+            ];
+
+            cmd.args(&input_args)
+                .args(&map_args)
+                .args(&metadata_args)
+                .args(&codec_args)
+                .args(["-progress", "pipe:1", "-y", output_str]);
+        }
+        MergeMode::HardSub(subtitle) => {
+            let sub_str = subtitle.path.to_str().ok_or_else(to_str_err)?;
+
+            let escaped_sub = sub_str
+                .replace('\\', "\\\\")
+                .replace(':', "\\:")
+                .replace('\'', "'\\''");
+
+            let filter = format!("subtitles='{}'", escaped_sub);
+
+            cmd.args([
+                "-i",
+                video_str,
+                "-i",
+                audio_str,
+                "-vf",
+                &filter,
+                "-c:v",
+                "libx264",
+                "-preset",
+                "fast",
+                "-c:a",
+                "aac",
+                "-progress",
+                "pipe:1",
+                "-y",
+                output_str,
+            ]);
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let mut child = cmd
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to spawn ffmpeg: {e}"))?;
+
+    let stdout = child.stdout.as_mut().ok_or("Failed to capture stdout")?;
+    let stderr = child.stderr.take().ok_or("Failed to capture stderr")?;
+
+    let reader = BufReader::new(stdout);
+    let mut lines = reader.lines();
+
+    let mut stderr_reader = BufReader::new(stderr);
+    let mut stderr_lines = String::new();
+    let stderr_task = tokio::spawn(async move {
+        let mut line = String::new();
+        while stderr_reader.read_line(&mut line).await.unwrap_or(0) > 0 {
+            stderr_lines.push_str(&line);
+            line.clear();
+        }
+        stderr_lines
+    });
+
+    while let Ok(Some(line)) = lines.next_line().await {
+        if let Some(time_str) = line.strip_prefix("out_time_ms=") {
+            let out_time_us: u64 = time_str.trim().parse().unwrap_or(0);
+            let out_time_ms = out_time_us / 1000;
+
+            let total_duration_ms = duration_ms.unwrap_or(300_000);
+            let percentage = if total_duration_ms > 0 {
+                (out_time_ms as f64 / total_duration_ms as f64) * 100.0
+            } else {
+                0.0
+            };
+
+            let clamped_percentage = percentage.min(95.0);
+            emits.update_progress((clamped_percentage as u64) * 1024 * 1024);
+        }
+
+        if line == "progress=end" {
+            break;
+        }
+    }
+
+    let status = child
+        .wait()
+        .await
+        .map_err(|e| format!("Failed to wait for ffmpeg: {e}"))?;
+
+    let stderr_output = stderr_task
+        .await
+        .unwrap_or_else(|e| format!("Failed to read stderr: {e}"));
+
+    if !status.success() {
+        return Err(format!(
+            "ffmpeg failed to merge.\nExit code: {:?}\nstderr: {}",
+            status.code(),
+            stderr_output
+        ));
+    }
+
     let _ = emits.set_stage("complete").await;
     emits.complete().await;
 

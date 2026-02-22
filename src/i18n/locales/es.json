@@ -106,7 +106,19 @@
     "download_cancelled": "Descarga cancelada",
     "copy_title": "Copiar título",
     "title_copied": "Título copiado al portapapeles",
-    "copy_failed": "Error al copiar el título"
+    "copy_failed": "Error al copiar el título",
+    "subtitle": "Subtítulos",
+    "subtitle_off": "Ninguno",
+    "subtitle_soft": "Soft Sub",
+    "subtitle_hard": "Hard Sub",
+    "subtitle_soft_label": "Soft Sub ({{count}} idiomas)",
+    "subtitle_hard_label": "Hard Sub ({{lang}})",
+    "subtitle_select_multiple": "Selección múltiple (todos seleccionados por defecto)",
+    "subtitle_hard_warning": "La codificación Hard Sub lleva más tiempo",
+    "subtitle_description": "Elige cómo incrustar subtítulos en el video.",
+    "subtitle_note": "※ Soft Sub permite activar/desactivar subtítulos en el reproductor. Hard Sub graba los subtítulos en el video.",
+    "other_options": "Otras opciones",
+    "subtitle_select_required": "Por favor selecciona al menos un idioma"
   },
   "progress": {
     "elapsed": "Transcurrido",

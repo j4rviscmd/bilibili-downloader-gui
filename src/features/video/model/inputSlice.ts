@@ -1,6 +1,18 @@
-import type { Input, PendingDownload } from '@/features/video/types'
+import type {
+  AudioQuality,
+  Input,
+  PendingDownload,
+  SubtitleConfig,
+  SubtitleInfo,
+  VideoQuality,
+} from '@/features/video/types'
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
+
+export const defaultSubtitleConfig: SubtitleConfig = {
+  mode: 'off',
+  selectedLans: [],
+}
 
 const initialState: Input = {
   url: '',
@@ -59,11 +71,14 @@ export const inputSlice = createSlice({
           audioQuality: string
           selected: boolean
           duration: number
+          subtitle?: SubtitleConfig
         }[]
       >,
     ) => {
-      // 既存互換: legacy quality を持つ要素が来た場合のガードは呼び出し側で保証する前提
-      state.partInputs = action.payload
+      state.partInputs = action.payload.map((p) => ({
+        ...p,
+        subtitle: p.subtitle ?? defaultSubtitleConfig,
+      }))
     },
     /**
      * Updates specific fields of a part input by index.
@@ -154,6 +169,99 @@ export const inputSlice = createSlice({
     clearPendingDownload: (state) => {
       state.pendingDownload = null
     },
+    /**
+     * Updates subtitle configuration for a specific part.
+     *
+     * @param state - Current input state
+     * @param action - Action containing the index and subtitle config
+     */
+    updateSubtitleConfig: (
+      state,
+      action: PayloadAction<{ index: number; config: SubtitleConfig }>,
+    ) => {
+      const { index, config } = action.payload
+      const target = state.partInputs[index]
+      if (target) {
+        target.subtitle = config
+      }
+    },
+    /**
+     * Sets subtitles loading state for a specific part.
+     *
+     * @param state - Current input state
+     * @param action - Action containing the index and loading state
+     */
+    setSubtitlesLoading: (
+      state,
+      action: PayloadAction<{ index: number; loading: boolean }>,
+    ) => {
+      const { index, loading } = action.payload
+      const target = state.partInputs[index]
+      if (target) {
+        target.subtitlesLoading = loading
+      }
+    },
+    /**
+     * Sets subtitles for a specific part (lazy loading).
+     *
+     * @param state - Current input state
+     * @param action - Action containing the index and subtitles
+     */
+    setPartSubtitles: (
+      state,
+      action: PayloadAction<{ index: number; subtitles: SubtitleInfo[] }>,
+    ) => {
+      const { index, subtitles } = action.payload
+      const target = state.partInputs[index]
+      if (target) {
+        target.subtitles = subtitles
+        target.subtitlesLoading = false
+      }
+    },
+    /**
+     * Sets qualities loading state for a specific part.
+     *
+     * @param state - Current input state
+     * @param action - Action containing the index and loading state
+     */
+    setQualitiesLoading: (
+      state,
+      action: PayloadAction<{ index: number; loading: boolean }>,
+    ) => {
+      const { index, loading } = action.payload
+      const target = state.partInputs[index]
+      if (target) {
+        target.qualitiesLoading = loading
+      }
+    },
+    /**
+     * Sets qualities for a specific part (lazy loading).
+     *
+     * @param state - Current input state
+     * @param action - Action containing the index and qualities
+     */
+    setPartQualities: (
+      state,
+      action: PayloadAction<{
+        index: number
+        videoQualities: VideoQuality[]
+        audioQualities: AudioQuality[]
+      }>,
+    ) => {
+      const { index, videoQualities, audioQualities } = action.payload
+      const target = state.partInputs[index]
+      if (target) {
+        target.videoQualities = videoQualities
+        target.audioQualities = audioQualities
+        target.qualitiesLoading = false
+        if (videoQualities.length > 0 && !target.videoQuality) {
+          target.videoQuality = String(videoQualities[0].id)
+        }
+        if (audioQualities.length > 0 && !target.audioQuality) {
+          target.audioQuality = String(audioQualities[0].id)
+        }
+      }
+    },
   },
 })
 
@@ -164,9 +272,14 @@ export const {
   resetInput,
   selectAll,
   setInput,
+  setPartQualities,
+  setPartSubtitles,
   setPendingDownload,
+  setQualitiesLoading,
+  setSubtitlesLoading,
   setUrl,
   updatePartInputByIndex,
   updatePartSelected,
+  updateSubtitleConfig,
 } = inputSlice.actions
 export default inputSlice.reducer

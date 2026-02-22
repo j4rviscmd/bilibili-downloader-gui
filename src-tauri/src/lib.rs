@@ -22,6 +22,8 @@ use crate::models::cookie::CookieCache;
 use crate::models::cookie::SimulateLogoutFlag;
 use crate::models::frontend_dto::FavoriteFolder;
 use crate::models::frontend_dto::FavoriteVideoListResponse;
+use crate::models::frontend_dto::Quality;
+use crate::models::frontend_dto::SubtitleDto;
 use crate::models::frontend_dto::User;
 use crate::models::frontend_dto::Video;
 use crate::models::history::HistoryEntry;
@@ -92,6 +94,8 @@ pub fn run() {
             get_cookie,
             fetch_user,
             fetch_video_info,
+            fetch_subtitles_for_part,
+            fetch_part_qualities,
             download_video,
             cancel_download,
             cancel_all_downloads,
@@ -276,6 +280,57 @@ async fn fetch_user(app: AppHandle) -> Result<User, String> {
 #[tauri::command]
 async fn fetch_video_info(app: AppHandle, video_id: String) -> Result<Video, String> {
     bilibili::fetch_video_info(&app, &video_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Fetches available subtitles for a specific video part.
+///
+/// This command retrieves subtitle information from Bilibili's Player v2 API
+/// for a single video part. Used for lazy-loading subtitles when the user
+/// opens the subtitle accordion.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle for accessing the cookie cache
+/// * `bvid` - Bilibili video ID (BV identifier)
+/// * `cid` - Content ID for the specific video part
+///
+/// # Returns
+///
+/// Returns a list of available subtitles with language info and URLs.
+/// Returns an empty list if no subtitles are available or on error.
+#[tauri::command]
+async fn fetch_subtitles_for_part(
+    app: AppHandle,
+    bvid: String,
+    cid: i64,
+) -> Result<Vec<SubtitleDto>, String> {
+    bilibili::fetch_subtitles_for_part(&app, &bvid, cid)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Fetches available video and audio qualities for a specific part.
+///
+/// Used for lazy-loading qualities when the part is rendered.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle
+/// * `bvid` - Bilibili video ID (BV identifier)
+/// * `cid` - Content ID for the specific video part
+///
+/// # Returns
+///
+/// Returns a tuple of (video_qualities, audio_qualities).
+#[tauri::command]
+async fn fetch_part_qualities(
+    app: AppHandle,
+    bvid: String,
+    cid: i64,
+) -> Result<(Vec<Quality>, Vec<Quality>), String> {
+    bilibili::fetch_part_qualities(&app, &bvid, cid)
         .await
         .map_err(|e| e.to_string())
 }

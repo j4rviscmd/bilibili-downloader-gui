@@ -107,7 +107,19 @@
     "download_cancelled": "Download cancelled",
     "copy_title": "Copy title",
     "title_copied": "Title copied to clipboard",
-    "copy_failed": "Failed to copy title"
+    "copy_failed": "Failed to copy title",
+    "subtitle": "Subtitle",
+    "subtitle_off": "Off",
+    "subtitle_soft": "Soft Sub",
+    "subtitle_hard": "Hard Sub",
+    "subtitle_soft_label": "Soft Sub ({{count}} lang)",
+    "subtitle_hard_label": "Hard Sub ({{lang}})",
+    "subtitle_select_multiple": "Select multiple (all selected by default)",
+    "subtitle_hard_warning": "Hard sub encoding takes longer to process",
+    "subtitle_description": "Choose how to embed subtitles into the video.",
+    "subtitle_note": "※ Soft sub allows toggling subtitles in the player. Hard sub burns subtitles into the video.",
+    "other_options": "Other Options",
+    "subtitle_select_required": "Please select at least one language"
   },
   "progress": {
     "elapsed": "Elapsed",

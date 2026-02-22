@@ -64,6 +64,9 @@ pub struct VideoPart {
     pub thumbnail: Thumbnail,
     pub video_qualities: Vec<Quality>,
     pub audio_qualities: Vec<Quality>,
+    /// Available subtitles for this part
+    #[serde(default)]
+    pub subtitles: Vec<SubtitleDto>,
 }
 /// Thumbnail information including both URL and Base64-encoded data.
 ///
@@ -179,4 +182,22 @@ pub struct WatchHistoryCursor {
     pub view_at: i64,
     pub max: i64,
     pub is_end: bool,
+}
+
+// ============================================================================
+// Subtitle DTOs
+// ============================================================================
+
+/// Subtitle information sent to the frontend.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubtitleDto {
+    /// Language code (e.g., "zh-CN", "en")
+    pub lan: String,
+    /// Language display text (e.g., "中文（简体）")
+    pub lan_doc: String,
+    /// Subtitle URL (BCC JSON format)
+    pub subtitle_url: String,
+    /// Whether this is an AI-generated subtitle
+    pub is_ai: bool,
 }

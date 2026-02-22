@@ -106,7 +106,19 @@
     "download_cancelled": "다운로드가 취소되었습니다",
     "copy_title": "제목 복사",
     "title_copied": "제목이 클립보드에 복사되었습니다",
-    "copy_failed": "제목 복사에 실패했습니다"
+    "copy_failed": "제목 복사에 실패했습니다",
+    "subtitle": "자막",
+    "subtitle_off": "없음",
+    "subtitle_soft": "소프트 서브",
+    "subtitle_hard": "하드 서브",
+    "subtitle_soft_label": "소프트 서브 ({{count}}개 언어)",
+    "subtitle_hard_label": "하드 서브 ({{lang}})",
+    "subtitle_select_multiple": "다중 선택 가능 (기본 전체 선택)",
+    "subtitle_hard_warning": "하드 서브 인코딩은 시간이 더 걸립니다",
+    "subtitle_description": "자막을 비디오에 포함하는 방법을 선택합니다.",
+    "subtitle_note": "※ 소프트 서브는 플레이어에서 자막 켜기/끄기가 가능합니다. 하드 서브는 비디오에 자막이 굽혀집니다.",
+    "other_options": "기타 옵션",
+    "subtitle_select_required": "최소 하나의 언어를 선택해 주세요"
   },
   "progress": {
     "elapsed": "경과",

@@ -107,7 +107,19 @@
     "download_cancelled": "ダウンロードをキャンセルしました",
     "copy_title": "タイトルをコピー",
     "title_copied": "タイトルをコピーしました",
-    "copy_failed": "タイトルのコピーに失敗しました"
+    "copy_failed": "タイトルのコピーに失敗しました",
+    "subtitle": "字幕",
+    "subtitle_off": "なし",
+    "subtitle_soft": "ソフトサブ",
+    "subtitle_hard": "ハードサブ",
+    "subtitle_soft_label": "ソフトサブ・{{count}}言語",
+    "subtitle_hard_label": "ハードサブ・{{lang}}",
+    "subtitle_select_multiple": "複数選択可（デフォルト全選択）",
+    "subtitle_hard_warning": "ハードサブはエンコードに時間がかかります",
+    "subtitle_description": "動画に字幕を埋め込む方法を選択します。",
+    "subtitle_note": "※ ソフトサブは再生プレイヤーで字幕のON/OFFが可能。ハードサブは動画に焼き付けられます。",
+    "other_options": "その他のオプション",
+    "subtitle_select_required": "字幕を使用する場合は言語を選択してください"
   },
   "progress": {
     "elapsed": "経過",

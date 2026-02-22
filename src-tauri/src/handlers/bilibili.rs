@@ -12,10 +12,21 @@
 use serde::Deserialize;
 use tauri::Emitter;
 
-/// Download options for the video download command.
+/// 字幕オプション（ダウンロード用）
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubtitleOptions {
+    /// 字幕モード: "off", "soft", "hard"
+    pub mode: String,
+    /// 選択された字幕言語コード
+    #[serde(default)]
+    pub selected_lans: Vec<String>,
+}
+
+/// ダウンロードオプション
 ///
-/// Groups all parameters required for downloading a video part into a single
-/// structure to avoid excessive function arguments.
+/// 動画パートのダウンロードに必要なすべてのパラメータをグループ化し、
+/// 関数の引数が過多になるのを防ぎます。
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DownloadOptions {
@@ -41,19 +52,22 @@ pub struct DownloadOptions {
     /// マルチパート動画のページ番号（省略可能）
     #[serde(default)]
     pub page: Option<i32>,
+    /// 字幕オプション（省略可能）
+    #[serde(default)]
+    pub subtitle: Option<SubtitleOptions>,
 }
 
 use crate::constants::REFERER;
 use crate::handlers::cookie::read_cookie;
-use crate::handlers::ffmpeg::merge_av;
 use crate::handlers::settings;
 use crate::models::bilibili_api::{
-    UserApiResponse, WatchHistoryApiResponse, WebInterfaceApiResponse, XPlayerApiResponse,
-    XPlayerApiResponseVideo,
+    PlayerV2ApiResponse, UserApiResponse, WatchHistoryApiResponse, WebInterfaceApiResponse,
+    XPlayerApiResponse, XPlayerApiResponseVideo,
 };
 use crate::models::cookie::CookieEntry;
 use crate::models::frontend_dto::{
-    Quality, Thumbnail, UserData, Video, VideoPart, WatchHistoryCursor, WatchHistoryEntry,
+    Quality, SubtitleDto, Thumbnail, UserData, Video, VideoPart, WatchHistoryCursor,
+    WatchHistoryEntry,
 };
 use crate::utils::downloads::download_url;
 use crate::utils::paths::get_lib_path;
@@ -236,14 +250,86 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
             }),
         )?;
 
-        // マージ実行 (merge stage emitはffmpeg::merge_av内で送信)
-        merge_av(
+        // 字幕処理
+        let subtitle_mode = if let Some(ref sub_opts) = options.subtitle {
+            if sub_opts.mode == "off" || sub_opts.selected_lans.is_empty() {
+                crate::handlers::ffmpeg::MergeMode::None
+            } else {
+                // 字幕情報を再取得（クライアントを再利用）
+                let client = build_client()?;
+                let available_subs =
+                    fetch_subtitles(&client, &cookies, &options.bvid, options.cid).await;
+
+                // 選択された言語の字幕をフィルタリング
+                let selected_subs: Vec<_> = available_subs
+                    .iter()
+                    .filter(|s| sub_opts.selected_lans.contains(&s.lan))
+                    .collect();
+
+                if selected_subs.is_empty() {
+                    crate::handlers::ffmpeg::MergeMode::None
+                } else {
+                    // 字幕をダウンロードしてSRTに変換
+                    let mut subtitle_files: Vec<crate::handlers::ffmpeg::SubtitleMergeOptions> =
+                        Vec::new();
+
+                    for sub in selected_subs {
+                        let srt_path = lib_path
+                            .join(format!("temp_sub_{}_{}.srt", options.download_id, sub.lan));
+
+                        if let Err(e) =
+                            download_subtitle(&client, &sub.subtitle_url, &srt_path).await
+                        {
+                            eprintln!("Warning: Failed to download subtitle {}: {}", sub.lan, e);
+                            continue;
+                        }
+
+                        subtitle_files.push(crate::handlers::ffmpeg::SubtitleMergeOptions {
+                            path: srt_path,
+                            language: crate::utils::subtitle::lan_to_iso639(&sub.lan).to_string(),
+                            title: sub.lan_doc.clone(),
+                        });
+                    }
+
+                    if subtitle_files.is_empty() {
+                        crate::handlers::ffmpeg::MergeMode::None
+                    } else if sub_opts.mode == "hard" {
+                        // ハードサブ: 最初の字幕のみ使用
+                        if let Some(first_sub) = subtitle_files.into_iter().next() {
+                            crate::handlers::ffmpeg::MergeMode::HardSub(first_sub)
+                        } else {
+                            crate::handlers::ffmpeg::MergeMode::None
+                        }
+                    } else {
+                        // ソフトサブ: すべての字幕を使用
+                        crate::handlers::ffmpeg::MergeMode::SoftSub(subtitle_files)
+                    }
+                }
+            }
+        } else {
+            crate::handlers::ffmpeg::MergeMode::None
+        };
+
+        // 字幕ファイルのパスを保持（クリーンアップ用）
+        let subtitle_paths: Vec<PathBuf> = match &subtitle_mode {
+            crate::handlers::ffmpeg::MergeMode::SoftSub(subs) => {
+                subs.iter().map(|s| s.path.clone()).collect()
+            }
+            crate::handlers::ffmpeg::MergeMode::HardSub(sub) => {
+                vec![sub.path.clone()]
+            }
+            _ => vec![],
+        };
+
+        // マージ実行
+        crate::handlers::ffmpeg::merge_avs(
             app,
             &temp_video_path,
             &temp_audio_path,
             &output_path,
             Some(options.download_id.clone()),
-            Some((options.duration_seconds * 1000) as u64), // Convert seconds to milliseconds
+            Some((options.duration_seconds * 1000) as u64),
+            subtitle_mode,
         )
         .await
         .map_err(|_| String::from("ERR::MERGE_FAILED"))?;
@@ -254,6 +340,9 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
         // temp 削除
         let _ = tokio::fs::remove_file(&temp_video_path).await;
         let _ = tokio::fs::remove_file(&temp_audio_path).await;
+        for sub_path in subtitle_paths {
+            let _ = tokio::fs::remove_file(&sub_path).await;
+        }
 
         // 出力パスを保持 (クローンで履歴保存に渡す)
         let output_path_str = output_path.to_string_lossy().to_string();
@@ -298,9 +387,25 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
     if result.is_err() {
         let _ = tokio::fs::remove_file(&temp_video_path).await;
         let _ = tokio::fs::remove_file(&temp_audio_path).await;
+        // Clean up any subtitle files that may have been downloaded
+        cleanup_subtitle_files(&lib_path, &options.download_id);
     }
 
     result
+}
+
+/// 字幕一時ファイルをクリーンアップする
+fn cleanup_subtitle_files(lib_path: &std::path::Path, download_id: &str) {
+    let prefix = format!("temp_sub_{}_", download_id);
+    if let Ok(entries) = std::fs::read_dir(lib_path) {
+        for entry in entries.flatten() {
+            if let Some(name) = entry.file_name().to_str() {
+                if name.starts_with(&prefix) && name.ends_with(".srt") {
+                    let _ = std::fs::remove_file(entry.path());
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -541,12 +646,8 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
     let data = res_body.data.as_ref().unwrap();
 
     let pages = data.pages.as_deref().unwrap_or(&[]);
-    let bvid = &video.bvid;
 
     if pages.is_empty() {
-        let details = fetch_video_details(&cookies, bvid, data.cid).await?;
-        let dash_data = details.data.unwrap().dash;
-
         let part = VideoPart {
             cid: data.cid,
             page: 1,
@@ -554,10 +655,11 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
             duration: 0,
             thumbnail: Thumbnail {
                 url: data.pic.clone(),
-                base64: get_thumbnail_base64(&data.pic).await.unwrap_or_default(),
+                base64: String::new(),
             },
-            video_qualities: convert_qualities(&dash_data.video),
-            audio_qualities: convert_qualities(&dash_data.audio),
+            video_qualities: vec![],
+            audio_qualities: vec![],
+            subtitles: vec![],
         };
 
         return Ok(Video {
@@ -569,15 +671,7 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
 
     let mut parts = Vec::with_capacity(pages.len());
     for page in pages {
-        let details = fetch_video_details(&cookies, bvid, page.cid).await?;
-        let dash_data = details.data.unwrap().dash;
-
         let thumb_url = page.first_frame.as_deref().unwrap_or_default();
-        let thumb_base64 = if thumb_url.is_empty() {
-            String::new()
-        } else {
-            get_thumbnail_base64(thumb_url).await.unwrap_or_default()
-        };
 
         parts.push(VideoPart {
             cid: page.cid,
@@ -586,10 +680,11 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
             duration: page.duration,
             thumbnail: Thumbnail {
                 url: thumb_url.into(),
-                base64: thumb_base64,
+                base64: String::new(),
             },
-            video_qualities: convert_qualities(&dash_data.video),
-            audio_qualities: convert_qualities(&dash_data.audio),
+            video_qualities: vec![],
+            audio_qualities: vec![],
+            subtitles: vec![],
         });
     }
 
@@ -938,11 +1033,10 @@ pub async fn fetch_watch_history(
             };
 
             async move {
-                let cover_base64 = get_thumbnail_base64(&item.cover).await.unwrap_or_default();
                 WatchHistoryEntry {
                     title: item.title,
                     cover: item.cover,
-                    cover_base64,
+                    cover_base64: String::new(),
                     bvid: item.history.bvid,
                     cid: item.history.cid,
                     page: item.history.page,
@@ -964,4 +1058,148 @@ pub async fn fetch_watch_history(
     };
 
     Ok(WatchHistoryResponse { entries, cursor })
+}
+
+/// Fetches available subtitles for a video part from the Player v2 API.
+///
+/// Uses WBI signature for authentication.
+/// Returns an empty vector if no subtitles are available or on error.
+pub async fn fetch_subtitles(
+    client: &Client,
+    cookies: &[CookieEntry],
+    bvid: &str,
+    cid: i64,
+) -> Vec<SubtitleDto> {
+    let mixin_key = match crate::utils::wbi::fetch_mixin_key(client).await {
+        Ok(key) => key,
+        Err(_) => return Vec::new(),
+    };
+
+    let mut params = BTreeMap::from([
+        ("bvid".to_string(), bvid.to_string()),
+        ("cid".to_string(), cid.to_string()),
+    ]);
+
+    let signature = match crate::utils::wbi::generate_wbi_signature(&mut params, &mixin_key) {
+        Ok(sig) => sig,
+        Err(_) => return Vec::new(),
+    };
+
+    let response = match client
+        .get("https://api.bilibili.com/x/player/wbi/v2")
+        .header(header::COOKIE, build_cookie_header(cookies))
+        .header(header::REFERER, "https://www.bilibili.com")
+        .query(&[
+            ("bvid", bvid),
+            ("cid", &cid.to_string()),
+            ("w_rid", &signature.w_rid),
+            ("wts", &signature.wts),
+        ])
+        .send()
+        .await
+    {
+        Ok(resp) => resp,
+        Err(_) => return Vec::new(),
+    };
+
+    if !response.status().is_success() {
+        return Vec::new();
+    }
+
+    let body: PlayerV2ApiResponse = match response.json().await {
+        Ok(b) => b,
+        Err(_) => return Vec::new(),
+    };
+
+    if body.code != 0 {
+        return Vec::new();
+    }
+
+    let subtitles = body
+        .data
+        .and_then(|d| d.subtitle)
+        .and_then(|s| s.subtitles)
+        .unwrap_or_default();
+
+    subtitles
+        .into_iter()
+        .map(|item| {
+            let is_ai = item.subtitle_url.contains("/ai_subtitle/");
+            SubtitleDto {
+                lan: item.lan,
+                lan_doc: item.lan_doc,
+                subtitle_url: item.subtitle_url,
+                is_ai,
+            }
+        })
+        .collect()
+}
+
+/// 個別パートの字幕を取得するコマンド
+///
+/// アコーディオン開閉時の遅延ロード用
+pub async fn fetch_subtitles_for_part(
+    app: &AppHandle,
+    bvid: &str,
+    cid: i64,
+) -> Result<Vec<SubtitleDto>, String> {
+    let cookies = read_cookie(app)?.unwrap_or_default();
+    let client = build_client()?;
+    Ok(fetch_subtitles(&client, &cookies, bvid, cid).await)
+}
+
+/// 個別パートの画質・音質情報を取得する
+///
+/// 遅延ロード用（パート描画時に呼び出し）
+pub async fn fetch_part_qualities(
+    app: &AppHandle,
+    bvid: &str,
+    cid: i64,
+) -> Result<(Vec<Quality>, Vec<Quality>), String> {
+    let cookies = read_cookie(app)?.unwrap_or_default();
+    let details = fetch_video_details(&cookies, bvid, cid).await?;
+    let dash_data = details.data.unwrap().dash;
+
+    let video_qualities = convert_qualities(&dash_data.video);
+    let audio_qualities = convert_qualities(&dash_data.audio);
+
+    Ok((video_qualities, audio_qualities))
+}
+
+/// 字幕をダウンロードしてSRT形式で保存する
+///
+/// BCC形式のJSON字幕をダウンロードし、SRT形式に変換して保存する。
+pub async fn download_subtitle(
+    client: &Client,
+    subtitle_url: &str,
+    output_path: &std::path::Path,
+) -> Result<(), String> {
+    let url = if subtitle_url.starts_with("//") {
+        format!("https:{}", subtitle_url)
+    } else {
+        subtitle_url.to_string()
+    };
+
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to download subtitle: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("HTTP error: {}", response.status()));
+    }
+
+    let bcc: crate::models::bilibili_api::BccSubtitle = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse subtitle JSON: {}", e))?;
+
+    let srt_content = crate::utils::subtitle::bcc_to_srt(&bcc);
+
+    tokio::fs::write(output_path, srt_content)
+        .await
+        .map_err(|e| format!("Failed to write subtitle file: {}", e))?;
+
+    Ok(())
 }

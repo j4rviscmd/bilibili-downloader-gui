@@ -20,6 +20,18 @@ export type PartInput = {
   duration: number
   /** Thumbnail URL for this part */
   thumbnailUrl?: string
+  /** Subtitle configuration */
+  subtitle: SubtitleConfig
+  /** Available subtitles (lazy-loaded) */
+  subtitles?: SubtitleInfo[]
+  /** Whether subtitles are currently loading */
+  subtitlesLoading?: boolean
+  /** Available video qualities (lazy-loaded) */
+  videoQualities?: VideoQuality[]
+  /** Available audio qualities (lazy-loaded) */
+  audioQualities?: AudioQuality[]
+  /** Whether qualities are currently loading */
+  qualitiesLoading?: boolean
 }
 
 /**
@@ -81,6 +93,8 @@ export type VideoPart = {
   audioQualities: AudioQuality[]
   /** Part thumbnail image */
   thumbnail: Thumbnail
+  /** Available subtitles for this part */
+  subtitles: SubtitleInfo[]
 }
 
 /**
@@ -111,4 +125,28 @@ export type AudioQuality = {
   quality: string
   /** Quality ID (e.g., 30216, 30251) */
   id: number
+}
+
+/**
+ * Subtitle information for a video part.
+ */
+export type SubtitleInfo = {
+  /** Language code (e.g., "zh-CN", "en") */
+  lan: string
+  /** Language display text (e.g., "中文（简体）") */
+  lanDoc: string
+  /** Subtitle URL (BCC JSON format) */
+  subtitleUrl: string
+  /** Whether this is an AI-generated subtitle */
+  isAi: boolean
+}
+
+/**
+ * Subtitle configuration for download.
+ */
+export type SubtitleConfig = {
+  /** Subtitle embed mode: 'soft' for soft-sub, 'hard' for hard-sub */
+  mode: 'soft' | 'hard' | 'off'
+  /** Selected subtitle language codes (for soft-sub, multiple allowed) */
+  selectedLans: string[]
 }

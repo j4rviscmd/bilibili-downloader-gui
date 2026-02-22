@@ -106,7 +106,19 @@
     "download_cancelled": "下载已取消",
     "copy_title": "复制标题",
     "title_copied": "标题已复制到剪贴板",
-    "copy_failed": "复制标题失败"
+    "copy_failed": "复制标题失败",
+    "subtitle": "字幕",
+    "subtitle_off": "无",
+    "subtitle_soft": "软字幕",
+    "subtitle_hard": "硬字幕",
+    "subtitle_soft_label": "软字幕 ({{count}} 语言)",
+    "subtitle_hard_label": "硬字幕 ({{lang}})",
+    "subtitle_select_multiple": "可多选（默认全选）",
+    "subtitle_hard_warning": "硬字幕编码需要更长时间",
+    "subtitle_description": "选择将字幕嵌入视频的方式。",
+    "subtitle_note": "※ 软字幕可以在播放器中开关。硬字幕会烧录到视频中。",
+    "other_options": "其他选项",
+    "subtitle_select_required": "请选择至少一种语言"
   },
   "progress": {
     "elapsed": "已用时间",

@@ -1,4 +1,5 @@
 import { store } from '@/app/store'
+import type { SubtitleConfig } from '@/features/video/types'
 import { enqueue, updateQueueItem } from '@/shared/queue/queueSlice'
 import { invoke } from '@tauri-apps/api/core'
 
@@ -18,6 +19,9 @@ import { invoke } from '@tauri-apps/api/core'
  * @param downloadId - Unique download ID for tracking
  * @param parentId - Optional parent ID for grouping multi-part downloads
  * @param durationSeconds - Video duration in seconds for accurate merge progress
+ * @param thumbnailUrl - Optional thumbnail URL for history
+ * @param page - Optional page number for multi-part videos
+ * @param subtitle - Optional subtitle configuration
  *
  * @throws Error if backend download fails (network error, quality not found, etc.)
  *
@@ -31,7 +35,10 @@ import { invoke } from '@tauri-apps/api/core'
  *   30216,
  *   'BV1xx411c7XD-1234567890-p1',
  *   'BV1xx411c7XD-1234567890',
- *   360 // 6 minutes
+ *   360, // 6 minutes
+ *   null,
+ *   1,
+ *   { mode: 'soft', selectedLans: ['zh-CN'] }
  * )
  * ```
  */
@@ -46,6 +53,7 @@ export const downloadVideo = async (
   durationSeconds?: number,
   thumbnailUrl?: string,
   page?: number,
+  subtitle?: SubtitleConfig,
 ) => {
   store.dispatch(enqueue({ downloadId, parentId, filename, status: 'pending' }))
 
@@ -61,6 +69,12 @@ export const downloadVideo = async (
       durationSeconds: durationSeconds ?? 0,
       thumbnailUrl: thumbnailUrl ?? null,
       page: page ?? null,
+      subtitle: subtitle
+        ? {
+            mode: subtitle.mode,
+            selectedLans: subtitle.selectedLans,
+          }
+        : null,
     },
   })
   store.dispatch(updateQueueItem({ downloadId, outputPath, title: filename }))
