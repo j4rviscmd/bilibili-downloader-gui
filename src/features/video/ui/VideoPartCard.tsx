@@ -159,24 +159,23 @@ const VideoPartCard = memo(function VideoPartCard({
   const handleAccordionChange = useCallback(
     async (value: string[]) => {
       const isOpen = value.includes('other-options')
-      store.dispatch(setAccordionOpen({ index: page - 1, open: isOpen }))
-      if (isOpen && subtitles.length === 0 && !subtitlesLoading) {
-        store.dispatch(setSubtitlesLoading({ index: page - 1, loading: true }))
-        try {
-          const fetchedSubtitles = await fetchSubtitlesForPart(
-            video.bvid,
-            videoPart.cid,
-          )
-          store.dispatch(
-            setPartSubtitles({
-              index: page - 1,
-              subtitles: fetchedSubtitles,
-            }),
-          )
-        } catch (e) {
-          console.error('Failed to fetch subtitles:', e)
-          store.dispatch(setPartSubtitles({ index: page - 1, subtitles: [] }))
-        }
+      const partIndex = page - 1
+      store.dispatch(setAccordionOpen({ index: partIndex, open: isOpen }))
+
+      if (!isOpen || subtitles.length > 0 || subtitlesLoading) return
+
+      store.dispatch(setSubtitlesLoading({ index: partIndex, loading: true }))
+      try {
+        const fetchedSubtitles = await fetchSubtitlesForPart(
+          video.bvid,
+          videoPart.cid,
+        )
+        store.dispatch(
+          setPartSubtitles({ index: partIndex, subtitles: fetchedSubtitles }),
+        )
+      } catch (e) {
+        console.error('Failed to fetch subtitles:', e)
+        store.dispatch(setPartSubtitles({ index: partIndex, subtitles: [] }))
       }
     },
     [page, video.bvid, videoPart.cid, subtitles.length, subtitlesLoading],
@@ -200,10 +199,11 @@ const VideoPartCard = memo(function VideoPartCard({
    * Handles checkbox selection state changes for the video part.
    */
   const handleSelectedChange = useCallback(
-    (checked: boolean | 'indeterminate') =>
+    (checked: boolean | 'indeterminate') => {
       store.dispatch(
         updatePartSelected({ index: page - 1, selected: checked === true }),
-      ),
+      )
+    },
     [page],
   )
 
@@ -216,10 +216,9 @@ const VideoPartCard = memo(function VideoPartCard({
     const partIndex = page - 1
     const state = store.getState()
     const pi = state.input.partInputs[partIndex]
-    if (!pi) return
-
     const videoId = extractVideoId(state.input.url)
-    if (!videoId) return
+
+    if (!pi || !videoId) return
 
     const completedItem = findCompletedItemForPart(state, page)
     if (completedItem) {
@@ -227,9 +226,6 @@ const VideoPartCard = memo(function VideoPartCard({
     }
 
     const newDownloadId = `${videoId}-${Date.now()}-p${page}`
-
-    // Use existing quality or first available from API response
-    // No hardcoded fallback - quality info should always be available for redownload
     const videoQuality = pi.videoQuality || String(pi.videoQualities?.[0]?.id)
     const audioQuality = pi.audioQuality || String(pi.audioQualities?.[0]?.id)
 
@@ -479,7 +475,7 @@ const VideoPartCard = memo(function VideoPartCard({
                 {qualitiesLoading || videoQualities.length === 0 ? (
                   <div className="space-y-2">
                     <Skeleton className="h-4 w-16" />
-                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-[1.62rem] w-full" />
                   </div>
                 ) : (
                   <FormField
@@ -599,7 +595,7 @@ const VideoPartCard = memo(function VideoPartCard({
                         {subtitlesLoading ? (
                           <div className="space-y-2">
                             <Skeleton className="h-4 w-16" />
-                            <Skeleton className="h-8 w-full" />
+                            <Skeleton className="h-[1.62rem] w-full" />
                           </div>
                         ) : subtitles.length > 0 ? (
                           <div>
