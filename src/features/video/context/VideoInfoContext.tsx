@@ -220,6 +220,35 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
         return
       }
 
+      // Extract p parameter from URL (e.g., ?p=159)
+      // If specified, only that part will be selected
+      let pageFromUrl: number | null = null
+      try {
+        const urlObj = new URL(url)
+        const pParam = urlObj.searchParams.get('p')
+        if (pParam) {
+          const parsed = parseInt(pParam, 10)
+          if (!isNaN(parsed) && parsed > 0) {
+            pageFromUrl = parsed
+          }
+        }
+      } catch {
+        // URL parse error - ignore
+      }
+
+      // Set processingPendingRef before initInputsForVideo is called
+      // This ensures only the p-specified part is selected
+      if (pageFromUrl && !processingPendingRef.current) {
+        const id = extractVideoId(url)
+        if (id) {
+          processingPendingRef.current = {
+            bvid: id,
+            cid: null,
+            page: pageFromUrl,
+          }
+        }
+      }
+
       store.dispatch(setUrl(url))
       const id = extractVideoId(url)
       if (id) {
@@ -259,14 +288,15 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
       videoQuality: string,
       audioQuality?: string,
     ) => {
-      store.dispatch(
-        updatePartInputByIndex({
-          index,
-          title,
-          videoQuality,
-          ...(audioQuality ? { audioQuality } : {}),
-        }),
-      )
+      const payload: Parameters<typeof updatePartInputByIndex>[0] = {
+        index,
+        title,
+        videoQuality,
+      }
+      if (audioQuality !== undefined) {
+        payload.audioQuality = audioQuality
+      }
+      store.dispatch(updatePartInputByIndex(payload))
     },
     [],
   )
@@ -321,7 +351,9 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
     const processing = processingPendingRef.current
 
     // Skip if already processing this exact video/part
-    if (processing?.bvid === bvid && processing.page === page) return
+    if (processing?.bvid === bvid && processing.page === page) {
+      return
+    }
 
     processingPendingRef.current = { bvid, cid, page }
     onValid1(`https://www.bilibili.com/video/${bvid}?p=${page}`)

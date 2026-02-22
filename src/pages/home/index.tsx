@@ -3,9 +3,9 @@ import { store, useSelector } from '@/app/store'
 import { useInit } from '@/features/init'
 import type { Video } from '@/features/video'
 import {
-  deselectAll,
+  deselectPageAll,
   DownloadButton,
-  selectAll,
+  selectPageAll,
   useVideoInfo,
   VideoForm1,
   VideoInfoProvider,
@@ -34,15 +34,23 @@ import {
   CardHeader,
   CardTitle,
 } from '@/shared/ui/card'
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/shared/ui/pagination'
 import { Separator } from '@/shared/ui/separator'
 import { Skeleton } from '@/shared/ui/skeleton'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { Info } from 'lucide-react'
-import { useCallback, useEffect, useRef } from 'react'
+import type React from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router'
-import type { ListRange } from 'react-virtuoso'
-import { Virtuoso } from 'react-virtuoso'
 
 /**
  * Props for the TooltipButton component.
@@ -99,23 +107,60 @@ function TooltipButton({
   )
 }
 
-/** Approximate height of each VideoPartCard in pixels. */
-const DEFAULT_PART_HEIGHT = 220
+/** Number of parts per page in pagination. */
+const PARTS_PER_PAGE = 10
 
-/** Props for the ScrollablePartList component. */
-type ScrollablePartListProps = {
+/** Props for the PaginatedPartList component. */
+type PaginatedPartListProps = {
   video: Video
   duplicateIndices: number[]
   isFetching: boolean
+  currentPage: number
+  onPageChange: (page: number) => void
+  scrollToPartIndex: number | null
+  scrollRequestId: number
 }
 
 /**
  * Concurrency limiter for API calls.
  *
- * Limits quality fetch API calls to 3 concurrent requests to avoid 429 rate limiting.
+ * Limits quality fetch API calls to 3 concurrent requests
+ * to avoid 429 rate limiting.
  * Kept outside component lifecycle to persist across re-renders.
  */
 const qualityLimiter = createConcurrencyLimiter(3)
+
+/**
+ * Generates pagination items with ellipsis for large page counts.
+ *
+ * @param totalPages - Total number of pages
+ * @param currentPage - Current active page
+ * @returns Array of page numbers and 'ellipsis' markers
+ */
+function generatePaginationItems(
+  totalPages: number,
+  currentPage: number,
+): (number | 'ellipsis')[] {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, i) => i + 1)
+  }
+
+  const items: (number | 'ellipsis')[] = []
+  for (let page = 1; page <= totalPages; page++) {
+    const shouldShow =
+      page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1
+
+    if (!shouldShow) continue
+
+    // Add ellipsis if there's a gap
+    const prevItem = items[items.length - 1]
+    if (typeof prevItem === 'number' && page - prevItem > 1) {
+      items.push('ellipsis')
+    }
+    items.push(page)
+  }
+  return items
+}
 
 /**
  * Fetches quality info for parts in the specified index range.
@@ -124,8 +169,8 @@ const qualityLimiter = createConcurrencyLimiter(3)
  * concurrent execution via the concurrency limiter.
  *
  * @param video - Video information
- * @param startIndex - Start index of the range
- * @param endIndex - End index of the range
+ * @param startIndex - Start index of the range (inclusive)
+ * @param endIndex - End index of the range (inclusive)
  */
 function fetchQualitiesForRange(
   video: Video,
@@ -156,8 +201,7 @@ function fetchQualitiesForRange(
           }),
         )
       })
-      .catch((e) => {
-        console.error('Failed to fetch qualities:', e)
+      .catch(() => {
         store.dispatch(
           setPartQualities({
             index: i,
@@ -170,99 +214,123 @@ function fetchQualitiesForRange(
 }
 
 /**
- * Virtualized part list that replaces the previous ScrollArea.
+ * Paginated part list with pagination controls.
  *
- * Uses `react-virtuoso` to render only visible VideoPartCards,
- * significantly reducing DOM nodes for videos with many parts.
- *
- * Quality info fetching is handled via `rangeChanged` callback
- * to detect visible range, executed through the concurrency limiter.
- * Individual `VideoPartCard` components do not fetch qualities.
+ * Displays parts in pages of 10 to avoid 429 rate limiting
+ * when fetching quality info. Quality info is fetched when
+ * the page changes or on initial load.
  *
  * @param props.video - Video information
  * @param props.duplicateIndices - Indices of parts with duplicate titles
  * @param props.isFetching - Whether video info is being fetched
+ * @param props.currentPage - Current page number (1-indexed)
+ * @param props.onPageChange - Callback when page changes
  *
  * @private
  */
-/** Debounce time to detect scroll stop (ms) */
-const RANGE_DEBOUNCE_MS = 300
-
-function ScrollablePartList({
+function PaginatedPartList({
   video,
   duplicateIndices,
   isFetching,
-}: ScrollablePartListProps) {
-  const lastRangeRef = useRef<ListRange | null>(null)
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
+  currentPage,
+  onPageChange,
+  scrollToPartIndex,
+  scrollRequestId,
+}: PaginatedPartListProps) {
+  const { t } = useTranslation()
+  const totalPages = Math.ceil(video.parts.length / PARTS_PER_PAGE)
 
-  const itemContent = useCallback(
-    (idx: number) => (
-      <div>
-        <VideoPartCard
-          video={video}
-          page={idx + 1}
-          isDuplicate={duplicateIndices.includes(idx)}
-        />
-        {idx < video.parts.length - 1 && <Separator className="my-3" />}
-      </div>
-    ),
-    [video, duplicateIndices],
-  )
+  // Calculate the range of parts for the current page
+  const pageRange = useMemo(() => {
+    const startIndex = (currentPage - 1) * PARTS_PER_PAGE
+    const endIndex = Math.min(
+      startIndex + PARTS_PER_PAGE - 1,
+      video.parts.length - 1,
+    )
+    return { startIndex, endIndex }
+  }, [currentPage, video.parts.length])
 
-  const Footer = useCallback(
-    () => (
-      <CardFooter>
-        <DownloadButton />
-      </CardFooter>
-    ),
-    [],
-  )
+  // Create a unique key for scroll tracking
+  // Include scrollRequestId to ensure each navigation triggers a new scroll
+  const scrollKey = useMemo(() => {
+    return `${video.bvid}-${scrollToPartIndex}-${scrollRequestId}`
+  }, [video.bvid, scrollToPartIndex, scrollRequestId])
 
-  const computeItemKey = useCallback(
-    (idx: number) => video.parts[idx].cid,
-    [video.parts],
-  )
+  // Track which scrollKey has been scrolled
+  const scrolledKeysRef = useRef<Set<string>>(new Set())
 
-  /**
-   * Virtuoso visible range change callback (with debounce).
-   *
-   * Fetches quality info for parts in the final visible range
-   * after scroll stops for RANGE_DEBOUNCE_MS.
-   * Parts passed during fast scrolling are not fetched.
-   */
-  const handleRangeChanged = useCallback(
-    (range: ListRange) => {
-      lastRangeRef.current = range
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current)
-      }
-      debounceRef.current = setTimeout(() => {
-        fetchQualitiesForRange(video, range.startIndex, range.endIndex)
-      }, RANGE_DEBOUNCE_MS)
-    },
-    [video],
-  )
-
-  // Cleanup debounce timer
+  // Scroll to specific part on initial load (when p=n is specified)
   useEffect(() => {
-    return () => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current)
-      }
+    if (
+      scrollToPartIndex !== null &&
+      scrollKey &&
+      scrollToPartIndex >= pageRange.startIndex &&
+      scrollToPartIndex <= pageRange.endIndex &&
+      !scrolledKeysRef.current.has(scrollKey) &&
+      !isFetching
+    ) {
+      scrolledKeysRef.current.add(scrollKey)
+      // Use setTimeout to wait for React re-render to complete
+      // The DOM elements may not have correct positions immediately after state changes
+      setTimeout(() => {
+        const cardContent = document.querySelector('[data-part-list]')
+        const targetPart = document.querySelector(
+          `[data-part-index="${scrollToPartIndex}"]`,
+        )
+        if (cardContent && targetPart) {
+          const containerRect = cardContent.getBoundingClientRect()
+          const targetRect = targetPart.getBoundingClientRect()
+          const scrollOffset =
+            targetRect.top - containerRect.top + cardContent.scrollTop - 20
+          cardContent.scrollTo({
+            top: scrollOffset,
+            behavior: 'smooth',
+          })
+        }
+      }, 100)
     }
-  }, [])
+  }, [
+    scrollToPartIndex,
+    scrollKey,
+    pageRange.startIndex,
+    pageRange.endIndex,
+    isFetching,
+  ])
 
-  // Fetch quality for initial visible range when video changes
+  // Clean up old scroll keys when video changes (keep only recent ones)
   useEffect(() => {
-    if (video.parts.length > 0 && lastRangeRef.current) {
-      fetchQualitiesForRange(
-        video,
-        lastRangeRef.current.startIndex,
-        lastRangeRef.current.endIndex,
+    if (scrolledKeysRef.current.size > 10) {
+      scrolledKeysRef.current = new Set()
+    }
+  }, [video.bvid])
+
+  // Fetch qualities on mount and when dependencies change
+  // fetchQualitiesForRange is idempotent - it skips already fetched parts
+  useEffect(() => {
+    if (video.parts.length > 0 && !isFetching) {
+      fetchQualitiesForRange(video, pageRange.startIndex, pageRange.endIndex)
+    }
+  }) // Remove dependency array to run on every render when conditions are met
+
+  // Render parts for current page
+  const pageParts = useMemo(() => {
+    const parts: React.ReactNode[] = []
+    for (let i = pageRange.startIndex; i <= pageRange.endIndex; i++) {
+      const part = video.parts[i]
+      if (!part) continue
+      parts.push(
+        <div key={part.cid} data-part-index={i}>
+          <VideoPartCard
+            video={video}
+            page={i + 1}
+            isDuplicate={duplicateIndices.includes(i)}
+          />
+          {i < pageRange.endIndex && <Separator className="my-3" />}
+        </div>,
       )
     }
-  }, [video])
+    return parts
+  }, [video, duplicateIndices, pageRange.startIndex, pageRange.endIndex])
 
   if (isFetching) {
     return (
@@ -273,16 +341,69 @@ function ScrollablePartList({
   }
 
   return (
-    <Virtuoso
-      style={{ height: 'calc(100dvh - 2.3rem - 13.5rem)' }}
-      totalCount={video.parts.length}
-      defaultItemHeight={DEFAULT_PART_HEIGHT}
-      increaseViewportBy={200}
-      computeItemKey={computeItemKey}
-      itemContent={itemContent}
-      rangeChanged={handleRangeChanged}
-      components={{ Footer }}
-    />
+    <>
+      <CardContent
+        data-part-list
+        className="max-h-[calc(100dvh-2.3rem-19.5rem)] space-y-0 overflow-y-auto"
+      >
+        {pageParts}
+      </CardContent>
+      <CardFooter className="flex flex-col gap-3">
+        {totalPages > 1 && (
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+                  className={
+                    currentPage === 1
+                      ? 'pointer-events-none opacity-50'
+                      : 'cursor-pointer'
+                  }
+                >
+                  {t('video.pagination_previous')}
+                </PaginationPrevious>
+              </PaginationItem>
+              {generatePaginationItems(totalPages, currentPage).map(
+                (item, idx) =>
+                  item === 'ellipsis' ? (
+                    <PaginationItem key={`ellipsis-${idx}`}>
+                      <PaginationEllipsis />
+                    </PaginationItem>
+                  ) : (
+                    <PaginationItem key={item}>
+                      <PaginationLink
+                        onClick={() => onPageChange(item)}
+                        isActive={currentPage === item}
+                        className="cursor-pointer"
+                      >
+                        {item}
+                      </PaginationLink>
+                    </PaginationItem>
+                  ),
+              )}
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() =>
+                    onPageChange(Math.min(totalPages, currentPage + 1))
+                  }
+                  className={
+                    currentPage === totalPages
+                      ? 'pointer-events-none opacity-50'
+                      : 'cursor-pointer'
+                  }
+                >
+                  {t('video.pagination_next')}
+                </PaginationNext>
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        )}
+        <div className="w-full">
+          <DownloadButton />
+        </div>
+      </CardFooter>
+    </>
   )
 }
 
@@ -296,19 +417,161 @@ function ScrollablePartList({
  * - Login benefits info (shown when not logged in)
  * - Video URL input (Step 1)
  * - Part selection and configuration (Step 2)
- * - Select all / Deselect all buttons
+ * - Select all / Deselect all buttons (current page only)
  * - Download button
  * - Auto-fetch via autoFetch query parameter
+ * - Pagination synced with ?p=N URL parameter
  *
  * @private
  */
 function HomeContentInner() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const { video, duplicateIndices, onValid1, isFetching } = useVideoInfo()
+  const { video, duplicateIndices, onValid1, isFetching, input } =
+    useVideoInfo()
   const { t } = useTranslation()
   const hasActiveDownloads = useSelector(selectHasActiveDownloads)
   const user = useSelector((state: RootState) => state.user)
   const isLoggedIn = user.hasCookie && user.data?.isLogin
+
+  // Page state management:
+  // - `p` parameter: part number (for initial display and part selection)
+  // - `page` parameter: page number (for pagination navigation)
+  // Priority: page param > p param (calculate from part) > default page 1
+  const totalPages = Math.ceil(video.parts.length / PARTS_PER_PAGE)
+
+  // Check for explicit page parameter first
+  const browserPage = searchParams.get('page')
+  // Check for p parameter (part number)
+  const browserP = searchParams.get('p')
+
+  // Use useState for scrollToPartIndex to ensure re-renders propagate to child components
+  const [scrollToPartIndex, setScrollToPartIndex] = useState<number | null>(
+    null,
+  )
+
+  // Calculate initial page
+  const currentPage = useMemo(() => {
+    let page = 1
+
+    if (browserPage) {
+      // Use explicit page parameter
+      page = parseInt(browserPage, 10)
+    } else if (browserP) {
+      // Calculate page from p parameter (part number)
+      const partNum = parseInt(browserP, 10)
+      page = Math.ceil(partNum / PARTS_PER_PAGE)
+    } else if (input.pendingDownload) {
+      // From favorites/watch history - use pendingDownload.page
+      const partNum = input.pendingDownload.page
+      page = Math.ceil(partNum / PARTS_PER_PAGE)
+    } else if (input.url) {
+      // Extract p from input.url (e.g., https://...?p=159)
+      try {
+        const urlObj = new URL(input.url)
+        const pParam = urlObj.searchParams.get('p')
+        if (pParam) {
+          const partNum = parseInt(pParam, 10)
+          page = Math.ceil(partNum / PARTS_PER_PAGE)
+        }
+      } catch {
+        // Invalid URL, use default
+      }
+    }
+
+    const clampedPage = Math.max(1, Math.min(page, totalPages || 1))
+    return clampedPage
+  }, [browserPage, browserP, input.pendingDownload, input.url, totalPages])
+
+  // Track scroll request timestamp to ensure each navigation triggers scroll
+  const [scrollRequestId, setScrollRequestId] = useState(0)
+
+  // Track previous pendingDownload to detect when it's cleared
+  const prevPendingDownloadRef = useRef<typeof input.pendingDownload>(null)
+
+  // Update scrollToPartIndex when dependencies change
+  // Wait for video parts to be loaded before setting scroll target
+  useEffect(() => {
+    // Don't set scroll target if video is not loaded yet
+    if (video.parts.length === 0 || isFetching) {
+      return
+    }
+
+    let targetIndex: number | null = null
+
+    if (browserP) {
+      // From URL ?p=n parameter
+      const partNum = parseInt(browserP, 10)
+      targetIndex = partNum - 1
+    } else if (input.url) {
+      // From input.url ?p=n parameter
+      try {
+        const urlObj = new URL(input.url)
+        const pParam = urlObj.searchParams.get('p')
+        if (pParam) {
+          const partNum = parseInt(pParam, 10)
+          targetIndex = partNum - 1
+        }
+      } catch {
+        // Invalid URL
+      }
+    }
+
+    setScrollToPartIndex(targetIndex)
+    // Generate new scroll request ID to trigger scroll
+    if (targetIndex !== null) {
+      setScrollRequestId((prev) => prev + 1)
+    }
+  }, [browserP, input.url, video.parts.length, isFetching])
+
+  // Handle scroll target from pendingDownload (favorites/watch history)
+  // Trigger scroll AFTER pendingDownload is cleared (video info fetch complete)
+  useEffect(() => {
+    const prevPending = prevPendingDownloadRef.current
+    prevPendingDownloadRef.current = input.pendingDownload
+
+    // Don't set scroll target if video is not loaded yet
+    if (video.parts.length === 0 || isFetching) {
+      return
+    }
+
+    // Trigger scroll when pendingDownload was set and is now cleared
+    // This means video info fetch is complete and parts are initialized
+    if (prevPending && !input.pendingDownload) {
+      const partNum = prevPending.page
+      const targetIndex = partNum - 1
+      setScrollToPartIndex(targetIndex)
+      // Generate new scroll request ID to trigger scroll
+      setScrollRequestId((prev) => prev + 1)
+    }
+  }, [input.pendingDownload, video.parts.length, isFetching])
+
+  // Handle page change - update page parameter and scroll to top
+  const handlePageChange = useCallback(
+    (page: number) => {
+      const newParams = new URLSearchParams(searchParams)
+      // Remove p parameter when navigating pages
+      newParams.delete('p')
+      // Always set page parameter to override input.url's p parameter
+      newParams.set('page', String(page))
+      setSearchParams(newParams, { replace: true })
+      // Scroll to top of the card content
+      const cardContent = document.querySelector('[data-part-list]')
+      if (cardContent) {
+        cardContent.scrollTop = 0
+      }
+    },
+    [searchParams, setSearchParams],
+  )
+
+  // Calculate page range for select/deselect operations
+  const pageRange = useMemo(() => {
+    const startIndex = (currentPage - 1) * PARTS_PER_PAGE
+    const endIndex = Math.min(
+      startIndex + PARTS_PER_PAGE - 1,
+      video.parts.length - 1,
+    )
+    return { startIndex, endIndex }
+  }, [currentPage, video.parts.length])
 
   // Handle autoFetch from query parameter
   useEffect(() => {
@@ -320,10 +583,27 @@ function HomeContentInner() {
     }
   }, [searchParams, isFetching, video.parts.length, onValid1, setSearchParams])
 
+  // Sync page when video parts change
+  useEffect(() => {
+    if (video.parts.length > 0 && currentPage > totalPages) {
+      handlePageChange(totalPages)
+    }
+  }, [video.parts.length, currentPage, totalPages, handlePageChange])
+
   const selectDisabled = hasActiveDownloads
   const selectTooltip = hasActiveDownloads
     ? t('video.download_in_progress')
     : undefined
+
+  // Select all parts on current page
+  const handleSelectAllCurrentPage = useCallback(() => {
+    store.dispatch(selectPageAll(pageRange))
+  }, [pageRange])
+
+  // Deselect all parts on current page
+  const handleDeselectAllCurrentPage = useCallback(() => {
+    store.dispatch(deselectPageAll(pageRange))
+  }, [pageRange])
 
   return (
     <div className="flex h-full flex-col">
@@ -367,7 +647,7 @@ function HomeContentInner() {
         </Card>
       </div>
 
-      {/* Step 2: Scrollable Area */}
+      {/* Step 2: Paginated Area */}
       {(isFetching || video.parts.length > 0) && (
         <div className="mx-auto w-full max-w-5xl px-3 pb-3 sm:px-6">
           <Card>
@@ -386,14 +666,14 @@ function HomeContentInner() {
                   <div className="flex items-center gap-2">
                     <DownloadButton />
                     <TooltipButton
-                      label={t('video.select_all')}
-                      onClick={() => store.dispatch(selectAll())}
+                      label={t('video.select_all_page')}
+                      onClick={handleSelectAllCurrentPage}
                       disabled={selectDisabled}
                       tooltip={selectTooltip}
                     />
                     <TooltipButton
-                      label={t('video.deselect_all')}
-                      onClick={() => store.dispatch(deselectAll())}
+                      label={t('video.deselect_all_page')}
+                      onClick={handleDeselectAllCurrentPage}
                       disabled={selectDisabled}
                       tooltip={selectTooltip}
                     />
@@ -401,10 +681,14 @@ function HomeContentInner() {
                 )}
               </div>
             </CardHeader>
-            <ScrollablePartList
+            <PaginatedPartList
               video={video}
               duplicateIndices={duplicateIndices}
               isFetching={isFetching}
+              currentPage={currentPage}
+              onPageChange={handlePageChange}
+              scrollToPartIndex={scrollToPartIndex}
+              scrollRequestId={scrollRequestId}
             />
           </Card>
         </div>
@@ -422,9 +706,10 @@ function HomeContentInner() {
  * Displays the primary UI for video downloads including:
  * - Video URL input form (Step 1)
  * - Video parts configuration forms (Step 2)
- * - Select all/deselect all buttons
+ * - Select all/deselect all buttons (current page only)
  * - Download button
  * - Download progress (inline in each part card)
+ * - Pagination synced with ?p=N URL parameter
  *
  * Redirects to /init if the app is not initialized.
  * Supports autoFetch query parameter to automatically fetch video info.
