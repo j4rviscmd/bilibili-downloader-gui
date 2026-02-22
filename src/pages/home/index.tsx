@@ -148,9 +148,7 @@ function generatePaginationItems(
   const items: (number | 'ellipsis')[] = []
   for (let page = 1; page <= totalPages; page++) {
     const shouldShow =
-      page === 1 ||
-      page === totalPages ||
-      Math.abs(page - currentPage) <= 1
+      page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1
 
     if (!shouldShow) continue
 
@@ -291,7 +289,13 @@ function PaginatedPartList({
         }
       }, 100)
     }
-  }, [scrollToPartIndex, scrollKey, pageRange.startIndex, pageRange.endIndex, isFetching])
+  }, [
+    scrollToPartIndex,
+    scrollKey,
+    pageRange.startIndex,
+    pageRange.endIndex,
+    isFetching,
+  ])
 
   // Clean up old scroll keys when video changes (keep only recent ones)
   useEffect(() => {
@@ -422,7 +426,8 @@ function PaginatedPartList({
  */
 function HomeContentInner() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const { video, duplicateIndices, onValid1, isFetching, input } = useVideoInfo()
+  const { video, duplicateIndices, onValid1, isFetching, input } =
+    useVideoInfo()
   const { t } = useTranslation()
   const hasActiveDownloads = useSelector(selectHasActiveDownloads)
   const user = useSelector((state: RootState) => state.user)
@@ -440,7 +445,9 @@ function HomeContentInner() {
   const browserP = searchParams.get('p')
 
   // Use useState for scrollToPartIndex to ensure re-renders propagate to child components
-  const [scrollToPartIndex, setScrollToPartIndex] = useState<number | null>(null)
+  const [scrollToPartIndex, setScrollToPartIndex] = useState<number | null>(
+    null,
+  )
 
   // Calculate initial page
   const currentPage = useMemo(() => {
