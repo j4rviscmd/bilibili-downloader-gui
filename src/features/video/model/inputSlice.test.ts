@@ -1,14 +1,14 @@
-import type { SubtitleConfig, SubtitleInfo } from '@/features/video/types'
 import inputReducer, {
   defaultSubtitleConfig,
   initPartInputs,
   resetInput,
-  setPartSubtitles,
   setPartQualities,
+  setPartSubtitles,
   setQualitiesLoading,
   setSubtitlesLoading,
   updateSubtitleConfig,
 } from '@/features/video/model/inputSlice'
+import type { SubtitleConfig, SubtitleInfo } from '@/features/video/types'
 import { describe, expect, it } from 'vitest'
 
 describe('inputSlice', () => {
@@ -206,8 +206,18 @@ describe('inputSlice', () => {
       }
 
       const subtitles: SubtitleInfo[] = [
-        { lan: 'zh-CN', lanDoc: '中文（简体）', subtitleUrl: 'https://example.com/zh.json', isAi: false },
-        { lan: 'en', lanDoc: 'English', subtitleUrl: 'https://example.com/en.json', isAi: true },
+        {
+          lan: 'zh-CN',
+          lanDoc: '中文（简体）',
+          subtitleUrl: 'https://example.com/zh.json',
+          isAi: false,
+        },
+        {
+          lan: 'en',
+          lanDoc: 'English',
+          subtitleUrl: 'https://example.com/en.json',
+          isAi: true,
+        },
       ]
 
       const state = inputReducer(
@@ -352,8 +362,18 @@ describe('inputSlice', () => {
             audioQuality: '30216',
             selected: true,
             duration: 120,
-            subtitle: { mode: 'soft', selectedLans: ['zh-CN'] } as SubtitleConfig,
-            subtitles: [{ lan: 'zh-CN', lanDoc: '中文', subtitleUrl: 'https://example.com/zh.json', isAi: false }],
+            subtitle: {
+              mode: 'soft',
+              selectedLans: ['zh-CN'],
+            } as SubtitleConfig,
+            subtitles: [
+              {
+                lan: 'zh-CN',
+                lanDoc: '中文',
+                subtitleUrl: 'https://example.com/zh.json',
+                isAi: false,
+              },
+            ],
             subtitlesLoading: false,
           },
         ],

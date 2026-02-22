@@ -1,4 +1,11 @@
-import type { AudioQuality, Input, PendingDownload, SubtitleConfig, SubtitleInfo, VideoQuality } from '@/features/video/types'
+import type {
+  AudioQuality,
+  Input,
+  PendingDownload,
+  SubtitleConfig,
+  SubtitleInfo,
+  VideoQuality,
+} from '@/features/video/types'
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 

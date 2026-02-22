@@ -1,6 +1,14 @@
-import type { SubtitleInfo, VideoQuality, AudioQuality } from '@/features/video/types'
+import type {
+  AudioQuality,
+  SubtitleInfo,
+  VideoQuality,
+} from '@/features/video/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fetchSubtitlesForPart, fetchPartQualities, fetchVideoInfo } from './fetchVideoInfo'
+import {
+  fetchPartQualities,
+  fetchSubtitlesForPart,
+  fetchVideoInfo,
+} from './fetchVideoInfo'
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
@@ -78,9 +86,9 @@ describe('fetchVideoInfo', () => {
     it('should propagate errors from backend', async () => {
       mockInvoke.mockRejectedValue(new Error('Failed to fetch subtitles'))
 
-      await expect(fetchSubtitlesForPart('BV1234567890', 123456)).rejects.toThrow(
-        'Failed to fetch subtitles',
-      )
+      await expect(
+        fetchSubtitlesForPart('BV1234567890', 123456),
+      ).rejects.toThrow('Failed to fetch subtitles')
     })
   })
 

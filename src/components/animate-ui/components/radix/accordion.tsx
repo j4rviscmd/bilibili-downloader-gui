@@ -1,26 +1,25 @@
-import * as React from 'react';
-import { ChevronDownIcon } from 'lucide-react';
+import { ChevronDownIcon } from 'lucide-react'
 
 import {
-  Accordion as AccordionPrimitive,
-  AccordionItem as AccordionItemPrimitive,
-  AccordionHeader as AccordionHeaderPrimitive,
-  AccordionTrigger as AccordionTriggerPrimitive,
   AccordionContent as AccordionContentPrimitive,
-  type AccordionProps as AccordionPrimitiveProps,
-  type AccordionItemProps as AccordionItemPrimitiveProps,
-  type AccordionTriggerProps as AccordionTriggerPrimitiveProps,
+  AccordionHeader as AccordionHeaderPrimitive,
+  AccordionItem as AccordionItemPrimitive,
+  Accordion as AccordionPrimitive,
+  AccordionTrigger as AccordionTriggerPrimitive,
   type AccordionContentProps as AccordionContentPrimitiveProps,
-} from '@/components/animate-ui/primitives/radix/accordion';
-import { cn } from '@/lib/utils';
+  type AccordionItemProps as AccordionItemPrimitiveProps,
+  type AccordionProps as AccordionPrimitiveProps,
+  type AccordionTriggerProps as AccordionTriggerPrimitiveProps,
+} from '@/components/animate-ui/primitives/radix/accordion'
+import { cn } from '@/lib/utils'
 
-type AccordionProps = AccordionPrimitiveProps;
+type AccordionProps = AccordionPrimitiveProps
 
 function Accordion(props: AccordionProps) {
-  return <AccordionPrimitive {...props} />;
+  return <AccordionPrimitive {...props} />
 }
 
-type AccordionItemProps = AccordionItemPrimitiveProps;
+type AccordionItemProps = AccordionItemPrimitiveProps
 
 function AccordionItem({ className, ...props }: AccordionItemProps) {
   return (
@@ -28,12 +27,12 @@ function AccordionItem({ className, ...props }: AccordionItemProps) {
       className={cn('border-b last:border-b-0', className)}
       {...props}
     />
-  );
+  )
 }
 
 type AccordionTriggerProps = AccordionTriggerPrimitiveProps & {
-  showArrow?: boolean;
-};
+  showArrow?: boolean
+}
 
 function AccordionTrigger({
   className,
@@ -56,10 +55,10 @@ function AccordionTrigger({
         )}
       </AccordionTriggerPrimitive>
     </AccordionHeaderPrimitive>
-  );
+  )
 }
 
-type AccordionContentProps = AccordionContentPrimitiveProps;
+type AccordionContentProps = AccordionContentPrimitiveProps
 
 function AccordionContent({
   className,
@@ -68,18 +67,18 @@ function AccordionContent({
 }: AccordionContentProps) {
   return (
     <AccordionContentPrimitive {...props}>
-      <div className={cn('text-sm pt-0 pb-4', className)}>{children}</div>
+      <div className={cn('pt-0 pb-4 text-sm', className)}>{children}</div>
     </AccordionContentPrimitive>
-  );
+  )
 }
 
 export {
   Accordion,
+  AccordionContent,
   AccordionItem,
   AccordionTrigger,
-  AccordionContent,
-  type AccordionProps,
-  type AccordionItemProps,
-  type AccordionTriggerProps,
   type AccordionContentProps,
-};
+  type AccordionItemProps,
+  type AccordionProps,
+  type AccordionTriggerProps,
+}

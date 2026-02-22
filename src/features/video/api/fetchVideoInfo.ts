@@ -1,4 +1,9 @@
-import type { AudioQuality, SubtitleInfo, Video, VideoQuality } from '@/features/video/types'
+import type {
+  AudioQuality,
+  SubtitleInfo,
+  Video,
+  VideoQuality,
+} from '@/features/video/types'
 import { invoke } from '@tauri-apps/api/core'
 
 /**
@@ -67,5 +72,8 @@ export const fetchPartQualities = async (
   bvid: string,
   cid: number,
 ): Promise<[VideoQuality[], AudioQuality[]]> => {
-  return await invoke<[VideoQuality[], AudioQuality[]]>('fetch_part_qualities', { bvid, cid })
+  return await invoke<[VideoQuality[], AudioQuality[]]>(
+    'fetch_part_qualities',
+    { bvid, cid },
+  )
 }

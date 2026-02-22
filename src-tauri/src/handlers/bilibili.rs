@@ -257,7 +257,8 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
             } else {
                 // 字幕情報を再取得（クライアントを再利用）
                 let client = build_client()?;
-                let available_subs = fetch_subtitles(&client, &cookies, &options.bvid, options.cid).await;
+                let available_subs =
+                    fetch_subtitles(&client, &cookies, &options.bvid, options.cid).await;
 
                 // 選択された言語の字幕をフィルタリング
                 let selected_subs: Vec<_> = available_subs
@@ -269,12 +270,16 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
                     crate::handlers::ffmpeg::MergeMode::None
                 } else {
                     // 字幕をダウンロードしてSRTに変換
-                    let mut subtitle_files: Vec<crate::handlers::ffmpeg::SubtitleMergeOptions> = Vec::new();
+                    let mut subtitle_files: Vec<crate::handlers::ffmpeg::SubtitleMergeOptions> =
+                        Vec::new();
 
                     for sub in selected_subs {
-                        let srt_path = lib_path.join(format!("temp_sub_{}_{}.srt", options.download_id, sub.lan));
+                        let srt_path = lib_path
+                            .join(format!("temp_sub_{}_{}.srt", options.download_id, sub.lan));
 
-                        if let Err(e) = download_subtitle(&client, &sub.subtitle_url, &srt_path).await {
+                        if let Err(e) =
+                            download_subtitle(&client, &sub.subtitle_url, &srt_path).await
+                        {
                             eprintln!("Warning: Failed to download subtitle {}: {}", sub.lan, e);
                             continue;
                         }

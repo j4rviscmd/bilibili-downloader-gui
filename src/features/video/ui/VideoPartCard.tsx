@@ -1,8 +1,17 @@
 import type { RootState } from '@/app/store'
 import { store } from '@/app/store'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/animate-ui/components/radix/accordion'
 import { useVideoInfo } from '@/features/video'
 import { downloadVideo } from '@/features/video/api/downloadVideo'
-import { fetchPartQualities, fetchSubtitlesForPart } from '@/features/video/api/fetchVideoInfo'
+import {
+  fetchPartQualities,
+  fetchSubtitlesForPart,
+} from '@/features/video/api/fetchVideoInfo'
 import { usePartDownloadStatus } from '@/features/video/hooks/usePartDownloadStatus'
 import {
   AUDIO_QUALITIES_MAP,
@@ -20,14 +29,12 @@ import {
   updatePartSelected,
   updateSubtitleConfig,
 } from '@/features/video/model/inputSlice'
-import type { SubtitleConfig, SubtitleInfo, Video } from '@/features/video/types'
+import type {
+  SubtitleConfig,
+  SubtitleInfo,
+  Video,
+} from '@/features/video/types'
 import { PartDownloadProgress } from '@/features/video/ui/PartDownloadProgress'
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/animate-ui/components/radix/accordion'
 import { Checkbox } from '@/shared/animate-ui/radix/checkbox'
 import {
   RadioGroup,
@@ -46,7 +53,6 @@ import {
   findCompletedItemForPart,
   selectHasActiveDownloads,
 } from '@/shared/queue/queueSlice'
-import { Skeleton } from '@/shared/ui/skeleton'
 import {
   Form,
   FormControl,
@@ -56,6 +62,7 @@ import {
   FormMessage,
 } from '@/shared/ui/form'
 import { Label } from '@/shared/ui/label'
+import { Skeleton } from '@/shared/ui/skeleton'
 import { Textarea } from '@/shared/ui/textarea'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { AlertTriangle, Check, Copy, ImageOff, Info } from 'lucide-react'
@@ -204,7 +211,7 @@ function SubtitleSection({
 
       {config.mode === 'soft' && (
         <div className="space-y-2">
-          <div className="text-xs text-muted-foreground">
+          <div className="text-muted-foreground text-xs">
             {t('video.subtitle_select_multiple')}
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-2">
@@ -325,17 +332,27 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
-          store.dispatch(setQualitiesLoading({ index: page - 1, loading: true }))
+          store.dispatch(
+            setQualitiesLoading({ index: page - 1, loading: true }),
+          )
           fetchPartQualities(video.bvid, videoPart.cid)
             .then(([vq, aq]) => {
               store.dispatch(
-                setPartQualities({ index: page - 1, videoQualities: vq, audioQualities: aq }),
+                setPartQualities({
+                  index: page - 1,
+                  videoQualities: vq,
+                  audioQualities: aq,
+                }),
               )
             })
             .catch((e) => {
               console.error('Failed to fetch qualities:', e)
               store.dispatch(
-                setPartQualities({ index: page - 1, videoQualities: [], audioQualities: [] }),
+                setPartQualities({
+                  index: page - 1,
+                  videoQualities: [],
+                  audioQualities: [],
+                }),
               )
             })
           observer.disconnect()
@@ -350,11 +367,20 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
 
   async function handleAccordionChange(value: string[]) {
     setAccordionValue(value)
-    if (value.includes('other-options') && subtitles.length === 0 && !subtitlesLoading) {
+    if (
+      value.includes('other-options') &&
+      subtitles.length === 0 &&
+      !subtitlesLoading
+    ) {
       store.dispatch(setSubtitlesLoading({ index: page - 1, loading: true }))
       try {
-        const fetchedSubtitles = await fetchSubtitlesForPart(video.bvid, videoPart.cid)
-        store.dispatch(setPartSubtitles({ index: page - 1, subtitles: fetchedSubtitles }))
+        const fetchedSubtitles = await fetchSubtitlesForPart(
+          video.bvid,
+          videoPart.cid,
+        )
+        store.dispatch(
+          setPartSubtitles({ index: page - 1, subtitles: fetchedSubtitles }),
+        )
       } catch (e) {
         console.error('Failed to fetch subtitles:', e)
         store.dispatch(setPartSubtitles({ index: page - 1, subtitles: [] }))
@@ -508,7 +534,11 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
       <Form {...form}>
         <fieldset
           disabled={
-            disabled || isDownloading || isPending || hasActiveDownloads || isSubtitleInvalid
+            disabled ||
+            isDownloading ||
+            isPending ||
+            hasActiveDownloads ||
+            isSubtitleInvalid
           }
         >
           <form
@@ -719,14 +749,16 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                                   >
                                     <QualityRadioGroup
                                       idPrefix={`aq-${page}`}
-                                      options={AUDIO_QUALITIES_ORDER.map((id) => ({
-                                        id: String(id),
-                                        label: AUDIO_QUALITIES_MAP[id],
-                                        isAvailable: isQualityAvailable(
-                                          Number(id),
-                                          'audio',
-                                        ),
-                                      }))}
+                                      options={AUDIO_QUALITIES_ORDER.map(
+                                        (id) => ({
+                                          id: String(id),
+                                          label: AUDIO_QUALITIES_MAP[id],
+                                          isAvailable: isQualityAvailable(
+                                            Number(id),
+                                            'audio',
+                                          ),
+                                        }),
+                                      )}
                                     />
                                   </RadioGroup>
                                 </FormControl>
@@ -757,18 +789,30 @@ function VideoPartCard({ video, page, isDuplicate }: Props) {
                                   className="max-w-xs text-xs"
                                 >
                                   <p>{t('video.subtitle_description')}</p>
-                                  <p className="mt-1">{t('video.subtitle_note')}</p>
+                                  <p className="mt-1">
+                                    {t('video.subtitle_note')}
+                                  </p>
                                 </TooltipContent>
                               </Tooltip>
                             </div>
                             <SubtitleSection
                               subtitles={subtitles}
-                              config={partInput?.subtitle ?? defaultSubtitleConfig}
-                              disabled={disabled || isDownloading || isPending || hasActiveDownloads}
+                              config={
+                                partInput?.subtitle ?? defaultSubtitleConfig
+                              }
+                              disabled={
+                                disabled ||
+                                isDownloading ||
+                                isPending ||
+                                hasActiveDownloads
+                              }
                               page={page}
                               onConfigChange={(config) => {
                                 store.dispatch(
-                                  updateSubtitleConfig({ index: page - 1, config }),
+                                  updateSubtitleConfig({
+                                    index: page - 1,
+                                    config,
+                                  }),
                                 )
                               }}
                             />

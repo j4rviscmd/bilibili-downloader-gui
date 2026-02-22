@@ -1,30 +1,30 @@
-'use client';
+'use client'
 
-import * as React from 'react';
-import { Accordion as AccordionPrimitive } from 'radix-ui';
-import { motion, AnimatePresence, type HTMLMotionProps } from 'motion/react';
+import { AnimatePresence, motion, type HTMLMotionProps } from 'motion/react'
+import { Accordion as AccordionPrimitive } from 'radix-ui'
+import * as React from 'react'
 
-import { useControlledState } from '@/hooks/use-controlled-state';
-import { getStrictContext } from '@/lib/get-strict-context';
+import { useControlledState } from '@/hooks/use-controlled-state'
+import { getStrictContext } from '@/lib/get-strict-context'
 
 type AccordionContextType = {
-  value: string | string[] | undefined;
-  setValue: (value: string | string[] | undefined) => void;
-};
+  value: string | string[] | undefined
+  setValue: (value: string | string[] | undefined) => void
+}
 
 type AccordionItemContextType = {
-  value: string;
-  isOpen: boolean;
-  setIsOpen: (open: boolean) => void;
-};
+  value: string
+  isOpen: boolean
+  setIsOpen: (open: boolean) => void
+}
 
 const [AccordionProvider, useAccordion] =
-  getStrictContext<AccordionContextType>('AccordionContext');
+  getStrictContext<AccordionContextType>('AccordionContext')
 
 const [AccordionItemProvider, useAccordionItem] =
-  getStrictContext<AccordionItemContextType>('AccordionItemContext');
+  getStrictContext<AccordionItemContextType>('AccordionItemContext')
 
-type AccordionProps = React.ComponentProps<typeof AccordionPrimitive.Root>;
+type AccordionProps = React.ComponentProps<typeof AccordionPrimitive.Root>
 
 function Accordion(props: AccordionProps) {
   const [value, setValue] = useControlledState<string | string[] | undefined>({
@@ -33,7 +33,7 @@ function Accordion(props: AccordionProps) {
     onChange: props?.onValueChange as (
       value: string | string[] | undefined,
     ) => void,
-  });
+  })
 
   return (
     <AccordionProvider value={{ value, setValue }}>
@@ -43,44 +43,42 @@ function Accordion(props: AccordionProps) {
         onValueChange={setValue}
       />
     </AccordionProvider>
-  );
+  )
 }
 
-type AccordionItemProps = React.ComponentProps<typeof AccordionPrimitive.Item>;
+type AccordionItemProps = React.ComponentProps<typeof AccordionPrimitive.Item>
 
 function AccordionItem(props: AccordionItemProps) {
-  const { value } = useAccordion();
+  const { value } = useAccordion()
   const [isOpen, setIsOpen] = React.useState(
     value?.includes(props?.value) ?? false,
-  );
+  )
 
   React.useEffect(() => {
-    setIsOpen(value?.includes(props?.value) ?? false);
-  }, [value, props?.value]);
+    setIsOpen(value?.includes(props?.value) ?? false)
+  }, [value, props?.value])
 
   return (
     <AccordionItemProvider value={{ isOpen, setIsOpen, value: props.value }}>
       <AccordionPrimitive.Item data-slot="accordion-item" {...props} />
     </AccordionItemProvider>
-  );
+  )
 }
 
 type AccordionHeaderProps = React.ComponentProps<
   typeof AccordionPrimitive.Header
->;
+>
 
 function AccordionHeader(props: AccordionHeaderProps) {
-  return <AccordionPrimitive.Header data-slot="accordion-header" {...props} />;
+  return <AccordionPrimitive.Header data-slot="accordion-header" {...props} />
 }
 
 type AccordionTriggerProps = React.ComponentProps<
   typeof AccordionPrimitive.Trigger
->;
+>
 
 function AccordionTrigger(props: AccordionTriggerProps) {
-  return (
-    <AccordionPrimitive.Trigger data-slot="accordion-trigger" {...props} />
-  );
+  return <AccordionPrimitive.Trigger data-slot="accordion-trigger" {...props} />
 }
 
 type AccordionContentProps = Omit<
@@ -88,15 +86,15 @@ type AccordionContentProps = Omit<
   'asChild' | 'forceMount'
 > &
   HTMLMotionProps<'div'> & {
-    keepRendered?: boolean;
-  };
+    keepRendered?: boolean
+  }
 
 function AccordionContent({
   keepRendered = false,
   transition = { duration: 0.35, ease: 'easeInOut' },
   ...props
 }: AccordionContentProps) {
-  const { isOpen } = useAccordionItem();
+  const { isOpen } = useAccordionItem()
 
   return (
     <AnimatePresence>
@@ -150,22 +148,22 @@ function AccordionContent({
         )
       )}
     </AnimatePresence>
-  );
+  )
 }
 
 export {
   Accordion,
-  AccordionItem,
-  AccordionHeader,
-  AccordionTrigger,
   AccordionContent,
+  AccordionHeader,
+  AccordionItem,
+  AccordionTrigger,
   useAccordion,
   useAccordionItem,
-  type AccordionProps,
-  type AccordionItemProps,
-  type AccordionHeaderProps,
-  type AccordionTriggerProps,
   type AccordionContentProps,
   type AccordionContextType,
+  type AccordionHeaderProps,
   type AccordionItemContextType,
-};
+  type AccordionItemProps,
+  type AccordionProps,
+  type AccordionTriggerProps,
+}

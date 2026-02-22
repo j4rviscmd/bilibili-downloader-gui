@@ -624,12 +624,18 @@ pub async fn merge_avs(
     match &subtitle_mode {
         MergeMode::None => {
             cmd.args([
-                "-i", video_str,
-                "-i", audio_str,
-                "-c:v", "copy",
-                "-c:a", "aac",
-                "-progress", "pipe:1",
-                "-y", output_str,
+                "-i",
+                video_str,
+                "-i",
+                audio_str,
+                "-c:v",
+                "copy",
+                "-c:a",
+                "aac",
+                "-progress",
+                "pipe:1",
+                "-y",
+                output_str,
             ]);
         }
         MergeMode::SoftSub(subtitles) => {
@@ -694,14 +700,22 @@ pub async fn merge_avs(
             let filter = format!("subtitles='{}'", escaped_sub);
 
             cmd.args([
-                "-i", video_str,
-                "-i", audio_str,
-                "-vf", &filter,
-                "-c:v", "libx264",
-                "-preset", "fast",
-                "-c:a", "aac",
-                "-progress", "pipe:1",
-                "-y", output_str,
+                "-i",
+                video_str,
+                "-i",
+                audio_str,
+                "-vf",
+                &filter,
+                "-c:v",
+                "libx264",
+                "-preset",
+                "fast",
+                "-c:a",
+                "aac",
+                "-progress",
+                "pipe:1",
+                "-y",
+                output_str,
             ]);
         }
     }
