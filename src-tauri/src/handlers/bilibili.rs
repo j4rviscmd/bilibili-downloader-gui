@@ -91,28 +91,21 @@ pub fn build_client() -> Result<Client, String> {
 
 /// Validates a Bilibili API response. Returns an error if the response code is non-zero or data is None.
 fn validate_api_response<T>(code: i64, data: Option<&T>) -> Result<(), String> {
-    if code == -404 {
-        return Err("ERR::VIDEO_NOT_FOUND".into());
+    match code {
+        -404 => Err("ERR::VIDEO_NOT_FOUND".into()),
+        0 if data.is_some() => Ok(()),
+        _ => Err("ERR::API_ERROR".into()),
     }
-    if code == -400 || code != 0 {
-        return Err("ERR::API_ERROR".into());
-    }
-    if data.is_none() {
-        return Err("ERR::API_ERROR".into());
-    }
-    Ok(())
 }
 
 /// Checks HTTP response status and returns appropriate error codes.
 /// Returns `ERR::RATE_LIMITED` for HTTP 429, `ERR::API_ERROR` for other errors.
 fn check_http_status(status: reqwest::StatusCode) -> Result<(), String> {
-    if status.is_success() {
-        return Ok(());
+    match status.as_u16() {
+        200..=299 => Ok(()),
+        429 => Err("ERR::RATE_LIMITED".into()),
+        _ => Err("ERR::API_ERROR".into()),
     }
-    if status.as_u16() == 429 {
-        return Err("ERR::RATE_LIMITED".into());
-    }
-    Err("ERR::API_ERROR".into())
 }
 
 /// Downloads a Bilibili video with the specified quality settings.
@@ -252,64 +245,15 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
         )?;
 
         // 字幕処理
-        let subtitle_mode = if let Some(ref sub_opts) = options.subtitle {
-            if sub_opts.mode == "off" || sub_opts.selected_lans.is_empty() {
-                crate::handlers::ffmpeg::MergeMode::None
-            } else {
-                // 字幕情報を再取得（クライアントを再利用）
-                let client = build_client()?;
-                let available_subs =
-                    fetch_subtitles(&client, &cookies, &options.bvid, options.cid).await;
-
-                // 選択された言語の字幕をフィルタリング
-                let selected_subs: Vec<_> = available_subs
-                    .iter()
-                    .filter(|s| sub_opts.selected_lans.contains(&s.lan))
-                    .collect();
-
-                if selected_subs.is_empty() {
-                    crate::handlers::ffmpeg::MergeMode::None
-                } else {
-                    // 字幕をダウンロードしてSRTに変換
-                    let mut subtitle_files: Vec<crate::handlers::ffmpeg::SubtitleMergeOptions> =
-                        Vec::new();
-
-                    for sub in selected_subs {
-                        let srt_path = lib_path
-                            .join(format!("temp_sub_{}_{}.srt", options.download_id, sub.lan));
-
-                        if let Err(e) =
-                            download_subtitle(&client, &sub.subtitle_url, &srt_path).await
-                        {
-                            eprintln!("Warning: Failed to download subtitle {}: {}", sub.lan, e);
-                            continue;
-                        }
-
-                        subtitle_files.push(crate::handlers::ffmpeg::SubtitleMergeOptions {
-                            path: srt_path,
-                            language: crate::utils::subtitle::lan_to_iso639(&sub.lan).to_string(),
-                            title: sub.lan_doc.clone(),
-                        });
-                    }
-
-                    if subtitle_files.is_empty() {
-                        crate::handlers::ffmpeg::MergeMode::None
-                    } else if sub_opts.mode == "hard" {
-                        // ハードサブ: 最初の字幕のみ使用
-                        if let Some(first_sub) = subtitle_files.into_iter().next() {
-                            crate::handlers::ffmpeg::MergeMode::HardSub(first_sub)
-                        } else {
-                            crate::handlers::ffmpeg::MergeMode::None
-                        }
-                    } else {
-                        // ソフトサブ: すべての字幕を使用
-                        crate::handlers::ffmpeg::MergeMode::SoftSub(subtitle_files)
-                    }
-                }
-            }
-        } else {
-            crate::handlers::ffmpeg::MergeMode::None
-        };
+        let subtitle_mode = prepare_subtitle_mode(
+            &options.subtitle,
+            &cookies,
+            &options.bvid,
+            options.cid,
+            &options.download_id,
+            &lib_path,
+        )
+        .await?;
 
         // 字幕ファイルのパスを保持（クリーンアップ用）
         let subtitle_paths: Vec<PathBuf> = match &subtitle_mode {
@@ -449,6 +393,24 @@ mod tests {
 }
 
 /// Saves a history entry after download completion.
+///
+/// Creates a history record with video metadata, quality info, and file size.
+/// The entry is persisted via `HistoryStore` and emitted as an event to notify
+/// the frontend.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle
+/// * `bvid` - Bilibili video ID
+/// * `quality` - Downloaded video quality ID
+/// * `file_size` - Actual file size in bytes (optional)
+/// * `filename` - Output filename used for title extraction
+/// * `thumbnail_url` - Video thumbnail URL (fetched if not provided)
+/// * `page` - Page number for multi-part videos (optional)
+///
+/// # Returns
+///
+/// Returns `Ok(())` on success, or an error if store operations fail.
 async fn save_to_history(
     app: &AppHandle,
     bvid: &str,
@@ -513,6 +475,17 @@ async fn save_to_history(
 }
 
 /// Converts a quality ID to a human-readable string representation.
+///
+/// Maps Bilibili quality IDs to display names like "4K", "1080P60", "1080P", etc.
+/// Falls back to "Q{id}" format for unknown quality IDs.
+///
+/// # Arguments
+///
+/// * `quality` - Bilibili quality ID (e.g., 116 for 4K, 80 for 1080P)
+///
+/// # Returns
+///
+/// Human-readable quality string.
 fn quality_to_string(quality: &i32) -> String {
     match quality {
         116 => "4K".to_string(),
@@ -525,7 +498,19 @@ fn quality_to_string(quality: &i32) -> String {
     }
 }
 
-/// Fetches video information for a history entry (returns None on failure).
+/// Fetches video information for a history entry.
+///
+/// Used to retrieve video title and thumbnail when saving download history.
+/// Returns `None` on any failure (network error, API error, etc.).
+///
+/// # Arguments
+///
+/// * `bvid` - Bilibili video ID
+/// * `cookies` - Cookie entries for authentication
+///
+/// # Returns
+///
+/// Returns `Some((title, thumbnail_url))` on success, or `None` on failure.
 async fn fetch_video_info_for_history(
     bvid: &str,
     cookies: &[CookieEntry],
@@ -545,11 +530,7 @@ async fn fetch_video_info_for_history(
     let body: WebInterfaceApiResponse = response.json().await.ok()?;
 
     let data = body.data?;
-    let thumbnail_url = if data.pic.is_empty() {
-        None
-    } else {
-        Some(data.pic)
-    };
+    let thumbnail_url = (!data.pic.is_empty()).then_some(data.pic);
     Some((data.title, thumbnail_url))
 }
 
@@ -599,7 +580,17 @@ pub async fn fetch_user_info(app: &AppHandle) -> Result<User, String> {
 }
 
 /// Builds a Cookie header string from cookie entries.
-/// Formats bilibili.com domain cookies as "name=value; name=value".
+///
+/// Filters cookies to only include those from bilibili.com domains
+/// and formats them as "name=value; name=value".
+///
+/// # Arguments
+///
+/// * `cookies` - Slice of cookie entries to filter and format
+///
+/// # Returns
+///
+/// Cookie header string (may be empty if no matching cookies).
 fn build_cookie_header(cookies: &[CookieEntry]) -> String {
     cookies
         .iter()
@@ -609,7 +600,22 @@ fn build_cookie_header(cookies: &[CookieEntry]) -> String {
         .join("; ")
 }
 
-/// Builds a Cookie header string from cached cookies. Returns an error if cookies are missing.
+/// Builds a Cookie header string from cached cookies.
+///
+/// Reads cookies from the application's cookie cache and builds a header string.
+/// This function requires cookies to be present; returns an error if the cache is empty.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle for accessing cookie cache
+///
+/// # Returns
+///
+/// Returns the cookie header string on success.
+///
+/// # Errors
+///
+/// Returns `ERR::COOKIE_MISSING` if no cookies are available in the cache.
 pub fn build_cookie_header_from_cache(app: &AppHandle) -> Result<String, String> {
     let cookies = read_cookie(app)?.unwrap_or_default();
     let header = build_cookie_header(&cookies);
@@ -619,26 +625,37 @@ pub fn build_cookie_header_from_cache(app: &AppHandle) -> Result<String, String>
     Ok(header)
 }
 
-/// Fetches video metadata from Bilibili (title, parts, quality options, thumbnails).
+/// Fetches video metadata from Bilibili.
+///
+/// Retrieves video title, parts (pages), and basic information.
+/// Quality options and subtitles are fetched lazily via separate API calls.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle for accessing cookie cache
+/// * `id` - Bilibili video ID (BV identifier, e.g., "BV1xx411c7XD")
+///
+/// # Returns
+///
+/// Returns a `Video` struct with title, bvid, parts, and quality limitation flag.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Video is not found (`ERR::VIDEO_NOT_FOUND`)
+/// - API request fails (`ERR::API_ERROR`)
 pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String> {
     let cookies = read_cookie(app)?.unwrap_or_default();
     let cookie_header = build_cookie_header(&cookies);
     let is_limited_quality = cookie_header.is_empty();
 
-    let video = Video {
-        title: String::new(),
-        bvid: id.to_string(),
-        parts: Vec::new(),
-        is_limited_quality,
-    };
-
-    let res_body = fetch_video_title(&video, &cookies).await?;
+    let res_body = fetch_video_title_by_bvid(id, &cookies).await?;
     let data = res_body.data.as_ref().unwrap();
 
     let pages = data.pages.as_deref().unwrap_or(&[]);
 
-    if pages.is_empty() {
-        let part = VideoPart {
+    let parts = if pages.is_empty() {
+        vec![VideoPart {
             cid: data.cid,
             page: 1,
             part: data.title.clone(),
@@ -649,42 +666,59 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
             video_qualities: vec![],
             audio_qualities: vec![],
             subtitles: vec![],
-        };
-
-        return Ok(Video {
-            title: data.title.clone(),
-            parts: vec![part],
-            ..video
-        });
-    }
-
-    let mut parts = Vec::with_capacity(pages.len());
-    for page in pages {
-        let thumb_url = page.first_frame.as_deref().unwrap_or_default();
-
-        parts.push(VideoPart {
-            cid: page.cid,
-            page: page.page,
-            part: page.part.clone(),
-            duration: page.duration,
-            thumbnail: Thumbnail {
-                url: thumb_url.into(),
-            },
-            video_qualities: vec![],
-            audio_qualities: vec![],
-            subtitles: vec![],
-        });
-    }
+        }]
+    } else {
+        pages
+            .iter()
+            .map(|page| {
+                let thumb_url = page
+                    .first_frame
+                    .as_deref()
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or(&data.pic);
+                let part_name = if page.part.is_empty() {
+                    &data.title
+                } else {
+                    &page.part
+                };
+                VideoPart {
+                    cid: page.cid,
+                    page: page.page,
+                    part: part_name.to_string(),
+                    duration: page.duration,
+                    thumbnail: Thumbnail {
+                        url: thumb_url.to_string(),
+                    },
+                    video_qualities: vec![],
+                    audio_qualities: vec![],
+                    subtitles: vec![],
+                }
+            })
+            .collect()
+    };
 
     Ok(Video {
         title: data.title.clone(),
+        bvid: id.to_string(),
         parts,
-        ..video
+        is_limited_quality,
     })
 }
 
 /// Converts API video/audio quality data to frontend DTO format.
-/// Selects the highest codec for each quality level and sorts in descending order (highest quality first).
+///
+/// Processes raw quality data from the Bilibili API:
+/// 1. Groups qualities by ID
+/// 2. Selects the highest codec ID for each quality level
+/// 3. Sorts in descending order (highest quality first)
+///
+/// # Arguments
+///
+/// * `video` - Slice of quality data from XPlayer API response
+///
+/// # Returns
+///
+/// Vector of `Quality` structs sorted by quality (highest first).
 fn convert_qualities(video: &[XPlayerApiResponseVideo]) -> Vec<Quality> {
     let mut qualities: BTreeMap<i32, &XPlayerApiResponseVideo> = BTreeMap::new();
 
@@ -710,15 +744,32 @@ fn convert_qualities(video: &[XPlayerApiResponseVideo]) -> Vec<Quality> {
 }
 
 /// Fetches video title and page information from the Bilibili Web Interface API.
-async fn fetch_video_title(
-    video: &Video,
+///
+/// Retrieves basic video metadata including title, thumbnail, and page list.
+/// This is the first API call when fetching video info.
+///
+/// # Arguments
+///
+/// * `bvid` - Bilibili video ID (BV identifier)
+/// * `cookies` - Cookie entries for authentication (optional but recommended)
+///
+/// # Returns
+///
+/// Returns the raw API response containing video data.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Network request fails
+/// - HTTP status is not successful
+/// - API returns non-zero code
+/// - Video is not found (`ERR::VIDEO_NOT_FOUND`)
+async fn fetch_video_title_by_bvid(
+    bvid: &str,
     cookies: &[CookieEntry],
 ) -> Result<WebInterfaceApiResponse, String> {
     let client = build_client()?;
-    let url = format!(
-        "https://api.bilibili.com/x/web-interface/view?bvid={}",
-        video.bvid
-    );
+    let url = format!("https://api.bilibili.com/x/web-interface/view?bvid={bvid}");
 
     let response = client
         .get(url)
@@ -738,6 +789,27 @@ async fn fetch_video_title(
 }
 
 /// Fetches video stream URLs and quality options from the Bilibili Player API.
+///
+/// Uses WBI signature for authentication. Retrieves DASH stream URLs
+/// for both video and audio at the highest available quality.
+///
+/// # Arguments
+///
+/// * `cookies` - Cookie entries for authentication
+/// * `bvid` - Bilibili video ID (BV identifier)
+/// * `cid` - Content ID for the specific video part
+///
+/// # Returns
+///
+/// Returns the XPlayer API response containing DASH stream data.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - WBI mixin key cannot be fetched
+/// - WBI signature generation fails
+/// - Network request fails
+/// - API returns non-zero code
 async fn fetch_video_details(
     cookies: &[CookieEntry],
     bvid: &str,
@@ -784,15 +856,25 @@ async fn fetch_video_details(
     Ok(body)
 }
 
-/// Automatically renames a file if it already exists (e.g., "filename (1).mp4").
+/// Automatically renames a file if it already exists.
+///
+/// Generates a unique filename by appending a counter (e.g., "filename (1).mp4")
+/// if the original path exists. Searches up to 10,000 variations before
+/// falling back to a timestamp-based name.
+///
+/// # Arguments
+///
+/// * `path` - Original file path to check
+///
+/// # Returns
+///
+/// Returns the original path if it doesn't exist, or a renamed path
+/// with an appended counter (e.g., "file (1).mp4").
 fn auto_rename(path: &Path) -> PathBuf {
     if !path.exists() {
         return path.to_path_buf();
     }
-    let parent = path
-        .parent()
-        .map(|p| p.to_path_buf())
-        .unwrap_or_else(|| PathBuf::from("."));
+    let parent = path.parent().unwrap_or(Path::new("."));
     let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("file");
     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("mp4");
 
@@ -813,7 +895,25 @@ fn auto_rename(path: &Path) -> PathBuf {
     parent.join(fallback_name)
 }
 
-/// Builds the complete output path for a download file. Ensures `.mp4` extension exists.
+/// Builds the complete output path for a download file.
+///
+/// Combines the user's configured download directory with the filename.
+/// Automatically appends `.mp4` extension if not already present.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle for accessing settings
+/// * `filename` - Desired output filename (with or without extension)
+///
+/// # Returns
+///
+/// Returns the full output path on success.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Settings cannot be retrieved
+/// - Download output path is not configured
 async fn build_output_path(app: &AppHandle, filename: &str) -> Result<PathBuf, String> {
     let settings = settings::get_settings(app)
         .await
@@ -831,7 +931,19 @@ async fn build_output_path(app: &AppHandle, filename: &str) -> Result<PathBuf, S
     Ok(PathBuf::from(&output_path).join(filename_with_ext))
 }
 
-/// Gets the Content-Length of a resource via HEAD request. Returns None on failure.
+/// Gets the Content-Length of a resource via HEAD request.
+///
+/// Used to estimate file size before download for disk space validation.
+/// Returns `None` on any failure (network error, missing header, etc.).
+///
+/// # Arguments
+///
+/// * `url` - URL to check
+/// * `cookie` - Optional cookie header for authentication
+///
+/// # Returns
+///
+/// Returns `Some(content_length)` on success, or `None` on failure.
 async fn head_content_length(url: &str, cookie: Option<&String>) -> Option<u64> {
     let client = reqwest::Client::builder().build().ok()?;
     let mut req = client.head(url);
@@ -856,7 +968,23 @@ async fn head_content_length(url: &str, cookie: Option<&String>) -> Option<u64> 
         .ok()
 }
 
-/// Ensures sufficient disk space is available for download. Only implemented for Unix-like systems.
+/// Ensures sufficient disk space is available for download.
+///
+/// Checks available disk space at the target location using `statvfs`.
+/// Currently only implemented for Unix-like systems; no-op on other platforms.
+///
+/// # Arguments
+///
+/// * `target_path` - Path where file will be saved (checks parent directory)
+/// * `needed_bytes` - Required disk space in bytes
+///
+/// # Returns
+///
+/// Returns `Ok(())` if sufficient space is available or on non-Unix systems.
+///
+/// # Errors
+///
+/// Returns `ERR::DISK_FULL` if available space is less than required.
 fn ensure_free_space(target_path: &Path, needed_bytes: u64) -> Result<(), String> {
     #[cfg(target_family = "unix")]
     {
@@ -888,7 +1016,27 @@ fn ensure_free_space(target_path: &Path, needed_bytes: u64) -> Result<(), String
     Ok(())
 }
 
-/// Retries a download operation up to 3 times with linear backoff (500ms, 1000ms, 1500ms).
+/// Retries a download operation up to 3 times with linear backoff.
+///
+/// Implements retry logic for transient network failures:
+/// - Maximum 3 attempts
+/// - Linear backoff: 500ms, 1000ms, 1500ms
+/// - Only retries on specific keywords: "segment", "request error", "timeout", "connect"
+///
+/// # Arguments
+///
+/// * `f` - Async closure that performs the download operation
+///
+/// # Returns
+///
+/// Returns `Ok(())` on successful download.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - All retry attempts fail
+/// - Error is not retryable (doesn't match keywords)
+/// - Error contains `ERR::` prefix (passed through as-is)
 async fn retry_download<F, Fut>(mut f: F) -> Result<(), String>
 where
     F: FnMut() -> Fut,
@@ -920,7 +1068,24 @@ where
     Err("ERR::NETWORK::All retry attempts failed".to_string())
 }
 
-/// Selects a stream URL from a quality list. Falls back to the highest quality if not found.
+/// Selects a stream URL from a quality list.
+///
+/// Searches for a stream matching the requested quality ID.
+/// Falls back to the highest quality (first item) if the requested quality
+/// is not available.
+///
+/// # Arguments
+///
+/// * `items` - Slice of available video/audio streams
+/// * `quality` - Requested quality ID
+///
+/// # Returns
+///
+/// Returns a tuple of (primary_url, backup_urls) on success.
+///
+/// # Errors
+///
+/// Returns `ERR::QUALITY_NOT_FOUND` if the quality list is empty.
 fn select_stream_url(
     items: &[crate::models::bilibili_api::XPlayerApiResponseVideo],
     quality: i32,
@@ -943,7 +1108,27 @@ pub struct WatchHistoryResponse {
     pub cursor: WatchHistoryCursor,
 }
 
-/// Fetches watch history from Bilibili API. Requires valid cookies for authentication.
+/// Fetches watch history from Bilibili API.
+///
+/// Retrieves paginated watch history entries from the user's Bilibili account.
+/// Uses cursor-based pagination with `max` and `view_at` parameters.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle for accessing cookie cache
+/// * `max` - Maximum view_at timestamp from previous page (0 for first page)
+/// * `view_at` - View timestamp cursor from previous page (0 for first page)
+///
+/// # Returns
+///
+/// Returns `WatchHistoryResponse` with entries and pagination cursor.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - No cookies available (`ERR::COOKIE_MISSING`)
+/// - User is not logged in (`ERR::UNAUTHORIZED`)
+/// - API request or parsing fails
 pub async fn fetch_watch_history(
     app: &AppHandle,
     max: i32,
@@ -1227,4 +1412,85 @@ pub async fn download_subtitle(
         .map_err(|e| format!("Failed to write subtitle file: {}", e))?;
 
     Ok(())
+}
+
+/// Prepares the subtitle merge mode based on user options.
+///
+/// Downloads selected subtitles and returns the appropriate merge mode for ffmpeg.
+/// Converts BCC JSON subtitles to SRT format and stores them in temp files.
+///
+/// # Arguments
+///
+/// * `subtitle_opts` - User's subtitle selection (mode and languages)
+/// * `cookies` - Cookie entries for authentication
+/// * `bvid` - Bilibili video ID
+/// * `cid` - Content ID for the specific video part
+/// * `download_id` - Unique download identifier for temp file naming
+/// * `lib_path` - Directory for temp subtitle files
+///
+/// # Returns
+///
+/// Returns `MergeMode::None` if subtitles are disabled, no languages selected,
+/// or no matching subtitles found. Returns `MergeMode::SoftSub` for soft-sub
+/// mode or `MergeMode::HardSub` for burn-in mode.
+///
+/// # Errors
+///
+/// Returns an error if HTTP client cannot be built.
+async fn prepare_subtitle_mode(
+    subtitle_opts: &Option<SubtitleOptions>,
+    cookies: &[CookieEntry],
+    bvid: &str,
+    cid: i64,
+    download_id: &str,
+    lib_path: &Path,
+) -> Result<crate::handlers::ffmpeg::MergeMode, String> {
+    use crate::handlers::ffmpeg::{MergeMode, SubtitleMergeOptions};
+    use crate::utils::subtitle::lan_to_iso639;
+
+    let sub_opts = match subtitle_opts {
+        Some(opts) if opts.mode != "off" && !opts.selected_lans.is_empty() => opts,
+        _ => return Ok(MergeMode::None),
+    };
+
+    let client = build_client()?;
+    let available_subs = fetch_subtitles(&client, cookies, bvid, cid).await;
+
+    let selected_subs: Vec<_> = available_subs
+        .iter()
+        .filter(|s| sub_opts.selected_lans.contains(&s.lan))
+        .collect();
+
+    if selected_subs.is_empty() {
+        return Ok(MergeMode::None);
+    }
+
+    let mut subtitle_files: Vec<SubtitleMergeOptions> = Vec::new();
+    for sub in selected_subs {
+        let srt_path = lib_path.join(format!("temp_sub_{download_id}_{}.srt", sub.lan));
+
+        if let Err(e) = download_subtitle(&client, &sub.subtitle_url, &srt_path).await {
+            eprintln!("Warning: Failed to download subtitle {}: {}", sub.lan, e);
+            continue;
+        }
+
+        subtitle_files.push(SubtitleMergeOptions {
+            path: srt_path,
+            language: lan_to_iso639(&sub.lan).to_string(),
+            title: sub.lan_doc.clone(),
+        });
+    }
+
+    if subtitle_files.is_empty() {
+        return Ok(MergeMode::None);
+    }
+
+    match sub_opts.mode.as_str() {
+        "hard" => Ok(subtitle_files
+            .into_iter()
+            .next()
+            .map(MergeMode::HardSub)
+            .unwrap_or(MergeMode::None)),
+        _ => Ok(MergeMode::SoftSub(subtitle_files)),
+    }
 }
