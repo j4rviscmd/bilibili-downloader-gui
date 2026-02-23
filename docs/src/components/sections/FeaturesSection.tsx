@@ -15,6 +15,8 @@ interface Feature {
   title: string;
   /** Detailed description shown on hover */
   description: string;
+  /** Shows "Coming Soon" badge when true */
+  comingSoon?: boolean;
 }
 
 /**
@@ -51,6 +53,7 @@ export function FeaturesSection({
             title={feature.title}
             description={feature.description}
             hoverHint={hoverHint}
+            comingSoon={feature.comingSoon}
           />
         ))}
       </div>
