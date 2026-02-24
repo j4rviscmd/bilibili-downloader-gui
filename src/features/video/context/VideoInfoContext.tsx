@@ -1,8 +1,8 @@
 import { type RootState, store, useSelector } from '@/app/store'
 import { downloadVideo } from '@/features/video/api/downloadVideo'
 import {
-  useLazyFetchVideoInfoQuery,
   useLazyFetchBangumiInfoQuery,
+  useLazyFetchVideoInfoQuery,
 } from '@/features/video/api/videoApi'
 import {
   buildVideoFormSchema1,
@@ -231,7 +231,11 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
 
       // Set processingPendingRef before initInputsForVideo is called
       // This ensures only the p-specified part is selected
-      if (pageFromUrl && !processingPendingRef.current && contentId.type === 'video') {
+      if (
+        pageFromUrl &&
+        !processingPendingRef.current &&
+        contentId.type === 'video'
+      ) {
         processingPendingRef.current = {
           bvid: contentId.id,
           cid: null,
@@ -391,9 +395,10 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
     const contentId = extractContentId(input.url)
     if (!contentId) return
 
-    const videoId = contentId.type === 'video'
-      ? contentId.id
-      : `av${video.parts[0]?.aid ?? ''}`
+    const videoId =
+      contentId.type === 'video'
+        ? contentId.id
+        : `av${video.parts[0]?.aid ?? ''}`
 
     // Extract selected parts with their indices for download processing
     // Type predicate filter ensures non-null items with proper type narrowing

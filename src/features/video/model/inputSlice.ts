@@ -281,7 +281,8 @@ export const inputSlice = createSlice({
         isPreview?: boolean
       }>,
     ) => {
-      const { index, videoQualities, audioQualities, isPreview } = action.payload
+      const { index, videoQualities, audioQualities, isPreview } =
+        action.payload
       const target = state.partInputs[index]
       if (target) {
         target.videoQualities = videoQualities

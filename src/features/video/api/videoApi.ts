@@ -1,6 +1,6 @@
 import { tauriBaseQuery } from '@/app/store/tauriBaseQuery'
-import type { Video } from '@/features/video/types'
 import { type ExtractedId, extractContentId } from '@/features/video/lib/utils'
+import type { Video } from '@/features/video/types'
 import { createApi } from '@reduxjs/toolkit/query/react'
 
 /**
@@ -82,7 +82,9 @@ export const {
  * const bangumi = await fetchContentFromUrl('https://www.bilibili.com/bangumi/play/ep3051843')
  * ```
  */
-export const fetchContentFromUrl = (url: string): FetchContentInfoArgs | null => {
+export const fetchContentFromUrl = (
+  url: string,
+): FetchContentInfoArgs | null => {
   const contentId = extractContentId(url)
   if (!contentId) return null
 

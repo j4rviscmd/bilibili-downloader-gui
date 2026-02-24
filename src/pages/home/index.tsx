@@ -2,7 +2,6 @@ import type { RootState } from '@/app/store'
 import { store, useSelector } from '@/app/store'
 import { useInit } from '@/features/init'
 import type { Video } from '@/features/video'
-import type { AudioQuality, VideoQuality } from '@/features/video/types'
 import {
   deselectPageAll,
   DownloadButton,
