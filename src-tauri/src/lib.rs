@@ -94,8 +94,10 @@ pub fn run() {
             get_cookie,
             fetch_user,
             fetch_video_info,
+            fetch_bangumi_info,
             fetch_subtitles_for_part,
             fetch_part_qualities,
+            fetch_bangumi_part_qualities,
             download_video,
             cancel_download,
             cancel_all_downloads,
@@ -1069,4 +1071,60 @@ async fn set_simulate_logout(app: AppHandle, enabled: bool) -> Result<(), String
         }
     }
     Err("Failed to access simulate logout state".to_string())
+}
+
+// ============================================================================
+// Bangumi Commands
+// ============================================================================
+
+/// Retrieves comprehensive metadata for a Bilibili bangumi episode.
+///
+/// This command fetches bangumi information including title, episodes,
+/// and available quality options.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle for accessing the cookie cache
+/// * `ep_id` - Bangumi episode ID (e.g., 3051843)
+///
+/// # Returns
+///
+/// Returns the bangumi metadata including all episodes and quality options.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Episode is not found (`ERR::BANGUMI_NOT_FOUND`)
+/// - Episode is VIP-only (`ERR::BANGUMI_VIP_ONLY`)
+/// - Region restricted (`ERR::BANGUMI_REGION_RESTRICTED`)
+/// - API request fails
+#[tauri::command]
+async fn fetch_bangumi_info(app: AppHandle, ep_id: i64) -> Result<Video, String> {
+    bilibili::fetch_bangumi_info(&app, ep_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Fetches available video and audio qualities for a bangumi episode part.
+///
+/// Used for lazy-loading qualities when the part is rendered.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle
+/// * `ep_id` - Bangumi episode ID
+/// * `cid` - Content ID for the specific video part
+///
+/// # Returns
+///
+/// Returns a tuple of (video_qualities, audio_qualities, is_preview).
+#[tauri::command]
+async fn fetch_bangumi_part_qualities(
+    app: AppHandle,
+    ep_id: i64,
+    cid: i64,
+) -> Result<(Vec<Quality>, Vec<Quality>, Option<bool>), String> {
+    bilibili::fetch_bangumi_part_qualities(&app, ep_id, cid)
+        .await
+        .map_err(|e| e.to_string())
 }

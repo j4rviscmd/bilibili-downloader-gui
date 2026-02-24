@@ -278,9 +278,10 @@ export const inputSlice = createSlice({
         index: number
         videoQualities: VideoQuality[]
         audioQualities: AudioQuality[]
+        isPreview?: boolean
       }>,
     ) => {
-      const { index, videoQualities, audioQualities } = action.payload
+      const { index, videoQualities, audioQualities, isPreview } = action.payload
       const target = state.partInputs[index]
       if (target) {
         target.videoQualities = videoQualities
@@ -291,6 +292,9 @@ export const inputSlice = createSlice({
         }
         if (audioQualities.length > 0 && !target.audioQuality) {
           target.audioQuality = String(audioQualities[0].id)
+        }
+        if (isPreview !== undefined) {
+          target.isPreview = isPreview
         }
       }
     },

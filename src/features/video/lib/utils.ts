@@ -5,6 +5,54 @@
  */
 
 /**
+ * Extracted content identifier from a Bilibili URL.
+ */
+export type ExtractedId =
+  | { type: 'video'; id: string }
+  | { type: 'bangumi'; epId: string }
+  | null
+
+/**
+ * Extracts the content ID and type from a Bilibili URL.
+ *
+ * Supports both regular videos and bangumi episodes.
+ *
+ * @param url - The Bilibili URL.
+ * @returns The extracted content identifier or null if not found.
+ *
+ * @example
+ * ```typescript
+ * extractContentId('https://www.bilibili.com/video/BV1xx411c7XD')
+ * // Returns: { type: 'video', id: 'BV1xx411c7XD' }
+ *
+ * extractContentId('https://www.bilibili.com/bangumi/play/ep3051843')
+ * // Returns: { type: 'bangumi', epId: '3051843' }
+ * ```
+ */
+export const extractContentId = (url: string): ExtractedId => {
+  try {
+    const urlObj = new URL(url)
+    const { pathname } = urlObj
+
+    // Bangumi: /bangumi/play/ep{ep_id}
+    const bangumiMatch = pathname.match(/\/bangumi\/play\/ep(\d+)/)
+    if (bangumiMatch) {
+      return { type: 'bangumi', epId: bangumiMatch[1] }
+    }
+
+    // Regular video: /video/{bvid}
+    const videoMatch = pathname.match(/\/video\/([a-zA-Z0-9]+)/)
+    if (videoMatch) {
+      return { type: 'video', id: videoMatch[1] }
+    }
+
+    return null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Extracts the Bilibili video ID from a URL.
  *
  * @param url - The Bilibili video URL.

@@ -64,7 +64,15 @@ function DownloadButton() {
       if (selectedParts.some((pi) => pi.qualitiesLoading)) {
         return t('video.qualities_loading')
       }
-      if (selectedParts.some((pi) => !pi.videoQuality || !pi.audioQuality)) {
+      // For durl format (bangumi MP4), audio is embedded so audioQuality can be empty
+      if (
+        selectedParts.some((pi) => {
+          const hasAudioQualities =
+            pi.audioQualities && pi.audioQualities.length > 0
+          const needsAudioQuality = hasAudioQualities && !pi.audioQuality
+          return !pi.videoQuality || needsAudioQuality
+        })
+      ) {
         return t('validation.video.quality.required')
       }
       if (

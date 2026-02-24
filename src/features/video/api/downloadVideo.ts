@@ -15,13 +15,14 @@ import { invoke } from '@tauri-apps/api/core'
  * @param cid - Video part CID (unique identifier for each part)
  * @param filename - Output filename (without extension)
  * @param quality - Video quality ID (e.g., 80 for 1080p)
- * @param audioQuality - Audio quality ID (e.g., 30216 for 64K)
+ * @param audioQuality - Audio quality ID (e.g., 30216 for 64K), null for durl format
  * @param downloadId - Unique download ID for tracking
  * @param parentId - Optional parent ID for grouping multi-part downloads
  * @param durationSeconds - Video duration in seconds for accurate merge progress
  * @param thumbnailUrl - Optional thumbnail URL for history
  * @param page - Optional page number for multi-part videos
  * @param subtitle - Optional subtitle configuration
+ * @param epId - Optional episode ID for bangumi content
  *
  * @throws Error if backend download fails (network error, quality not found, etc.)
  *
@@ -47,13 +48,14 @@ export const downloadVideo = async (
   cid: number,
   filename: string,
   quality: number,
-  audioQuality: number,
+  audioQuality: number | null,
   downloadId: string,
   parentId?: string,
   durationSeconds?: number,
   thumbnailUrl?: string,
   page?: number,
   subtitle?: SubtitleConfig,
+  epId?: number,
 ) => {
   store.dispatch(enqueue({ downloadId, parentId, filename, status: 'pending' }))
 
@@ -69,6 +71,7 @@ export const downloadVideo = async (
       durationSeconds: durationSeconds ?? 0,
       thumbnailUrl: thumbnailUrl ?? null,
       page: page ?? null,
+      epId: epId ?? null,
       subtitle: subtitle
         ? {
             mode: subtitle.mode,

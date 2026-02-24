@@ -124,7 +124,18 @@
     "subtitle_description": "Elige cómo incrustar subtítulos en el video.",
     "subtitle_note": "※ Soft Sub permite activar/desactivar subtítulos en el reproductor. Hard Sub graba los subtítulos en el video.",
     "other_options": "Otras opciones",
-    "subtitle_select_required": "Por favor selecciona al menos un idioma"
+    "subtitle_select_required": "Por favor selecciona al menos un idioma",
+    "bangumi_not_found": "Episodio no encontrado. Por favor, verifica la URL.",
+    "bangumi_vip_only": "Este episodio requiere membresía VIP para descargar.",
+    "bangumi_region_restricted": "Este episodio está restringido en tu región.",
+    "bangumi_copyright_restricted": "Este episodio no está disponible debido a restricciones de derechos de autor.",
+    "bangumi_access_denied": "Acceso denegado a este episodio.",
+    "bangumi_no_dash": "Stream no disponible. Puede ser un episodio exclusivo para VIP.",
+    "bangumi_vip_badge": "VIP",
+    "bangumi_audio_embedded": "El audio está incrustado en el video, no es necesario seleccionar calidad de audio.",
+    "bangumi_preview_badge": "Vista previa",
+    "bangumi_preview_tooltip": "Se requiere membresía premium. Solo se descargarán los primeros 6 minutos.",
+    "bangumi_durl_not_supported": "Este formato de episodio no es compatible."
   },
   "progress": {
     "elapsed": "Transcurrido",
@@ -242,7 +253,8 @@
         "min": "La URL debe tener al menos 2 caracteres.",
         "max": "La URL debe tener como máximo 1000 caracteres.",
         "invalid": "Introduce una URL válida.",
-        "domain": "Solo se permiten URL de bilibili.com."
+        "domain": "Solo se permiten URL de bilibili.com.",
+        "format": "La URL debe ser de video (/video/{id}) o bangumi (/bangumi/play/ep{id})."
       },
       "title": {
         "min": "El título debe tener al menos 2 caracteres.",

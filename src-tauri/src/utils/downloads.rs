@@ -30,15 +30,9 @@ use tokio::{fs, io::AsyncSeekExt, io::AsyncWriteExt};
 
 /// Sets the download stage based on filename pattern.
 ///
-/// This function examines the filename prefix and updates the progress stage
-/// accordingly. Files starting with "temp_audio" are marked as "audio" stage,
+/// Files starting with "temp_audio" are marked as "audio" stage,
 /// and files starting with "temp_video" are marked as "video" stage.
 /// This allows the frontend to display which part of the download process is active.
-///
-/// # Arguments
-///
-/// * `emits` - Reference to the progress emitter for stage updates
-/// * `filename` - The filename to examine for stage detection
 async fn set_stage_from_filename(emits: &Emits, filename: &str) {
     let stage = match filename {
         f if f.starts_with("temp_audio") => Some("audio"),
@@ -67,29 +61,19 @@ fn apply_cookie(mut req: RequestBuilder, cookie: &Option<String>) -> RequestBuil
     req
 }
 
-/// Result of initial speed check.
+/// Speed check result.
 enum SpeedCheckResult {
-    /// Speed is acceptable, continue download
-    Acceptable,
-    /// Speed is too slow, should reconnect
-    Slow,
-    /// Not enough data received yet to check speed
-    InsufficientData,
+    Acceptable,       // Speed is acceptable, continue download
+    Slow,             // Speed is too slow, should reconnect
+    InsufficientData, // Not enough data received yet
 }
 
 /// Checks if initial download speed meets minimum threshold.
 ///
-/// # Arguments
-///
-/// * `received` - Bytes received so far
-/// * `start_time` - When download started
-/// * `reconnect_attempt` - Current reconnect attempt count
-///
-/// # Returns
-///
-/// - `Acceptable`: Speed meets threshold or reconnect attempts exhausted
-/// - `Slow`: Speed below threshold and reconnect attempts remain
-/// - `InsufficientData`: Not enough data received to measure speed yet
+/// Returns:
+/// - Acceptable: Speed meets threshold or reconnect attempts exhausted
+/// - Slow: Speed below threshold and reconnect attempts remain
+/// - InsufficientData: Not enough data received to measure speed yet
 fn check_initial_speed(
     received: u64,
     start_time: Instant,
@@ -115,18 +99,7 @@ fn check_initial_speed(
 /// Downloads a file from URL with CDN rotation support.
 ///
 /// When download speed drops below threshold, automatically switches to
-/// backup CDN URLs if provided. Supports cancellation via the global
-/// cancel registry when a download_id is provided.
-///
-/// # Arguments
-///
-/// * `app` - Tauri app handle for progress emission
-/// * `url` - Primary CDN URL
-/// * `backup_urls` - Optional list of backup CDN URLs for rotation
-/// * `output_path` - Destination file path
-/// * `cookie` - Optional authentication cookie
-/// * `is_override` - Whether to overwrite existing file
-/// * `download_id` - Optional download tracking ID (used for cancellation)
+/// backup CDN URLs if provided. Supports cancellation via global registry.
 pub async fn download_url(
     app: &AppHandle,
     url: String,
@@ -135,10 +108,12 @@ pub async fn download_url(
     cookie: Option<String>,
     is_override: bool,
     download_id: Option<String>,
+    override_stage: Option<&str>,
+    emit_complete: bool,
 ) -> Result<()> {
     use tokio_util::sync::CancellationToken;
 
-    // Get cancellation token from registry if download_id is provided
+    // Get cancellation token from registry
     let cancel_token: Option<CancellationToken> = if let Some(ref id) = download_id {
         DOWNLOAD_CANCEL_REGISTRY.get_token(id).await
     } else {
@@ -198,6 +173,8 @@ pub async fn download_url(
                 cookie,
                 is_override,
                 download_id.clone(),
+                override_stage,
+                emit_complete,
             )
             .await;
         }
@@ -218,6 +195,9 @@ pub async fn download_url(
     let id_for_emit = download_id.clone().unwrap_or_else(|| filename.to_string());
     let emits = Arc::new(Emits::new(app.clone(), id_for_emit, Some(total)));
     set_stage_from_filename(&emits, filename).await;
+    if let Some(stage) = override_stage {
+        let _ = emits.set_stage(stage).await;
+    }
 
     let downloaded_total = Arc::new(AtomicU64::new(0));
     let sem = Arc::new(Semaphore::new(concurrency));
@@ -388,7 +368,12 @@ pub async fn download_url(
         ));
     }
 
-    emits.complete().await;
+    if emit_complete {
+        emits.complete().await;
+    } else {
+        // Stop background task without emitting complete event
+        emits.stop().await;
+    }
     Ok(())
 }
 
@@ -500,6 +485,8 @@ async fn single_stream_fallback(
     cookie: Option<String>,
     is_override: bool,
     download_id: Option<String>,
+    override_stage: Option<&str>,
+    emit_complete: bool,
 ) -> Result<()> {
     use tokio_util::sync::CancellationToken;
 
@@ -540,6 +527,9 @@ async fn single_stream_fallback(
     let id_for_emit = download_id.unwrap_or_else(|| filename.to_string());
     let emits = Arc::new(Emits::new(app.clone(), id_for_emit, total));
     set_stage_from_filename(&emits, filename).await;
+    if let Some(stage) = override_stage {
+        let _ = emits.set_stage(stage).await;
+    }
 
     // Open file and download
     let mut file = tokio::fs::OpenOptions::new()
@@ -567,7 +557,12 @@ async fn single_stream_fallback(
     }
 
     file.flush().await.map_err(map_io_error)?;
-    emits.complete().await;
+    if emit_complete {
+        emits.complete().await;
+    } else {
+        // Stop background task without emitting complete event
+        emits.stop().await;
+    }
     Ok(())
 }
 

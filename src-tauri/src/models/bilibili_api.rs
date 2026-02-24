@@ -400,3 +400,119 @@ pub struct BccSubtitleBody {
     /// Subtitle text content
     pub content: String,
 }
+
+// ============================================================================
+// Bangumi APIs
+// ============================================================================
+
+/// Bangumi season API response.
+///
+/// Endpoint: `https://api.bilibili.com/pgc/view/web/season?ep_id={ep_id}`
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BangumiSeasonApiResponse {
+    pub code: i64,
+    pub message: String,
+    #[serde(default)]
+    pub result: Option<BangumiSeasonResult>,
+}
+
+/// Bangumi season data containing episodes and metadata.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BangumiSeasonResult {
+    pub season_id: i64,
+    pub title: String,
+    pub cover: String,
+    #[serde(default)]
+    pub episodes: Vec<BangumiEpisode>,
+}
+
+/// Individual bangumi episode with metadata.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BangumiEpisode {
+    /// Episode ID (ep_id)
+    pub id: i64,
+    /// CID for video playback
+    pub cid: i64,
+    /// AID (av number)
+    pub aid: i64,
+    /// Episode title (short)
+    #[serde(default)]
+    pub title: String,
+    /// Episode title (long/description)
+    #[serde(default)]
+    pub long_title: String,
+    /// Episode cover image
+    pub cover: String,
+    /// Episode status (2=free, 13=VIP-only)
+    #[serde(default)]
+    pub status: i32,
+    /// Duration in milliseconds
+    #[serde(default)]
+    pub duration: i64,
+}
+
+/// Bangumi player API response for DASH streams.
+///
+/// Endpoint: `https://api.bilibili.com/pgc/player/web/playurl`
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BangumiPlayerApiResponse {
+    pub code: i64,
+    pub message: String,
+    #[serde(default)]
+    pub result: Option<BangumiPlayerResult>,
+}
+
+/// Bangumi player result containing DASH stream data.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BangumiPlayerResult {
+    #[serde(default)]
+    pub dash: Option<XPlayerApiResponseDash>,
+    /// Direct URL format (MP4) - used when DASH is not available
+    #[serde(default)]
+    pub durl: Option<Vec<DurlSegment>>,
+    /// Multiple quality direct URLs (MP4)
+    #[serde(default)]
+    pub durls: Option<Vec<DurlQualityEntry>>,
+    /// Supported quality formats with descriptions
+    #[serde(default)]
+    pub support_formats: Option<Vec<SupportFormat>>,
+    /// Video quality code
+    #[serde(default)]
+    pub quality: Option<i32>,
+    /// Whether this is a preview (1 = preview only)
+    #[serde(default)]
+    pub is_preview: Option<i32>,
+    /// Total video length in milliseconds
+    #[serde(default)]
+    pub timelength: Option<i64>,
+}
+
+/// Direct URL segment for non-DASH streams.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DurlSegment {
+    pub order: i32,
+    pub length: i64,
+    pub size: i64,
+    pub url: String,
+    #[serde(default)]
+    pub backup_url: Option<Vec<String>>,
+}
+
+/// Quality entry containing durl segments for a specific quality.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DurlQualityEntry {
+    pub quality: i32,
+    pub durl: Vec<DurlSegment>,
+}
+
+/// Supported format information for quality selection.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SupportFormat {
+    pub quality: i32,
+    pub format: String,
+    pub description: String,
+    #[serde(default)]
+    pub new_description: String,
+    #[serde(default)]
+    pub display_desc: String,
+}

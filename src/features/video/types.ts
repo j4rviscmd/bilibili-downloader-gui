@@ -1,4 +1,9 @@
 /**
+ * Content type identifier.
+ */
+export type ContentType = 'video' | 'bangumi'
+
+/**
  * User input for a specific video part.
  *
  * Stores the selected quality options and custom filename for each part.
@@ -34,6 +39,8 @@ export type PartInput = {
   qualitiesLoading?: boolean
   /** Whether the "other options" accordion is open (persisted for virtual scroll) */
   accordionOpen?: boolean
+  /** Preview mode flag (only first 6 minutes available) for bangumi */
+  isPreview?: boolean
 }
 
 /**
@@ -75,6 +82,12 @@ export type Video = {
   parts: VideoPart[]
   /** Indicates whether quality options are limited due to missing cookies */
   isLimitedQuality: boolean
+  /** Content type (video or bangumi) */
+  contentType: ContentType
+  /** Episode ID for bangumi content */
+  epId?: number
+  /** Season title for bangumi content */
+  seasonTitle?: string
 }
 
 /**
@@ -97,6 +110,14 @@ export type VideoPart = {
   thumbnail: Thumbnail
   /** Available subtitles for this part */
   subtitles: SubtitleInfo[]
+  /** Episode ID for bangumi content */
+  epId?: number
+  /** Episode status (2=free, 13=VIP-only) for bangumi */
+  status?: number
+  /** AID for bangumi content */
+  aid?: number
+  /** Preview mode flag (only first 6 minutes available) */
+  isPreview?: boolean
 }
 
 /**

@@ -46,7 +46,7 @@ initInvalidPattern().catch(() => {})
 /**
  * Builds a localized validation schema for video URL input (Step 1).
  *
- * Validates that the URL is a valid Bilibili video link from www.bilibili.com.
+ * Validates that the URL is a valid Bilibili video or bangumi link from www.bilibili.com.
  *
  * @param t - The i18next translation function for error messages
  * @returns A Zod schema for video URL validation
@@ -55,6 +55,7 @@ initInvalidPattern().catch(() => {})
  * ```typescript
  * const schema = buildVideoFormSchema1(t)
  * const result = schema.safeParse({ url: 'https://www.bilibili.com/video/BV1xx411c7XD' })
+ * const bangumi = schema.safeParse({ url: 'https://www.bilibili.com/bangumi/play/ep3051843' })
  * ```
  */
 export const buildVideoFormSchema1 = (t: TFunction) =>
@@ -66,14 +67,23 @@ export const buildVideoFormSchema1 = (t: TFunction) =>
       .url({ message: t('validation.video.url.invalid') })
       .superRefine((value, ctx) => {
         try {
-          const { hostname } = new URL(value)
+          const { hostname, pathname } = new URL(value)
           // bilibili.com 直下のみ許可（必要に応じてサブドメインも許可可能）
-          // 将来的にサブドメイン許可: /^(?:[a-z0-9-]+\.)*bilibili\.com$/i
           const ok = /^www.bilibili\.com$/i.test(hostname)
           if (!ok) {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
               message: t('validation.video.url.domain'),
+            })
+            return
+          }
+          // 動画URL または バンガミURL のパス形式をチェック
+          const isVideoPath = /^\/video\/[a-zA-Z0-9]+/.test(pathname)
+          const isBangumiPath = /^\/bangumi\/play\/ep\d+/.test(pathname)
+          if (!isVideoPath && !isBangumiPath) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: t('validation.video.url.format'),
             })
           }
         } catch {
@@ -137,9 +147,8 @@ export const buildVideoFormSchema2 = (t: TFunction) =>
     videoQuality: z
       .string()
       .nonempty({ message: t('validation.video.quality.required') }),
-    audioQuality: z
-      .string()
-      .nonempty({ message: t('validation.video.audio_quality.required') }),
+    // audioQuality can be empty for durl format (MP4) where audio is embedded
+    audioQuality: z.string(),
   })
 
 /**

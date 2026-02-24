@@ -11,13 +11,9 @@ use tauri::{AppHandle, Emitter};
 use tokio::{spawn, sync::watch, sync::Mutex, time};
 
 /// Progress update interval in milliseconds.
-/// The background task emits progress events at this frequency.
 const PROGRESS_UPDATE_INTERVAL_MS: u64 = 500;
 
 /// Progress information structure sent to the frontend.
-///
-/// This structure represents the current state of a download operation,
-/// including transfer rates, completion percentage, and elapsed time.
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct Progress {
     /// Current download stage (e.g., "audio", "video", "merge", "complete")
@@ -51,22 +47,16 @@ pub struct Progress {
 
 /// Internal state for progress tracking.
 ///
-/// This structure maintains timing information and byte counts for
-/// calculating transfer rates and progress percentages.
-/// Note: current_downloaded_bytes is now managed via watch::Sender/Receiver
-/// to avoid lock contention between download thread and background task.
+/// Maintains timing information and byte counts for calculating
+/// transfer rates and progress percentages.
 struct EmitsInner {
     progress: Progress,
     start_instant: Instant,
     last_instant: Instant,
     last_downloaded_bytes: u64,
-    /// Flag to stop the internal timer when download completes
     is_complete: bool,
-    /// Last time speed was calculated (for 1-second interval EMA calculation)
     last_speed_calc_instant: Instant,
-    /// Bytes downloaded at last speed calculation
     last_speed_calc_bytes: u64,
-    /// EMA smoothed speed in KB/s (exponential moving average)
     smoothed_speed_kbps: f64,
 }
 
@@ -204,6 +194,23 @@ impl Emits {
         Self::send_progress_locked(&self.app, &mut guard, bytes);
     }
 
+    /// Stops the background update task without emitting a complete event.
+    ///
+    /// This is used when the download is complete but we don't want to emit
+    /// a "complete" stage (e.g., for audio/video downloads that will be merged).
+    /// Sets percentage to 100% and emits a final progress event.
+    pub async fn stop(&self) {
+        let mut guard = self.inner.lock().await;
+        guard.is_complete = true; // Stop background timer
+
+        // Set percentage to 100% and emit final progress event
+        if let Some(fs_mb) = guard.progress.filesize {
+            guard.progress.downloaded = Some(fs_mb);
+        }
+        guard.progress.percentage = 100.0;
+        let _ = self.app.emit("progress", guard.progress.clone());
+    }
+
     /// Marks the download as complete and stops the update task.
     ///
     /// This method sets the progress to 100%, emits a final progress event,
@@ -220,6 +227,7 @@ impl Emits {
         guard.progress.percentage = 100.0;
         guard.progress.elapsed_time = round_to(elapsed, 1);
         guard.progress.is_complete = true;
+        guard.progress.stage = Some("complete".to_string()); // Set stage for frontend detection
         guard.is_complete = true; // Stop background timer
 
         let _ = self.app.emit("progress", guard.progress.clone());
@@ -293,7 +301,8 @@ impl Emits {
             if inner.progress.filesize.is_some() {
                 inner.progress.downloaded =
                     Some(round_to(current_bytes as f64 / (1024.0 * 1024.0), 1));
-                inner.progress.percentage = round_to(inner.progress.percentage, 0);
+                // Cap percentage at 100 to prevent display issues (e.g., 101%)
+                inner.progress.percentage = round_to(inner.progress.percentage, 0).min(100.0);
                 inner.progress.transfer_rate = round_to(inner.progress.transfer_rate, 1);
             }
 

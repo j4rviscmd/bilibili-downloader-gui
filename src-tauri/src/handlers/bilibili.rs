@@ -40,8 +40,8 @@ pub struct DownloadOptions {
     pub filename: String,
     /// Video quality ID (falls back to highest quality if unavailable)
     pub quality: i32,
-    /// Audio quality ID (falls back to highest quality if unavailable)
-    pub audio_quality: i32,
+    /// Audio quality ID (optional for durl format where audio is embedded)
+    pub audio_quality: Option<i32>,
     /// Unique identifier for tracking this download
     pub download_id: String,
     /// Parent download ID for multi-part videos (optional)
@@ -57,14 +57,18 @@ pub struct DownloadOptions {
     /// Subtitle configuration options (optional)
     #[serde(default)]
     pub subtitle: Option<SubtitleOptions>,
+    /// Episode ID for bangumi content (optional)
+    #[serde(default)]
+    pub ep_id: Option<i64>,
 }
 
 use crate::constants::REFERER;
 use crate::handlers::cookie::read_cookie;
 use crate::handlers::settings;
 use crate::models::bilibili_api::{
-    PlayerV2ApiResponse, UserApiResponse, WatchHistoryApiResponse, WebInterfaceApiResponse,
-    XPlayerApiResponse, XPlayerApiResponseVideo,
+    BangumiPlayerApiResponse, BangumiPlayerResult, BangumiSeasonApiResponse, PlayerV2ApiResponse,
+    UserApiResponse, WatchHistoryApiResponse, WebInterfaceApiResponse, XPlayerApiResponse,
+    XPlayerApiResponseVideo,
 };
 use crate::models::cookie::CookieEntry;
 use crate::models::frontend_dto::{
@@ -122,17 +126,8 @@ fn check_http_status(status: reqwest::StatusCode) -> Result<(), String> {
 ///
 /// # Parallel Download Strategy
 ///
-/// To minimize total download time, audio and video streams are downloaded concurrently.
-/// A semaphore (`VIDEO_SEMAPHORE`) limits concurrency to protect system resources.
-///
-/// ## Semaphore Lifecycle
-///
-/// 1. **Acquire**: `acquire_owned()` before download starts
-/// 2. **Parallel Download**: Download audio and video simultaneously
-/// 3. **Merge**: ffmpeg combines audio and video
-/// 4. **Release**: `drop(permit)` after merge completes
-///
-/// This design limits concurrency based on "merge load" rather than network bandwidth.
+/// Audio and video streams are downloaded concurrently to minimize total download time.
+/// A semaphore limits concurrency to protect system resources.
 ///
 /// # Arguments
 ///
@@ -158,6 +153,98 @@ fn check_http_status(status: reqwest::StatusCode) -> Result<(), String> {
 /// - Insufficient disk space (`ERR::DISK_FULL`)
 /// - Download fails after retry attempts (`ERR::NETWORK`)
 /// - ffmpeg merge fails (`ERR::MERGE_FAILED`)
+
+/// Downloads a bangumi episode using durl format (MP4 direct URL).
+/// This is used when DASH format is not available for bangumi content.
+///
+/// In durl format, audio is embedded in the video file, so no separate
+/// audio download or ffmpeg merge is needed.
+async fn download_bangumi_durl(
+    app: &AppHandle,
+    options: &DownloadOptions,
+    output_path: &Path,
+    cookie_header: &str,
+    player_result: BangumiPlayerResult,
+) -> Result<String, String> {
+    use crate::handlers::concurrency::DOWNLOAD_CANCEL_REGISTRY;
+
+    // Register cancellation token
+    let _cancel_token = DOWNLOAD_CANCEL_REGISTRY
+        .register(&options.download_id)
+        .await;
+
+    // Get durls array
+    let durls = player_result.durls.as_ref().ok_or("ERR::BANGUMI_NO_DASH")?;
+
+    // Find quality entry
+    let quality_entry = durls
+        .iter()
+        .find(|entry| entry.quality == options.quality)
+        .or_else(|| durls.first())
+        .ok_or("ERR::QUALITY_NOT_FOUND")?;
+
+    let durl_segment = quality_entry.durl.first().ok_or("ERR::QUALITY_NOT_FOUND")?;
+
+    let video_url = &durl_segment.url;
+    let backup_urls = durl_segment
+        .backup_url
+        .as_ref()
+        .map(|urls| urls.iter().map(|s| s.to_string()).collect());
+
+    // Capacity check
+    if let Some(vs) = head_content_length(video_url, Some(cookie_header)).await {
+        let total_needed = vs + (5 * 1024 * 1024); // 5MB buffer
+        ensure_free_space(output_path, total_needed)?;
+    }
+
+    // Download directly
+    retry_download(|| {
+        download_url(
+            app,
+            video_url.clone(),
+            backup_urls.clone(),
+            output_path.to_path_buf(),
+            Some(cookie_header.to_string()),
+            true,
+            Some(options.download_id.clone()),
+            Some("video"),
+            true,
+        )
+    })
+    .await?;
+
+    let output_path_str = output_path.to_string_lossy().to_string();
+    let actual_file_size = tokio::fs::metadata(output_path).await.ok().map(|m| m.len());
+
+    // Remove cancellation token
+    DOWNLOAD_CANCEL_REGISTRY.remove(&options.download_id).await;
+
+    // Save to history asynchronously
+    let app = app.clone();
+    let bvid = options.bvid.clone();
+    let filename = options.filename.clone();
+    let quality = options.quality;
+    let thumbnail_url = options.thumbnail_url.clone();
+    let page = options.page;
+
+    tokio::spawn(async move {
+        if let Err(e) = save_to_history(
+            &app,
+            &bvid,
+            quality,
+            actual_file_size,
+            &filename,
+            thumbnail_url,
+            page,
+        )
+        .await
+        {
+            eprintln!("Warning: Failed to save to history for {bvid}: {e}");
+        }
+    });
+
+    Ok(output_path_str)
+}
 /// - Download is cancelled (`ERR::CANCELLED`)
 pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Result<String, String> {
     use crate::handlers::concurrency::DOWNLOAD_CANCEL_REGISTRY;
@@ -173,10 +260,30 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
     // 2. Cookie取得（WBI署名により非ログインユーザでも動作）
     let cookies = read_cookie(app)?.unwrap_or_default();
     let cookie_header = build_cookie_header(&cookies);
-    // Cookieヘッダーが空でも続行（WBI署名により画質制限付きでダウンロード可能）
 
-    // 3. 動画詳細取得 (選択品質のURL抽出)
-    let details = fetch_video_details(&cookies, &options.bvid, options.cid).await?;
+    // 3. バンガミの場合、durl形式かどうかチェック
+    if let Some(ep_id) = options.ep_id {
+        let player_result = fetch_bangumi_player_result(&cookies, ep_id, options.cid).await?;
+
+        // durl形式（MP4直接URL）の場合
+        if player_result.dash.is_none() {
+            return download_bangumi_durl(
+                app,
+                &options,
+                &output_path,
+                &cookie_header,
+                player_result,
+            )
+            .await;
+        }
+    }
+
+    // 4. 動画詳細取得 (選択品質のURL抽出) - DASH形式
+    let details = if let Some(ep_id) = options.ep_id {
+        fetch_bangumi_details_for_download(&cookies, ep_id, options.cid).await?
+    } else {
+        fetch_video_details(&cookies, &options.bvid, options.cid).await?
+    };
 
     let dash_data = details
         .data
@@ -190,8 +297,10 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
 
     // 選択品質が存在しなければフォールバック (先頭 = 最も高品質)
     let (video_url, video_backup_urls) = select_stream_url(&dash_data.video, options.quality)?;
-    let (audio_url, audio_backup_urls) =
-        select_stream_url(&dash_data.audio, options.audio_quality)?;
+    let audio_quality = options
+        .audio_quality
+        .unwrap_or(dash_data.audio.first().map(|a| a.id).unwrap_or(30280));
+    let (audio_url, audio_backup_urls) = select_stream_url(&dash_data.audio, audio_quality)?;
 
     // 5. 容量事前チェック (取得できなければスキップ)
     let video_size = head_content_length(&video_url, Some(&cookie_header)).await;
@@ -229,6 +338,8 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
                     cookie.clone(),
                     true,
                     Some(options.download_id.clone()),
+                    None,
+                    false, // emit_complete: will be emitted after merge
                 )
             }),
             retry_download(|| {
@@ -240,6 +351,8 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
                     cookie.clone(),
                     true,
                     Some(options.download_id.clone()),
+                    None,
+                    false, // emit_complete: will be emitted after merge
                 )
             }),
         )?;
@@ -666,6 +779,10 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
             video_qualities: vec![],
             audio_qualities: vec![],
             subtitles: vec![],
+            ep_id: None,
+            status: None,
+            aid: None,
+            is_preview: None,
         }]
     } else {
         pages
@@ -692,6 +809,10 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
                     video_qualities: vec![],
                     audio_qualities: vec![],
                     subtitles: vec![],
+                    ep_id: None,
+                    status: None,
+                    aid: None,
+                    is_preview: None,
                 }
             })
             .collect()
@@ -702,6 +823,9 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
         bvid: id.to_string(),
         parts,
         is_limited_quality,
+        content_type: "video".to_string(),
+        ep_id: None,
+        season_title: None,
     })
 }
 
@@ -1493,4 +1617,270 @@ async fn prepare_subtitle_mode(
             .unwrap_or(MergeMode::None)),
         _ => Ok(MergeMode::SoftSub(subtitle_files)),
     }
+}
+
+// ============================================================================
+// Bangumi Handlers
+// ============================================================================
+
+/// Fetches bangumi metadata from Bilibili.
+///
+/// Retrieves bangumi season info, episode list, and basic information.
+/// Quality options are fetched lazily via separate API calls.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle for accessing cookie cache
+/// * `ep_id` - Bangumi episode ID (e.g., 3051843)
+///
+/// # Returns
+///
+/// Returns a `Video` struct with title, bvid, parts, and quality limitation flag.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Episode is not found (`ERR::BANGUMI_NOT_FOUND`)
+/// - Episode is VIP-only (`ERR::BANGUMI_VIP_ONLY`)
+/// - Region restricted (`ERR::BANGUMI_REGION_RESTRICTED`)
+/// - Copyright restricted (`ERR::BANGUMI_COPYRIGHT_RESTRICTED`)
+/// - API request fails (`ERR::API_ERROR`)
+pub async fn fetch_bangumi_info(app: &AppHandle, ep_id: i64) -> Result<Video, String> {
+    let cookies = read_cookie(app)?.unwrap_or_default();
+    let cookie_header = build_cookie_header(&cookies);
+    let is_limited_quality = cookie_header.is_empty();
+
+    let client = build_client()?;
+    let url = format!(
+        "https://api.bilibili.com/pgc/view/web/season?ep_id={}",
+        ep_id
+    );
+
+    let response = client
+        .get(&url)
+        .header(header::COOKIE, &cookie_header)
+        .header(header::REFERER, "https://www.bilibili.com")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch bangumi info: {}", e))?;
+
+    check_http_status(response.status())?;
+    let body: BangumiSeasonApiResponse = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse bangumi response: {}", e))?;
+
+    // Error handling for bangumi-specific codes
+    match body.code {
+        -404 => return Err("ERR::BANGUMI_NOT_FOUND".into()),
+        -403 => return Err("ERR::BANGUMI_ACCESS_DENIED".into()),
+        -688 => return Err("ERR::BANGUMI_REGION_RESTRICTED".into()),
+        -689 => return Err("ERR::BANGUMI_COPYRIGHT_RESTRICTED".into()),
+        0 => {}
+        _ => {
+            return Err(format!(
+                "ERR::API_ERROR (code {}): {}",
+                body.code, body.message
+            ))
+        }
+    }
+
+    let result = body
+        .result
+        .ok_or_else(|| "ERR::BANGUMI_NOT_FOUND".to_string())?;
+
+    // Find the target episode and use its AID as BVID placeholder
+    let target_ep = result
+        .episodes
+        .iter()
+        .find(|ep| ep.id == ep_id)
+        .ok_or_else(|| "ERR::BANGUMI_NOT_FOUND".to_string())?;
+
+    // Note: We don't block VIP-only episodes (status=13) here because
+    // VIP members can still access them. The playurl API will return
+    // DASH data for VIP users, and ERR::BANGUMI_NO_DASH for non-VIP users.
+    // Each VideoPart keeps its status field for UI reference.
+
+    // Convert episodes to VideoParts
+    let parts: Vec<VideoPart> = result
+        .episodes
+        .iter()
+        .enumerate()
+        .map(|(idx, ep)| VideoPart {
+            cid: ep.cid,
+            page: (idx + 1) as i32,
+            part: if ep.long_title.is_empty() {
+                ep.title.clone()
+            } else {
+                format!("{} {}", ep.title, ep.long_title).trim().to_string()
+            },
+            duration: ep.duration / 1000, // Convert ms to seconds
+            thumbnail: Thumbnail {
+                url: ep.cover.clone(),
+            },
+            video_qualities: vec![],
+            audio_qualities: vec![],
+            subtitles: vec![],
+            ep_id: Some(ep.id),
+            status: Some(ep.status),
+            aid: Some(ep.aid),
+            is_preview: None, // Will be set when fetching qualities
+        })
+        .collect();
+
+    Ok(Video {
+        title: result.title.clone(),
+        bvid: format!("av{}", target_ep.aid), // Use AID as identifier
+        parts,
+        is_limited_quality,
+        content_type: "bangumi".to_string(),
+        ep_id: Some(ep_id),
+        season_title: Some(result.title),
+    })
+}
+
+/// Fetches bangumi player result for quality selection.
+/// Returns raw player result that can contain either DASH or durl format.
+///
+/// # Arguments
+///
+/// * `cookies` - Cookie entries for authentication
+/// * `ep_id` - Bangumi episode ID
+/// * `cid` - Content ID for the specific video part
+///
+/// # Returns
+///
+/// Returns the raw player result containing either DASH or durl stream data.
+async fn fetch_bangumi_player_result(
+    cookies: &[CookieEntry],
+    ep_id: i64,
+    cid: i64,
+) -> Result<BangumiPlayerResult, String> {
+    let client = build_client()?;
+    let cookie_header = build_cookie_header(cookies);
+
+    let url = format!(
+        "https://api.bilibili.com/pgc/player/web/playurl?ep_id={}&cid={}&qn=116&fnval=2064&fnver=0&fourk=1",
+        ep_id, cid
+    );
+
+    let response = client
+        .get(&url)
+        .header(header::COOKIE, &cookie_header)
+        .header(header::REFERER, "https://www.bilibili.com")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch bangumi playurl: {}", e))?;
+
+    check_http_status(response.status())?;
+
+    let body: BangumiPlayerApiResponse = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse bangumi playurl response: {}", e))?;
+
+    match body.code {
+        -403 => return Err("ERR::BANGUMI_ACCESS_DENIED".into()),
+        -688 => return Err("ERR::BANGUMI_REGION_RESTRICTED".into()),
+        -689 => return Err("ERR::BANGUMI_COPYRIGHT_RESTRICTED".into()),
+        0 => {}
+        _ => {
+            return Err(format!(
+                "ERR::API_ERROR (code {}): {}",
+                body.code, body.message
+            ))
+        }
+    }
+
+    let result = body
+        .result
+        .ok_or_else(|| "ERR::API_ERROR No result field".to_string())?;
+
+    let has_dash = result.dash.is_some();
+    let has_durl = result.durls.is_some()
+        && result
+            .durls
+            .as_ref()
+            .map(|d| !d.is_empty())
+            .unwrap_or(false);
+
+    if !has_dash && !has_durl {
+        return Err("ERR::BANGUMI_NO_DASH".into());
+    }
+
+    Ok(result)
+}
+
+/// Fetches bangumi stream URLs for download (DASH format only).
+/// Returns XPlayerApiResponse for compatibility with existing download flow.
+///
+/// Note: This function only supports DASH format. For durl format (MP4),
+/// the download_video function handles it separately.
+async fn fetch_bangumi_details_for_download(
+    cookies: &[CookieEntry],
+    ep_id: i64,
+    cid: i64,
+) -> Result<XPlayerApiResponse, String> {
+    let result = fetch_bangumi_player_result(cookies, ep_id, cid).await?;
+
+    match result.dash {
+        Some(dash) => Ok(XPlayerApiResponse {
+            code: 0,
+            message: "success".to_string(),
+            data: Some(crate::models::bilibili_api::XPlayerApiResponseData { dash }),
+        }),
+        None => {
+            // durl format - not supported in current download flow
+            // This will be handled by download_video with durl support
+            Err("ERR::BANGUMI_DURL_NOT_SUPPORTED".into())
+        }
+    }
+}
+
+/// Fetches available video and audio qualities for a bangumi episode part.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle for accessing cookie cache
+/// * `ep_id` - Bangumi episode ID
+/// * `cid` - Content ID for the specific video part
+///
+/// # Returns
+///
+/// Returns a tuple of (video_qualities, audio_qualities, is_preview).
+pub async fn fetch_bangumi_part_qualities(
+    app: &AppHandle,
+    ep_id: i64,
+    cid: i64,
+) -> Result<(Vec<Quality>, Vec<Quality>, Option<bool>), String> {
+    let cookies = read_cookie(app)?.unwrap_or_default();
+    let result = fetch_bangumi_player_result(&cookies, ep_id, cid).await?;
+
+    let is_preview = result.is_preview.map(|v| v == 1);
+
+    // Try DASH format first
+    if let Some(dash) = &result.dash {
+        let video_qualities = convert_qualities(&dash.video);
+        let audio_qualities = convert_qualities(&dash.audio);
+        return Ok((video_qualities, audio_qualities, is_preview));
+    }
+
+    // Fall back to durl format (MP4 direct URL)
+    // In durl format, audio is embedded in the video file, so no separate audio qualities
+    if let Some(durls) = &result.durls {
+        let video_qualities: Vec<Quality> = durls
+            .iter()
+            .filter(|entry| !entry.durl.is_empty())
+            .map(|entry| Quality {
+                id: entry.quality,
+                codecid: 7, // AVC for MP4 format
+            })
+            .collect();
+
+        // Return empty audio qualities for durl format (audio is embedded)
+        return Ok((video_qualities, vec![], is_preview));
+    }
+
+    // Should not reach here as fetch_bangumi_player_result validates data presence
+    Err("ERR::BANGUMI_NO_DASH".into())
 }

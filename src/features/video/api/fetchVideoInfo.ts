@@ -77,3 +77,29 @@ export const fetchPartQualities = async (
     { bvid, cid },
   )
 }
+
+/**
+ * Fetches available video and audio qualities for a bangumi episode part.
+ *
+ * Used for lazy-loading qualities when the bangumi part is rendered.
+ *
+ * @param epId - Bangumi episode ID
+ * @param cid - Content ID for the specific video part
+ * @returns A promise resolving to a tuple of [videoQualities, audioQualities, isPreview]
+ *
+ * @example
+ * ```typescript
+ * const [videoQualities, audioQualities, isPreview] = await fetchBangumiPartQualities(3051843, 123456)
+ * console.log('Video qualities:', videoQualities.length)
+ * console.log('Preview mode:', isPreview)
+ * ```
+ */
+export const fetchBangumiPartQualities = async (
+  epId: number,
+  cid: number,
+): Promise<[VideoQuality[], AudioQuality[], boolean | null]> => {
+  return await invoke<[VideoQuality[], AudioQuality[], boolean | null]>(
+    'fetch_bangumi_part_qualities',
+    { epId, cid },
+  )
+}

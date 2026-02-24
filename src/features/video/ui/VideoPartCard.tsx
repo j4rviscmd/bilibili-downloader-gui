@@ -8,6 +8,7 @@ import {
 } from '@/components/animate-ui/components/radix/accordion'
 import { useVideoInfo } from '@/features/video'
 import { downloadVideo } from '@/features/video/api/downloadVideo'
+import { clearProgressByDownloadId } from '@/shared/progress/progressSlice'
 import { fetchSubtitlesForPart } from '@/features/video/api/fetchVideoInfo'
 import { usePartDownloadStatus } from '@/features/video/hooks/usePartDownloadStatus'
 import {
@@ -80,16 +81,11 @@ type Props = {
  * Returns the video title for single-part videos, or combines video
  * title with part name for multi-part videos.
  */
-function computeDefaultTitle(
-  video: Video,
-  videoPart: { part: string },
-): string {
+function computeDefaultTitle(video: Video, videoPart: { part: string }): string {
   if (!video || video.parts.length === 0 || video.parts[0].cid === 0) {
     return ''
   }
-  return video.title === videoPart.part
-    ? video.title
-    : `${video.title} ${videoPart.part}`
+  return video.title === videoPart.part ? video.title : `${video.title} ${videoPart.part}`
 }
 
 /**
@@ -136,6 +132,7 @@ const VideoPartCard = memo(function VideoPartCard({
   const videoQualities = partInput?.videoQualities ?? []
   const audioQualities = partInput?.audioQualities ?? []
   const qualitiesLoading = partInput?.qualitiesLoading ?? false
+  const isPreview = partInput?.isPreview ?? false
 
   const accordionValue = useMemo(
     () => (partInput?.accordionOpen ? ['other-options'] : []),
@@ -170,9 +167,7 @@ const VideoPartCard = memo(function VideoPartCard({
           video.bvid,
           videoPart.cid,
         )
-        store.dispatch(
-          setPartSubtitles({ index: partIndex, subtitles: fetchedSubtitles }),
-        )
+        store.dispatch(setPartSubtitles({ index: partIndex, subtitles: fetchedSubtitles }))
       } catch (e) {
         console.error('Failed to fetch subtitles:', e)
         store.dispatch(setPartSubtitles({ index: partIndex, subtitles: [] }))
@@ -209,40 +204,46 @@ const VideoPartCard = memo(function VideoPartCard({
 
   /**
    * Executes redownload by removing completed item and starting
-   * fresh download. Clears the queue item and initiates a new
-   * download with a new ID.
+   * fresh download. Clears the queue item, progress entries, and
+   * initiates a new download with a new ID.
    */
   const handleRedownload = useCallback(async () => {
     const partIndex = page - 1
     const state = store.getState()
     const pi = state.input.partInputs[partIndex]
-    const videoId = extractVideoId(state.input.url)
 
-    if (!pi || !videoId) return
+    if (!pi) return
+
+    // Use video.bvid (works for both regular videos and bangumi)
+    const videoId = video.bvid
 
     const completedItem = findCompletedItemForPart(state, page)
     if (completedItem) {
       store.dispatch(clearQueueItem(completedItem.downloadId))
+      store.dispatch(clearProgressByDownloadId(completedItem.downloadId))
     }
 
     const newDownloadId = `${videoId}-${Date.now()}-p${page}`
     const videoQuality = pi.videoQuality || String(pi.videoQualities?.[0]?.id)
-    const audioQuality = pi.audioQuality || String(pi.audioQualities?.[0]?.id)
+    const audioQuality = pi.audioQuality
+      ? parseInt(pi.audioQuality, 10)
+      : pi.audioQualities?.[0]?.id || null
 
     await downloadVideo(
       videoId,
       pi.cid,
       pi.title.trim(),
       parseInt(videoQuality, 10),
-      parseInt(audioQuality, 10),
+      audioQuality,
       newDownloadId,
       newDownloadId.replace(/-p\d+$/, ''),
       pi.duration,
       pi.thumbnailUrl,
       pi.page,
       pi.subtitle,
+      videoPart.epId,
     )
-  }, [page])
+  }, [page, video.bvid, videoPart.epId])
 
   /**
    * Handles retry action by re-selecting the part for download.
@@ -314,18 +315,26 @@ const VideoPartCard = memo(function VideoPartCard({
   }, [video, partInput?.title, form, videoPart])
 
   useEffect(() => {
-    if (videoQualities.length === 0 || audioQualities.length === 0) return
+    // For durl format (MP4), audioQualities is empty since audio is embedded
+    const hasAudioQualities = audioQualities.length > 0
+
+    if (videoQualities.length === 0) return
 
     // Use Redux value if already set, otherwise use first available quality (highest)
     const videoQuality = partInput?.videoQuality || String(videoQualities[0].id)
-    const audioQuality = partInput?.audioQuality || String(audioQualities[0].id)
+    const audioQuality = hasAudioQualities
+      ? partInput?.audioQuality || String(audioQualities[0].id)
+      : ''
 
     // Always sync form with current values
     form.setValue('videoQuality', videoQuality, { shouldValidate: true })
     form.setValue('audioQuality', audioQuality, { shouldValidate: true })
 
     // Only dispatch to Redux if not already set
-    if (!partInput?.videoQuality || !partInput?.audioQuality) {
+    // For durl format, skip audio quality check
+    const needsVideoQuality = !partInput?.videoQuality
+    const needsAudioQuality = hasAudioQualities && !partInput?.audioQuality
+    if (needsVideoQuality || needsAudioQuality) {
       const title = partInput?.title ?? videoPart.part
       form.trigger().then((isValid) => {
         if (isValid) {
@@ -449,6 +458,18 @@ const VideoPartCard = memo(function VideoPartCard({
                 <span className="px-1">/</span>
                 {min > 0 && <span>{min}m</span>}
                 <span>{sec}s</span>
+                {isPreview && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                        {t('video.bangumi_preview_badge')}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="whitespace-nowrap">
+                      <p className="text-sm">{t('video.bangumi_preview_tooltip')}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                )}
               </div>
             </div>
 
@@ -472,11 +493,32 @@ const VideoPartCard = memo(function VideoPartCard({
                   </div>
                 )}
                 {/* Video Quality */}
-                {qualitiesLoading || videoQualities.length === 0 ? (
+                {qualitiesLoading ? (
                   <div className="space-y-2">
                     <Skeleton className="h-4 w-16" />
                     <Skeleton className="h-[1.62rem] w-full" />
                   </div>
+                ) : videoQualities.length === 0 ? (
+                  // VIP-only or unavailable episode (bangumi)
+                  videoPart.status === 13 ? (
+                    <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-950">
+                      <div className="flex items-center gap-2">
+                        <Info className="h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+                        <p className="font-medium text-amber-900 dark:text-amber-100">
+                          {t('video.bangumi_vip_only')}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm dark:border-red-800 dark:bg-red-950">
+                      <div className="flex items-center gap-2">
+                        <Info className="h-4 w-4 flex-shrink-0 text-red-600 dark:text-red-400" />
+                        <p className="font-medium text-red-900 dark:text-red-100">
+                          {t('video.bangumi_no_dash')}
+                        </p>
+                      </div>
+                    </div>
+                  )
                 ) : (
                   <FormField
                     control={form.control}
@@ -540,56 +582,67 @@ const VideoPartCard = memo(function VideoPartCard({
                     <AccordionContent transition={accordionTransition}>
                       <div className="space-y-4">
                         {/* Audio Quality Section */}
-                        <div>
-                          <div className="mb-2 flex items-center gap-1.5">
-                            <span className="text-sm font-medium">
-                              {t('video.audio_quality_label')}
-                            </span>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Info className="text-muted-foreground h-4 w-4 cursor-help" />
-                              </TooltipTrigger>
-                              <TooltipContent
-                                side="right"
-                                className="max-w-xs text-xs"
-                              >
-                                <p>{t('video.audio_quality_description')}</p>
-                                <p className="mt-1">
-                                  {t('video.audio_quality_note')}
-                                </p>
-                              </TooltipContent>
-                            </Tooltip>
+                        {audioQualities.length > 0 ? (
+                          <div>
+                            <div className="mb-2 flex items-center gap-1.5">
+                              <span className="text-sm font-medium">
+                                {t('video.audio_quality_label')}
+                              </span>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Info className="text-muted-foreground h-4 w-4 cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent
+                                  side="right"
+                                  className="max-w-xs text-xs"
+                                >
+                                  <p>{t('video.audio_quality_description')}</p>
+                                  <p className="mt-1">
+                                    {t('video.audio_quality_note')}
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
+                            <FormField
+                              control={form.control}
+                              name="audioQuality"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormControl>
+                                    <RadioGroup
+                                      value={String(field.value)}
+                                      onValueChange={field.onChange}
+                                    >
+                                      <QualityRadioGroup
+                                        idPrefix={`aq-${page}`}
+                                        options={AUDIO_QUALITIES_ORDER.map(
+                                          (id) => ({
+                                            id: String(id),
+                                            label: AUDIO_QUALITIES_MAP[id],
+                                            isAvailable: isQualityAvailable(
+                                              Number(id),
+                                              'audio',
+                                            ),
+                                          }),
+                                        )}
+                                      />
+                                    </RadioGroup>
+                                  </FormControl>
+                                  {selected && <FormMessage />}
+                                </FormItem>
+                              )}
+                            />
                           </div>
-                          <FormField
-                            control={form.control}
-                            name="audioQuality"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormControl>
-                                  <RadioGroup
-                                    value={String(field.value)}
-                                    onValueChange={field.onChange}
-                                  >
-                                    <QualityRadioGroup
-                                      idPrefix={`aq-${page}`}
-                                      options={AUDIO_QUALITIES_ORDER.map(
-                                        (id) => ({
-                                          id: String(id),
-                                          label: AUDIO_QUALITIES_MAP[id],
-                                          isAvailable: isQualityAvailable(
-                                            Number(id),
-                                            'audio',
-                                          ),
-                                        }),
-                                      )}
-                                    />
-                                  </RadioGroup>
-                                </FormControl>
-                                {selected && <FormMessage />}
-                              </FormItem>
-                            )}
-                          />
-                        </div>
+                        ) : video.contentType === 'bangumi' ? (
+                          <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm dark:border-blue-800 dark:bg-blue-950">
+                            <div className="flex items-center gap-2">
+                              <Info className="h-4 w-4 flex-shrink-0 text-blue-600 dark:text-blue-400" />
+                              <p className="text-blue-900 dark:text-blue-100">
+                                {t('video.bangumi_audio_embedded')}
+                              </p>
+                            </div>
+                          </div>
+                        ) : null}
 
                         {/* Subtitle Section */}
                         {subtitlesLoading ? (
@@ -663,6 +716,7 @@ const VideoPartCard = memo(function VideoPartCard({
             onRedownload={handleRedownload}
             onRetry={handleRetry}
             onCancel={handleCancel}
+            hasEmbeddedAudio={video.contentType === 'bangumi' && audioQualities.length === 0}
           />
         )}
       </Form>

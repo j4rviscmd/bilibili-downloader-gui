@@ -140,6 +140,8 @@ pub async fn install_ffmpeg(app: &AppHandle) -> Result<bool> {
         None,
         true,
         None,
+        None,
+        false, // emit_complete: ffmpeg download has no progress UI
     )
     .await
     .is_err()

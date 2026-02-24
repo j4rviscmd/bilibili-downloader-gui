@@ -2,6 +2,7 @@ import type { RootState } from '@/app/store'
 import { store, useSelector } from '@/app/store'
 import { useInit } from '@/features/init'
 import type { Video } from '@/features/video'
+import type { AudioQuality, VideoQuality } from '@/features/video/types'
 import {
   deselectPageAll,
   DownloadButton,
@@ -10,7 +11,10 @@ import {
   VideoForm1,
   VideoInfoProvider,
 } from '@/features/video'
-import { fetchPartQualities } from '@/features/video/api/fetchVideoInfo'
+import {
+  fetchPartQualities,
+  fetchBangumiPartQualities,
+} from '@/features/video/api/fetchVideoInfo'
 import { createConcurrencyLimiter } from '@/features/video/lib/concurrency'
 import {
   setPartQualities,
@@ -177,39 +181,92 @@ function fetchQualitiesForRange(
   startIndex: number,
   endIndex: number,
 ) {
-  const state = store.getState()
+  const isBangumi = video.contentType === 'bangumi'
+
   for (let i = startIndex; i <= endIndex; i++) {
     const part = video.parts[i]
     if (!part) continue
-    const partInput = state.input.partInputs[i]
-    // Skip if already fetched or loading
+
+    // Get fresh state each iteration
+    const currentState = store.getState()
+    const partInput = currentState.input.partInputs[i]
+
+    // Skip if already fetched (including failed with empty array) or loading
     if (
       partInput?.qualitiesLoading ||
-      (partInput?.videoQualities?.length ?? 0) > 0
+      partInput?.videoQualities !== undefined
     ) {
       continue
     }
+
+    // For bangumi, need epId from the part
+    if (isBangumi && !part.epId) {
+      // Set empty qualities to prevent infinite retry
+      store.dispatch(
+        setPartQualities({
+          index: i,
+          videoQualities: [],
+          audioQualities: [],
+        }),
+      )
+      continue
+    }
+
+    // Note: We don't skip status=13 (VIP-only) episodes here because
+    // VIP members can access them. The playurl API will succeed for
+    // VIP users and fail for non-VIP users. If API fails, the catch
+    // block will set empty qualities and UI will show VIP message.
+
     store.dispatch(setQualitiesLoading({ index: i, loading: true }))
-    qualityLimiter
-      .run(() => fetchPartQualities(video.bvid, part.cid))
-      .then(([vq, aq]) => {
-        store.dispatch(
-          setPartQualities({
-            index: i,
-            videoQualities: vq,
-            audioQualities: aq,
-          }),
-        )
-      })
-      .catch(() => {
-        store.dispatch(
-          setPartQualities({
-            index: i,
-            videoQualities: [],
-            audioQualities: [],
-          }),
-        )
-      })
+
+    const currentIndex = i
+    const epId = part.epId
+    const cid = part.cid
+
+    if (isBangumi && epId) {
+      qualityLimiter
+        .run(() => fetchBangumiPartQualities(epId, cid))
+        .then(([vq, aq, isPreview]) => {
+          store.dispatch(
+            setPartQualities({
+              index: currentIndex,
+              videoQualities: vq,
+              audioQualities: aq,
+              isPreview: isPreview ?? undefined,
+            }),
+          )
+        })
+        .catch(() => {
+          store.dispatch(
+            setPartQualities({
+              index: currentIndex,
+              videoQualities: [],
+              audioQualities: [],
+            }),
+          )
+        })
+    } else {
+      qualityLimiter
+        .run(() => fetchPartQualities(video.bvid, cid))
+        .then(([vq, aq]) => {
+          store.dispatch(
+            setPartQualities({
+              index: currentIndex,
+              videoQualities: vq,
+              audioQualities: aq,
+            }),
+          )
+        })
+        .catch(() => {
+          store.dispatch(
+            setPartQualities({
+              index: currentIndex,
+              videoQualities: [],
+              audioQualities: [],
+            }),
+          )
+        })
+    }
   }
 }
 

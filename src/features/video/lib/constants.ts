@@ -4,6 +4,8 @@
  * Higher numbers generally indicate better quality.
  */
 export const VIDEO_QUALITIES_MAP: Record<number, string> = {
+  125: 'HDR',
+  120: '4K Dolby Vision',
   116: '1080p60',
   74: '720p60',
   112: '1080p+',
