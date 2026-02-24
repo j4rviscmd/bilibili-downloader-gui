@@ -19,10 +19,10 @@ const t = useTranslations(lang);
 const featureConfig = {
   download: { icon: "📥" },
   quality: { icon: "🎬" },
-  subtitle: { icon: "💬" },
+  subtitle: { icon: "💬", isNew: true },
   cdn: { icon: "⚡" },
   batch: { icon: "📦" },
-  bangumi: { icon: "📺", comingSoon: true },
+  bangumi: { icon: "📺", isNew: true },
 } as const;
 
 const features = Object.entries(featureConfig).map(([key, config]) => ({
@@ -31,6 +31,7 @@ const features = Object.entries(featureConfig).map(([key, config]) => ({
   title: t(`features.list.${key}`),
   description: t(`features.descriptions.${key}`),
   comingSoon: config.comingSoon,
+  isNew: config.isNew,
 }));
 ---
 
