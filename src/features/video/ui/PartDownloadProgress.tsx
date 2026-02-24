@@ -194,6 +194,8 @@ type Props = {
   onRedownload: () => void
   onRetry: () => void
   onCancel?: () => void
+  /** True if audio is embedded (durl format), so only video stage is shown */
+  hasEmbeddedAudio?: boolean
 }
 
 /**
@@ -211,6 +213,7 @@ export function PartDownloadProgress({
   onRedownload,
   onRetry,
   onCancel,
+  hasEmbeddedAudio = false,
 }: Props) {
   const { t } = useTranslation()
   const {
@@ -328,30 +331,48 @@ export function PartDownloadProgress({
         <div
           className={`text-muted-foreground ${MIN_HEIGHT} flex items-center gap-x-3 text-xs`}
         >
-          <div className="flex-1">
-            <StageProgress
-              icon="🔊"
-              labelKey="video.stage_audio"
-              progressEntries={progressEntries}
-              stageName="audio"
-              t={t}
-            />
-          </div>
+          {hasEmbeddedAudio ? (
+            <>
+              <div className="flex-1">
+                <StageProgress
+                  icon="🎬"
+                  labelKey="video.stage_video"
+                  progressEntries={progressEntries}
+                  stageName="video"
+                  t={t}
+                />
+              </div>
+              <div className="flex-1" />
+              <div className="flex-1" />
+            </>
+          ) : (
+            <>
+              <div className="flex-1">
+                <StageProgress
+                  icon="🔊"
+                  labelKey="video.stage_audio"
+                  progressEntries={progressEntries}
+                  stageName="audio"
+                  t={t}
+                />
+              </div>
 
-          <div className="flex-1">
-            <StageProgress
-              icon="🎬"
-              labelKey="video.stage_video"
-              progressEntries={progressEntries}
-              stageName="video"
-              t={t}
-            />
-          </div>
+              <div className="flex-1">
+                <StageProgress
+                  icon="🎬"
+                  labelKey="video.stage_video"
+                  progressEntries={progressEntries}
+                  stageName="video"
+                  t={t}
+                />
+              </div>
 
-          <div className="flex-1">
-            {/* Merge Stage - has special logic for merging state */}
-            <MergeStageProgress progressEntries={progressEntries} t={t} />
-          </div>
+              <div className="flex-1">
+                {/* Merge Stage - has special logic for merging state */}
+                <MergeStageProgress progressEntries={progressEntries} t={t} />
+              </div>
+            </>
+          )}
 
           {/* Cancel button - inline */}
           {canCancel && (

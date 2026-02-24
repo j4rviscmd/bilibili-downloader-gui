@@ -1,11 +1,14 @@
 import { type RootState, store, useSelector } from '@/app/store'
 import { downloadVideo } from '@/features/video/api/downloadVideo'
-import { useLazyFetchVideoInfoQuery } from '@/features/video/api/videoApi'
+import {
+  useLazyFetchBangumiInfoQuery,
+  useLazyFetchVideoInfoQuery,
+} from '@/features/video/api/videoApi'
 import {
   buildVideoFormSchema1,
   buildVideoFormSchema2,
 } from '@/features/video/lib/formSchema'
-import { extractVideoId } from '@/features/video/lib/utils'
+import { extractContentId } from '@/features/video/lib/utils'
 import {
   clearPendingDownload,
   initPartInputs,
@@ -35,10 +38,7 @@ import { toast } from 'sonner'
 import type { Input, Video } from '../types'
 
 /**
- * Error code to translation key mapping.
- *
- * Maps backend error codes (ERR::* format) to i18n translation keys
- * for user-facing error messages.
+ * Maps backend error codes to i18n translation keys.
  */
 const ERROR_MAP: Record<string, string> = {
   'ERR::VIDEO_NOT_FOUND': 'video.video_not_found',
@@ -49,6 +49,14 @@ const ERROR_MAP: Record<string, string> = {
   'ERR::MERGE_FAILED': 'video.merge_failed',
   'ERR::QUALITY_NOT_FOUND': 'video.quality_not_found',
   'ERR::RATE_LIMITED': 'video.rate_limited',
+  // Bangumi error codes
+  'ERR::BANGUMI_NOT_FOUND': 'video.bangumi_not_found',
+  'ERR::BANGUMI_VIP_ONLY': 'video.bangumi_vip_only',
+  'ERR::BANGUMI_REGION_RESTRICTED': 'video.bangumi_region_restricted',
+  'ERR::BANGUMI_COPYRIGHT_RESTRICTED': 'video.bangumi_copyright_restricted',
+  'ERR::BANGUMI_ACCESS_DENIED': 'video.bangumi_access_denied',
+  'ERR::BANGUMI_NO_DASH': 'video.bangumi_no_dash',
+  'ERR::BANGUMI_DURL_NOT_SUPPORTED': 'video.bangumi_durl_not_supported',
 }
 
 /**
@@ -56,10 +64,6 @@ const ERROR_MAP: Record<string, string> = {
  *
  * Maps backend error codes to user-facing translation keys. Returns the original
  * error message if no known error code is found. Handles network errors specifically.
- *
- * @param error - The error string returned from the backend
- * @param t - Translation function from react-i18next
- * @returns Localized error message string
  */
 function getErrorMessage(error: string, t: (key: string) => string): string {
   for (const [code, key] of Object.entries(ERROR_MAP)) {
@@ -70,18 +74,6 @@ function getErrorMessage(error: string, t: (key: string) => string): string {
 
 /**
  * Context value type for VideoInfoProvider.
- *
- * @property progress - Download progress state from Redux store
- * @property video - Current video information (title, parts, qualities, etc.)
- * @property input - Form input state (URL, part inputs, pending download)
- * @property onValid1 - Validates video URL and fetches video info (Step 1)
- * @property onValid2 - Updates part settings (title, quality) (Step 2)
- * @property isForm1Valid - Whether the URL form is valid
- * @property isForm2ValidAll - Whether all part forms are valid and no duplicates exist
- * @property duplicateIndices - Indices of parts with duplicate titles
- * @property selectedCount - Number of parts selected for download
- * @property isFetching - Whether video info is being fetched
- * @property download - Executes download for selected parts
  */
 export type VideoInfoContextValue = {
   progress: RootState['progress']
@@ -104,9 +96,6 @@ export type VideoInfoContextValue = {
 
 /**
  * React context for managing video information and download workflow state.
- *
- * Provides access to video data, form inputs, validation status, and download
- * orchestration functions throughout the video feature component tree.
  */
 const VideoInfoContext = createContext<VideoInfoContextValue | null>(null)
 
@@ -131,22 +120,17 @@ type VideoInfoProviderProps = {
 /**
  * Provider for managing video information and download workflow.
  * Provides video info fetching, part settings management, duplicate detection, and download execution.
- *
- * @param props.children - Child components
- *
- * @example
- * ```tsx
- * <VideoInfoProvider>
- *   <HomeContent />
- * </VideoInfoProvider>
- * ```
  */
 export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
   const { t } = useTranslation()
   const progress = useSelector((state) => state.progress)
   const video = useSelector((state) => state.video)
   const input = useSelector((state) => state.input)
-  const [triggerFetch, { isFetching }] = useLazyFetchVideoInfoQuery()
+  const [triggerFetch, { isFetching: isFetchingVideo }] =
+    useLazyFetchVideoInfoQuery()
+  const [triggerFetchBangumi, { isFetching: isFetchingBangumi }] =
+    useLazyFetchBangumiInfoQuery()
+  const isFetching = isFetchingVideo || isFetchingBangumi
 
   // Track the pending download being processed (singleton ref)
   const processingPendingRef = useRef<{
@@ -186,8 +170,8 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
         thumbnailUrl: p.thumbnail.url,
         subtitles: [],
         subtitlesLoading: false,
-        videoQualities: [],
-        audioQualities: [],
+        // Don't initialize videoQualities/audioQualities - let them be undefined
+        // so we can distinguish between "not fetched yet" and "fetched but empty"
         qualitiesLoading: false,
       }
     })
@@ -200,11 +184,11 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
   }, [])
 
   /**
-   * Validates video URL and fetches information (form 1).
-   * Uses RTK Query for caching - subsequent requests for the same videoId
+   * Validates video/bangumi URL and fetches information (form 1).
+   * Uses RTK Query for caching - subsequent requests for the same videoId/epId
    * will be served from cache for 1 hour.
    *
-   * @param url - Video URL to validate and fetch
+   * @param url - Video or bangumi URL to validate and fetch
    */
   const onValid1 = useCallback(
     async (url: string) => {
@@ -236,41 +220,56 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
         // URL parse error - ignore
       }
 
+      const contentId = extractContentId(url)
+      if (!contentId) {
+        toast.error(t('video.fetch_info'), {
+          duration: 5000,
+          description: t('validation.video.url.invalid'),
+        })
+        return
+      }
+
       // Set processingPendingRef before initInputsForVideo is called
       // This ensures only the p-specified part is selected
-      if (pageFromUrl && !processingPendingRef.current) {
-        const id = extractVideoId(url)
-        if (id) {
-          processingPendingRef.current = {
-            bvid: id,
-            cid: null,
-            page: pageFromUrl,
-          }
+      if (
+        pageFromUrl &&
+        !processingPendingRef.current &&
+        contentId.type === 'video'
+      ) {
+        processingPendingRef.current = {
+          bvid: contentId.id,
+          cid: null,
+          page: pageFromUrl,
         }
       }
 
       store.dispatch(setUrl(url))
-      const id = extractVideoId(url)
-      if (id) {
-        store.dispatch(clearQueue())
+      store.dispatch(clearQueue())
 
-        const fetchResult = await triggerFetch(id, true) // preferCacheValue: use cache if available
-        if (fetchResult.data) {
-          const v = fetchResult.data
-          store.dispatch(setVideo(v))
-          initInputsForVideo(v)
-        } else if (fetchResult.error) {
-          const raw = String(fetchResult.error)
-          const description = getErrorMessage(raw, t)
-          toast.error(t('video.fetch_info'), {
-            duration: 5000,
-            description,
-          })
-          console.error('Failed to fetch video info:', raw)
-        }
+      let fetchResult: { data?: Video; error?: unknown }
+
+      if (contentId.type === 'video') {
+        fetchResult = await triggerFetch(contentId.id, true)
+      } else {
+        const epId = parseInt(contentId.epId, 10)
+        fetchResult = await triggerFetchBangumi(epId, true)
+      }
+
+      if (fetchResult.data) {
+        const v = fetchResult.data
+        store.dispatch(setVideo(v))
+        initInputsForVideo(v)
+      } else if (fetchResult.error) {
+        const raw = String(fetchResult.error)
+        const description = getErrorMessage(raw, t)
+        toast.error(t('video.fetch_info'), {
+          duration: 5000,
+          description,
+        })
+        console.error('Failed to fetch content info:', raw)
       }
     },
-    [t, initInputsForVideo, triggerFetch],
+    [t, initInputsForVideo, triggerFetch, triggerFetchBangumi],
   )
 
   /**
@@ -385,7 +384,7 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
   }, [video.parts, input.partInputs])
 
   /**
-   * Executes download for selected video parts.
+   * Executes download for selected video/bangumi parts.
    *
    * Starts download process for each selected part, creating queue entries.
    * Shows appropriate toast notifications on errors.
@@ -393,8 +392,13 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
   const download = useCallback(async () => {
     if (!isForm1Valid || !isForm2ValidAll) return
 
-    const videoId = (extractVideoId(input.url) ?? '').trim()
-    if (!videoId) return
+    const contentId = extractContentId(input.url)
+    if (!contentId) return
+
+    const videoId =
+      contentId.type === 'video'
+        ? contentId.id
+        : `av${video.parts[0]?.aid ?? ''}`
 
     // Extract selected parts with their indices for download processing
     // Type predicate filter ensures non-null items with proper type narrowing
@@ -427,6 +431,9 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
       const currentPartInput = store.getState().input.partInputs[idx]
       if (!currentPartInput?.selected) continue
 
+      // Get ep_id for bangumi content
+      const epId = video.parts[idx]?.epId
+
       const downloadId = `${parentId}-p${idx + 1}`
       try {
         await downloadVideo(
@@ -434,13 +441,14 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
           pi.cid,
           pi.title.trim(),
           parseInt(pi.videoQuality, 10),
-          parseInt(pi.audioQuality, 10),
+          pi.audioQuality ? parseInt(pi.audioQuality, 10) : null,
           downloadId,
           parentId,
           pi.duration,
           pi.thumbnailUrl,
           pi.page,
           pi.subtitle,
+          epId,
         )
       } catch (e) {
         const raw = String(e)

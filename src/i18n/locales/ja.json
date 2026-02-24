@@ -124,7 +124,18 @@
     "subtitle_description": "動画に字幕を埋め込む方法を選択します。",
     "subtitle_note": "※ ソフトサブは再生プレイヤーで字幕のON/OFFが可能。ハードサブは動画に焼き付けられます。",
     "other_options": "その他のオプション",
-    "subtitle_select_required": "字幕を使用する場合は言語を選択してください"
+    "subtitle_select_required": "字幕を使用する場合は言語を選択してください",
+    "bangumi_not_found": "エピソードが見つかりません。URLを確認してください。",
+    "bangumi_vip_only": "このエピソードはVIP会員限定です。",
+    "bangumi_region_restricted": "このエピソードは地域制限があります。",
+    "bangumi_copyright_restricted": "著作権の制限によりこのエピソードは利用できません。",
+    "bangumi_access_denied": "このエピソードへのアクセスが拒否されました。",
+    "bangumi_no_dash": "ストリームが取得できません。VIP限定エピソードの可能性があります。",
+    "bangumi_vip_badge": "VIP",
+    "bangumi_audio_embedded": "音声は動画に埋め込まれているため、音質選択は不要です。",
+    "bangumi_preview_badge": "予告",
+    "bangumi_preview_tooltip": "プレミアム会員権限が必要です。冒頭6分のみダウンロードされます。",
+    "bangumi_durl_not_supported": "このエピソード形式はサポートされていません。"
   },
   "progress": {
     "elapsed": "経過",
@@ -247,7 +258,8 @@
         "min": "URLは2文字以上で入力してください。",
         "max": "URLは1000文字以内で入力してください。",
         "invalid": "有効なURLを入力してください。",
-        "domain": "bilibili.com のURLのみ有効です。"
+        "domain": "bilibili.com のURLのみ有効です。",
+        "format": "URLは動画 (/video/{id}) またはバンガミ (/bangumi/play/ep{id}) の形式である必要があります。"
       },
       "title": {
         "min": "タイトルは2文字以上で入力してください。",

@@ -7,6 +7,7 @@ const initialState: Video = {
   bvid: '',
   parts: [],
   isLimitedQuality: false,
+  contentType: 'video',
 }
 
 /**

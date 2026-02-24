@@ -158,8 +158,6 @@ pub fn get_settings_path(app: &AppHandle) -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_get_settings_path_returns_app_data_dir() {
         // This test verifies that settings are stored in app_data_dir

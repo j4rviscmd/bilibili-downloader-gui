@@ -49,6 +49,19 @@ pub struct Video {
     /// Indicates whether quality options are limited due to missing cookies
     #[serde(default)]
     pub is_limited_quality: bool,
+    /// Content type ("video" or "bangumi")
+    #[serde(default = "default_content_type")]
+    pub content_type: String,
+    /// Episode ID for bangumi content
+    #[serde(default)]
+    pub ep_id: Option<i64>,
+    /// Season title for bangumi content
+    #[serde(default)]
+    pub season_title: Option<String>,
+}
+
+fn default_content_type() -> String {
+    "video".to_string()
 }
 
 /// Individual video part with quality and metadata information.
@@ -67,6 +80,18 @@ pub struct VideoPart {
     /// Available subtitles for this part
     #[serde(default)]
     pub subtitles: Vec<SubtitleDto>,
+    /// Episode ID for bangumi content
+    #[serde(default)]
+    pub ep_id: Option<i64>,
+    /// Episode status (2=free, 13=VIP-only) for bangumi
+    #[serde(default)]
+    pub status: Option<i32>,
+    /// AID for bangumi content
+    #[serde(default)]
+    pub aid: Option<i64>,
+    /// Preview mode flag (only first 6 minutes available)
+    #[serde(default)]
+    pub is_preview: Option<bool>,
 }
 /// Thumbnail information with the image URL.
 ///
