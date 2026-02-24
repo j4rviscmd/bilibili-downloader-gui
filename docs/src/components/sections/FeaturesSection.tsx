@@ -7,27 +7,20 @@ import { FeatureCard } from "../ui/FeatureCard";
  * Feature data structure.
  */
 interface Feature {
-  /** Unique identifier for the feature */
   key: string;
-  /** Emoji icon representing the feature */
   icon: string;
-  /** Feature title */
   title: string;
-  /** Detailed description shown on hover */
   description: string;
-  /** Shows "Coming Soon" badge when true */
   comingSoon?: boolean;
+  isNew?: boolean;
 }
 
 /**
  * Props for the FeaturesSection component.
  */
 interface FeaturesSectionProps {
-  /** Section heading */
   title: string;
-  /** Hint text shown below feature titles */
   hoverHint: string;
-  /** Array of features to display */
   features: Feature[];
 }
 
@@ -54,6 +47,7 @@ export function FeaturesSection({
             description={feature.description}
             hoverHint={hoverHint}
             comingSoon={feature.comingSoon}
+            isNew={feature.isNew}
           />
         ))}
       </div>
