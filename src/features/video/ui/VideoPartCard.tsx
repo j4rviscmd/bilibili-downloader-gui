@@ -8,7 +8,6 @@ import {
 } from '@/components/animate-ui/components/radix/accordion'
 import { useVideoInfo } from '@/features/video'
 import { downloadVideo } from '@/features/video/api/downloadVideo'
-import { clearProgressByDownloadId } from '@/shared/progress/progressSlice'
 import { fetchSubtitlesForPart } from '@/features/video/api/fetchVideoInfo'
 import { usePartDownloadStatus } from '@/features/video/hooks/usePartDownloadStatus'
 import {
@@ -17,7 +16,6 @@ import {
   VIDEO_QUALITIES_MAP,
 } from '@/features/video/lib/constants'
 import { buildVideoFormSchema2 } from '@/features/video/lib/formSchema'
-import { extractVideoId } from '@/features/video/lib/utils'
 import {
   defaultSubtitleConfig,
   setAccordionOpen,
@@ -38,6 +36,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
+import { clearProgressByDownloadId } from '@/shared/progress/progressSlice'
 import {
   cancelDownload,
   clearQueueItem,
@@ -81,11 +80,16 @@ type Props = {
  * Returns the video title for single-part videos, or combines video
  * title with part name for multi-part videos.
  */
-function computeDefaultTitle(video: Video, videoPart: { part: string }): string {
+function computeDefaultTitle(
+  video: Video,
+  videoPart: { part: string },
+): string {
   if (!video || video.parts.length === 0 || video.parts[0].cid === 0) {
     return ''
   }
-  return video.title === videoPart.part ? video.title : `${video.title} ${videoPart.part}`
+  return video.title === videoPart.part
+    ? video.title
+    : `${video.title} ${videoPart.part}`
 }
 
 /**
@@ -167,7 +171,9 @@ const VideoPartCard = memo(function VideoPartCard({
           video.bvid,
           videoPart.cid,
         )
-        store.dispatch(setPartSubtitles({ index: partIndex, subtitles: fetchedSubtitles }))
+        store.dispatch(
+          setPartSubtitles({ index: partIndex, subtitles: fetchedSubtitles }),
+        )
       } catch (e) {
         console.error('Failed to fetch subtitles:', e)
         store.dispatch(setPartSubtitles({ index: partIndex, subtitles: [] }))
@@ -466,7 +472,9 @@ const VideoPartCard = memo(function VideoPartCard({
                       </span>
                     </TooltipTrigger>
                     <TooltipContent side="top" className="whitespace-nowrap">
-                      <p className="text-sm">{t('video.bangumi_preview_tooltip')}</p>
+                      <p className="text-sm">
+                        {t('video.bangumi_preview_tooltip')}
+                      </p>
                     </TooltipContent>
                   </Tooltip>
                 )}
@@ -716,7 +724,9 @@ const VideoPartCard = memo(function VideoPartCard({
             onRedownload={handleRedownload}
             onRetry={handleRetry}
             onCancel={handleCancel}
-            hasEmbeddedAudio={video.contentType === 'bangumi' && audioQualities.length === 0}
+            hasEmbeddedAudio={
+              video.contentType === 'bangumi' && audioQualities.length === 0
+            }
           />
         )}
       </Form>

@@ -11,8 +11,8 @@ import {
   VideoInfoProvider,
 } from '@/features/video'
 import {
-  fetchPartQualities,
   fetchBangumiPartQualities,
+  fetchPartQualities,
 } from '@/features/video/api/fetchVideoInfo'
 import { createConcurrencyLimiter } from '@/features/video/lib/concurrency'
 import {
