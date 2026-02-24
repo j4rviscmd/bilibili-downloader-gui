@@ -140,17 +140,23 @@ const translations: Record<Lang, Record<string, unknown>> = {
       list: {
         download: "Video & Audio Download",
         quality: "Multiple Quality Options",
+        subtitle: "Subtitle Download",
         cdn: "Fast & Stable Downloads",
         batch: "Batch Download",
+        bangumi: "Anime & Drama Support",
       },
       descriptions: {
         download:
           "Save your favorite videos and music from Bilibili to watch offline anytime, anywhere.",
         quality:
           "Choose from 360p to 4K quality. Pick the best quality for your device and internet speed.",
+        subtitle:
+          "Download subtitles in up to 15 languages. Choose soft subtitles as separate files or hard-burn them into the video.",
         cdn: "Automatically selects the fastest server for you. No more waiting on slow downloads.",
         batch:
           "Download multiple videos at once. Just paste multiple links and let the app do the rest.",
+        bangumi:
+          "Download official Bilibili content including anime, dramas, and variety shows.",
       },
     },
     download: {
@@ -181,17 +187,23 @@ const translations: Record<Lang, Record<string, unknown>> = {
       list: {
         download: "動画・音声ダウンロード",
         quality: "複数の画質オプション",
+        subtitle: "字幕ダウンロード",
         cdn: "高速・安定ダウンロード",
         batch: "一括ダウンロード",
+        bangumi: "アニメ・ドラマ対応",
       },
       descriptions: {
         download:
           "お気に入りの動画や音楽をBilibiliから保存して、いつでもどこでもオフラインで視聴できます。",
         quality:
           "360pから4Kまで選べる画質。端末やインターネット速度に合わせて最適な画質を選べます。",
+        subtitle:
+          "最大15言語の字幕をダウンロード。字幕別ファイル（soft）または動画埋め込み（hard）を選択可能。",
         cdn: "最も高速なサーバーを自動で選択。遅いダウンロードで待たされるストレスから解放されます。",
         batch:
           "複数の動画をまとめてダウンロード。リンクを複数貼り付けるだけで、あとはアプリにおまかせ。",
+        bangumi:
+          "Bilibiliの公式コンテンツ（アニメ、ドラマ、バラエティ番組など）をダウンロード。",
       },
     },
     download: {
@@ -222,14 +234,19 @@ const translations: Record<Lang, Record<string, unknown>> = {
       list: {
         download: "视频和音频下载",
         quality: "多种画质选项",
+        subtitle: "字幕下载",
         cdn: "高速稳定下载",
         batch: "批量下载",
+        bangumi: "番剧支持",
       },
       descriptions: {
         download: "从Bilibili保存您喜爱的视频和音乐，随时随地离线观看。",
         quality: "从360p到4K画质任您选择。根据您的设备和网络速度选择最佳画质。",
+        subtitle:
+          "支持最多15种语言的字幕下载。可选择软字幕（独立文件）或硬字幕（嵌入视频）。",
         cdn: "自动选择最快的下载服务器。告别漫长的等待。",
         batch: "批量下载多个视频。只需粘贴多个链接，剩下的交给应用即可。",
+        bangumi: "下载Bilibili番剧，包括动漫、电视剧和综艺等官方内容。",
       },
     },
     download: {
@@ -260,17 +277,23 @@ const translations: Record<Lang, Record<string, unknown>> = {
       list: {
         download: "비디오 및 오디오 다운로드",
         quality: "다양한 화질 옵션",
+        subtitle: "자막 다운로드",
         cdn: "빠르고 안정적인 다운로드",
         batch: "일괄 다운로드",
+        bangumi: "애니메이션・드라마 지원",
       },
       descriptions: {
         download:
           "Bilibili에서 좋아하는 비디오와 음악을 저장하여 언제 어디서나 오프라인으로 시청하세요.",
         quality:
           "360p부터 4K까지 선택 가능. 기기와 인터넷 속도에 맞는 최적의 화질을 선택하세요.",
+        subtitle:
+          "최대 15개 언어 자막을 다운로드하세요. 소프트 자막(별도 파일) 또는 하드 자막(비디오 내장) 선택 가능.",
         cdn: "가장 빠른 서버를 자동으로 선택해 드립니다. 느린 다운로드로 기다릴 필요가 없습니다.",
         batch:
           "여러 비디오를 한 번에 다운로드하세요. 여러 링크만 붙여넣으면 나머지는 앱이 알아서 처리합니다.",
+        bangumi:
+          "Bilibili 공식 콘텐츠(애니메이션, 드라마, 예능 프로그램 등)를 다운로드하세요.",
       },
     },
     download: {
@@ -301,17 +324,23 @@ const translations: Record<Lang, Record<string, unknown>> = {
       list: {
         download: "Descarga de video y audio",
         quality: "Múltiples opciones de calidad",
+        subtitle: "Descarga de subtítulos",
         cdn: "Descargas rápidas y estables",
         batch: "Descarga por lotes",
+        bangumi: "Soporte de anime y dramas",
       },
       descriptions: {
         download:
           "Guarda tus videos y música favoritos de Bilibili para verlos sin conexión en cualquier momento y lugar.",
         quality:
           "Elige entre calidad de 360p a 4K. Selecciona la mejor calidad para tu dispositivo y velocidad de internet.",
+        subtitle:
+          "Descarga subtítulos en hasta 15 idiomas. Elige entre subtítulos suaves (archivos separados) o duros (incrustados en el video).",
         cdn: "Selecciona automáticamente el servidor más rápido para ti. Olvídate de las descargas lentas.",
         batch:
           "Descarga múltiples videos a la vez. Solo pega varios enlaces y deja que la aplicación haga el resto.",
+        bangumi:
+          "Descarga contenido oficial de Bilibili, incluyendo anime, dramas y programas de variedades.",
       },
     },
     download: {
@@ -342,17 +371,23 @@ const translations: Record<Lang, Record<string, unknown>> = {
       list: {
         download: "Téléchargement vidéo et audio",
         quality: "Plusieurs options de qualité",
+        subtitle: "Téléchargement de sous-titres",
         cdn: "Téléchargements rapides et stables",
         batch: "Téléchargement par lots",
+        bangumi: "Support anime et dramas",
       },
       descriptions: {
         download:
           "Enregistrez vos vidéos et musiques préférées de Bilibili pour les regarder hors ligne quand vous voulez.",
         quality:
           "Choisissez parmi des qualités de 360p à 4K. Sélectionnez la meilleure qualité pour votre appareil et votre connexion.",
+        subtitle:
+          "Téléchargez des sous-titres dans jusqu'à 15 langues. Choisissez entre sous-titres soft (fichiers séparés) ou hard (incrustés dans la vidéo).",
         cdn: "Sélectionne automatiquement le serveur le plus rapide pour vous. Finis les téléchargements lents.",
         batch:
           "Téléchargez plusieurs vidéos à la fois. Collez simplement plusieurs liens et laissez l'application faire le reste.",
+        bangumi:
+          "Téléchargez du contenu officiel Bilibili, y compris anime, dramas et émissions de variétés.",
       },
     },
     download: {

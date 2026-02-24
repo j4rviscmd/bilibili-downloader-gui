@@ -14,21 +14,23 @@ const lang = getLangFromUrl(url);
 const t = useTranslations(lang);
 
 /**
- * Feature keys mapped to their emoji icons.
+ * Feature configuration with icon and coming-soon status.
  */
-const featureIcons: Record<string, string> = {
-  download: "📥",
-  quality: "🎬",
-  cdn: "⚡",
-  batch: "📦",
-};
+const featureConfig = {
+  download: { icon: "📥" },
+  quality: { icon: "🎬" },
+  subtitle: { icon: "💬" },
+  cdn: { icon: "⚡" },
+  batch: { icon: "📦" },
+  bangumi: { icon: "📺", comingSoon: true },
+} as const;
 
-const featureKeys = ["download", "quality", "cdn", "batch"] as const;
-const features = featureKeys.map((key) => ({
+const features = Object.entries(featureConfig).map(([key, config]) => ({
   key,
-  icon: featureIcons[key],
+  icon: config.icon,
   title: t(`features.list.${key}`),
   description: t(`features.descriptions.${key}`),
+  comingSoon: config.comingSoon,
 }));
 ---
 
