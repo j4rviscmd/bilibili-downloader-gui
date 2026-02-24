@@ -153,7 +153,7 @@ fn check_http_status(status: reqwest::StatusCode) -> Result<(), String> {
 /// - Insufficient disk space (`ERR::DISK_FULL`)
 /// - Download fails after retry attempts (`ERR::NETWORK`)
 /// - ffmpeg merge fails (`ERR::MERGE_FAILED`)
-
+///
 /// Downloads a bangumi episode using durl format (MP4 direct URL).
 /// This is used when DASH format is not available for bangumi content.
 ///
@@ -269,7 +269,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
         if player_result.dash.is_none() {
             return download_bangumi_durl(
                 app,
-                &options,
+                options,
                 &output_path,
                 &cookie_header,
                 player_result,
@@ -1068,7 +1068,7 @@ async fn build_output_path(app: &AppHandle, filename: &str) -> Result<PathBuf, S
 /// # Returns
 ///
 /// Returns `Some(content_length)` on success, or `None` on failure.
-async fn head_content_length(url: &str, cookie: Option<&String>) -> Option<u64> {
+async fn head_content_length(url: &str, cookie: Option<&str>) -> Option<u64> {
     let client = reqwest::Client::builder().build().ok()?;
     let mut req = client.head(url);
     if let Some(c) = cookie {

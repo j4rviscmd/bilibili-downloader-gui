@@ -100,6 +100,7 @@ fn check_initial_speed(
 ///
 /// When download speed drops below threshold, automatically switches to
 /// backup CDN URLs if provided. Supports cancellation via global registry.
+#[allow(clippy::too_many_arguments)]
 pub async fn download_url(
     app: &AppHandle,
     url: String,
@@ -477,6 +478,7 @@ async fn write_segment(path: &PathBuf, pos: u64, buf: &[u8]) -> Result<(), anyho
 ///
 /// Note: CDN rotation is not implemented in fallback mode since parallel
 /// downloads are not possible without Range support.
+#[allow(clippy::too_many_arguments)]
 async fn single_stream_fallback(
     app: &AppHandle,
     url: String,
