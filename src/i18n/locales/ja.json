@@ -259,7 +259,15 @@
         "max": "URLは1000文字以内で入力してください。",
         "invalid": "有効なURLを入力してください。",
         "domain": "bilibili.com のURLのみ有効です。",
-        "format": "URLは動画 (/video/{id}) またはバンガミ (/bangumi/play/ep{id}) の形式である必要があります。"
+        "format": "URLは動画 (/video/{id}) またはバンガミ (/bangumi/play/ep{id}) の形式である必要があります。",
+        "short_url": "短縮URL (b23.tv) は非対応です。完全な動画URLを入力してください。",
+        "space": "ユーザースペースのURLは非対応です。動画URLを入力してください。",
+        "member": "メンバーセンターのURLは非対応です。動画URLを入力してください。",
+        "live": "ライブ配信は非対応です。",
+        "bangumi_list": "これはバンガミ一覧ページです。エピソードURL (/bangumi/play/ep{id}) を入力してください。",
+        "cheese": "有料コースは非対応です。",
+        "audio": "音声・音楽コンテンツは非対応です。動画URLを入力してください。",
+        "article": "記事は非対応です。動画URLを入力してください。"
       },
       "title": {
         "min": "タイトルは2文字以上で入力してください。",

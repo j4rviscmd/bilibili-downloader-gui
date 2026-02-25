@@ -3,11 +3,78 @@ import type { TFunction } from 'i18next'
 import z from 'zod'
 
 /**
+ * Detects unsupported Bilibili URL patterns and returns a specific error key.
+ *
+ * This function checks for known unsupported URL patterns and returns
+ * a specific translation key for better UX. Returns null if the pattern
+ * is not recognized as a known unsupported type.
+ *
+ * @param hostname - The URL hostname (e.g., "space.bilibili.com")
+ * @param pathname - The URL pathname (e.g., "/bangumi/media/md123")
+ * @param t - The translation function
+ * @returns A specific error message or null if not a known pattern
+ */
+const getUnsupportedUrlError = (
+  hostname: string,
+  pathname: string,
+  t: TFunction,
+): string | null => {
+  // Short URL service (b23.tv)
+  if (/^b23\.tv$/i.test(hostname)) {
+    return t('validation.video.url.short_url')
+  }
+
+  // User space / channel pages
+  if (/^space\.bilibili\.com$/i.test(hostname)) {
+    return t('validation.video.url.space')
+  }
+
+  // Member center
+  if (/^member\.bilibili\.com$/i.test(hostname)) {
+    return t('validation.video.url.member')
+  }
+
+  // Live streaming
+  if (/^live\.bilibili\.com$/i.test(hostname)) {
+    return t('validation.video.url.live')
+  }
+
+  // Bangumi list/media page (not episode page)
+  if (/^\/bangumi\/media\//i.test(pathname)) {
+    return t('validation.video.url.bangumi_list')
+  }
+
+  // Paid courses (cheese)
+  if (/^\/cheese\//i.test(pathname)) {
+    return t('validation.video.url.cheese')
+  }
+
+  // Audio / music (au.bilibili.com or /audio/)
+  if (/^au\.bilibili\.com$/i.test(hostname) || /^\/audio\//i.test(pathname)) {
+    return t('validation.video.url.audio')
+  }
+
+  // Article / read
+  if (/^\/read\//i.test(pathname)) {
+    return t('validation.video.url.article')
+  }
+
+  return null
+}
+
+/**
  * Regex pattern for invalid filename characters.
  *
  * Defaults to Windows superset, refined by OS detection.
+ * Initialized asynchronously by `initInvalidPattern()`.
  */
 let invalidCharsPattern: RegExp = /[\\/:*?"<>|]/ // default (Windows superset)
+
+/**
+ * Flag indicating whether OS-specific pattern initialization has occurred.
+ *
+ * Set to `true` after the first call to `initInvalidPattern()`.
+ */
 let initialized = false
 
 /**
@@ -68,8 +135,19 @@ export const buildVideoFormSchema1 = (t: TFunction) =>
       .superRefine((value, ctx) => {
         try {
           const { hostname, pathname } = new URL(value)
+
+          // Check for known unsupported patterns first (better UX)
+          const unsupportedError = getUnsupportedUrlError(hostname, pathname, t)
+          if (unsupportedError) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: unsupportedError,
+            })
+            return
+          }
+
           // bilibili.com 直下のみ許可（必要に応じてサブドメインも許可可能）
-          const ok = /^www.bilibili\.com$/i.test(hostname)
+          const ok = /^www\.bilibili\.com$/i.test(hostname)
           if (!ok) {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
@@ -121,10 +199,10 @@ export const buildVideoFormSchema2 = (t: TFunction) =>
       .nonempty({ message: t('validation.video.title.required') })
       .superRefine((val, ctx) => {
         const pattern = getPatternSync()
+        const isWindows = invalidCharsPattern.source.includes(':*?"<>|')
+        const osChars = isWindows ? '\\ / : * ? " < > |' : '/'
+
         if (pattern.test(val) || /\0/.test(val)) {
-          const osChars = invalidCharsPattern.source.includes(':*?"<>|')
-            ? '\\ / : * ? " < > |' // windows
-            : '/'
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             message: t('validation.video.title.invalid_chars', {
@@ -132,14 +210,11 @@ export const buildVideoFormSchema2 = (t: TFunction) =>
             }),
           })
         }
-        if (
-          invalidCharsPattern.source.includes(':*?"<>|') &&
-          /[.\s]$/.test(val)
-        ) {
+        if (isWindows && /[.\s]$/.test(val)) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             message: t('validation.video.title.invalid_chars', {
-              chars: '\\ / : * ? " < > |',
+              chars: osChars,
             }),
           })
         }

@@ -259,7 +259,15 @@
         "max": "URL must be at most 1000 characters.",
         "invalid": "Please enter a valid URL.",
         "domain": "Only bilibili.com URLs are allowed.",
-        "format": "URL must be a video (/video/{id}) or bangumi (/bangumi/play/ep{id}) URL."
+        "format": "URL must be a video (/video/{id}) or bangumi (/bangumi/play/ep{id}) URL.",
+        "short_url": "Short URLs (b23.tv) are not supported. Please use the full video URL.",
+        "space": "User space URLs are not supported. Please use a video URL.",
+        "member": "Member center URLs are not supported. Please use a video URL.",
+        "live": "Live streams are not supported.",
+        "bangumi_list": "This is a bangumi list page. Please use an episode URL (/bangumi/play/ep{id}).",
+        "cheese": "Paid courses are not supported.",
+        "audio": "Audio/music content is not supported. Please use a video URL.",
+        "article": "Articles are not supported. Please use a video URL."
       },
       "title": {
         "min": "Title must be at least 2 characters.",
