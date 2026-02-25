@@ -254,7 +254,15 @@
         "max": "链接长度不能超过 1000 个字符。",
         "invalid": "请输入有效的链接。",
         "domain": "仅允许 bilibili.com 的链接。",
-        "format": "链接必须是视频 (/video/{id}) 或番剧 (/bangumi/play/ep{id}) 格式。"
+        "format": "链接必须是视频 (/video/{id}) 或番剧 (/bangumi/play/ep{id}) 格式。",
+        "short_url": "不支持短链接 (b23.tv)。请使用完整的视频链接。",
+        "space": "不支持用户空间链接。请使用视频链接。",
+        "member": "不支持会员中心链接。请使用视频链接。",
+        "live": "不支持直播链接。",
+        "bangumi_list": "这是番剧列表页面。请使用剧集链接 (/bangumi/play/ep{id})。",
+        "cheese": "不支持付费课程。",
+        "audio": "不支持音频/音乐内容。请使用视频链接。",
+        "article": "不支持专栏文章。请使用视频链接。"
       },
       "title": {
         "min": "标题至少需要 2 个字符。",

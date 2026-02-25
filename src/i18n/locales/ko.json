@@ -254,7 +254,15 @@
         "max": "URL은 최대 1000자여야 합니다.",
         "invalid": "유효한 URL을 입력하세요.",
         "domain": "bilibili.com URL만 허용됩니다.",
-        "format": "URL은 비디오 (/video/{id}) 또는 방구미 (/bangumi/play/ep{id}) 형식이어야 합니다."
+        "format": "URL은 비디오 (/video/{id}) 또는 방구미 (/bangumi/play/ep{id}) 형식이어야 합니다.",
+        "short_url": "단축 URL (b23.tv)은 지원되지 않습니다. 전체 비디오 URL을 입력하세요.",
+        "space": "사용자 공간 URL은 지원되지 않습니다. 비디오 URL을 입력하세요.",
+        "member": "회원 센터 URL은 지원되지 않습니다. 비디오 URL을 입력하세요.",
+        "live": "라이브 스트리밍은 지원되지 않습니다.",
+        "bangumi_list": "이것은 방구미 목록 페이지입니다. 에피소드 URL (/bangumi/play/ep{id})을 입력하세요.",
+        "cheese": "유료 강좌는 지원되지 않습니다.",
+        "audio": "오디오/음악 콘텐츠는 지원되지 않습니다. 비디오 URL을 입력하세요.",
+        "article": "칼럼 글은 지원되지 않습니다. 비디오 URL을 입력하세요."
       },
       "title": {
         "min": "제목은 최소 2자여야 합니다.",

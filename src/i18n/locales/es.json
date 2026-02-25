@@ -254,7 +254,15 @@
         "max": "La URL debe tener como máximo 1000 caracteres.",
         "invalid": "Introduce una URL válida.",
         "domain": "Solo se permiten URL de bilibili.com.",
-        "format": "La URL debe ser de video (/video/{id}) o bangumi (/bangumi/play/ep{id})."
+        "format": "La URL debe ser de video (/video/{id}) o bangumi (/bangumi/play/ep{id}).",
+        "short_url": "Las URL cortas (b23.tv) no son compatibles. Por favor, usa la URL completa del video.",
+        "space": "Las URL del espacio de usuario no son compatibles. Por favor, usa una URL de video.",
+        "member": "Las URL del centro de miembros no son compatibles. Por favor, usa una URL de video.",
+        "live": "Las transmisiones en vivo no son compatibles.",
+        "bangumi_list": "Esta es una página de lista de bangumi. Por favor, usa una URL de episodio (/bangumi/play/ep{id}).",
+        "cheese": "Los cursos de pago no son compatibles.",
+        "audio": "El contenido de audio/música no es compatible. Por favor, usa una URL de video.",
+        "article": "Los artículos no son compatibles. Por favor, usa una URL de video."
       },
       "title": {
         "min": "El título debe tener al menos 2 caracteres.",
