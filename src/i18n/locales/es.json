@@ -125,6 +125,8 @@
     "subtitle_note": "※ Soft Sub permite activar/desactivar subtítulos en el reproductor. Hard Sub graba los subtítulos en el video.",
     "other_options": "Otras opciones",
     "subtitle_select_required": "Por favor selecciona al menos un idioma",
+    "subtitle_n_languages": "{{count}} idiomas",
+    "quality_fallback_tooltip": "La calidad seleccionada no estaba disponible, se aplicó alternativa",
     "bangumi_not_found": "Episodio no encontrado. Por favor, verifica la URL.",
     "bangumi_vip_only": "Este episodio requiere membresía VIP para descargar.",
     "bangumi_region_restricted": "Este episodio está restringido en tu región.",

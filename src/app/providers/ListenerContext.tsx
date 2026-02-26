@@ -1,6 +1,15 @@
 import { store } from '@/app/store'
 import type { HistoryEntry } from '@/features/history/model/historySlice'
 import { addEntry } from '@/features/history/model/historySlice'
+import {
+  closeAllAccordions,
+  setResolvedQuality,
+  setResolvedSubtitle,
+} from '@/features/video/model/inputSlice'
+import type {
+  QualityResolvedPayload,
+  SubtitleResolvedPayload,
+} from '@/features/video/types'
 import i18n from '@/i18n'
 import type { Progress } from '@/shared/progress'
 import {
@@ -47,6 +56,8 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     let unlistenProgress: UnlistenFn | undefined
     let unlistenHistory: UnlistenFn | undefined
     let unlistenCancelled: UnlistenFn | undefined
+    let unlistenQualityResolved: UnlistenFn | undefined
+    let unlistenSubtitleResolved: UnlistenFn | undefined
 
     const setupListeners = async (): Promise<void> => {
       // Setup progress event listener
@@ -100,6 +111,41 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
           toast.info(i18n.t('video.download_cancelled'))
         },
       )
+
+      // Setup quality resolved event listener
+      unlistenQualityResolved = await listen<QualityResolvedPayload>(
+        'download-quality-resolved',
+        (event) => {
+          const { page, videoQuality, videoQualityFallback, audioQuality, audioQualityFallback } =
+            event.payload
+          store.dispatch(
+            setResolvedQuality({
+              page,
+              videoQuality,
+              videoQualityFallback,
+              audioQuality,
+              audioQualityFallback,
+            }),
+          )
+          // Close all accordions when download starts
+          store.dispatch(closeAllAccordions())
+        },
+      )
+
+      // Setup subtitle resolved event listener
+      unlistenSubtitleResolved = await listen<SubtitleResolvedPayload>(
+        'download-subtitle-resolved',
+        (event) => {
+          const { page, subtitleMode, subtitleLanguageLabels } = event.payload
+          store.dispatch(
+            setResolvedSubtitle({
+              page,
+              subtitleMode,
+              subtitleLanguageLabels,
+            }),
+          )
+        },
+      )
     }
 
     setupListeners()
@@ -108,6 +154,8 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
       unlistenProgress?.()
       unlistenHistory?.()
       unlistenCancelled?.()
+      unlistenQualityResolved?.()
+      unlistenSubtitleResolved?.()
     }
   }, [])
   return (

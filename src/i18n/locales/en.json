@@ -125,6 +125,8 @@
     "subtitle_note": "※ Soft sub allows toggling subtitles in the player. Hard sub burns subtitles into the video.",
     "other_options": "Other Options",
     "subtitle_select_required": "Please select at least one language",
+    "subtitle_n_languages": "{{count}} languages",
+    "quality_fallback_tooltip": "Selected quality was unavailable, fallback applied",
     "bangumi_not_found": "Episode not found. Please check the URL.",
     "bangumi_vip_only": "This episode requires VIP membership to download.",
     "bangumi_region_restricted": "This episode is restricted in your region.",

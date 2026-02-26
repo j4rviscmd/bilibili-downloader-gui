@@ -138,6 +138,58 @@ const VideoPartCard = memo(function VideoPartCard({
   const qualitiesLoading = partInput?.qualitiesLoading ?? false
   const isPreview = partInput?.isPreview ?? false
 
+  // Resolved quality/subtitle info for summary label
+  const resolvedQuality = partInput?.resolvedQuality
+  const resolvedSubtitle = partInput?.resolvedSubtitle
+
+  /**
+   * Builds the summary label for the accordion trigger.
+   * Combines quality and subtitle information into a compact display.
+   */
+  const summaryLabel = useMemo(() => {
+    if (!resolvedQuality && !resolvedSubtitle) return null
+
+    const parts: string[] = []
+
+    if (resolvedQuality) {
+      const videoLabel =
+        VIDEO_QUALITIES_MAP[resolvedQuality.videoQuality] ||
+        String(resolvedQuality.videoQuality)
+      parts.push(videoLabel)
+
+      if (resolvedQuality.audioQuality !== null) {
+        const audioLabel =
+          AUDIO_QUALITIES_MAP[resolvedQuality.audioQuality] ||
+          String(resolvedQuality.audioQuality)
+        parts.push(audioLabel)
+      }
+    }
+
+    if (resolvedSubtitle && resolvedSubtitle.subtitleMode !== 'off') {
+      const modeLabel =
+        resolvedSubtitle.subtitleMode === 'soft'
+          ? t('video.subtitle_soft')
+          : t('video.subtitle_hard')
+      const labels = resolvedSubtitle.subtitleLanguageLabels
+      const langDisplay =
+        labels.length > 2
+          ? t('video.subtitle_n_languages', { count: labels.length })
+          : labels.join('・')
+      parts.push(`${t('video.subtitle')}(${modeLabel}・${langDisplay})`)
+    }
+
+    return parts.join(' / ')
+  }, [resolvedQuality, resolvedSubtitle, t])
+
+  // Check if any fallback occurred
+  const hasFallback = useMemo(() => {
+    if (!resolvedQuality) return false
+    return (
+      resolvedQuality.videoQualityFallback ||
+      resolvedQuality.audioQualityFallback
+    )
+  }, [resolvedQuality])
+
   const accordionValue = useMemo(
     () => (partInput?.accordionOpen ? ['other-options'] : []),
     [partInput?.accordionOpen],
@@ -585,7 +637,26 @@ const VideoPartCard = memo(function VideoPartCard({
                 >
                   <AccordionItem value="other-options">
                     <AccordionTrigger className="py-2 text-sm">
-                      {t('video.other_options')}
+                      <span className="flex items-center gap-2">
+                        {t('video.other_options')}
+                        {summaryLabel && (
+                          <span className="text-muted-foreground font-normal">
+                            / {summaryLabel}
+                          </span>
+                        )}
+                        {hasFallback && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="ml-1 text-amber-500">⚠️</span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              <p className="text-sm">
+                                {t('video.quality_fallback_tooltip')}
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                      </span>
                     </AccordionTrigger>
                     <AccordionContent transition={accordionTransition}>
                       <div className="space-y-4">

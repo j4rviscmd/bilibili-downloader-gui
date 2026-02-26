@@ -33,25 +33,72 @@ fn format_srt_time(seconds: f64) -> String {
 }
 
 /// Maps Bilibili language codes to ISO 639-2 codes for ffmpeg metadata.
+///
+/// Supports both simple codes (e.g., "en") and locale variants (e.g., "en-US", "es-419").
+/// Also handles AI-generated subtitle codes (e.g., "ai-es" -> "spa").
+/// Falls back to base language code if the full code isn't found.
 pub fn lan_to_iso639(lan: &str) -> &'static str {
-    match lan {
-        "zh-CN" | "zh-Hans" => "chi",
-        "zh-TW" | "zh-Hant" => "chi",
-        "en" => "eng",
+    // Normalize: remove "ai-" prefix for AI-generated subtitles
+    let normalized = lan.strip_prefix("ai-").unwrap_or(lan);
+
+    // Full match first
+    match normalized {
+        // Chinese variants
+        "zh-CN" | "zh-Hans" | "zh" => "chi",
+        "zh-TW" | "zh-Hant" | "zh-HK" => "chi",
+        // English variants
+        "en" | "en-US" | "en-GB" | "en-AU" => "eng",
+        // Japanese
         "ja" => "jpn",
-        "ko" => "kor",
-        "es" => "spa",
-        "fr" => "fre",
-        "de" => "ger",
-        "ru" => "rus",
-        "pt" => "por",
-        "it" => "ita",
-        "ar" => "ara",
+        // Korean
+        "ko" | "ko-KR" => "kor",
+        // Spanish variants
+        "es" | "es-419" | "es-ES" | "es-MX" | "es-AR" => "spa",
+        // French variants
+        "fr" | "fr-FR" | "fr-CA" => "fre",
+        // German
+        "de" | "de-DE" | "de-AT" => "ger",
+        // Russian
+        "ru" | "ru-RU" => "rus",
+        // Portuguese variants
+        "pt" | "pt-BR" | "pt-PT" => "por",
+        // Italian
+        "it" | "it-IT" => "ita",
+        // Arabic
+        "ar" | "ar-SA" | "ar-EG" => "ara",
+        // Thai
         "th" => "tha",
+        // Vietnamese
         "vi" => "vie",
-        "id" => "ind",
-        "ms" => "msa",
-        _ => "und",
+        // Indonesian
+        "id" | "in" => "ind", // "in" is legacy code for Indonesian
+        // Malay
+        "ms" | "ms-MY" => "msa",
+        _ => {
+            // Fallback: try base language code (e.g., "es-419" -> "es")
+            if let Some(base) = normalized.split('-').next() {
+                match base {
+                    "zh" => "chi",
+                    "en" => "eng",
+                    "ja" => "jpn",
+                    "ko" => "kor",
+                    "es" => "spa",
+                    "fr" => "fre",
+                    "de" => "ger",
+                    "ru" => "rus",
+                    "pt" => "por",
+                    "it" => "ita",
+                    "ar" => "ara",
+                    "th" => "tha",
+                    "vi" => "vie",
+                    "id" | "in" => "ind",
+                    "ms" => "msa",
+                    _ => "und",
+                }
+            } else {
+                "und"
+            }
+        }
     }
 }
 

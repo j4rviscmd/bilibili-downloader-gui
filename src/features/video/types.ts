@@ -41,6 +41,10 @@ export type PartInput = {
   accordionOpen?: boolean
   /** Preview mode flag (only first 6 minutes available) for bangumi */
   isPreview?: boolean
+  /** Resolved quality info (set after download starts) */
+  resolvedQuality?: ResolvedQuality
+  /** Resolved subtitle info (set after download starts) */
+  resolvedSubtitle?: ResolvedSubtitle
 }
 
 /**
@@ -171,3 +175,49 @@ export type SubtitleConfig = {
   /** Selected subtitle language codes (for soft-sub, multiple allowed) */
   selectedLans: string[]
 }
+
+/**
+ * Resolved quality information from backend.
+ *
+ * Sent after quality selection to inform frontend of actual resolved
+ * quality (may differ from user selection due to fallback).
+ */
+export type ResolvedQuality = {
+  /** Resolved video quality ID */
+  videoQuality: number
+  /** Whether video quality was fallen back from user selection */
+  videoQualityFallback: boolean
+  /** Resolved audio quality ID (null for durl format) */
+  audioQuality: number | null
+  /** Whether audio quality was fallen back from user selection */
+  audioQualityFallback: boolean
+}
+
+/**
+ * Resolved subtitle information from backend.
+ *
+ * Sent after subtitle processing to inform frontend of the actual
+ * subtitle mode and language labels.
+ */
+export type ResolvedSubtitle = {
+  /** Subtitle mode: 'off', 'soft', or 'hard' */
+  subtitleMode: 'off' | 'soft' | 'hard'
+  /** Language labels from Bilibili (e.g., 'Español', '日本語') */
+  subtitleLanguageLabels: string[]
+}
+
+/**
+ * Payload for download-quality-resolved event.
+ */
+export type QualityResolvedPayload = {
+  downloadId: string
+  page: number
+} & ResolvedQuality
+
+/**
+ * Payload for download-subtitle-resolved event.
+ */
+export type SubtitleResolvedPayload = {
+  downloadId: string
+  page: number
+} & ResolvedSubtitle
