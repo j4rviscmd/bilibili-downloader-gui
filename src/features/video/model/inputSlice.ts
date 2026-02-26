@@ -9,6 +9,12 @@ import type {
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 
+/**
+ * Default subtitle configuration for video parts.
+ *
+ * Used as initial value when part inputs are created and as fallback
+ * when subtitle data is not provided.
+ */
 export const defaultSubtitleConfig: SubtitleConfig = {
   mode: 'off',
   selectedLans: [],
@@ -125,9 +131,7 @@ export const inputSlice = createSlice({
      * @param state - Current input state
      */
     selectAll: (state) => {
-      state.partInputs.forEach((p) => {
-        p.selected = true
-      })
+      state.partInputs.forEach((p) => (p.selected = true))
     },
     /**
      * Deselects all video parts.
@@ -135,9 +139,7 @@ export const inputSlice = createSlice({
      * @param state - Current input state
      */
     deselectAll: (state) => {
-      state.partInputs.forEach((p) => {
-        p.selected = false
-      })
+      state.partInputs.forEach((p) => (p.selected = false))
     },
     /**
      * Selects all video parts on a specific page.
@@ -213,9 +215,7 @@ export const inputSlice = createSlice({
     ) => {
       const { index, config } = action.payload
       const target = state.partInputs[index]
-      if (target) {
-        target.subtitle = config
-      }
+      if (target) target.subtitle = config
     },
     /**
      * Sets subtitles loading state for a specific part.
@@ -229,9 +229,7 @@ export const inputSlice = createSlice({
     ) => {
       const { index, loading } = action.payload
       const target = state.partInputs[index]
-      if (target) {
-        target.subtitlesLoading = loading
-      }
+      if (target) target.subtitlesLoading = loading
     },
     /**
      * Sets subtitles for a specific part (lazy loading).
@@ -262,9 +260,7 @@ export const inputSlice = createSlice({
     ) => {
       const { index, loading } = action.payload
       const target = state.partInputs[index]
-      if (target) {
-        target.qualitiesLoading = loading
-      }
+      if (target) target.qualitiesLoading = loading
     },
     /**
      * Sets qualities for a specific part (lazy loading).
@@ -314,9 +310,7 @@ export const inputSlice = createSlice({
     ) => {
       const { index, open } = action.payload
       const target = state.partInputs[index]
-      if (target) {
-        target.accordionOpen = open
-      }
+      if (target) target.accordionOpen = open
     },
     /**
      * Sets the resolved quality info for a specific part.
@@ -372,8 +366,22 @@ export const inputSlice = createSlice({
      * @param state - Current input state
      */
     closeAllAccordions: (state) => {
+      state.partInputs.forEach((p) => (p.accordionOpen = false))
+    },
+    /**
+     * Clears resolved quality and subtitle info for selected parts.
+     *
+     * Called when download starts to clear previous download's
+     * resolved info before new download begins.
+     *
+     * @param state - Current input state
+     */
+    clearResolvedInfo: (state) => {
       state.partInputs.forEach((p) => {
-        p.accordionOpen = false
+        if (p.selected) {
+          p.resolvedQuality = undefined
+          p.resolvedSubtitle = undefined
+        }
       })
     },
   },
@@ -381,6 +389,7 @@ export const inputSlice = createSlice({
 
 export const {
   clearPendingDownload,
+  clearResolvedInfo,
   closeAllAccordions,
   deselectAll,
   deselectPageAll,
