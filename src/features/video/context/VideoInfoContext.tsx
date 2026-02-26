@@ -11,6 +11,7 @@ import {
 import { extractContentId } from '@/features/video/lib/utils'
 import {
   clearPendingDownload,
+  clearResolvedInfo,
   initPartInputs,
   setUrl,
   updatePartInputByIndex,
@@ -39,6 +40,9 @@ import type { Input, Video } from '../types'
 
 /**
  * Maps backend error codes to i18n translation keys.
+ *
+ * Backend returns error strings containing error codes like "ERR::VIDEO_NOT_FOUND".
+ * This constant maps those codes to translation keys for localized user-facing messages.
  */
 const ERROR_MAP: Record<string, string> = {
   'ERR::VIDEO_NOT_FOUND': 'video.video_not_found',
@@ -151,30 +155,25 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
    */
   const initInputsForVideo = useCallback((v: Video) => {
     const pending = processingPendingRef.current
-    const partInputs = v.parts.map((p) => {
-      const title = v.title === p.part ? v.title : `${v.title} ${p.part}`
 
-      // Pending download selects only target part; otherwise all selected
-      const selected =
-        !pending ||
-        (pending.cid !== null ? p.cid === pending.cid : p.page === pending.page)
+    const isSelected = (p: (typeof v.parts)[0]) =>
+      !pending ||
+      (pending.cid !== null ? p.cid === pending.cid : p.page === pending.page)
 
-      return {
-        cid: p.cid,
-        page: p.page,
-        title,
-        videoQuality: '',
-        audioQuality: '',
-        selected,
-        duration: p.duration,
-        thumbnailUrl: p.thumbnail.url,
-        subtitles: [],
-        subtitlesLoading: false,
-        // Don't initialize videoQualities/audioQualities - let them be undefined
-        // so we can distinguish between "not fetched yet" and "fetched but empty"
-        qualitiesLoading: false,
-      }
-    })
+    const partInputs = v.parts.map((p) => ({
+      cid: p.cid,
+      page: p.page,
+      title: v.title === p.part ? v.title : `${v.title} ${p.part}`,
+      videoQuality: '',
+      audioQuality: '',
+      selected: isSelected(p),
+      duration: p.duration,
+      thumbnailUrl: p.thumbnail.url,
+      subtitles: [],
+      subtitlesLoading: false,
+      qualitiesLoading: false,
+    }))
+
     store.dispatch(initPartInputs(partInputs))
 
     if (pending) {
@@ -287,15 +286,14 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
       videoQuality: string,
       audioQuality?: string,
     ) => {
-      const payload: Parameters<typeof updatePartInputByIndex>[0] = {
-        index,
-        title,
-        videoQuality,
-      }
-      if (audioQuality !== undefined) {
-        payload.audioQuality = audioQuality
-      }
-      store.dispatch(updatePartInputByIndex(payload))
+      store.dispatch(
+        updatePartInputByIndex({
+          index,
+          title,
+          videoQuality,
+          ...(audioQuality !== undefined && { audioQuality }),
+        }),
+      )
     },
     [],
   )
@@ -370,15 +368,15 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
     if (!processing || video.parts.length === 0) return
 
     const { cid, page } = processing
+    const matchesTarget = (pi: (typeof input.partInputs)[number]) =>
+      cid !== null ? pi.cid === cid : pi.page === page
 
-    // Select only the target part; deselect all others
-    // Prefer cid matching for accuracy, fall back to page matching
     input.partInputs.forEach((pi, idx) => {
-      const shouldSelect = cid !== null ? pi.cid === cid : pi.page === page
-      store.dispatch(updatePartSelected({ index: idx, selected: shouldSelect }))
+      store.dispatch(
+        updatePartSelected({ index: idx, selected: matchesTarget(pi) }),
+      )
     })
 
-    // Clear pending state after selection is complete
     store.dispatch(clearPendingDownload())
     processingPendingRef.current = null
   }, [video.parts, input.partInputs])
@@ -401,21 +399,23 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
         : `av${video.parts[0]?.aid ?? ''}`
 
     // Extract selected parts with their indices for download processing
-    // Type predicate filter ensures non-null items with proper type narrowing
     const selectedParts = input.partInputs
       .map((pi, idx) => (pi.selected ? { pi, idx } : null))
       .filter(
-        (item): item is { pi: (typeof input.partInputs)[0]; idx: number } =>
+        (
+          item,
+        ): item is { pi: (typeof input.partInputs)[number]; idx: number } =>
           item !== null,
       )
 
+    // Clear previous resolved quality/subtitle info before starting new download
+    store.dispatch(clearResolvedInfo())
+
     // Clear previously completed items for the selected parts to allow re-download
-    // This removes finished queue entries so they can be queued again
     for (const { idx } of selectedParts) {
       const completedItem = findCompletedItemForPart(store.getState(), idx + 1)
-      if (completedItem) {
+      if (completedItem)
         store.dispatch(clearQueueItem(completedItem.downloadId))
-      }
     }
 
     const parentId = `${videoId}-${Date.now()}`
