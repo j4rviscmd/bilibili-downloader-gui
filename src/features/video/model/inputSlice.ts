@@ -318,11 +318,70 @@ export const inputSlice = createSlice({
         target.accordionOpen = open
       }
     },
+    /**
+     * Sets the resolved quality info for a specific part.
+     *
+     * Called when backend emits download-quality-resolved event.
+     *
+     * @param state - Current input state
+     * @param action - Action containing the page and resolved quality
+     */
+    setResolvedQuality: (
+      state,
+      action: PayloadAction<{
+        page: number
+        videoQuality: number
+        videoQualityFallback: boolean
+        audioQuality: number | null
+        audioQualityFallback: boolean
+      }>,
+    ) => {
+      const { page, ...quality } = action.payload
+      const target = state.partInputs[page - 1]
+      if (target) {
+        target.resolvedQuality = quality
+      }
+    },
+    /**
+     * Sets the resolved subtitle info for a specific part.
+     *
+     * Called when backend emits download-subtitle-resolved event.
+     *
+     * @param state - Current input state
+     * @param action - Action containing the page and resolved subtitle
+     */
+    setResolvedSubtitle: (
+      state,
+      action: PayloadAction<{
+        page: number
+        subtitleMode: 'off' | 'soft' | 'hard'
+        subtitleLanguageLabels: string[]
+      }>,
+    ) => {
+      const { page, ...subtitle } = action.payload
+      const target = state.partInputs[page - 1]
+      if (target) {
+        target.resolvedSubtitle = subtitle
+      }
+    },
+    /**
+     * Closes all accordions.
+     *
+     * Called when download starts to save vertical space.
+     *
+     * @param state - Current input state
+     */
+    closeAllAccordions: (state) => {
+      state.partInputs.forEach((p) => {
+        p.accordionOpen = false
+      })
+    },
   },
 })
 
 export const {
   clearPendingDownload,
+  closeAllAccordions,
   deselectAll,
   deselectPageAll,
   initPartInputs,
@@ -335,6 +394,8 @@ export const {
   setPartSubtitles,
   setPendingDownload,
   setQualitiesLoading,
+  setResolvedQuality,
+  setResolvedSubtitle,
   setSubtitlesLoading,
   setUrl,
   updatePartInputByIndex,

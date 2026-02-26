@@ -125,6 +125,8 @@
     "subtitle_note": "※ ソフトサブは再生プレイヤーで字幕のON/OFFが可能。ハードサブは動画に焼き付けられます。",
     "other_options": "その他のオプション",
     "subtitle_select_required": "字幕を使用する場合は言語を選択してください",
+    "subtitle_n_languages": "{{count}}言語",
+    "quality_fallback_tooltip": "選択した品質が利用できず、フォールバックしました",
     "bangumi_not_found": "エピソードが見つかりません。URLを確認してください。",
     "bangumi_vip_only": "このエピソードはVIP会員限定です。",
     "bangumi_region_restricted": "このエピソードは地域制限があります。",

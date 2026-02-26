@@ -125,6 +125,8 @@
     "subtitle_note": "※ 软字幕可以在播放器中开关。硬字幕会烧录到视频中。",
     "other_options": "其他选项",
     "subtitle_select_required": "请选择至少一种语言",
+    "subtitle_n_languages": "{{count}}种语言",
+    "quality_fallback_tooltip": "所选画质不可用，已回退",
     "bangumi_not_found": "未找到该番剧。请检查URL。",
     "bangumi_vip_only": "该番剧需要VIP会员才能下载。",
     "bangumi_region_restricted": "该番剧在您所在地区受限。",

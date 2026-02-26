@@ -9,7 +9,7 @@
 //! - **Video Downloading**: Downloads parallel audio/video streams merged with ffmpeg
 //!
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tauri::Emitter;
 
 /// Subtitle configuration options for video downloads.
@@ -23,6 +23,45 @@ pub struct SubtitleOptions {
     /// Selected subtitle language codes (e.g., "zh-CN", "en")
     #[serde(default)]
     pub selected_lans: Vec<String>,
+}
+
+/// Payload for quality resolved event.
+///
+/// Sent to frontend after video/audio quality selection to display
+/// the actual resolved quality (which may differ from user selection
+/// due to fallback).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QualityResolvedPayload {
+    /// Download ID for matching with frontend state
+    pub download_id: String,
+    /// Page number (1-indexed)
+    pub page: i32,
+    /// Resolved video quality ID
+    pub video_quality: i32,
+    /// Whether video quality was fallen back from user selection
+    pub video_quality_fallback: bool,
+    /// Resolved audio quality ID (null for durl format)
+    pub audio_quality: Option<i32>,
+    /// Whether audio quality was fallen back from user selection
+    pub audio_quality_fallback: bool,
+}
+
+/// Payload for subtitle resolved event.
+///
+/// Sent to frontend after subtitle processing to display
+/// the resolved subtitle mode and language labels.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubtitleResolvedPayload {
+    /// Download ID for matching with frontend state
+    pub download_id: String,
+    /// Page number (1-indexed)
+    pub page: i32,
+    /// Subtitle mode: "off", "soft", or "hard"
+    pub subtitle_mode: String,
+    /// Language labels from Bilibili (e.g., "Español", "日本語")
+    pub subtitle_language_labels: Vec<String>,
 }
 
 /// Download options for a video part.
@@ -344,11 +383,42 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
     let dash_data = data.dash.unwrap();
 
     // 選択品質が存在しなければフォールバック (先頭 = 最も高品質)
-    let (video_url, video_backup_urls) = select_stream_url(&dash_data.video, options.quality)?;
+    let (video_url, video_backup_urls, video_quality_fallback) =
+        select_stream_url(&dash_data.video, options.quality)?;
+    // Get the actual resolved video quality ID
+    let resolved_video_quality = dash_data
+        .video
+        .iter()
+        .find(|v| v.base_url == video_url)
+        .map(|v| v.id)
+        .unwrap_or(options.quality);
+
     let audio_quality = options
         .audio_quality
         .unwrap_or(dash_data.audio.first().map(|a| a.id).unwrap_or(30280));
-    let (audio_url, audio_backup_urls) = select_stream_url(&dash_data.audio, audio_quality)?;
+    let (audio_url, audio_backup_urls, audio_quality_fallback) =
+        select_stream_url(&dash_data.audio, audio_quality)?;
+    // Get the actual resolved audio quality ID
+    let resolved_audio_quality = dash_data
+        .audio
+        .iter()
+        .find(|a| a.base_url == audio_url)
+        .map(|a| a.id);
+
+    // Emit quality resolved event to frontend
+    let page = options.page.unwrap_or(1);
+    app.emit(
+        "download-quality-resolved",
+        QualityResolvedPayload {
+            download_id: options.download_id.clone(),
+            page,
+            video_quality: resolved_video_quality,
+            video_quality_fallback,
+            audio_quality: resolved_audio_quality,
+            audio_quality_fallback,
+        },
+    )
+    .ok();
 
     // 5. 容量事前チェック (取得できなければスキップ)
     let video_size = head_content_length(&video_url, Some(&cookie_header)).await;
@@ -406,7 +476,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
         )?;
 
         // 字幕処理
-        let subtitle_mode = prepare_subtitle_mode(
+        let (subtitle_mode, subtitle_language_labels) = prepare_subtitle_mode(
             &options.subtitle,
             &cookies,
             &options.bvid,
@@ -415,6 +485,23 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
             &lib_path,
         )
         .await?;
+
+        // Emit subtitle resolved event to frontend
+        let subtitle_mode_str = match &subtitle_mode {
+            crate::handlers::ffmpeg::MergeMode::SoftSub(_) => "soft",
+            crate::handlers::ffmpeg::MergeMode::HardSub(_) => "hard",
+            crate::handlers::ffmpeg::MergeMode::None => "off",
+        };
+        app.emit(
+            "download-subtitle-resolved",
+            SubtitleResolvedPayload {
+                download_id: options.download_id.clone(),
+                page,
+                subtitle_mode: subtitle_mode_str.to_string(),
+                subtitle_language_labels,
+            },
+        )
+        .ok();
 
         // 字幕ファイルのパスを保持（クリーンアップ用）
         let subtitle_paths: Vec<PathBuf> = match &subtitle_mode {
@@ -1265,7 +1352,9 @@ where
 ///
 /// # Returns
 ///
-/// Returns a tuple of (primary_url, backup_urls) on success.
+/// Returns a tuple of (primary_url, backup_urls, is_fallback) on success.
+/// `is_fallback` is true if the requested quality was not found and
+/// the first available quality was used instead.
 ///
 /// # Errors
 ///
@@ -1273,12 +1362,16 @@ where
 fn select_stream_url(
     items: &[crate::models::bilibili_api::XPlayerApiResponseVideo],
     quality: i32,
-) -> Result<(String, Option<Vec<String>>), String> {
+) -> Result<(String, Option<Vec<String>>, bool), String> {
     items
         .iter()
         .find(|v| v.id == quality)
-        .or_else(|| items.first())
-        .map(|v| (v.base_url.clone(), v.backup_urls.clone()))
+        .map(|v| (v.base_url.clone(), v.backup_urls.clone(), false))
+        .or_else(|| {
+            items
+                .first()
+                .map(|v| (v.base_url.clone(), v.backup_urls.clone(), true))
+        })
         .ok_or_else(|| "ERR::QUALITY_NOT_FOUND".into())
 }
 
@@ -1648,9 +1741,11 @@ pub async fn download_subtitle(
 ///
 /// # Returns
 ///
-/// Returns `MergeMode::None` if subtitles are disabled, no languages selected,
-/// or no matching subtitles found. Returns `MergeMode::SoftSub` for soft-sub
-/// mode or `MergeMode::HardSub` for burn-in mode.
+/// Returns a tuple of (MergeMode, language_labels) where:
+/// - `MergeMode::None` if subtitles are disabled, no languages selected,
+///   or no matching subtitles found
+/// - `MergeMode::SoftSub` for soft-sub mode or `MergeMode::HardSub` for burn-in mode
+/// - `language_labels` contains the display names (lan_doc) of selected subtitles
 ///
 /// # Errors
 ///
@@ -1662,13 +1757,13 @@ async fn prepare_subtitle_mode(
     cid: i64,
     download_id: &str,
     lib_path: &Path,
-) -> Result<crate::handlers::ffmpeg::MergeMode, String> {
+) -> Result<(crate::handlers::ffmpeg::MergeMode, Vec<String>), String> {
     use crate::handlers::ffmpeg::{MergeMode, SubtitleMergeOptions};
     use crate::utils::subtitle::lan_to_iso639;
 
     let sub_opts = match subtitle_opts {
         Some(opts) if opts.mode != "off" && !opts.selected_lans.is_empty() => opts,
-        _ => return Ok(MergeMode::None),
+        _ => return Ok((MergeMode::None, vec![])),
     };
 
     let client = build_client()?;
@@ -1680,10 +1775,11 @@ async fn prepare_subtitle_mode(
         .collect();
 
     if selected_subs.is_empty() {
-        return Ok(MergeMode::None);
+        return Ok((MergeMode::None, vec![]));
     }
 
     let mut subtitle_files: Vec<SubtitleMergeOptions> = Vec::new();
+    let mut language_labels: Vec<String> = Vec::new();
     for sub in selected_subs {
         let srt_path = lib_path.join(format!("temp_sub_{download_id}_{}.srt", sub.lan));
 
@@ -1697,20 +1793,22 @@ async fn prepare_subtitle_mode(
             language: lan_to_iso639(&sub.lan).to_string(),
             title: sub.lan_doc.clone(),
         });
+        language_labels.push(sub.lan_doc.clone());
     }
 
     if subtitle_files.is_empty() {
-        return Ok(MergeMode::None);
+        return Ok((MergeMode::None, vec![]));
     }
 
-    match sub_opts.mode.as_str() {
-        "hard" => Ok(subtitle_files
+    let mode = match sub_opts.mode.as_str() {
+        "hard" => subtitle_files
             .into_iter()
             .next()
             .map(MergeMode::HardSub)
-            .unwrap_or(MergeMode::None)),
-        _ => Ok(MergeMode::SoftSub(subtitle_files)),
-    }
+            .unwrap_or(MergeMode::None),
+        _ => MergeMode::SoftSub(subtitle_files),
+    };
+    Ok((mode, language_labels))
 }
 
 // ============================================================================
