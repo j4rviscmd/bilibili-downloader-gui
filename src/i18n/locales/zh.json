@@ -123,7 +123,7 @@
     "subtitle_hard_warning": "硬字幕编码需要更长时间",
     "subtitle_description": "选择将字幕嵌入视频的方式。",
     "subtitle_note": "※ 软字幕可以在播放器中开关。硬字幕会烧录到视频中。",
-    "other_options": "其他选项",
+    "options": "选项",
     "subtitle_select_required": "请选择至少一种语言",
     "subtitle_n_languages": "{{count}}种语言",
     "quality_fallback_tooltip": "所选画质不可用，已回退",
