@@ -77,12 +77,24 @@ pub struct XPlayerApiResponse {
     pub data: Option<XPlayerApiResponseData>,
 }
 
-/// DASH stream data from player API response.
+/// Player API response data containing stream information.
 ///
-/// Contains the actual video and audio streams available for download.
+/// Supports both DASH (adaptive streaming) and durl (direct URL) formats.
+/// Modern videos use DASH; older videos may use durl format.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct XPlayerApiResponseData {
-    pub dash: XPlayerApiResponseDash,
+    /// DASH stream data (absent for durl-format videos)
+    #[serde(default)]
+    pub dash: Option<XPlayerApiResponseDash>,
+    /// Direct URL format segments (for non-DASH videos)
+    #[serde(default)]
+    pub durl: Option<Vec<DurlSegment>>,
+    /// Supported quality formats with descriptions
+    #[serde(default)]
+    pub support_formats: Option<Vec<SupportFormat>>,
+    /// Current video quality code
+    #[serde(default)]
+    pub quality: Option<i32>,
 }
 
 /// DASH video and audio streams container.
@@ -510,6 +522,7 @@ pub struct DurlQualityEntry {
 pub struct SupportFormat {
     pub quality: i32,
     pub format: String,
+    #[serde(default)]
     pub description: String,
     #[serde(default)]
     pub new_description: String,
