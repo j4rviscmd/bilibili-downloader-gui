@@ -112,48 +112,6 @@ fn check_http_status(status: reqwest::StatusCode) -> Result<(), String> {
     }
 }
 
-/// Downloads a Bilibili video with the specified quality settings.
-///
-/// This function orchestrates the entire download process:
-/// 1. Output path determination with auto-rename handling
-/// 2. Cookie presence validation
-/// 3. Video details and stream URL fetching
-/// 4. Pre-download disk space check
-/// 5. Parallel audio/video stream download with retry logic
-/// 6. Stream merging via ffmpeg
-///
-/// Sends progress updates to the frontend throughout the process.
-///
-/// # Parallel Download Strategy
-///
-/// Audio and video streams are downloaded concurrently to minimize total download time.
-/// A semaphore limits concurrency to protect system resources.
-///
-/// # Arguments
-///
-/// * `app` - Tauri application handle
-/// * `bvid` - Bilibili video ID (BV identifier)
-/// * `cid` - Content ID for the specific video part
-/// * `filename` - Output filename (extension optional, .mp4 added if missing)
-/// * `quality` - Video quality ID (falls back to highest quality if unavailable)
-/// * `audio_quality` - Audio quality ID (falls back to highest quality if unavailable)
-/// * `download_id` - Unique identifier to track this download
-/// * `_parent_id` - Parent download ID for multi-part videos (currently unused)
-///
-/// # Returns
-///
-/// On success, returns the output file path as `String`.
-///
-/// # Errors
-///
-/// Returns an error if:
-/// - Settings or output path cannot be obtained
-/// - Cookies are missing (`ERR::COOKIE_MISSING`)
-/// - Selected quality is unavailable (`ERR::QUALITY_NOT_FOUND`)
-/// - Insufficient disk space (`ERR::DISK_FULL`)
-/// - Download fails after retry attempts (`ERR::NETWORK`)
-/// - ffmpeg merge fails (`ERR::MERGE_FAILED`)
-///
 /// Downloads a bangumi episode using durl format (MP4 direct URL).
 /// This is used when DASH format is not available for bangumi content.
 ///
@@ -245,6 +203,37 @@ async fn download_bangumi_durl(
 
     Ok(output_path_str)
 }
+
+/// Downloads a Bilibili video with the specified quality settings.
+///
+/// This function orchestrates the entire download process:
+/// 1. Output path determination with auto-rename handling
+/// 2. Cookie presence validation
+/// 3. Video details and stream URL fetching
+/// 4. Pre-download disk space check
+/// 5. Parallel audio/video stream download with retry logic
+/// 6. Stream merging via ffmpeg (DASH) or direct save (durl)
+///
+/// Sends progress updates to the frontend throughout the process.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle
+/// * `options` - Download options including bvid, cid, quality, filename, etc.
+///
+/// # Returns
+///
+/// On success, returns the output file path as `String`.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Settings or output path cannot be obtained
+/// - Cookies are missing (`ERR::COOKIE_MISSING`)
+/// - Selected quality is unavailable (`ERR::QUALITY_NOT_FOUND`)
+/// - Insufficient disk space (`ERR::DISK_FULL`)
+/// - Download fails after retry attempts (`ERR::NETWORK`)
+/// - ffmpeg merge fails (`ERR::MERGE_FAILED`)
 /// - Download is cancelled (`ERR::CANCELLED`)
 pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Result<String, String> {
     use crate::handlers::concurrency::DOWNLOAD_CANCEL_REGISTRY;
@@ -285,15 +274,74 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
         fetch_video_details(&cookies, &options.bvid, options.cid).await?
     };
 
-    let dash_data = details
-        .data
-        .ok_or_else(|| {
-            format!(
-                "XPlayerApi error (code {}): {} - no data field",
-                details.code, details.message
-            )
-        })?
-        .dash;
+    let data = details.data.ok_or_else(|| {
+        format!(
+            "XPlayerApi error (code {}): {} - no data field",
+            details.code, details.message
+        )
+    })?;
+
+    // 通常動画 durl 形式（音声が映像に埋め込まれているMP4）
+    if data.dash.is_none() {
+        if let Some(durl_segments) = &data.durl {
+            let durl_segment = durl_segments.first().ok_or("ERR::QUALITY_NOT_FOUND")?;
+            let video_url = durl_segment.url.clone();
+            let backup_urls = durl_segment
+                .backup_url
+                .as_ref()
+                .map(|urls| urls.iter().map(|s| s.to_string()).collect());
+
+            if let Some(vs) = head_content_length(&video_url, Some(&cookie_header)).await {
+                ensure_free_space(&output_path, vs + 5 * 1024 * 1024)?;
+            }
+
+            retry_download(|| {
+                download_url(
+                    app,
+                    video_url.clone(),
+                    backup_urls.clone(),
+                    output_path.to_path_buf(),
+                    Some(cookie_header.to_string()),
+                    true,
+                    Some(options.download_id.clone()),
+                    Some("video"),
+                    true,
+                )
+            })
+            .await?;
+
+            let output_path_str = output_path.to_string_lossy().to_string();
+            let actual_file_size = tokio::fs::metadata(&output_path)
+                .await
+                .ok()
+                .map(|m| m.len());
+            let app = app.clone();
+            let bvid = options.bvid.clone();
+            let filename = options.filename.clone();
+            let quality = options.quality;
+            let thumbnail_url = options.thumbnail_url.clone();
+            let page = options.page;
+            tokio::spawn(async move {
+                if let Err(e) = save_to_history(
+                    &app,
+                    &bvid,
+                    quality,
+                    actual_file_size,
+                    &filename,
+                    thumbnail_url,
+                    page,
+                )
+                .await
+                {
+                    eprintln!("Warning: Failed to save to history for {bvid}: {e}");
+                }
+            });
+            return Ok(output_path_str);
+        }
+        return Err("ERR::NO_STREAM".to_string());
+    }
+
+    let dash_data = data.dash.unwrap();
 
     // 選択品質が存在しなければフォールバック (先頭 = 最も高品質)
     let (video_url, video_backup_urls) = select_stream_url(&dash_data.video, options.quality)?;
@@ -863,6 +911,7 @@ fn convert_qualities(video: &[XPlayerApiResponseVideo]) -> Vec<Quality> {
         .map(|(id, v)| Quality {
             id,
             codecid: v.codecid,
+            quality: quality_to_string(&id),
         })
         .collect()
 }
@@ -940,7 +989,16 @@ async fn fetch_video_details(
     cid: i64,
 ) -> Result<XPlayerApiResponse, String> {
     let client = build_client()?;
-    let mixin_key = crate::utils::wbi::fetch_mixin_key(&client).await?;
+    let cookie_header = build_cookie_header(cookies);
+    let mixin_key = crate::utils::wbi::fetch_mixin_key(
+        &client,
+        if cookie_header.is_empty() {
+            None
+        } else {
+            Some(&cookie_header)
+        },
+    )
+    .await?;
 
     let mut params = BTreeMap::from([
         ("bvid".to_string(), bvid.to_string()),
@@ -951,22 +1009,24 @@ async fn fetch_video_details(
         ("fourk".to_string(), "1".to_string()),
     ]);
 
-    let signature = crate::utils::wbi::generate_wbi_signature(&mut params, &mixin_key)?;
+    let signature = crate::utils::wbi::generate_wbi_signature(&mut params, &mixin_key);
+
+    let query: Vec<(&str, String)> = params
+        .iter()
+        .map(|(k, v)| (k.as_str(), v.clone()))
+        .collect::<Vec<_>>()
+        .into_iter()
+        .chain([
+            ("w_rid", signature.w_rid.clone()),
+            ("wts", signature.wts.clone()),
+        ])
+        .collect();
 
     let response = client
         .get("https://api.bilibili.com/x/player/wbi/playurl")
         .header(header::COOKIE, build_cookie_header(cookies))
         .header(header::REFERER, "https://www.bilibili.com")
-        .query(&[
-            ("bvid", bvid),
-            ("cid", &cid.to_string()),
-            ("qn", "116"),
-            ("fnval", "2064"),
-            ("fnver", "0"),
-            ("fourk", "1"),
-            ("w_rid", &signature.w_rid),
-            ("wts", &signature.wts),
-        ])
+        .query(&query)
         .send()
         .await
         .map_err(|e| format!("XPlayerApi Failed to fetch video info: {e}"))?;
@@ -1069,7 +1129,7 @@ async fn build_output_path(app: &AppHandle, filename: &str) -> Result<PathBuf, S
 ///
 /// Returns `Some(content_length)` on success, or `None` on failure.
 async fn head_content_length(url: &str, cookie: Option<&str>) -> Option<u64> {
-    let client = reqwest::Client::builder().build().ok()?;
+    let client = build_client().ok()?;
     let mut req = client.head(url);
     if let Some(c) = cookie {
         req = req.header(reqwest::header::COOKIE, c);
@@ -1131,7 +1191,7 @@ fn ensure_free_space(target_path: &Path, needed_bytes: u64) -> Result<(), String
             #[allow(clippy::unnecessary_cast)]
             #[allow(clippy::useless_conversion)]
             let free_bytes = u64::from(stat.f_bavail) * stat.f_frsize;
-            if free_bytes <= needed_bytes {
+            if free_bytes < needed_bytes {
                 return Err("ERR::DISK_FULL".into());
             }
         }
@@ -1366,7 +1426,17 @@ pub async fn fetch_subtitles(
     bvid: &str,
     cid: i64,
 ) -> Vec<SubtitleDto> {
-    let mixin_key = match crate::utils::wbi::fetch_mixin_key(client).await {
+    let cookie_header = build_cookie_header(cookies);
+    let mixin_key = match crate::utils::wbi::fetch_mixin_key(
+        client,
+        if cookie_header.is_empty() {
+            None
+        } else {
+            Some(&cookie_header)
+        },
+    )
+    .await
+    {
         Ok(key) => key,
         Err(_) => return Vec::new(),
     };
@@ -1376,10 +1446,7 @@ pub async fn fetch_subtitles(
         ("cid".to_string(), cid.to_string()),
     ]);
 
-    let signature = match crate::utils::wbi::generate_wbi_signature(&mut params, &mixin_key) {
-        Ok(sig) => sig,
-        Err(_) => return Vec::new(),
-    };
+    let signature = crate::utils::wbi::generate_wbi_signature(&mut params, &mixin_key);
 
     let response = match client
         .get("https://api.bilibili.com/x/player/wbi/v2")
@@ -1477,12 +1544,39 @@ pub async fn fetch_part_qualities(
 ) -> Result<(Vec<Quality>, Vec<Quality>), String> {
     let cookies = read_cookie(app)?.unwrap_or_default();
     let details = fetch_video_details(&cookies, bvid, cid).await?;
-    let dash_data = details.data.unwrap().dash;
+    let data = details.data.ok_or("ERR::NO_STREAM")?;
 
-    let video_qualities = convert_qualities(&dash_data.video);
-    let audio_qualities = convert_qualities(&dash_data.audio);
+    // DASH format: separate video and audio streams
+    if let Some(dash) = data.dash {
+        let video_qualities = convert_qualities(&dash.video);
+        let audio_qualities = convert_qualities(&dash.audio);
+        return Ok((video_qualities, audio_qualities));
+    }
 
-    Ok((video_qualities, audio_qualities))
+    // durl format: audio is embedded in video, derive qualities from
+    // support_formats
+    if let Some(formats) = data.support_formats {
+        let video_qualities: Vec<Quality> = formats
+            .iter()
+            .map(|f| Quality {
+                id: f.quality,
+                codecid: 0,
+                quality: if !f.new_description.is_empty() {
+                    f.new_description.clone()
+                } else if !f.display_desc.is_empty() {
+                    f.display_desc.clone()
+                } else if !f.description.is_empty() {
+                    f.description.clone()
+                } else {
+                    quality_to_string(&f.quality)
+                },
+            })
+            .collect();
+        // durl format has no separate audio stream
+        return Ok((video_qualities, vec![]));
+    }
+
+    Err("ERR::NO_STREAM".to_string())
 }
 
 /// Downloads a subtitle and saves it in SRT format.
@@ -1827,7 +1921,12 @@ async fn fetch_bangumi_details_for_download(
         Some(dash) => Ok(XPlayerApiResponse {
             code: 0,
             message: "success".to_string(),
-            data: Some(crate::models::bilibili_api::XPlayerApiResponseData { dash }),
+            data: Some(crate::models::bilibili_api::XPlayerApiResponseData {
+                dash: Some(dash),
+                durl: None,
+                support_formats: None,
+                quality: None,
+            }),
         }),
         None => {
             // durl format - not supported in current download flow
@@ -1874,6 +1973,7 @@ pub async fn fetch_bangumi_part_qualities(
             .map(|entry| Quality {
                 id: entry.quality,
                 codecid: 7, // AVC for MP4 format
+                quality: quality_to_string(&entry.quality),
             })
             .collect();
 

@@ -641,7 +641,7 @@ const VideoPartCard = memo(function VideoPartCard({
                               )}
                             />
                           </div>
-                        ) : video.contentType === 'bangumi' ? (
+                        ) : !qualitiesLoading ? (
                           <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm dark:border-blue-800 dark:bg-blue-950">
                             <div className="flex items-center gap-2">
                               <Info className="h-4 w-4 flex-shrink-0 text-blue-600 dark:text-blue-400" />
@@ -724,9 +724,7 @@ const VideoPartCard = memo(function VideoPartCard({
             onRedownload={handleRedownload}
             onRetry={handleRetry}
             onCancel={handleCancel}
-            hasEmbeddedAudio={
-              video.contentType === 'bangumi' && audioQualities.length === 0
-            }
+            hasEmbeddedAudio={audioQualities.length === 0}
           />
         )}
       </Form>

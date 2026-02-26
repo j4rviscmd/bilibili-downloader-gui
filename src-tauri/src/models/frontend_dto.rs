@@ -112,6 +112,8 @@ pub struct Quality {
     pub id: i32,
     /// Codec ID
     pub codecid: i16,
+    /// Human-readable quality label (e.g. "1080P 高清")
+    pub quality: String,
 }
 
 // ============================================================================
