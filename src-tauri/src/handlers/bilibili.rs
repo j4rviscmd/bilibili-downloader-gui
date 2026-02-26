@@ -1308,9 +1308,9 @@ fn select_stream_url(
         .find(|v| v.id == quality)
         .map(|v| (v.base_url.clone(), v.backup_urls.clone(), false))
         .or_else(|| {
-            items.first().map(|v| {
-                (v.base_url.clone(), v.backup_urls.clone(), true)
-            })
+            items
+                .first()
+                .map(|v| (v.base_url.clone(), v.backup_urls.clone(), true))
         })
         .ok_or_else(|| "ERR::QUALITY_NOT_FOUND".into())
 }
