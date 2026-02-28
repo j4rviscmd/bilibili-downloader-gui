@@ -389,8 +389,12 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
     // 選択品質が存在しなければフォールバック (先頭 = 最も高品質)
     // None means best available → -1 won't match any real quality ID.
     let requested_quality = options.quality.unwrap_or(-1);
-    let (video_url, video_backup_urls, video_quality_fallback) =
+    let (video_url, video_backup_urls, raw_video_fallback) =
         select_stream_url(&dash_data.video, requested_quality)?;
+    // Only treat as fallback when the user explicitly selected a quality.
+    // When quality is None (accordion never opened), the best-available
+    // selection is intentional and should not trigger the warning icon.
+    let video_quality_fallback = options.quality.is_some() && raw_video_fallback;
     // Get the actual resolved video quality ID
     let resolved_video_quality = dash_data
         .video
@@ -402,8 +406,10 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
     let audio_quality = options
         .audio_quality
         .unwrap_or(dash_data.audio.first().map(|a| a.id).unwrap_or(30280));
-    let (audio_url, audio_backup_urls, audio_quality_fallback) =
+    let (audio_url, audio_backup_urls, raw_audio_fallback) =
         select_stream_url(&dash_data.audio, audio_quality)?;
+    // Same logic: only warn when the user explicitly chose an audio quality.
+    let audio_quality_fallback = options.audio_quality.is_some() && raw_audio_fallback;
     // Get the actual resolved audio quality ID
     let resolved_audio_quality = dash_data
         .audio
