@@ -26,7 +26,6 @@ function aggregateParentStatuses(state: QueueItem[]): void {
     state.map((i) => i.parentId).filter((id): id is string => id != null),
   )
 
-  // Collect parent IDs to remove (those with no children and not cancelling)
   const parentsToRemove: string[] = []
 
   parentIds.forEach((parentId) => {
@@ -35,9 +34,7 @@ function aggregateParentStatuses(state: QueueItem[]): void {
 
     const children = state.filter((i) => i.parentId === parentId)
 
-    // If no children, mark parent for removal only if not in cancelling state
     if (children.length === 0) {
-      // Keep parent during cancellation transition (waiting for next download)
       if (parent.status !== 'cancelling') {
         parentsToRemove.push(parentId)
       }
@@ -62,7 +59,6 @@ function aggregateParentStatuses(state: QueueItem[]): void {
     }
   })
 
-  // Remove parents with no children (and not cancelling)
   parentsToRemove.forEach((parentId) => {
     const index = state.findIndex((i) => i.downloadId === parentId)
     if (index !== -1) {
@@ -104,14 +100,12 @@ const initialState: QueueItem[] = []
 export const cancelDownload = createAsyncThunk(
   'queue/cancelDownload',
   async (downloadId: string, { getState }) => {
-    // Check if download exists
     const state = getState() as RootState
     const item = state.queue.find((i) => i.downloadId === downloadId)
     if (!item) {
       throw new Error(`Download not found: ${downloadId}`)
     }
-    // Note: status may already be 'cancelling' due to pending reducer
-    // Allow cancelling if status is pending, running, or cancelling
+
     const cancellableStatuses = ['pending', 'running', 'cancelling']
     if (!cancellableStatuses.includes(item.status || '')) {
       throw new Error(
@@ -120,7 +114,6 @@ export const cancelDownload = createAsyncThunk(
     }
 
     const wasCancelled = await callCancelDownload(downloadId)
-    // Note: wasCancelled may be false if download completed before cancellation
     return { downloadId, wasCancelled }
   },
 )
@@ -159,12 +152,7 @@ export const queueSlice = createSlice({
   reducers: {
     /**
      * Adds a download to the queue.
-     *
      * Skips if an item with the same downloadId already exists.
-     * Updates parent status based on children after adding.
-     *
-     * @param state - Current queue state
-     * @param action - Action containing the queue item
      */
     enqueue(state, action: PayloadAction<QueueItem>) {
       const payload = action.payload
@@ -175,33 +163,19 @@ export const queueSlice = createSlice({
     },
     /**
      * Removes a download from the queue.
-     *
      * Also removes all children if the provided ID is a parent.
-     *
-     * @param state - Current queue state
-     * @param action - Action containing the download ID to remove
      */
     dequeue(state, action: PayloadAction<string>) {
       const id = action.payload
       return state.filter((i) => i.downloadId !== id && i.parentId !== id)
     },
-    /**
-     * Clears all items from the queue.
-     */
+    /** Clears all items from the queue. */
     clearQueue() {
       return []
     },
     /**
      * Updates the status of a queue item.
-     *
-     * Automatically aggregates parent status based on children:
-     * - If any child is 'error', parent becomes 'error'
-     * - Else if any child is 'running', parent becomes 'running'
-     * - Else if all children are 'done', parent becomes 'done'
-     * - Otherwise, parent becomes 'pending'
-     *
-     * @param state - Current queue state
-     * @param action - Action containing the download ID and new status
+     * Automatically aggregates parent status based on children.
      */
     updateQueueStatus(
       state,
@@ -217,16 +191,11 @@ export const queueSlice = createSlice({
         target.status = status
         if (errorMessage) target.errorMessage = errorMessage
       }
-
       aggregateParentStatuses(state)
     },
     /**
      * Updates a queue item with new data.
-     *
      * Merges provided fields with existing item data.
-     *
-     * @param state - Current queue state
-     * @param action - Action containing the download ID and fields to update
      */
     updateQueueItem(
       state,
@@ -241,9 +210,6 @@ export const queueSlice = createSlice({
     /**
      * Removes a single queue item by download ID.
      * Updates parent status after removal.
-     *
-     * @param state - Current queue state
-     * @param action - Action containing the download ID to remove
      */
     clearQueueItem(state, action: PayloadAction<string>) {
       const id = action.payload
@@ -254,7 +220,6 @@ export const queueSlice = createSlice({
     },
   },
   extraReducers: (builder) => {
-    // cancelDownload pending: set status to 'cancelling'
     builder.addCase(cancelDownload.pending, (state, action) => {
       const item = state.find((i) => i.downloadId === action.meta.arg)
       if (item) {
@@ -263,7 +228,6 @@ export const queueSlice = createSlice({
       aggregateParentStatuses(state)
     })
 
-    // cancelAllDownloads pending: set all pending/running to 'cancelling'
     builder.addCase(cancelAllDownloads.pending, (state) => {
       state.forEach((item) => {
         if (item.status === 'pending' || item.status === 'running') {
@@ -287,13 +251,9 @@ export default queueSlice.reducer
 
 /**
  * Finds a completed queue item for a specific part index.
- *
  * Extracts part index from downloadId using regex pattern `-p(\d+)$`.
- * Returns the item if found, matches the part index, and has status 'done'.
  *
- * @param state - Redux root state
  * @param partIndex - One-based part number (matches the number in downloadId)
- * @returns Queue item if found and completed, undefined otherwise
  */
 export function findCompletedItemForPart(
   state: RootState,
@@ -309,13 +269,9 @@ export function findCompletedItemForPart(
 
 /**
  * Selects download ID by part index from queue.
- *
  * Extracts part index from downloadId using regex pattern `-p(\d+)$`.
- * Returns the download ID if found and matches the part index.
  *
- * @param state - Redux root state
  * @param partIndex - Zero-based part index (will match +1 in downloadId)
- * @returns Download ID if found, undefined otherwise
  */
 export const selectDownloadIdByPartIndex = (
   state: { queue: QueueItem[] },
@@ -327,12 +283,7 @@ export const selectDownloadIdByPartIndex = (
   })?.downloadId
 }
 
-/**
- * Memoized selector factory for queue item by download ID.
- *
- * @param downloadId - The download ID to find
- * @returns A memoized selector that returns the queue item
- */
+/** Memoized selector factory for queue item by download ID. */
 export const selectQueueItemByDownloadId = (downloadId: string) =>
   createSelector([(state: RootState) => state.queue], (queue) =>
     queue.find((q) => q.downloadId === downloadId),
@@ -340,37 +291,35 @@ export const selectQueueItemByDownloadId = (downloadId: string) =>
 
 /**
  * Memoized selector to check if any downloads are active.
- *
- * Returns true if:
- * - Any child item has status 'running' or 'pending'
- * - Any parent item has status 'cancelling' (transitioning between downloads)
- * - Any parent item has status 'pending' and has children
- *
- * @param state - Redux root state
- * @returns true if any downloads are active
+ * Returns true if any child is running/pending, or parent is cancelling.
  */
 export const selectHasActiveDownloads = createSelector(
   [(state: RootState) => state.queue],
   (queue) => {
-    // Get parent IDs that have children
     const parentIdsWithChildren = new Set(
       queue.map((i) => i.parentId).filter((id): id is string => id != null),
     )
 
     return queue.some((q) => {
-      // Child items: check running/pending
       if (q.parentId) {
         return q.status === 'running' || q.status === 'pending'
       }
-      // Parent in cancelling state is always active (transitioning)
       if (q.status === 'cancelling') {
         return true
       }
-      // Parent with pending status is only active if it has children
       if (q.status === 'pending') {
         return parentIdsWithChildren.has(q.downloadId)
       }
       return false
     })
   },
+)
+
+/**
+ * Memoized selector to check if any downloads are being cancelled.
+ * Used to display 'Cancelling...' label on the download button.
+ */
+export const selectHasCancellingDownloads = createSelector(
+  [(state: RootState) => state.queue],
+  (queue) => queue.some((q) => q.status === 'cancelling'),
 )
