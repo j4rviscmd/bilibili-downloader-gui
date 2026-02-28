@@ -881,7 +881,16 @@ const VideoPartCard = memo(function VideoPartCard({
             onRedownload={handleRedownload}
             onRetry={handleRetry}
             onCancel={handleCancel}
-            hasEmbeddedAudio={audioQualities !== undefined && audioQualities.length === 0}
+            hasEmbeddedAudio={
+              // If backend confirmed audio quality (download started): trust that.
+              // null = durl embedded; number = separate DASH stream.
+              resolvedQuality
+                ? resolvedQuality.audioQuality === null
+                : // Before download: fall back to fetched qualities.
+                  // undefined = not yet fetched (show stages optimistically);
+                  // [] = fetched and empty (durl confirmed).
+                  audioQualities !== undefined && audioQualities.length === 0
+            }
           />
         )}
       </Form>
