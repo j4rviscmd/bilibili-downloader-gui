@@ -137,7 +137,8 @@ const VideoPartCard = memo(function VideoPartCard({
   const subtitlesLoading = partInput?.subtitlesLoading ?? false
 
   const videoQualities = partInput?.videoQualities
-  const audioQualities = partInput?.audioQualities ?? []
+  // undefined = not yet fetched (lazy); [] = fetched but empty (durl embedded audio)
+  const audioQualities = partInput?.audioQualities
   const qualitiesLoading = partInput?.qualitiesLoading ?? false
   const isPreview = partInput?.isPreview ?? false
   const resolvedQuality = partInput?.resolvedQuality
@@ -337,7 +338,7 @@ const VideoPartCard = memo(function VideoPartCard({
   const isQualityAvailable = useCallback(
     (qualityId: number, type: 'video' | 'audio') => {
       const qualities =
-        type === 'video' ? (videoQualities ?? []) : audioQualities
+        type === 'video' ? (videoQualities ?? []) : (audioQualities ?? [])
       return qualities.some((q) => q.id === qualityId)
     },
     [videoQualities, audioQualities],
@@ -465,12 +466,12 @@ const VideoPartCard = memo(function VideoPartCard({
   }, [video, partInput?.title, form, videoPart])
 
   useEffect(() => {
-    const hasAudioQualities = audioQualities.length > 0
+    const hasAudioQualities = (audioQualities?.length ?? 0) > 0
     if (!videoQualities || videoQualities.length === 0) return
 
     const videoQuality = partInput?.videoQuality || String(videoQualities[0].id)
     const audioQuality = hasAudioQualities
-      ? partInput?.audioQuality || String(audioQualities[0].id)
+      ? partInput?.audioQuality || String(audioQualities![0].id)
       : ''
 
     form.setValue('videoQuality', videoQuality, { shouldValidate: true })
@@ -488,7 +489,7 @@ const VideoPartCard = memo(function VideoPartCard({
     }
   }, [
     videoQualities?.length,
-    audioQualities.length,
+    audioQualities?.length,
     partInput?.videoQuality,
     partInput?.audioQuality,
     partInput?.title,
@@ -748,7 +749,7 @@ const VideoPartCard = memo(function VideoPartCard({
                           )}
 
                           {/* Audio Quality Section */}
-                          {audioQualities.length > 0 ? (
+                          {(audioQualities?.length ?? 0) > 0 ? (
                             <div>
                               <div className="mb-2 flex items-center gap-1.5">
                                 <span className="text-sm font-medium">
@@ -880,7 +881,7 @@ const VideoPartCard = memo(function VideoPartCard({
             onRedownload={handleRedownload}
             onRetry={handleRetry}
             onCancel={handleCancel}
-            hasEmbeddedAudio={audioQualities.length === 0}
+            hasEmbeddedAudio={audioQualities !== undefined && audioQualities.length === 0}
           />
         )}
       </Form>
