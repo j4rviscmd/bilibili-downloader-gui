@@ -384,37 +384,199 @@ pub struct PlayerV2SubtitleItem {
     pub subtitle_url: String,
 }
 
-/// BCC format subtitle data.
+/// BCC (Bilibili Closed Caption) format subtitle data.
 ///
-/// Bilibili's native subtitle format stored as JSON.
+/// This struct represents Bilibili's native subtitle format, which is stored as JSON
+/// and served via the subtitle_url field in the PlayerV2 API. It supports both
+/// manually created subtitles and AI-generated subtitles.
+///
+/// # AI Subtitle Compatibility
+///
+/// AI-generated subtitles include additional fields not present in manual subtitles:
+/// - `type`: Subtitle type (e.g., "ai")
+/// - `lang`: Language code
+/// - `version`: Format version
+///
+/// These extra fields are automatically ignored during deserialization via the
+/// `#[serde(default)]` attributes on the struct fields. This design allows the same
+/// struct to handle both subtitle formats without errors.
+///
+/// # Default Values
+///
+/// Default values are required for several fields because AI-generated subtitles
+/// may omit styling-related fields that are always present in manual subtitles:
+///
+/// - `font_size`: Defaults to 0.0 (AI subtitles typically use the player's default)
+/// - `font_color`: Defaults to "0xFFFFFF" (white text)
+/// - `background_alpha`: Defaults to 0.0 (transparent background)
+/// - `background_color`: Defaults to "0x000000" (black background)
+/// - `stroke`: Defaults to empty string (no text stroke)
+///
+/// # Example
+///
+/// ```json
+/// {
+///   "font_size": 0.4,
+///   "font_color": "0xFFFFFF",
+///   "background_alpha": 0.5,
+///   "background_color": "0x000000",
+///   "Stroke": "none",
+///   "body": [
+///     {
+///       "from": 0.0,
+///       "to": 2.5,
+///       "location": 0,
+///       "content": "Example subtitle text"
+///     }
+///   ]
+/// }
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BccSubtitle {
-    /// Font size (typically 0.4)
+    /// Font size multiplier.
+    ///
+    /// In manual subtitles, this is typically 0.4. AI-generated subtitles may omit
+    /// this field, in which case it defaults to 0.0 and the player uses its default
+    /// font size setting.
+    #[serde(default)]
     pub font_size: f32,
-    /// Font color (typically "0xFFFFFF")
+
+    /// Font color in hex format.
+    ///
+    /// Defaults to "0xFFFFFF" (white) for compatibility with AI subtitles that
+    /// don't specify font color. Manual subtitles typically use this value.
+    #[serde(default = "default_font_color")]
     pub font_color: String,
-    /// Background alpha (typically 0.5)
+
+    /// Background transparency (alpha channel).
+    ///
+    /// Ranges from 0.0 (fully transparent) to 1.0 (fully opaque). Manual subtitles
+    /// typically use 0.5 for semi-transparent backgrounds. AI subtitles often omit
+    /// this field (defaults to 0.0).
+    #[serde(default)]
     pub background_alpha: f32,
-    /// Background color (typically "0x000000")
+
+    /// Background color in hex format.
+    ///
+    /// Defaults to "0x000000" (black) for AI subtitle compatibility. Manual
+    /// subtitles typically combine this with background_alpha to create a
+    /// semi-transparent black background behind text.
+    #[serde(default = "default_background_color")]
     pub background_color: String,
-    /// Stroke color (typically "none")
-    #[serde(rename = "Stroke")]
+
+    /// Text stroke color.
+    ///
+    /// Typically "none" or an empty string, indicating no outline around the
+    /// subtitle text. The field name uses capital "S" ("Stroke") to match
+    /// Bilibili's JSON format exactly.
+    #[serde(rename = "Stroke", default)]
     pub stroke: String,
-    /// Subtitle body containing text entries
+
+    /// Collection of subtitle entries with timing and text.
+    ///
+    /// This is the only required field in the BCC format. Each entry contains
+    /// the subtitle text with start/end timestamps for synchronization.
     pub body: Vec<BccSubtitleBody>,
 }
 
-/// Individual subtitle entry in BCC format.
+// ============================================================================
+// BCC Subtitle Defaults
+// ============================================================================
+
+/// Default font color for subtitles.
+///
+/// This constant provides the default hex color value for subtitle text when
+/// the field is omitted from the subtitle JSON (as occurs with AI-generated
+/// subtitles). White ("0xFFFFFF") is the standard color for Bilibili subtitles.
+const DEFAULT_FONT_COLOR: &str = "0xFFFFFF";
+
+/// Default background color for subtitles.
+///
+/// This constant provides the default hex color value for the subtitle
+/// background when the field is omitted from the subtitle JSON (as occurs
+/// with AI-generated subtitles). Black ("0x000000") is typically combined
+/// with semi-transparency to create a readable background.
+const DEFAULT_BACKGROUND_COLOR: &str = "0x000000";
+
+/// Returns the default font color as a String.
+///
+/// This function is used by serde's `default` attribute to provide a fallback
+/// value when deserializing subtitles that don't specify a font color.
+///
+/// # Returns
+///
+/// A String containing "0xFFFFFF" (white in hex format).
+fn default_font_color() -> String {
+    DEFAULT_FONT_COLOR.to_string()
+}
+
+/// Returns the default background color as a String.
+///
+/// This function is used by serde's `default` attribute to provide a fallback
+/// value when deserializing subtitles that don't specify a background color.
+///
+/// # Returns
+///
+/// A String containing "0x000000" (black in hex format).
+fn default_background_color() -> String {
+    DEFAULT_BACKGROUND_COLOR.to_string()
+}
+
+/// Individual subtitle entry within the BCC format body.
+///
+/// Represents a single subtitle line with its timing information and text content.
+/// Multiple `BccSubtitleBody` entries are collected in the `BccSubtitle.body` field
+/// to form the complete subtitle track.
+///
+/// # Field Descriptions
+///
+/// - **from**: Start timestamp in seconds (e.g., 1.5 means the subtitle appears
+///   at 1.5 seconds into the video)
+/// - **to**: End timestamp in seconds (e.g., 4.0 means the subtitle disappears
+///   at 4.0 seconds)
+/// - **location**: Screen positioning code (0 = bottom center, the standard
+///   position for most subtitles)
+/// - **content**: The actual subtitle text to display, may include newlines for
+///   multi-line subtitles
+///
+/// # Example
+///
+/// ```json
+/// {
+///   "from": 10.5,
+///   "to": 14.2,
+///   "location": 0,
+///   "content": "This is a subtitle"
+/// }
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BccSubtitleBody {
-    /// Start time in seconds
+    /// Start timestamp in seconds.
+    ///
+    /// Indicates when this subtitle should appear on screen. The value is a
+    /// floating-point number allowing sub-second precision (e.g., 10.5 represents
+    /// 10 seconds and 500 milliseconds).
     pub from: f64,
-    /// End time in seconds
+
+    /// End timestamp in seconds.
+    ///
+    /// Indicates when this subtitle should disappear from screen. The subtitle
+    /// is visible during the interval [from, to).
     pub to: f64,
-    /// Location code (0 = default position)
+
+    /// Screen position code.
+    ///
+    /// Determines where on screen the subtitle appears. A value of 0 represents
+    /// the default position (bottom center). Other values may position the
+    /// subtitle differently, though these are rarely used in practice.
     #[serde(default)]
     pub location: i32,
-    /// Subtitle text content
+
+    /// Subtitle text content.
+    ///
+    /// The actual text to display. May contain newline characters for multi-line
+    /// subtitles. The text encoding follows the JSON document's encoding (typically
+    /// UTF-8).
     pub content: String,
 }
 
