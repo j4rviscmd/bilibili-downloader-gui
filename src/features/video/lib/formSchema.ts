@@ -2,6 +2,21 @@ import { getOs } from '@/shared/os/api/getOs'
 import type { TFunction } from 'i18next'
 import z from 'zod'
 
+const UNSUPPORTED_HOSTNAME_RULES: Array<[RegExp, string]> = [
+  [/^b23\.tv$/i, 'validation.video.url.short_url'],
+  [/^space\.bilibili\.com$/i, 'validation.video.url.space'],
+  [/^member\.bilibili\.com$/i, 'validation.video.url.member'],
+  [/^live\.bilibili\.com$/i, 'validation.video.url.live'],
+  [/^au\.bilibili\.com$/i, 'validation.video.url.audio'],
+]
+
+const UNSUPPORTED_PATHNAME_RULES: Array<[RegExp, string]> = [
+  [/^\/bangumi\/media\//i, 'validation.video.url.bangumi_list'],
+  [/^\/cheese\//i, 'validation.video.url.cheese'],
+  [/^\/audio\//i, 'validation.video.url.audio'],
+  [/^\/read\//i, 'validation.video.url.article'],
+]
+
 /**
  * Detects unsupported Bilibili URL patterns and returns a specific error key.
  *
@@ -19,46 +34,12 @@ const getUnsupportedUrlError = (
   pathname: string,
   t: TFunction,
 ): string | null => {
-  // Short URL service (b23.tv)
-  if (/^b23\.tv$/i.test(hostname)) {
-    return t('validation.video.url.short_url')
+  for (const [pattern, key] of UNSUPPORTED_HOSTNAME_RULES) {
+    if (pattern.test(hostname)) return t(key)
   }
-
-  // User space / channel pages
-  if (/^space\.bilibili\.com$/i.test(hostname)) {
-    return t('validation.video.url.space')
+  for (const [pattern, key] of UNSUPPORTED_PATHNAME_RULES) {
+    if (pattern.test(pathname)) return t(key)
   }
-
-  // Member center
-  if (/^member\.bilibili\.com$/i.test(hostname)) {
-    return t('validation.video.url.member')
-  }
-
-  // Live streaming
-  if (/^live\.bilibili\.com$/i.test(hostname)) {
-    return t('validation.video.url.live')
-  }
-
-  // Bangumi list/media page (not episode page)
-  if (/^\/bangumi\/media\//i.test(pathname)) {
-    return t('validation.video.url.bangumi_list')
-  }
-
-  // Paid courses (cheese)
-  if (/^\/cheese\//i.test(pathname)) {
-    return t('validation.video.url.cheese')
-  }
-
-  // Audio / music (au.bilibili.com or /audio/)
-  if (/^au\.bilibili\.com$/i.test(hostname) || /^\/audio\//i.test(pathname)) {
-    return t('validation.video.url.audio')
-  }
-
-  // Article / read
-  if (/^\/read\//i.test(pathname)) {
-    return t('validation.video.url.article')
-  }
-
   return null
 }
 
@@ -84,9 +65,7 @@ const initInvalidPattern = async () => {
   if (initialized) return invalidCharsPattern
   initialized = true
   const os = await getOs()
-  if (os === 'windows') {
-    invalidCharsPattern = /[\\/:*?"<>|]/
-  } else {
+  if (os !== 'windows') {
     invalidCharsPattern = /\//
   }
   return invalidCharsPattern
@@ -163,7 +142,8 @@ export const buildVideoFormSchema1 = (t: TFunction) =>
 /**
  * Builds a localized validation schema for video part settings (Step 2).
  *
- * Validates title (filename), video quality, and audio quality.
+ * Validates title (filename) only. Quality selection is delegated to the
+ * backend's best-effort auto-selection logic.
  * Title validation includes OS-specific checks for invalid filename characters
  * and Windows reserved names (e.g., CON, PRN, NUL).
  *
@@ -175,8 +155,8 @@ export const buildVideoFormSchema1 = (t: TFunction) =>
  * const schema = buildVideoFormSchema2(t)
  * const result = schema.safeParse({
  *   title: 'My Video',
- *   videoQuality: '80',
- *   audioQuality: '30216'
+ *   videoQuality: '',
+ *   audioQuality: ''
  * })
  * ```
  */
@@ -209,9 +189,8 @@ export const buildVideoFormSchema2 = (t: TFunction) =>
           })
         }
       }),
-    videoQuality: z
-      .string()
-      .nonempty({ message: t('validation.video.quality.required') }),
+    // Quality fields are optional — backend selects best available quality
+    videoQuality: z.string(),
     // audioQuality can be empty for durl format (MP4) where audio is embedded
     audioQuality: z.string(),
   })
