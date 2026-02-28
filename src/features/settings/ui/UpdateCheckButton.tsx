@@ -60,8 +60,7 @@ export function UpdateCheckButton() {
     const fetchAppVersion = async () => {
       try {
         setAppVersion(await getVersion())
-      } catch (e) {
-        console.error('Failed to get app version:', e)
+      } catch {
         setAppVersion(t('settings.update_check.unknown_version'))
       }
     }
@@ -90,7 +89,6 @@ export function UpdateCheckButton() {
    */
   const handleCheck = useCallback(async () => {
     if (isDevMode) {
-      console.warn('Update check is disabled in development mode')
       return
     }
 
@@ -114,8 +112,7 @@ export function UpdateCheckButton() {
         setAppVersion(t('settings.update_check.unknown_version'))
       }
       setStatus('done')
-    } catch (e) {
-      console.error('Update check failed:', e)
+    } catch {
       dispatch(setError(t('settings.update_check.error')))
       setStatus('idle')
     }

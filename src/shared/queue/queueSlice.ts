@@ -47,7 +47,6 @@ function aggregateParentStatuses(state: QueueItem[]): void {
     const statuses = children.map((c) => c.status)
 
     // Priority: error > cancelling > running > done > cancelled > pending
-    // Always derive status from children when they exist
     if (statuses.includes('error')) {
       parent.status = 'error'
     } else if (statuses.includes('cancelling')) {
@@ -121,10 +120,7 @@ export const cancelDownload = createAsyncThunk(
     }
 
     const wasCancelled = await callCancelDownload(downloadId)
-    if (!wasCancelled) {
-      // Download may have completed before cancellation
-      console.warn(`Download was not found in backend: ${downloadId}`)
-    }
+    // Note: wasCancelled may be false if download completed before cancellation
     return { downloadId, wasCancelled }
   },
 )
