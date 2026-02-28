@@ -53,6 +53,7 @@ I build this as a hobby. No stars, I'll shut it down 😄
 - **One-click setup** - FFmpeg auto-install, no manual configuration needed
 - **History search & export** - Export download history to JSON/CSV
 - **Dark mode support** - Light/dark theme toggle
+- **Ad-free experience** - No ads, no tracking, completely free
 
 ### No Login Required & Privacy First
 

@@ -53,6 +53,7 @@ Desarrollo esto como hobby. Sin estrellas, cerraré el proyecto 😄
 - **Configuración con un clic** - Instalación automática de FFmpeg, sin configuración manual
 - **Búsqueda y exportación de historial** - Exporta el historial de descargas a JSON/CSV
 - **Soporte de modo oscuro** - Alternancia de tema claro/oscuro
+- **Experiencia sin publicidad** - Sin anuncios, sin rastreo, completamente gratis
 
 ### Sin inicio de sesión y privacidad primero
 
