@@ -14,7 +14,7 @@ import { invoke } from '@tauri-apps/api/core'
  * @param videoId - Bilibili video ID (e.g., 'BV1xx411c7XD')
  * @param cid - Video part CID (unique identifier for each part)
  * @param filename - Output filename (without extension)
- * @param quality - Video quality ID (e.g., 80 for 1080p)
+ * @param quality - Video quality ID (e.g., 80 for 1080p), or null for best available
  * @param audioQuality - Audio quality ID (e.g., 30216 for 64K), null for durl format
  * @param downloadId - Unique download ID for tracking
  * @param parentId - Optional parent ID for grouping multi-part downloads
@@ -47,7 +47,7 @@ export const downloadVideo = async (
   videoId: string,
   cid: number,
   filename: string,
-  quality: number,
+  quality: number | null,
   audioQuality: number | null,
   downloadId: string,
   parentId?: string,

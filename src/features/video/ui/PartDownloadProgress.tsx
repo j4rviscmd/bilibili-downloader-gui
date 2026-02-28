@@ -9,7 +9,7 @@ import type { Progress } from '@/shared/ui/Progress'
 import { Button } from '@/shared/ui/button'
 import { invoke } from '@tauri-apps/api/core'
 import { CheckCircle2, Download, FolderOpen, RotateCcw } from 'lucide-react'
-import { useCallback } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { PartDownloadStatus } from '../hooks/usePartDownloadStatus'
 
@@ -202,6 +202,28 @@ export function PartDownloadProgress({
     isCancelled,
   } = status
 
+  // Fade out audio/merge stages when hasEmbeddedAudio switches false → true.
+  // isFadingOut: opacity-0 transition is running (300ms)
+  // isAudioHidden: transition complete, element removed from layout
+  const [isFadingOut, setIsFadingOut] = useState(false)
+  const [isAudioHidden, setIsAudioHidden] = useState(hasEmbeddedAudio)
+  const prevHasEmbeddedAudioRef = useRef(hasEmbeddedAudio)
+  useEffect(() => {
+    const prev = prevHasEmbeddedAudioRef.current
+    prevHasEmbeddedAudioRef.current = hasEmbeddedAudio
+    if (!prev && hasEmbeddedAudio) {
+      setIsFadingOut(true)
+      const timer = setTimeout(() => {
+        setIsFadingOut(false)
+        setIsAudioHidden(true)
+      }, 300)
+      return () => clearTimeout(timer)
+    }
+    if (prev && !hasEmbeddedAudio) {
+      setIsAudioHidden(false)
+    }
+  }, [hasEmbeddedAudio])
+
   const isInMergeStage = progressEntries.some(
     (p) => p.stage === 'merge' && !p.isComplete,
   )
@@ -299,7 +321,37 @@ export function PartDownloadProgress({
         <div
           className={`text-muted-foreground ${MIN_HEIGHT} flex items-center gap-x-3 text-xs`}
         >
-          {hasEmbeddedAudio ? (
+          {/* Audio/merge stages: visible when !hasEmbeddedAudio, fade out on
+              transition. isAudioHidden removes from layout after animation. */}
+          <div
+            className={`flex flex-1 gap-x-3 transition-opacity duration-300 ${
+              isAudioHidden ? 'hidden' : ''
+            } ${isFadingOut ? 'opacity-0' : 'opacity-100'}`}
+          >
+            <div className="flex-1">
+              <StageProgress
+                icon="🔊"
+                labelKey="video.stage_audio"
+                progressEntries={progressEntries}
+                stageName="audio"
+                t={t}
+              />
+            </div>
+            <div className="flex-1">
+              <StageProgress
+                icon="🎬"
+                labelKey="video.stage_video"
+                progressEntries={progressEntries}
+                stageName="video"
+                t={t}
+              />
+            </div>
+            <div className="flex-1">
+              <MergeStageProgress progressEntries={progressEntries} t={t} />
+            </div>
+          </div>
+          {/* Video-only stage: visible when hasEmbeddedAudio and not fading */}
+          {hasEmbeddedAudio && !isFadingOut && (
             <>
               <div className="flex-1">
                 <StageProgress
@@ -312,30 +364,6 @@ export function PartDownloadProgress({
               </div>
               <div className="flex-1" />
               <div className="flex-1" />
-            </>
-          ) : (
-            <>
-              <div className="flex-1">
-                <StageProgress
-                  icon="🔊"
-                  labelKey="video.stage_audio"
-                  progressEntries={progressEntries}
-                  stageName="audio"
-                  t={t}
-                />
-              </div>
-              <div className="flex-1">
-                <StageProgress
-                  icon="🎬"
-                  labelKey="video.stage_video"
-                  progressEntries={progressEntries}
-                  stageName="video"
-                  t={t}
-                />
-              </div>
-              <div className="flex-1">
-                <MergeStageProgress progressEntries={progressEntries} t={t} />
-              </div>
             </>
           )}
 

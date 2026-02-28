@@ -440,7 +440,7 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
           videoId,
           pi.cid,
           pi.title.trim(),
-          parseInt(pi.videoQuality, 10),
+          pi.videoQuality ? parseInt(pi.videoQuality, 10) : null,
           pi.audioQuality ? parseInt(pi.audioQuality, 10) : null,
           downloadId,
           parentId,

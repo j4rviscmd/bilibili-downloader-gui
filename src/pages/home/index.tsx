@@ -10,15 +10,6 @@ import {
   VideoForm1,
   VideoInfoProvider,
 } from '@/features/video'
-import {
-  fetchBangumiPartQualities,
-  fetchPartQualities,
-} from '@/features/video/api/fetchVideoInfo'
-import { createConcurrencyLimiter } from '@/features/video/lib/concurrency'
-import {
-  setPartQualities,
-  setQualitiesLoading,
-} from '@/features/video/model/inputSlice'
 import VideoPartCard from '@/features/video/ui/VideoPartCard'
 import VideoPartCardSkeleton from '@/features/video/ui/VideoPartCardSkeleton'
 import {
@@ -125,15 +116,6 @@ type PaginatedPartListProps = {
 }
 
 /**
- * Concurrency limiter for API calls.
- *
- * Limits quality fetch API calls to 3 concurrent requests
- * to avoid 429 rate limiting.
- * Kept outside component lifecycle to persist across re-renders.
- */
-const qualityLimiter = createConcurrencyLimiter(3)
-
-/**
  * Generates pagination items with ellipsis for large page counts.
  *
  * @param totalPages - Total number of pages
@@ -166,115 +148,10 @@ function generatePaginationItems(
 }
 
 /**
- * Fetches quality info for parts in the specified index range.
- *
- * Skips parts that are already fetched or loading, and limits
- * concurrent execution via the concurrency limiter.
- *
- * @param video - Video information
- * @param startIndex - Start index of the range (inclusive)
- * @param endIndex - End index of the range (inclusive)
- */
-function fetchQualitiesForRange(
-  video: Video,
-  startIndex: number,
-  endIndex: number,
-) {
-  const isBangumi = video.contentType === 'bangumi'
-
-  for (let i = startIndex; i <= endIndex; i++) {
-    const part = video.parts[i]
-    if (!part) continue
-
-    // Get fresh state each iteration
-    const currentState = store.getState()
-    const partInput = currentState.input.partInputs[i]
-
-    // Skip if already fetched (including failed with empty array) or loading
-    if (
-      partInput?.qualitiesLoading ||
-      partInput?.videoQualities !== undefined
-    ) {
-      continue
-    }
-
-    // For bangumi, need epId from the part
-    if (isBangumi && !part.epId) {
-      // Set empty qualities to prevent infinite retry
-      store.dispatch(
-        setPartQualities({
-          index: i,
-          videoQualities: [],
-          audioQualities: [],
-        }),
-      )
-      continue
-    }
-
-    // Note: We don't skip status=13 (VIP-only) episodes here because
-    // VIP members can access them. The playurl API will succeed for
-    // VIP users and fail for non-VIP users. If API fails, the catch
-    // block will set empty qualities and UI will show VIP message.
-
-    store.dispatch(setQualitiesLoading({ index: i, loading: true }))
-
-    const currentIndex = i
-    const epId = part.epId
-    const cid = part.cid
-
-    if (isBangumi && epId) {
-      qualityLimiter
-        .run(() => fetchBangumiPartQualities(epId, cid))
-        .then(([vq, aq, isPreview]) => {
-          store.dispatch(
-            setPartQualities({
-              index: currentIndex,
-              videoQualities: vq,
-              audioQualities: aq,
-              isPreview: isPreview ?? undefined,
-            }),
-          )
-        })
-        .catch(() => {
-          store.dispatch(
-            setPartQualities({
-              index: currentIndex,
-              videoQualities: [],
-              audioQualities: [],
-            }),
-          )
-        })
-    } else {
-      qualityLimiter
-        .run(() => fetchPartQualities(video.bvid, cid))
-        .then(([vq, aq]) => {
-          store.dispatch(
-            setPartQualities({
-              index: currentIndex,
-              videoQualities: vq,
-              audioQualities: aq,
-            }),
-          )
-        })
-        .catch(() => {
-          store.dispatch(
-            setPartQualities({
-              index: currentIndex,
-              videoQualities: [],
-              audioQualities: [],
-            }),
-          )
-        })
-    }
-  }
-}
-
-/**
  * Paginated part list with pagination controls.
  *
- * Displays parts in pages of 10 to avoid 429 rate limiting
- * when fetching quality info. Quality info is fetched when
- * the page changes or on initial load.
+ * Displays parts in pages of 10. Quality info is fetched lazily
+ * when the user opens the options accordion for each part.
  *
  * @param props.video - Video information
  * @param props.duplicateIndices - Indices of parts with duplicate titles
@@ -359,14 +236,6 @@ function PaginatedPartList({
       scrolledKeysRef.current = new Set()
     }
   }, [video.bvid])
-
-  // Fetch qualities on mount and when dependencies change
-  // fetchQualitiesForRange is idempotent - it skips already fetched parts
-  useEffect(() => {
-    if (video.parts.length > 0 && !isFetching) {
-      fetchQualitiesForRange(video, pageRange.startIndex, pageRange.endIndex)
-    }
-  }) // Remove dependency array to run on every render when conditions are met
 
   // Render parts for current page
   const pageParts = useMemo(() => {
@@ -505,37 +374,39 @@ function HomeContentInner() {
     null,
   )
 
-  // Calculate initial page
+  /**
+   * Current page number derived from URL search parameters and Redux state.
+   *
+   * Resolution priority (highest to lowest):
+   * 1. `?page=N` — explicit pagination parameter
+   * 2. `?p=N` — part number parameter (converted to page)
+   * 3. `pendingDownload.page` — pending download from history
+   * 4. `?p=N` embedded in the stored input URL
+   * 5. Default: page 1
+   *
+   * Result is clamped to `[1, totalPages]`.
+   */
   const currentPage = useMemo(() => {
     let page = 1
 
     if (browserPage) {
-      // Use explicit page parameter
       page = parseInt(browserPage, 10)
     } else if (browserP) {
-      // Calculate page from p parameter (part number)
-      const partNum = parseInt(browserP, 10)
-      page = Math.ceil(partNum / PARTS_PER_PAGE)
+      page = Math.ceil(parseInt(browserP, 10) / PARTS_PER_PAGE)
     } else if (input.pendingDownload) {
-      // From favorites/watch history - use pendingDownload.page
-      const partNum = input.pendingDownload.page
-      page = Math.ceil(partNum / PARTS_PER_PAGE)
+      page = Math.ceil(input.pendingDownload.page / PARTS_PER_PAGE)
     } else if (input.url) {
-      // Extract p from input.url (e.g., https://...?p=159)
       try {
-        const urlObj = new URL(input.url)
-        const pParam = urlObj.searchParams.get('p')
+        const pParam = new URL(input.url).searchParams.get('p')
         if (pParam) {
-          const partNum = parseInt(pParam, 10)
-          page = Math.ceil(partNum / PARTS_PER_PAGE)
+          page = Math.ceil(parseInt(pParam, 10) / PARTS_PER_PAGE)
         }
       } catch {
         // Invalid URL, use default
       }
     }
 
-    const clampedPage = Math.max(1, Math.min(page, totalPages || 1))
-    return clampedPage
+    return Math.max(1, Math.min(page, totalPages || 1))
   }, [browserPage, browserP, input.pendingDownload, input.url, totalPages])
 
   // Track scroll request timestamp to ensure each navigation triggers scroll
@@ -544,28 +415,18 @@ function HomeContentInner() {
   // Track previous pendingDownload to detect when it's cleared
   const prevPendingDownloadRef = useRef<typeof input.pendingDownload>(null)
 
-  // Update scrollToPartIndex when dependencies change
-  // Wait for video parts to be loaded before setting scroll target
   useEffect(() => {
-    // Don't set scroll target if video is not loaded yet
-    if (video.parts.length === 0 || isFetching) {
-      return
-    }
+    if (video.parts.length === 0 || isFetching) return
 
     let targetIndex: number | null = null
 
     if (browserP) {
-      // From URL ?p=n parameter
-      const partNum = parseInt(browserP, 10)
-      targetIndex = partNum - 1
+      targetIndex = parseInt(browserP, 10) - 1
     } else if (input.url) {
-      // From input.url ?p=n parameter
       try {
-        const urlObj = new URL(input.url)
-        const pParam = urlObj.searchParams.get('p')
+        const pParam = new URL(input.url).searchParams.get('p')
         if (pParam) {
-          const partNum = parseInt(pParam, 10)
-          targetIndex = partNum - 1
+          targetIndex = parseInt(pParam, 10) - 1
         }
       } catch {
         // Invalid URL
@@ -573,44 +434,39 @@ function HomeContentInner() {
     }
 
     setScrollToPartIndex(targetIndex)
-    // Generate new scroll request ID to trigger scroll
     if (targetIndex !== null) {
       setScrollRequestId((prev) => prev + 1)
     }
   }, [browserP, input.url, video.parts.length, isFetching])
 
-  // Handle scroll target from pendingDownload (favorites/watch history)
-  // Trigger scroll AFTER pendingDownload is cleared (video info fetch complete)
+  // Trigger scroll after pendingDownload is cleared (video info fetch complete)
   useEffect(() => {
     const prevPending = prevPendingDownloadRef.current
     prevPendingDownloadRef.current = input.pendingDownload
 
-    // Don't set scroll target if video is not loaded yet
-    if (video.parts.length === 0 || isFetching) {
-      return
-    }
+    if (video.parts.length === 0 || isFetching) return
 
-    // Trigger scroll when pendingDownload was set and is now cleared
-    // This means video info fetch is complete and parts are initialized
     if (prevPending && !input.pendingDownload) {
-      const partNum = prevPending.page
-      const targetIndex = partNum - 1
+      const targetIndex = prevPending.page - 1
       setScrollToPartIndex(targetIndex)
-      // Generate new scroll request ID to trigger scroll
       setScrollRequestId((prev) => prev + 1)
     }
   }, [input.pendingDownload, video.parts.length, isFetching])
 
-  // Handle page change - update page parameter and scroll to top
+  /**
+   * Handles pagination navigation by updating the `?page=N` URL parameter
+   * and scrolling the part list back to the top.
+   *
+   * Removes the `?p=N` parameter to avoid conflicts with the page parameter.
+   *
+   * @param page - The target page number (1-indexed)
+   */
   const handlePageChange = useCallback(
     (page: number) => {
       const newParams = new URLSearchParams(searchParams)
-      // Remove p parameter when navigating pages
       newParams.delete('p')
-      // Always set page parameter to override input.url's p parameter
       newParams.set('page', String(page))
       setSearchParams(newParams, { replace: true })
-      // Scroll to top of the card content
       const cardContent = document.querySelector('[data-part-list]')
       if (cardContent) {
         cardContent.scrollTop = 0
@@ -619,6 +475,10 @@ function HomeContentInner() {
     [searchParams, setSearchParams],
   )
 
+  /**
+   * Part index range (0-based, inclusive) for the currently visible page.
+   * Used to scope select/deselect operations to the current page only.
+   */
   // Calculate page range for select/deselect operations
   const pageRange = useMemo(() => {
     const startIndex = (currentPage - 1) * PARTS_PER_PAGE
@@ -646,7 +506,6 @@ function HomeContentInner() {
     }
   }, [video.parts.length, currentPage, totalPages, handlePageChange])
 
-  const selectDisabled = hasActiveDownloads
   const selectTooltip = hasActiveDownloads
     ? t('video.download_in_progress')
     : undefined
@@ -724,13 +583,13 @@ function HomeContentInner() {
                     <TooltipButton
                       label={t('video.select_all_page')}
                       onClick={handleSelectAllCurrentPage}
-                      disabled={selectDisabled}
+                      disabled={hasActiveDownloads}
                       tooltip={selectTooltip}
                     />
                     <TooltipButton
                       label={t('video.deselect_all_page')}
                       onClick={handleDeselectAllCurrentPage}
-                      disabled={selectDisabled}
+                      disabled={hasActiveDownloads}
                       tooltip={selectTooltip}
                     />
                   </div>

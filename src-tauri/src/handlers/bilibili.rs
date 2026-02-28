@@ -77,8 +77,10 @@ pub struct DownloadOptions {
     pub cid: i64,
     /// Output filename (extension optional; .mp4 added if missing)
     pub filename: String,
-    /// Video quality ID (falls back to highest quality if unavailable)
-    pub quality: i32,
+    /// Video quality ID. `None` means "best available" (auto-selects highest
+    /// quality). Falls back to highest quality when the specified ID is
+    /// unavailable.
+    pub quality: Option<i32>,
     /// Audio quality ID (optional for durl format where audio is embedded)
     pub audio_quality: Option<i32>,
     /// Unique identifier for tracking this download
@@ -173,10 +175,12 @@ async fn download_bangumi_durl(
     // Get durls array
     let durls = player_result.durls.as_ref().ok_or("ERR::BANGUMI_NO_DASH")?;
 
-    // Find quality entry
+    // Find quality entry (None means best available → -1 won't match any real
+    // quality ID, so or_else falls through to the first/highest entry)
+    let requested_quality = options.quality.unwrap_or(-1);
     let quality_entry = durls
         .iter()
-        .find(|entry| entry.quality == options.quality)
+        .find(|entry| entry.quality == requested_quality)
         .or_else(|| durls.first())
         .ok_or("ERR::QUALITY_NOT_FOUND")?;
 
@@ -383,21 +387,29 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
     let dash_data = data.dash.unwrap();
 
     // 選択品質が存在しなければフォールバック (先頭 = 最も高品質)
-    let (video_url, video_backup_urls, video_quality_fallback) =
-        select_stream_url(&dash_data.video, options.quality)?;
+    // None means best available → -1 won't match any real quality ID.
+    let requested_quality = options.quality.unwrap_or(-1);
+    let (video_url, video_backup_urls, raw_video_fallback) =
+        select_stream_url(&dash_data.video, requested_quality)?;
+    // Only treat as fallback when the user explicitly selected a quality.
+    // When quality is None (accordion never opened), the best-available
+    // selection is intentional and should not trigger the warning icon.
+    let video_quality_fallback = options.quality.is_some() && raw_video_fallback;
     // Get the actual resolved video quality ID
     let resolved_video_quality = dash_data
         .video
         .iter()
         .find(|v| v.base_url == video_url)
         .map(|v| v.id)
-        .unwrap_or(options.quality);
+        .unwrap_or(requested_quality);
 
     let audio_quality = options
         .audio_quality
         .unwrap_or(dash_data.audio.first().map(|a| a.id).unwrap_or(30280));
-    let (audio_url, audio_backup_urls, audio_quality_fallback) =
+    let (audio_url, audio_backup_urls, raw_audio_fallback) =
         select_stream_url(&dash_data.audio, audio_quality)?;
+    // Same logic: only warn when the user explicitly chose an audio quality.
+    let audio_quality_fallback = options.audio_quality.is_some() && raw_audio_fallback;
     // Get the actual resolved audio quality ID
     let resolved_audio_quality = dash_data
         .audio
@@ -662,7 +674,7 @@ mod tests {
 async fn save_to_history(
     app: &AppHandle,
     bvid: &str,
-    quality: i32,
+    quality: Option<i32>,
     file_size: Option<u64>,
     filename: &str,
     thumbnail_url: Option<String>,
@@ -709,7 +721,7 @@ async fn save_to_history(
         downloaded_at: Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
         status: "completed".to_string(),
         file_size,
-        quality: Some(quality_to_string(&quality)),
+        quality: quality.as_ref().map(quality_to_string),
         thumbnail_url,
         version: "1.0".to_string(),
     };
