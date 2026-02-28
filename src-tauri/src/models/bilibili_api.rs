@@ -57,6 +57,8 @@ pub struct WebInterfaceApiResponsePage {
 /// # Note
 ///
 /// The `pages` field may be absent for some videos.
+/// The `redirect_url` field is present when a video redirects to another page
+/// (e.g., bangumi episode or festival page).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WebInterfaceApiResponseData {
     pub title: String,
@@ -64,6 +66,9 @@ pub struct WebInterfaceApiResponseData {
     pub cid: i64,
     #[serde(default)]
     pub pages: Option<Vec<WebInterfaceApiResponsePage>>,
+    /// Redirect URL for special content (e.g., bangumi episode)
+    #[serde(default, rename = "redirect_url")]
+    pub redirect_url: Option<String>,
 }
 
 /// Player API response for DASH streams.

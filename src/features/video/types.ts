@@ -191,6 +191,8 @@ export type ResolvedQuality = {
   audioQuality: number | null
   /** Whether audio quality was fallen back from user selection */
   audioQualityFallback: boolean
+  /** Whether this is a preview (only first 6 minutes available) */
+  isPreview: boolean | null
 }
 
 /**

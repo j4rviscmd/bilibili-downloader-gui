@@ -328,12 +328,16 @@ export const inputSlice = createSlice({
         videoQualityFallback: boolean
         audioQuality: number | null
         audioQualityFallback: boolean
+        isPreview: boolean | null
       }>,
     ) => {
       const { page, ...quality } = action.payload
       const target = state.partInputs[page - 1]
       if (target) {
         target.resolvedQuality = quality
+        if (quality.isPreview !== null) {
+          target.isPreview = quality.isPreview
+        }
       }
     },
     /**
