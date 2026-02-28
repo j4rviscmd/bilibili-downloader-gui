@@ -98,43 +98,25 @@ export const useInit = () => {
    * @returns An object containing status code and optional error detail:
    * - 0: Success
    * - 1: ffmpeg check failed
-   * - 2: Cookie check failed
-   * - 3: User info fetch failed (not logged in)
-   * - 4: User info fetch failed (other error)
-   * - 5: Version check failed
-   * - 255: Unexpected error
    */
   const initApp = async (): Promise<InitResult> => {
-    console.log('Application initialization started')
     // Fire & forget OS detection (don't await)
-    getOs().then((os) => console.log('Detected OS:', os))
+    getOs()
 
     // Clean up orphaned temp files (fire-and-forget, non-blocking)
-    invoke<{ deletedCount: number; failedCount: number }>('cleanup_temp_files')
-      .then((result) => {
-        if (result.deletedCount > 0) {
-          console.log(`Cleaned up ${result.deletedCount} orphaned temp files`)
-        }
-        if (result.failedCount > 0) {
-          console.warn(`Failed to delete ${result.failedCount} temp files`)
-        }
-      })
-      .catch((e) => {
-        console.warn('Temp file cleanup failed:', e)
-      })
+    invoke<{ deletedCount: number; failedCount: number }>(
+      'cleanup_temp_files',
+    ).catch(() => {
+      // Silently ignore cleanup failures
+    })
 
-    // Early exit on version check failure
-    if (!(await checkVersion())) {
-      await finalizeInit(5)
-      return { code: 5 }
-    }
-
+    // Version checking is handled by UpdaterProvider (non-blocking dialog)
     const settings = await getAppSettings()
     await applyLanguageSetting(settings?.language)
 
     // Early exit on ffmpeg check failure
     if (!(await checkFfmpeg())) {
-      await finalizeInit(1)
+      await finalizeInit()
       return { code: 1 }
     }
 
@@ -143,17 +125,16 @@ export const useInit = () => {
     // Fetch user info and store in Redux (hasCookie=false if no cookie)
     await getUserInfo()
 
-    await finalizeInit(0)
+    await finalizeInit()
     return { code: 0 }
   }
 
   /**
    * Finalizes initialization by setting flag and sleeping briefly.
    */
-  const finalizeInit = async (code: number): Promise<void> => {
+  const finalizeInit = async (): Promise<void> => {
     await sleep(500)
     setInitiated(true)
-    console.log('Application initialization completed with code:', code)
   }
 
   /**
@@ -174,8 +155,8 @@ export const useInit = () => {
           setMessage(t('init.applied_language', { lang: language }))
         }
       }
-    } catch (e) {
-      console.warn('Failed to apply language setting', e)
+    } catch {
+      // Silently ignore language setting failures
     }
   }
 
@@ -217,17 +198,6 @@ export const useInit = () => {
     setMessage(t('init.fetch_settings'))
     return getSettings()
   }
-
-  /**
-   * Checks the application version.
-   *
-   * Version checking is handled by UpdaterProvider which displays
-   * a non-blocking dialog when updates are available. This function
-   * always returns true to allow initialization to continue.
-   *
-   * @returns Always true to continue initialization.
-   */
-  const checkVersion = async (): Promise<boolean> => true
 
   /**
    * Validates Bilibili cookies from Firefox.
