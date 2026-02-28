@@ -893,6 +893,8 @@ pub fn build_cookie_header_from_cache(app: &AppHandle) -> Result<String, String>
 /// - Video is not found (`ERR::VIDEO_NOT_FOUND`)
 /// - API request fails (`ERR::API_ERROR`)
 pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String> {
+    use crate::utils::sanitize::apply_title_replacements;
+
     let cookies = read_cookie(app)?.unwrap_or_default();
     let cookie_header = build_cookie_header(&cookies);
     let is_limited_quality = cookie_header.is_empty();
@@ -900,13 +902,22 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
     let res_body = fetch_video_title_by_bvid(id, &cookies).await?;
     let data = res_body.data.as_ref().unwrap();
 
+    // Get settings for title replacement
+    let settings = settings::get_settings(app).await.ok();
+    let replacements = settings
+        .as_ref()
+        .and_then(|s| s.title_replacements.as_deref());
+
+    // Apply title replacement to the main title
+    let sanitized_title = apply_title_replacements(&data.title, replacements);
+
     let pages = data.pages.as_deref().unwrap_or(&[]);
 
     let parts = if pages.is_empty() {
         vec![VideoPart {
             cid: data.cid,
             page: 1,
-            part: data.title.clone(),
+            part: sanitized_title.clone(),
             duration: 0,
             thumbnail: Thumbnail {
                 url: data.pic.clone(),
@@ -933,10 +944,12 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
                 } else {
                     &page.part
                 };
+                // Apply title replacement to part name
+                let sanitized_part = apply_title_replacements(part_name, replacements);
                 VideoPart {
                     cid: page.cid,
                     page: page.page,
-                    part: part_name.to_string(),
+                    part: sanitized_part,
                     duration: page.duration,
                     thumbnail: Thumbnail {
                         url: thumb_url.to_string(),
@@ -954,7 +967,7 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
     };
 
     Ok(Video {
-        title: data.title.clone(),
+        title: sanitized_title,
         bvid: id.to_string(),
         parts,
         is_limited_quality,
@@ -1170,6 +1183,7 @@ fn auto_rename(path: &Path) -> PathBuf {
 ///
 /// Combines the user's configured download directory with the filename.
 /// Automatically appends `.mp4` extension if not already present.
+/// Applies title replacement rules from settings to sanitize the filename.
 ///
 /// # Arguments
 ///

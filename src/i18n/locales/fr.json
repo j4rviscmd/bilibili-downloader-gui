@@ -232,6 +232,25 @@
       "title": "Options de développement",
       "simulate_logout": "Simuler l'état non connecté",
       "simulate_logout_description": "Lorsqu'activé, l'application se comporte comme si vous n'étiez pas connecté (à des fins de test)."
+    },
+    "title_replacement": {
+      "section_label": "Remplacement de caractères du titre",
+      "description": "Personnalisez comment les caractères spéciaux dans les titres de vidéos sont remplacés dans les noms de fichiers.",
+      "from_placeholder": "Caractère ou texte à remplacer",
+      "to_placeholder": "Texte de remplacement (laisser vide pour supprimer)",
+      "add_rule": "Ajouter une règle",
+      "edit_rule": "Modifier",
+      "delete_rule": "Supprimer",
+      "enabled": "Activé",
+      "disabled": "Désactivé",
+      "max_rules_reached": "Maximum 20 règles autorisées",
+      "empty_from": "La cible de remplacement ne peut pas être vide",
+      "rule_limit": "Limite de règles",
+      "default_rules_note": "En l'absence de règles personnalisées, les règles par défaut sont appliquées.",
+      "empty_rules_note": "Aucune règle de remplacement configurée. Ajoutez des règles pour personnaliser le nettoyage des noms de fichiers.",
+      "confirm_delete": "Supprimer cette règle ?",
+      "from_label": "De",
+      "to_label": "Vers"
     }
   },
   "validation": {

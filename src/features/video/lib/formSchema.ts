@@ -72,16 +72,11 @@ let invalidCharsPattern: RegExp = /[\\/:*?"<>|]/ // default (Windows superset)
 
 /**
  * Flag indicating whether OS-specific pattern initialization has occurred.
- *
- * Set to `true` after the first call to `initInvalidPattern()`.
  */
 let initialized = false
 
 /**
  * Initializes the OS-specific invalid filename pattern.
- *
- * Detects the current OS and sets the appropriate regex for forbidden
- * filename characters (Windows vs POSIX).
  *
  * @returns The initialized regex pattern
  */
@@ -90,24 +85,19 @@ const initInvalidPattern = async () => {
   initialized = true
   const os = await getOs()
   if (os === 'windows') {
-    // Windows disallowed: \\ / : * ? " < > | and also trailing dots/spaces (handled separately if needed)
     invalidCharsPattern = /[\\/:*?"<>|]/
   } else {
-    // macOS / Linux: only '/' and NUL (NUL not representable in JS string) and on mac older Finder reserved ':' historically
-    // We'll block '/' and (optionally) '\0' via explicit check
-    invalidCharsPattern = /[\/]/ // eslint-disable-line no-useless-escape
+    invalidCharsPattern = /\//
   }
   return invalidCharsPattern
 }
 
 /**
  * Returns the current invalid filename pattern synchronously.
- *
- * @returns The current invalid chars regex
  */
 const getPatternSync = () => invalidCharsPattern
 
-// Kick off async initialization (fire & forget)
+// Kick off async initialization
 initInvalidPattern().catch(() => {})
 
 /**

@@ -235,6 +235,25 @@
       "title": "開発者オプション",
       "simulate_logout": "非ログイン状態をシミュレート",
       "simulate_logout_description": "有効にすると、アプリはログインしていない状態として動作します（テスト用）。"
+    },
+    "title_replacement": {
+      "section_label": "タイトル文字置換",
+      "description": "動画タイトルに含まれる特殊文字をファイル名でどのように置換するか設定します。",
+      "from_placeholder": "置換する文字またはテキスト",
+      "to_placeholder": "置換後のテキスト（空欄で削除）",
+      "add_rule": "ルールを追加",
+      "edit_rule": "編集",
+      "delete_rule": "削除",
+      "enabled": "有効",
+      "disabled": "無効",
+      "max_rules_reached": "ルールは最大20件までです",
+      "empty_from": "置換対象を入力してください",
+      "rule_limit": "ルール上限",
+      "default_rules_note": "カスタムルールが設定されていない場合、デフォルトルールが適用されます。",
+      "empty_rules_note": "置換ルールが設定されていません。ルールを追加してファイル名のサニタイズをカスタマイズしてください。",
+      "confirm_delete": "このルールを削除しますか？",
+      "from_label": "置換前",
+      "to_label": "置換後"
     }
   },
   "validation": {

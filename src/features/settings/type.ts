@@ -1,4 +1,19 @@
 /**
+ * Title replacement rule for filename sanitization.
+ *
+ * Defines a single character or text replacement rule
+ * that can be enabled or disabled by the user.
+ */
+export interface TitleReplacement {
+  /** Character or text to replace */
+  from: string
+  /** Replacement text (empty string to delete) */
+  to: string
+  /** Whether this rule is active */
+  enabled: boolean
+}
+
+/**
  * Application settings structure.
  *
  * Persisted to the backend as JSON via Tauri commands.
@@ -16,6 +31,13 @@ export interface Settings {
    * a different drive or location with more storage space.
    */
   libPath?: string
+  /**
+   * Custom title replacement rules for filename sanitization.
+   *
+   * If not specified, backend uses default replacements.
+   * Maximum 20 rules allowed.
+   */
+  titleReplacements?: TitleReplacement[]
   // Frontendのみの管理につき、localStorageでのみ保存している
   // TODO: themeをjson管理
   // theme: 'light' | 'dark'
