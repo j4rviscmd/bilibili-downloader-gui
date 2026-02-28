@@ -232,6 +232,25 @@
       "title": "개발자 옵션",
       "simulate_logout": "비로그인 상태 시뮬레이션",
       "simulate_logout_description": "활성화하면 앱이 로그인하지 않은 상태로 실행됩니다(테스트용)."
+    },
+    "title_replacement": {
+      "section_label": "제목 문자 치환",
+      "description": "비디오 제목의 특수 문자가 파일명에서 어떻게 치환되는지 사용자 정의합니다.",
+      "from_placeholder": "치환할 문자 또는 텍스트",
+      "to_placeholder": "치환 후 텍스트 (비워두면 삭제)",
+      "add_rule": "규칙 추가",
+      "edit_rule": "편집",
+      "delete_rule": "삭제",
+      "enabled": "활성화",
+      "disabled": "비활성화",
+      "max_rules_reached": "최대 20개 규칙까지 허용됩니다",
+      "empty_from": "치환 대상을 입력하세요",
+      "rule_limit": "규칙 한도",
+      "default_rules_note": "사용자 정의 규칙이 없으면 기본 규칙이 적용됩니다.",
+      "empty_rules_note": "치환 규칙이 설정되지 않았습니다. 규칙을 추가하여 파일 이름 정리를 사용자 정의하세요.",
+      "confirm_delete": "이 규칙을 삭제하시겠습니까?",
+      "from_label": "원본",
+      "to_label": "치환"
     }
   },
   "validation": {

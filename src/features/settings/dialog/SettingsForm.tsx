@@ -12,6 +12,7 @@ import {
 } from '@/features/settings/dialog/formSchema'
 import { languages } from '@/features/settings/language/languages'
 import { DevOptions } from '@/features/settings/ui/DevOptions'
+import { TitleReplacementSettings } from '@/features/settings/ui/TitleReplacementSettings'
 import { UpdateCheckButton } from '@/features/settings/ui/UpdateCheckButton'
 import { useSettings } from '@/features/settings/useSettings'
 import {
@@ -269,6 +270,8 @@ function SettingsForm() {
             </FormItem>
           )}
         />
+        <Separator />
+        <TitleReplacementSettings />
         <Separator />
         <div className="space-y-2">
           <Label>{t('settings.lib_path_label')}</Label>

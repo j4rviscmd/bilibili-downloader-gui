@@ -235,6 +235,25 @@
       "title": "Developer Options",
       "simulate_logout": "Simulate non-logged-in state",
       "simulate_logout_description": "When enabled, the app behaves as if you are not logged in (for testing purposes)."
+    },
+    "title_replacement": {
+      "section_label": "Title Character Replacement",
+      "description": "Customize how special characters in video titles are replaced in filenames.",
+      "from_placeholder": "Character or text to replace",
+      "to_placeholder": "Replacement text (leave empty to delete)",
+      "add_rule": "Add Rule",
+      "edit_rule": "Edit",
+      "delete_rule": "Delete",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "max_rules_reached": "Maximum 20 rules allowed",
+      "empty_from": "Replacement target cannot be empty",
+      "rule_limit": "Rule limit",
+      "default_rules_note": "Default rules are applied when no custom rules are set.",
+      "empty_rules_note": "No replacement rules configured. Add rules to customize filename sanitization.",
+      "confirm_delete": "Delete this rule?",
+      "from_label": "From",
+      "to_label": "To"
     }
   },
   "validation": {

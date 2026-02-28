@@ -232,6 +232,25 @@
       "title": "开发者选项",
       "simulate_logout": "模拟未登录状态",
       "simulate_logout_description": "启用后，应用将以未登录状态运行（用于测试）。"
+    },
+    "title_replacement": {
+      "section_label": "标题字符替换",
+      "description": "自定义视频标题中的特殊字符在文件名中如何替换。",
+      "from_placeholder": "要替换的字符或文本",
+      "to_placeholder": "替换后的文本（留空则删除）",
+      "add_rule": "添加规则",
+      "edit_rule": "编辑",
+      "delete_rule": "删除",
+      "enabled": "启用",
+      "disabled": "禁用",
+      "max_rules_reached": "最多允许20条规则",
+      "empty_from": "替换目标不能为空",
+      "rule_limit": "规则上限",
+      "default_rules_note": "未设置自定义规则时，将应用默认规则。",
+      "empty_rules_note": "未配置替换规则。添加规则以自定义文件名清理。",
+      "confirm_delete": "确定删除此规则？",
+      "from_label": "原字符",
+      "to_label": "替换为"
     }
   },
   "validation": {

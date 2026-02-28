@@ -232,6 +232,25 @@
       "title": "Opciones de desarrollo",
       "simulate_logout": "Simular estado sin sesión iniciada",
       "simulate_logout_description": "Cuando está habilitado, la aplicación funciona como si no hubieras iniciado sesión (para pruebas)."
+    },
+    "title_replacement": {
+      "section_label": "Reemplazo de caracteres del título",
+      "description": "Personaliza cómo los caracteres especiales en los títulos de videos se reemplazan en los nombres de archivo.",
+      "from_placeholder": "Carácter o texto a reemplazar",
+      "to_placeholder": "Texto de reemplazo (dejar vacío para eliminar)",
+      "add_rule": "Agregar regla",
+      "edit_rule": "Editar",
+      "delete_rule": "Eliminar",
+      "enabled": "Habilitado",
+      "disabled": "Deshabilitado",
+      "max_rules_reached": "Se permiten máximo 20 reglas",
+      "empty_from": "El objetivo de reemplazo no puede estar vacío",
+      "rule_limit": "Límite de reglas",
+      "default_rules_note": "Cuando no hay reglas personalizadas, se aplican las reglas por defecto.",
+      "empty_rules_note": "No hay reglas de reemplazo configuradas. Añade reglas para personalizar la sanitización de nombres de archivo.",
+      "confirm_delete": "¿Eliminar esta regla?",
+      "from_label": "De",
+      "to_label": "A"
     }
   },
   "validation": {
