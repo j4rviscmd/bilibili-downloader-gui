@@ -17,11 +17,7 @@ const MIN_HEIGHT = 'min-h-[33px]'
 
 /**
  * Formats transfer rate in human-readable units.
- *
  * Converts kilobytes per second to KB/s or MB/s depending on size.
- *
- * @param kb - Transfer rate in kilobytes per second
- * @returns Formatted string with units (e.g., "500KB/s", "2.5MB/s")
  */
 function formatTransferRate(kb: number): string {
   if (kb < 1000) {
@@ -30,9 +26,6 @@ function formatTransferRate(kb: number): string {
   return `${(kb / 1024).toFixed(1)}MB/s`
 }
 
-/**
- * Props for stage progress display.
- */
 type StageProgressProps = {
   icon: string
   labelKey: string
@@ -44,9 +37,7 @@ type StageProgressProps = {
 
 /**
  * Tooltip wrapper for stage icons.
- *
  * Displays an emoji icon with a hover tooltip showing the stage label.
- * Optionally applies medium font weight to highlight active stages.
  */
 function StageIcon({
   icon,
@@ -76,7 +67,6 @@ function StageIcon({
 
 /**
  * Renders progress display for a single download stage.
- *
  * Shows either waiting state (icon only) or active progress (icon + percentage + speed + file size).
  */
 function StageProgress({
@@ -116,9 +106,6 @@ function StageProgress({
   )
 }
 
-/**
- * Props for merge stage progress display.
- */
 type MergeStageProgressProps = {
   progressEntries: Progress[]
   t: (key: string) => string
@@ -126,12 +113,7 @@ type MergeStageProgressProps = {
 
 /**
  * Renders progress display for the merge stage.
- *
- * The merge stage has special conditional logic based on audio/video completion:
- * - **Active merge**: Shows percentage when merge is in progress
- * - **Merging state**: Shows "merging" status when both audio and video are complete but no merge progress yet
- * - **Waiting state**: Shows "waiting" status when audio or video is still downloading
- * - **Hidden**: Returns null when no relevant progress exists
+ * Has special conditional logic based on audio/video completion.
  */
 function MergeStageProgress({ progressEntries, t }: MergeStageProgressProps) {
   const mergeProgress = progressEntries.find((p) => p.stage === 'merge')
@@ -139,7 +121,6 @@ function MergeStageProgress({ progressEntries, t }: MergeStageProgressProps) {
   const videoProgress = progressEntries.find((p) => p.stage === 'video')
   const mergeLabel = t('video.stage_merge')
 
-  // Active merge with percentage
   if (mergeProgress) {
     return (
       <div
@@ -156,7 +137,6 @@ function MergeStageProgress({ progressEntries, t }: MergeStageProgressProps) {
   const audioComplete = (audioProgress?.percentage ?? 0) >= 100
   const videoComplete = (videoProgress?.percentage ?? 0) >= 100
 
-  // Both complete - merging state
   if (audioComplete && videoComplete) {
     return (
       <div
@@ -170,7 +150,6 @@ function MergeStageProgress({ progressEntries, t }: MergeStageProgressProps) {
     )
   }
 
-  // Audio or video in progress - waiting state
   if (audioProgress || videoProgress) {
     return (
       <div
@@ -200,12 +179,7 @@ type Props = {
 
 /**
  * Component displaying download progress for a video part.
- *
- * Displays the following states:
- * - Pending: Grayed-out progress bar with "Waiting..." and cancel button
- * - Running: Progress bar with percentage, speed, remaining time, and cancel button
- * - Complete: Green checkmark with action buttons (open file/folder, redownload)
- * - Error: Error message with retry button
+ * Displays: Pending, Running, Complete, Error, Cancelling, or Cancelled states.
  */
 export function PartDownloadProgress({
   status,
@@ -228,12 +202,10 @@ export function PartDownloadProgress({
     isCancelled,
   } = status
 
-  // Check if currently in merge stage (not cancellable)
   const isInMergeStage = progressEntries.some(
     (p) => p.stage === 'merge' && !p.isComplete,
   )
 
-  // Can cancel if pending/downloading and not in merge stage
   const canCancel = (isPending || isDownloading) && !isInMergeStage && onCancel
 
   const handleOpenFile = useCallback(async () => {
@@ -254,7 +226,6 @@ export function PartDownloadProgress({
     onRedownload()
   }, [onRedownload])
 
-  // No download in progress
   if (
     !isPending &&
     !isDownloading &&
@@ -267,7 +238,6 @@ export function PartDownloadProgress({
 
   return (
     <div className="bg-muted/50 mt-2 space-y-2 rounded-md p-2">
-      {/* Complete View - highest priority */}
       {isComplete && (
         <div className={`flex ${MIN_HEIGHT} items-center justify-between`}>
           <div className="flex items-center gap-2 text-sm">
@@ -308,7 +278,6 @@ export function PartDownloadProgress({
         </div>
       )}
 
-      {/* Error View - second priority */}
       {hasError && (
         <div className={`flex ${MIN_HEIGHT} items-center justify-between`}>
           <div className="text-destructive flex items-center gap-2 text-sm">
@@ -326,7 +295,6 @@ export function PartDownloadProgress({
         </div>
       )}
 
-      {/* Running View - third priority */}
       {isDownloading && (
         <div
           className={`text-muted-foreground ${MIN_HEIGHT} flex items-center gap-x-3 text-xs`}
@@ -356,7 +324,6 @@ export function PartDownloadProgress({
                   t={t}
                 />
               </div>
-
               <div className="flex-1">
                 <StageProgress
                   icon="🎬"
@@ -366,15 +333,12 @@ export function PartDownloadProgress({
                   t={t}
                 />
               </div>
-
               <div className="flex-1">
-                {/* Merge Stage - has special logic for merging state */}
                 <MergeStageProgress progressEntries={progressEntries} t={t} />
               </div>
             </>
           )}
 
-          {/* Cancel button - inline */}
           {canCancel && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -395,17 +359,15 @@ export function PartDownloadProgress({
         </div>
       )}
 
-      {/* Cancelling View */}
       {isCancelling && (
         <div
           className={`text-muted-foreground ${MIN_HEIGHT} flex items-center gap-2 text-sm`}
         >
           <div className="h-2 w-2 animate-pulse rounded-full bg-current" />
-          <span>{t('video.cancelling') || 'Cancelling...'}</span>
+          <span>{t('video.download_cancelling')}</span>
         </div>
       )}
 
-      {/* Cancelled View */}
       {isCancelled && (
         <div
           className={`text-muted-foreground ${MIN_HEIGHT} flex items-center justify-between text-sm`}
@@ -423,14 +385,12 @@ export function PartDownloadProgress({
         </div>
       )}
 
-      {/* Pending View - lowest priority */}
       {(isPending || isWaitingForTurn) && !isCancelling && (
         <div
           className={`text-muted-foreground ${MIN_HEIGHT} flex items-center gap-2 text-sm`}
         >
           <div className="h-2 w-2 animate-pulse rounded-full bg-current" />
           <span>{t('video.download_pending')}</span>
-          {/* Cancel button with label */}
           {onCancel && (
             <Button
               variant="ghost"
