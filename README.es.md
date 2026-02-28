@@ -40,10 +40,12 @@ Desarrollo esto como hobby. Sin estrellas, cerraré el proyecto 😄
 
 ### Descarga
 
-- **Descarga de video de alta calidad** - Elige cualquier calidad: 4K/1080p/720p
+- **Descarga de video de alta calidad** - Elige cualquier calidad: 4K/1080p/720p/HDR
 - **Guardado por lotes de videos multiparte** - Descarga automáticamente todas las partes de cursos, series, etc.
-- **Descargas rápidas y estables** - Cambio automático de CDN cuando es lento, hasta 5 reintentos
+- **Descargas rápidas y estables** - Cambio automático de CDN
 - **Procesamiento en segundo plano** - Gestión de cola con progreso en tiempo real
+- **Incrustación de subtítulos** - Selección de subtítulos blandos/duros con soporte multiidioma
+- **Audio de alta resolución** - Compatible con Dolby Atmos y Hi-Res Lossless
 
 ### Facilidad de uso
 

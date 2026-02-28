@@ -40,10 +40,12 @@ I build this as a hobby. No stars, I'll shut it down 😄
 
 ### Download
 
-- **High-quality video download** - Choose any quality from 4K/1080p/720p
+- **High-quality video download** - Choose any quality from 4K/1080p/720p/HDR
 - **Multi-part video batch save** - Automatically download all parts of courses, series, etc.
-- **Fast & stable downloads** - Auto CDN switching when slow, up to 5 retries
+- **Fast & stable downloads** - Auto CDN switching
 - **Background processing** - Queue management with real-time progress
+- **Subtitle embedding** - Soft/hard subtitle selection with multi-language support
+- **Hi-Res Audio** - Dolby Atmos and Hi-Res Lossless audio quality support
 
 ### Ease of Use
 
