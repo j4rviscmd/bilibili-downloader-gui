@@ -40,10 +40,12 @@ Je développe cela en tant que loisir. Sans étoiles, je fermerai le projet 😄
 
 ### Téléchargement
 
-- **Téléchargement vidéo haute qualité** - Choisissez n'importe quelle qualité : 4K/1080p/720p
+- **Téléchargement vidéo haute qualité** - Choisissez n'importe quelle qualité : 4K/1080p/720p/HDR
 - **Sauvegarde par lot de vidéos multi-parties** - Téléchargez automatiquement toutes les parties de cours, séries, etc.
-- **Téléchargements rapides et stables** - Changement automatique de CDN si lent, jusqu'à 5 tentatives
+- **Téléchargements rapides et stables** - Changement automatique de CDN
 - **Traitement en arrière-plan** - Gestion de file avec progression en temps réel
+- **Incorporation de sous-titres** - Sélection de sous-titres souples/durs avec support multilingue
+- **Audio haute résolution** - Prise en charge Dolby Atmos et Hi-Res Lossless
 
 ### Facilité d'utilisation
 
