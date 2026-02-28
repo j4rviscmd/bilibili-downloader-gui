@@ -45,6 +45,8 @@ pub struct QualityResolvedPayload {
     pub audio_quality: Option<i32>,
     /// Whether audio quality was fallen back from user selection
     pub audio_quality_fallback: bool,
+    /// Whether this is a preview (only first 6 minutes available)
+    pub is_preview: Option<bool>,
 }
 
 /// Payload for subtitle resolved event.
@@ -153,6 +155,29 @@ fn check_http_status(status: reqwest::StatusCode) -> Result<(), String> {
     }
 }
 
+/// Extracts bangumi episode ID from a redirect URL.
+///
+/// Parses URLs like `https://www.bilibili.com/bangumi/play/ep3051843`
+/// and returns the episode ID (3051843).
+///
+/// # Arguments
+///
+/// * `url` - The redirect URL to parse
+///
+/// # Returns
+///
+/// Returns `Some(ep_id)` if the URL matches the bangumi pattern, `None` otherwise.
+fn extract_bangumi_ep_id(url: &str) -> Option<i64> {
+    url.split("/bangumi/play/ep").nth(1).and_then(|suffix| {
+        suffix
+            .chars()
+            .take_while(|c| c.is_ascii_digit())
+            .collect::<String>()
+            .parse()
+            .ok()
+    })
+}
+
 /// Downloads a bangumi episode using durl format (MP4 direct URL).
 /// This is used when DASH format is not available for bangumi content.
 ///
@@ -171,6 +196,9 @@ async fn download_bangumi_durl(
     let _cancel_token = DOWNLOAD_CANCEL_REGISTRY
         .register(&options.download_id)
         .await;
+
+    // Extract is_preview info before moving player_result
+    let is_preview = player_result.is_preview.map(|v| v == 1);
 
     // Get durls array
     let durls = player_result.durls.as_ref().ok_or("ERR::BANGUMI_NO_DASH")?;
@@ -191,6 +219,24 @@ async fn download_bangumi_durl(
         .backup_url
         .as_ref()
         .map(|urls| urls.iter().map(|s| s.to_string()).collect());
+
+    // Emit quality resolved event to frontend
+    let resolved_quality = quality_entry.quality;
+    let page = options.page.unwrap_or(1);
+    app.emit(
+        "download-quality-resolved",
+        QualityResolvedPayload {
+            download_id: options.download_id.clone(),
+            page,
+            video_quality: resolved_quality,
+            video_quality_fallback: options.quality.is_some()
+                && options.quality != Some(resolved_quality),
+            audio_quality: None, // durl format has no separate audio
+            audio_quality_fallback: false,
+            is_preview,
+        },
+    )
+    .ok();
 
     // Capacity check
     if let Some(vs) = head_content_length(video_url, Some(cookie_header)).await {
@@ -293,9 +339,10 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
     let cookies = read_cookie(app)?.unwrap_or_default();
     let cookie_header = build_cookie_header(&cookies);
 
-    // 3. バンガミの場合、durl形式かどうかチェック
-    if let Some(ep_id) = options.ep_id {
+    // 3. バンガミの場合、プレイヤー結果を取得してis_previewとdurl形式をチェック
+    let bangumi_preview_info: Option<bool> = if let Some(ep_id) = options.ep_id {
         let player_result = fetch_bangumi_player_result(&cookies, ep_id, options.cid).await?;
+        let is_preview = player_result.is_preview.map(|v| v == 1);
 
         // durl形式（MP4直接URL）の場合
         if player_result.dash.is_none() {
@@ -308,7 +355,10 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
             )
             .await;
         }
-    }
+        is_preview
+    } else {
+        None
+    };
 
     // 4. 動画詳細取得 (選択品質のURL抽出) - DASH形式
     let details = if let Some(ep_id) = options.ep_id {
@@ -428,6 +478,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
             video_quality_fallback,
             audio_quality: resolved_audio_quality,
             audio_quality_fallback,
+            is_preview: bangumi_preview_info,
         },
     )
     .ok();
@@ -913,6 +964,13 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
 
     let res_body = fetch_video_title_by_bvid(id, &cookies).await?;
     let data = res_body.data.as_ref().unwrap();
+
+    // Check if this video redirects to a bangumi episode
+    if let Some(redirect_url) = &data.redirect_url {
+        if let Some(ep_id) = extract_bangumi_ep_id(redirect_url) {
+            return fetch_bangumi_info(app, ep_id).await;
+        }
+    }
 
     // Get settings for title replacement
     let settings = settings::get_settings(app).await.ok();

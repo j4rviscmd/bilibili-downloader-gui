@@ -116,23 +116,7 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
       unlistenQualityResolved = await listen<QualityResolvedPayload>(
         'download-quality-resolved',
         (event) => {
-          const {
-            page,
-            videoQuality,
-            videoQualityFallback,
-            audioQuality,
-            audioQualityFallback,
-          } = event.payload
-          store.dispatch(
-            setResolvedQuality({
-              page,
-              videoQuality,
-              videoQualityFallback,
-              audioQuality,
-              audioQualityFallback,
-            }),
-          )
-          // Close all accordions when download starts
+          store.dispatch(setResolvedQuality(event.payload))
           store.dispatch(closeAllAccordions())
         },
       )
