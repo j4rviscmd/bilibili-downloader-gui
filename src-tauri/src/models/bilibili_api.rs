@@ -387,21 +387,34 @@ pub struct PlayerV2SubtitleItem {
 /// BCC format subtitle data.
 ///
 /// Bilibili's native subtitle format stored as JSON.
+/// AI subtitles may have additional fields (type, lang, version) which are ignored.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BccSubtitle {
     /// Font size (typically 0.4)
+    #[serde(default)]
     pub font_size: f32,
     /// Font color (typically "0xFFFFFF")
+    #[serde(default = "default_font_color")]
     pub font_color: String,
     /// Background alpha (typically 0.5)
+    #[serde(default)]
     pub background_alpha: f32,
     /// Background color (typically "0x000000")
+    #[serde(default = "default_background_color")]
     pub background_color: String,
     /// Stroke color (typically "none")
-    #[serde(rename = "Stroke")]
+    #[serde(rename = "Stroke", default)]
     pub stroke: String,
     /// Subtitle body containing text entries
     pub body: Vec<BccSubtitleBody>,
+}
+
+fn default_font_color() -> String {
+    "0xFFFFFF".to_string()
+}
+
+fn default_background_color() -> String {
+    "0x000000".to_string()
 }
 
 /// Individual subtitle entry in BCC format.
