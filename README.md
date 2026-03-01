@@ -1,4 +1,7 @@
-# BILIBILI-DOWNLOADER-GUI
+![App Image(searched)](<public/app-image(searched)_en.png>)
+![App Image(merged)](<public/app-image(merging)_en.png>)
+
+# BiliBili Downloader GUI
 
 [English](README.md) | [日本語](README.ja.md) | [简体中文](README.zh.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Français](README.fr.md)
 
@@ -10,20 +13,9 @@
 [![Last Commit](https://img.shields.io/github/last-commit/j4rviscmd/bilibili-downloader-gui/main?style=flat-square&label=Last%20Update)](https://github.com/j4rviscmd/bilibili-downloader-gui/commits/main)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 
-<table width="100%">
-  <tr>
-    <td width="80%">
-      <p><strong>Windows and macOS Bilibili video downloader GUI.</strong></p>
-      <p>No configuration needed. Install and start downloading videos right away.</p>
-    </td>
-    <td width="20%">
-      <img src="public/icon.png" alt="App Icon" width="128">
-    </td>
-  </tr>
-</table>
+**Windows and macOS Bilibili video downloader GUI.**
 
-![App Image(searched)](<public/app-image(searched)_en.png>)
-![App Image(merged)](<public/app-image(merging)_en.png>)
+No configuration needed. Install and start downloading videos right away.
 
 > [!WARNING]
 > This app is intended for educational and personal use. Respect the terms of service and copyright laws. Do not download or redistribute content without permission from rights holders.
