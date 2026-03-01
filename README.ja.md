@@ -1,64 +1,52 @@
-# BILIBILI-DOWNLOADER-GUI
+<div align="center">
+
+# Bilibili Downloader GUI
+
+![App Image](<public/app-image(searched)_en.png>)
 
 [English](README.md) | [日本語](README.ja.md) | [简体中文](README.zh.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Français](README.fr.md)
 
-[![Windows](https://img.shields.io/badge/Windows-対応-0078D6?style=flat-square&logo=windows)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest)
-[![macOS](https://img.shields.io/badge/macOS-対応-000000?style=flat-square&logo=apple)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest)
-![Downloads](https://img.shields.io/github/downloads/j4rviscmd/bilibili-downloader-gui/total?style=flat-square&label=ダウンロード)
-[![Latest Release](https://img.shields.io/github/v/release/j4rviscmd/bilibili-downloader-gui?style=flat-square&label=最新版)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest)
-[![CI](https://github.com/j4rviscmd/bilibili-downloader-gui/actions/workflows/ci.yml/badge.svg)](https://github.com/j4rviscmd/bilibili-downloader-gui/actions/workflows/ci.yml)
-[![Last Commit](https://img.shields.io/github/last-commit/j4rviscmd/bilibili-downloader-gui/main?style=flat-square&label=最終更新)](https://github.com/j4rviscmd/bilibili-downloader-gui/commits/main)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
+[![Windows](https://img.shields.io/badge/Windows-Supported-0078D6?style=for-the-badge&logo=data:image/svg%2bxml;base64,PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+V2luZG93cyAxMTwvdGl0bGU+PHBhdGggZmlsbD0iIzAwQTRFRiIgZD0iTTAsMEgxMS4zNzdWMTEuMzcySDBaTTEyLjYyMywwSDI0VjExLjM3MkgxMi42MjNaTTAsMTIuNjIzSDExLjM3N1YyNEgwWm0xMi42MjMsMEgyNFYyNEgxMi42MjMiLz48L3N2Zz4=)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest)
+[![macOS](https://img.shields.io/badge/macOS-Supported-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/j4rviscmd/bilibili-downloader-gui/total?style=for-the-badge&color=blue&logo=github&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases)
+[![Latest Release](https://img.shields.io/github/v/release/j4rviscmd/bilibili-downloader-gui?style=for-the-badge&color=green&label=Latest&logo=github&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest)
+[![Last Commit](https://img.shields.io/github/last-commit/j4rviscmd/bilibili-downloader-gui/main?style=for-the-badge&color=blue&label=Last%20Update&logo=git&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/commits/main)
+[![CI](https://img.shields.io/github/actions/workflow/status/j4rviscmd/bilibili-downloader-gui/ci.yml?style=for-the-badge&label=CI&color=brightgreen&logo=githubactions&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge&logo=opensourceinitiative&logoColor=white)](LICENSE)
 
-<table width="100%">
-  <tr>
-    <td width="80%">
-      <p><strong>Windows / macOS対応のBilibili動画ダウンローダーGUIアプリ</strong></p>
-      <p>設定不要。インストールするだけですぐ使える動画ダウンローダー</p>
-    </td>
-    <td width="20%">
-      <img src="public/icon.png" alt="App Icon" width="128">
-    </td>
-  </tr>
-</table>
+**Windows/macOS対応のBilibili動画ダウンローダーGUIアプリ**
 
-![アプリ画像（検索）](<public/app-image(searched)_en.png>)
-![アプリ画像（マージ中）](<public/app-image(merging)_en.png>)
+広告なし、追跡なし。100%無料。
+
+</div>
 
 > [!WARNING]
-> このアプリは教育目的および個人利用を目的としています。利用規約と著作権法を遵守してください。権利者の許可なくコンテンツをダウンロードまたは再配布しないでください。
-
-## ⭐ このリポジトリにスターをお願いします
-
-趣味で開発してます。スターなければ閉鎖します 😄
-
-<div align="center">
-  <img src="assets/star-github.gif" alt="Star">
-</div>
+> このアプリは教育目的および個人利用を目的としています。利用規約と著作権法を遵守してください。
+> 権利者の許可なくコンテンツをダウンロードまたは再配布しないでください。
 
 ## 機能
 
 ### ダウンロード
 
-- **高品質動画のダウンロード** - 4K/1080p/720p/HDRなど任意の品質を選択可能
-- **マルチパート動画の一括保存** - 講義・番組など複数パート構成も自動で全話ダウンロード
-- **高速・安定ダウンロード** - 低速時に自動でCDNを切り替え
-- **バックグラウンド処理** - キュー管理で複数動画を順次ダウンロード、進捗はリアルタイム表示
+- **高品質動画ダウンロード** - 4K/1080p/720p/HDRから任意の画質を選択可能
+- **マルチパート動画一括保存** - 講座、シリーズなどすべてのパートを自動ダウンロード
+- **高速・安定ダウンロード** - CDN自動切り替え
+- **バックグラウンド処理** - リアルタイム進捗表示付きキュー管理
 - **字幕埋め込み** - ソフト/ハード字幕選択、多言語対応
-- **ハイレゾ音声** - Dolby Atmos、Hi-Res Lossless対応
+- **ハイレゾ音声** - Dolby Atmosおよびハイレゾロスレス音質サポート
 
 ### 使いやすさ
 
-- **6言語対応UI** - English / 日本語 / Français / Español / 中文 / 한국어
-- **ワンクリックセットアップ** - FFmpegは自動インストール、面倒な設定不要
-- **履歴検索・エクスポート** - ダウンロード履歴をJSON/CSVで出力、検索も可能
+- **6言語UI** - 英語 / 日本語 / フランス語 / スペイン語 / 中国語 / 韓国語
+- **ワンクリックセットアップ** - FFmpeg自動インストール、手動設定不要
+- **履歴検索・エクスポート** - ダウンロード履歴をJSON/CSVにエクスポート
 - **ダークモード対応** - ライト/ダークテーマ切り替え
-- **広告なし** - 広告なし、トラッキングなし、完全無料
+- **広告なし体験** - 広告なし、追跡なし、完全無料
 
-### ログイン不要・プライバシー重視
+### ログイン不要・プライバシー優先
 
-- **Firefox Cookie自動検出** - 手動ログイン作業なしで高画質ダウンロード可能
-- **ローカル完結** - すべてのデータはお使いのPCにのみ保存
+- **Firefox Cookie自動検出** - 手動ログインなしで高品質ダウンロード
+- **ローカルのみ保存** - すべてのデータはPC内にのみ保存
 
 ## インストール
 
@@ -75,17 +63,17 @@
 - **MSI**（代替）: `bilibili-downloader-gui_<version>_x64_en-US.msi`
 
 > [!NOTE]
-> macOSビルドは署名されていません。初回起動時は以下を実行してください:
+> macOSビルドは署名されていません。初回起動時に以下を実行してください：
 >
 > ```bash
 > xattr -dr com.apple.quarantine "/Applications/bilibili-downloader-gui.app"
 > ```
 
-## コントリビュート
+## コントリビューション
 
-IssueとPRを歓迎します。
+IssueやPRは歓迎します。
 
-翻訳の貢献も大歓迎です — 詳細は[CONTRIBUTING.md](./CONTRIBUTING.md)をご覧ください。
+翻訳も大歓迎です — 開発環境セットアップとガイドラインについては[CONTRIBUTING.md](./CONTRIBUTING.md)を参照してください。
 
 ## 謝辞
 

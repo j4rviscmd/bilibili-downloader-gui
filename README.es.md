@@ -1,40 +1,28 @@
-# BILIBILI-DOWNLOADER-GUI
+<div align="center">
+
+# Bilibili Downloader GUI
+
+![App Image](<public/app-image(searched)_en.png>)
 
 [English](README.md) | [日本語](README.ja.md) | [简体中文](README.zh.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Français](README.fr.md)
 
-[![Windows](https://img.shields.io/badge/Windows-Compatible-0078D6?style=flat-square&logo=windows)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest)
-[![macOS](https://img.shields.io/badge/macOS-Compatible-000000?style=flat-square&logo=apple)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest)
-![Downloads](https://img.shields.io/github/downloads/j4rviscmd/bilibili-downloader-gui/total?style=flat-square&label=Descargas)
-[![Latest Release](https://img.shields.io/github/v/release/j4rviscmd/bilibili-downloader-gui?style=flat-square&label=Último)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest)
-[![CI](https://github.com/j4rviscmd/bilibili-downloader-gui/actions/workflows/ci.yml/badge.svg)](https://github.com/j4rviscmd/bilibili-downloader-gui/actions/workflows/ci.yml)
-[![Last Commit](https://img.shields.io/github/last-commit/j4rviscmd/bilibili-downloader-gui/main?style=flat-square&label=Última%20actualización)](https://github.com/j4rviscmd/bilibili-downloader-gui/commits/main)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
+[![Windows](https://img.shields.io/badge/Windows-Supported-0078D6?style=for-the-badge&logo=data:image/svg%2bxml;base64,PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+V2luZG93cyAxMTwvdGl0bGU+PHBhdGggZmlsbD0iIzAwQTRFRiIgZD0iTTAsMEgxMS4zNzdWMTEuMzcySDBaTTEyLjYyMywwSDI0VjExLjM3MkgxMi42MjNaTTAsMTIuNjIzSDExLjM3N1YyNEgwWm0xMi42MjMsMEgyNFYyNEgxMi42MjMiLz48L3N2Zz4=)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest)
+[![macOS](https://img.shields.io/badge/macOS-Supported-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/j4rviscmd/bilibili-downloader-gui/total?style=for-the-badge&color=blue&logo=github&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases)
+[![Latest Release](https://img.shields.io/github/v/release/j4rviscmd/bilibili-downloader-gui?style=for-the-badge&color=green&label=Latest&logo=github&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest)
+[![Last Commit](https://img.shields.io/github/last-commit/j4rviscmd/bilibili-downloader-gui/main?style=for-the-badge&color=blue&label=Last%20Update&logo=git&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/commits/main)
+[![CI](https://img.shields.io/github/actions/workflow/status/j4rviscmd/bilibili-downloader-gui/ci.yml?style=for-the-badge&label=CI&color=brightgreen&logo=githubactions&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge&logo=opensourceinitiative&logoColor=white)](LICENSE)
 
-<table width="100%">
-  <tr>
-    <td width="80%">
-      <p><strong>Interfaz gráfica de descarga de videos de Bilibili para Windows y macOS.</strong></p>
-      <p>Sin configuración. Instala y comienza a descargar videos de inmediato.</p>
-    </td>
-    <td width="20%">
-      <img src="public/icon.png" alt="App Icon" width="128">
-    </td>
-  </tr>
-</table>
+**Interfaz gráfica de descarga de videos de Bilibili para Windows y macOS**
 
-![Imagen de la aplicación (búsqueda)](<public/app-image(searched)_en.png>)
-![Imagen de la aplicación (fusionando)](<public/app-image(merging)_en.png>)
+Sin anuncios, sin seguimiento. 100% gratis.
+
+</div>
 
 > [!WARNING]
-> Esta aplicación está destinada a uso educativo y personal. Respeta los términos de servicio y las leyes de derechos de autor. No descargues ni redistribuyas contenido sin permiso de los titulares de derechos.
-
-## ⭐ Dale una estrella a este repositorio para mantenerme motivado
-
-Desarrollo esto como hobby. Sin estrellas, cerraré el proyecto 😄
-
-<div align="center">
-  <img src="assets/star-github.gif" alt="Star">
-</div>
+> Esta aplicación está destinada a uso educativo y personal. Respeta los términos de servicio y las leyes de derechos de autor.
+> No descargues ni redistribuyas contenido sin permiso de los titulares de derechos.
 
 ## Características
 
@@ -49,7 +37,7 @@ Desarrollo esto como hobby. Sin estrellas, cerraré el proyecto 😄
 
 ### Facilidad de uso
 
-- **Interfaz en 6 idiomas** - English / 日本語 / Français / Español / 中文 / 한국어
+- **Interfaz en 6 idiomas** - Inglés / Japonés / Francés / Español / Chino / Coreano
 - **Configuración con un clic** - Instalación automática de FFmpeg, sin configuración manual
 - **Búsqueda y exportación de historial** - Exporta el historial de descargas a JSON/CSV
 - **Soporte de modo oscuro** - Alternancia de tema claro/oscuro
@@ -85,7 +73,7 @@ Descarga desde el [último lanzamiento](https://github.com/j4rviscmd/bilibili-do
 
 Issues y PRs son bienvenidos.
 
-Las traducciones también son apreciadas — consulta [CONTRIBUTING.md](./CONTRIBUTING.md) para más detalles.
+Las traducciones también son apreciadas — consulta [CONTRIBUTING.md](./CONTRIBUTING.md) para configuración de desarrollo y guías.
 
 ## Agradecimientos
 
