@@ -113,13 +113,17 @@ function VideoForm1() {
 
   /**
    * Handles form submission with URL validation.
-   * Skips submission if expanding or URL unchanged.
+   * Skips submission if expanding, URL unchanged, or short URL (will be auto-expanded).
    */
   function onSubmit(data: z.infer<typeof formSchema1>): void {
     // Skip submission while expanding short URL
     if (isExpanding) return
 
     const trimmedUrl = data.url.trim()
+
+    // Skip submission for short URLs - they will be auto-expanded
+    if (isShortUrl(trimmedUrl)) return
+
     if (trimmedUrl === lastFetchedUrl) return
     setLastFetchedUrl(trimmedUrl)
     onValid1(trimmedUrl)
@@ -184,11 +188,22 @@ function VideoForm1() {
     [isShortUrl, handleExpandShortUrl],
   )
 
+  /**
+   * Handles blur event on the form.
+   * Skips submission for short URLs since they will be auto-expanded.
+   */
+  const handleFormBlur = useCallback(() => {
+    const currentUrl = form.getValues('url').trim()
+    // Skip form submission for short URLs - they will be auto-expanded
+    if (isShortUrl(currentUrl)) return
+    form.handleSubmit(onSubmit)()
+  }, [form, isShortUrl, onSubmit])
+
   return (
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit(onSubmit)}
-        onBlur={form.handleSubmit(onSubmit)}
+        onBlur={handleFormBlur}
         className="space-y-3"
       >
         <FormField
