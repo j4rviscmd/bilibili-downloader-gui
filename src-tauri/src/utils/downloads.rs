@@ -10,7 +10,8 @@
 
 use crate::{
     constants::{
-        MAX_RECONNECT_ATTEMPTS, MIN_SPEED_THRESHOLD, REFERER, SPEED_CHECK_SIZE, USER_AGENT,
+        MAX_CDN_LOOPS, MIN_DATA_FOR_SPEED_CHECK, MIN_SPEED_THRESHOLD, REFERER,
+        SPEED_CHECK_INTERVAL_SECS, USER_AGENT,
     },
     emits::Emits,
     handlers::concurrency::DOWNLOAD_CANCEL_REGISTRY,
@@ -27,6 +28,7 @@ use std::time::{Duration, Instant};
 use tauri::AppHandle;
 use tokio::sync::Semaphore;
 use tokio::{fs, io::AsyncSeekExt, io::AsyncWriteExt};
+use tokio_util::sync::CancellationToken;
 
 /// Sets the download stage based on filename pattern.
 ///
@@ -34,11 +36,14 @@ use tokio::{fs, io::AsyncSeekExt, io::AsyncWriteExt};
 /// and files starting with "temp_video" are marked as "video" stage.
 /// This allows the frontend to display which part of the download process is active.
 async fn set_stage_from_filename(emits: &Emits, filename: &str) {
-    let stage = match filename {
-        f if f.starts_with("temp_audio") => Some("audio"),
-        f if f.starts_with("temp_video") => Some("video"),
-        _ => None,
+    let stage = if filename.starts_with("temp_audio") {
+        Some("audio")
+    } else if filename.starts_with("temp_video") {
+        Some("video")
+    } else {
+        None
     };
+
     if let Some(s) = stage {
         let _ = emits.set_stage(s).await;
     }
@@ -61,35 +66,69 @@ fn apply_cookie(mut req: RequestBuilder, cookie: &Option<String>) -> RequestBuil
     req
 }
 
+/// Checks if cancellation has been requested.
+/// Returns an error if the token exists and is cancelled.
+fn check_cancelled(token: &Option<CancellationToken>) -> Result<()> {
+    if let Some(t) = token {
+        if t.is_cancelled() {
+            return Err(anyhow::anyhow!("ERR::CANCELLED"));
+        }
+    }
+    Ok(())
+}
+
 /// Speed check result.
 enum SpeedCheckResult {
     Acceptable,       // Speed is acceptable, continue download
     Slow,             // Speed is too slow, should reconnect
-    InsufficientData, // Not enough data received yet
+    InsufficientData, // Not enough data or time for speed check
 }
 
-/// Checks if initial download speed meets minimum threshold.
+/// Checks if download speed meets minimum threshold.
 ///
-/// Returns:
-/// - Acceptable: Speed meets threshold or reconnect attempts exhausted
-/// - Slow: Speed below threshold and reconnect attempts remain
-/// - InsufficientData: Not enough data received to measure speed yet
-fn check_initial_speed(
+/// Uses time-based speed checking with configurable interval and minimum data
+/// requirements. This improves detection of slow networks compared to the
+/// previous byte-threshold approach.
+///
+/// # Arguments
+///
+/// * `received` - Total bytes received so far
+/// * `last_check_time` - Time of the last speed check
+/// * `last_check_bytes` - Bytes received at the last speed check
+/// * `cdn_rotation_count` - Current CDN rotation count
+/// * `cdn_urls_len` - Total number of available CDN URLs
+///
+/// # Returns
+///
+/// - Acceptable: Speed meets threshold or max rotations reached
+/// - Slow: Speed below threshold and rotations remain
+/// - InsufficientData: Not enough time elapsed or data received
+fn check_download_speed(
     received: u64,
-    start_time: Instant,
-    reconnect_attempt: u8,
+    last_check_time: Instant,
+    last_check_bytes: u64,
+    cdn_rotation_count: u8,
+    cdn_urls_len: usize,
 ) -> SpeedCheckResult {
-    if received < SPEED_CHECK_SIZE {
+    // Minimum data check (100KB)
+    let bytes_since_check = received.saturating_sub(last_check_bytes);
+    if bytes_since_check < MIN_DATA_FOR_SPEED_CHECK {
         return SpeedCheckResult::InsufficientData;
     }
 
-    let elapsed = start_time.elapsed().as_secs_f64();
-    if elapsed <= 0.0 {
-        return SpeedCheckResult::Acceptable;
+    // Time elapsed check (3 seconds)
+    let elapsed = last_check_time.elapsed().as_secs();
+    if elapsed < SPEED_CHECK_INTERVAL_SECS {
+        return SpeedCheckResult::InsufficientData;
     }
 
-    let speed = (received as f64 / elapsed) as u64;
-    if speed < MIN_SPEED_THRESHOLD && reconnect_attempt < MAX_RECONNECT_ATTEMPTS {
+    // Calculate speed
+    let speed = (bytes_since_check as f64 / elapsed as f64) as u64;
+
+    // Check if rotation limit reached (CDN count × MAX_CDN_LOOPS)
+    // Use saturating operations to prevent overflow with large CDN lists
+    let max_rotations = (cdn_urls_len.min(255) as u8).saturating_mul(MAX_CDN_LOOPS);
+    if speed < MIN_SPEED_THRESHOLD && cdn_rotation_count < max_rotations {
         return SpeedCheckResult::Slow;
     }
 
@@ -112,23 +151,11 @@ pub async fn download_url(
     override_stage: Option<&str>,
     emit_complete: bool,
 ) -> Result<()> {
-    use tokio_util::sync::CancellationToken;
-
     // Get cancellation token from registry
     let cancel_token: Option<CancellationToken> = if let Some(ref id) = download_id {
         DOWNLOAD_CANCEL_REGISTRY.get_token(id).await
     } else {
         None
-    };
-
-    // Helper to check cancellation
-    let check_cancelled = |token: &Option<CancellationToken>| -> Result<()> {
-        if let Some(t) = token {
-            if t.is_cancelled() {
-                return Err(anyhow::anyhow!("ERR::CANCELLED"));
-            }
-        }
-        Ok(())
     };
 
     // Initial cancellation check
@@ -227,7 +254,7 @@ pub async fn download_url(
             let mut attempt: u8 = 0;
             const MAX_SEG_RETRIES: u8 = 3;
             let size = e - s + 1;
-            let mut reconnect_attempt: u8 = 0;
+            let mut cdn_rotation_count: u8 = 0;
             // Track bytes this segment has added to dl_total_c
             // for rollback on retry
             let seg_bytes_added = Arc::new(AtomicU64::new(0));
@@ -250,8 +277,8 @@ pub async fn download_url(
                     emits_c.update_progress(dl_total_c.load(Ordering::Relaxed));
                 }
 
-                // Select CDN URL based on reconnect attempt (CDN rotation with loop)
-                let cdn_idx = (reconnect_attempt as usize) % cdn_urls_c.len();
+                // Select CDN URL based on rotation count (CDN rotation with loop)
+                let cdn_idx = (cdn_rotation_count as usize) % cdn_urls_c.len();
                 let current_url = &cdn_urls_c[cdn_idx];
 
                 let req = apply_cookie(
@@ -291,7 +318,8 @@ pub async fn download_url(
                             size,
                             attempt,
                             MAX_SEG_RETRIES,
-                            reconnect_attempt,
+                            cdn_rotation_count,
+                            cdn_urls_c.len(),
                             |chunk_len| {
                                 seg_bytes_cb.fetch_add(chunk_len, Ordering::Relaxed);
                                 let new_total =
@@ -306,13 +334,17 @@ pub async fn download_url(
                             Err(reconnect) if reconnect => {
                                 // Switch to next CDN URL on reconnect (loops back to start)
                                 let next_cdn_idx =
-                                    (reconnect_attempt as usize + 1) % cdn_urls_c.len();
+                                    (cdn_rotation_count as usize + 1) % cdn_urls_c.len();
                                 eprintln!(
-                                    "[CDN] Segment {}: rotating CDN #{} → #{}",
-                                    idx, cdn_idx, next_cdn_idx
+                                    "[CDN] Segment {}: rotating CDN #{} → #{} (rotation {}/{})",
+                                    idx,
+                                    cdn_idx,
+                                    next_cdn_idx,
+                                    cdn_rotation_count + 1,
+                                    (cdn_urls_c.len().min(255) as u8).saturating_mul(MAX_CDN_LOOPS)
                                 );
-                                reconnect_attempt += 1;
-                                backoff_sleep(reconnect_attempt).await;
+                                cdn_rotation_count += 1;
+                                backoff_sleep(cdn_rotation_count).await;
                                 continue;
                             }
                             Err(_) => {
@@ -378,23 +410,22 @@ pub async fn download_url(
     Ok(())
 }
 
-/// Downloads a segment with initial speed check.
+/// Downloads a segment with time-based speed check.
 ///
 /// This function downloads data from a response stream while performing
-/// periodic speed checks. If the download speed falls below the minimum
-/// threshold, it signals that a reconnect is needed.
+/// periodic speed checks at configured intervals. If the download speed
+/// falls below the minimum threshold, it signals that a reconnect is needed.
 ///
 /// # Arguments
 ///
 /// * `resp` - Mutable reference to the HTTP response to read from
-/// * `_idx` - Segment index (for error reporting, currently unused)
+/// * `idx` - Segment index (for error reporting)
 /// * `size` - Expected segment size in bytes
 /// * `attempt` - Current retry attempt number
 /// * `max_seg_retries` - Maximum number of retries allowed
-/// * `reconnect_attempt` - Current reconnect attempt due to slow speed
-/// * `on_chunk_received` - Callback invoked when each chunk is received with the chunk size in bytes.
-///   This callback is called for every chunk received, allowing the caller to track progress
-///   and update download statistics in real-time.
+/// * `cdn_rotation_count` - Current CDN rotation count
+/// * `cdn_urls_len` - Total number of available CDN URLs
+/// * `on_chunk_received` - Callback invoked when each chunk is received
 ///
 /// # Returns
 ///
@@ -404,19 +435,23 @@ pub async fn download_url(
 ///   - `false` indicates no reconnect needed
 /// - `Err(true)`: Speed too slow, reconnect needed
 /// - `Err(false)`: Download failed (non-recoverable, max retries exceeded)
+#[allow(clippy::too_many_arguments)]
 async fn download_segment_with_speed_check(
     resp: &mut reqwest::Response,
-    _idx: usize,
+    idx: usize,
     size: u64,
     attempt: u8,
     max_seg_retries: u8,
-    reconnect_attempt: u8,
+    cdn_rotation_count: u8,
+    cdn_urls_len: usize,
     on_chunk_received: impl Fn(u64),
 ) -> Result<(Vec<u8>, u64, bool), bool> {
     let mut buf = Vec::with_capacity(size.min(8 * 1024 * 1024) as usize);
     let mut received: u64 = 0;
-    let start_time = Instant::now();
-    let mut speed_checked = false;
+
+    // Time-based speed check variables
+    let mut last_check_time = Instant::now();
+    let mut last_check_bytes: u64 = 0;
 
     loop {
         match resp.chunk().await {
@@ -428,32 +463,35 @@ async fn download_segment_with_speed_check(
                 // Report progress on chunk received
                 on_chunk_received(chunk_len);
 
-                // Perform speed check when enough data received
-                if !speed_checked && received >= SPEED_CHECK_SIZE {
-                    match check_initial_speed(received, start_time, reconnect_attempt) {
-                        SpeedCheckResult::Slow => return Err(true), // Reconnect needed
-                        SpeedCheckResult::Acceptable => speed_checked = true,
-                        SpeedCheckResult::InsufficientData => {}
+                // Perform time-based speed check
+                match check_download_speed(
+                    received,
+                    last_check_time,
+                    last_check_bytes,
+                    cdn_rotation_count,
+                    cdn_urls_len,
+                ) {
+                    SpeedCheckResult::Slow => return Err(true), // Reconnect needed
+                    SpeedCheckResult::Acceptable => {
+                        // Reset check counters for next interval
+                        last_check_time = Instant::now();
+                        last_check_bytes = received;
                     }
+                    SpeedCheckResult::InsufficientData => {}
                 }
             }
-            Ok(None) => {
-                speed_checked = true;
-                break;
-            }
+            Ok(None) => break,
             Err(_) => {
                 if attempt < max_seg_retries {
                     backoff_sleep(attempt).await;
                     continue;
                 }
-                return Err(false);
+                return Err(anyhow::anyhow!(
+                    "segment {} download failed at speed check",
+                    idx
+                ));
             }
         }
-    }
-
-    // If speed check failed and download incomplete, signal reconnect
-    if !speed_checked && received < size {
-        return Err(true);
     }
 
     Ok((buf, received, false))
@@ -490,21 +528,16 @@ async fn single_stream_fallback(
     override_stage: Option<&str>,
     emit_complete: bool,
 ) -> Result<()> {
-    use tokio_util::sync::CancellationToken;
-
     // Get cancellation token from registry if download_id is provided
-    let cancel_token: Option<CancellationToken> = if let Some(ref id) = download_id {
-        DOWNLOAD_CANCEL_REGISTRY.get_token(id).await
-    } else {
-        None
-    };
+    let cancel_token: Option<CancellationToken> = download_id
+        .as_ref()
+        .map(|id| DOWNLOAD_CANCEL_REGISTRY.get_token(id))
+        .transpose()
+        .await?
+        .flatten();
 
     // Initial cancellation check
-    if let Some(ref t) = cancel_token {
-        if t.is_cancelled() {
-            return Err(anyhow::anyhow!("ERR::CANCELLED"));
-        }
-    }
+    check_cancelled(&cancel_token)?;
 
     // Check file existence
     if output_path.exists() {
@@ -546,11 +579,7 @@ async fn single_stream_fallback(
     let emits_for_callback = emits.clone();
     while let Some(chunk) = resp.chunk().await? {
         // Check cancellation on each chunk
-        if let Some(ref t) = cancel_token {
-            if t.is_cancelled() {
-                return Err(anyhow::anyhow!("ERR::CANCELLED"));
-            }
-        }
+        check_cancelled(&cancel_token)?;
 
         file.write_all(&chunk).await.map_err(map_io_error)?;
         downloaded += chunk.len() as u64;
