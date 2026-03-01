@@ -113,13 +113,17 @@ function VideoForm1() {
 
   /**
    * Handles form submission with URL validation.
-   * Skips submission if expanding or URL unchanged.
+   * Skips submission if expanding, URL unchanged, or short URL (will be auto-expanded).
    */
   function onSubmit(data: z.infer<typeof formSchema1>): void {
     // Skip submission while expanding short URL
     if (isExpanding) return
 
     const trimmedUrl = data.url.trim()
+
+    // Skip submission for short URLs - they will be auto-expanded
+    if (isShortUrl(trimmedUrl)) return
+
     if (trimmedUrl === lastFetchedUrl) return
     setLastFetchedUrl(trimmedUrl)
     onValid1(trimmedUrl)
