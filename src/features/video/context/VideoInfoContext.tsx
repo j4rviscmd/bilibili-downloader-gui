@@ -16,7 +16,6 @@ import {
   initPartInputs,
   setUrl,
   updatePartInputByIndex,
-  updatePartSelected,
 } from '@/features/video/model/inputSlice'
 import { selectDuplicateIndices } from '@/features/video/model/selectors'
 import { setVideo } from '@/features/video/model/videoSlice'
@@ -402,31 +401,6 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
     processingPendingRef.current = { bvid, cid, page }
     onValid1(`https://www.bilibili.com/video/${bvid}?p=${page}`)
   }, [input.pendingDownload, onValid1])
-
-  /**
-   * Handles part selection for pending download (after video info is fetched).
-   *
-   * Once video info is loaded, this effect automatically selects the specific
-   * part that was requested from history/favorites. Selection is based on
-   * either cid (preferred) or page number as fallback.
-   */
-  useEffect(() => {
-    const processing = processingPendingRef.current
-    if (!processing || video.parts.length === 0) return
-
-    const { cid, page } = processing
-    const matchesTarget = (pi: (typeof input.partInputs)[number]) =>
-      cid !== null ? pi.cid === cid : pi.page === page
-
-    input.partInputs.forEach((pi, idx) => {
-      store.dispatch(
-        updatePartSelected({ index: idx, selected: matchesTarget(pi) }),
-      )
-    })
-
-    store.dispatch(clearPendingDownload())
-    processingPendingRef.current = null
-  }, [video.parts, input.partInputs])
 
   /**
    * Executes download for selected video/bangumi parts.
