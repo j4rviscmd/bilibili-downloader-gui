@@ -1,13 +1,8 @@
-![App Image(searched)](<public/app-image(searched)_en.png>)
-![App Image(merged)](<public/app-image(merging)_en.png>)
-
 <div align="center">
 
 # Bilibili Downloader GUI
 
-**Windows and macOS Bilibili video downloader GUI.**
-
-No configuration needed. Install and start downloading videos right away.
+![App Image](<public/app-image(searched)_en.png>)
 
 [English](README.md) | [日本語](README.ja.md) | [简体中文](README.zh.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Français](README.fr.md)
 
@@ -18,6 +13,10 @@ No configuration needed. Install and start downloading videos right away.
 [![CI](https://img.shields.io/github/actions/workflow/status/j4rviscmd/bilibili-downloader-gui/ci.yml?style=for-the-badge&label=CI&color=brightgreen)](https://github.com/j4rviscmd/bilibili-downloader-gui/actions/workflows/ci.yml)
 [![Last Commit](https://img.shields.io/github/last-commit/j4rviscmd/bilibili-downloader-gui/main?style=for-the-badge&color=blue&label=Last%20Update)](https://github.com/j4rviscmd/bilibili-downloader-gui/commits/main)
 [![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge&logo=opensourceinitiative&logoColor=white)](LICENSE)
+
+**Windows and macOS Bilibili video downloader GUI.**
+
+No configuration needed. Install and start downloading videos right away.
 
 </div>
 
