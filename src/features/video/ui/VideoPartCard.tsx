@@ -20,6 +20,7 @@ import {
   VIDEO_QUALITIES_MAP,
 } from '@/features/video/lib/constants'
 import { buildVideoFormSchema2 } from '@/features/video/lib/formSchema'
+import { buildVideoUrl } from '@/features/video/lib/utils'
 import {
   defaultSubtitleConfig,
   setAccordionOpen,
@@ -60,6 +61,7 @@ import {
 import { Skeleton } from '@/shared/ui/skeleton'
 import { Textarea } from '@/shared/ui/textarea'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { openUrl } from '@tauri-apps/plugin-opener'
 import { Check, Copy, ImageOff, Info } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -90,9 +92,8 @@ function computeDefaultTitle(
   video: Video,
   videoPart: { part: string },
 ): string {
-  if (!video || video.parts.length === 0 || video.parts[0].cid === 0) {
-    return ''
-  }
+  const hasValidParts = video?.parts.length && video.parts[0].cid !== 0
+  if (!hasValidParts) return ''
   return video.title === videoPart.part
     ? video.title
     : `${video.title} ${videoPart.part}`
@@ -137,7 +138,6 @@ const VideoPartCard = memo(function VideoPartCard({
   const subtitlesLoading = partInput?.subtitlesLoading ?? false
 
   const videoQualities = partInput?.videoQualities
-  // undefined = not yet fetched (lazy); [] = fetched but empty (durl embedded audio)
   const audioQualities = partInput?.audioQualities
   const qualitiesLoading = partInput?.qualitiesLoading ?? false
   const isPreview = partInput?.isPreview ?? false
@@ -432,6 +432,14 @@ const VideoPartCard = memo(function VideoPartCard({
   }, [videoPart.part, t])
 
   /**
+   * Opens the video in browser when thumbnail is clicked.
+   */
+  const handleThumbnailClick = useCallback(() => {
+    const url = buildVideoUrl(video.bvid, page)
+    openUrl(url)
+  }, [video.bvid, page])
+
+  /**
    * Handles subtitle configuration changes.
    * Dispatches the updated config to Redux store.
    */
@@ -532,13 +540,25 @@ const VideoPartCard = memo(function VideoPartCard({
                   size="lg"
                 />
                 {videoPart.thumbnail.url ? (
-                  <img
-                    src={videoPart.thumbnail.url}
-                    alt={t('video.thumbnail_alt', { part: videoPart.part })}
-                    className="h-16 w-24 rounded-lg object-cover md:h-20 md:w-32"
-                    loading="lazy"
-                    referrerPolicy="no-referrer"
-                  />
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <img
+                          src={videoPart.thumbnail.url}
+                          alt={t('video.thumbnail_alt', {
+                            part: videoPart.part,
+                          })}
+                          className="h-16 w-24 cursor-pointer rounded-lg object-cover md:h-20 md:w-32"
+                          loading="lazy"
+                          referrerPolicy="no-referrer"
+                          onClick={handleThumbnailClick}
+                        />
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        <p className="text-sm">{t('video.open_in_browser')}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 ) : (
                   <div className="bg-muted flex h-16 w-24 items-center justify-center rounded-lg md:h-20 md:w-32">
                     <ImageOff className="text-muted-foreground/50 h-8 w-8" />
@@ -882,14 +902,9 @@ const VideoPartCard = memo(function VideoPartCard({
             onRetry={handleRetry}
             onCancel={handleCancel}
             hasEmbeddedAudio={
-              // If backend confirmed audio quality (download started): trust that.
-              // null = durl embedded; number = separate DASH stream.
               resolvedQuality
                 ? resolvedQuality.audioQuality === null
-                : // Before download: fall back to fetched qualities.
-                  // undefined = not yet fetched (show stages optimistically);
-                  // [] = fetched and empty (durl confirmed).
-                  audioQualities !== undefined && audioQualities.length === 0
+                : audioQualities !== undefined && audioQualities.length === 0
             }
           />
         )}

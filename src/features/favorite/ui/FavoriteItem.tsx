@@ -1,3 +1,4 @@
+import { buildVideoUrl } from '@/features/video/lib/utils'
 import {
   Tooltip,
   TooltipContent,
@@ -12,22 +13,6 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { formatDuration, formatPlayCount } from '../hooks/useFavorite'
 import type { FavoriteVideo } from '../types'
-
-/**
- * Builds a Bilibili web URL from a video ID and page number.
- *
- * @param bvid - Bilibili video ID (e.g., 'BV1xx411c7XD')
- * @param page - Part page number (1-indexed). Page 1 omits the query parameter.
- * @returns Full Bilibili video URL
- *
- * @example
- * ```typescript
- * buildVideoUrl('BV1xx411c7XD', 1) // 'https://www.bilibili.com/video/BV1xx411c7XD'
- * buildVideoUrl('BV1xx411c7XD', 2) // 'https://www.bilibili.com/video/BV1xx411c7XD?p=2'
- * ```
- */
-const buildVideoUrl = (bvid: string, page: number): string =>
-  `https://www.bilibili.com/video/${bvid}${page > 1 ? `?p=${page}` : ''}`
 
 /**
  * Props for the FavoriteItem component.

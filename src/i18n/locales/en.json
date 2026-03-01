@@ -137,7 +137,8 @@
     "bangumi_audio_embedded": "Audio is embedded in the video, no separate quality selection needed.",
     "bangumi_preview_badge": "Preview",
     "bangumi_preview_tooltip": "Premium membership required. Only the first 6 minutes will be downloaded.",
-    "bangumi_durl_not_supported": "This episode format is not supported."
+    "bangumi_durl_not_supported": "This episode format is not supported.",
+    "open_in_browser": "Open in browser"
   },
   "progress": {
     "elapsed": "Elapsed",

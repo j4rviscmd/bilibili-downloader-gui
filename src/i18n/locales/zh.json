@@ -137,7 +137,8 @@
     "bangumi_audio_embedded": "音频已嵌入视频中，无需单独选择音质。",
     "bangumi_preview_badge": "预告",
     "bangumi_preview_tooltip": "需要大会员权限。仅下载前6分钟内容。",
-    "bangumi_durl_not_supported": "此剧集格式不支持。"
+    "bangumi_durl_not_supported": "此剧集格式不支持。",
+    "open_in_browser": "在浏览器中打开"
   },
   "progress": {
     "elapsed": "已用时间",

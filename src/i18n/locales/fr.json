@@ -137,7 +137,8 @@
     "bangumi_audio_embedded": "L'audio est intégré à la vidéo, aucune sélection de qualité audio nécessaire.",
     "bangumi_preview_badge": "Aperçu",
     "bangumi_preview_tooltip": "Abonnement premium requis. Seules les 6 premières minutes seront téléchargées.",
-    "bangumi_durl_not_supported": "Ce format d'épisode n'est pas pris en charge."
+    "bangumi_durl_not_supported": "Ce format d'épisode n'est pas pris en charge.",
+    "open_in_browser": "Ouvrir dans le navigateur"
   },
   "progress": {
     "elapsed": "Temps écoulé",
