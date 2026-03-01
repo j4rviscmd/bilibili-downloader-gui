@@ -86,8 +86,7 @@ export const downloadVideo = async (
     })
     store.dispatch(updateQueueItem({ downloadId, outputPath, title: filename }))
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : String(error)
+    const errorMessage = error instanceof Error ? error.message : String(error)
     store.dispatch(
       updateQueueStatus({ downloadId, status: 'error', errorMessage }),
     )
