@@ -322,20 +322,23 @@ const VideoPartCard = memo(function VideoPartCard({
   /**
    * Fetches subtitle options for the current video part.
    */
-  const doFetchSubtitles = useCallback(async (partIndex: number) => {
-    try {
-      const fetchedSubtitles = await fetchSubtitlesForPart(
-        video.bvid,
-        videoPart.cid,
-      )
-      store.dispatch(
-        setPartSubtitles({ index: partIndex, subtitles: fetchedSubtitles }),
-      )
-    } catch (e) {
-      console.error('Failed to fetch subtitles:', e)
-      store.dispatch(setPartSubtitles({ index: partIndex, subtitles: [] }))
-    }
-  }, [video.bvid, videoPart.cid])
+  const doFetchSubtitles = useCallback(
+    async (partIndex: number) => {
+      try {
+        const fetchedSubtitles = await fetchSubtitlesForPart(
+          video.bvid,
+          videoPart.cid,
+        )
+        store.dispatch(
+          setPartSubtitles({ index: partIndex, subtitles: fetchedSubtitles }),
+        )
+      } catch (e) {
+        console.error('Failed to fetch subtitles:', e)
+        store.dispatch(setPartSubtitles({ index: partIndex, subtitles: [] }))
+      }
+    },
+    [video.bvid, videoPart.cid],
+  )
 
   /**
    * Handles accordion open/close state changes.
@@ -766,7 +769,9 @@ const VideoPartCard = memo(function VideoPartCard({
                         <>
                           {/* Video Quality */}
                           {videoQualities.length === 0 ? (
-                            <UnavailableEpisodeWarning status={videoPart.status ?? 0} />
+                            <UnavailableEpisodeWarning
+                              status={videoPart.status ?? 0}
+                            />
                           ) : (
                             <FormField
                               control={form.control}

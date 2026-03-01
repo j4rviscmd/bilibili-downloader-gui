@@ -28,6 +28,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
+import { cn } from '@/shared/lib/utils'
 import { selectHasActiveDownloads } from '@/shared/queue'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
@@ -49,7 +50,6 @@ import {
 } from '@/shared/ui/pagination'
 import { Separator } from '@/shared/ui/separator'
 import { Skeleton } from '@/shared/ui/skeleton'
-import { cn } from '@/shared/lib/utils'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { Info } from 'lucide-react'
 import type React from 'react'
@@ -314,63 +314,63 @@ function PaginatedPartList({
                     'w-auto',
                   )}
                 >
-                    <PaginationContent>
-                      <PaginationItem>
-                        <PaginationPrevious
-                          onClick={() => {
-                            if (hasActiveDownloads) return
-                            onPageChange(Math.max(1, currentPage - 1))
-                          }}
-                          className={getPaginationNavClassName(
-                            currentPage === 1,
-                            hasActiveDownloads,
-                          )}
-                        >
-                          {t('video.pagination_previous')}
-                        </PaginationPrevious>
-                      </PaginationItem>
-                      {generatePaginationItems(totalPages, currentPage).map(
-                        (item, idx) =>
-                          item === 'ellipsis' ? (
-                            <PaginationItem key={`ellipsis-${idx}`}>
-                              <PaginationEllipsis />
-                            </PaginationItem>
-                          ) : (
-                            <PaginationItem key={item}>
-                              <PaginationLink
-                                onClick={() => {
-                                  if (hasActiveDownloads) return
-                                  onPageChange(item)
-                                }}
-                                isActive={currentPage === item}
-                                className={
-                                  hasActiveDownloads
-                                    ? 'cursor-not-allowed'
-                                    : 'cursor-pointer'
-                                }
-                              >
-                                {item}
-                              </PaginationLink>
-                            </PaginationItem>
-                          ),
-                      )}
-                      <PaginationItem>
-                        <PaginationNext
-                          onClick={() => {
-                            if (hasActiveDownloads) return
-                            onPageChange(Math.min(totalPages, currentPage + 1))
-                          }}
-                          className={getPaginationNavClassName(
-                            currentPage === totalPages,
-                            hasActiveDownloads,
-                          )}
-                        >
-                          {t('video.pagination_next')}
-                        </PaginationNext>
-                      </PaginationItem>
-                    </PaginationContent>
-                  </Pagination>
-                </TooltipTrigger>
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        onClick={() => {
+                          if (hasActiveDownloads) return
+                          onPageChange(Math.max(1, currentPage - 1))
+                        }}
+                        className={getPaginationNavClassName(
+                          currentPage === 1,
+                          hasActiveDownloads,
+                        )}
+                      >
+                        {t('video.pagination_previous')}
+                      </PaginationPrevious>
+                    </PaginationItem>
+                    {generatePaginationItems(totalPages, currentPage).map(
+                      (item, idx) =>
+                        item === 'ellipsis' ? (
+                          <PaginationItem key={`ellipsis-${idx}`}>
+                            <PaginationEllipsis />
+                          </PaginationItem>
+                        ) : (
+                          <PaginationItem key={item}>
+                            <PaginationLink
+                              onClick={() => {
+                                if (hasActiveDownloads) return
+                                onPageChange(item)
+                              }}
+                              isActive={currentPage === item}
+                              className={
+                                hasActiveDownloads
+                                  ? 'cursor-not-allowed'
+                                  : 'cursor-pointer'
+                              }
+                            >
+                              {item}
+                            </PaginationLink>
+                          </PaginationItem>
+                        ),
+                    )}
+                    <PaginationItem>
+                      <PaginationNext
+                        onClick={() => {
+                          if (hasActiveDownloads) return
+                          onPageChange(Math.min(totalPages, currentPage + 1))
+                        }}
+                        className={getPaginationNavClassName(
+                          currentPage === totalPages,
+                          hasActiveDownloads,
+                        )}
+                      >
+                        {t('video.pagination_next')}
+                      </PaginationNext>
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              </TooltipTrigger>
               {hasActiveDownloads && (
                 <TooltipContent side="top" arrow>
                   {t('video.navigation_disabled_tooltip')}
@@ -468,7 +468,9 @@ function HomeContentInner() {
   const [scrollRequestId, setScrollRequestId] = useState(0)
 
   // Confirmation dialog state for page navigation
-  const [pendingPageChange, setPendingPageChange] = useState<number | null>(null)
+  const [pendingPageChange, setPendingPageChange] = useState<number | null>(
+    null,
+  )
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false)
 
   // Check if any part is selected
@@ -723,10 +725,7 @@ function HomeContentInner() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={handleCancelNavigation}
-            >
+            <Button variant="outline" onClick={handleCancelNavigation}>
               {t('video.confirm_navigation_cancel')}
             </Button>
             <Button onClick={handleConfirmNavigation}>
