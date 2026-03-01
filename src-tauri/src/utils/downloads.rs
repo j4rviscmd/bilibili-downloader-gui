@@ -419,7 +419,7 @@ pub async fn download_url(
 /// # Arguments
 ///
 /// * `resp` - Mutable reference to the HTTP response to read from
-/// * `idx` - Segment index (for error reporting)
+/// * `_idx` - Segment index (reserved for future error reporting)
 /// * `size` - Expected segment size in bytes
 /// * `attempt` - Current retry attempt number
 /// * `max_seg_retries` - Maximum number of retries allowed
@@ -438,7 +438,7 @@ pub async fn download_url(
 #[allow(clippy::too_many_arguments)]
 async fn download_segment_with_speed_check(
     resp: &mut reqwest::Response,
-    idx: usize,
+    _idx: usize,
     size: u64,
     attempt: u8,
     max_seg_retries: u8,
@@ -486,10 +486,7 @@ async fn download_segment_with_speed_check(
                     backoff_sleep(attempt).await;
                     continue;
                 }
-                return Err(anyhow::anyhow!(
-                    "segment {} download failed at speed check",
-                    idx
-                ));
+                return Err(false);
             }
         }
     }
@@ -529,12 +526,11 @@ async fn single_stream_fallback(
     emit_complete: bool,
 ) -> Result<()> {
     // Get cancellation token from registry if download_id is provided
-    let cancel_token: Option<CancellationToken> = download_id
-        .as_ref()
-        .map(|id| DOWNLOAD_CANCEL_REGISTRY.get_token(id))
-        .transpose()
-        .await?
-        .flatten();
+    let cancel_token: Option<CancellationToken> = if let Some(ref id) = download_id {
+        DOWNLOAD_CANCEL_REGISTRY.get_token(id).await
+    } else {
+        None
+    };
 
     // Initial cancellation check
     check_cancelled(&cancel_token)?;
