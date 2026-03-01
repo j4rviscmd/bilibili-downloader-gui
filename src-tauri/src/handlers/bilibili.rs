@@ -384,6 +384,25 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
                 .as_ref()
                 .map(|urls| urls.iter().map(|s| s.to_string()).collect());
 
+            // Emit quality resolved event for durl format (audio embedded)
+            let page = options.page.unwrap_or(1);
+            let resolved_video_quality = data.quality.unwrap_or(0);
+            let video_quality_fallback =
+                options.quality.is_some() && options.quality != Some(resolved_video_quality);
+            app.emit(
+                "download-quality-resolved",
+                QualityResolvedPayload {
+                    download_id: options.download_id.clone(),
+                    page,
+                    video_quality: resolved_video_quality,
+                    video_quality_fallback,
+                    audio_quality: None, // durl format has no separate audio
+                    audio_quality_fallback: false,
+                    is_preview: None,
+                },
+            )
+            .ok();
+
             if let Some(vs) = head_content_length(&video_url, Some(&cookie_header)).await {
                 ensure_free_space(&output_path, vs + 5 * 1024 * 1024)?;
             }
@@ -1359,9 +1378,7 @@ fn ensure_free_space(target_path: &Path, needed_bytes: u64) -> Result<(), String
                 return Ok(());
             }
             let stat = stat.assume_init();
-            #[allow(clippy::unnecessary_cast)]
-            #[allow(clippy::useless_conversion)]
-            let free_bytes = u64::from(stat.f_bavail) * stat.f_frsize;
+            let free_bytes = (stat.f_bavail as u64) * (stat.f_frsize as u64);
             if free_bytes < needed_bytes {
                 return Err("ERR::DISK_FULL".into());
             }
@@ -1420,7 +1437,7 @@ where
         }
     }
 
-    Err("ERR::NETWORK::All retry attempts failed".to_string())
+    unreachable!()
 }
 
 /// Selects a stream URL from a quality list.
@@ -2056,17 +2073,15 @@ async fn fetch_bangumi_player_result(
         .map_err(|e| format!("Failed to parse bangumi playurl response: {}", e))?;
 
     match body.code {
-        -403 => return Err("ERR::BANGUMI_ACCESS_DENIED".into()),
-        -688 => return Err("ERR::BANGUMI_REGION_RESTRICTED".into()),
-        -689 => return Err("ERR::BANGUMI_COPYRIGHT_RESTRICTED".into()),
-        0 => {}
-        _ => {
-            return Err(format!(
-                "ERR::API_ERROR (code {}): {}",
-                body.code, body.message
-            ))
-        }
-    }
+        -403 => Err("ERR::BANGUMI_ACCESS_DENIED".into()),
+        -688 => Err("ERR::BANGUMI_REGION_RESTRICTED".into()),
+        -689 => Err("ERR::BANGUMI_COPYRIGHT_RESTRICTED".into()),
+        0 => Ok(()),
+        _ => Err(format!(
+            "ERR::API_ERROR (code {}): {}",
+            body.code, body.message
+        )),
+    }?;
 
     let result = body
         .result
