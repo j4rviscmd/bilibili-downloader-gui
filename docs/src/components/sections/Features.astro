@@ -23,15 +23,15 @@ const featureConfig = {
   cdn: { icon: "⚡" },
   batch: { icon: "📦" },
   bangumi: { icon: "📺", isNew: true },
+  hires: { icon: "🎵", isNew: true },
+  adfree: { icon: "🚫" },
 } as const;
 
 const features = Object.entries(featureConfig).map(([key, config]) => ({
   key,
-  icon: config.icon,
+  ...config,
   title: t(`features.list.${key}`),
   description: t(`features.descriptions.${key}`),
-  comingSoon: config.comingSoon,
-  isNew: config.isNew,
 }));
 ---
 
