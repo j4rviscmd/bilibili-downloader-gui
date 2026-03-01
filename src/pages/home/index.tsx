@@ -3,8 +3,10 @@ import { store, useSelector } from '@/app/store'
 import { useInit } from '@/features/init'
 import type { Video } from '@/features/video'
 import {
+  deselectAll,
   deselectPageAll,
   DownloadButton,
+  selectHasSelectedParts,
   selectPageAll,
   useVideoInfo,
   VideoForm1,
@@ -13,11 +15,20 @@ import {
 import VideoPartCard from '@/features/video/ui/VideoPartCard'
 import VideoPartCardSkeleton from '@/features/video/ui/VideoPartCardSkeleton'
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/shared/animate-ui/radix/dialog'
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
+import { cn } from '@/shared/lib/utils'
 import { selectHasActiveDownloads } from '@/shared/queue'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
@@ -113,6 +124,7 @@ type PaginatedPartListProps = {
   onPageChange: (page: number) => void
   scrollToPartIndex: number | null
   scrollRequestId: number
+  hasActiveDownloads: boolean
 }
 
 /**
@@ -148,6 +160,23 @@ function generatePaginationItems(
 }
 
 /**
+ * Computes the className for pagination navigation buttons.
+ *
+ * @param isDisabled - Whether this button is at its boundary (first/last page)
+ * @param hasActiveDownloads - Whether downloads are in progress
+ * @returns CSS class string
+ */
+function getPaginationNavClassName(
+  isDisabled: boolean,
+  hasActiveDownloads: boolean,
+): string {
+  if (isDisabled) {
+    return 'pointer-events-none opacity-50'
+  }
+  return hasActiveDownloads ? 'cursor-not-allowed' : 'cursor-pointer'
+}
+
+/**
  * Paginated part list with pagination controls.
  *
  * Displays parts in pages of 10. Quality info is fetched lazily
@@ -169,6 +198,7 @@ function PaginatedPartList({
   onPageChange,
   scrollToPartIndex,
   scrollRequestId,
+  hasActiveDownloads,
 }: PaginatedPartListProps) {
   const { t } = useTranslation()
   const totalPages = Math.ceil(video.parts.length / PARTS_PER_PAGE)
@@ -275,54 +305,79 @@ function PaginatedPartList({
       </CardContent>
       <CardFooter className="flex flex-col gap-3">
         {totalPages > 1 && (
-          <Pagination>
-            <PaginationContent>
-              <PaginationItem>
-                <PaginationPrevious
-                  onClick={() => onPageChange(Math.max(1, currentPage - 1))}
-                  className={
-                    currentPage === 1
-                      ? 'pointer-events-none opacity-50'
-                      : 'cursor-pointer'
-                  }
+          <TooltipProvider delayDuration={0}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Pagination
+                  className={cn(
+                    hasActiveDownloads ? 'opacity-50' : '',
+                    'w-auto',
+                  )}
                 >
-                  {t('video.pagination_previous')}
-                </PaginationPrevious>
-              </PaginationItem>
-              {generatePaginationItems(totalPages, currentPage).map(
-                (item, idx) =>
-                  item === 'ellipsis' ? (
-                    <PaginationItem key={`ellipsis-${idx}`}>
-                      <PaginationEllipsis />
-                    </PaginationItem>
-                  ) : (
-                    <PaginationItem key={item}>
-                      <PaginationLink
-                        onClick={() => onPageChange(item)}
-                        isActive={currentPage === item}
-                        className="cursor-pointer"
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        onClick={() => {
+                          if (hasActiveDownloads) return
+                          onPageChange(Math.max(1, currentPage - 1))
+                        }}
+                        className={getPaginationNavClassName(
+                          currentPage === 1,
+                          hasActiveDownloads,
+                        )}
                       >
-                        {item}
-                      </PaginationLink>
+                        {t('video.pagination_previous')}
+                      </PaginationPrevious>
                     </PaginationItem>
-                  ),
+                    {generatePaginationItems(totalPages, currentPage).map(
+                      (item, idx) =>
+                        item === 'ellipsis' ? (
+                          <PaginationItem key={`ellipsis-${idx}`}>
+                            <PaginationEllipsis />
+                          </PaginationItem>
+                        ) : (
+                          <PaginationItem key={item}>
+                            <PaginationLink
+                              onClick={() => {
+                                if (hasActiveDownloads) return
+                                onPageChange(item)
+                              }}
+                              isActive={currentPage === item}
+                              className={
+                                hasActiveDownloads
+                                  ? 'cursor-not-allowed'
+                                  : 'cursor-pointer'
+                              }
+                            >
+                              {item}
+                            </PaginationLink>
+                          </PaginationItem>
+                        ),
+                    )}
+                    <PaginationItem>
+                      <PaginationNext
+                        onClick={() => {
+                          if (hasActiveDownloads) return
+                          onPageChange(Math.min(totalPages, currentPage + 1))
+                        }}
+                        className={getPaginationNavClassName(
+                          currentPage === totalPages,
+                          hasActiveDownloads,
+                        )}
+                      >
+                        {t('video.pagination_next')}
+                      </PaginationNext>
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              </TooltipTrigger>
+              {hasActiveDownloads && (
+                <TooltipContent side="top" arrow>
+                  {t('video.navigation_disabled_tooltip')}
+                </TooltipContent>
               )}
-              <PaginationItem>
-                <PaginationNext
-                  onClick={() =>
-                    onPageChange(Math.min(totalPages, currentPage + 1))
-                  }
-                  className={
-                    currentPage === totalPages
-                      ? 'pointer-events-none opacity-50'
-                      : 'cursor-pointer'
-                  }
-                >
-                  {t('video.pagination_next')}
-                </PaginationNext>
-              </PaginationItem>
-            </PaginationContent>
-          </Pagination>
+            </Tooltip>
+          </TooltipProvider>
         )}
         <div className="w-full">
           <DownloadButton />
@@ -412,6 +467,15 @@ function HomeContentInner() {
   // Track scroll request timestamp to ensure each navigation triggers scroll
   const [scrollRequestId, setScrollRequestId] = useState(0)
 
+  // Confirmation dialog state for page navigation
+  const [pendingPageChange, setPendingPageChange] = useState<number | null>(
+    null,
+  )
+  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false)
+
+  // Check if any part is selected
+  const hasSelectedParts = useSelector(selectHasSelectedParts)
+
   // Track previous pendingDownload to detect when it's cleared
   const prevPendingDownloadRef = useRef<typeof input.pendingDownload>(null)
 
@@ -454,14 +518,11 @@ function HomeContentInner() {
   }, [input.pendingDownload, video.parts.length, isFetching])
 
   /**
-   * Handles pagination navigation by updating the `?page=N` URL parameter
-   * and scrolling the part list back to the top.
-   *
-   * Removes the `?p=N` parameter to avoid conflicts with the page parameter.
+   * Performs the actual page change without confirmation.
    *
    * @param page - The target page number (1-indexed)
    */
-  const handlePageChange = useCallback(
+  const performPageChange = useCallback(
     (page: number) => {
       const newParams = new URLSearchParams(searchParams)
       newParams.delete('p')
@@ -474,6 +535,50 @@ function HomeContentInner() {
     },
     [searchParams, setSearchParams],
   )
+
+  /**
+   * Handles pagination navigation with confirmation dialog when parts are selected.
+   *
+   * If parts are selected, shows a confirmation dialog before navigating.
+   * On confirmation, clears selection and navigates to the new page.
+   * On cancel, stays on the current page.
+   *
+   * @param page - The target page number (1-indexed)
+   */
+  const handlePageChange = useCallback(
+    (page: number) => {
+      // Skip confirmation if navigating to the same page
+      if (page === currentPage) return
+
+      if (hasSelectedParts) {
+        setPendingPageChange(page)
+        setIsConfirmDialogOpen(true)
+      } else {
+        performPageChange(page)
+      }
+    },
+    [currentPage, hasSelectedParts, performPageChange],
+  )
+
+  /**
+   * Confirms page navigation: clears selection and navigates.
+   */
+  const handleConfirmNavigation = useCallback(() => {
+    if (pendingPageChange !== null) {
+      store.dispatch(deselectAll())
+      performPageChange(pendingPageChange)
+    }
+    setIsConfirmDialogOpen(false)
+    setPendingPageChange(null)
+  }, [pendingPageChange, performPageChange])
+
+  /**
+   * Cancels page navigation: closes dialog without changes.
+   */
+  const handleCancelNavigation = useCallback(() => {
+    setIsConfirmDialogOpen(false)
+    setPendingPageChange(null)
+  }, [])
 
   /**
    * Part index range (0-based, inclusive) for the currently visible page.
@@ -604,10 +709,31 @@ function HomeContentInner() {
               onPageChange={handlePageChange}
               scrollToPartIndex={scrollToPartIndex}
               scrollRequestId={scrollRequestId}
+              hasActiveDownloads={hasActiveDownloads}
             />
           </Card>
         </div>
       )}
+
+      {/* Confirmation Dialog for Page Navigation */}
+      <Dialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
+        <DialogContent disableOutsideClick>
+          <DialogHeader>
+            <DialogTitle>{t('video.confirm_navigation_title')}</DialogTitle>
+            <DialogDescription>
+              {t('video.confirm_navigation_message')}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCancelNavigation}>
+              {t('video.confirm_navigation_cancel')}
+            </Button>
+            <Button onClick={handleConfirmNavigation}>
+              {t('video.confirm_navigation_ok')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

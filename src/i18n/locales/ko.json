@@ -138,7 +138,12 @@
     "bangumi_preview_badge": "예고",
     "bangumi_preview_tooltip": "프리미엄 멤버십이 필요합니다. 처음 6분만 다운로드됩니다.",
     "bangumi_durl_not_supported": "이 에피소드 형식은 지원되지 않습니다.",
-    "open_in_browser": "브라우저에서 열기"
+    "open_in_browser": "브라우저에서 열기",
+    "confirm_navigation_title": "확인",
+    "confirm_navigation_message": "선택된 파트가 있습니다. 페이지를 이동하면 선택이 해제됩니다. 계속하시겠습니까?",
+    "confirm_navigation_cancel": "취소",
+    "confirm_navigation_ok": "이동",
+    "navigation_disabled_tooltip": "다운로드가 완료될 때까지 기다려 주세요"
   },
   "progress": {
     "elapsed": "경과",

@@ -138,7 +138,12 @@
     "bangumi_preview_badge": "预告",
     "bangumi_preview_tooltip": "需要大会员权限。仅下载前6分钟内容。",
     "bangumi_durl_not_supported": "此剧集格式不支持。",
-    "open_in_browser": "在浏览器中打开"
+    "open_in_browser": "在浏览器中打开",
+    "confirm_navigation_title": "确认",
+    "confirm_navigation_message": "您已选择了分P。切换页面将清除选择。是否继续？",
+    "confirm_navigation_cancel": "取消",
+    "confirm_navigation_ok": "切换",
+    "navigation_disabled_tooltip": "请等待下载完成"
   },
   "progress": {
     "elapsed": "已用时间",

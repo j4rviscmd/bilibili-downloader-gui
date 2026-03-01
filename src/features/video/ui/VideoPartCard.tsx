@@ -66,7 +66,7 @@ import { Check, Copy, ImageOff, Info } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
+import { useDispatch, useSelector } from 'react-redux'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
@@ -97,6 +97,47 @@ function computeDefaultTitle(
   return video.title === videoPart.part
     ? video.title
     : `${video.title} ${videoPart.part}`
+}
+
+/** Props for the UnavailableEpisodeWarning component. */
+type UnavailableEpisodeWarningProps = {
+  /** Episode status code. 13 = VIP-only, others = unavailable. */
+  status?: number
+}
+
+/**
+ * Warning component for unavailable bangumi episodes.
+ *
+ * Displays a styled alert based on the episode status:
+ * - Status 13: VIP-only episode warning (amber)
+ * - Other statuses: General unavailable message (red)
+ */
+function UnavailableEpisodeWarning({ status }: UnavailableEpisodeWarningProps) {
+  const { t } = useTranslation()
+
+  if (status === 13) {
+    return (
+      <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-950">
+        <div className="flex items-center gap-2">
+          <Info className="h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+          <p className="font-medium text-amber-900 dark:text-amber-100">
+            {t('video.bangumi_vip_only')}
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm dark:border-red-800 dark:bg-red-950">
+      <div className="flex items-center gap-2">
+        <Info className="h-4 w-4 flex-shrink-0 text-red-600 dark:text-red-400" />
+        <p className="font-medium text-red-900 dark:text-red-100">
+          {t('video.bangumi_no_dash')}
+        </p>
+      </div>
+    </div>
+  )
 }
 
 /**
@@ -130,6 +171,22 @@ const VideoPartCard = memo(function VideoPartCard({
   const selected = partInput?.selected ?? true
   const isWaitingForTurn =
     selected && !downloadStatus.downloadId && !isComplete && hasActiveDownloads
+
+  const dispatch = useDispatch()
+
+  // Track previous isComplete state to detect transition
+  const prevIsCompleteRef = useRef(isComplete)
+
+  // Deselect only when isComplete transitions from false to true
+  useEffect(() => {
+    const wasComplete = prevIsCompleteRef.current
+    prevIsCompleteRef.current = isComplete
+
+    // Only deselect on the exact moment of completion transition
+    if (!wasComplete && isComplete && selected) {
+      dispatch(updatePartSelected({ index: page - 1, selected: false }))
+    }
+  }, [isComplete, selected, page, dispatch])
 
   const subtitle = partInput?.subtitle
   const isSubtitleInvalid =
@@ -220,6 +277,70 @@ const VideoPartCard = memo(function VideoPartCard({
       : undefined
 
   /**
+   * Fetches quality options for the current video part.
+   */
+  const doFetchQualities = useCallback(
+    async (partIndex: number, isBangumi: boolean, epId: number | undefined) => {
+      try {
+        if (isBangumi && epId) {
+          const [vq, aq, isPreview] = await fetchBangumiPartQualities(
+            epId,
+            videoPart.cid,
+          )
+          store.dispatch(
+            setPartQualities({
+              index: partIndex,
+              videoQualities: vq,
+              audioQualities: aq,
+              isPreview: isPreview ?? undefined,
+            }),
+          )
+        } else {
+          const [vq, aq] = await fetchPartQualities(video.bvid, videoPart.cid)
+          store.dispatch(
+            setPartQualities({
+              index: partIndex,
+              videoQualities: vq,
+              audioQualities: aq,
+            }),
+          )
+        }
+      } catch (e) {
+        console.error('Failed to fetch qualities:', e)
+        store.dispatch(
+          setPartQualities({
+            index: partIndex,
+            videoQualities: [],
+            audioQualities: [],
+          }),
+        )
+      }
+    },
+    [video.bvid, videoPart.cid],
+  )
+
+  /**
+   * Fetches subtitle options for the current video part.
+   */
+  const doFetchSubtitles = useCallback(
+    async (partIndex: number) => {
+      try {
+        const fetchedSubtitles = await fetchSubtitlesForPart(
+          video.bvid,
+          videoPart.cid,
+        )
+        store.dispatch(
+          setPartSubtitles({ index: partIndex, subtitles: fetchedSubtitles }),
+        )
+      } catch (e) {
+        console.error('Failed to fetch subtitles:', e)
+        store.dispatch(setPartSubtitles({ index: partIndex, subtitles: [] }))
+      }
+    },
+    [video.bvid, videoPart.cid],
+  )
+
+  /**
    * Handles accordion open/close state changes.
    * Fetches qualities and subtitles in parallel when the accordion is
    * opened for the first time.
@@ -234,13 +355,14 @@ const VideoPartCard = memo(function VideoPartCard({
 
       const isBangumi = video.contentType === 'bangumi'
       const epId = videoPart.epId
-
       const shouldFetchQualities =
         videoQualities === undefined && !qualitiesLoading
       const shouldFetchSubtitles = subtitles.length === 0 && !subtitlesLoading
 
+      // Mark loading states
       if (shouldFetchQualities) {
         if (isBangumi && !epId) {
+          // VIP-only bangumi without epId - no qualities available
           store.dispatch(
             setPartQualities({
               index: partIndex,
@@ -258,74 +380,26 @@ const VideoPartCard = memo(function VideoPartCard({
         store.dispatch(setSubtitlesLoading({ index: partIndex, loading: true }))
       }
 
-      async function fetchQualities() {
-        try {
-          if (isBangumi && epId) {
-            const [vq, aq, isPreview] = await fetchBangumiPartQualities(
-              epId,
-              videoPart.cid,
-            )
-            store.dispatch(
-              setPartQualities({
-                index: partIndex,
-                videoQualities: vq,
-                audioQualities: aq,
-                isPreview: isPreview ?? undefined,
-              }),
-            )
-          } else {
-            const [vq, aq] = await fetchPartQualities(video.bvid, videoPart.cid)
-            store.dispatch(
-              setPartQualities({
-                index: partIndex,
-                videoQualities: vq,
-                audioQualities: aq,
-              }),
-            )
-          }
-        } catch (e) {
-          console.error('Failed to fetch qualities:', e)
-          store.dispatch(
-            setPartQualities({
-              index: partIndex,
-              videoQualities: [],
-              audioQualities: [],
-            }),
-          )
-        }
-      }
-
-      async function fetchSubtitles() {
-        try {
-          const fetchedSubtitles = await fetchSubtitlesForPart(
-            video.bvid,
-            videoPart.cid,
-          )
-          store.dispatch(
-            setPartSubtitles({ index: partIndex, subtitles: fetchedSubtitles }),
-          )
-        } catch (e) {
-          console.error('Failed to fetch subtitles:', e)
-          store.dispatch(setPartSubtitles({ index: partIndex, subtitles: [] }))
-        }
-      }
-
+      // Fetch data in parallel
       const tasks: Promise<void>[] = []
-      if (shouldFetchQualities && !(isBangumi && !epId))
-        tasks.push(fetchQualities())
-      if (shouldFetchSubtitles) tasks.push(fetchSubtitles())
+      if (shouldFetchQualities && !(isBangumi && !epId)) {
+        tasks.push(doFetchQualities(partIndex, isBangumi, epId))
+      }
+      if (shouldFetchSubtitles) {
+        tasks.push(doFetchSubtitles(partIndex))
+      }
       await Promise.all(tasks)
     },
     [
       page,
-      video.bvid,
       video.contentType,
-      videoPart.cid,
       videoPart.epId,
       videoQualities,
       qualitiesLoading,
       subtitles.length,
       subtitlesLoading,
+      doFetchQualities,
+      doFetchSubtitles,
     ],
   )
 
@@ -695,26 +769,9 @@ const VideoPartCard = memo(function VideoPartCard({
                         <>
                           {/* Video Quality */}
                           {videoQualities.length === 0 ? (
-                            // VIP-only or unavailable episode (bangumi)
-                            videoPart.status === 13 ? (
-                              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-950">
-                                <div className="flex items-center gap-2">
-                                  <Info className="h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
-                                  <p className="font-medium text-amber-900 dark:text-amber-100">
-                                    {t('video.bangumi_vip_only')}
-                                  </p>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm dark:border-red-800 dark:bg-red-950">
-                                <div className="flex items-center gap-2">
-                                  <Info className="h-4 w-4 flex-shrink-0 text-red-600 dark:text-red-400" />
-                                  <p className="font-medium text-red-900 dark:text-red-100">
-                                    {t('video.bangumi_no_dash')}
-                                  </p>
-                                </div>
-                              </div>
-                            )
+                            <UnavailableEpisodeWarning
+                              status={videoPart.status ?? 0}
+                            />
                           ) : (
                             <FormField
                               control={form.control}
