@@ -21,7 +21,7 @@ Pas de publicités, pas de suivi. 100 % gratuit.
 </div>
 
 > [!WARNING]
-> Cette application est destinée à un usage éducatif et personnel. Respectez les conditions d'utilisation et les lois sur le droit d'auteur.<br/>
+> Cette application est destinée à un usage personnel et éducatif. Respectez les conditions d'utilisation et les lois sur le droit d'auteur.<br/>
 > Ne téléchargez ni ne redistribuez de contenu sans l'autorisation des détenteurs de droits.
 
 ## Fonctionnalités

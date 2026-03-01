@@ -21,7 +21,7 @@ No ads, no tracking. 100% free.
 </div>
 
 > [!WARNING]
-> This app is intended for educational and personal use. Respect the terms of service and copyright laws.<br/>
+> This app is intended for personal and educational use. Respect the terms of service and copyright laws.<br/>
 > Do not download or redistribute content without permission from rights holders.
 
 ## Features
