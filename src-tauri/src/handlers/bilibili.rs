@@ -1,13 +1,38 @@
 //! Bilibili API integration module.
 //!
-//! This module handles all interactions with the Bilibili API:
+//! This module handles all interactions with the Bilibili API for video downloads,
+//! user authentication, and metadata retrieval.
 //!
 //! ## Main Features
 //!
 //! - **Video Info Fetching**: Retrieves video metadata including titles, quality options, and thumbnails
 //! - **User Authentication**: Fetches user information using cached cookies from Firefox
 //! - **Video Downloading**: Downloads parallel audio/video streams merged with ffmpeg
+//! - **Bangumi Support**: Handles anime/series episodes with VIP and preview restrictions
+//! - **Short URL Expansion**: Resolves b23.tv short URLs to full bilibili.com URLs
 //!
+//! ## Architecture
+//!
+//! The module is organized into several key areas:
+//!
+//! - **Data Structures**: DTOs for API requests/responses (`SubtitleOptions`, `DownloadOptions`, etc.)
+//! - **Video Metadata**: Functions for fetching video/bangumi information
+//! - **Download Logic**: Main `download_video` function with quality selection and fallback
+//! - **Utility Functions**: Cookie handling, quality conversion, history management
+//!
+//! ## Error Codes
+//!
+//! All errors are returned as `String` with standardized error code prefixes:
+//! - `ERR::VIDEO_NOT_FOUND` - Video does not exist or is inaccessible
+//! - `ERR::COOKIE_MISSING` - No cookies available for authenticated requests
+//! - `ERR::QUALITY_NOT_FOUND` - Requested quality not available
+//! - `ERR::DISK_FULL` - Insufficient disk space
+//! - `ERR::NETWORK` - Network-related download failures
+//! - `ERR::MERGE_FAILED` - ffmpeg merge operation failed
+//! - `ERR::CANCELLED` - Download was cancelled by user
+//! - `ERR::RATE_LIMITED` - HTTP 429 rate limit exceeded
+//! - `ERR::API_ERROR` - Generic API request failure
+//! - `ERR::BANGUMI_*` - Bangumi-specific errors (VIP only, region restricted, etc.)
 
 use serde::{Deserialize, Serialize};
 use tauri::Emitter;
@@ -129,6 +154,17 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::AppHandle;
 
 /// Builds a reqwest HTTP client with the default user agent.
+///
+/// Creates a new HTTP client configured with the application's user agent
+/// for making requests to Bilibili's API.
+///
+/// # Returns
+///
+/// Returns the configured HTTP client on success.
+///
+/// # Errors
+///
+/// Returns an error if the client builder fails to create the client.
 pub fn build_client() -> Result<Client, String> {
     Client::builder()
         .user_agent(USER_AGENT)
@@ -1445,13 +1481,15 @@ where
 /// Selects a stream URL from a quality list.
 ///
 /// Searches for a stream matching the requested quality ID.
-/// Falls back to the highest quality (first item) if the requested quality
-/// is not available.
+/// Selects a stream URL from a list of available qualities with fallback.
+///
+/// Attempts to find the requested quality in the list. If not found, falls back
+/// to the highest quality (first item) which represents the best available quality.
 ///
 /// # Arguments
 ///
-/// * `items` - Slice of available video/audio streams
-/// * `quality` - Requested quality ID
+/// * `items` - Slice of available video/audio streams with quality information
+/// * `quality` - Requested quality ID (use -1 for best available)
 ///
 /// # Returns
 ///
@@ -1483,32 +1521,52 @@ fn select_stream_url(
 /// Contains a list of history entries and pagination cursor.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+/// Response from Bilibili watch history API.
+///
+/// Contains paginated watch history entries with a cursor for fetching
+/// subsequent pages.
+///
+/// # Fields
+///
+/// * `entries` - List of watch history entries with video metadata
+/// * `cursor` - Pagination cursor for the next page request
 pub struct WatchHistoryResponse {
     pub entries: Vec<WatchHistoryEntry>,
     pub cursor: WatchHistoryCursor,
 }
 
-/// Fetches watch history from Bilibili API.
+/// Fetches watch history from Bilibili with pagination support.
 ///
-/// Retrieves paginated watch history entries from the user's Bilibili account.
-/// Uses cursor-based pagination with `max` and `view_at` parameters.
+/// Retrieves the user's viewing history from Bilibili's API using cursor-based
+/// pagination. Requires valid authentication cookies.
 ///
 /// # Arguments
 ///
 /// * `app` - Tauri application handle for accessing cookie cache
-/// * `max` - Maximum view_at timestamp from previous page (0 for first page)
-/// * `view_at` - View timestamp cursor from previous page (0 for first page)
+/// * `max` - Maximum number of entries to fetch (0 for default, typically 20)
+/// * `view_at` - Timestamp cursor for pagination (0 for first page)
 ///
 /// # Returns
 ///
-/// Returns `WatchHistoryResponse` with entries and pagination cursor.
+/// Returns a `WatchHistoryResponse` containing:
+/// - `entries`: List of watch history entries with video metadata
+/// - `cursor`: Pagination cursor for fetching more entries
 ///
 /// # Errors
 ///
 /// Returns an error if:
-/// - No cookies available (`ERR::COOKIE_MISSING`)
+/// - Cookies are unavailable (`ERR::COOKIE_MISSING`)
 /// - User is not logged in (`ERR::UNAUTHORIZED`)
-/// - API request or parsing fails
+/// - HTTP request fails
+/// - Response parsing fails
+///
+/// # Pagination
+///
+/// Use the `cursor` from the response to fetch the next page:
+/// ```rust
+/// let first_page = fetch_watch_history(app, 0, 0).await?;
+/// let next_page = fetch_watch_history(app, first_page.cursor.max, first_page.cursor.view_at).await?;
+/// ```
 pub async fn fetch_watch_history(
     app: &AppHandle,
     max: i32,
@@ -1934,11 +1992,32 @@ async fn prepare_subtitle_mode(
 ///
 /// # Errors
 ///
+/// Fetches bangumi (anime/series) episode metadata from Bilibili.
+///
+/// Retrieves comprehensive information for a bangumi episode including title,
+/// all available episodes, quality options, and VIP/preview status.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle for accessing cookie cache and settings
+/// * `ep_id` - Bangumi episode ID (e.g., 3051843)
+///
+/// # Returns
+///
+/// Returns a `Video` struct containing:
+/// - Episode title and metadata
+/// - List of all episodes in the series
+/// - Quality options (may be limited for non-VIP users)
+/// - VIP and preview status flags
+///
+/// # Errors
+///
 /// Returns an error if:
 /// - Episode is not found (`ERR::BANGUMI_NOT_FOUND`)
-/// - Episode is VIP-only (`ERR::BANGUMI_VIP_ONLY`)
-/// - Region restricted (`ERR::BANGUMI_REGION_RESTRICTED`)
-/// - Copyright restricted (`ERR::BANGUMI_COPYRIGHT_RESTRICTED`)
+/// - Episode requires VIP membership (`ERR::BANGUMI_VIP_ONLY`)
+/// - Episode is region restricted (`ERR::BANGUMI_REGION_RESTRICTED`)
+/// - Episode is copyright restricted (`ERR::BANGUMI_COPYRIGHT_RESTRICTED`)
+/// - Access is denied (`ERR::BANGUMI_ACCESS_DENIED`)
 /// - API request fails (`ERR::API_ERROR`)
 pub async fn fetch_bangumi_info(app: &AppHandle, ep_id: i64) -> Result<Video, String> {
     let cookies = read_cookie(app)?.unwrap_or_default();
@@ -2146,6 +2225,30 @@ async fn fetch_bangumi_details_for_download(
 /// # Returns
 ///
 /// Returns a tuple of (video_qualities, audio_qualities, is_preview).
+/// Fetches available video and audio qualities for a bangumi episode part.
+///
+/// Used for lazy-loading quality options when a specific part is rendered
+/// in the UI (virtual scrolling optimization).
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle for accessing cookie cache
+/// * `ep_id` - Bangumi episode ID
+/// * `cid` - Content ID for the specific video part
+///
+/// # Returns
+///
+/// Returns a tuple containing:
+/// - `video_qualities`: Vector of available video quality options
+/// - `audio_qualities`: Vector of available audio quality options (empty for durl format)
+/// - `is_preview`: Optional boolean indicating if this is a preview-only episode
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - API request fails
+/// - Response parsing fails
+/// - No stream data is available
 pub async fn fetch_bangumi_part_qualities(
     app: &AppHandle,
     ep_id: i64,
@@ -2182,4 +2285,53 @@ pub async fn fetch_bangumi_part_qualities(
 
     // Should not reach here as fetch_bangumi_player_result validates data presence
     Err("ERR::BANGUMI_NO_DASH".into())
+}
+
+// ============================================================================
+// Short URL Expansion
+// ============================================================================
+
+/// Expands a b23.tv short URL to its full bilibili.com URL.
+///
+/// This function follows HTTP redirects to resolve the final URL.
+/// Used to convert short URLs like `https://b23.tv/BV1xx411c7XD` to
+/// full URLs like `https://www.bilibili.com/video/BV1xx411c7XD`.
+///
+/// # Arguments
+///
+/// * `url` - The b23.tv short URL to expand
+///
+/// # Returns
+///
+/// Returns the final URL after following all redirects.
+///
+/// # Errors
+///
+/// Returns `ERR::SHORT_URL_EXPAND` if:
+/// - The HTTP request fails
+/// - The redirect limit (5) is exceeded
+/// - Network issues occur
+///
+/// # Example
+///
+/// ```rust
+/// let full_url = expand_short_url("https://b23.tv/abc123".to_string()).await?;
+/// assert!(full_url.starts_with("https://www.bilibili.com/video/"));
+/// ```
+pub async fn expand_short_url(url: String) -> Result<String, String> {
+    // Build a client with redirect policy for short URL expansion
+    let client = Client::builder()
+        .user_agent(USER_AGENT)
+        .redirect(reqwest::redirect::Policy::limited(5))
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| format!("ERR::SHORT_URL_EXPAND: failed to build client: {}", e))?;
+
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("ERR::SHORT_URL_EXPAND: {}", e))?;
+
+    Ok(response.url().to_string())
 }

@@ -3,7 +3,7 @@ import type { TFunction } from 'i18next'
 import z from 'zod'
 
 const UNSUPPORTED_HOSTNAME_RULES: Array<[RegExp, string]> = [
-  [/^b23\.tv$/i, 'validation.video.url.short_url'],
+  // b23.tv short URLs are auto-expanded in VideoForm1.tsx
   [/^space\.bilibili\.com$/i, 'validation.video.url.space'],
   [/^member\.bilibili\.com$/i, 'validation.video.url.member'],
   [/^live\.bilibili\.com$/i, 'validation.video.url.live'],
@@ -112,6 +112,12 @@ export const buildVideoFormSchema1 = (t: TFunction) =>
               code: z.ZodIssueCode.custom,
               message: unsupportedError,
             })
+            return
+          }
+
+          // b23.tv short URLs are auto-expanded in VideoForm1.tsx
+          // Skip validation here - the expanded URL will be validated after expansion
+          if (/^b23\.tv$/i.test(hostname)) {
             return
           }
 

@@ -277,6 +277,7 @@
         "domain": "bilibili.com URL만 허용됩니다.",
         "format": "URL은 비디오 (/video/{id}) 또는 방구미 (/bangumi/play/ep{id}) 형식이어야 합니다.",
         "short_url": "단축 URL (b23.tv)은 지원되지 않습니다. 전체 비디오 URL을 입력하세요.",
+        "short_url_expand_failed": "단축 URL 확장에 실패했습니다. 전체 비디오 URL을 입력하세요.",
         "space": "사용자 공간 URL은 지원되지 않습니다. 비디오 URL을 입력하세요.",
         "member": "회원 센터 URL은 지원되지 않습니다. 비디오 URL을 입력하세요.",
         "live": "라이브 스트리밍은 지원되지 않습니다.",

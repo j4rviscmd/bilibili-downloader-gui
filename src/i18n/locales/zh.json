@@ -277,6 +277,7 @@
         "domain": "仅允许 bilibili.com 的链接。",
         "format": "链接必须是视频 (/video/{id}) 或番剧 (/bangumi/play/ep{id}) 格式。",
         "short_url": "不支持短链接 (b23.tv)。请使用完整的视频链接。",
+        "short_url_expand_failed": "短链接展开失败。请输入完整的视频链接。",
         "space": "不支持用户空间链接。请使用视频链接。",
         "member": "不支持会员中心链接。请使用视频链接。",
         "live": "不支持直播链接。",

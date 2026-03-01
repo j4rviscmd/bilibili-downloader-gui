@@ -1,4 +1,5 @@
 import { useVideoInfo } from '@/features/video'
+import { expandShortUrl } from '@/features/video/api/expandShortUrl'
 import {
   buildVideoFormSchema1,
   formSchema1,
@@ -15,7 +16,7 @@ import {
 import { Input } from '@/shared/ui/input'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
@@ -38,6 +39,9 @@ function VideoForm1() {
   const { t } = useTranslation()
   const hasActiveDownloads = useSelector(selectHasActiveDownloads)
   const [lastFetchedUrl, setLastFetchedUrl] = useState<string>('')
+  const [isExpanding, setIsExpanding] = useState(false)
+  const [expandError, setExpandError] = useState<string | null>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const schema1 = buildVideoFormSchema1(t)
 
@@ -54,32 +58,77 @@ function VideoForm1() {
     form.setValue('url', trimmedUrl, { shouldValidate: trimmedUrl.length > 0 })
   }, [form, input.url])
 
+  /** Returns true if the URL is a b23.tv short URL. */
+  const isShortUrl = useCallback((url: string): boolean => {
+    try {
+      const { hostname } = new URL(url)
+      return /^b23\.tv$/i.test(hostname)
+    } catch {
+      return false
+    }
+  }, [])
+
+  /**
+   * Expands a b23.tv short URL with 500ms debounce.
+   */
+  const handleExpandShortUrl = useCallback(
+    (url: string) => {
+      // Clear previous debounce timer
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current)
+      }
+
+      // Debounce 500ms
+      debounceRef.current = setTimeout(async () => {
+        setIsExpanding(true)
+        setExpandError(null)
+
+        try {
+          const expandedUrl = await expandShortUrl(url)
+          // Update form value with expanded URL
+          form.setValue('url', expandedUrl, { shouldValidate: true })
+          // Trigger video info fetch with expanded URL
+          if (expandedUrl !== lastFetchedUrl) {
+            setLastFetchedUrl(expandedUrl)
+            onValid1(expandedUrl)
+          }
+        } catch {
+          setExpandError(t('validation.video.url.short_url_expand_failed'))
+        } finally {
+          setIsExpanding(false)
+        }
+      }, 500)
+    },
+    [form, t, lastFetchedUrl, onValid1],
+  )
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current)
+      }
+    }
+  }, [])
+
   /**
    * Handles form submission with URL validation.
-   *
-   * Triggers video info fetch if the submitted URL differs from the
-   * last fetched URL to prevent redundant API calls.
-   *
-   * @param data - The form data containing the URL field
+   * Skips submission if expanding or URL unchanged.
    */
   function onSubmit(data: z.infer<typeof formSchema1>): void {
+    // Skip submission while expanding short URL
+    if (isExpanding) return
+
     const trimmedUrl = data.url.trim()
     if (trimmedUrl === lastFetchedUrl) return
     setLastFetchedUrl(trimmedUrl)
     onValid1(trimmedUrl)
   }
 
-  const placeholder =
-    t('video.url_placeholder_example') ||
-    'e.g. https://www.bilibili.com/video/BV1xxxxxx'
+  const placeholder = t('video.url_placeholder_example')
 
   /**
    * Clears the URL input field and resets validation state.
-   *
-   * Resets the form value, calls the onChange handler, and clears
-   * the last fetched URL to allow re-fetching the same URL.
-   *
-   * @param onChange - The field onChange callback from react-hook-form
    */
   function handleClear(onChange: (value: string) => void): void {
     form.setValue('url', '', { shouldValidate: true })
@@ -90,23 +139,22 @@ function VideoForm1() {
   /**
    * Renders the appropriate icon for the URL input field.
    *
-   * Shows a loading spinner when fetching video info, or a clear button
-   * when the input has a value. Returns null when the input is empty.
-   *
-   * @param value - The current URL input value
-   * @param onChange - The field onChange callback from react-hook-form
-   * @returns A React node containing either a loader, clear button, or null
+   * Shows a loading spinner when expanding short URL or fetching video info,
+   * or a clear button when the input has a value.
    */
   function renderInputIcon(
     value: string,
     onChange: (value: string) => void,
   ): React.ReactNode {
-    if (isFetching) {
+    if (isFetching || isExpanding) {
       return (
         <Loader2 className="text-muted-foreground absolute top-1/2 right-3 size-4 -translate-y-1/2 animate-spin" />
       )
     }
-    if (!value) return null
+
+    if (!value) {
+      return null
+    }
 
     return (
       <button
@@ -122,6 +170,19 @@ function VideoForm1() {
       </button>
     )
   }
+
+  /** Handles URL input change, triggering short URL expansion when detected. */
+  const handleUrlChange = useCallback(
+    (value: string, onChange: (value: string) => void) => {
+      onChange(value)
+      setExpandError(null)
+
+      if (isShortUrl(value)) {
+        handleExpandShortUrl(value)
+      }
+    },
+    [isShortUrl, handleExpandShortUrl],
+  )
 
   return (
     <Form {...form}>
@@ -143,13 +204,23 @@ function VideoForm1() {
                     type="url"
                     required
                     placeholder={placeholder}
-                    disabled={isFetching || hasActiveDownloads}
-                    {...field}
+                    disabled={isFetching || isExpanding || hasActiveDownloads}
+                    value={field.value}
+                    onChange={(e) =>
+                      handleUrlChange(e.target.value, field.onChange)
+                    }
+                    onBlur={field.onBlur}
+                    name={field.name}
+                    ref={field.ref}
                   />
                   {renderInputIcon(field.value, field.onChange)}
                 </div>
               </FormControl>
-              <FormMessage />
+              {expandError ? (
+                <p className="text-destructive text-sm">{expandError}</p>
+              ) : (
+                <FormMessage />
+              )}
             </FormItem>
           )}
         />
