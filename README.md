@@ -3,7 +3,7 @@
 
 <div align="center">
 
-# BiliBili Downloader GUI
+# Bilibili Downloader GUI
 
 **Windows and macOS Bilibili video downloader GUI.**
 
@@ -22,7 +22,8 @@ No configuration needed. Install and start downloading videos right away.
 </div>
 
 > [!WARNING]
-> This app is intended for educational and personal use. Respect the terms of service and copyright laws. Do not download or redistribute content without permission from rights holders.
+> This app is intended for educational and personal use. Respect the terms of service and copyright laws.  
+> Do not download or redistribute content without permission from rights holders.
 
 ## Features
 
