@@ -156,7 +156,8 @@ use tauri::AppHandle;
 /// Builds a reqwest HTTP client with the default user agent.
 ///
 /// Creates a new HTTP client configured with the application's user agent
-/// for making requests to Bilibili's API.
+/// for making requests to Bilibili's API. The client is configured with
+/// connection pooling and keep-alive for efficient repeated requests.
 ///
 /// # Returns
 ///
@@ -165,6 +166,13 @@ use tauri::AppHandle;
 /// # Errors
 ///
 /// Returns an error if the client builder fails to create the client.
+///
+/// # Example
+///
+/// ```
+/// let client = build_client()?;
+/// let response = client.get("https://api.bilibili.com/...").send().await?;
+/// ```
 pub fn build_client() -> Result<Client, String> {
     Client::builder()
         .user_agent(USER_AGENT)
@@ -194,7 +202,8 @@ fn check_http_status(status: reqwest::StatusCode) -> Result<(), String> {
 /// Extracts bangumi episode ID from a redirect URL.
 ///
 /// Parses URLs like `https://www.bilibili.com/bangumi/play/ep3051843`
-/// and returns the episode ID (3051843).
+/// and returns the episode ID (3051843). This is used when short URLs
+/// or player links redirect to bangumi episodes.
 ///
 /// # Arguments
 ///
@@ -203,6 +212,13 @@ fn check_http_status(status: reqwest::StatusCode) -> Result<(), String> {
 /// # Returns
 ///
 /// Returns `Some(ep_id)` if the URL matches the bangumi pattern, `None` otherwise.
+///
+/// # Example
+///
+/// ```
+/// let url = "https://www.bilibili.com/bangumi/play/ep3051843";
+/// assert_eq!(extract_bangumi_ep_id(url), Some(3051843));
+/// ```
 fn extract_bangumi_ep_id(url: &str) -> Option<i64> {
     url.split("/bangumi/play/ep").nth(1).and_then(|suffix| {
         suffix
@@ -708,6 +724,22 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
 /// Cleans up temporary subtitle files for a download.
 ///
 /// Removes any `.srt` files matching the download ID prefix from the lib directory.
+/// This is called after download completion or failure to ensure temporary
+/// files are removed.
+///
+/// # Arguments
+///
+/// * `lib_path` - Path to the library directory containing temporary files
+/// * `download_id` - Unique identifier for the download (used as filename prefix)
+///
+/// # Example
+///
+/// ```no_run
+/// # use std::path::Path;
+/// # let lib_path = Path::new("/app/lib");
+/// cleanup_subtitle_files(lib_path, "download-123");
+/// // Removes files like: temp_sub_download-123_en.srt, temp_sub_download-123_ja.srt
+/// ```
 fn cleanup_subtitle_files(lib_path: &std::path::Path, download_id: &str) {
     let prefix = format!("temp_sub_{}_", download_id);
     if let Ok(entries) = std::fs::read_dir(lib_path) {
@@ -1011,7 +1043,7 @@ pub fn build_cookie_header_from_cache(app: &AppHandle) -> Result<String, String>
 /// - Video is not found (`ERR::VIDEO_NOT_FOUND`)
 /// - API request fails (`ERR::API_ERROR`)
 pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String> {
-    use crate::utils::sanitize::apply_title_replacements;
+    use crate::utils::sanitize::{apply_title_replacements, resolve_duplicate_titles};
 
     let cookies = read_cookie(app)?.unwrap_or_default();
     let cookie_header = build_cookie_header(&cookies);
@@ -1032,17 +1064,22 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
     let replacements = settings
         .as_ref()
         .and_then(|s| s.title_replacements.as_deref());
+    let auto_rename = settings
+        .as_ref()
+        .and_then(|s| s.auto_rename_duplicates)
+        .unwrap_or(true);
 
     // Apply title replacement to the main title
     let sanitized_title = apply_title_replacements(&data.title, replacements);
 
     let pages = data.pages.as_deref().unwrap_or(&[]);
 
-    let parts = if pages.is_empty() {
+    let mut parts = if pages.is_empty() {
         vec![VideoPart {
             cid: data.cid,
             page: 1,
-            part: sanitized_title.clone(),
+            part: data.title.clone(),
+            sanitized_part: Some(sanitized_title.clone()),
             duration: 0,
             thumbnail: Thumbnail {
                 url: data.pic.clone(),
@@ -1074,7 +1111,8 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
                 VideoPart {
                     cid: page.cid,
                     page: page.page,
-                    part: sanitized_part,
+                    part: part_name.to_string(),
+                    sanitized_part: Some(sanitized_part),
                     duration: page.duration,
                     thumbnail: Thumbnail {
                         url: thumb_url.to_string(),
@@ -1090,6 +1128,23 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
             })
             .collect()
     };
+
+    // Apply duplicate title resolution if enabled
+    if auto_rename {
+        let sanitized_titles: Vec<String> = parts
+            .iter()
+            .filter_map(|p| p.sanitized_part.as_ref())
+            .cloned()
+            .collect();
+        let resolved_titles = resolve_duplicate_titles(&sanitized_titles);
+        // Apply resolved titles back to sanitized_part
+        let mut resolved_iter = resolved_titles.into_iter();
+        for part in parts.iter_mut() {
+            if part.sanitized_part.is_some() {
+                part.sanitized_part = resolved_iter.next();
+            }
+        }
+    }
 
     Ok(Video {
         title: sanitized_title,
@@ -2020,6 +2075,8 @@ async fn prepare_subtitle_mode(
 /// - Access is denied (`ERR::BANGUMI_ACCESS_DENIED`)
 /// - API request fails (`ERR::API_ERROR`)
 pub async fn fetch_bangumi_info(app: &AppHandle, ep_id: i64) -> Result<Video, String> {
+    use crate::utils::sanitize::{apply_title_replacements, resolve_duplicate_titles};
+
     let cookies = read_cookie(app)?.unwrap_or_default();
     let cookie_header = build_cookie_header(&cookies);
     let is_limited_quality = cookie_header.is_empty();
@@ -2075,35 +2132,70 @@ pub async fn fetch_bangumi_info(app: &AppHandle, ep_id: i64) -> Result<Video, St
     // DASH data for VIP users, and ERR::BANGUMI_NO_DASH for non-VIP users.
     // Each VideoPart keeps its status field for UI reference.
 
+    // Get settings for title replacement
+    let settings = settings::get_settings(app).await.ok();
+    let replacements = settings
+        .as_ref()
+        .and_then(|s| s.title_replacements.as_deref());
+    let auto_rename = settings
+        .as_ref()
+        .and_then(|s| s.auto_rename_duplicates)
+        .unwrap_or(true);
+
     // Convert episodes to VideoParts
-    let parts: Vec<VideoPart> = result
+    let mut parts: Vec<VideoPart> = result
         .episodes
         .iter()
         .enumerate()
-        .map(|(idx, ep)| VideoPart {
-            cid: ep.cid,
-            page: (idx + 1) as i32,
-            part: if ep.long_title.is_empty() {
+        .map(|(idx, ep)| {
+            let original_part = if ep.long_title.is_empty() {
                 ep.title.clone()
             } else {
                 format!("{} {}", ep.title, ep.long_title).trim().to_string()
-            },
-            duration: ep.duration / 1000, // Convert ms to seconds
-            thumbnail: Thumbnail {
-                url: ep.cover.clone(),
-            },
-            video_qualities: vec![],
-            audio_qualities: vec![],
-            subtitles: vec![],
-            ep_id: Some(ep.id),
-            status: Some(ep.status),
-            aid: Some(ep.aid),
-            is_preview: None, // Will be set when fetching qualities
+            };
+            let sanitized_part = apply_title_replacements(&original_part, replacements);
+            VideoPart {
+                cid: ep.cid,
+                page: (idx + 1) as i32,
+                part: original_part,
+                sanitized_part: Some(sanitized_part),
+                duration: ep.duration / 1000, // Convert ms to seconds
+                thumbnail: Thumbnail {
+                    url: ep.cover.clone(),
+                },
+                video_qualities: vec![],
+                audio_qualities: vec![],
+                subtitles: vec![],
+                ep_id: Some(ep.id),
+                status: Some(ep.status),
+                aid: Some(ep.aid),
+                is_preview: None, // Will be set when fetching qualities
+            }
         })
         .collect();
 
+    // Apply duplicate title resolution if enabled
+    if auto_rename {
+        let sanitized_titles: Vec<String> = parts
+            .iter()
+            .filter_map(|p| p.sanitized_part.as_ref())
+            .cloned()
+            .collect();
+        let resolved_titles = resolve_duplicate_titles(&sanitized_titles);
+        // Apply resolved titles back to sanitized_part
+        let mut resolved_iter = resolved_titles.into_iter();
+        for part in parts.iter_mut() {
+            if part.sanitized_part.is_some() {
+                part.sanitized_part = resolved_iter.next();
+            }
+        }
+    }
+
+    // Apply title replacement to main title
+    let sanitized_title = apply_title_replacements(&result.title, replacements);
+
     Ok(Video {
-        title: result.title.clone(),
+        title: sanitized_title,
         bvid: format!("av{}", target_ep.aid), // Use AID as identifier
         parts,
         is_limited_quality,

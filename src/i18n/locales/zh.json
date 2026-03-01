@@ -239,6 +239,8 @@
       "simulate_logout": "模拟未登录状态",
       "simulate_logout_description": "启用后，应用将以未登录状态运行（用于测试）。"
     },
+    "auto_rename_duplicates_label": "自动重命名重复分P",
+    "auto_rename_duplicates_description": "当分P名称相同时自动添加编号（例如：分P名称 → 分P名称 (1)）",
     "title_replacement": {
       "section_label": "标题字符替换",
       "description": "自定义视频标题中的特殊字符在文件名中如何替换。",

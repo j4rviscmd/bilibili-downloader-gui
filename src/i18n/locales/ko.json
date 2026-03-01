@@ -239,6 +239,8 @@
       "simulate_logout": "비로그인 상태 시뮬레이션",
       "simulate_logout_description": "활성화하면 앱이 로그인하지 않은 상태로 실행됩니다(테스트용)."
     },
+    "auto_rename_duplicates_label": "중복 파트 이름 자동 변경",
+    "auto_rename_duplicates_description": "같은 이름의 파트가 있을 때 자동으로 번호를 추가합니다 (예: 파트 이름 → 파트 이름 (1))",
     "title_replacement": {
       "section_label": "제목 문자 치환",
       "description": "비디오 제목의 특수 문자가 파일명에서 어떻게 치환되는지 사용자 정의합니다.",

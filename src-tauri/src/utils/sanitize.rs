@@ -4,34 +4,9 @@
 //! user-configurable character replacement rules.
 
 use crate::models::settings::{default_title_replacements, TitleReplacement};
+use std::collections::HashMap;
 
 /// Applies title replacement rules to sanitize a filename.
-///
-/// Iterates through the replacement rules and applies each enabled rule
-/// in order. If no rules are provided, uses the default replacements.
-///
-/// # Arguments
-///
-/// * `filename` - The original filename to sanitize
-/// * `replacements` - Optional slice of replacement rules to apply
-///
-/// # Returns
-///
-/// The sanitized filename with all enabled replacements applied.
-///
-/// # Examples
-///
-/// ```
-/// use bilibili_downloader_gui::utils::sanitize::apply_title_replacements;
-/// use bilibili_downloader_gui::models::settings::TitleReplacement;
-///
-/// let rules = vec![
-///     TitleReplacement::new("/", "-", true),
-///     TitleReplacement::new(":", "_", true),
-/// ];
-/// let result = apply_title_replacements("Video: Part 1/2", Some(&rules));
-/// assert_eq!(result, "Video_ Part 1-2");
-/// ```
 pub fn apply_title_replacements(
     filename: &str,
     replacements: Option<&[TitleReplacement]>,
@@ -47,6 +22,50 @@ pub fn apply_title_replacements(
     }
 
     result
+}
+
+/// Resolves duplicate titles by adding index suffixes (e.g., "hoge" -> "hoge (1)").
+///
+/// Processes a list of titles and adds numerical suffixes to duplicate entries
+/// to ensure uniqueness. The first occurrence of each title remains unchanged,
+/// the second occurrence gets "(1)", the third gets "(2)", and so on.
+///
+/// # Arguments
+///
+/// * `titles` - A slice of title strings to deduplicate
+///
+/// # Returns
+///
+/// A new `Vec<String>` with duplicate titles resolved by adding index suffixes.
+///
+/// # Examples
+///
+/// ```
+/// let titles = vec![
+///     "Part 1".to_string(),
+///     "Part 2".to_string(),
+///     "Part 1".to_string(),
+///     "Part 1".to_string(),
+/// ];
+/// let resolved = resolve_duplicate_titles(&titles);
+/// assert_eq!(resolved, vec!["Part 1", "Part 2", "Part 1 (1)", "Part 1 (2)"]);
+/// ```
+pub fn resolve_duplicate_titles(titles: &[String]) -> Vec<String> {
+    let mut seen: HashMap<&str, usize> = HashMap::new();
+
+    titles
+        .iter()
+        .map(|title| {
+            let count = seen.entry(title.as_str()).or_insert(0);
+            *count += 1;
+
+            if *count == 1 {
+                title.clone()
+            } else {
+                format!("{} ({})", title, *count - 1)
+            }
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -108,5 +127,53 @@ mod tests {
         let rules: Vec<TitleReplacement> = vec![];
         let result = apply_title_replacements("Test: File", Some(&rules));
         assert_eq!(result, "Test: File");
+    }
+
+    #[test]
+    fn test_resolve_duplicate_titles_all_duplicates() {
+        let titles = vec!["hoge".to_string(), "hoge".to_string(), "hoge".to_string()];
+        let result = resolve_duplicate_titles(&titles);
+        assert_eq!(
+            result,
+            vec![
+                "hoge".to_string(),
+                "hoge (1)".to_string(),
+                "hoge (2)".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn test_resolve_duplicate_titles_no_duplicates() {
+        let titles = vec!["a".to_string(), "b".to_string(), "c".to_string()];
+        let result = resolve_duplicate_titles(&titles);
+        assert_eq!(
+            result,
+            vec!["a".to_string(), "b".to_string(), "c".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_resolve_duplicate_titles_mixed() {
+        let titles = vec!["a".to_string(), "b".to_string(), "a".to_string()];
+        let result = resolve_duplicate_titles(&titles);
+        assert_eq!(
+            result,
+            vec!["a".to_string(), "b".to_string(), "a (1)".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_resolve_duplicate_titles_empty() {
+        let titles: Vec<String> = vec![];
+        let result = resolve_duplicate_titles(&titles);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_resolve_duplicate_titles_single() {
+        let titles = vec!["single".to_string()];
+        let result = resolve_duplicate_titles(&titles);
+        assert_eq!(result, vec!["single".to_string()]);
     }
 }

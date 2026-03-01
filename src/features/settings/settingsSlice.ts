@@ -14,6 +14,7 @@ const initialState: SettingsState = {
   dlOutputPath: '',
   language: 'en',
   dialogOpen: false,
+  autoRenameDuplicates: true,
 }
 
 /**

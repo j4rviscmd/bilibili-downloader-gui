@@ -32,6 +32,7 @@ import {
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
 import { Separator } from '@/shared/ui/separator'
+import { Switch } from '@/shared/ui/switch'
 
 /**
  * Settings form component.
@@ -78,6 +79,14 @@ function SettingsForm() {
    * @param titleKey - Translation key for the dialog title
    * @param defaultPath - Optional starting directory path
    * @returns Selected directory path, or null if cancelled/failed
+   *
+   * @example
+   * ```typescript
+   * const path = await openDirectoryDialog('settings.output_dir_dialog_title', '/Users/you/Downloads');
+   * if (path) {
+   *   console.log('Selected:', path);
+   * }
+   * ```
    */
   const openDirectoryDialog = async (
     titleKey: string,
@@ -102,6 +111,11 @@ function SettingsForm() {
    * Opens a directory picker dialog for selecting the FFmpeg library path.
    * If the user selects a directory, the path is updated via the settings
    * API and the local state is refreshed.
+   *
+   * This is useful for moving large dependencies like ffmpeg to a drive
+   * with more storage space.
+   *
+   * @throws Shows error toast if the update fails
    */
   const handleLibPathChange = async () => {
     setIsUpdatingLibPath(true)
@@ -124,6 +138,9 @@ function SettingsForm() {
    * Opens a directory picker dialog for selecting where downloaded videos
    * are saved. If the user selects a directory, the form value is updated,
    * validated, and immediately submitted to persist the change.
+   *
+   * The selected path is validated against OS-specific constraints
+   * (Windows vs POSIX) before being saved.
    */
   const handleDlOutputPathChange = async () => {
     setIsUpdatingDlOutputPath(true)
@@ -270,6 +287,21 @@ function SettingsForm() {
             </FormItem>
           )}
         />
+        <Separator />
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label>{t('settings.auto_rename_duplicates_label')}</Label>
+            <p className="text-muted-foreground text-sm">
+              {t('settings.auto_rename_duplicates_description')}
+            </p>
+          </div>
+          <Switch
+            checked={settings.autoRenameDuplicates ?? true}
+            onCheckedChange={(checked) => {
+              saveByForm({ ...settings, autoRenameDuplicates: checked })
+            }}
+          />
+        </div>
         <Separator />
         <TitleReplacementSettings />
         <Separator />

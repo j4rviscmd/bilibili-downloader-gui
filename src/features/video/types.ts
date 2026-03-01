@@ -98,8 +98,10 @@ export type Video = {
  * Metadata for a single video part.
  */
 export type VideoPart = {
-  /** Part name/subtitle */
+  /** Part name/subtitle (original from Bilibili, for display) */
   part: string
+  /** Sanitized part name with special character replacement and duplicate avoidance (for download filename) */
+  sanitizedPart?: string
   /** Page number (1-indexed) */
   page: number
   /** Part CID (unique identifier) */

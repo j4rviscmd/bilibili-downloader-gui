@@ -86,17 +86,30 @@ type Props = {
  * Computes the default title for a video part.
  *
  * Returns the video title for single-part videos, or combines video
- * title with part name for multi-part videos.
+ * title with part name for multi-part videos. Uses sanitizedPart if
+ * available (for download filename), falls back to the original part name.
+ *
+ * @param video - The video object containing title and parts
+ * @param videoPart - The specific video part with part name and optional sanitized name
+ * @returns The computed default title string
+ *
+ * @example
+ * ```typescript
+ * const video = { title: "My Video", parts: [...] };
+ * const part = { part: "Episode 1", sanitizedPart: "Episode 1" };
+ * computeDefaultTitle(video, part); // "My Video Episode 1"
+ * ```
  */
 function computeDefaultTitle(
   video: Video,
-  videoPart: { part: string },
+  videoPart: { part: string; sanitizedPart?: string },
 ): string {
   const hasValidParts = video?.parts.length && video.parts[0].cid !== 0
   if (!hasValidParts) return ''
+  const displayName = videoPart.sanitizedPart ?? videoPart.part
   return video.title === videoPart.part
     ? video.title
-    : `${video.title} ${videoPart.part}`
+    : `${video.title} ${displayName}`
 }
 
 /** Props for the UnavailableEpisodeWarning component. */
@@ -109,8 +122,17 @@ type UnavailableEpisodeWarningProps = {
  * Warning component for unavailable bangumi episodes.
  *
  * Displays a styled alert based on the episode status:
- * - Status 13: VIP-only episode warning (amber)
- * - Other statuses: General unavailable message (red)
+ * - Status 13: VIP-only episode warning (amber color)
+ * - Other statuses: General unavailable message (red color)
+ *
+ * @param props - Component props containing episode status
+ * @returns A styled warning alert component
+ *
+ * @example
+ * ```tsx
+ * <UnavailableEpisodeWarning status={13} /> // Shows VIP warning
+ * <UnavailableEpisodeWarning status={0} />  // Shows unavailable message
+ * ```
  */
 function UnavailableEpisodeWarning({ status }: UnavailableEpisodeWarningProps) {
   const { t } = useTranslation()
@@ -562,7 +584,8 @@ const VideoPartCard = memo(function VideoPartCard({
     const needsVideoQuality = !partInput?.videoQuality
     const needsAudioQuality = hasAudioQualities && !partInput?.audioQuality
     if (needsVideoQuality || needsAudioQuality) {
-      const title = partInput?.title ?? videoPart.part
+      const title =
+        partInput?.title ?? videoPart.sanitizedPart ?? videoPart.part
       form.trigger().then((isValid) => {
         if (isValid) {
           onValid2(page - 1, title, videoQuality, audioQuality)
@@ -578,6 +601,7 @@ const VideoPartCard = memo(function VideoPartCard({
     form,
     onValid2,
     page,
+    videoPart.sanitizedPart,
     videoPart.part,
   ])
 

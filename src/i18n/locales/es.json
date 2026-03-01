@@ -239,6 +239,8 @@
       "simulate_logout": "Simular estado sin sesión iniciada",
       "simulate_logout_description": "Cuando está habilitado, la aplicación funciona como si no hubieras iniciado sesión (para pruebas)."
     },
+    "auto_rename_duplicates_label": "Renombrar automáticamente partes duplicadas",
+    "auto_rename_duplicates_description": "Añade números automáticamente cuando las partes tienen el mismo nombre (ej: Nombre → Nombre (1))",
     "title_replacement": {
       "section_label": "Reemplazo de caracteres del título",
       "description": "Personaliza cómo los caracteres especiales en los títulos de videos se reemplazan en los nombres de archivo.",
