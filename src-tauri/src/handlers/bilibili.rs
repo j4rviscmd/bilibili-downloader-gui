@@ -1992,12 +1992,6 @@ async fn prepare_subtitle_mode(
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - Episode is not found (`ERR::BANGUMI_NOT_FOUND`)
-/// - Episode is VIP-only (`ERR::BANGUMI_VIP_ONLY`)
-/// - Region restricted (`ERR::BANGUMI_REGION_RESTRICTED`)
-/// - Copyright restricted (`ERR::BANGUMI_COPYRIGHT_RESTRICTED`)
-/// - API request fails (`ERR::API_ERROR`)
 /// Fetches bangumi (anime/series) episode metadata from Bilibili.
 ///
 /// Retrieves comprehensive information for a bangumi episode including title,
