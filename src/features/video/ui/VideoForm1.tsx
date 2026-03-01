@@ -188,11 +188,22 @@ function VideoForm1() {
     [isShortUrl, handleExpandShortUrl],
   )
 
+  /**
+   * Handles blur event on the form.
+   * Skips submission for short URLs since they will be auto-expanded.
+   */
+  const handleFormBlur = useCallback(() => {
+    const currentUrl = form.getValues('url').trim()
+    // Skip form submission for short URLs - they will be auto-expanded
+    if (isShortUrl(currentUrl)) return
+    form.handleSubmit(onSubmit)()
+  }, [form, isShortUrl, onSubmit])
+
   return (
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit(onSubmit)}
-        onBlur={form.handleSubmit(onSubmit)}
+        onBlur={handleFormBlur}
         className="space-y-3"
       >
         <FormField
