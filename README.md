@@ -16,7 +16,7 @@
 
 **Windows and macOS Bilibili video downloader GUI.**
 
-No configuration needed. Install and start downloading videos right away.
+No ads, no tracking. 100% free.
 
 </div>
 
