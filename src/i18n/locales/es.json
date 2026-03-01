@@ -277,6 +277,7 @@
         "domain": "Solo se permiten URL de bilibili.com.",
         "format": "La URL debe ser de video (/video/{id}) o bangumi (/bangumi/play/ep{id}).",
         "short_url": "Las URL cortas (b23.tv) no son compatibles. Por favor, usa la URL completa del video.",
+        "short_url_expand_failed": "No se pudo expandir la URL corta. Por favor, ingresa la URL completa del video.",
         "space": "Las URL del espacio de usuario no son compatibles. Por favor, usa una URL de video.",
         "member": "Las URL del centro de miembros no son compatibles. Por favor, usa una URL de video.",
         "live": "Las transmisiones en vivo no son compatibles.",

@@ -282,6 +282,7 @@
         "domain": "bilibili.com のURLのみ有効です。",
         "format": "URLは動画 (/video/{id}) またはバンガミ (/bangumi/play/ep{id}) の形式である必要があります。",
         "short_url": "短縮URL (b23.tv) は非対応です。完全な動画URLを入力してください。",
+        "short_url_expand_failed": "短縮URLの展開に失敗しました。完全な動画URLを入力してください。",
         "space": "ユーザースペースのURLは非対応です。動画URLを入力してください。",
         "member": "メンバーセンターのURLは非対応です。動画URLを入力してください。",
         "live": "ライブ配信は非対応です。",

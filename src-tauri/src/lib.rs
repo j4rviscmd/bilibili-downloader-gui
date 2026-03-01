@@ -119,6 +119,7 @@ pub fn run() {
             fetch_favorite_folders,
             fetch_favorite_videos,
             fetch_watch_history,
+            expand_short_url,
             cleanup_temp_files,
             // record_download_click  // NOTE: GA4 Analytics は無効化されています
             #[cfg(debug_assertions)]
@@ -1127,4 +1128,38 @@ async fn fetch_bangumi_part_qualities(
     bilibili::fetch_bangumi_part_qualities(&app, ep_id, cid)
         .await
         .map_err(|e| e.to_string())
+}
+
+/// Expands a b23.tv short URL to its full bilibili.com URL.
+///
+/// This command follows HTTP redirects to resolve the final URL.
+/// Used to convert short URLs like `https://b23.tv/BV1xx411c7XD` to
+/// full URLs like `https://www.bilibili.com/video/BV1xx411c7XD`.
+///
+/// # Arguments
+///
+/// * `url` - The b23.tv short URL to expand
+///
+/// # Returns
+///
+/// Returns the final URL after following all redirects.
+///
+/// # Errors
+///
+/// Returns an error string starting with `ERR::SHORT_URL_EXPAND` if:
+/// - The HTTP request fails
+/// - The redirect limit (5) is exceeded
+/// - Network issues occur
+///
+/// # Example
+///
+/// ```typescript
+/// const fullUrl = await invoke<string>('expand_short_url', {
+///   url: 'https://b23.tv/BV1xx411c7XD'
+/// });
+/// // fullUrl: 'https://www.bilibili.com/video/BV1xx411c7XD'
+/// ```
+#[tauri::command]
+async fn expand_short_url(url: String) -> Result<String, String> {
+    bilibili::expand_short_url(url).await
 }
