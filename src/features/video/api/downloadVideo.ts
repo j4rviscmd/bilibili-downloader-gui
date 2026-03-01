@@ -1,6 +1,10 @@
 import { store } from '@/app/store'
 import type { SubtitleConfig } from '@/features/video/types'
-import { enqueue, updateQueueItem } from '@/shared/queue/queueSlice'
+import {
+  enqueue,
+  updateQueueItem,
+  updateQueueStatus,
+} from '@/shared/queue/queueSlice'
 import { invoke } from '@tauri-apps/api/core'
 
 /**
@@ -59,26 +63,34 @@ export const downloadVideo = async (
 ) => {
   store.dispatch(enqueue({ downloadId, parentId, filename, status: 'pending' }))
 
-  const outputPath = await invoke<string>('download_video', {
-    options: {
-      bvid: videoId,
-      cid,
-      filename,
-      quality,
-      audioQuality,
-      downloadId,
-      parentId: parentId ?? null,
-      durationSeconds: durationSeconds ?? 0,
-      thumbnailUrl: thumbnailUrl ?? null,
-      page: page ?? null,
-      epId: epId ?? null,
-      subtitle: subtitle
-        ? {
-            mode: subtitle.mode,
-            selectedLans: subtitle.selectedLans,
-          }
-        : null,
-    },
-  })
-  store.dispatch(updateQueueItem({ downloadId, outputPath, title: filename }))
+  const subtitleOptions = subtitle
+    ? { mode: subtitle.mode, selectedLans: subtitle.selectedLans }
+    : null
+
+  try {
+    const outputPath = await invoke<string>('download_video', {
+      options: {
+        bvid: videoId,
+        cid,
+        filename,
+        quality,
+        audioQuality,
+        downloadId,
+        parentId: parentId ?? null,
+        durationSeconds: durationSeconds ?? 0,
+        thumbnailUrl: thumbnailUrl ?? null,
+        page: page ?? null,
+        epId: epId ?? null,
+        subtitle: subtitleOptions,
+      },
+    })
+    store.dispatch(updateQueueItem({ downloadId, outputPath, title: filename }))
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : String(error)
+    store.dispatch(
+      updateQueueStatus({ downloadId, status: 'error', errorMessage }),
+    )
+    throw error
+  }
 }
