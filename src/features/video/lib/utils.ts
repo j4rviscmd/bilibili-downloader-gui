@@ -96,3 +96,19 @@ const FORBIDDEN_SUPERSET = /[\\/:*?"<>|]/g
 export const normalizeFilename = (name: string): string => {
   return name.trim().toLowerCase().replace(FORBIDDEN_SUPERSET, '')
 }
+
+/**
+ * Builds a Bilibili video URL from bvid and page number.
+ *
+ * @param bvid - Bilibili video ID (e.g., 'BV1xx411c7XD')
+ * @param page - Part page number (1-indexed). Page 1 omits the query parameter.
+ * @returns Full Bilibili video URL
+ *
+ * @example
+ * ```typescript
+ * buildVideoUrl('BV1xx411c7XD', 1) // 'https://www.bilibili.com/video/BV1xx411c7XD'
+ * buildVideoUrl('BV1xx411c7XD', 2) // 'https://www.bilibili.com/video/BV1xx411c7XD?p=2'
+ * ```
+ */
+export const buildVideoUrl = (bvid: string, page: number): string =>
+  `https://www.bilibili.com/video/${bvid}${page > 1 ? `?p=${page}` : ''}`

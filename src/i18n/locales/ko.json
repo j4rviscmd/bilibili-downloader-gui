@@ -137,7 +137,8 @@
     "bangumi_audio_embedded": "오디오가 비디오에 내장되어 있어 별도의 음질 선택이 필요하지 않습니다.",
     "bangumi_preview_badge": "예고",
     "bangumi_preview_tooltip": "프리미엄 멤버십이 필요합니다. 처음 6분만 다운로드됩니다.",
-    "bangumi_durl_not_supported": "이 에피소드 형식은 지원되지 않습니다."
+    "bangumi_durl_not_supported": "이 에피소드 형식은 지원되지 않습니다.",
+    "open_in_browser": "브라우저에서 열기"
   },
   "progress": {
     "elapsed": "경과",

@@ -137,7 +137,8 @@
     "bangumi_audio_embedded": "音声は動画に埋め込まれているため、音質選択は不要です。",
     "bangumi_preview_badge": "予告",
     "bangumi_preview_tooltip": "プレミアム会員権限が必要です。冒頭6分のみダウンロードされます。",
-    "bangumi_durl_not_supported": "このエピソード形式はサポートされていません。"
+    "bangumi_durl_not_supported": "このエピソード形式はサポートされていません。",
+    "open_in_browser": "ブラウザで開く"
   },
   "progress": {
     "elapsed": "経過",
