@@ -72,7 +72,11 @@ fn default_content_type() -> String {
 pub struct VideoPart {
     pub cid: i64,
     pub page: i32,
+    /// Original part name from Bilibili (for display)
     pub part: String,
+    /// Sanitized part name with special character replacement and duplicate avoidance (for download filename)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sanitized_part: Option<String>,
     pub duration: i64,
     pub thumbnail: Thumbnail,
     pub video_qualities: Vec<Quality>,
@@ -116,9 +120,7 @@ pub struct Quality {
     pub quality: String,
 }
 
-// ============================================================================
 // Favorite DTOs
-// ============================================================================
 
 /// Favorite folder information sent to the frontend.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -177,9 +179,7 @@ pub struct FavoriteVideoListResponse {
     pub total_count: i64,
 }
 
-// ============================================================================
 // Watch History DTOs
-// ============================================================================
 
 /// Watch history entry sent to the frontend.
 ///
@@ -209,9 +209,7 @@ pub struct WatchHistoryCursor {
     pub is_end: bool,
 }
 
-// ============================================================================
 // Subtitle DTOs
-// ============================================================================
 
 /// Subtitle information sent to the frontend.
 #[derive(Debug, Clone, Serialize, Deserialize)]

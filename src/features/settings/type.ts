@@ -38,6 +38,14 @@ export interface Settings {
    * Maximum 20 rules allowed.
    */
   titleReplacements?: TitleReplacement[]
+  /**
+   * Whether to automatically rename duplicate part titles.
+   *
+   * When enabled, duplicate titles are renamed with index suffixes
+   * (e.g., "Part" → "Part (1)", "Part (2)").
+   * Defaults to true if not specified.
+   */
+  autoRenameDuplicates?: boolean
   // Frontendのみの管理につき、localStorageでのみ保存している
   // TODO: themeをjson管理
   // theme: 'light' | 'dark'

@@ -20,6 +20,14 @@ const selectPartInputs = (state: RootState) => state.input.partInputs
  *
  * Normalizes each part title by removing forbidden characters, trimming,
  * and converting to lowercase for duplicate detection.
+ *
+ * @returns An array of normalized title strings for comparison.
+ *
+ * @example
+ * ```typescript
+ * const normalizedTitles = selectNormalizedTitles(state);
+ * // Returns ['part one', 'part two', 'part one'] for duplicate detection
+ * ```
  */
 export const selectNormalizedTitles = createSelector(
   [selectPartInputs],
@@ -33,8 +41,14 @@ export const selectNormalizedTitles = createSelector(
  * Unselected parts are excluded so their titles do not trigger
  * duplicate warnings or block the download button.
  *
- * Returns an array of indices where the normalized title matches
- * another selected part's title. Empty if no duplicates exist.
+ * @returns An array of indices where the normalized title matches
+ *          another selected part's title. Empty if no duplicates exist.
+ *
+ * @example
+ * ```typescript
+ * const duplicateIndices = selectDuplicateIndices(state);
+ * // Returns [0, 2, 3] if parts at indices 0, 2, and 3 have duplicate titles
+ * ```
  */
 export const selectDuplicateIndices = createSelector(
   [selectNormalizedTitles, selectPartInputs],
@@ -52,9 +66,17 @@ export const selectDuplicateIndices = createSelector(
 )
 
 /**
- * Memoized selector for whether duplicates exist.
+ * Memoized selector for whether duplicates exist among selected parts.
  *
- * @returns True if any part titles are duplicated
+ * @returns `true` if any selected part titles are duplicated, `false` otherwise.
+ *
+ * @example
+ * ```typescript
+ * const hasDuplicates = selectHasDuplicates(state);
+ * if (hasDuplicates) {
+ *   // Show duplicate warning to user
+ * }
+ * ```
  */
 export const selectHasDuplicates = createSelector(
   [selectDuplicateIndices],
@@ -100,16 +122,26 @@ export const selectAllPartValid = (tFn: TFunction) => (state: RootState) => {
 /**
  * Selector factory for overall validation status.
  *
- * Combines part validation and duplicate checking.
+ * Combines part validation and duplicate checking. When autoRenameDuplicates
+ * is enabled, duplicates are allowed since the backend will automatically
+ * rename them with index suffixes (e.g., "Part (1)", "Part (2)").
  *
  * @param tFn - Translation function for localized error messages
- * @returns A memoized selector that checks if all validations pass
+ * @returns A memoized selector that returns `true` if all validations pass
+ *
+ * @example
+ * ```typescript
+ * const t = useTranslation().t;
+ * const isAllValid = selectIsAllValid(t)(state);
+ * // Returns true if all parts are valid and either no duplicates or auto-rename enabled
+ * ```
  */
 export const selectIsAllValid = (tFn: TFunction) =>
   createSelector(
     selectHasDuplicates,
     selectAllPartValid(tFn),
-    (dup, all) => all && !dup,
+    (state: RootState) => state.settings.autoRenameDuplicates ?? true,
+    (dup, all, autoRename) => all && (!dup || autoRename),
   )
 
 /**
@@ -119,8 +151,19 @@ export const selectIsAllValid = (tFn: TFunction) =>
  * child progress entries. Uses weighted filesize if available, falls back
  * to average percentage, then stage-based weighting.
  *
- * @param parentId - The parent download ID
+ * Progress calculation priority:
+ * 1. Filesize-based (downloaded/filesize) - most accurate
+ * 2. Percentage-based (average of all percentages) - fallback
+ * 3. Stage-based (audio 33%, video 33%, merge 34%) - coarse estimate
+ *
+ * @param parentId - The parent download ID to aggregate progress for
  * @returns A selector that returns the aggregated progress ratio (0-1)
+ *
+ * @example
+ * ```typescript
+ * const parentProgress = selectParentProgress('bv123456-1234567890')(state);
+ * // Returns 0.5 for 50% complete, 0.0 for not started, 1.0 for complete
+ * ```
  */
 export const selectParentProgress =
   (parentId: string) => (state: RootState) => {
@@ -154,14 +197,14 @@ export const selectParentProgress =
     })
 
     // Priority: filesize > percentage > stage > 0
-    const ratio =
-      filesizeSum > 0
-        ? downloadedSum / filesizeSum
-        : percentageCount > 0
-          ? percentageSum / percentageCount / 100
-          : stageCount > 0
-            ? stageSum / stageCount
-            : 0
+    let ratio = 0
+    if (filesizeSum > 0) {
+      ratio = downloadedSum / filesizeSum
+    } else if (percentageCount > 0) {
+      ratio = percentageSum / percentageCount / 100
+    } else if (stageCount > 0) {
+      ratio = stageSum / stageCount
+    }
 
     return Math.max(0, Math.min(1, ratio))
   }

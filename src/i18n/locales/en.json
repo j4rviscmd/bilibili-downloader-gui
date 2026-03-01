@@ -242,6 +242,8 @@
       "simulate_logout": "Simulate non-logged-in state",
       "simulate_logout_description": "When enabled, the app behaves as if you are not logged in (for testing purposes)."
     },
+    "auto_rename_duplicates_label": "Auto-rename duplicate parts",
+    "auto_rename_duplicates_description": "Automatically add numbers when parts have the same name (e.g., Part Name → Part Name (1))",
     "title_replacement": {
       "section_label": "Title Character Replacement",
       "description": "Customize how special characters in video titles are replaced in filenames.",

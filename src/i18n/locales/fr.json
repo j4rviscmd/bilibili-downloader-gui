@@ -239,6 +239,8 @@
       "simulate_logout": "Simuler l'état non connecté",
       "simulate_logout_description": "Lorsqu'activé, l'application se comporte comme si vous n'étiez pas connecté (à des fins de test)."
     },
+    "auto_rename_duplicates_label": "Renommer automatiquement les parties dupliquées",
+    "auto_rename_duplicates_description": "Ajoute automatiquement des numéros quand les parties ont le même nom (ex: Nom → Nom (1))",
     "title_replacement": {
       "section_label": "Remplacement de caractères du titre",
       "description": "Personnalisez comment les caractères spéciaux dans les titres de vidéos sont remplacés dans les noms de fichiers.",

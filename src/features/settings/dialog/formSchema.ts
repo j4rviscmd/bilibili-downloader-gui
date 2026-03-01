@@ -16,6 +16,10 @@ const addIssue = (ctx: z.RefinementCtx, message: string) => {
  * - Windows-specific: invalid chars, reserved names, colon placement
  * - POSIX-specific: null byte check
  * - Trailing space/dot detection
+ *
+ * @param value - The path string to validate
+ * @param ctx - Zod refinement context for adding validation issues
+ * @param t - Translation function for localized error messages
  */
 function refinePath(value: string, ctx: z.RefinementCtx, t: TFunction) {
   // Reject control characters (0x00-0x1F)
@@ -30,8 +34,10 @@ function refinePath(value: string, ctx: z.RefinementCtx, t: TFunction) {
 
   if (isWindowsStyle) {
     validateWindowsPath(value, ctx, t, endsWithSpaceOrDot)
-  } else if (isPosixStyle && value.includes('\0')) {
-    addIssue(ctx, t('validation.path.invalid'))
+  } else if (isPosixStyle) {
+    if (value.includes('\0')) {
+      addIssue(ctx, t('validation.path.invalid'))
+    }
   } else if (/[<>"|?*]/.test(value)) {
     // Unknown path style - check for invalid chars
     addIssue(ctx, t('validation.path.invalid_chars'))
@@ -40,6 +46,18 @@ function refinePath(value: string, ctx: z.RefinementCtx, t: TFunction) {
 
 /**
  * Validates Windows-specific path constraints.
+ *
+ * Checks for:
+ * - Invalid colon placement (only allowed after drive letter)
+ * - Invalid characters (< > " | ? *)
+ * - Segment trailing space/dot (e.g., "folder ")
+ * - Path trailing space/dot
+ * - Reserved device names (CON, PRN, AUX, NUL, COM1-9, LPT1-9)
+ *
+ * @param value - The Windows path string to validate
+ * @param ctx - Zod refinement context for adding validation issues
+ * @param t - Translation function for localized error messages
+ * @param endsWithSpaceOrDot - Whether the path ends with space or dot
  */
 function validateWindowsPath(
   value: string,
@@ -119,6 +137,7 @@ export const buildSettingsFormSchema = (t: TFunction) =>
       })
       .superRefine((value, ctx) => refinePath(value, ctx, t))
       .optional(),
+    autoRenameDuplicates: z.boolean().optional(),
   })
 
 /**

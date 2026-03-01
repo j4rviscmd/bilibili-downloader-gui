@@ -242,6 +242,8 @@
       "simulate_logout": "非ログイン状態をシミュレート",
       "simulate_logout_description": "有効にすると、アプリはログインしていない状態として動作します（テスト用）。"
     },
+    "auto_rename_duplicates_label": "重複パート名を自動リネーム",
+    "auto_rename_duplicates_description": "同じ名前のパートがある場合、自動で番号を付与します（例: パート名 → パート名 (1)）",
     "title_replacement": {
       "section_label": "タイトル文字置換",
       "description": "動画タイトルに含まれる特殊文字をファイル名でどのように置換するか設定します。",

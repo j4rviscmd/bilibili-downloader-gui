@@ -69,6 +69,16 @@ const ERROR_MAP: Record<string, string> = {
  *
  * Maps backend error codes to user-facing translation keys. Returns the original
  * error message if no known error code is found. Handles network errors specifically.
+ *
+ * @param error - The raw error string from the backend
+ * @param t - Translation function for localized error messages
+ * @returns Localized error message string
+ *
+ * @example
+ * ```typescript
+ * const msg = getErrorMessage('ERR::VIDEO_NOT_FOUND', t);
+ * // Returns localized "Video not found" message
+ * ```
  */
 function getErrorMessage(error: string, t: (key: string) => string): string {
   for (const [code, key] of Object.entries(ERROR_MAP)) {
@@ -84,7 +94,13 @@ function getErrorMessage(error: string, t: (key: string) => string): string {
  * part URL is provided (e.g., https://bilibili.com/video/BVxxx?p=5).
  *
  * @param url - The video URL to parse
- * @returns The page number if valid, null otherwise
+ * @returns The page number if valid (1-indexed), null otherwise
+ *
+ * @example
+ * ```typescript
+ * extractPageFromUrl('https://bilibili.com/video/BVxxx?p=3'); // Returns 3
+ * extractPageFromUrl('https://bilibili.com/video/BVxxx');    // Returns null
+ * ```
  */
 function extractPageFromUrl(url: string): number | null {
   try {
@@ -143,8 +159,26 @@ type VideoInfoProviderProps = {
 }
 
 /**
- * Provider for managing video information and download workflow.
- * Provides video info fetching, part settings management, duplicate detection, and download execution.
+ * Provider component for managing video information and download workflow.
+ *
+ * This provider orchestrates the entire video download process including:
+ * - Video/bangumi info fetching with RTK Query caching
+ * - Part input state management and validation
+ * - Duplicate title detection (affected by autoRenameDuplicates setting)
+ * - Download queue management and execution
+ * - Pending download processing from history/favorites navigation
+ *
+ * The provider uses a singleton ref pattern to prevent re-processing
+ * the same pending download multiple times during state transitions.
+ *
+ * @param props - Component props containing children to render
+ *
+ * @example
+ * ```tsx
+ * <VideoInfoProvider>
+ *   <YourVideoDownloadUI />
+ * </VideoInfoProvider>
+ * ```
  */
 export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
   const { t } = useTranslation()
@@ -184,7 +218,10 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
     const partInputs = v.parts.map((p) => ({
       cid: p.cid,
       page: p.page,
-      title: v.title === p.part ? v.title : `${v.title} ${p.part}`,
+      title:
+        v.title === p.part
+          ? v.title
+          : `${v.title} ${p.sanitizedPart ?? p.part}`,
       videoQuality: '',
       audioQuality: '',
       selected: isSelected(p),
