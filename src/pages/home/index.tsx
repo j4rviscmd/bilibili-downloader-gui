@@ -611,6 +611,23 @@ function HomeContentInner() {
     }
   }, [video.parts.length, currentPage, totalPages, handlePageChange])
 
+  // Clear browser 'page' param when input URL has 'p' param
+  // This ensures correct page navigation when URL input changes
+  useEffect(() => {
+    if (!input.url) return
+
+    try {
+      const pParam = new URL(input.url).searchParams.get('p')
+      if (pParam && searchParams.has('page')) {
+        const newParams = new URLSearchParams(searchParams)
+        newParams.delete('page')
+        setSearchParams(newParams, { replace: true })
+      }
+    } catch {
+      // Invalid URL
+    }
+  }, [input.url, searchParams, setSearchParams])
+
   const selectTooltip = hasActiveDownloads
     ? t('video.download_in_progress')
     : undefined
