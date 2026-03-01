@@ -1,3 +1,5 @@
+import { store } from '@/app/store'
+import { videoApi } from '@/features/video'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useEffect, useState } from 'react'
@@ -44,11 +46,6 @@ import { Switch } from '@/shared/ui/switch'
  * Changes are auto-saved when fields blur or when language is changed.
  * The form uses react-hook-form with Zod schema validation that supports
  * both Windows and POSIX path validation rules.
- *
- * @example
- * ```tsx
- * <SettingsForm />
- * ```
  */
 function SettingsForm() {
   const { t } = useTranslation()
@@ -70,23 +67,11 @@ function SettingsForm() {
   }, [settings.libPath, t])
 
   /**
-   * Opens a native directory picker dialog.
-   *
-   * Uses Tauri's dialog plugin to show a platform-native directory
-   * selection dialog. Returns the selected path as a string, or null if
-   * the user cancels or an error occurs.
+   * Opens a directory selection dialog using Tauri's dialog plugin.
    *
    * @param titleKey - Translation key for the dialog title
-   * @param defaultPath - Optional starting directory path
-   * @returns Selected directory path, or null if cancelled/failed
-   *
-   * @example
-   * ```typescript
-   * const path = await openDirectoryDialog('settings.output_dir_dialog_title', '/Users/you/Downloads');
-   * if (path) {
-   *   console.log('Selected:', path);
-   * }
-   * ```
+   * @param defaultPath - Optional initial directory path
+   * @returns Selected directory path or null if cancelled/error occurred
    */
   const openDirectoryDialog = async (
     titleKey: string,
@@ -97,7 +82,7 @@ function SettingsForm() {
         directory: true,
         multiple: false,
         title: t(titleKey),
-        defaultPath: defaultPath || undefined,
+        defaultPath,
       })
     } catch (error) {
       console.error('Failed to open directory dialog:', error)
@@ -106,16 +91,8 @@ function SettingsForm() {
   }
 
   /**
-   * Handles library path directory selection.
-   *
-   * Opens a directory picker dialog for selecting the FFmpeg library path.
-   * If the user selects a directory, the path is updated via the settings
-   * API and the local state is refreshed.
-   *
-   * This is useful for moving large dependencies like ffmpeg to a drive
-   * with more storage space.
-   *
-   * @throws Shows error toast if the update fails
+   * Handles library path selection via directory dialog.
+   * Updates the library path setting after user selects a directory.
    */
   const handleLibPathChange = async () => {
     setIsUpdatingLibPath(true)
@@ -133,14 +110,8 @@ function SettingsForm() {
   }
 
   /**
-   * Handles download output directory selection.
-   *
-   * Opens a directory picker dialog for selecting where downloaded videos
-   * are saved. If the user selects a directory, the form value is updated,
-   * validated, and immediately submitted to persist the change.
-   *
-   * The selected path is validated against OS-specific constraints
-   * (Windows vs POSIX) before being saved.
+   * Handles download output path selection via directory dialog.
+   * Updates the form value and submits to save the new path.
    */
   const handleDlOutputPathChange = async () => {
     setIsUpdatingDlOutputPath(true)
@@ -180,13 +151,11 @@ function SettingsForm() {
   }, [form, settings.dlOutputPath, settings.language])
 
   /**
-   * Form submission handler that saves changed settings.
+   * Handles form submission.
+   * Detects changed fields and saves only those values.
+   * Triggers language update if language setting changed.
    *
-   * Compares form data against current settings to identify which fields
-   * have changed. If the language changed, triggers a language update
-   * immediately. All changed values are then persisted via the settings API.
-   *
-   * @param data - Validated form data matching the settings schema
+   * @param data - Form data matching the schema
    */
   const onSubmit = async (data: z.infer<typeof formSchema>) => {
     const changedKeys = (['dlOutputPath', 'language'] as const).filter(
@@ -207,12 +176,9 @@ function SettingsForm() {
 
   /**
    * Handles language selection change.
+   * Updates form value and immediately submits to apply new language.
    *
-   * Updates the language field value when a user selects a different
-   * language from the radio group. Marks the form as dirty and triggers
-   * immediate validation and submission to save the change.
-   *
-   * @param val - Selected language identifier (e.g., 'en', 'ja')
+   * @param val - Selected language code
    */
   const handleLanguageChange = (val: string) => {
     form.setValue('language', val as z.infer<typeof formSchema>['language'], {
@@ -299,6 +265,8 @@ function SettingsForm() {
             checked={settings.autoRenameDuplicates ?? true}
             onCheckedChange={(checked) => {
               saveByForm({ ...settings, autoRenameDuplicates: checked })
+              // Clear video cache so new setting applies on next fetch
+              store.dispatch(videoApi.util.resetApiState())
             }}
           />
         </div>

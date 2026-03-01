@@ -1,5 +1,5 @@
 import { store } from '@/app/store'
-import { videoApi } from '@/features/video/api/videoApi'
+import { videoApi } from '@/features/video'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -13,10 +13,7 @@ import { Switch } from '@/shared/ui/switch'
 
 const MAX_RULES = 20
 
-/**
- * Default title replacement rules.
- * Must match the defaults defined in the Rust backend.
- */
+/** Default title replacement rules. Must match the Rust backend defaults. */
 const DEFAULT_RULES: TitleReplacement[] = [
   { from: '/', to: '-', enabled: true },
   { from: ':', to: '_', enabled: true },
@@ -30,15 +27,7 @@ const DEFAULT_RULES: TitleReplacement[] = [
 
 /**
  * Title replacement settings component.
- *
- * Provides UI for managing title character replacement rules.
- * Each rule has a "from" field (character/text to replace),
- * a "to" field (replacement), and a toggle to enable/disable.
- *
- * @example
- * ```tsx
- * <TitleReplacementSettings />
- * ```
+ * Manages character replacement rules for video titles.
  */
 export function TitleReplacementSettings() {
   const { t } = useTranslation()
@@ -52,16 +41,21 @@ export function TitleReplacementSettings() {
   const rules: TitleReplacement[] = settings.titleReplacements ?? DEFAULT_RULES
 
   /**
-   * Saves the updated rules to settings and clears video cache.
+   * Saves new title replacement rules.
+   * Persists to settings and clears video cache to apply changes.
+   *
+   * @param newRules - Updated array of title replacement rules
    */
   const saveRules = async (newRules: TitleReplacement[]) => {
     await saveByForm({ ...settings, titleReplacements: newRules })
-    // Clear video cache so new rules apply on next fetch
     store.dispatch(videoApi.util.resetApiState())
   }
 
   /**
-   * Toggles a rule's enabled state.
+   * Toggles the enabled state of a title replacement rule.
+   *
+   * @param index - Index of the rule to toggle
+   * @param enabled - New enabled state
    */
   const handleToggle = async (index: number, enabled: boolean) => {
     const newRules = rules.map((rule, i) =>
@@ -71,7 +65,10 @@ export function TitleReplacementSettings() {
   }
 
   /**
-   * Starts editing a rule.
+   * Enters edit mode for a specific rule.
+   * Populates edit state with current rule values.
+   *
+   * @param index - Index of the rule to edit
    */
   const startEdit = (index: number) => {
     setEditingIndex(index)
@@ -80,7 +77,8 @@ export function TitleReplacementSettings() {
   }
 
   /**
-   * Cancels editing.
+   * Exits edit mode without saving changes.
+   * Clears edit state and resets form fields.
    */
   const cancelEdit = () => {
     setEditingIndex(null)
@@ -89,7 +87,8 @@ export function TitleReplacementSettings() {
   }
 
   /**
-   * Saves the edited rule.
+   * Saves the current edit and exits edit mode.
+   * Requires a non-empty "from" value to save.
    */
   const saveEdit = async () => {
     if (editingIndex === null || !editFrom) return
@@ -102,7 +101,9 @@ export function TitleReplacementSettings() {
   }
 
   /**
-   * Deletes a rule.
+   * Deletes a title replacement rule by index.
+   *
+   * @param index - Index of the rule to delete
    */
   const deleteRule = async (index: number) => {
     const newRules = rules.filter((_, i) => i !== index)
@@ -110,17 +111,13 @@ export function TitleReplacementSettings() {
   }
 
   /**
-   * Adds a new rule.
+   * Adds a new empty rule and immediately enters edit mode for it.
+   * Enforced by MAX_RULES limit to prevent performance issues.
    */
   const addRule = async () => {
     if (rules.length >= MAX_RULES) return
 
-    const newRule: TitleReplacement = {
-      from: '',
-      to: '',
-      enabled: true,
-    }
-    const newRules = [...rules, newRule]
+    const newRules = [...rules, { from: '', to: '', enabled: true }]
     await saveRules(newRules)
     setEditingIndex(newRules.length - 1)
   }
