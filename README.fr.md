@@ -14,7 +14,7 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/j4rviscmd/bilibili-downloader-gui/ci.yml?style=for-the-badge&label=CI&color=brightgreen&logo=githubactions&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge&logo=opensourceinitiative&logoColor=white)](LICENSE)
 
-**Interface graphique de téléchargement de vidéos Bilibili pour Windows et macOS**
+## Téléchargeur de vidéos Bilibili pour Windows et macOS
 
 Pas de publicités, pas de suivi. 100 % gratuit.
 

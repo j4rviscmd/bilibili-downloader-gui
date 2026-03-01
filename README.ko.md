@@ -14,7 +14,7 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/j4rviscmd/bilibili-downloader-gui/ci.yml?style=for-the-badge&label=CI&color=brightgreen&logo=githubactions&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge&logo=opensourceinitiative&logoColor=white)](LICENSE)
 
-**Windows 및 macOS용 Bilibili 동영상 다운로더 GUI 애플리케이션**
+## Windows 및 macOS Bilibili 동영상 다운로더
 
 광고 없음, 추적 없음. 100% 무료.
 
