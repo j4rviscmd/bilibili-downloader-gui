@@ -28,6 +28,7 @@ export {
   deselectPageAll,
   inputSlice,
   selectAll,
+  selectHasSelectedParts,
   selectPageAll,
   setPendingDownload,
   updatePartSelected,

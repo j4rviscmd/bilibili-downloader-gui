@@ -12,6 +12,7 @@ import { extractContentId } from '@/features/video/lib/utils'
 import {
   clearPendingDownload,
   clearResolvedInfo,
+  deselectAll,
   initPartInputs,
   setUrl,
   updatePartInputByIndex,
@@ -74,6 +75,26 @@ function getErrorMessage(error: string, t: (key: string) => string): string {
     if (error.includes(code)) return t(key)
   }
   return error.includes('ERR::NETWORK::') ? t('video.network_error') : error
+}
+
+/**
+ * Extracts the 'p' query parameter from a URL.
+ *
+ * Used to determine which video part to select when a specific
+ * part URL is provided (e.g., https://bilibili.com/video/BVxxx?p=5).
+ *
+ * @param url - The video URL to parse
+ * @returns The page number if valid, null otherwise
+ */
+function extractPageFromUrl(url: string): number | null {
+  try {
+    const pParam = new URL(url).searchParams.get('p')
+    if (!pParam) return null
+    const parsed = parseInt(pParam, 10)
+    return !isNaN(parsed) && parsed > 0 ? parsed : null
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -203,22 +224,6 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
         return
       }
 
-      // Extract p parameter from URL (e.g., ?p=159)
-      // If specified, only that part will be selected
-      let pageFromUrl: number | null = null
-      try {
-        const urlObj = new URL(url)
-        const pParam = urlObj.searchParams.get('p')
-        if (pParam) {
-          const parsed = parseInt(pParam, 10)
-          if (!isNaN(parsed) && parsed > 0) {
-            pageFromUrl = parsed
-          }
-        }
-      } catch {
-        // URL parse error - ignore
-      }
-
       const contentId = extractContentId(url)
       if (!contentId) {
         toast.error(t('video.fetch_info'), {
@@ -227,6 +232,9 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
         })
         return
       }
+
+      // Extract p parameter from URL for part selection
+      const pageFromUrl = extractPageFromUrl(url)
 
       // Set processingPendingRef before initInputsForVideo is called
       // This ensures only the p-specified part is selected
@@ -243,6 +251,8 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
       }
 
       store.dispatch(setUrl(url))
+      // Clear all selections when navigating to a new video via URL input
+      store.dispatch(deselectAll())
       store.dispatch(clearQueue())
 
       let fetchResult: { data?: Video; error?: unknown }

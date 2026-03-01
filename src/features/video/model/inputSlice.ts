@@ -415,4 +415,14 @@ export const {
   updatePartSelected,
   updateSubtitleConfig,
 } = inputSlice.actions
+
+/**
+ * Selector to check if any part is selected.
+ *
+ * @param state - The Redux root state
+ * @returns true if at least one part is selected, false otherwise
+ */
+export const selectHasSelectedParts = (state: { input: Input }) =>
+  state.input.partInputs.some((p) => p.selected)
+
 export default inputSlice.reducer

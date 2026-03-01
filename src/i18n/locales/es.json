@@ -138,7 +138,12 @@
     "bangumi_preview_badge": "Vista previa",
     "bangumi_preview_tooltip": "Se requiere membresía premium. Solo se descargarán los primeros 6 minutos.",
     "bangumi_durl_not_supported": "Este formato de episodio no es compatible.",
-    "open_in_browser": "Abrir en navegador"
+    "open_in_browser": "Abrir en navegador",
+    "confirm_navigation_title": "Confirmar",
+    "confirm_navigation_message": "Tiene partes seleccionados. Navegar a otra página borrará su selección. ¿Continuar?",
+    "confirm_navigation_cancel": "Cancelar",
+    "confirm_navigation_ok": "Navegar",
+    "navigation_disabled_tooltip": "Por favor, espere a que se completen las descargas"
   },
   "progress": {
     "elapsed": "Transcurrido",
