@@ -1,4 +1,10 @@
 import { store } from '@/app/store'
+import {
+  getLoginState,
+  qrLogout,
+  type LoginMethod,
+  type QrSession,
+} from '@/features/login'
 import { videoApi } from '@/features/video'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { open } from '@tauri-apps/plugin-dialog'
@@ -7,6 +13,16 @@ import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import type { z } from 'zod'
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { callGetCurrentLibPath } from '@/features/settings/api/settingApi'
 import {
   buildSettingsFormSchema,
@@ -53,6 +69,23 @@ function SettingsForm() {
   const [isUpdatingLibPath, setIsUpdatingLibPath] = useState(false)
   const [isUpdatingDlOutputPath, setIsUpdatingDlOutputPath] = useState(false)
   const [currentLibPath, setCurrentLibPath] = useState<string>('')
+  const [loginMethod, setLoginMethod] = useState<LoginMethod>('firefox')
+  const [qrSession, setQrSession] = useState<QrSession | null>(null)
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false)
+
+  // ログイン状態を取得
+  useEffect(() => {
+    const fetchLoginState = async () => {
+      try {
+        const state = await getLoginState()
+        setLoginMethod(state.method)
+        setQrSession(state.qrSession)
+      } catch (error) {
+        console.error('Failed to get login state:', error)
+      }
+    }
+    fetchLoginState()
+  }, [])
 
   useEffect(() => {
     const fetchCurrentLibPath = async () => {
@@ -129,6 +162,20 @@ function SettingsForm() {
       }
     } finally {
       setIsUpdatingDlOutputPath(false)
+    }
+  }
+
+  /**
+   * Handles QR logout with confirmation.
+   */
+  const handleLogout = async () => {
+    try {
+      await qrLogout()
+      setLoginMethod('firefox')
+      setQrSession(null)
+      setShowLogoutDialog(false)
+    } catch (error) {
+      console.error('QR logout failed:', error)
     }
   }
 
@@ -218,6 +265,27 @@ function SettingsForm() {
           )}
         />
         <Separator />
+        {/* Login Status Section */}
+        <div className="space-y-3">
+          <Label>{t('login.loginStatus')}</Label>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground text-sm">
+              {loginMethod === 'qrCode'
+                ? t('login.qrCodeLoggedIn')
+                : t('login.firefoxCookieLoggedIn')}
+            </span>
+            {loginMethod === 'qrCode' && qrSession && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setShowLogoutDialog(true)}
+              >
+                {t('login.logout')}
+              </Button>
+            )}
+          </div>
+        </div>
+        <Separator />
         <FormField
           control={form.control}
           name="dlOutputPath"
@@ -306,6 +374,26 @@ function SettingsForm() {
         </div>
         <Separator />
         <DevOptions />
+
+        {/* Logout Confirmation Dialog */}
+        <AlertDialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {t('login.logoutConfirmTitle')}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {t('login.logoutConfirmMessage')}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{t('login.cancel')}</AlertDialogCancel>
+              <AlertDialogAction variant="destructive" onClick={handleLogout}>
+                {t('login.logout')}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </form>
     </Form>
   )

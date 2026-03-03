@@ -412,5 +412,29 @@
       "durationHMS": "{{hours}}:{{minutes}}:{{seconds}}",
       "durationMS": "{{minutes}}:{{seconds}}"
     }
+  },
+  "login": {
+    "title": "Se connecter à Bilibili",
+    "scanWithApp": "Scanner avec l'application Bilibili",
+    "confirmOnPhone": "Confirmez sur votre téléphone",
+    "loginSuccess": "Connexion réussie !",
+    "qrExpired": "Code QR expiré",
+    "loginFailed": "Échec de la connexion",
+    "generatingQR": "Génération du code QR...",
+    "refresh": "Actualiser",
+    "tryAgain": "Réessayer",
+    "instructions": "Ouvrez l'application Bilibili sur votre téléphone et scannez ce code QR pour vous connecter",
+    "logout": "Se déconnecter",
+    "loginMethod": "Méthode de connexion",
+    "firefoxCookie": "Firefox Cookie",
+    "qrCode": "Code QR",
+    "qrCodeLogin": "Se connecter avec un code QR",
+    "loginRequired": "Connexion requise",
+    "loginStatus": "État de la connexion",
+    "firefoxCookieLoggedIn": "Connecté avec Firefox Cookie",
+    "qrCodeLoggedIn": "Connecté avec code QR",
+    "logoutConfirmTitle": "Confirmer la déconnexion",
+    "logoutConfirmMessage": "Êtes-vous sûr de vouloir vous déconnecter ? Vous devrez scanner le code QR à nouveau pour vous connecter.",
+    "cancel": "Annuler"
   }
 }

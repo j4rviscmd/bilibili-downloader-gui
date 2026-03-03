@@ -417,5 +417,29 @@
       "durationHMS": "{{hours}}時間{{minutes}}分{{seconds}}秒",
       "durationMS": "{{minutes}}分{{seconds}}秒"
     }
+  },
+  "login": {
+    "title": "Bilibiliにログイン",
+    "scanWithApp": "Bilibiliアプリでスキャン",
+    "confirmOnPhone": "スマホで確認してください",
+    "loginSuccess": "ログイン成功！",
+    "qrExpired": "QRコードが期限切れです",
+    "loginFailed": "ログインに失敗しました",
+    "generatingQR": "QRコードを生成中...",
+    "refresh": "更新",
+    "tryAgain": "再試行",
+    "instructions": "スマホのBilibiliアプリでこのQRコードをスキャンしてログインしてください",
+    "logout": "ログアウト",
+    "loginMethod": "ログイン方法",
+    "firefoxCookie": "Firefox Cookie",
+    "qrCode": "QRコード",
+    "qrCodeLogin": "QRコードでログイン",
+    "loginRequired": "ログインが必要です",
+    "loginStatus": "ログイン状態",
+    "firefoxCookieLoggedIn": "Firefox Cookieでログイン中",
+    "qrCodeLoggedIn": "QRコードでログイン中",
+    "logoutConfirmTitle": "ログアウトの確認",
+    "logoutConfirmMessage": "本当にログアウトしますか？再度ログインするにはQRコードをスキャンする必要があります。",
+    "cancel": "キャンセル"
   }
 }

@@ -412,5 +412,29 @@
       "durationHMS": "{{hours}}:{{minutes}}:{{seconds}}",
       "durationMS": "{{minutes}}:{{seconds}}"
     }
+  },
+  "login": {
+    "title": "Iniciar sesión en Bilibili",
+    "scanWithApp": "Escanear con la app de Bilibili",
+    "confirmOnPhone": "Confirma en tu teléfono",
+    "loginSuccess": "¡Inicio de sesión exitoso!",
+    "qrExpired": "Código QR expirado",
+    "loginFailed": "Error de inicio de sesión",
+    "generatingQR": "Generando código QR...",
+    "refresh": "Actualizar",
+    "tryAgain": "Intentar de nuevo",
+    "instructions": "Abre la app de Bilibili en tu teléfono y escanea este código QR para iniciar sesión",
+    "logout": "Cerrar sesión",
+    "loginMethod": "Método de inicio de sesión",
+    "firefoxCookie": "Firefox Cookie",
+    "qrCode": "Código QR",
+    "qrCodeLogin": "Iniciar sesión con código QR",
+    "loginRequired": "Se requiere iniciar sesión",
+    "loginStatus": "Estado de inicio de sesión",
+    "firefoxCookieLoggedIn": "Sesión iniciada con Firefox Cookie",
+    "qrCodeLoggedIn": "Sesión iniciada con código QR",
+    "logoutConfirmTitle": "Confirmar cierre de sesión",
+    "logoutConfirmMessage": "¿Estás seguro de que quieres cerrar sesión? Tendrás que escanear el código QR de nuevo para iniciar sesión.",
+    "cancel": "Cancelar"
   }
 }
