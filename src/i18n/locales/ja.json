@@ -170,6 +170,7 @@
     "ffmpeg_ok": "✅ ffmpegの有効性チェックに成功しました",
     "installing_ffmpeg": "ℹ️ ffmpegをインストールしています",
     "ffmpeg_install_ok": "✅ ffmpegのインストールに成功しました",
+    "qr_session_restored": "ログインセッションを復元しました",
     "ffmpeg_install_failed": "😫 ffmpegのインストール失敗しました",
     "dev_skip_version": "🛠️ 開発モードのためバージョンチェックをスキップ",
     "checking_version": "ℹ️ バージョンチェック中...",

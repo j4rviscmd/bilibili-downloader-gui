@@ -46,7 +46,7 @@ import { useLogin } from '../model/useLogin'
  * Currently this component has no props as it manages all its state
  * internally via the useLogin hook.
  */
-export interface QRCodeDisplayProps {}
+export type QRCodeDisplayProps = Record<string, never>
 
 /**
  * Status configuration for display.

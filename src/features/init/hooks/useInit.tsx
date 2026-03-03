@@ -3,8 +3,9 @@ import {
   setProcessingFnc,
   setInitiated as setValue,
 } from '@/features/init/model/initSlice'
+import { loadQrSession } from '@/features/login'
 import { useSettings } from '@/features/settings/useSettings'
-import { useUser } from '@/features/user/useUser'
+import { useUser } from '@/features/user'
 import { changeLanguage, type SupportedLang } from '@/shared/i18n'
 import { sleep } from '@/shared/lib/utils'
 import { getOs } from '@/shared/os/api/getOs'
@@ -87,8 +88,9 @@ export const useInit = () => {
    * 1. OS detection (fire-and-forget)
    * 2. App settings retrieval and language application
    * 3. ffmpeg validation/installation
-   * 4. Cookie validation
-   * 5. User authentication check
+   * 4. QR session restoration (if exists)
+   * 5. Firefox cookie validation (fallback)
+   * 6. User authentication check
    *
    * Note: Version checking is handled separately by UpdaterProvider
    * which displays a non-blocking dialog when updates are available.
@@ -120,8 +122,14 @@ export const useInit = () => {
       return { code: 1 }
     }
 
-    // Cookie check (continue for non-logged-in users even without cookie)
-    await checkCookie()
+    // Try to restore QR session first (takes priority over Firefox cookies)
+    const hasQrSession = await checkQrSession()
+
+    // Only check Firefox cookies if no QR session was restored
+    if (!hasQrSession) {
+      await checkCookie()
+    }
+
     // Fetch user info and store in Redux (hasCookie=false if no cookie)
     await getUserInfo()
 
@@ -213,6 +221,27 @@ export const useInit = () => {
   const checkCookie = async (): Promise<boolean> => {
     await invoke('get_cookie')
     return true
+  }
+
+  /**
+   * Restores previously saved QR code login session.
+   *
+   * Attempts to load a stored QR session from persistent storage and
+   * populate the cookie cache. This takes priority over Firefox cookies
+   * for users who logged in via QR code.
+   *
+   * @returns True if a QR session was successfully restored, false otherwise.
+   */
+  const checkQrSession = async (): Promise<boolean> => {
+    try {
+      const loaded = await loadQrSession()
+      if (loaded) {
+        setMessage(t('init.qr_session_restored', 'Restored login session'))
+      }
+      return loaded
+    } catch {
+      return false
+    }
   }
 
   /**

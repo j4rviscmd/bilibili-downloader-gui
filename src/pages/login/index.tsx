@@ -34,7 +34,7 @@ import { useTranslation } from 'react-i18next'
  * This component does not accept any props as it is a standalone page
  * that manages its own state and navigation.
  */
-export interface LoginPageProps {}
+export type LoginPageProps = Record<string, never>
 
 /**
  * Login page component.
