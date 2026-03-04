@@ -167,7 +167,7 @@
     "ffmpeg_ok": "✅ ffmpeg 확인 성공",
     "installing_ffmpeg": "ℹ️ ffmpeg 설치 중...",
     "ffmpeg_install_ok": "✅ ffmpeg 설치 성공",
-    "qr_session_restored": "로그인 세션 복원됨",
+    "qr_session_restored": "✅ 로그인 세션 복원됨",
     "ffmpeg_install_failed": "😫 ffmpeg 설치 실패",
     "dev_skip_version": "🛠️ 개발 모드: 버전 확인 건너뜀",
     "checking_version": "ℹ️ 버전 확인 중...",

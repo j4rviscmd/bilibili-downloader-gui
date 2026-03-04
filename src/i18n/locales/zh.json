@@ -167,7 +167,7 @@
     "ffmpeg_ok": "✅ ffmpeg 检查成功",
     "installing_ffmpeg": "ℹ️ 正在安装 ffmpeg...",
     "ffmpeg_install_ok": "✅ ffmpeg 安装成功",
-    "qr_session_restored": "已恢复登录会话",
+    "qr_session_restored": "✅ 已恢复登录会话",
     "ffmpeg_install_failed": "😫 ffmpeg 安装失败",
     "dev_skip_version": "🛠️ 开发模式：跳过版本检查",
     "checking_version": "ℹ️ 正在检查版本...",

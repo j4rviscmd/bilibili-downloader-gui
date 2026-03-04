@@ -170,7 +170,7 @@
     "ffmpeg_ok": "✅ ffmpeg check succeeded",
     "installing_ffmpeg": "ℹ️ Installing ffmpeg...",
     "ffmpeg_install_ok": "✅ ffmpeg installed successfully",
-    "qr_session_restored": "Restored login session",
+    "qr_session_restored": "✅ Restored login session",
     "ffmpeg_install_failed": "😫 Failed to install ffmpeg",
     "dev_skip_version": "🛠️ Skipping version check in development mode",
     "checking_version": "ℹ️ Checking app version...",

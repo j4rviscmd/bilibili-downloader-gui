@@ -167,7 +167,7 @@
     "ffmpeg_ok": "✅ Vérification ffmpeg réussie",
     "installing_ffmpeg": "ℹ️ Installation de ffmpeg...",
     "ffmpeg_install_ok": "✅ ffmpeg installé avec succès",
-    "qr_session_restored": "Session de connexion restaurée",
+    "qr_session_restored": "✅ Session de connexion restaurée",
     "ffmpeg_install_failed": "😫 Échec de l'installation de ffmpeg",
     "dev_skip_version": "🛠️ Vérification de version ignorée (dev)",
     "checking_version": "ℹ️ Vérification de la version...",
