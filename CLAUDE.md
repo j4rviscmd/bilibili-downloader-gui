@@ -197,3 +197,4 @@ mockInvoke.mockResolvedValue({ data: 'test' })
 - [Tauri公式ドキュメント](https://tauri.app/)
 - [shadcn/ui](https://ui.shadcn.com/)
 - [Redux Toolkit](https://redux-toolkit.js.org/)
+- bilibili APIを使用する際は `references/bilibili-API-collect/` を参照
