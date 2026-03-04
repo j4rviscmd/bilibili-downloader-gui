@@ -155,3 +155,66 @@ pub struct LoginState {
     /// QR session data (if using QR code login)
     pub qr_session: Option<QrSession>,
 }
+
+// =============================================================================
+// Cookie Refresh API Types
+// =============================================================================
+
+/// Response from cookie refresh check API.
+///
+/// GET https://passport.bilibili.com/x/passport-login/web/cookie/info
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CookieRefreshInfoResponse {
+    /// Response code (0 = success, -101 = not logged in)
+    pub code: i32,
+    /// Error message
+    pub message: String,
+    /// Response data
+    pub data: Option<CookieRefreshInfo>,
+}
+
+/// Cookie refresh info data.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CookieRefreshInfo {
+    /// Whether cookie refresh is needed
+    pub refresh: bool,
+    /// Current timestamp in milliseconds
+    pub timestamp: i64,
+}
+
+/// Response from cookie refresh API.
+///
+/// POST https://passport.bilibili.com/x/passport-login/web/cookie/refresh
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CookieRefreshResponse {
+    /// Response code (0 = success)
+    pub code: i32,
+    /// Error message
+    pub message: String,
+    /// Response data
+    pub data: Option<CookieRefreshData>,
+}
+
+/// Cookie refresh data containing new refresh_token.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CookieRefreshData {
+    /// Status (0 = success)
+    pub status: i32,
+    /// Message
+    pub message: String,
+    /// New refresh token for next refresh
+    pub refresh_token: String,
+}
+
+/// Response from refresh confirmation API.
+///
+/// POST https://passport.bilibili.com/x/passport-login/web/confirm/refresh
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfirmRefreshResponse {
+    /// Response code (0 = success)
+    pub code: i32,
+    /// Error message
+    pub message: String,
+}

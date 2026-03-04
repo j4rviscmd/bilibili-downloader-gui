@@ -45,6 +45,9 @@ md5 = "0.7"
 qrcode = "0.14"
 image = "0.25"
 base64 = "0.22"
+rsa = "0.9"
+sha2 = "0.10"
+base16ct = { version = "0.2", features = ["alloc"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = "2"

@@ -245,3 +245,53 @@ export async function getLoginState(): Promise<LoginState> {
 export async function loadQrSession(): Promise<boolean> {
   return invoke<boolean>('load_qr_session')
 }
+
+/**
+ * Checks if cookie refresh is needed.
+ *
+ * Calls Bilibili's cookie info API to determine if the current session
+ * needs to be refreshed to extend its validity.
+ *
+ * @returns {Promise<CookieRefreshInfo>} Object containing refresh flag and timestamp
+ * @throws {Error} If API request fails
+ *
+ * @example
+ * ```typescript
+ * const info = await checkCookieRefresh()
+ * if (info.refresh) {
+ *   console.log('Cookie refresh needed')
+ * }
+ * ```
+ */
+export async function checkCookieRefresh(): Promise<CookieRefreshInfo> {
+  return invoke<CookieRefreshInfo>('check_cookie_refresh')
+}
+
+/**
+ * Refreshes the cookie using the stored refresh_token.
+ *
+ * This extends the session validity by obtaining new cookies from Bilibili.
+ * The new session data is automatically saved and the cookie cache is updated.
+ *
+ * @returns {Promise<QrSession>} New session data with updated cookies and refresh_token
+ * @throws {Error} If refresh fails or no session exists
+ *
+ * @example
+ * ```typescript
+ * const newSession = await refreshCookie()
+ * console.log('Session refreshed:', newSession.timestamp)
+ * ```
+ */
+export async function refreshCookie(): Promise<QrSession> {
+  return invoke<QrSession>('refresh_cookie')
+}
+
+/**
+ * Cookie refresh info from Bilibili API.
+ */
+export interface CookieRefreshInfo {
+  /** Whether cookie refresh is needed */
+  refresh: boolean
+  /** Current timestamp in milliseconds */
+  timestamp: number
+}

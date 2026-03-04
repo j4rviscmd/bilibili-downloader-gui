@@ -29,10 +29,12 @@ use crate::models::frontend_dto::User;
 use crate::models::frontend_dto::Video;
 use crate::models::history::HistoryEntry;
 use crate::models::history::HistoryFilters;
+use crate::models::qr_login::CookieRefreshInfo;
 use crate::models::qr_login::LoginMethod;
 use crate::models::qr_login::LoginState;
 use crate::models::qr_login::QrCodeResult;
 use crate::models::qr_login::QrPollResult;
+use crate::models::qr_login::QrSession;
 use crate::models::settings::Settings;
 use crate::store::HistoryStore;
 
@@ -133,6 +135,8 @@ pub fn run() {
             get_login_method,
             get_login_state,
             load_qr_session,
+            check_cookie_refresh,
+            refresh_cookie,
             // record_download_click  // NOTE: GA4 Analytics は無効化されています
             #[cfg(debug_assertions)]
             set_simulate_logout,
@@ -1294,4 +1298,35 @@ async fn get_login_state(app: AppHandle) -> Result<LoginState, String> {
 #[tauri::command]
 async fn load_qr_session(app: AppHandle) -> Result<bool, String> {
     qr_login::load_stored_session(&app).await
+}
+
+/// Checks if cookie refresh is needed.
+///
+/// Calls Bilibili's cookie info API to determine if the current session
+/// needs to be refreshed.
+///
+/// # Returns
+///
+/// Returns `CookieRefreshInfo` with `refresh` flag indicating if refresh is needed.
+#[tauri::command]
+async fn check_cookie_refresh(app: AppHandle) -> Result<CookieRefreshInfo, String> {
+    qr_login::check_cookie_refresh(&app).await
+}
+
+/// Refreshes the cookie using the stored refresh_token.
+///
+/// This function:
+/// 1. Checks if refresh is needed
+/// 2. Generates CorrespondPath
+/// 3. Fetches refresh_csrf
+/// 4. Calls cookie refresh API
+/// 5. Confirms the refresh
+/// 6. Updates stored session with new cookies and refresh_token
+///
+/// # Returns
+///
+/// Returns the new session data on success.
+#[tauri::command]
+async fn refresh_cookie(app: AppHandle) -> Result<QrSession, String> {
+    qr_login::refresh_cookie(&app).await
 }

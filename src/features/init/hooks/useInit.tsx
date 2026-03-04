@@ -3,7 +3,11 @@ import {
   setProcessingFnc,
   setInitiated as setValue,
 } from '@/features/init/model/initSlice'
-import { loadQrSession } from '@/features/login'
+import {
+  checkCookieRefresh,
+  loadQrSession,
+  refreshCookie,
+} from '@/features/login'
 import { useSettings } from '@/features/settings/useSettings'
 import { useUser } from '@/features/user'
 import { changeLanguage, type SupportedLang } from '@/shared/i18n'
@@ -230,15 +234,33 @@ export const useInit = () => {
    * populate the cookie cache. This takes priority over Firefox cookies
    * for users who logged in via QR code.
    *
+   * Also checks if cookie refresh is needed and performs it if required.
+   *
    * @returns True if a QR session was successfully restored, false otherwise.
    */
   const checkQrSession = async (): Promise<boolean> => {
     try {
       const loaded = await loadQrSession()
-      if (loaded) {
+      if (!loaded) {
+        return false
+      }
+
+      // Check if cookie refresh is needed
+      const refreshInfo = await checkCookieRefresh()
+      if (refreshInfo.refresh) {
+        try {
+          await refreshCookie()
+          setMessage(t('init.cookie_refreshed', 'Login session refreshed'))
+        } catch {
+          // Refresh failed - session might be expired
+          // Return false to fall back to unauthenticated state
+          return false
+        }
+      } else {
         setMessage(t('init.qr_session_restored', 'Restored login session'))
       }
-      return loaded
+
+      return true
     } catch {
       return false
     }
