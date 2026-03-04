@@ -30,3 +30,6 @@ dist-ssr
 .worktrees/
 remotion/
 plans/
+
+# Local references (API docs, etc.)
+references/
