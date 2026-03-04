@@ -97,17 +97,21 @@ impl From<i32> for QrCodeStatus {
 /// on subsequent app launches.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
-#[allow(non_snake_case)]
 pub struct QrSession {
     /// SESSDATA cookie value
+    #[serde(rename = "sessdata")]
     pub sessdata: String,
     /// CSRF token (bili_jct)
+    #[serde(rename = "biliJct")]
     pub bili_jct: String,
     /// User ID
+    #[serde(rename = "dedeUserId")]
     pub dede_user_id: String,
     /// MD5 hash of user ID
+    #[serde(rename = "dedeUserIdCkMd5")]
     pub dede_user_id__ck_md5: String,
     /// Refresh token for session renewal
+    #[serde(rename = "refresh_token")]
     pub refresh_token: String,
     /// Login timestamp
     pub timestamp: i64,
@@ -198,13 +202,13 @@ pub struct CookieRefreshResponse {
 
 /// Cookie refresh data containing new refresh_token.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct CookieRefreshData {
     /// Status (0 = success)
     pub status: i32,
     /// Message
     pub message: String,
     /// New refresh token for next refresh
+    #[serde(rename = "refresh_token")]
     pub refresh_token: String,
 }
 

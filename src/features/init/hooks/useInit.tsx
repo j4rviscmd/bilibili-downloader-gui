@@ -18,6 +18,15 @@ import { exit } from '@tauri-apps/plugin-process'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 
+const SUPPORTED_LANGS: readonly SupportedLang[] = [
+  'en',
+  'ja',
+  'fr',
+  'es',
+  'zh',
+  'ko',
+]
+
 export interface InitResult {
   code: number
   detail?: string
@@ -63,15 +72,9 @@ export const useInit = () => {
   /**
    * Type guard to check if a string is a supported language.
    */
-  const isSupportedLang = (lang: string): lang is SupportedLang => {
-    return ['en', 'ja', 'fr', 'es', 'zh', 'ko'].includes(lang)
-  }
+  const isSupportedLang = (lang: string): lang is SupportedLang =>
+    (SUPPORTED_LANGS as readonly string[]).includes(lang)
 
-  /**
-   * Sets the initialization completion flag.
-   *
-   * @param value - True when initialization is complete.
-   */
   const setInitiated = (value: boolean) => {
     store.dispatch(setValue(value))
   }
@@ -201,27 +204,11 @@ export const useInit = () => {
     return false
   }
 
-  /**
-   * Retrieves application settings from persistent storage.
-   *
-   * @returns The app settings object or undefined if retrieval fails.
-   */
   const getAppSettings = async () => {
     setMessage(t('init.fetch_settings'))
     return getSettings()
   }
 
-  /**
-   * Validates Bilibili cookies from Firefox.
-   *
-   * Attempts to retrieve valid Bilibili authentication cookies from the
-   * Firefox browser. If valid cookies are found, they are cached in the
-   * backend for subsequent API requests.
-   *
-   * Note: Always returns true to allow non-logged-in users to proceed.
-   *
-   * @returns True to continue initialization.
-   */
   const checkCookie = async (): Promise<boolean> => {
     await invoke('get_cookie')
     return true
@@ -247,12 +234,14 @@ export const useInit = () => {
 
       // Check if cookie refresh is needed
       const refreshInfo = await checkCookieRefresh()
+      console.log('[Init] refreshInfo:', refreshInfo)
       if (refreshInfo.refresh) {
         try {
           await refreshCookie()
           setMessage(t('init.cookie_refreshed', 'Login session refreshed'))
-        } catch {
+        } catch (e) {
           // Refresh failed - session might be expired
+          console.error('[Init] refreshCookie failed:', e)
           // Return false to fall back to unauthenticated state
           return false
         }
@@ -266,11 +255,6 @@ export const useInit = () => {
     }
   }
 
-  /**
-   * Updates the current initialization status message.
-   *
-   * @param message - The localized status message to display.
-   */
   const setMessage = (message: string) => {
     store.dispatch(setProcessingFnc(message))
   }

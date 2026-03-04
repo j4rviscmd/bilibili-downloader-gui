@@ -8,6 +8,21 @@
 
 use std::io::Cursor;
 
+// Debug logging macro (only compiled in debug builds)
+#[cfg(debug_assertions)]
+macro_rules! debug_log {
+    ($($arg:tt)*) => {
+        println!($($arg)*);
+    };
+}
+
+#[cfg(not(debug_assertions))]
+macro_rules! debug_log {
+    ($($arg:tt)*) => {
+        // Release builds: no-op
+    };
+}
+
 use base64::{engine::general_purpose::STANDARD, Engine};
 use image::Luma;
 use qrcode::QrCode;
@@ -20,9 +35,9 @@ use tauri_plugin_store::StoreExt;
 use crate::models::cookie::CookieCache;
 use crate::models::cookie::CookieEntry;
 use crate::models::qr_login::{
-    ConfirmRefreshResponse, CookieRefreshData, CookieRefreshInfo, CookieRefreshInfoResponse,
-    CookieRefreshResponse, LoginMethod, LoginState, QrCodeGenerateResponse, QrCodePollResponse,
-    QrCodeResult, QrCodeStatus, QrPollResult, QrSession,
+    ConfirmRefreshResponse, CookieRefreshInfo, CookieRefreshInfoResponse, CookieRefreshResponse,
+    LoginMethod, LoginState, QrCodeGenerateResponse, QrCodePollResponse, QrCodeResult,
+    QrCodeStatus, QrPollResult, QrSession,
 };
 
 const QR_GENERATE_URL: &str = "https://passport.bilibili.com/x/passport-login/web/qrcode/generate";
@@ -255,20 +270,8 @@ fn update_cookie_cache(app: &AppHandle, session: &QrSession) {
 ///
 /// Returns `Ok(true)` if a QR session was restored, `Ok(false)` if no session exists.
 pub async fn load_stored_session(app: &AppHandle) -> Result<bool, String> {
-    let store = match app.store(STORE_FILE_NAME) {
-        Ok(s) => s,
-        Err(_) => return Ok(false), // Store doesn't exist yet
-    };
+    let login_state = get_login_state(app).await?;
 
-    let value = match store.get(LOGIN_STATE_KEY) {
-        Some(v) => v,
-        None => return Ok(false),
-    };
-
-    let login_state: LoginState = serde_json::from_value(value.clone())
-        .map_err(|e| format!("Failed to deserialize login state: {}", e))?;
-
-    // Only restore QR session if that's the preferred method
     if login_state.method == LoginMethod::QrCode {
         if let Some(session) = &login_state.qr_session {
             update_cookie_cache(app, session);
@@ -362,20 +365,7 @@ pub async fn set_login_method(app: &AppHandle, method: LoginMethod) -> Result<()
 ///
 /// Returns the current login method.
 pub async fn get_login_method(app: &AppHandle) -> Result<LoginMethod, String> {
-    let store = match app.store(STORE_FILE_NAME) {
-        Ok(s) => s,
-        Err(_) => return Ok(LoginMethod::default()),
-    };
-
-    let value = match store.get(LOGIN_STATE_KEY) {
-        Some(v) => v,
-        None => return Ok(LoginMethod::default()),
-    };
-
-    let login_state: LoginState = serde_json::from_value(value.clone())
-        .map_err(|e| format!("Failed to deserialize login state: {}", e))?;
-
-    Ok(login_state.method)
+    Ok(get_login_state(app).await?.method)
 }
 
 /// Gets the current login state.
@@ -398,10 +388,8 @@ pub async fn get_login_state(app: &AppHandle) -> Result<LoginState, String> {
         None => return Ok(LoginState::default()),
     };
 
-    let login_state: LoginState = serde_json::from_value(value.clone())
-        .map_err(|e| format!("Failed to deserialize login state: {}", e))?;
-
-    Ok(login_state)
+    serde_json::from_value(value.clone())
+        .map_err(|e| format!("Failed to deserialize login state: {}", e))
 }
 
 // =============================================================================
@@ -415,10 +403,6 @@ const CONFIRM_REFRESH_URL: &str =
     "https://passport.bilibili.com/x/passport-login/web/confirm/refresh";
 const CORRESPOND_URL_PREFIX: &str = "https://www.bilibili.com/correspond/1/";
 
-/// RSA public key for CorrespondPath generation (JWK format)
-const RSA_PUBLIC_KEY_N: &str = "y4HdjgJHBlbaBN04VERG4qNBIFHP6a3GozCl75AihQloSWCXC5HDNgyinEnhaQ_4-gaMud_GF50elYXLlCToR9se9Z8z433U3KjM-3Yx7ptKkmQNAMggQwAVKgq3zYAoidNEWuxpkY_mAitTSRLnsJW-NCTa0bqBFF6Wm1MxgfE";
-const RSA_PUBLIC_KEY_E: &str = "AQAB";
-
 /// Checks if cookie refresh is needed.
 ///
 /// Calls Bilibili's cookie info API to determine if the current session
@@ -429,6 +413,10 @@ const RSA_PUBLIC_KEY_E: &str = "AQAB";
 /// Returns `CookieRefreshInfo` with `refresh` flag indicating if refresh is needed.
 pub async fn check_cookie_refresh(app: &AppHandle) -> Result<CookieRefreshInfo, String> {
     let cookies = get_cookie_header(app);
+    debug_log!(
+        "[CookieRefresh] Checking with cookies: {} bytes",
+        cookies.len()
+    );
 
     let client = Client::new();
     let response = client
@@ -438,19 +426,30 @@ pub async fn check_cookie_refresh(app: &AppHandle) -> Result<CookieRefreshInfo, 
         .await
         .map_err(|e| format!("Failed to check cookie refresh: {}", e))?;
 
+    debug_log!("[CookieRefresh] API response status: {}", response.status());
+
     let info_response: CookieRefreshInfoResponse = response
         .json()
         .await
         .map_err(|e| format!("Failed to parse cookie info response: {}", e))?;
 
+    debug_log!(
+        "[CookieRefresh] Response code: {}, refresh: {:?}",
+        info_response.code,
+        info_response.data.as_ref().map(|d| d.refresh)
+    );
+
     match info_response.code {
         0 => info_response
             .data
             .ok_or_else(|| "No data in cookie info response".to_string()),
-        -101 => Ok(CookieRefreshInfo {
-            refresh: false,
-            timestamp: 0,
-        }),
+        -101 => {
+            debug_log!("[CookieRefresh] Session expired (code: -101)");
+            Ok(CookieRefreshInfo {
+                refresh: false,
+                timestamp: 0,
+            })
+        }
         _ => Err(format!("Cookie info API error: {}", info_response.message)),
     }
 }
@@ -463,17 +462,23 @@ fn generate_correspond_path(timestamp: i64) -> Result<String, String> {
     use rsa::{pkcs8::DecodePublicKey, Oaep};
     use sha2::Sha256;
 
-    // Construct PEM format public key
-    let public_key_pem = format!(
-        "-----BEGIN PUBLIC KEY-----\n{}\n{}\n-----END PUBLIC KEY-----",
-        "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDLgd2OAkcGVtoE3ThUREbio0Eg",
-        "Uc/prcajMKXvkCKFCWhJYJcLkcM2DKKcSeFpD/j6Boy538YXnR6VhcuUJOhH2x71nzPjfdTcqMz7djHum0qSZA0AyCBDABUqCrfNgCiJ00Ra7GmRj+YCK1NJEuewlb40JNrRuoEUXpabUzGB8QIDAQAB"
+    // Bilibili's RSA public key in PEM format (64-char line wrapping per RFC 7468)
+    // Source: Bilibili passport web login page
+    let public_key_pem = concat!(
+        "-----BEGIN PUBLIC KEY-----\n",
+        "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDLgd2OAkcGVtoE3ThUREbio0Eg\n",
+        "Uc/prcajMKXvkCKFCWhJYJcLkcM2DKKcSeFpD/j6Boy538YXnR6VhcuUJOhH2x71\n",
+        "nzPjfdTcqMz7djHum0qSZA0AyCBDABUqCrfNgCiJ00Ra7GmRj+YCK1NJEuewlb40\n",
+        "JNrRuoEUXpabUzGB8QIDAQAB\n",
+        "-----END PUBLIC KEY-----\n"
     );
 
     let public_key = rsa::RsaPublicKey::from_public_key_pem(&public_key_pem)
         .map_err(|e| format!("Failed to parse public key: {}", e))?;
 
     let message = format!("refresh_{}", timestamp);
+    debug_log!("[CookieRefresh] Encrypting message: {}", message);
+
     let padding = Oaep::new::<Sha256>();
 
     let encrypted = public_key
@@ -487,36 +492,68 @@ fn generate_correspond_path(timestamp: i64) -> Result<String, String> {
 ///
 /// The HTML response contains a div with id '1-name' containing the refresh_csrf token.
 async fn fetch_refresh_csrf(app: &AppHandle, correspond_path: &str) -> Result<String, String> {
+    debug_log!("[CookieRefresh] fetch_refresh_csrf: Starting...");
     let cookies = get_cookie_header(app);
     let url = format!("{}{}", CORRESPOND_URL_PREFIX, correspond_path);
+    debug_log!("[CookieRefresh] fetch_refresh_csrf: URL: {}", url);
 
-    let client = Client::new();
+    let client = Client::builder()
+        .build()
+        .map_err(|e| format!("Failed to build client: {}", e))?;
+
+    debug_log!("[CookieRefresh] fetch_refresh_csrf: Sending request...");
     let response = client
         .get(&url)
         .header("Cookie", &cookies)
+        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+        .header("Accept-Language", "en-US,en;q=0.5")
+        .header("Accept-Encoding", "identity")
+        .header("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
         .send()
         .await
-        .map_err(|e| format!("Failed to fetch refresh_csrf: {}", e))?;
+        .map_err(|e| {
+            debug_log!("[CookieRefresh] fetch_refresh_csrf: Request failed: {}", e);
+            format!("Failed to fetch refresh_csrf: {}", e)
+        })?;
 
-    let html = response
-        .text()
-        .await
-        .map_err(|e| format!("Failed to read response: {}", e))?;
+    debug_log!(
+        "[CookieRefresh] fetch_refresh_csrf: Response status: {}",
+        response.status()
+    );
+
+    let html = response.text().await.map_err(|e| {
+        debug_log!(
+            "[CookieRefresh] fetch_refresh_csrf: Failed to read body: {}",
+            e
+        );
+        format!("Failed to read response: {}", e)
+    })?;
+
+    debug_log!(
+        "[CookieRefresh] fetch_refresh_csrf: HTML length: {} bytes",
+        html.len()
+    );
+    debug_log!("[CookieRefresh] fetch_refresh_csrf: HTML content: {}", html);
 
     // Parse refresh_csrf from HTML: <div id="1-name">{refresh_csrf}</div>
     let start_tag = r#"<div id="1-name">"#;
     let end_tag = "</div>";
 
-    let start = html
-        .find(start_tag)
-        .ok_or_else(|| "Could not find 1-name div in response".to_string())?
-        + start_tag.len();
-    let end = html[start..]
-        .find(end_tag)
-        .ok_or_else(|| "Could not find closing div tag".to_string())?
-        + start;
+    let start = html.find(start_tag).ok_or_else(|| {
+        debug_log!("[CookieRefresh] fetch_refresh_csrf: Could not find start tag");
+        "Could not find 1-name div in response".to_string()
+    })? + start_tag.len();
+    let end = html[start..].find(end_tag).ok_or_else(|| {
+        debug_log!("[CookieRefresh] fetch_refresh_csrf: Could not find end tag");
+        "Could not find closing div tag".to_string()
+    })? + start;
 
-    Ok(html[start..end].to_string())
+    let refresh_csrf = &html[start..end];
+    debug_log!(
+        "[CookieRefresh] fetch_refresh_csrf: Found token: {} bytes",
+        refresh_csrf.len()
+    );
+    Ok(refresh_csrf.to_string())
 }
 
 /// Refreshes the cookie using the stored refresh_token.
@@ -533,23 +570,55 @@ async fn fetch_refresh_csrf(app: &AppHandle, correspond_path: &str) -> Result<St
 ///
 /// Returns the new session data on success.
 pub async fn refresh_cookie(app: &AppHandle) -> Result<QrSession, String> {
+    debug_log!("[CookieRefresh] Starting cookie refresh process...");
+
     // Step 1: Check if refresh is needed
     let refresh_info = check_cookie_refresh(app).await?;
     if !refresh_info.refresh {
+        debug_log!("[CookieRefresh] Refresh not needed, aborting");
         return Err("Cookie refresh not needed".to_string());
     }
 
+    debug_log!(
+        "[CookieRefresh] Refresh needed, timestamp: {}",
+        refresh_info.timestamp
+    );
+
     // Get current session for refresh_token and csrf
-    let login_state = get_login_state(app).await?;
-    let session = login_state
-        .qr_session
-        .ok_or_else(|| "No QR session found".to_string())?;
+    let login_state = get_login_state(app).await.map_err(|e| {
+        debug_log!("[CookieRefresh] ERROR getting login state: {}", e);
+        e
+    })?;
+    let session = login_state.qr_session.ok_or_else(|| {
+        debug_log!("[CookieRefresh] ERROR: No QR session found in login state");
+        "No QR session found".to_string()
+    })?;
+
+    debug_log!(
+        "[CookieRefresh] Found session: sessdata={} bytes, refresh_token={} bytes",
+        session.sessdata.len(),
+        session.refresh_token.len()
+    );
 
     // Step 2: Generate CorrespondPath
-    let correspond_path = generate_correspond_path(refresh_info.timestamp)?;
+    let correspond_path = generate_correspond_path(refresh_info.timestamp).map_err(|e| {
+        debug_log!("[CookieRefresh] ERROR generating correspond path: {}", e);
+        e
+    })?;
+    debug_log!(
+        "[CookieRefresh] Generated CorrespondPath: {} bytes",
+        correspond_path.len()
+    );
 
     // Step 3: Fetch refresh_csrf
-    let refresh_csrf = fetch_refresh_csrf(app, &correspond_path).await?;
+    debug_log!("[CookieRefresh] Fetching refresh_csrf...");
+    let refresh_csrf = fetch_refresh_csrf(app, &correspond_path)
+        .await
+        .map_err(|e| {
+            debug_log!("[CookieRefresh] ERROR fetching refresh_csrf: {}", e);
+            e
+        })?;
+    debug_log!("[CookieRefresh] Got refresh_csrf: {}", refresh_csrf);
 
     // Step 4: Call cookie refresh API
     let cookies = get_cookie_header(app);
@@ -562,6 +631,7 @@ pub async fn refresh_cookie(app: &AppHandle) -> Result<QrSession, String> {
         ("refresh_token", session.refresh_token.clone()),
     ];
 
+    debug_log!("[CookieRefresh] Calling refresh API...");
     let response = client
         .post(COOKIE_REFRESH_URL)
         .header("Cookie", &cookies)
@@ -570,13 +640,37 @@ pub async fn refresh_cookie(app: &AppHandle) -> Result<QrSession, String> {
         .await
         .map_err(|e| format!("Failed to refresh cookie: {}", e))?;
 
+    debug_log!(
+        "[CookieRefresh] Refresh API response status: {}",
+        response.status()
+    );
+
     // Extract new cookies from Set-Cookie headers
     let new_cookies = extract_cookies_from_response(&response);
+    debug_log!(
+        "[CookieRefresh] Extracted {} cookies from response",
+        new_cookies.len()
+    );
 
-    let refresh_response: CookieRefreshResponse = response
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse refresh response: {}", e))?;
+    // Get response body as text first for debugging
+    let response_text = response.text().await.map_err(|e| {
+        debug_log!("[CookieRefresh] ERROR reading response body: {}", e);
+        format!("Failed to read response body: {}", e)
+    })?;
+
+    debug_log!("[CookieRefresh] Response body: {}", response_text);
+
+    let refresh_response: CookieRefreshResponse =
+        serde_json::from_str(&response_text).map_err(|e| {
+            debug_log!("[CookieRefresh] ERROR parsing JSON: {}", e);
+            format!("Failed to parse refresh response: {}", e)
+        })?;
+
+    debug_log!(
+        "[CookieRefresh] Refresh API code: {}, message: {}",
+        refresh_response.code,
+        refresh_response.message
+    );
 
     if refresh_response.code != 0 {
         return Err(format!(
@@ -590,6 +684,11 @@ pub async fn refresh_cookie(app: &AppHandle) -> Result<QrSession, String> {
         .map(|d| d.refresh_token)
         .ok_or_else(|| "No refresh_token in response".to_string())?;
 
+    debug_log!(
+        "[CookieRefresh] Got new refresh_token: {} bytes",
+        new_refresh_token.len()
+    );
+
     // Step 5: Confirm refresh (invalidate old refresh_token)
     let new_cookies_header = build_cookie_header(&new_cookies);
     let confirm_params = [
@@ -600,7 +699,8 @@ pub async fn refresh_cookie(app: &AppHandle) -> Result<QrSession, String> {
         ("refresh_token", session.refresh_token.clone()),
     ];
 
-    let _confirm_response: ConfirmRefreshResponse = client
+    debug_log!("[CookieRefresh] Confirming refresh...");
+    let confirm_response: ConfirmRefreshResponse = client
         .post(CONFIRM_REFRESH_URL)
         .header("Cookie", &new_cookies_header)
         .form(&confirm_params)
@@ -610,6 +710,12 @@ pub async fn refresh_cookie(app: &AppHandle) -> Result<QrSession, String> {
         .json()
         .await
         .map_err(|e| format!("Failed to parse confirm response: {}", e))?;
+
+    debug_log!(
+        "[CookieRefresh] Confirm response code: {}, message: {}",
+        confirm_response.code,
+        confirm_response.message
+    );
 
     // Step 6: Build new session and save
     let new_session = QrSession {
@@ -629,6 +735,12 @@ pub async fn refresh_cookie(app: &AppHandle) -> Result<QrSession, String> {
 
     // Save new session
     save_session(app, &new_session).await?;
+
+    debug_log!(
+        "[CookieRefresh] Session saved successfully. New SESSDATA: {} bytes, timestamp: {}",
+        new_session.sessdata.len(),
+        new_session.timestamp
+    );
 
     Ok(new_session)
 }
