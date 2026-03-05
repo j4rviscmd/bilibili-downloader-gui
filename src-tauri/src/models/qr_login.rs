@@ -112,7 +112,7 @@ pub struct Session {
     pub dede_user_id: String,
     /// MD5 hash of user ID
     #[serde(rename = "dedeUserIdCkMd5")]
-    pub dede_user_id__ck_md5: String,
+    pub dede_user_id_ck_md5: String,
     /// Refresh token for session renewal
     #[serde(rename = "refresh_token")]
     pub refresh_token: String,

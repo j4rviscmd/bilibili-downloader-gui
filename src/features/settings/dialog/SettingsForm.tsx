@@ -5,15 +5,15 @@ import {
   type LoginMethod,
   type Session,
 } from '@/features/login'
-import { setUser } from '@/features/user/userSlice'
 import type { User } from '@/features/user/types'
-import { toast } from 'sonner'
+import { setUser } from '@/features/user/userSlice'
 import { videoApi } from '@/features/video'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import type { z } from 'zod'
 
 import {
