@@ -18,6 +18,7 @@
 //! like the preferred login method.
 
 use std::io::Cursor;
+use std::sync::RwLock;
 
 // Debug logging macro (only compiled in debug builds)
 #[cfg(debug_assertions)]
@@ -43,6 +44,7 @@ use tauri::AppHandle;
 use tauri::Manager;
 use tauri_plugin_store::StoreExt;
 
+use crate::handlers::bilibili::fetch_user_info;
 use crate::models::cookie::CookieCache;
 use crate::models::cookie::CookieEntry;
 use crate::models::qr_login::{
@@ -59,6 +61,10 @@ const LOGIN_STATE_KEY: &str = "loginState";
 // Keyring configuration
 const KEYRING_SERVICE: &str = "com.j4rviscmd.bilibili-downloader-gui";
 const KEYRING_SESSION_KEY: &str = "session";
+
+// Session cache to avoid multiple keyring access dialogs
+// None = not initialized yet, Some(None) = no session, Some(Some(session)) = session exists
+static SESSION_CACHE: RwLock<Option<Option<Session>>> = RwLock::new(None);
 
 // Keyring Helper Functions
 
@@ -80,6 +86,15 @@ fn save_session_to_keyring(session: &Session) -> Result<(), String> {
         .set_password(&session_json)
         .map_err(|e| format!("Failed to store session in keyring: {}", e))?;
 
+    // Update cache
+    {
+        let mut cache = SESSION_CACHE
+            .write()
+            .map_err(|e| format!("Failed to write cache: {}", e))?;
+        *cache = Some(Some(session.clone()));
+        debug_log!("[Keyring] Session cached");
+    }
+
     debug_log!(
         "[Keyring] Session saved successfully ({} bytes)",
         session_json.len()
@@ -87,7 +102,11 @@ fn save_session_to_keyring(session: &Session) -> Result<(), String> {
     Ok(())
 }
 
-/// Loads session from OS keyring.
+/// Loads session from OS keyring with caching.
+///
+/// Uses an in-memory cache to avoid multiple keyring access dialogs.
+/// On first call, reads from keyring and caches the result.
+/// Subsequent calls return the cached value.
 ///
 /// # Returns
 ///
@@ -99,6 +118,18 @@ fn save_session_to_keyring(session: &Session) -> Result<(), String> {
 /// - Keyring is not available
 /// - Failed to retrieve the credential
 fn load_session_from_keyring() -> Result<Option<Session>, String> {
+    // Check cache first
+    {
+        let cache = SESSION_CACHE
+            .read()
+            .map_err(|e| format!("Failed to read cache: {}", e))?;
+        if let Some(cached) = cache.as_ref() {
+            debug_log!("[Keyring] Returning cached session");
+            return Ok(cached.clone());
+        }
+    }
+
+    // Not cached, read from keyring
     let entry = match keyring::Entry::new(KEYRING_SERVICE, KEYRING_SESSION_KEY) {
         Ok(e) => e,
         Err(e) => {
@@ -107,7 +138,7 @@ fn load_session_from_keyring() -> Result<Option<Session>, String> {
         }
     };
 
-    match entry.get_password() {
+    let result = match entry.get_password() {
         Ok(json) => {
             let session: Session = serde_json::from_str(&json)
                 .map_err(|e| format!("Failed to deserialize session: {}", e))?;
@@ -122,15 +153,35 @@ fn load_session_from_keyring() -> Result<Option<Session>, String> {
             debug_log!("[Keyring] Failed to get password: {}", e);
             Err(format!("Failed to retrieve session from keyring: {}", e))
         }
+    };
+
+    // Cache the result
+    if let Ok(ref session) = result {
+        let mut cache = SESSION_CACHE
+            .write()
+            .map_err(|e| format!("Failed to write cache: {}", e))?;
+        *cache = Some(session.clone());
+        debug_log!("[Keyring] Session cached");
     }
+
+    result
 }
 
-/// Deletes session from OS keyring.
+/// Deletes session from OS keyring and clears cache.
 ///
 /// # Errors
 ///
 /// Returns an error if deletion fails (ignores "no entry" error).
 fn delete_session_from_keyring() -> Result<(), String> {
+    // Clear cache first
+    {
+        let mut cache = SESSION_CACHE
+            .write()
+            .map_err(|e| format!("Failed to write cache: {}", e))?;
+        *cache = None;
+        debug_log!("[Keyring] Session cache cleared");
+    }
+
     let entry = match keyring::Entry::new(KEYRING_SERVICE, KEYRING_SESSION_KEY) {
         Ok(e) => e,
         Err(e) => {
@@ -270,13 +321,26 @@ pub async fn poll_qr_status(app: &AppHandle, qrcode_key: &str) -> Result<QrPollR
 
     // On success, extract cookies and store session
     if status == QrCodeStatus::Success {
-        let session = extract_session_from_url(&data.url, &data.refresh_token, data.timestamp)?;
-
-        // Store session to persistent storage
-        save_session(app, &session).await?;
+        let mut session = extract_session_from_url(&data.url, &data.refresh_token, data.timestamp)?;
 
         // Also update the in-memory cookie cache for immediate use
         update_cookie_cache(app, &session);
+
+        // Fetch username from user info API
+        match fetch_user_info(app).await {
+            Ok(user) => {
+                if let Some(uname) = user.data.uname {
+                    session.uname = uname;
+                }
+            }
+            Err(e) => {
+                debug_log!("[QR Login] Failed to fetch user info: {}", e);
+                // Continue without uname - not critical
+            }
+        }
+
+        // Store session to persistent storage
+        save_session(app, &session).await?;
     }
 
     Ok(QrPollResult {
@@ -312,6 +376,7 @@ fn extract_session_from_url(
             .unwrap_or_default(),
         refresh_token: refresh_token.to_string(),
         timestamp,
+        uname: String::new(),
     })
 }
 
@@ -880,6 +945,7 @@ pub async fn refresh_cookie(app: &AppHandle) -> Result<Session, String> {
             .unwrap_or_default(),
         refresh_token: new_refresh_token,
         timestamp: chrono::Utc::now().timestamp_millis(),
+        uname: session.uname, // Preserve username from old session
     };
 
     // Update cookie cache

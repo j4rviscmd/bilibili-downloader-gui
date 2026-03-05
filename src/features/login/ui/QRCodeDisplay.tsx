@@ -92,24 +92,31 @@ export function QRCodeDisplay() {
     error,
     generateNewQrCode,
     stopPolling,
+    resetLogin,
   } = useLogin()
 
   // Track if we've handled the success state to prevent duplicate navigation
-  const [hasHandledSuccess, setHasHandledSuccess] = useState(false)
+  // Start with true to prevent stale success state from triggering navigation
+  const [hasHandledSuccess, setHasHandledSuccess] = useState(true)
   // Use ref for navigation timer to survive re-renders and prevent memory leaks
   const navigationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   /**
-   * Generate QR code on mount (only once).
+   * Reset login state and generate QR code on mount.
    *
-   * This effect runs when the component first mounts and there is no
-   * existing QR code. It ensures a QR code is available immediately
-   * for the user to scan.
+   * This effect runs when the component first mounts:
+   * 1. Resets the login state to clear any previous success/error status
+   * 2. Generates a new QR code
+   * 3. Enables success handling after QR code is generated
    */
   useEffect(() => {
-    if (!qrCodeImage && !isQrLoading) {
-      generateNewQrCode()
-    }
+    // Reset login state to clear previous success status
+    resetLogin()
+    // Generate QR code and enable success handling after it's ready
+    generateNewQrCode().then(() => {
+      // Enable success handling only after new QR code is generated
+      setHasHandledSuccess(false)
+    })
   }, [])
 
   /**
@@ -133,16 +140,18 @@ export function QRCodeDisplay() {
    * This effect:
    * 1. Detects when login status changes to 'success'
    * 2. Prevents duplicate handling with hasHandledSuccess flag
-   * 3. Stops polling immediately
-   * 4. Refreshes user info to update app bar
-   * 5. Navigates to home after 1.5 second delay to show success message
+   * 3. Requires qrCodeImage to exist (guards against stale success state)
+   * 4. Stops polling immediately
+   * 5. Refreshes user info to update app bar
+   * 6. Navigates to home after 1.5 second delay to show success message
    *
    * The delay allows the user to see the success animation before
    * being redirected to the home page.
    */
   useEffect(() => {
-    // Only run once when qrStatus becomes 'success'
-    if (qrStatus === 'success' && !hasHandledSuccess) {
+    // Only run once when qrStatus becomes 'success' AND qrCodeImage exists
+    // (qrCodeImage guard prevents navigation on stale success state from previous session)
+    if (qrStatus === 'success' && qrCodeImage && !hasHandledSuccess) {
       setHasHandledSuccess(true)
 
       // Stop polling immediately to prevent unnecessary API calls
@@ -156,7 +165,7 @@ export function QRCodeDisplay() {
         navigate('/home')
       }, 1500)
     }
-  }, [qrStatus, hasHandledSuccess]) // Minimal deps - navigate and getUserInfo are stable
+  }, [qrStatus, qrCodeImage, hasHandledSuccess]) // Minimal deps - navigate and getUserInfo are stable
 
   /**
    * Gets the status configuration based on current QR code status.

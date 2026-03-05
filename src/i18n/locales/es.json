@@ -416,7 +416,7 @@
     }
   },
   "login": {
-    "title": "Iniciar sesión en Bilibili",
+    "title": "(Beta) Iniciar sesión en Bilibili",
     "scanWithApp": "Escanear con la app de Bilibili",
     "confirmOnPhone": "Confirma en tu teléfono",
     "loginSuccess": "¡Inicio de sesión exitoso!",
@@ -434,9 +434,13 @@
     "loginRequired": "Se requiere iniciar sesión",
     "loginStatus": "Estado de inicio de sesión",
     "firefoxCookieLoggedIn": "Sesión iniciada con Firefox Cookie",
-    "qrCodeLoggedIn": "Sesión iniciada con código QR",
+    "qrCodeLoggedIn": "Sesión iniciada con código QR (Beta)",
+    "notLoggedIn": "No has iniciado sesión",
     "logoutConfirmTitle": "Confirmar cierre de sesión",
     "logoutConfirmMessage": "¿Estás seguro de que quieres cerrar sesión? Tendrás que escanear el código QR de nuevo para iniciar sesión.",
-    "cancel": "Cancelar"
+    "cancel": "Cancelar",
+    "qrSessionDeleted": "Sesión QR eliminada",
+    "usingFirefoxCookie": "Usando Firefox Cookie para autenticación",
+    "notLoggedIn": "No has iniciado sesión"
   }
 }

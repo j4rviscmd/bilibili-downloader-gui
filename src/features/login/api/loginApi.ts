@@ -52,6 +52,8 @@ export interface Session {
   refreshToken: string
   /** Login timestamp in milliseconds */
   timestamp: number
+  /** Username (display name) */
+  uname: string
 }
 
 /** @deprecated Use `Session` instead. */

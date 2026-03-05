@@ -416,7 +416,7 @@
     }
   },
   "login": {
-    "title": "登录哔哩哔哩",
+    "title": "(Beta) 登录哔哩哔哩",
     "scanWithApp": "使用哔哩哔哩App扫码",
     "confirmOnPhone": "在手机上确认",
     "loginSuccess": "登录成功！",
@@ -434,9 +434,13 @@
     "loginRequired": "需要登录",
     "loginStatus": "登录状态",
     "firefoxCookieLoggedIn": "使用Firefox Cookie登录",
-    "qrCodeLoggedIn": "使用二维码登录",
+    "qrCodeLoggedIn": "使用二维码登录 (Beta)",
+    "notLoggedIn": "未登录",
     "logoutConfirmTitle": "确认退出",
     "logoutConfirmMessage": "确定要退出登录吗？您需要重新扫描二维码才能登录。",
-    "cancel": "取消"
+    "cancel": "取消",
+    "qrSessionDeleted": "QR会话已删除",
+    "usingFirefoxCookie": "正在使用Firefox Cookie进行认证",
+    "notLoggedIn": "未登录"
   }
 }

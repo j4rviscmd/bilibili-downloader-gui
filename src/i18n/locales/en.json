@@ -421,7 +421,7 @@
     }
   },
   "login": {
-    "title": "Login to Bilibili",
+    "title": "(Beta) Login to Bilibili",
     "scanWithApp": "Scan with Bilibili App",
     "confirmOnPhone": "Confirm on your phone",
     "loginSuccess": "Login successful!",
@@ -439,9 +439,12 @@
     "loginRequired": "Login required",
     "loginStatus": "Login Status",
     "firefoxCookieLoggedIn": "Logged in with Firefox Cookie",
-    "qrCodeLoggedIn": "Logged in with QR Code",
+    "qrCodeLoggedIn": "Logged in with QR Code (Beta)",
+    "notLoggedIn": "Not logged in",
     "logoutConfirmTitle": "Confirm Logout",
     "logoutConfirmMessage": "Are you sure you want to log out? You will need to scan the QR code again to log in.",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "qrSessionDeleted": "QR session deleted",
+    "usingFirefoxCookie": "Using Firefox Cookie for authentication"
   }
 }

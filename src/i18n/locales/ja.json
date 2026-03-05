@@ -421,7 +421,7 @@
     }
   },
   "login": {
-    "title": "Bilibiliにログイン",
+    "title": "(Beta) Bilibiliにログイン",
     "scanWithApp": "Bilibiliアプリでスキャン",
     "confirmOnPhone": "スマホで確認してください",
     "loginSuccess": "ログイン成功！",
@@ -439,9 +439,12 @@
     "loginRequired": "ログインが必要です",
     "loginStatus": "ログイン状態",
     "firefoxCookieLoggedIn": "Firefox Cookieでログイン中",
-    "qrCodeLoggedIn": "QRコードでログイン中",
+    "qrCodeLoggedIn": "QRコードでログイン中 (Beta)",
+    "notLoggedIn": "ログインしていません",
     "logoutConfirmTitle": "ログアウトの確認",
     "logoutConfirmMessage": "本当にログアウトしますか？再度ログインするにはQRコードをスキャンする必要があります。",
-    "cancel": "キャンセル"
+    "cancel": "キャンセル",
+    "qrSessionDeleted": "QRセッションを削除しました",
+    "usingFirefoxCookie": "Firefox Cookieを使用して認証中です"
   }
 }

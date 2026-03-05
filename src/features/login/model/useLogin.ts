@@ -26,6 +26,7 @@ import {
 } from '../api/loginApi'
 import {
   clearQrCode,
+  resetLogin,
   setError,
   setLoginMethod,
   setQrCode,
@@ -182,5 +183,6 @@ export function useLogin() {
     stopPolling,
     logout,
     changeLoginMethod,
+    resetLogin: () => dispatch(resetLogin()),
   }
 }

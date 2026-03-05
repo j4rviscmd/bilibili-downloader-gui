@@ -25,7 +25,6 @@
 
 import { QRCodeDisplay } from '@/features/login'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card'
-import { LogIn } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 /**
@@ -67,10 +66,7 @@ export function LoginPage() {
     <div className="flex min-h-full items-center justify-center p-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          <CardTitle className="flex items-center justify-center gap-2">
-            <LogIn className="h-5 w-5" />
-            {t('login.title', 'Login to Bilibili')}
-          </CardTitle>
+          <CardTitle>{t('login.title', 'Login to Bilibili')}</CardTitle>
         </CardHeader>
         <CardContent>
           <QRCodeDisplay />

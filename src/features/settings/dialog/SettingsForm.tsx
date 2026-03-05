@@ -5,6 +5,9 @@ import {
   type LoginMethod,
   type Session,
 } from '@/features/login'
+import { setUser } from '@/features/user/userSlice'
+import type { User } from '@/features/user/types'
+import { toast } from 'sonner'
 import { videoApi } from '@/features/video'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { open } from '@tauri-apps/plugin-dialog'
@@ -51,6 +54,46 @@ import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
 import { Separator } from '@/shared/ui/separator'
 import { Switch } from '@/shared/ui/switch'
+
+/**
+ * Converts Session to User type for userSlice.
+ *
+ * @param session - Session data from login state
+ * @returns User object compatible with userSlice
+ */
+function sessionToUser(session: Session | null): User {
+  if (!session) {
+    return {
+      code: 0,
+      message: '',
+      ttl: 0,
+      data: {
+        uname: '',
+        isLogin: false,
+        wbiImg: {
+          imgUrl: '',
+          subUrl: '',
+        },
+      },
+      hasCookie: false,
+    }
+  }
+  return {
+    code: 0,
+    message: '',
+    ttl: 0,
+    data: {
+      mid: parseInt(session.dedeUserId, 10) || undefined,
+      uname: session.uname,
+      isLogin: true,
+      wbiImg: {
+        imgUrl: '',
+        subUrl: '',
+      },
+    },
+    hasCookie: true,
+  }
+}
 
 /**
  * Settings form component.
@@ -150,9 +193,20 @@ function SettingsForm() {
   const handleLogout = async () => {
     try {
       await qrLogout()
-      setLoginMethod('firefox')
-      setSession(null)
       setShowLogoutDialog(false)
+      toast.success(t('login.qrSessionDeleted'))
+
+      // Get fresh login state and update UI smoothly
+      const state = await getLoginState()
+      setLoginMethod(state.method)
+      setSession(state.session)
+
+      // Sync userSlice with AppBar
+      store.dispatch(setUser(sessionToUser(state.session)))
+
+      if (state.session) {
+        toast.info(t('login.usingFirefoxCookie'))
+      }
     } catch (error) {
       console.error('QR logout failed:', error)
     }
@@ -232,27 +286,6 @@ function SettingsForm() {
             </FormItem>
           )}
         />
-        <Separator />
-        {/* Login Status Section */}
-        <div className="space-y-3">
-          <Label>{t('login.loginStatus')}</Label>
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground text-sm">
-              {loginMethod === 'qrCode'
-                ? t('login.qrCodeLoggedIn')
-                : t('login.firefoxCookieLoggedIn')}
-            </span>
-            {loginMethod === 'qrCode' && session && (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => setShowLogoutDialog(true)}
-              >
-                {t('login.logout')}
-              </Button>
-            )}
-          </div>
-        </div>
         <Separator />
         <FormField
           control={form.control}
@@ -339,6 +372,29 @@ function SettingsForm() {
         <div className="space-y-2">
           <Label>{t('settings.app_section_label')}</Label>
           <UpdateCheckButton />
+        </div>
+        <Separator />
+        {/* Login Status Section */}
+        <div className="space-y-3">
+          <Label>{t('login.loginStatus')}</Label>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground text-sm">
+              {session === null
+                ? t('login.notLoggedIn')
+                : loginMethod === 'qrCode'
+                  ? t('login.qrCodeLoggedIn')
+                  : t('login.firefoxCookieLoggedIn')}
+            </span>
+            {loginMethod === 'qrCode' && session && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setShowLogoutDialog(true)}
+              >
+                {t('login.logout')}
+              </Button>
+            )}
+          </div>
         </div>
         <Separator />
         <DevOptions />

@@ -118,6 +118,9 @@ pub struct Session {
     pub refresh_token: String,
     /// Login timestamp
     pub timestamp: i64,
+    /// Username (display name)
+    #[serde(default)]
+    pub uname: String,
 }
 
 /// Frontend-facing QR code generation result.
