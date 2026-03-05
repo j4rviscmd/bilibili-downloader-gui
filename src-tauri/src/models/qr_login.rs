@@ -91,13 +91,16 @@ impl From<i32> for QrCodeStatus {
     }
 }
 
-/// Session data stored after successful QR login.
+/// Session data stored after successful login.
 ///
-/// This is persisted using tauri-plugin-store for automatic login
-/// on subsequent app launches.
+/// This is persisted using OS keyring for secure storage,
+/// enabling automatic login on subsequent app launches.
+///
+/// This structure is shared across different login methods (QR code, Firefox cookies, etc.)
+/// to support future authentication methods.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
-pub struct QrSession {
+pub struct Session {
     /// SESSDATA cookie value
     #[serde(rename = "sessdata")]
     pub sessdata: String,
@@ -136,7 +139,7 @@ pub struct QrPollResult {
     /// Status message for display
     pub message: String,
     /// Session data (only present on success)
-    pub session: Option<QrSession>,
+    pub session: Option<Session>,
 }
 
 /// Login method preference.
@@ -151,18 +154,19 @@ pub enum LoginMethod {
 }
 
 /// Stored login state for persistence.
+///
+/// Note: Session data is stored in OS keyring,/// while only the login method preference is stored in tauri-plugin-store.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct LoginState {
     /// Preferred login method
     pub method: LoginMethod,
-    /// QR session data (if using QR code login)
-    pub qr_session: Option<QrSession>,
+    /// Session data (stored in OS keyring, not in store)
+    #[serde(rename = "session")]
+    pub session: Option<Session>,
 }
 
-// =============================================================================
 // Cookie Refresh API Types
-// =============================================================================
 
 /// Response from cookie refresh check API.
 ///

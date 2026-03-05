@@ -3,8 +3,19 @@
 //! This module handles Bilibili QR code authentication flow:
 //! 1. Generate QR code image
 //! 2. Poll for login status
-//! 3. Store session on success
-//! 4. Logout (clear session)
+//! 3. Store session securely in OS keyring on success
+//! 4. Logout (clear session from keyring)
+//!
+//! # Security
+//!
+//! Session tokens (SESSDATA, refresh_token, etc.) are stored in the OS's
+//! secure credential storage:
+//! - macOS: Keychain
+//! - Windows: Credential Manager
+//! - Linux: Secret Service (gnome-keyring, KWallet, etc.)
+//!
+//! The tauri-plugin-store is only used for non-sensitive settings
+//! like the preferred login method.
 
 use std::io::Cursor;
 
@@ -37,13 +48,112 @@ use crate::models::cookie::CookieEntry;
 use crate::models::qr_login::{
     ConfirmRefreshResponse, CookieRefreshInfo, CookieRefreshInfoResponse, CookieRefreshResponse,
     LoginMethod, LoginState, QrCodeGenerateResponse, QrCodePollResponse, QrCodeResult,
-    QrCodeStatus, QrPollResult, QrSession,
+    QrCodeStatus, QrPollResult, Session,
 };
 
 const QR_GENERATE_URL: &str = "https://passport.bilibili.com/x/passport-login/web/qrcode/generate";
 const QR_POLL_URL: &str = "https://passport.bilibili.com/x/passport-login/web/qrcode/poll";
 const STORE_FILE_NAME: &str = "login_state.json";
 const LOGIN_STATE_KEY: &str = "loginState";
+
+// Keyring configuration
+const KEYRING_SERVICE: &str = "com.j4rviscmd.bilibili-downloader-gui";
+const KEYRING_SESSION_KEY: &str = "session";
+
+// Keyring Helper Functions
+
+/// Saves session to OS keyring.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Keyring is not available (e.g., no Secret Service on Linux)
+/// - Failed to store the credential
+fn save_session_to_keyring(session: &Session) -> Result<(), String> {
+    let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_SESSION_KEY)
+        .map_err(|e| format!("Failed to create keyring entry: {}", e))?;
+
+    let session_json = serde_json::to_string(session)
+        .map_err(|e| format!("Failed to serialize session: {}", e))?;
+
+    entry
+        .set_password(&session_json)
+        .map_err(|e| format!("Failed to store session in keyring: {}", e))?;
+
+    debug_log!(
+        "[Keyring] Session saved successfully ({} bytes)",
+        session_json.len()
+    );
+    Ok(())
+}
+
+/// Loads session from OS keyring.
+///
+/// # Returns
+///
+/// Returns `Ok(Some(session))` if session exists, `Ok(None)` if not found.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Keyring is not available
+/// - Failed to retrieve the credential
+fn load_session_from_keyring() -> Result<Option<Session>, String> {
+    let entry = match keyring::Entry::new(KEYRING_SERVICE, KEYRING_SESSION_KEY) {
+        Ok(e) => e,
+        Err(e) => {
+            debug_log!("[Keyring] Failed to create entry: {}", e);
+            return Err(format!("Failed to create keyring entry: {}", e));
+        }
+    };
+
+    match entry.get_password() {
+        Ok(json) => {
+            let session: Session = serde_json::from_str(&json)
+                .map_err(|e| format!("Failed to deserialize session: {}", e))?;
+            debug_log!("[Keyring] Session loaded successfully");
+            Ok(Some(session))
+        }
+        Err(keyring::Error::NoEntry) => {
+            debug_log!("[Keyring] No session found");
+            Ok(None)
+        }
+        Err(e) => {
+            debug_log!("[Keyring] Failed to get password: {}", e);
+            Err(format!("Failed to retrieve session from keyring: {}", e))
+        }
+    }
+}
+
+/// Deletes session from OS keyring.
+///
+/// # Errors
+///
+/// Returns an error if deletion fails (ignores "no entry" error).
+fn delete_session_from_keyring() -> Result<(), String> {
+    let entry = match keyring::Entry::new(KEYRING_SERVICE, KEYRING_SESSION_KEY) {
+        Ok(e) => e,
+        Err(e) => {
+            debug_log!("[Keyring] Failed to create entry for deletion: {}", e);
+            return Err(format!("Failed to create keyring entry: {}", e));
+        }
+    };
+
+    match entry.delete_credential() {
+        Ok(()) => {
+            debug_log!("[Keyring] Session deleted successfully");
+            Ok(())
+        }
+        Err(keyring::Error::NoEntry) => {
+            debug_log!("[Keyring] No session to delete");
+            Ok(())
+        }
+        Err(e) => {
+            debug_log!("[Keyring] Failed to delete: {}", e);
+            Err(format!("Failed to delete session from keyring: {}", e))
+        }
+    }
+}
 
 /// Generates a QR code for Bilibili login.
 ///
@@ -183,7 +293,7 @@ fn extract_session_from_url(
     url: &str,
     refresh_token: &str,
     timestamp: i64,
-) -> Result<QrSession, String> {
+) -> Result<Session, String> {
     // Parse URL and extract query parameters
     let parsed_url = Url::parse(url).map_err(|e| format!("Failed to parse login URL: {}", e))?;
 
@@ -192,7 +302,7 @@ fn extract_session_from_url(
         .map(|(k, v)| (k.to_string(), v.to_string()))
         .collect();
 
-    Ok(QrSession {
+    Ok(Session {
         sessdata: query_pairs.get("SESSDATA").cloned().unwrap_or_default(),
         bili_jct: query_pairs.get("bili_jct").cloned().unwrap_or_default(),
         dede_user_id: query_pairs.get("DedeUserID").cloned().unwrap_or_default(),
@@ -205,15 +315,22 @@ fn extract_session_from_url(
     })
 }
 
-/// Saves the session to persistent storage.
-async fn save_session(app: &AppHandle, session: &QrSession) -> Result<(), String> {
+/// Saves the session to OS keyring and login method to store.
+///
+/// The session tokens are stored securely in the OS's credential storage,
+/// while only the login method preference is stored in the regular store.
+async fn save_session(app: &AppHandle, session: &Session) -> Result<(), String> {
+    // Save session to keyring (secure storage)
+    save_session_to_keyring(session)?;
+
+    // Save only the login method to store (non-sensitive)
     let store = app
         .store(STORE_FILE_NAME)
         .map_err(|e| format!("Failed to open store: {}", e))?;
 
     let login_state = LoginState {
         method: LoginMethod::QrCode,
-        qr_session: Some(session.clone()),
+        session: None, // Don't store session in store
     };
 
     store.set(
@@ -230,7 +347,7 @@ async fn save_session(app: &AppHandle, session: &QrSession) -> Result<(), String
 }
 
 /// Updates the in-memory cookie cache with QR session cookies.
-fn update_cookie_cache(app: &AppHandle, session: &QrSession) {
+fn update_cookie_cache(app: &AppHandle, session: &Session) {
     let Some(cache) = app.try_state::<CookieCache>() else {
         return;
     };
@@ -262,27 +379,37 @@ fn update_cookie_cache(app: &AppHandle, session: &QrSession) {
     ];
 }
 
-/// Loads the stored session and updates cookie cache.
+/// Loads the stored session from keyring and updates cookie cache.
 ///
 /// This should be called on app startup to restore login state.
 ///
 /// # Returns
 ///
 /// Returns `Ok(true)` if a QR session was restored, `Ok(false)` if no session exists.
+///
+/// # Errors
+///
+/// Returns an error if keyring is not available (e.g., no Secret Service on Linux).
 pub async fn load_stored_session(app: &AppHandle) -> Result<bool, String> {
-    let login_state = get_login_state(app).await?;
+    // Check login method preference
+    let login_state = get_login_state_from_store(app).await?;
 
-    if login_state.method == LoginMethod::QrCode {
-        if let Some(session) = &login_state.qr_session {
-            update_cookie_cache(app, session);
-            return Ok(true);
-        }
+    if login_state.method != LoginMethod::QrCode {
+        return Ok(false);
+    }
+
+    // Load session from keyring
+    let session = load_session_from_keyring()?;
+
+    if let Some(session) = session {
+        update_cookie_cache(app, &session);
+        return Ok(true);
     }
 
     Ok(false)
 }
 
-/// Logs out by clearing the stored session and cookie cache.
+/// Logs out by clearing the stored session from keyring and cookie cache.
 ///
 /// # Arguments
 ///
@@ -299,7 +426,10 @@ pub async fn logout(app: &AppHandle) -> Result<(), String> {
         }
     }
 
-    // Clear stored session
+    // Delete session from keyring
+    delete_session_from_keyring()?;
+
+    // Clear login method from store
     let store = app
         .store(STORE_FILE_NAME)
         .map_err(|e| format!("Failed to open store: {}", e))?;
@@ -332,14 +462,10 @@ pub async fn set_login_method(app: &AppHandle, method: LoginMethod) -> Result<()
         .store(STORE_FILE_NAME)
         .map_err(|e| format!("Failed to open store: {}", e))?;
 
-    let existing_state: LoginState = store
-        .get(LOGIN_STATE_KEY)
-        .map(|v| serde_json::from_value(v.clone()).unwrap_or_default())
-        .unwrap_or_default();
-
+    // Only store the method, not the session (session is in keyring)
     let login_state = LoginState {
         method,
-        qr_session: existing_state.qr_session,
+        session: None,
     };
 
     store.set(
@@ -365,19 +491,13 @@ pub async fn set_login_method(app: &AppHandle, method: LoginMethod) -> Result<()
 ///
 /// Returns the current login method.
 pub async fn get_login_method(app: &AppHandle) -> Result<LoginMethod, String> {
-    Ok(get_login_state(app).await?.method)
+    Ok(get_login_state_from_store(app).await?.method)
 }
 
-/// Gets the current login state.
+/// Gets the current login state from store (method only, no session).
 ///
-/// # Arguments
-///
-/// * `app` - Tauri application handle
-///
-/// # Returns
-///
-/// Returns the current login state.
-pub async fn get_login_state(app: &AppHandle) -> Result<LoginState, String> {
+/// Session data is loaded from keyring separately.
+async fn get_login_state_from_store(app: &AppHandle) -> Result<LoginState, String> {
     let store = match app.store(STORE_FILE_NAME) {
         Ok(s) => s,
         Err(_) => return Ok(LoginState::default()),
@@ -388,13 +508,45 @@ pub async fn get_login_state(app: &AppHandle) -> Result<LoginState, String> {
         None => return Ok(LoginState::default()),
     };
 
-    serde_json::from_value(value.clone())
-        .map_err(|e| format!("Failed to deserialize login state: {}", e))
+    let mut state: LoginState = serde_json::from_value(value.clone())
+        .map_err(|e| format!("Failed to deserialize login state: {}", e))?;
+
+    // Session is not stored in the store anymore, clear it if present from old data
+    state.session = None;
+
+    Ok(state)
 }
 
-// =============================================================================
+/// Gets the current login state including session from keyring.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle
+///
+/// # Returns
+///
+/// Returns the current login state with session (if available from keyring).
+///
+/// # Errors
+///
+/// Returns an error if keyring is not available.
+pub async fn get_login_state(app: &AppHandle) -> Result<LoginState, String> {
+    let store_state = get_login_state_from_store(app).await?;
+
+    // Load session from keyring if using QR code method
+    let session = if store_state.method == LoginMethod::QrCode {
+        load_session_from_keyring()?
+    } else {
+        None
+    };
+
+    Ok(LoginState {
+        method: store_state.method,
+        session,
+    })
+}
+
 // Cookie Refresh API
-// =============================================================================
 
 const COOKIE_INFO_URL: &str = "https://passport.bilibili.com/x/passport-login/web/cookie/info";
 const COOKIE_REFRESH_URL: &str =
@@ -569,7 +721,7 @@ async fn fetch_refresh_csrf(app: &AppHandle, correspond_path: &str) -> Result<St
 /// # Returns
 ///
 /// Returns the new session data on success.
-pub async fn refresh_cookie(app: &AppHandle) -> Result<QrSession, String> {
+pub async fn refresh_cookie(app: &AppHandle) -> Result<Session, String> {
     debug_log!("[CookieRefresh] Starting cookie refresh process...");
 
     // Step 1: Check if refresh is needed
@@ -589,7 +741,7 @@ pub async fn refresh_cookie(app: &AppHandle) -> Result<QrSession, String> {
         debug_log!("[CookieRefresh] ERROR getting login state: {}", e);
         e
     })?;
-    let session = login_state.qr_session.ok_or_else(|| {
+    let session = login_state.session.ok_or_else(|| {
         debug_log!("[CookieRefresh] ERROR: No QR session found in login state");
         "No QR session found".to_string()
     })?;
@@ -718,7 +870,7 @@ pub async fn refresh_cookie(app: &AppHandle) -> Result<QrSession, String> {
     );
 
     // Step 6: Build new session and save
-    let new_session = QrSession {
+    let new_session = Session {
         sessdata: new_cookies.get("SESSDATA").cloned().unwrap_or_default(),
         bili_jct: new_cookies.get("bili_jct").cloned().unwrap_or_default(),
         dede_user_id: new_cookies.get("DedeUserID").cloned().unwrap_or_default(),

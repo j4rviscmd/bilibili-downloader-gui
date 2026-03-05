@@ -34,7 +34,7 @@ use crate::models::qr_login::LoginMethod;
 use crate::models::qr_login::LoginState;
 use crate::models::qr_login::QrCodeResult;
 use crate::models::qr_login::QrPollResult;
-use crate::models::qr_login::QrSession;
+use crate::models::qr_login::Session;
 use crate::models::settings::Settings;
 use crate::store::HistoryStore;
 
@@ -1327,6 +1327,6 @@ async fn check_cookie_refresh(app: AppHandle) -> Result<CookieRefreshInfo, Strin
 ///
 /// Returns the new session data on success.
 #[tauri::command]
-async fn refresh_cookie(app: AppHandle) -> Result<QrSession, String> {
+async fn refresh_cookie(app: AppHandle) -> Result<Session, String> {
     qr_login::refresh_cookie(&app).await
 }

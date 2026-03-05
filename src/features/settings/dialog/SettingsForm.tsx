@@ -3,7 +3,7 @@ import {
   getLoginState,
   qrLogout,
   type LoginMethod,
-  type QrSession,
+  type Session,
 } from '@/features/login'
 import { videoApi } from '@/features/video'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -54,14 +54,7 @@ import { Switch } from '@/shared/ui/switch'
 
 /**
  * Settings form component.
- *
- * Provides form inputs for configuring application settings:
- * - Language selection (radio buttons)
- * - Download output directory path (text input with validation)
- *
- * Changes are auto-saved when fields blur or when language is changed.
- * The form uses react-hook-form with Zod schema validation that supports
- * both Windows and POSIX path validation rules.
+ * Provides form inputs for application settings with auto-save on blur.
  */
 function SettingsForm() {
   const { t } = useTranslation()
@@ -70,16 +63,16 @@ function SettingsForm() {
   const [isUpdatingDlOutputPath, setIsUpdatingDlOutputPath] = useState(false)
   const [currentLibPath, setCurrentLibPath] = useState<string>('')
   const [loginMethod, setLoginMethod] = useState<LoginMethod>('firefox')
-  const [qrSession, setQrSession] = useState<QrSession | null>(null)
+  const [session, setSession] = useState<Session | null>(null)
   const [showLogoutDialog, setShowLogoutDialog] = useState(false)
 
-  // ログイン状態を取得
+  // Fetch login state on mount
   useEffect(() => {
     const fetchLoginState = async () => {
       try {
         const state = await getLoginState()
         setLoginMethod(state.method)
-        setQrSession(state.qrSession)
+        setSession(state.session)
       } catch (error) {
         console.error('Failed to get login state:', error)
       }
@@ -99,13 +92,7 @@ function SettingsForm() {
     fetchCurrentLibPath()
   }, [settings.libPath, t])
 
-  /**
-   * Opens a directory selection dialog using Tauri's dialog plugin.
-   *
-   * @param titleKey - Translation key for the dialog title
-   * @param defaultPath - Optional initial directory path
-   * @returns Selected directory path or null if cancelled/error occurred
-   */
+  /** Opens a directory selection dialog. */
   const openDirectoryDialog = async (
     titleKey: string,
     defaultPath?: string,
@@ -123,10 +110,7 @@ function SettingsForm() {
     }
   }
 
-  /**
-   * Handles library path selection via directory dialog.
-   * Updates the library path setting after user selects a directory.
-   */
+  /** Handles library path selection. */
   const handleLibPathChange = async () => {
     setIsUpdatingLibPath(true)
     try {
@@ -142,10 +126,7 @@ function SettingsForm() {
     }
   }
 
-  /**
-   * Handles download output path selection via directory dialog.
-   * Updates the form value and submits to save the new path.
-   */
+  /** Handles download output path selection. */
   const handleDlOutputPathChange = async () => {
     setIsUpdatingDlOutputPath(true)
     try {
@@ -165,14 +146,12 @@ function SettingsForm() {
     }
   }
 
-  /**
-   * Handles QR logout with confirmation.
-   */
+  /** Handles QR logout with confirmation. */
   const handleLogout = async () => {
     try {
       await qrLogout()
       setLoginMethod('firefox')
-      setQrSession(null)
+      setSession(null)
       setShowLogoutDialog(false)
     } catch (error) {
       console.error('QR logout failed:', error)
@@ -197,13 +176,7 @@ function SettingsForm() {
     })
   }, [form, settings.dlOutputPath, settings.language])
 
-  /**
-   * Handles form submission.
-   * Detects changed fields and saves only those values.
-   * Triggers language update if language setting changed.
-   *
-   * @param data - Form data matching the schema
-   */
+  /** Handles form submission, saving only changed fields. */
   const onSubmit = async (data: z.infer<typeof formSchema>) => {
     const changedKeys = (['dlOutputPath', 'language'] as const).filter(
       (key) => data[key] !== settings[key],
@@ -221,12 +194,7 @@ function SettingsForm() {
     await saveByForm({ ...settings, ...changed })
   }
 
-  /**
-   * Handles language selection change.
-   * Updates form value and immediately submits to apply new language.
-   *
-   * @param val - Selected language code
-   */
+  /** Handles language selection change with immediate submit. */
   const handleLanguageChange = (val: string) => {
     form.setValue('language', val as z.infer<typeof formSchema>['language'], {
       shouldDirty: true,
@@ -274,7 +242,7 @@ function SettingsForm() {
                 ? t('login.qrCodeLoggedIn')
                 : t('login.firefoxCookieLoggedIn')}
             </span>
-            {loginMethod === 'qrCode' && qrSession && (
+            {loginMethod === 'qrCode' && session && (
               <Button
                 variant="destructive"
                 size="sm"
