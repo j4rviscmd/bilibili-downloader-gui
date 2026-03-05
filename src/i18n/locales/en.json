@@ -170,6 +170,8 @@
     "ffmpeg_ok": "✅ ffmpeg check succeeded",
     "installing_ffmpeg": "ℹ️ Installing ffmpeg...",
     "ffmpeg_install_ok": "✅ ffmpeg installed successfully",
+    "qr_session_restored": "✅ Restored login session",
+    "cookie_refreshed": "✅ Login session refreshed",
     "ffmpeg_install_failed": "😫 Failed to install ffmpeg",
     "dev_skip_version": "🛠️ Skipping version check in development mode",
     "checking_version": "ℹ️ Checking app version...",
@@ -417,5 +419,32 @@
       "durationHMS": "{{hours}}:{{minutes}}:{{seconds}}",
       "durationMS": "{{minutes}}:{{seconds}}"
     }
+  },
+  "login": {
+    "title": "(Beta) Login to Bilibili",
+    "scanWithApp": "Scan with Bilibili App",
+    "confirmOnPhone": "Confirm on your phone",
+    "loginSuccess": "Login successful!",
+    "qrExpired": "QR code expired",
+    "loginFailed": "Login failed",
+    "generatingQR": "Generating QR code...",
+    "refresh": "Refresh",
+    "tryAgain": "Try Again",
+    "instructions": "Open Bilibili App on your phone and scan this QR code to log in",
+    "logout": "Logout",
+    "loginMethod": "Login Method",
+    "firefoxCookie": "Firefox Cookie",
+    "qrCode": "QR Code",
+    "qrCodeLogin": "Login with QR Code",
+    "loginRequired": "Login required",
+    "loginStatus": "Login Status",
+    "firefoxCookieLoggedIn": "Logged in with Firefox Cookie",
+    "qrCodeLoggedIn": "Logged in with QR Code (Beta)",
+    "notLoggedIn": "Not logged in",
+    "logoutConfirmTitle": "Confirm Logout",
+    "logoutConfirmMessage": "Are you sure you want to log out? You will need to scan the QR code again to log in.",
+    "cancel": "Cancel",
+    "qrSessionDeleted": "QR session deleted",
+    "usingFirefoxCookie": "Using Firefox Cookie for authentication"
   }
 }

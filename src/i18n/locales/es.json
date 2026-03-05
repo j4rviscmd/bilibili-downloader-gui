@@ -167,6 +167,8 @@
     "ffmpeg_ok": "✅ Verificación de ffmpeg correcta",
     "installing_ffmpeg": "ℹ️ Instalando ffmpeg...",
     "ffmpeg_install_ok": "✅ ffmpeg instalado correctamente",
+    "qr_session_restored": "✅ Sesión de inicio restaurada",
+    "cookie_refreshed": "✅ Sesión de inicio actualizada",
     "ffmpeg_install_failed": "😫 Error al instalar ffmpeg",
     "dev_skip_version": "🛠️ Omitiendo verificación de versión (dev)",
     "checking_version": "ℹ️ Verificando versión...",
@@ -412,5 +414,33 @@
       "durationHMS": "{{hours}}:{{minutes}}:{{seconds}}",
       "durationMS": "{{minutes}}:{{seconds}}"
     }
+  },
+  "login": {
+    "title": "(Beta) Iniciar sesión en Bilibili",
+    "scanWithApp": "Escanear con la app de Bilibili",
+    "confirmOnPhone": "Confirma en tu teléfono",
+    "loginSuccess": "¡Inicio de sesión exitoso!",
+    "qrExpired": "Código QR expirado",
+    "loginFailed": "Error de inicio de sesión",
+    "generatingQR": "Generando código QR...",
+    "refresh": "Actualizar",
+    "tryAgain": "Intentar de nuevo",
+    "instructions": "Abre la app de Bilibili en tu teléfono y escanea este código QR para iniciar sesión",
+    "logout": "Cerrar sesión",
+    "loginMethod": "Método de inicio de sesión",
+    "firefoxCookie": "Firefox Cookie",
+    "qrCode": "Código QR",
+    "qrCodeLogin": "Iniciar sesión con código QR",
+    "loginRequired": "Se requiere iniciar sesión",
+    "loginStatus": "Estado de inicio de sesión",
+    "firefoxCookieLoggedIn": "Sesión iniciada con Firefox Cookie",
+    "qrCodeLoggedIn": "Sesión iniciada con código QR (Beta)",
+    "notLoggedIn": "No has iniciado sesión",
+    "logoutConfirmTitle": "Confirmar cierre de sesión",
+    "logoutConfirmMessage": "¿Estás seguro de que quieres cerrar sesión? Tendrás que escanear el código QR de nuevo para iniciar sesión.",
+    "cancel": "Cancelar",
+    "qrSessionDeleted": "Sesión QR eliminada",
+    "usingFirefoxCookie": "Usando Firefox Cookie para autenticación",
+    "notLoggedIn": "No has iniciado sesión"
   }
 }

@@ -15,6 +15,7 @@ use crate::handlers::cookie;
 use crate::handlers::favorites;
 use crate::handlers::ffmpeg;
 use crate::handlers::github;
+use crate::handlers::qr_login;
 use crate::handlers::settings;
 use crate::handlers::updater;
 use crate::models::cookie::CookieCache;
@@ -28,6 +29,12 @@ use crate::models::frontend_dto::User;
 use crate::models::frontend_dto::Video;
 use crate::models::history::HistoryEntry;
 use crate::models::history::HistoryFilters;
+use crate::models::qr_login::CookieRefreshInfo;
+use crate::models::qr_login::LoginMethod;
+use crate::models::qr_login::LoginState;
+use crate::models::qr_login::QrCodeResult;
+use crate::models::qr_login::QrPollResult;
+use crate::models::qr_login::Session;
 use crate::models::settings::Settings;
 use crate::store::HistoryStore;
 
@@ -121,6 +128,15 @@ pub fn run() {
             fetch_watch_history,
             expand_short_url,
             cleanup_temp_files,
+            generate_qr_code,
+            poll_qr_status,
+            qr_logout,
+            set_login_method,
+            get_login_method,
+            get_login_state,
+            load_qr_session,
+            check_cookie_refresh,
+            refresh_cookie,
             // record_download_click  // NOTE: GA4 Analytics は無効化されています
             #[cfg(debug_assertions)]
             set_simulate_logout,
@@ -1162,4 +1178,155 @@ async fn fetch_bangumi_part_qualities(
 #[tauri::command]
 async fn expand_short_url(url: String) -> Result<String, String> {
     bilibili::expand_short_url(url).await
+}
+
+// ============================================================================
+// QR Code Login Commands
+// ============================================================================
+
+/// Generates a QR code for Bilibili login.
+///
+/// Returns a base64-encoded PNG image and a polling key.
+/// The QR code is valid for 180 seconds.
+///
+/// # Returns
+///
+/// Returns `QrCodeResult` with:
+/// - `qrCodeImage`: Base64 data URL of the QR code image
+/// - `qrcodeKey`: Key for polling the login status
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The API request fails
+/// - QR code generation fails
+#[tauri::command]
+async fn generate_qr_code(app: AppHandle) -> Result<QrCodeResult, String> {
+    qr_login::generate_qr_code(&app).await
+}
+
+/// Polls the QR code login status.
+///
+/// Call this repeatedly (e.g., every 2 seconds) after generating a QR code.
+/// The QR code expires after 180 seconds.
+///
+/// # Arguments
+///
+/// * `qrcode_key` - The key from `generate_qr_code`
+///
+/// # Returns
+///
+/// Returns `QrPollResult` with:
+/// - `status`: Current status (waitingForScan, scannedWaitingConfirm, success, expired, error)
+/// - `message`: Status message for display
+/// - `session`: Session data (only on success, but stored internally)
+///
+/// # Status Codes
+///
+/// - `waitingForScan`: User hasn't scanned yet
+/// - `scannedWaitingConfirm`: User scanned but didn't confirm on mobile
+/// - `success`: Login successful, session stored
+/// - `expired`: QR code expired, generate a new one
+/// - `error`: Unknown error occurred
+#[tauri::command]
+async fn poll_qr_status(app: AppHandle, qrcode_key: String) -> Result<QrPollResult, String> {
+    qr_login::poll_qr_status(&app, &qrcode_key).await
+}
+
+/// Logs out by clearing the stored QR session and cookies.
+///
+/// After calling this, the user will need to log in again.
+///
+/// # Returns
+///
+/// Returns `Ok(())` on success.
+#[tauri::command]
+async fn qr_logout(app: AppHandle) -> Result<(), String> {
+    qr_login::logout(&app).await
+}
+
+/// Sets the preferred login method.
+///
+/// # Arguments
+///
+/// * `method` - Login method: "firefox" or "qrCode"
+///
+/// # Returns
+///
+/// Returns `Ok(())` on success.
+#[tauri::command]
+async fn set_login_method(app: AppHandle, method: String) -> Result<(), String> {
+    let login_method = match method.to_lowercase().as_str() {
+        "firefox" => LoginMethod::Firefox,
+        "qrcode" => LoginMethod::QrCode,
+        _ => return Err(format!("Invalid login method: {}", method)),
+    };
+    qr_login::set_login_method(&app, login_method).await
+}
+
+/// Gets the current login method preference.
+///
+/// # Returns
+///
+/// Returns the login method: "firefox" or "qrCode".
+#[tauri::command]
+async fn get_login_method(app: AppHandle) -> Result<String, String> {
+    let method = qr_login::get_login_method(&app).await?;
+    Ok(match method {
+        LoginMethod::Firefox => "firefox".to_string(),
+        LoginMethod::QrCode => "qrCode".to_string(),
+    })
+}
+
+/// Gets the current login state.
+///
+/// # Returns
+///
+/// Returns the full login state including method and session info.
+#[tauri::command]
+async fn get_login_state(app: AppHandle) -> Result<LoginState, String> {
+    qr_login::get_login_state(&app).await
+}
+
+/// Loads stored QR session on app startup.
+///
+/// This should be called during app initialization if QR login is preferred.
+///
+/// # Returns
+///
+/// Returns `true` if a QR session was restored, `false` otherwise.
+#[tauri::command]
+async fn load_qr_session(app: AppHandle) -> Result<bool, String> {
+    qr_login::load_stored_session(&app).await
+}
+
+/// Checks if cookie refresh is needed.
+///
+/// Calls Bilibili's cookie info API to determine if the current session
+/// needs to be refreshed.
+///
+/// # Returns
+///
+/// Returns `CookieRefreshInfo` with `refresh` flag indicating if refresh is needed.
+#[tauri::command]
+async fn check_cookie_refresh(app: AppHandle) -> Result<CookieRefreshInfo, String> {
+    qr_login::check_cookie_refresh(&app).await
+}
+
+/// Refreshes the cookie using the stored refresh_token.
+///
+/// This function:
+/// 1. Checks if refresh is needed
+/// 2. Generates CorrespondPath
+/// 3. Fetches refresh_csrf
+/// 4. Calls cookie refresh API
+/// 5. Confirms the refresh
+/// 6. Updates stored session with new cookies and refresh_token
+///
+/// # Returns
+///
+/// Returns the new session data on success.
+#[tauri::command]
+async fn refresh_cookie(app: AppHandle) -> Result<Session, String> {
+    qr_login::refresh_cookie(&app).await
 }

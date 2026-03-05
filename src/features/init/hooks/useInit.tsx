@@ -3,8 +3,13 @@ import {
   setProcessingFnc,
   setInitiated as setValue,
 } from '@/features/init/model/initSlice'
+import {
+  checkCookieRefresh,
+  loadQrSession,
+  refreshCookie,
+} from '@/features/login'
 import { useSettings } from '@/features/settings/useSettings'
-import { useUser } from '@/features/user/useUser'
+import { useUser } from '@/features/user'
 import { changeLanguage, type SupportedLang } from '@/shared/i18n'
 import { sleep } from '@/shared/lib/utils'
 import { getOs } from '@/shared/os/api/getOs'
@@ -12,6 +17,15 @@ import { invoke } from '@tauri-apps/api/core'
 import { exit } from '@tauri-apps/plugin-process'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
+
+const SUPPORTED_LANGS: readonly SupportedLang[] = [
+  'en',
+  'ja',
+  'fr',
+  'es',
+  'zh',
+  'ko',
+]
 
 export interface InitResult {
   code: number
@@ -58,15 +72,9 @@ export const useInit = () => {
   /**
    * Type guard to check if a string is a supported language.
    */
-  const isSupportedLang = (lang: string): lang is SupportedLang => {
-    return ['en', 'ja', 'fr', 'es', 'zh', 'ko'].includes(lang)
-  }
+  const isSupportedLang = (lang: string): lang is SupportedLang =>
+    (SUPPORTED_LANGS as readonly string[]).includes(lang)
 
-  /**
-   * Sets the initialization completion flag.
-   *
-   * @param value - True when initialization is complete.
-   */
   const setInitiated = (value: boolean) => {
     store.dispatch(setValue(value))
   }
@@ -87,8 +95,9 @@ export const useInit = () => {
    * 1. OS detection (fire-and-forget)
    * 2. App settings retrieval and language application
    * 3. ffmpeg validation/installation
-   * 4. Cookie validation
-   * 5. User authentication check
+   * 4. QR session restoration (if exists)
+   * 5. Firefox cookie validation (fallback)
+   * 6. User authentication check
    *
    * Note: Version checking is handled separately by UpdaterProvider
    * which displays a non-blocking dialog when updates are available.
@@ -120,8 +129,14 @@ export const useInit = () => {
       return { code: 1 }
     }
 
-    // Cookie check (continue for non-logged-in users even without cookie)
-    await checkCookie()
+    // Try to restore QR session first (takes priority over Firefox cookies)
+    const hasQrSession = await checkQrSession()
+
+    // Only check Firefox cookies if no QR session was restored
+    if (!hasQrSession) {
+      await checkCookie()
+    }
+
     // Fetch user info and store in Redux (hasCookie=false if no cookie)
     await getUserInfo()
 
@@ -189,37 +204,57 @@ export const useInit = () => {
     return false
   }
 
-  /**
-   * Retrieves application settings from persistent storage.
-   *
-   * @returns The app settings object or undefined if retrieval fails.
-   */
   const getAppSettings = async () => {
     setMessage(t('init.fetch_settings'))
     return getSettings()
   }
 
-  /**
-   * Validates Bilibili cookies from Firefox.
-   *
-   * Attempts to retrieve valid Bilibili authentication cookies from the
-   * Firefox browser. If valid cookies are found, they are cached in the
-   * backend for subsequent API requests.
-   *
-   * Note: Always returns true to allow non-logged-in users to proceed.
-   *
-   * @returns True to continue initialization.
-   */
   const checkCookie = async (): Promise<boolean> => {
     await invoke('get_cookie')
     return true
   }
 
   /**
-   * Updates the current initialization status message.
+   * Restores previously saved QR code login session.
    *
-   * @param message - The localized status message to display.
+   * Attempts to load a stored QR session from persistent storage and
+   * populate the cookie cache. This takes priority over Firefox cookies
+   * for users who logged in via QR code.
+   *
+   * Also checks if cookie refresh is needed and performs it if required.
+   *
+   * @returns True if a QR session was successfully restored, false otherwise.
    */
+  const checkQrSession = async (): Promise<boolean> => {
+    try {
+      const loaded = await loadQrSession()
+      if (!loaded) {
+        return false
+      }
+
+      // Check if cookie refresh is needed
+      const refreshInfo = await checkCookieRefresh()
+      console.log('[Init] refreshInfo:', refreshInfo)
+      if (refreshInfo.refresh) {
+        try {
+          await refreshCookie()
+          setMessage(t('init.cookie_refreshed', 'Login session refreshed'))
+        } catch (e) {
+          // Refresh failed - session might be expired
+          console.error('[Init] refreshCookie failed:', e)
+          // Return false to fall back to unauthenticated state
+          return false
+        }
+      } else {
+        setMessage(t('init.qr_session_restored', 'Restored login session'))
+      }
+
+      return true
+    } catch {
+      return false
+    }
+  }
+
   const setMessage = (message: string) => {
     store.dispatch(setProcessingFnc(message))
   }

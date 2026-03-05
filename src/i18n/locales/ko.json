@@ -167,6 +167,8 @@
     "ffmpeg_ok": "✅ ffmpeg 확인 성공",
     "installing_ffmpeg": "ℹ️ ffmpeg 설치 중...",
     "ffmpeg_install_ok": "✅ ffmpeg 설치 성공",
+    "qr_session_restored": "✅ 로그인 세션 복원됨",
+    "cookie_refreshed": "✅ 로그인 세션 갱신됨",
     "ffmpeg_install_failed": "😫 ffmpeg 설치 실패",
     "dev_skip_version": "🛠️ 개발 모드: 버전 확인 건너뜀",
     "checking_version": "ℹ️ 버전 확인 중...",
@@ -412,5 +414,33 @@
       "durationHMS": "{{hours}}시간 {{minutes}}분 {{seconds}}초",
       "durationMS": "{{minutes}}분 {{seconds}}초"
     }
+  },
+  "login": {
+    "title": "(Beta) Bilibili 로그인",
+    "scanWithApp": "Bilibili 앱으로 스캔",
+    "confirmOnPhone": "휴대폰에서 확인하세요",
+    "loginSuccess": "로그인 성공!",
+    "qrExpired": "QR 코드가 만료되었습니다",
+    "loginFailed": "로그인 실패",
+    "generatingQR": "QR 코드 생성 중...",
+    "refresh": "새로고침",
+    "tryAgain": "다시 시도",
+    "instructions": "휴대폰의 Bilibili 앱으로 이 QR 코드를 스캔하여 로그인하세요",
+    "logout": "로그아웃",
+    "loginMethod": "로그인 방법",
+    "firefoxCookie": "Firefox Cookie",
+    "qrCode": "QR 코드",
+    "qrCodeLogin": "QR 코드로 로그인",
+    "loginRequired": "로그인이 필요합니다",
+    "loginStatus": "로그인 상태",
+    "firefoxCookieLoggedIn": "Firefox Cookie로 로그인됨",
+    "qrCodeLoggedIn": "QR 코드로 로그인됨 (Beta)",
+    "notLoggedIn": "로그인되지 않음",
+    "logoutConfirmTitle": "로그아웃 확인",
+    "logoutConfirmMessage": "정말 로그아웃하시겠습니까? 다시 로그인하려면 QR 코드를 스캔해야 합니다.",
+    "cancel": "취소",
+    "qrSessionDeleted": "QR 세션이 삭제되었습니다",
+    "usingFirefoxCookie": "Firefox Cookie를 사용하여 인증 중입니다",
+    "notLoggedIn": "로그인하지 않음"
   }
 }

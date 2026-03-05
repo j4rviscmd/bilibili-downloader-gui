@@ -167,6 +167,8 @@
     "ffmpeg_ok": "✅ ffmpeg 检查成功",
     "installing_ffmpeg": "ℹ️ 正在安装 ffmpeg...",
     "ffmpeg_install_ok": "✅ ffmpeg 安装成功",
+    "qr_session_restored": "✅ 已恢复登录会话",
+    "cookie_refreshed": "✅ 登录会话已刷新",
     "ffmpeg_install_failed": "😫 ffmpeg 安装失败",
     "dev_skip_version": "🛠️ 开发模式：跳过版本检查",
     "checking_version": "ℹ️ 正在检查版本...",
@@ -412,5 +414,33 @@
       "durationHMS": "{{hours}}小时{{minutes}}分{{seconds}}秒",
       "durationMS": "{{minutes}}分{{seconds}}秒"
     }
+  },
+  "login": {
+    "title": "(Beta) 登录哔哩哔哩",
+    "scanWithApp": "使用哔哩哔哩App扫码",
+    "confirmOnPhone": "在手机上确认",
+    "loginSuccess": "登录成功！",
+    "qrExpired": "二维码已过期",
+    "loginFailed": "登录失败",
+    "generatingQR": "正在生成二维码...",
+    "refresh": "刷新",
+    "tryAgain": "重试",
+    "instructions": "打开手机上的哔哩哔哩App扫描此二维码登录",
+    "logout": "退出登录",
+    "loginMethod": "登录方式",
+    "firefoxCookie": "Firefox Cookie",
+    "qrCode": "二维码",
+    "qrCodeLogin": "二维码登录",
+    "loginRequired": "需要登录",
+    "loginStatus": "登录状态",
+    "firefoxCookieLoggedIn": "使用Firefox Cookie登录",
+    "qrCodeLoggedIn": "使用二维码登录 (Beta)",
+    "notLoggedIn": "未登录",
+    "logoutConfirmTitle": "确认退出",
+    "logoutConfirmMessage": "确定要退出登录吗？您需要重新扫描二维码才能登录。",
+    "cancel": "取消",
+    "qrSessionDeleted": "QR会话已删除",
+    "usingFirefoxCookie": "正在使用Firefox Cookie进行认证",
+    "notLoggedIn": "未登录"
   }
 }

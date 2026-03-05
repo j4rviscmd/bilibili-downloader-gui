@@ -3,6 +3,7 @@ import { UpdateNotification } from '@/features/updater'
 import IndexPage from '@/pages'
 import ErrorPage from '@/pages/error'
 import InitPage from '@/pages/init'
+import LoginPage from '@/pages/login'
 import { PersistentPageLayout } from '@/shared/layout/PersistentPageLayout'
 import { Toaster } from '@/shared/ui/sonner'
 import '@/styles/global.css'
@@ -52,6 +53,7 @@ function App() {
       <Routes>
         <Route path="/" element={<IndexPage />} />
         <Route path="/init" element={<InitPage />} />
+        <Route path="/login" element={<LoginPage />} />
         <Route path="/error" element={<ErrorPage />} />
         <Route path="/*" element={<PersistentPageLayout />} />
       </Routes>

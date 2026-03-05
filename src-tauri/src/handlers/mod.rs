@@ -18,5 +18,6 @@ pub mod cookie;
 pub mod favorites;
 pub mod ffmpeg;
 pub mod github;
+pub mod qr_login;
 pub mod settings;
 pub mod updater;

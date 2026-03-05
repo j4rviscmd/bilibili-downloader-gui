@@ -1,12 +1,31 @@
 import { store } from '@/app/store'
+import {
+  getLoginState,
+  qrLogout,
+  type LoginMethod,
+  type Session,
+} from '@/features/login'
+import type { User } from '@/features/user/types'
+import { setUser } from '@/features/user/userSlice'
 import { videoApi } from '@/features/video'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import type { z } from 'zod'
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { callGetCurrentLibPath } from '@/features/settings/api/settingApi'
 import {
   buildSettingsFormSchema,
@@ -37,15 +56,48 @@ import { Separator } from '@/shared/ui/separator'
 import { Switch } from '@/shared/ui/switch'
 
 /**
+ * Converts Session to User type for userSlice.
+ *
+ * @param session - Session data from login state
+ * @returns User object compatible with userSlice
+ */
+function sessionToUser(session: Session | null): User {
+  if (!session) {
+    return {
+      code: 0,
+      message: '',
+      ttl: 0,
+      data: {
+        uname: '',
+        isLogin: false,
+        wbiImg: {
+          imgUrl: '',
+          subUrl: '',
+        },
+      },
+      hasCookie: false,
+    }
+  }
+  return {
+    code: 0,
+    message: '',
+    ttl: 0,
+    data: {
+      mid: parseInt(session.dedeUserId, 10) || undefined,
+      uname: session.uname,
+      isLogin: true,
+      wbiImg: {
+        imgUrl: '',
+        subUrl: '',
+      },
+    },
+    hasCookie: true,
+  }
+}
+
+/**
  * Settings form component.
- *
- * Provides form inputs for configuring application settings:
- * - Language selection (radio buttons)
- * - Download output directory path (text input with validation)
- *
- * Changes are auto-saved when fields blur or when language is changed.
- * The form uses react-hook-form with Zod schema validation that supports
- * both Windows and POSIX path validation rules.
+ * Provides form inputs for application settings with auto-save on blur.
  */
 function SettingsForm() {
   const { t } = useTranslation()
@@ -53,6 +105,23 @@ function SettingsForm() {
   const [isUpdatingLibPath, setIsUpdatingLibPath] = useState(false)
   const [isUpdatingDlOutputPath, setIsUpdatingDlOutputPath] = useState(false)
   const [currentLibPath, setCurrentLibPath] = useState<string>('')
+  const [loginMethod, setLoginMethod] = useState<LoginMethod>('firefox')
+  const [session, setSession] = useState<Session | null>(null)
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false)
+
+  // Fetch login state on mount
+  useEffect(() => {
+    const fetchLoginState = async () => {
+      try {
+        const state = await getLoginState()
+        setLoginMethod(state.method)
+        setSession(state.session)
+      } catch (error) {
+        console.error('Failed to get login state:', error)
+      }
+    }
+    fetchLoginState()
+  }, [])
 
   useEffect(() => {
     const fetchCurrentLibPath = async () => {
@@ -66,13 +135,7 @@ function SettingsForm() {
     fetchCurrentLibPath()
   }, [settings.libPath, t])
 
-  /**
-   * Opens a directory selection dialog using Tauri's dialog plugin.
-   *
-   * @param titleKey - Translation key for the dialog title
-   * @param defaultPath - Optional initial directory path
-   * @returns Selected directory path or null if cancelled/error occurred
-   */
+  /** Opens a directory selection dialog. */
   const openDirectoryDialog = async (
     titleKey: string,
     defaultPath?: string,
@@ -90,10 +153,7 @@ function SettingsForm() {
     }
   }
 
-  /**
-   * Handles library path selection via directory dialog.
-   * Updates the library path setting after user selects a directory.
-   */
+  /** Handles library path selection. */
   const handleLibPathChange = async () => {
     setIsUpdatingLibPath(true)
     try {
@@ -109,10 +169,7 @@ function SettingsForm() {
     }
   }
 
-  /**
-   * Handles download output path selection via directory dialog.
-   * Updates the form value and submits to save the new path.
-   */
+  /** Handles download output path selection. */
   const handleDlOutputPathChange = async () => {
     setIsUpdatingDlOutputPath(true)
     try {
@@ -129,6 +186,29 @@ function SettingsForm() {
       }
     } finally {
       setIsUpdatingDlOutputPath(false)
+    }
+  }
+
+  /** Handles QR logout with confirmation. */
+  const handleLogout = async () => {
+    try {
+      await qrLogout()
+      setShowLogoutDialog(false)
+      toast.success(t('login.qrSessionDeleted'))
+
+      // Get fresh login state and update UI smoothly
+      const state = await getLoginState()
+      setLoginMethod(state.method)
+      setSession(state.session)
+
+      // Sync userSlice with AppBar
+      store.dispatch(setUser(sessionToUser(state.session)))
+
+      if (state.session) {
+        toast.info(t('login.usingFirefoxCookie'))
+      }
+    } catch (error) {
+      console.error('QR logout failed:', error)
     }
   }
 
@@ -150,13 +230,7 @@ function SettingsForm() {
     })
   }, [form, settings.dlOutputPath, settings.language])
 
-  /**
-   * Handles form submission.
-   * Detects changed fields and saves only those values.
-   * Triggers language update if language setting changed.
-   *
-   * @param data - Form data matching the schema
-   */
+  /** Handles form submission, saving only changed fields. */
   const onSubmit = async (data: z.infer<typeof formSchema>) => {
     const changedKeys = (['dlOutputPath', 'language'] as const).filter(
       (key) => data[key] !== settings[key],
@@ -174,12 +248,7 @@ function SettingsForm() {
     await saveByForm({ ...settings, ...changed })
   }
 
-  /**
-   * Handles language selection change.
-   * Updates form value and immediately submits to apply new language.
-   *
-   * @param val - Selected language code
-   */
+  /** Handles language selection change with immediate submit. */
   const handleLanguageChange = (val: string) => {
     form.setValue('language', val as z.infer<typeof formSchema>['language'], {
       shouldDirty: true,
@@ -305,7 +374,50 @@ function SettingsForm() {
           <UpdateCheckButton />
         </div>
         <Separator />
+        {/* Login Status Section */}
+        <div className="space-y-3">
+          <Label>{t('login.loginStatus')}</Label>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground text-sm">
+              {session === null
+                ? t('login.notLoggedIn')
+                : loginMethod === 'qrCode'
+                  ? t('login.qrCodeLoggedIn')
+                  : t('login.firefoxCookieLoggedIn')}
+            </span>
+            {loginMethod === 'qrCode' && session && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setShowLogoutDialog(true)}
+              >
+                {t('login.logout')}
+              </Button>
+            )}
+          </div>
+        </div>
+        <Separator />
         <DevOptions />
+
+        {/* Logout Confirmation Dialog */}
+        <AlertDialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {t('login.logoutConfirmTitle')}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {t('login.logoutConfirmMessage')}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{t('login.cancel')}</AlertDialogCancel>
+              <AlertDialogAction variant="destructive" onClick={handleLogout}>
+                {t('login.logout')}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </form>
     </Form>
   )
