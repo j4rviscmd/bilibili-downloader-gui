@@ -501,7 +501,7 @@ pub async fn logout(app: &AppHandle) -> Result<(), String> {
 
     store.set(
         LOGIN_STATE_KEY,
-        serde_json::to_value(&LoginState::default())
+        serde_json::to_value(LoginState::default())
             .map_err(|e| format!("Failed to serialize login state: {}", e))?,
     );
 
@@ -690,7 +690,7 @@ fn generate_correspond_path(timestamp: i64) -> Result<String, String> {
         "-----END PUBLIC KEY-----\n"
     );
 
-    let public_key = rsa::RsaPublicKey::from_public_key_pem(&public_key_pem)
+    let public_key = rsa::RsaPublicKey::from_public_key_pem(public_key_pem)
         .map_err(|e| format!("Failed to parse public key: {}", e))?;
 
     let message = format!("refresh_{}", timestamp);
