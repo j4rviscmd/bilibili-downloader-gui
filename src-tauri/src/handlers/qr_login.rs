@@ -370,7 +370,7 @@ fn extract_session_from_url(
         sessdata: query_pairs.get("SESSDATA").cloned().unwrap_or_default(),
         bili_jct: query_pairs.get("bili_jct").cloned().unwrap_or_default(),
         dede_user_id: query_pairs.get("DedeUserID").cloned().unwrap_or_default(),
-        dede_user_id__ck_md5: query_pairs
+        dede_user_id_ck_md5: query_pairs
             .get("DedeUserID__ckMd5")
             .cloned()
             .unwrap_or_default(),
@@ -439,7 +439,7 @@ fn update_cookie_cache(app: &AppHandle, session: &Session) {
         CookieEntry {
             host: ".bilibili.com".to_string(),
             name: "DedeUserID__ckMd5".to_string(),
-            value: session.dede_user_id__ck_md5.clone(),
+            value: session.dede_user_id_ck_md5.clone(),
         },
     ];
 }
@@ -939,7 +939,7 @@ pub async fn refresh_cookie(app: &AppHandle) -> Result<Session, String> {
         sessdata: new_cookies.get("SESSDATA").cloned().unwrap_or_default(),
         bili_jct: new_cookies.get("bili_jct").cloned().unwrap_or_default(),
         dede_user_id: new_cookies.get("DedeUserID").cloned().unwrap_or_default(),
-        dede_user_id__ck_md5: new_cookies
+        dede_user_id_ck_md5: new_cookies
             .get("DedeUserID__ckMd5")
             .cloned()
             .unwrap_or_default(),
