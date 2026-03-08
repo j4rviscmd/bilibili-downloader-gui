@@ -1,5 +1,6 @@
 import { store } from '@/app/store'
 import type { SubtitleConfig } from '@/features/video/types'
+import { logger } from '@/shared/lib/logger'
 import {
   enqueue,
   updateQueueItem,
@@ -61,6 +62,7 @@ export const downloadVideo = async (
   subtitle?: SubtitleConfig,
   epId?: number,
 ) => {
+  logger.info(`downloadVideo: starting id=${downloadId}, videoId=${videoId}, cid=${cid}`)
   store.dispatch(enqueue({ downloadId, parentId, filename, status: 'pending' }))
 
   const subtitleOptions = subtitle
@@ -84,9 +86,11 @@ export const downloadVideo = async (
         subtitle: subtitleOptions,
       },
     })
+    logger.info(`downloadVideo: completed id=${downloadId}, outputPath=${outputPath}`)
     store.dispatch(updateQueueItem({ downloadId, outputPath, title: filename }))
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
+    logger.error(`downloadVideo: failed id=${downloadId}`, error)
     store.dispatch(
       updateQueueStatus({ downloadId, status: 'error', errorMessage }),
     )

@@ -37,6 +37,7 @@ import { PartDownloadProgress } from '@/features/video/ui/PartDownloadProgress'
 import { QualityRadioGroup } from '@/features/video/ui/QualityRadioGroup'
 import { SubtitleSection } from '@/features/video/ui/SubtitleSection'
 import { Checkbox } from '@/shared/animate-ui/radix/checkbox'
+import { logger } from '@/shared/lib/logger'
 import { RadioGroup } from '@/shared/animate-ui/radix/radio-group'
 import {
   Tooltip,
@@ -320,7 +321,7 @@ const VideoPartCard = memo(function VideoPartCard({
       } catch (e) {
         const message = interceptInvokeError(store, e)
         if (message) {
-          console.error('Failed to fetch qualities:', message)
+          logger.error('Failed to fetch qualities', message)
         }
         store.dispatch(
           setPartQualities({
@@ -350,7 +351,7 @@ const VideoPartCard = memo(function VideoPartCard({
       } catch (e) {
         const message = interceptInvokeError(store, e)
         if (message) {
-          console.error('Failed to fetch subtitles:', message)
+          logger.error('Failed to fetch subtitles', message)
         }
         store.dispatch(setPartSubtitles({ index: partIndex, subtitles: [] }))
       }

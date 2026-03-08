@@ -38,6 +38,11 @@ use octocrab::Octocrab;
 /// # }
 /// ```
 pub async fn fetch_repo_stars(owner: &str, repo: &str) -> Result<usize> {
+    log::info!(
+        "[BE] fetch_repo_stars: requesting stars for {}/{}",
+        owner,
+        repo
+    );
     let github = Octocrab::builder().build()?;
     let repository = github
         .repos(owner, repo)
@@ -45,5 +50,12 @@ pub async fn fetch_repo_stars(owner: &str, repo: &str) -> Result<usize> {
         .await
         .map_err(|e| anyhow::anyhow!("Failed to fetch repository: {}", e))?;
 
-    Ok(repository.stargazers_count.unwrap_or(0) as usize)
+    let stars = repository.stargazers_count.unwrap_or(0) as usize;
+    log::info!(
+        "[BE] fetch_repo_stars: received {} stars for {}/{}",
+        stars,
+        owner,
+        repo
+    );
+    Ok(stars)
 }

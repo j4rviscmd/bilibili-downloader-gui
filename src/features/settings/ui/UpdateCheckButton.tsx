@@ -6,6 +6,7 @@ import {
   setUpdateAvailable,
 } from '@/features/updater/model/updaterSlice'
 import { cn } from '@/shared/lib/utils'
+import { logger } from '@/shared/lib/logger'
 import { getVersion } from '@tauri-apps/api/app'
 import { check as checkUpdate } from '@tauri-apps/plugin-updater'
 import { RefreshCw } from 'lucide-react'
@@ -92,12 +93,14 @@ export function UpdateCheckButton() {
       return
     }
 
+    logger.info('UpdateCheckButton: Checking for updates')
     setStatus('checking')
     dispatch(setError(null))
 
     try {
       const update = await checkUpdate()
       if (update) {
+        logger.info(`UpdateCheckButton: Update available, version=${update.version}`)
         dispatch(
           setUpdateAvailable({
             available: true,
@@ -108,11 +111,15 @@ export function UpdateCheckButton() {
         if (update.currentVersion && !appVersion) {
           setAppVersion(update.currentVersion)
         }
-      } else if (!appVersion) {
-        setAppVersion(t('settings.update_check.unknown_version'))
+      } else {
+        logger.info('UpdateCheckButton: No update available')
+        if (!appVersion) {
+          setAppVersion(t('settings.update_check.unknown_version'))
+        }
       }
       setStatus('done')
-    } catch {
+    } catch (error) {
+      logger.error('UpdateCheckButton: Failed to check for updates', error)
       dispatch(setError(t('settings.update_check.error')))
       setStatus('idle')
     }

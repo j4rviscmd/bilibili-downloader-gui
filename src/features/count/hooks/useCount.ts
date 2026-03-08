@@ -4,6 +4,7 @@ import {
   increment,
   setCount,
 } from '@/features/count/model/countSlice'
+import { logger } from '@/shared/lib/logger'
 
 /**
  * Custom hook for managing counter state.
@@ -26,9 +27,18 @@ export function useCount() {
   const dispatch = useAppDispatch()
   const value = useSelector((state) => state.count.value)
 
-  const incrementCount = () => dispatch(increment())
-  const decrementCount = () => dispatch(decrement())
-  const setAbsoluteCount = (newVal: number) => dispatch(setCount(newVal))
+  const incrementCount = () => {
+    logger.debug(`useCount: Incrementing count from ${value}`)
+    dispatch(increment())
+  }
+  const decrementCount = () => {
+    logger.debug(`useCount: Decrementing count from ${value}`)
+    dispatch(decrement())
+  }
+  const setAbsoluteCount = (newVal: number) => {
+    logger.debug(`useCount: Setting count from ${value} to ${newVal}`)
+    dispatch(setCount(newVal))
+  }
 
   return { value, incrementCount, decrementCount, setAbsoluteCount }
 }

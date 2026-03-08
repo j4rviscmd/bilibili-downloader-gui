@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { logger } from '@/shared/lib/logger'
 
 /**
  * Expands a b23.tv short URL to its full bilibili.com URL.
@@ -22,5 +23,13 @@ import { invoke } from '@tauri-apps/api/core'
  * ```
  */
 export const expandShortUrl = async (url: string): Promise<string> => {
-  return await invoke<string>('expand_short_url', { url })
+  logger.debug(`expandShortUrl: Expanding URL=${url}`)
+  try {
+    const result = await invoke<string>('expand_short_url', { url })
+    logger.debug(`expandShortUrl: Expanded to ${result}`)
+    return result
+  } catch (error) {
+    logger.error(`expandShortUrl: Failed to expand URL=${url}`, error)
+    throw error
+  }
 }

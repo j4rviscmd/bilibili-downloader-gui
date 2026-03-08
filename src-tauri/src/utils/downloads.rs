@@ -151,6 +151,12 @@ pub async fn download_url(
     override_stage: Option<&str>,
     emit_complete: bool,
 ) -> Result<()> {
+    log::info!(
+        "[BE] download_url: starting download to {:?}, cdn_count={}",
+        output_path.file_name().and_then(|n| n.to_str()),
+        1 + backup_urls.as_ref().map(|v| v.len()).unwrap_or(0)
+    );
+
     // Get cancellation token from registry
     let cancel_token: Option<CancellationToken> = if let Some(ref id) = download_id {
         DOWNLOAD_CANCEL_REGISTRY.get_token(id).await
@@ -335,8 +341,8 @@ pub async fn download_url(
                                 // Switch to next CDN URL on reconnect (loops back to start)
                                 let next_cdn_idx =
                                     (cdn_rotation_count as usize + 1) % cdn_urls_c.len();
-                                eprintln!(
-                                    "[CDN] Segment {}: rotating CDN #{} → #{} (rotation {}/{})",
+                                log::debug!(
+                                    "[BE] download_url: segment {} rotating CDN #{} → #{} (rotation {}/{})",
                                     idx,
                                     cdn_idx,
                                     next_cdn_idx,
@@ -394,12 +400,22 @@ pub async fn download_url(
     // Final verification
     let final_downloaded = downloaded_total.load(Ordering::Relaxed);
     if final_downloaded != total {
+        log::error!(
+            "[BE] download_url: final size mismatch: {} vs {}",
+            final_downloaded,
+            total
+        );
         return Err(anyhow::anyhow!(
             "final size mismatch: {} vs {}",
             final_downloaded,
             total
         ));
     }
+
+    log::info!(
+        "[BE] download_url: download complete, total_bytes={}",
+        final_downloaded
+    );
 
     if emit_complete {
         emits.complete().await;

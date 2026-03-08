@@ -8,6 +8,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
+import { logger } from '@/shared/lib/logger'
 
 /** QR code login status states. */
 export type QrCodeStatus =
@@ -72,7 +73,15 @@ export interface LoginState {
 
 /** Generates a QR code for Bilibili login. Valid for 180 seconds. */
 export async function generateQrCode(): Promise<QrCodeResult> {
-  return invoke<QrCodeResult>('generate_qr_code')
+  logger.info('generateQrCode: Generating QR code')
+  try {
+    const result = await invoke<QrCodeResult>('generate_qr_code')
+    logger.info('generateQrCode: QR code generated successfully')
+    return result
+  } catch (error) {
+    logger.error('generateQrCode: Failed to generate QR code', error)
+    throw error
+  }
 }
 
 /**
@@ -80,42 +89,99 @@ export async function generateQrCode(): Promise<QrCodeResult> {
  * Should be called repeatedly (every 2 seconds) until terminal status.
  */
 export async function pollQrStatus(qrcodeKey: string): Promise<QrPollResult> {
-  return invoke<QrPollResult>('poll_qr_status', { qrcodeKey })
+  try {
+    const result = await invoke<QrPollResult>('poll_qr_status', { qrcodeKey })
+    logger.debug(`pollQrStatus: status=${result.status}`)
+    return result
+  } catch (error) {
+    logger.error('pollQrStatus: Failed to poll QR status', error)
+    throw error
+  }
 }
 
 /** Logs out by clearing the stored QR session. */
 export async function qrLogout(): Promise<void> {
-  return invoke('qr_logout')
+  logger.info('qrLogout: Logging out')
+  try {
+    await invoke('qr_logout')
+    logger.info('qrLogout: Logged out successfully')
+  } catch (error) {
+    logger.error('qrLogout: Failed to logout', error)
+    throw error
+  }
 }
 
 /** Sets the preferred login method. */
 export async function setLoginMethod(method: LoginMethod): Promise<void> {
-  return invoke('set_login_method', { method })
+  logger.info(`setLoginMethod: method=${method}`)
+  try {
+    await invoke('set_login_method', { method })
+  } catch (error) {
+    logger.error('setLoginMethod: Failed to set login method', error)
+    throw error
+  }
 }
 
 /** Gets the current login method preference. */
 export async function getLoginMethod(): Promise<LoginMethod> {
-  return invoke<LoginMethod>('get_login_method')
+  try {
+    const result = await invoke<LoginMethod>('get_login_method')
+    logger.debug(`getLoginMethod: method=${result}`)
+    return result
+  } catch (error) {
+    logger.error('getLoginMethod: Failed to get login method', error)
+    throw error
+  }
 }
 
 /** Gets the current login state including method and session. */
 export async function getLoginState(): Promise<LoginState> {
-  return invoke<LoginState>('get_login_state')
+  try {
+    const result = await invoke<LoginState>('get_login_state')
+    logger.debug(`getLoginState: method=${result.method}, hasSession=${!!result.session}`)
+    return result
+  } catch (error) {
+    logger.error('getLoginState: Failed to get login state', error)
+    throw error
+  }
 }
 
 /** Loads stored QR session on app startup. Returns true if session was restored. */
 export async function loadQrSession(): Promise<boolean> {
-  return invoke<boolean>('load_qr_session')
+  logger.info('loadQrSession: Loading stored QR session')
+  try {
+    const result = await invoke<boolean>('load_qr_session')
+    logger.info(`loadQrSession: Session ${result ? 'found' : 'not found'}`)
+    return result
+  } catch (error) {
+    logger.error('loadQrSession: Failed to load QR session', error)
+    throw error
+  }
 }
 
 /** Checks if cookie refresh is needed. */
 export async function checkCookieRefresh(): Promise<CookieRefreshInfo> {
-  return invoke<CookieRefreshInfo>('check_cookie_refresh')
+  try {
+    const result = await invoke<CookieRefreshInfo>('check_cookie_refresh')
+    logger.debug(`checkCookieRefresh: refresh=${result.refresh}`)
+    return result
+  } catch (error) {
+    logger.error('checkCookieRefresh: Failed to check cookie refresh', error)
+    throw error
+  }
 }
 
 /** Refreshes the cookie using the stored refresh_token. */
 export async function refreshCookie(): Promise<QrSession> {
-  return invoke<QrSession>('refresh_cookie')
+  logger.info('refreshCookie: Refreshing cookie')
+  try {
+    const result = await invoke<QrSession>('refresh_cookie')
+    logger.info('refreshCookie: Cookie refreshed successfully')
+    return result
+  } catch (error) {
+    logger.error('refreshCookie: Failed to refresh cookie', error)
+    throw error
+  }
 }
 
 /** Cookie refresh info from Bilibili API. */

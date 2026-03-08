@@ -77,6 +77,9 @@ pub use utils::wbi;
 /// Panics if the Tauri application fails to run.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Setup panic hook to log unexpected errors before termination
+    crate::utils::error_handler::setup_panic_hook();
+
     // Build Tauri builder with plugins
     // Window state plugin is only enabled in release builds to prevent
     // window position restoration during development
@@ -143,6 +146,57 @@ pub fn run() {
         ])
         // 開発環境以外で`app`宣言ではBuildに失敗するため、`_app`を使用
         .setup(|app| {
+            // Initialize logging plugin with app_data_dir/logs path
+            let log_dir = app
+                .path()
+                .app_data_dir()
+                .expect("Failed to get app_data_dir")
+                .join("logs");
+            std::fs::create_dir_all(&log_dir).expect("Failed to create logs directory");
+
+            // Run TTL cleanup for old log files (30 days)
+            if let Err(e) = crate::utils::log_cleanup::cleanup_old_logs(&log_dir, 30) {
+                log::warn!("[BE] Failed to cleanup old logs: {}", e);
+            }
+
+            // Register log plugin dynamically with custom path
+            // Stdout is disabled by default; uncomment if needed for debugging
+            let log_plugin = tauri_plugin_log::Builder::new()
+                .level(log::LevelFilter::Info)
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepSome(30))
+                .max_file_size(10_000_000) // 10MB
+                .timezone_strategy(tauri_plugin_log::TimezoneStrategy::UseLocal)
+                .targets([
+                    // tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Folder {
+                        path: log_dir,
+                        file_name: Some("app".into()),
+                    }),
+                ])
+                .build();
+            app.handle()
+                .plugin(log_plugin)
+                .expect("Failed to register log plugin");
+
+            // Log startup information
+            let package_info = app.package_info();
+            log::info!(
+                "[BE] Application started - name: {}, version: {}, platform: {}",
+                package_info.name,
+                package_info.version,
+                std::env::consts::OS
+            );
+
+            // Log application exit when main window is closed
+            let app_handle = app.handle().clone();
+            if let Some(window) = app.get_webview_window("main") {
+                window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { .. } = event {
+                        log::info!("[BE] Application exiting - main window closed");
+                    }
+                });
+            }
+
             // Cookieキャッシュを初期化
             app.manage(CookieCache::default());
 

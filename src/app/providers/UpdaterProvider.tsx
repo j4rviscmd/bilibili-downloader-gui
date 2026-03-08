@@ -4,6 +4,7 @@ import {
   setReleaseNotes,
   setUpdateAvailable,
 } from '@/features/updater/model/updaterSlice'
+import { logger } from '@/shared/lib/logger'
 import { check as checkUpdate } from '@tauri-apps/plugin-updater'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -62,11 +63,11 @@ export const UpdaterProvider = ({
           const notes = await fetchReleaseNotes(OWNER, REPO, currentVersion)
           dispatch(setReleaseNotes(notes))
         } catch (e) {
-          console.error('[Updater] Failed to fetch release notes:', e)
+          logger.error('Failed to fetch release notes', e)
           dispatch(setReleaseNotes(t('updater.no_release_notes')))
         }
       } catch (e) {
-        console.error('[Updater] Update check failed:', e)
+        logger.error('Update check failed', e)
       }
     }
 

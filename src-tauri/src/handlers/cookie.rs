@@ -120,8 +120,10 @@ fn find_firefox_cookie_file(app: &AppHandle) -> Option<PathBuf> {
 /// - Firefox cookies database cannot be copied
 /// - SQLite database cannot be opened or queried
 pub async fn get_cookie(app: &AppHandle) -> Result<bool, String> {
+    log::info!("[BE] get_cookie: reading cookies from Firefox");
     // 1) ローカルの Firefox cookie DB を探索
     let Some(cookiefile) = find_firefox_cookie_file(app) else {
+        log::warn!("[BE] get_cookie: Firefox cookie file not found");
         return Ok(false);
     };
 
@@ -154,10 +156,10 @@ pub async fn get_cookie(app: &AppHandle) -> Result<bool, String> {
 
     match read_res {
         Ok(has_any) => {
-            // for (name, value) in cookies.iter() {
-            //     println!("cookie: name={}, value={}", name, value);
-            // }
-
+            log::info!(
+                "[BE] get_cookie: successfully loaded {} cookies",
+                cookies.len()
+            );
             // メモリキャッシュへ保存
             // NOTE: 次回の処理でキャッシュを参照する場合は、app.state::<CookieCache>().cookies.lock() から取出
             if let Some(cache) = app.try_state::<CookieCache>() {

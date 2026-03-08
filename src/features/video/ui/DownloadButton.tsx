@@ -1,5 +1,8 @@
 import { useVideoInfo } from '@/features/video'
 import { RippleButton } from '@/shared/animate-ui/buttons/ripple'
+import { logger } from '@/shared/lib/logger'
+import { useCallback } from 'react'
+import { useSelector } from 'react-redux'
 import {
   Tooltip,
   TooltipContent,
@@ -11,7 +14,6 @@ import {
   selectHasCancellingDownloads,
 } from '@/shared/queue'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
 
 /**
  * Download button component.
@@ -37,6 +39,11 @@ function DownloadButton() {
   const hasCancellingDownloads = useSelector(selectHasCancellingDownloads)
 
   const disabled = !(isForm1Valid && isForm2ValidAll) || hasActiveDownloads
+
+  const handleClick = useCallback(() => {
+    logger.info(`DownloadButton: Download clicked, selectedCount=${selectedCount}`)
+    download()
+  }, [download, selectedCount])
 
   /**
    * Returns a localized explanation of why the download button is disabled,
@@ -88,7 +95,7 @@ function DownloadButton() {
       <Tooltip>
         <TooltipTrigger asChild>
           <span>
-            <RippleButton onClick={download} disabled={disabled}>
+            <RippleButton onClick={handleClick} disabled={disabled}>
               {getButtonText()}
             </RippleButton>
           </span>

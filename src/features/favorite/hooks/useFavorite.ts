@@ -12,6 +12,7 @@ import {
   fetchFavoriteVideos as apiFetchVideos,
 } from '@/features/favorite/api/favoriteApi'
 import type { FavoriteVideoListResponse } from '@/features/favorite/types'
+import { logger } from '@/shared/lib/logger'
 import { useCallback, useEffect } from 'react'
 import { useSelector } from 'react-redux'
 import { toast } from 'sonner'
@@ -126,6 +127,7 @@ export function useFavorite(mid: number | null) {
    * Selects a folder and loads its videos.
    */
   const selectFolder = useCallback((folderId: number) => {
+    logger.debug(`useFavorite: Selecting folder id=${folderId}`)
     store.dispatch(setSelectedFolder(folderId))
   }, [])
 
@@ -137,6 +139,7 @@ export function useFavorite(mid: number | null) {
       return
     }
 
+    logger.debug(`useFavorite: Loading more videos, page=${currentPage + 1}`)
     store.dispatch(setLoading(true))
     const nextPage = currentPage + 1
     const result = await withErrorHandling(
@@ -158,6 +161,7 @@ export function useFavorite(mid: number | null) {
       return
     }
 
+    logger.info('useFavorite: Refreshing favorites')
     store.dispatch(setFoldersLoading(true))
     const foldersResult = await withErrorHandling(
       () => apiFetchFolders(mid),

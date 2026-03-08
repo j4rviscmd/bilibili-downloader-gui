@@ -9,6 +9,7 @@ import * as React from 'react'
 
 import { useAppDispatch, useSelector } from '@/app/store'
 import { setSidebarOpen } from '@/features/sidebar'
+import { logger } from '@/shared/lib/logger'
 import {
   MotionHighlight,
   MotionHighlightItem,
@@ -141,7 +142,7 @@ function SidebarProvider({
           dispatch(setSidebarOpen(settings.sidebarExpanded))
         }
       } catch (error) {
-        console.error('Failed to load sidebar state from settings:', error)
+        logger.error('Failed to load sidebar state from settings', error)
       }
     }
     loadSidebarState()
@@ -166,7 +167,7 @@ function SidebarProvider({
         }
         setCachedSettings(updatedSettings)
         invoke('set_settings', { settings: updatedSettings }).catch((error) => {
-          console.error('Failed to save sidebar state to settings:', error)
+          logger.error('Failed to save sidebar state to settings', error)
           // Rollback on error
           setCachedSettings(cachedSettings)
         })

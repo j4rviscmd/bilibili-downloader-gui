@@ -145,6 +145,7 @@ pub fn generate_wbi_signature(
 /// - Response JSON cannot be parsed
 /// - wbi_img field is missing or invalid
 pub async fn fetch_mixin_key(client: &Client, cookie: Option<&str>) -> Result<String, String> {
+    log::debug!("[BE] fetch_mixin_key: fetching WBI mixin key");
     let mut req = client.get("https://api.bilibili.com/x/web-interface/nav");
     if let Some(c) = cookie {
         req = req.header(reqwest::header::COOKIE, c);

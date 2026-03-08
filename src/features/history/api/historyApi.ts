@@ -3,13 +3,14 @@ import type {
   HistoryFilters,
 } from '@/features/history/model/historySlice'
 import { invoke } from '@tauri-apps/api/core'
+import { logger } from '@/shared/lib/logger'
 
 /**
  * Formats an error from Tauri invoke call with consistent prefix.
  */
 function formatError(prefix: string, error: unknown): Error {
   const message = error instanceof Error ? error.message : String(error)
-  console.error(`${prefix}:`, error)
+  logger.error(prefix, error)
   return new Error(`${prefix}: ${message}`)
 }
 

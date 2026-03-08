@@ -339,7 +339,11 @@ async fn download_bangumi_durl(
         )
         .await
         {
-            eprintln!("Warning: Failed to save to history for {bvid}: {e}");
+            log::warn!(
+                "[BE] download_video: failed to save to history for {}: {}",
+                bvid,
+                e
+            );
         }
     });
 
@@ -379,6 +383,13 @@ async fn download_bangumi_durl(
 /// - Download is cancelled (`ERR::CANCELLED`)
 pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Result<String, String> {
     use crate::handlers::concurrency::DOWNLOAD_CANCEL_REGISTRY;
+
+    log::info!(
+        "[BE] download_video: starting download id={}, bvid={}, cid={}",
+        options.download_id,
+        &options.bvid,
+        options.cid
+    );
 
     // Register cancellation token for this download
     let _cancel_token = DOWNLOAD_CANCEL_REGISTRY
@@ -498,7 +509,11 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
                 )
                 .await
                 {
-                    eprintln!("Warning: Failed to save to history for {bvid}: {e}");
+                    log::warn!(
+                        "[BE] download_video: failed to save to history for {}: {}",
+                        bvid,
+                        e
+                    );
                 }
             });
             return Ok(output_path_str);
@@ -650,6 +665,10 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
         };
 
         // マージ実行
+        log::info!(
+            "[BE] download_video: starting ffmpeg merge id={}",
+            options.download_id
+        );
         crate::handlers::ffmpeg::merge_avs(
             app,
             &temp_video_path,
@@ -681,6 +700,12 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
             .ok()
             .map(|m| m.len());
 
+        log::info!(
+            "[BE] download_video: download complete id={}, size={:?}bytes",
+            options.download_id,
+            actual_file_size
+        );
+
         // 履歴に保存 (非同期で失敗してもダウンロードには影響しない)
         let app = app.clone();
         let bvid = options.bvid.clone();
@@ -700,7 +725,11 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
             )
             .await
             {
-                eprintln!("Warning: Failed to save to history for {bvid}: {e}");
+                log::warn!(
+                    "[BE] download_video: failed to save to history for {}: {}",
+                    bvid,
+                    e
+                );
             }
         });
 
@@ -935,6 +964,8 @@ async fn fetch_video_info_for_history(
 
 /// Fetches logged-in user information from Bilibili. Returns a User with is_login=false if no cookies exist.
 pub async fn fetch_user_info(app: &AppHandle) -> Result<User, String> {
+    log::info!("[BE] fetch_user_info: checking login status");
+
     let cookies = read_cookie(app)?.unwrap_or_default();
     let cookie_header = build_cookie_header(&cookies);
     let has_cookie = !cookie_header.is_empty();
@@ -965,6 +996,12 @@ pub async fn fetch_user_info(app: &AppHandle) -> Result<User, String> {
         .json::<UserApiResponse>()
         .await
         .map_err(|e| format!("UserApi Failed to parse response JSON:: {e}"))?;
+
+    log::info!(
+        "[BE] fetch_user_info: is_login={}, uname={}",
+        body.data.is_login,
+        body.data.uname.as_deref().unwrap_or("N/A")
+    );
 
     Ok(User {
         code: body.code,
@@ -1046,12 +1083,20 @@ pub fn build_cookie_header_from_cache(app: &AppHandle) -> Result<String, String>
 pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String> {
     use crate::utils::sanitize::{apply_title_replacements, resolve_duplicate_titles};
 
+    log::info!("[BE] fetch_video_info: requesting video info for id={}", id);
+
     let cookies = read_cookie(app)?.unwrap_or_default();
     let cookie_header = build_cookie_header(&cookies);
     let is_limited_quality = cookie_header.is_empty();
 
     let res_body = fetch_video_title_by_bvid(id, &cookies).await?;
     let data = res_body.data.as_ref().unwrap();
+
+    log::info!(
+        "[BE] fetch_video_info: received video title=\"{}\", parts={}",
+        data.title,
+        data.pages.as_ref().map(|p| p.len()).unwrap_or(0)
+    );
 
     // Check if this video redirects to a bangumi episode
     if let Some(redirect_url) = &data.redirect_url {
@@ -1269,6 +1314,11 @@ async fn fetch_video_details(
     bvid: &str,
     cid: i64,
 ) -> Result<XPlayerApiResponse, String> {
+    log::info!(
+        "[BE] fetch_video_details: requesting bvid={}, cid={}",
+        bvid,
+        cid
+    );
     let client = build_client()?;
     let cookie_header = build_cookie_header(cookies);
     let mixin_key = crate::utils::wbi::fetch_mixin_key(
@@ -1628,6 +1678,12 @@ pub async fn fetch_watch_history(
     max: i32,
     view_at: i64,
 ) -> Result<WatchHistoryResponse, String> {
+    log::info!(
+        "[BE] fetch_watch_history: requesting max={}, view_at={}",
+        max,
+        view_at
+    );
+
     // 1. Cookie取得（必須）
     let cookies = read_cookie(app)?.unwrap_or_default();
 
@@ -1828,9 +1884,19 @@ pub async fn fetch_subtitles_for_part(
     bvid: &str,
     cid: i64,
 ) -> Result<Vec<SubtitleDto>, String> {
+    log::info!(
+        "[BE] fetch_subtitles_for_part: requesting subtitles for bvid={}, cid={}",
+        bvid,
+        cid
+    );
     let cookies = read_cookie(app)?.unwrap_or_default();
     let client = build_client()?;
-    Ok(fetch_subtitles(&client, &cookies, bvid, cid).await)
+    let subtitles = fetch_subtitles(&client, &cookies, bvid, cid).await;
+    log::info!(
+        "[BE] fetch_subtitles_for_part: received {} subtitles",
+        subtitles.len()
+    );
+    Ok(subtitles)
 }
 
 /// Fetches available video and audio qualities for a specific part.
@@ -1852,6 +1918,11 @@ pub async fn fetch_part_qualities(
     bvid: &str,
     cid: i64,
 ) -> Result<(Vec<Quality>, Vec<Quality>), String> {
+    log::info!(
+        "[BE] fetch_part_qualities: requesting qualities for bvid={}, cid={}",
+        bvid,
+        cid
+    );
     let cookies = read_cookie(app)?.unwrap_or_default();
     let details = fetch_video_details(&cookies, bvid, cid).await?;
     let data = details.data.ok_or("ERR::NO_STREAM")?;
@@ -1860,6 +1931,11 @@ pub async fn fetch_part_qualities(
     if let Some(dash) = data.dash {
         let video_qualities = convert_qualities(&dash.video);
         let audio_qualities = convert_qualities(&dash.audio);
+        log::info!(
+            "[BE] fetch_part_qualities: received {} video qualities, {} audio qualities",
+            video_qualities.len(),
+            audio_qualities.len()
+        );
         return Ok((video_qualities, audio_qualities));
     }
 
@@ -2001,7 +2077,11 @@ async fn prepare_subtitle_mode(
         let srt_path = lib_path.join(format!("temp_sub_{download_id}_{}.srt", sub.lan));
 
         if let Err(e) = download_subtitle(&client, &sub.subtitle_url, &srt_path).await {
-            eprintln!("Warning: Failed to download subtitle {}: {}", sub.lan, e);
+            log::warn!(
+                "[BE] download_video: failed to download subtitle {}: {}",
+                sub.lan,
+                e
+            );
             continue;
         }
 
@@ -2077,6 +2157,11 @@ async fn prepare_subtitle_mode(
 /// - API request fails (`ERR::API_ERROR`)
 pub async fn fetch_bangumi_info(app: &AppHandle, ep_id: i64) -> Result<Video, String> {
     use crate::utils::sanitize::{apply_title_replacements, resolve_duplicate_titles};
+
+    log::info!(
+        "[BE] fetch_bangumi_info: requesting bangumi info for ep_id={}",
+        ep_id
+    );
 
     let cookies = read_cookie(app)?.unwrap_or_default();
     let cookie_header = build_cookie_header(&cookies);
@@ -2344,6 +2429,11 @@ pub async fn fetch_bangumi_part_qualities(
     ep_id: i64,
     cid: i64,
 ) -> Result<(Vec<Quality>, Vec<Quality>, Option<bool>), String> {
+    log::info!(
+        "[BE] fetch_bangumi_part_qualities: requesting qualities for ep_id={}, cid={}",
+        ep_id,
+        cid
+    );
     let cookies = read_cookie(app)?.unwrap_or_default();
     let result = fetch_bangumi_player_result(&cookies, ep_id, cid).await?;
 
@@ -2353,6 +2443,11 @@ pub async fn fetch_bangumi_part_qualities(
     if let Some(dash) = &result.dash {
         let video_qualities = convert_qualities(&dash.video);
         let audio_qualities = convert_qualities(&dash.audio);
+        log::info!(
+            "[BE] fetch_bangumi_part_qualities: received {} video qualities, {} audio qualities",
+            video_qualities.len(),
+            audio_qualities.len()
+        );
         return Ok((video_qualities, audio_qualities, is_preview));
     }
 

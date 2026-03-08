@@ -64,6 +64,10 @@ pub async fn fetch_favorite_folders(
     app: &AppHandle,
     mid: i64,
 ) -> Result<Vec<FavoriteFolder>, String> {
+    log::info!(
+        "[BE] fetch_favorite_folders: requesting folders for mid={}",
+        mid
+    );
     let cookie_header = build_cookie_header_from_cache(app)?;
 
     let client = build_client()?;
@@ -174,6 +178,12 @@ pub async fn fetch_favorite_videos(
     page_num: i32,
     page_size: i32,
 ) -> Result<FavoriteVideoListResponse, String> {
+    log::info!(
+        "[BE] fetch_favorite_videos: requesting media_id={}, page={}, size={}",
+        media_id,
+        page_num,
+        page_size
+    );
     let cookie_header = build_cookie_header_from_cache(app)?;
 
     let client = build_client()?;

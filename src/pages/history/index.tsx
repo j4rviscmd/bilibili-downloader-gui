@@ -13,6 +13,8 @@ import { writeTextFile } from '@tauri-apps/plugin-fs'
 import { FileText, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { logger } from '@/shared/lib/logger'
 import { toast } from 'sonner'
 
 /**
@@ -112,7 +114,7 @@ export function HistoryContent() {
       toast.success(t('history.exportSuccess'))
       setExportDialogOpen(false)
     } catch (error) {
-      console.error('Export failed:', error)
+      logger.error('Export failed', error)
       toast.error(
         error instanceof Error ? error.message : t('history.exportFailed'),
       )
