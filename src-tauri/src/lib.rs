@@ -188,7 +188,6 @@ pub fn run() {
             );
 
             // Log application exit when main window is closed
-            let app_handle = app.handle().clone();
             if let Some(window) = app.get_webview_window("main") {
                 window.on_window_event(move |event| {
                     if let tauri::WindowEvent::CloseRequested { .. } = event {
@@ -801,7 +800,7 @@ async fn export_history(app: AppHandle, format: String) -> Result<String, String
                     escape_csv(&entry.url),
                     escape_csv(&entry.downloaded_at),
                     escape_csv(&entry.status),
-                    entry.file_size.map_or(String::new(), |s| s.to_string()),
+                    entry.file_size.map(|s| s.to_string()).unwrap_or_default(),
                     entry.quality.as_deref().map(escape_csv).unwrap_or_default(),
                     entry
                         .thumbnail_url

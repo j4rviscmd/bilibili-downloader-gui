@@ -869,7 +869,7 @@ async fn save_to_history(
         }
     };
 
-    let page_suffix = page.map_or(String::new(), |p| format!("?p={p}"));
+    let page_suffix = page.map(|p| format!("?p={p}")).unwrap_or_default();
 
     let url = format!("https://www.bilibili.com/video/{bvid}{page_suffix}");
 

@@ -48,12 +48,12 @@ pub fn cleanup_old_logs(log_dir: &Path, days_to_keep: u64) -> Result<usize, Stri
         let path = entry.path();
 
         // Skip the active log file
-        if path.file_name().map_or(false, |name| name == "app.log") {
+        if path.file_name().is_some_and(|name| name == "app.log") {
             continue;
         }
 
         // Only process .log files
-        if !path.extension().map_or(false, |ext| ext == "log") {
+        if path.extension().is_some_and(|ext| ext != "log") {
             continue;
         }
 
