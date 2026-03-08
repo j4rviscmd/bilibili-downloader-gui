@@ -48,9 +48,10 @@
 - **Firefox Cookie自動検出** - FirefoxブラウザのCookieを自動検出し、手動ログインなしで高品質ダウンロード
 - **QRコードログイン** - アプリ内でQRコードをスキャンして簡単ログイン
   - Firefox Cookieが検知できなかった場合のみ利用可能
-  > [!TIP]
-  > OSセキュアストレージアクセスにパスワードを求められた場合、入力後に`常に許可`を選択してください。これにより、次回以降のQRコードログインがスムーズになります。
-  > ![Secure storage sample](public/session-keychain-dialog_ja.png)
+
+> [!TIP]
+> OSセキュアストレージアクセスにパスワードを求められた場合、入力後に`常に許可`を選択してください。これにより、次回以降のQRコードログインがスムーズになります。
+> ![Secure storage sample](public/session-keychain-dialog_ja.png)
 
 ### プライバシーとセキュリティ
 

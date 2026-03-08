@@ -49,9 +49,9 @@ No ads, no tracking. 100% free.
 - **QR Code Login** - Simply scan the QR code in the app to log in
   - Only available when Firefox cookies are not detected
 
-  > [!TIP]
-  > If prompted for a password to access OS secure storage, enter it and select `Always Allow`. This will make future QR code logins smoother.
-  > ![Secure storage sample](public/session-keychain-dialog_ja.png)
+> [!TIP]
+> If prompted for a password to access OS secure storage, enter it and select `Always Allow`. This will make future QR code logins smoother.
+> ![Secure storage sample](public/session-keychain-dialog_ja.png)
 
 ### Privacy & Security
 

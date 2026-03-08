@@ -49,9 +49,9 @@
 - **QR 코드 로그인** - 앱 내에서 QR 코드를 스캔하여 간편하게 로그인
   - Firefox 쿠키가 감지되지 않은 경우에만 사용 가능
 
-  > [!TIP]
-  > OS 보안 저장소에 접근하기 위해 비밀번호를 요청받는 경우, 입력 후 `항상 허용`을 선택하세요. 이렇게 하면 이후 QR 코드 로그인이 더 원활해집니다.
-  > ![Secure storage sample](public/session-keychain-dialog_ja.png)
+> [!TIP]
+> OS 보안 저장소에 접근하기 위해 비밀번호를 요청받는 경우, 입력 후 `항상 허용`을 선택하세요. 이렇게 하면 이후 QR 코드 로그인이 더 원활해집니다.
+> ![Secure storage sample](public/session-keychain-dialog_ja.png)
 
 ### 개인정보 보호 및 보안
 

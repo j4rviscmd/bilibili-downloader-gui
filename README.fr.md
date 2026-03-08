@@ -49,9 +49,9 @@ Pas de publicités, pas de suivi. 100 % gratuit.
 - **Connexion par code QR** - Scannez simplement le code QR dans l'application pour vous connecter
   - Uniquement disponible lorsque les cookies Firefox ne sont pas détectés
 
-  > [!TIP]
-  > Si un mot de passe est demandé pour accéder au stockage sécurisé du système d'exploitation, entrez-le et sélectionnez `Toujours autoriser`. Cela rendra les futures connexions par code QR plus fluides.
-  > ![Secure storage sample](public/session-keychain-dialog_ja.png)
+> [!TIP]
+> Si un mot de passe est demandé pour accéder au stockage sécurisé du système d'exploitation, entrez-le et sélectionnez `Toujours autoriser`. Cela rendra les futures connexions par code QR plus fluides.
+> ![Secure storage sample](public/session-keychain-dialog_ja.png)
 
 ### Confidentialité et sécurité
 

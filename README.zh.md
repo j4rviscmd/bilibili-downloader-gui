@@ -49,9 +49,9 @@
 - **二维码登录** - 在应用内扫描二维码即可轻松登录
   - 仅在未检测到 Firefox Cookie 时可用
 
-  > [!TIP]
-  > 如果系统提示输入密码以访问安全存储，请输入后选择"始终允许"。这将使后续的二维码登录更加顺畅。
-  > ![Secure storage sample](public/session-keychain-dialog_ja.png)
+> [!TIP]
+> 如果系统提示输入密码以访问安全存储，请输入后选择"始终允许"。这将使后续的二维码登录更加顺畅。
+> ![Secure storage sample](public/session-keychain-dialog_ja.png)
 
 ### 隐私与安全
 

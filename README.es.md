@@ -49,9 +49,9 @@ Sin anuncios, sin seguimiento. 100% gratis.
 - **Inicio de sesión con código QR** - Simplemente escanea el código QR en la aplicación para iniciar sesión
   - Solo disponible cuando no se detectan cookies de Firefox
 
-  > [!TIP]
-  > Si se solicita una contraseña para acceder al almacenamiento seguro del sistema operativo, ingrésala y selecciona `Permitir siempre`. Esto hará que los futuros inicios de sesión con código QR sean más fluidos.
-  > ![Secure storage sample](public/session-keychain-dialog_ja.png)
+> [!TIP]
+> Si se solicita una contraseña para acceder al almacenamiento seguro del sistema operativo, ingrésala y selecciona `Permitir siempre`. Esto hará que los futuros inicios de sesión con código QR sean más fluidos.
+> ![Secure storage sample](public/session-keychain-dialog_ja.png)
 
 ### Privacidad y seguridad
 
