@@ -1,3 +1,4 @@
+import { interceptInvokeError } from '@/app/lib/invokeErrorHandler'
 import type { RootState } from '@/app/store'
 import { store } from '@/app/store'
 import {
@@ -305,31 +306,23 @@ const VideoPartCard = memo(function VideoPartCard({
   const doFetchQualities = useCallback(
     async (partIndex: number, isBangumi: boolean, epId: number | undefined) => {
       try {
-        if (isBangumi && epId) {
-          const [vq, aq, isPreview] = await fetchBangumiPartQualities(
-            epId,
-            videoPart.cid,
-          )
-          store.dispatch(
-            setPartQualities({
-              index: partIndex,
-              videoQualities: vq,
-              audioQualities: aq,
-              isPreview: isPreview ?? undefined,
-            }),
-          )
-        } else {
-          const [vq, aq] = await fetchPartQualities(video.bvid, videoPart.cid)
-          store.dispatch(
-            setPartQualities({
-              index: partIndex,
-              videoQualities: vq,
-              audioQualities: aq,
-            }),
-          )
-        }
+        const [vq, aq, isPreview] =
+          isBangumi && epId
+            ? await fetchBangumiPartQualities(epId, videoPart.cid)
+            : await fetchPartQualities(video.bvid, videoPart.cid)
+        store.dispatch(
+          setPartQualities({
+            index: partIndex,
+            videoQualities: vq,
+            audioQualities: aq,
+            isPreview: isPreview ?? undefined,
+          }),
+        )
       } catch (e) {
-        logger.error('Failed to fetch qualities', e)
+        const message = interceptInvokeError(store, e)
+        if (message) {
+          logger.error('Failed to fetch qualities', message)
+        }
         store.dispatch(
           setPartQualities({
             index: partIndex,
@@ -356,7 +349,10 @@ const VideoPartCard = memo(function VideoPartCard({
           setPartSubtitles({ index: partIndex, subtitles: fetchedSubtitles }),
         )
       } catch (e) {
-        logger.error('Failed to fetch subtitles', e)
+        const message = interceptInvokeError(store, e)
+        if (message) {
+          logger.error('Failed to fetch subtitles', message)
+        }
         store.dispatch(setPartSubtitles({ index: partIndex, subtitles: [] }))
       }
     },
@@ -614,7 +610,7 @@ const VideoPartCard = memo(function VideoPartCard({
     (data: z.infer<typeof schema2>) => {
       onValid2(page - 1, data.title, data.videoQuality, data.audioQuality)
     },
-    [onValid2, page, schema2],
+    [onValid2, page],
   )
 
   return (

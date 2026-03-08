@@ -35,4 +35,4 @@ export * from './useUser'
 export * from './types'
 
 // Redux state management
-export { default as userReducer } from './userSlice'
+export { setUser, default as userReducer } from './userSlice'

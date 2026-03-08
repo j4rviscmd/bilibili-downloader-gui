@@ -445,6 +445,7 @@
     "logoutConfirmMessage": "本当にログアウトしますか？再度ログインするにはQRコードをスキャンする必要があります。",
     "cancel": "キャンセル",
     "qrSessionDeleted": "QRセッションを削除しました",
-    "usingFirefoxCookie": "Firefox Cookieを使用して認証中です"
+    "usingFirefoxCookie": "Firefox Cookieを使用して認証中です",
+    "session_expired": "セッションの有効期限が切れました。再度ログインしてください。"
   }
 }

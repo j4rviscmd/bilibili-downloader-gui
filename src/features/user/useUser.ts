@@ -1,3 +1,4 @@
+import { interceptInvokeError } from '@/app/lib/invokeErrorHandler'
 import { store, useSelector } from '@/app/store'
 import { fetchUser } from '@/features/user/api/fetchUser'
 import type { User } from '@/features/user/types'
@@ -23,16 +24,21 @@ import { setUser } from '@/features/user/userSlice'
  * }
  * ```
  */
-export const useUser = () => {
+export function useUser() {
   const user = useSelector((state) => state.user)
 
-  const getUserInfo = async (): Promise<User> => {
-    const res = await fetchUser()
-    store.dispatch(setUser(res))
-    return res
+  async function getUserInfo(): Promise<User> {
+    try {
+      const res = await fetchUser()
+      store.dispatch(setUser(res))
+      return res
+    } catch (err) {
+      interceptInvokeError(store, err)
+      throw err
+    }
   }
 
-  const onChangeUser = (user: User) => {
+  function onChangeUser(user: User): void {
     store.dispatch(setUser(user))
   }
 

@@ -441,6 +441,7 @@
     "cancel": "取消",
     "qrSessionDeleted": "QR会话已删除",
     "usingFirefoxCookie": "正在使用Firefox Cookie进行认证",
-    "notLoggedIn": "未登录"
+    "notLoggedIn": "未登录",
+    "session_expired": "会话已过期，请重新登录。"
   }
 }
