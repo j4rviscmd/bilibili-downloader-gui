@@ -2264,7 +2264,7 @@ async fn fetch_bangumi_player_result(
         .ok_or_else(|| "ERR::API_ERROR No result field".to_string())?;
 
     let has_dash = result.dash.is_some();
-    let has_durl = result.durls.as_ref().map_or(false, |d| !d.is_empty());
+    let has_durl = result.durls.as_ref().is_some_and(|d| !d.is_empty());
 
     if !has_dash && !has_durl {
         return Err("ERR::BANGUMI_NO_DASH".into());
