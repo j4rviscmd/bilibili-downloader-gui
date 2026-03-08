@@ -19,6 +19,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
+import { logger } from '@/shared/lib/logger'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
@@ -141,7 +142,7 @@ function SidebarProvider({
           dispatch(setSidebarOpen(settings.sidebarExpanded))
         }
       } catch (error) {
-        console.error('Failed to load sidebar state from settings:', error)
+        logger.error('Failed to load sidebar state from settings', error)
       }
     }
     loadSidebarState()
@@ -166,7 +167,7 @@ function SidebarProvider({
         }
         setCachedSettings(updatedSettings)
         invoke('set_settings', { settings: updatedSettings }).catch((error) => {
-          console.error('Failed to save sidebar state to settings:', error)
+          logger.error('Failed to save sidebar state to settings', error)
           // Rollback on error
           setCachedSettings(cachedSettings)
         })

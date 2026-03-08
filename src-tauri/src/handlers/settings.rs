@@ -3,6 +3,7 @@
 //! This module handles reading and writing application settings to a JSON file,
 //! including validation of download paths and fallback to system defaults.
 
+use log::error;
 use std::{fs, path::PathBuf};
 
 use crate::{models::settings::Settings, utils::paths};
@@ -78,7 +79,7 @@ pub async fn get_settings(app: &AppHandle) -> Result<Settings, String> {
             Ok(content) if !content.trim().is_empty() => match serde_json::from_str(&content) {
                 Ok(s) => s,
                 Err(e) => {
-                    eprintln!("Failed to parse settings.json: {}. Using defaults.", e);
+                    error!("[BE] Failed to parse settings.json: {}. Using defaults.", e);
                     Settings::default()
                 }
             },
@@ -87,7 +88,7 @@ pub async fn get_settings(app: &AppHandle) -> Result<Settings, String> {
                 Settings::default()
             }
             Err(e) => {
-                eprintln!("Failed to read settings.json: {}. Using defaults.", e);
+                error!("[BE] Failed to read settings.json: {}. Using defaults.", e);
                 Settings::default()
             }
         }

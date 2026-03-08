@@ -34,6 +34,7 @@
 //! - `ERR::API_ERROR` - Generic API request failure
 //! - `ERR::BANGUMI_*` - Bangumi-specific errors (VIP only, region restricted, etc.)
 
+use log::warn;
 use serde::{Deserialize, Serialize};
 use tauri::Emitter;
 
@@ -338,7 +339,7 @@ async fn download_bangumi_durl(
         )
         .await
         {
-            eprintln!("Warning: Failed to save to history for {bvid}: {e}");
+            warn!("[BE] Failed to save to history for {bvid}: {e}");
         }
     });
 
@@ -497,7 +498,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
                 )
                 .await
                 {
-                    eprintln!("Warning: Failed to save to history for {bvid}: {e}");
+                    warn!("[BE] Failed to save to history for {bvid}: {e}");
                 }
             });
             return Ok(output_path_str);
@@ -699,7 +700,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
             )
             .await
             {
-                eprintln!("Warning: Failed to save to history for {bvid}: {e}");
+                warn!("[BE] Failed to save to history for {bvid}: {e}");
             }
         });
 
@@ -934,11 +935,14 @@ async fn fetch_video_info_for_history(
 
 /// Fetches logged-in user information from Bilibili. Returns a User with is_login=false if no cookies exist.
 pub async fn fetch_user_info(app: &AppHandle) -> Result<User, String> {
+    log::info!("[BE] fetch_user_info: checking login status");
+
     let cookies = read_cookie(app)?.unwrap_or_default();
     let cookie_header = build_cookie_header(&cookies);
     let has_cookie = !cookie_header.is_empty();
 
     if !has_cookie {
+        log::info!("[BE] fetch_user_info: no cookies found, returning is_login=false");
         return Ok(User {
             code: 0,
             message: String::new(),
@@ -964,6 +968,14 @@ pub async fn fetch_user_info(app: &AppHandle) -> Result<User, String> {
         .json::<UserApiResponse>()
         .await
         .map_err(|e| format!("UserApi Failed to parse response JSON:: {e}"))?;
+
+    let is_login = body.data.is_login;
+    let uname = body.data.uname.clone();
+    log::info!(
+        "[BE] fetch_user_info: is_login={}, uname={}",
+        is_login,
+        uname.as_deref().unwrap_or("N/A")
+    );
 
     Ok(User {
         code: body.code,
@@ -1045,12 +1057,20 @@ pub fn build_cookie_header_from_cache(app: &AppHandle) -> Result<String, String>
 pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String> {
     use crate::utils::sanitize::{apply_title_replacements, resolve_duplicate_titles};
 
+    log::info!("[BE] fetch_video_info: requesting video info for id={}", id);
+
     let cookies = read_cookie(app)?.unwrap_or_default();
     let cookie_header = build_cookie_header(&cookies);
     let is_limited_quality = cookie_header.is_empty();
 
     let res_body = fetch_video_title_by_bvid(id, &cookies).await?;
     let data = res_body.data.as_ref().unwrap();
+
+    log::info!(
+        "[BE] fetch_video_info: received video title=\"{}\", parts={}",
+        data.title,
+        data.pages.as_ref().map(|p| p.len()).unwrap_or(0)
+    );
 
     // Check if this video redirects to a bangumi episode
     if let Some(redirect_url) = &data.redirect_url {
@@ -2000,7 +2020,7 @@ async fn prepare_subtitle_mode(
         let srt_path = lib_path.join(format!("temp_sub_{download_id}_{}.srt", sub.lan));
 
         if let Err(e) = download_subtitle(&client, &sub.subtitle_url, &srt_path).await {
-            eprintln!("Warning: Failed to download subtitle {}: {}", sub.lan, e);
+            warn!("[BE] Failed to download subtitle {}: {}", sub.lan, e);
             continue;
         }
 

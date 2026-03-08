@@ -11,6 +11,7 @@ import {
 import { useSettings } from '@/features/settings/useSettings'
 import { useUser } from '@/features/user'
 import { changeLanguage, type SupportedLang } from '@/shared/i18n'
+import { logger } from '@/shared/lib/logger'
 import { sleep } from '@/shared/lib/utils'
 import { getOs } from '@/shared/os/api/getOs'
 import { invoke } from '@tauri-apps/api/core'
@@ -234,14 +235,14 @@ export const useInit = () => {
 
       // Check if cookie refresh is needed
       const refreshInfo = await checkCookieRefresh()
-      console.log('[Init] refreshInfo:', refreshInfo)
+      logger.info(`[Init] refreshInfo: ${JSON.stringify(refreshInfo)}`)
       if (refreshInfo.refresh) {
         try {
           await refreshCookie()
           setMessage(t('init.cookie_refreshed', 'Login session refreshed'))
         } catch (e) {
           // Refresh failed - session might be expired
-          console.error('[Init] refreshCookie failed:', e)
+          logger.error('[Init] refreshCookie failed', e)
           // Return false to fall back to unauthenticated state
           return false
         }

@@ -5,6 +5,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
+import { logger } from '@/shared/lib/logger'
 import type { Progress } from '@/shared/ui/Progress'
 import { Button } from '@/shared/ui/button'
 import { invoke } from '@tauri-apps/api/core'
@@ -233,14 +234,14 @@ export function PartDownloadProgress({
   const handleOpenFile = useCallback(async () => {
     if (!outputPath) return
     await invoke('open_file', { path: outputPath }).catch((e) => {
-      console.error('Failed to open file:', e)
+      logger.error('Failed to open file', e)
     })
   }, [outputPath])
 
   const handleRevealInFolder = useCallback(async () => {
     if (!outputPath) return
     await invoke('reveal_in_folder', { path: outputPath }).catch((e) => {
-      console.error('Failed to reveal in folder:', e)
+      logger.error('Failed to reveal in folder', e)
     })
   }, [outputPath])
 

@@ -6,6 +6,7 @@ import HistoryFilters from '@/features/history/ui/HistoryFilters'
 import HistoryList from '@/features/history/ui/HistoryList'
 import HistorySearch from '@/features/history/ui/HistorySearch'
 import { usePendingDownload } from '@/shared/hooks/usePendingDownload'
+import { logger } from '@/shared/lib/logger'
 import { selectHasActiveDownloads } from '@/shared/queue'
 import { Button } from '@/shared/ui/button'
 import { confirm, save } from '@tauri-apps/plugin-dialog'
@@ -112,7 +113,7 @@ export function HistoryContent() {
       toast.success(t('history.exportSuccess'))
       setExportDialogOpen(false)
     } catch (error) {
-      console.error('Export failed:', error)
+      logger.error('Export failed', error)
       toast.error(
         error instanceof Error ? error.message : t('history.exportFailed'),
       )

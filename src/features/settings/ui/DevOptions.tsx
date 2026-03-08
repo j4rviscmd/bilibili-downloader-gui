@@ -1,3 +1,4 @@
+import { logger } from '@/shared/lib/logger'
 import { invoke } from '@tauri-apps/api/core'
 import { ChevronDown } from 'lucide-react'
 import { useState } from 'react'
@@ -29,7 +30,7 @@ export function DevOptions() {
     try {
       await invoke('set_simulate_logout', { enabled: checked })
     } catch (error) {
-      console.error('Failed to set simulate logout state:', error)
+      logger.error('Failed to set simulate logout state', error)
     }
 
     dispatch({ type: 'dev/setSimulateLogout', payload: checked })

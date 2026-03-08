@@ -41,6 +41,11 @@ pub async fn fetch_all_release_notes(
 ) -> Result<String> {
     use semver::Version;
 
+    log::info!(
+        "[BE] fetch_all_release_notes: checking for updates, current_version={}",
+        current_version_str
+    );
+
     let current_version = Version::parse(current_version_str)
         .map_err(|e| anyhow::anyhow!("Failed to parse current version: {}", e))?;
 
@@ -82,8 +87,26 @@ pub async fn fetch_all_release_notes(
     }
 
     if releases.is_empty() {
+        log::info!("[BE] fetch_all_release_notes: no new releases available");
         return Ok("No new releases available".to_string());
     }
+
+    // Get latest release version for logging
+    let latest_version = releases
+        .first()
+        .map(|r| r.tag_name.clone())
+        .unwrap_or("unknown".to_string());
+
+    log::info!(
+        "[BE] fetch_all_release_notes: found {} new release(s), latest={}",
+        releases.len(),
+        latest_version
+    );
+
+    log::info!(
+        "[BE] fetch_all_release_notes: found {} new release(s)",
+        releases.len()
+    );
 
     // Sort releases by version (newest first)
     releases.sort_by(|a, b| {

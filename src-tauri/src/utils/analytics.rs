@@ -10,6 +10,7 @@ use std::path::Path;
 use std::sync::Mutex;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
+use log::info;
 use once_cell::sync::Lazy;
 use reqwest::Client;
 use serde_json::{json, Map, Value};
@@ -45,7 +46,7 @@ pub async fn init_analytics(app: &AppHandle) {
     // If secrets are missing (empty), skip (build-time embedding should set them)
     if GA_MEASUREMENT_ID.unwrap_or("").is_empty() || GA_API_SECRET.unwrap_or("").is_empty() {
         #[cfg(debug_assertions)]
-        println!("[GA DISABLED] init_analytics missing GA_MEASUREMENT_ID/GA_API_SECRET");
+        info!("[BE] [GA DISABLED] init_analytics missing GA_MEASUREMENT_ID/GA_API_SECRET");
         return;
     }
 
@@ -112,7 +113,7 @@ pub async fn init_analytics(app: &AppHandle) {
 pub async fn record_download_click(app: &AppHandle, download_id: &str) {
     if GA_MEASUREMENT_ID.unwrap_or("").is_empty() || GA_API_SECRET.unwrap_or("").is_empty() {
         #[cfg(debug_assertions)]
-        println!("[GA DISABLED] record_download_click skipped (missing GA secrets)");
+        info!("[BE] [GA DISABLED] record_download_click skipped (missing GA secrets)");
         return;
     }
     let lib_path = crate::utils::paths::get_lib_path(app);
@@ -159,7 +160,7 @@ pub async fn finish_download(
 ) {
     if GA_MEASUREMENT_ID.unwrap_or("").is_empty() || GA_API_SECRET.unwrap_or("").is_empty() {
         #[cfg(debug_assertions)]
-        println!("[GA DISABLED] finish_download skipped (missing GA secrets)");
+        info!("[BE] [GA DISABLED] finish_download skipped (missing GA secrets)");
         return;
     }
     let start_opt = {
@@ -361,8 +362,8 @@ async fn send_event_internal(
                     }
                 }
                 #[cfg(debug_assertions)]
-                println!(
-                    "[GA DEBUG] event='{}' status={} messages_count={} first={:?}",
+                info!(
+                    "[BE] [GA DEBUG] event='{}' status={} messages_count={} first={:?}",
                     name,
                     status,
                     msgs.len(),
@@ -377,7 +378,7 @@ async fn send_event_internal(
         Err(e) => {
             if debug_mode {
                 #[cfg(debug_assertions)]
-                println!("[GA DEBUG] event='{}' request error={}", name, e);
+                info!("[BE] [GA DEBUG] event='{}' request error={}", name, e);
             }
             Ok(()) // swallow
         }

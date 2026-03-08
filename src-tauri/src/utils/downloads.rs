@@ -8,6 +8,8 @@
 //! - Fallback to single-stream download when Range is not supported
 //! - Download cancellation support
 
+use log::error;
+
 use crate::{
     constants::{
         MAX_CDN_LOOPS, MIN_DATA_FOR_SPEED_CHECK, MIN_SPEED_THRESHOLD, REFERER,
@@ -335,8 +337,8 @@ pub async fn download_url(
                                 // Switch to next CDN URL on reconnect (loops back to start)
                                 let next_cdn_idx =
                                     (cdn_rotation_count as usize + 1) % cdn_urls_c.len();
-                                eprintln!(
-                                    "[CDN] Segment {}: rotating CDN #{} → #{} (rotation {}/{})",
+                                error!(
+                                    "[BE] [CDN] Segment {}: rotating CDN #{} → #{} (rotation {}/{})",
                                     idx,
                                     cdn_idx,
                                     next_cdn_idx,

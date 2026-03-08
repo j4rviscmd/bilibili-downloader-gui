@@ -75,6 +75,29 @@ pub use utils::wbi;
 /// # Panics
 ///
 /// Panics if the Tauri application fails to run.
+
+/// Gets the log level from the APP_LOG_LEVEL environment variable.
+///
+/// Defaults to INFO if the variable is not set or is invalid.
+///
+/// # Returns
+///
+/// Returns a `log::LevelFilter` representing the desired log level.
+fn get_log_level() -> log::LevelFilter {
+    match std::env::var("APP_LOG_LEVEL")
+        .unwrap_or_else(|_| "INFO".to_string())
+        .to_uppercase()
+        .as_str()
+    {
+        "TRACE" => log::LevelFilter::Trace,
+        "DEBUG" => log::LevelFilter::Debug,
+        "INFO" => log::LevelFilter::Info,
+        "WARN" => log::LevelFilter::Warn,
+        "ERROR" => log::LevelFilter::Error,
+        _ => log::LevelFilter::Info,
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Build Tauri builder with plugins
@@ -145,6 +168,48 @@ pub fn run() {
         .setup(|app| {
             // Cookieキャッシュを初期化
             app.manage(CookieCache::default());
+
+            // Initialize logging plugin with app_data_dir/logs path
+            let log_dir = app
+                .path()
+                .app_data_dir()
+                .expect("Failed to get app_data_dir")
+                .join("logs");
+            std::fs::create_dir_all(&log_dir).expect("Failed to create logs directory");
+
+            // Run TTL cleanup for old log files
+            if let Err(e) = crate::utils::log_cleanup::cleanup_old_logs(&log_dir, 30) {
+                eprintln!("[BE] Failed to cleanup old logs: {}", e);
+            }
+
+            // Register log plugin dynamically with custom path
+            let log_plugin = tauri_plugin_log::Builder::new()
+                .level(get_log_level())
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepSome(30))
+                .max_file_size(10_000_000) // 10MB
+                .timezone_strategy(tauri_plugin_log::TimezoneStrategy::UseLocal)
+                .targets([
+                    // Terminal output (inline format)
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
+                    // File output in app_data_dir/logs (same as settings.json)
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Folder {
+                        path: log_dir,
+                        file_name: Some("app".into()),
+                    }),
+                ])
+                .build();
+            app.handle()
+                .plugin(log_plugin)
+                .expect("Failed to register log plugin");
+
+            // Log startup information after plugin is registered
+            let package_info = app.package_info();
+            log::info!(
+                "[BE] Application started - name: {}, version: {}, platform: {}",
+                package_info.name,
+                package_info.version,
+                std::env::consts::OS
+            );
 
             // Development mode: Initialize simulate logout flag
             #[cfg(debug_assertions)]

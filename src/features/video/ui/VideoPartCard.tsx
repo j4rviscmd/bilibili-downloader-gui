@@ -43,6 +43,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
+import { logger } from '@/shared/lib/logger'
 import { clearProgressByDownloadId } from '@/shared/progress/progressSlice'
 import {
   cancelDownload,
@@ -328,7 +329,7 @@ const VideoPartCard = memo(function VideoPartCard({
           )
         }
       } catch (e) {
-        console.error('Failed to fetch qualities:', e)
+        logger.error('Failed to fetch qualities', e)
         store.dispatch(
           setPartQualities({
             index: partIndex,
@@ -355,7 +356,7 @@ const VideoPartCard = memo(function VideoPartCard({
           setPartSubtitles({ index: partIndex, subtitles: fetchedSubtitles }),
         )
       } catch (e) {
-        console.error('Failed to fetch subtitles:', e)
+        logger.error('Failed to fetch subtitles', e)
         store.dispatch(setPartSubtitles({ index: partIndex, subtitles: [] }))
       }
     },

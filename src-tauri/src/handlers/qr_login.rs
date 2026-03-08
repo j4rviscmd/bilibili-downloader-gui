@@ -24,7 +24,7 @@ use std::sync::RwLock;
 #[cfg(debug_assertions)]
 macro_rules! debug_log {
     ($($arg:tt)*) => {
-        println!($($arg)*);
+        log::info!($($arg)*);
     };
 }
 

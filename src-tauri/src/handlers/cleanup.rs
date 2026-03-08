@@ -2,6 +2,8 @@
 //!
 //! Cleans up orphaned temporary files left from interrupted downloads.
 
+use log::error;
+use log::info;
 use std::fs;
 use std::path::Path;
 use std::time::{Duration, SystemTime};
@@ -50,12 +52,12 @@ pub fn cleanup_temp_files(app: &AppHandle, max_age_hours: Option<u64>) -> Cleanu
                             if modified < threshold {
                                 match fs::remove_file(&path) {
                                     Ok(()) => {
-                                        println!("[Cleanup] Deleted temp file: {:?}", path);
+                                        info!("[BE] [Cleanup] Deleted temp file: {:?}", path);
                                         result.deleted_count += 1;
                                     }
                                     Err(e) => {
-                                        eprintln!(
-                                            "[Cleanup] Failed to delete temp file {:?}: {}",
+                                        error!(
+                                            "[BE] [Cleanup] Failed to delete temp file {:?}: {}",
                                             path, e
                                         );
                                         result.failed_count += 1;
@@ -68,7 +70,7 @@ pub fn cleanup_temp_files(app: &AppHandle, max_age_hours: Option<u64>) -> Cleanu
             }
         }
         Err(e) => {
-            eprintln!("[Cleanup] Failed to read lib directory: {}", e);
+            error!("[BE] [Cleanup] Failed to read lib directory: {}", e);
         }
     }
 
