@@ -43,10 +43,21 @@ No ads, no tracking. 100% free.
 - **Dark mode support** - Light/dark theme toggle
 - **Ad-free experience** - No ads, no tracking, completely free
 
-### No Login Required & Privacy First
+### Authentication Methods
 
-- **Firefox cookie auto-detection** - High-quality downloads without manual login
-- **Local-only storage** - All data stored only on your PC
+- **Firefox Cookie Auto-detection** - Automatically detects Firefox browser cookies for high-quality downloads without manual login
+- **QR Code Login** - Simply scan the QR code in the app to log in
+  - Only available when Firefox cookies are not detected
+
+  > [!TIP]
+  > If prompted for a password to access OS secure storage, enter it and select `Always Allow`. This will make future QR code logins smoother.
+  > ![Secure storage sample](public/session-keychain-dialog_ja.png)
+
+### Privacy & Security
+
+- **Secure Credential Management** - QR code login credentials are managed by OS secure storage (macOS: Keychain, Windows: Credential Manager). The app does not store credentials.
+- **No Access to Other Apps' Data** - The app never accesses information about other applications in secure storage, so you can rest assured.
+- **Local-only Storage** - Downloaded videos are stored only on your PC
 
 ## Installation
 
