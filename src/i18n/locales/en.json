@@ -445,6 +445,7 @@
     "logoutConfirmMessage": "Are you sure you want to log out? You will need to scan the QR code again to log in.",
     "cancel": "Cancel",
     "qrSessionDeleted": "QR session deleted",
-    "usingFirefoxCookie": "Using Firefox Cookie for authentication"
+    "usingFirefoxCookie": "Using Firefox Cookie for authentication",
+    "session_expired": "Session expired. Please log in again."
   }
 }

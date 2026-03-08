@@ -440,6 +440,7 @@
     "logoutConfirmMessage": "Êtes-vous sûr de vouloir vous déconnecter ? Vous devrez scanner le code QR à nouveau pour vous connecter.",
     "cancel": "Annuler",
     "qrSessionDeleted": "Session QR supprimée",
-    "usingFirefoxCookie": "Utilisation de Firefox Cookie pour l'authentification"
+    "usingFirefoxCookie": "Utilisation de Firefox Cookie pour l'authentification",
+    "session_expired": "La session a expiré. Veuillez vous reconnecter."
   }
 }

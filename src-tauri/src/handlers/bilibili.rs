@@ -183,6 +183,7 @@ pub fn build_client() -> Result<Client, String> {
 /// Validates a Bilibili API response. Returns an error if the response code is non-zero or data is None.
 fn validate_api_response<T>(code: i64, data: Option<&T>) -> Result<(), String> {
     match code {
+        -101 => Err("ERR::UNAUTHORIZED".into()),
         -404 => Err("ERR::VIDEO_NOT_FOUND".into()),
         0 if data.is_some() => Ok(()),
         _ => Err("ERR::API_ERROR".into()),
@@ -2103,6 +2104,7 @@ pub async fn fetch_bangumi_info(app: &AppHandle, ep_id: i64) -> Result<Video, St
 
     // Error handling for bangumi-specific codes
     match body.code {
+        -101 => return Err("ERR::UNAUTHORIZED".into()),
         -404 => return Err("ERR::BANGUMI_NOT_FOUND".into()),
         -403 => return Err("ERR::BANGUMI_ACCESS_DENIED".into()),
         -688 => return Err("ERR::BANGUMI_REGION_RESTRICTED".into()),
@@ -2246,6 +2248,7 @@ async fn fetch_bangumi_player_result(
         .map_err(|e| format!("Failed to parse bangumi playurl response: {}", e))?;
 
     match body.code {
+        -101 => Err("ERR::UNAUTHORIZED".into()),
         -403 => Err("ERR::BANGUMI_ACCESS_DENIED".into()),
         -688 => Err("ERR::BANGUMI_REGION_RESTRICTED".into()),
         -689 => Err("ERR::BANGUMI_COPYRIGHT_RESTRICTED".into()),
@@ -2261,12 +2264,7 @@ async fn fetch_bangumi_player_result(
         .ok_or_else(|| "ERR::API_ERROR No result field".to_string())?;
 
     let has_dash = result.dash.is_some();
-    let has_durl = result.durls.is_some()
-        && result
-            .durls
-            .as_ref()
-            .map(|d| !d.is_empty())
-            .unwrap_or(false);
+    let has_durl = result.durls.as_ref().is_some_and(|d| !d.is_empty());
 
     if !has_dash && !has_durl {
         return Err("ERR::BANGUMI_NO_DASH".into());

@@ -4,6 +4,7 @@
  * Provides custom hooks for managing Bilibili favorites.
  */
 
+import { interceptInvokeError } from '@/app/lib/invokeErrorHandler'
 import type { RootState } from '@/app/store'
 import { store } from '@/app/store'
 import {
@@ -42,14 +43,11 @@ async function withErrorHandling<T>(
     onSuccess?.(result)
     return result
   } catch (err) {
-    const message =
-      err instanceof Error
-        ? err.message
-        : typeof err === 'string'
-          ? err
-          : 'An unknown error occurred'
-    store.dispatch(setError(message))
-    toast.error(message)
+    const message = interceptInvokeError(store, err)
+    if (message) {
+      store.dispatch(setError(message))
+      toast.error(message)
+    }
     return null
   }
 }
