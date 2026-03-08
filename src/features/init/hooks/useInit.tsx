@@ -11,6 +11,7 @@ import {
 import { useSettings } from '@/features/settings/useSettings'
 import { useUser } from '@/features/user'
 import { changeLanguage, type SupportedLang } from '@/shared/i18n'
+import { logger } from '@/shared/lib/logger'
 import { sleep } from '@/shared/lib/utils'
 import { getOs } from '@/shared/os/api/getOs'
 import { invoke } from '@tauri-apps/api/core'
@@ -109,6 +110,8 @@ export const useInit = () => {
    * - 1: ffmpeg check failed
    */
   const initApp = async (): Promise<InitResult> => {
+    logger.info('initApp: Starting initialization')
+
     // Fire & forget OS detection (don't await)
     getOs()
 
@@ -125,6 +128,7 @@ export const useInit = () => {
 
     // Early exit on ffmpeg check failure
     if (!(await checkFfmpeg())) {
+      logger.warn('initApp: ffmpeg check failed')
       await finalizeInit()
       return { code: 1 }
     }
@@ -134,6 +138,7 @@ export const useInit = () => {
 
     // Only check Firefox cookies if no QR session was restored
     if (!hasQrSession) {
+      logger.debug('initApp: No QR session, checking Firefox cookies')
       await checkCookie()
     }
 
@@ -141,6 +146,7 @@ export const useInit = () => {
     await getUserInfo()
 
     await finalizeInit()
+    logger.info('initApp: Initialization completed successfully')
     return { code: 0 }
   }
 
@@ -148,6 +154,7 @@ export const useInit = () => {
    * Finalizes initialization by setting flag and sleeping briefly.
    */
   const finalizeInit = async (): Promise<void> => {
+    logger.debug('finalizeInit: Finalizing initialization')
     await sleep(500)
     setInitiated(true)
   }
@@ -163,6 +170,7 @@ export const useInit = () => {
     try {
       const i18n = (await import('@/i18n')).default
       if (i18n.language !== language) {
+        logger.debug(`applyLanguageSetting: Applying language=${language}`)
         setMessage(t('init.applying_language', { lang: language }))
         // Type guard: ensure language is a SupportedLang
         if (isSupportedLang(language)) {
@@ -189,17 +197,21 @@ export const useInit = () => {
     setMessage(t('init.checking_ffmpeg'))
     const isValidFfmpeg = await invoke<boolean>('validate_ffmpeg')
     if (isValidFfmpeg) {
+      logger.info('checkFfmpeg: ffmpeg is valid')
       setMessage(t('init.ffmpeg_ok'))
       return true
     }
 
+    logger.info('checkFfmpeg: Installing ffmpeg')
     setMessage(t('init.installing_ffmpeg'))
     const isInstalled = await invoke<boolean>('install_ffmpeg')
     if (isInstalled) {
+      logger.info('checkFfmpeg: ffmpeg installed successfully')
       setMessage(t('init.ffmpeg_install_ok'))
       return true
     }
 
+    logger.error('checkFfmpeg: ffmpeg installation failed')
     setMessage(t('init.ffmpeg_install_failed'))
     return false
   }
@@ -210,6 +222,7 @@ export const useInit = () => {
   }
 
   const checkCookie = async (): Promise<boolean> => {
+    logger.debug('checkCookie: Checking Firefox cookies')
     await invoke('get_cookie')
     return true
   }
@@ -234,14 +247,14 @@ export const useInit = () => {
 
       // Check if cookie refresh is needed
       const refreshInfo = await checkCookieRefresh()
-      console.log('[Init] refreshInfo:', refreshInfo)
+      logger.info('refreshCookie: refreshInfo')
       if (refreshInfo.refresh) {
         try {
           await refreshCookie()
           setMessage(t('init.cookie_refreshed', 'Login session refreshed'))
         } catch (e) {
           // Refresh failed - session might be expired
-          console.error('[Init] refreshCookie failed:', e)
+          logger.error('refreshCookie failed', e)
           // Return false to fall back to unauthenticated state
           return false
         }

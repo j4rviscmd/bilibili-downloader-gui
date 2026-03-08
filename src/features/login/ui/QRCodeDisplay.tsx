@@ -26,6 +26,7 @@
  */
 
 import { useUser } from '@/features/user'
+import { logger } from '@/shared/lib/logger'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
 import {
@@ -158,7 +159,9 @@ export function QRCodeDisplay() {
       stopPolling()
 
       // Refresh user info to update AppBar with logged-in state
-      getUserInfo().catch(console.error)
+      getUserInfo().catch((e) =>
+        logger.error('QRCodeDisplay: Failed to get user info after login', e),
+      )
 
       // Navigate after a short delay to show success message
       navigationTimerRef.current = setTimeout(() => {

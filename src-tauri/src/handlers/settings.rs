@@ -78,7 +78,10 @@ pub async fn get_settings(app: &AppHandle) -> Result<Settings, String> {
             Ok(content) if !content.trim().is_empty() => match serde_json::from_str(&content) {
                 Ok(s) => s,
                 Err(e) => {
-                    eprintln!("Failed to parse settings.json: {}. Using defaults.", e);
+                    log::warn!(
+                        "[BE] get_settings: failed to parse settings.json: {}. Using defaults.",
+                        e
+                    );
                     Settings::default()
                 }
             },
@@ -87,7 +90,10 @@ pub async fn get_settings(app: &AppHandle) -> Result<Settings, String> {
                 Settings::default()
             }
             Err(e) => {
-                eprintln!("Failed to read settings.json: {}. Using defaults.", e);
+                log::warn!(
+                    "[BE] get_settings: failed to read settings.json: {}. Using defaults.",
+                    e
+                );
                 Settings::default()
             }
         }

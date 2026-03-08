@@ -21,6 +21,7 @@ import {
 import { selectDuplicateIndices } from '@/features/video/model/selectors'
 import { setVideo } from '@/features/video/model/videoSlice'
 import { setError } from '@/shared/downloadStatus/downloadStatusSlice'
+import { logger } from '@/shared/lib/logger'
 import {
   clearQueue,
   clearQueueItem,
@@ -320,7 +321,7 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
             description,
           })
         }
-        console.error('Failed to fetch content info:', raw)
+        logger.error('Failed to fetch content info', raw)
       }
     },
     [t, initInputsForVideo, triggerFetch, triggerFetchBangumi],
@@ -493,7 +494,7 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
           })
           store.dispatch(setError(description))
         }
-        console.error('Download failed:', raw)
+        logger.error('Download failed', raw)
         break
       }
     }

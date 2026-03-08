@@ -1,3 +1,4 @@
+import { logger } from '@/shared/lib/logger'
 import { invoke } from '@tauri-apps/api/core'
 
 /**
@@ -22,5 +23,13 @@ import { invoke } from '@tauri-apps/api/core'
  * ```
  */
 export const expandShortUrl = async (url: string): Promise<string> => {
-  return await invoke<string>('expand_short_url', { url })
+  logger.debug(`expandShortUrl: Expanding URL=${url}`)
+  try {
+    const result = await invoke<string>('expand_short_url', { url })
+    logger.debug(`expandShortUrl: Expanded to ${result}`)
+    return result
+  } catch (error) {
+    logger.error(`expandShortUrl: Failed to expand URL=${url}`, error)
+    throw error
+  }
 }

@@ -1,3 +1,4 @@
+import { logger } from '@/shared/lib/logger'
 import { invoke } from '@tauri-apps/api/core'
 
 /**
@@ -20,7 +21,16 @@ import { invoke } from '@tauri-apps/api/core'
  */
 export const callCancelDownload = async (
   downloadId: string,
-): Promise<boolean> => invoke<boolean>('cancel_download', { downloadId })
+): Promise<boolean> => {
+  logger.info(`callCancelDownload: id=${downloadId}`)
+  const result = await invoke<boolean>('cancel_download', { downloadId })
+  if (result) {
+    logger.info(`callCancelDownload: cancelled id=${downloadId}`)
+  } else {
+    logger.warn(`callCancelDownload: not found id=${downloadId}`)
+  }
+  return result
+}
 
 /**
  * Cancels all active downloads.
@@ -36,5 +46,8 @@ export const callCancelDownload = async (
  * console.log(`Cancelled ${count} downloads`)
  * ```
  */
-export const callCancelAllDownloads = async (): Promise<number> =>
-  invoke<number>('cancel_all_downloads')
+export const callCancelAllDownloads = async (): Promise<number> => {
+  const count = await invoke<number>('cancel_all_downloads')
+  logger.info(`callCancelAllDownloads: cancelled ${count} downloads`)
+  return count
+}

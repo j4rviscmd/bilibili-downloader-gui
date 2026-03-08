@@ -21,6 +21,7 @@ import {
   setLoading,
   setSearchQuery,
 } from '@/features/history/model/historySlice'
+import { logger } from '@/shared/lib/logger'
 import { useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
@@ -94,7 +95,10 @@ export function useHistory() {
 
   const add = (entry: HistoryEntry) =>
     withLoading(
-      () => apiAddHistoryEntry(entry),
+      () => {
+        logger.debug(`useHistory: Adding entry id=${entry.id}`)
+        return apiAddHistoryEntry(entry)
+      },
       () => {
         store.dispatch(addEntry(entry))
         toast.success(t('history.entryAdded'))
@@ -103,7 +107,10 @@ export function useHistory() {
 
   const remove = (id: string) =>
     withLoading(
-      () => apiRemoveHistoryEntry(id),
+      () => {
+        logger.debug(`useHistory: Removing entry id=${id}`)
+        return apiRemoveHistoryEntry(id)
+      },
       () => {
         store.dispatch(removeEntry(id))
         toast.success(t('history.entryRemoved'))
@@ -112,7 +119,10 @@ export function useHistory() {
 
   const clear = () =>
     withLoading(
-      () => apiClearHistory(),
+      () => {
+        logger.info('useHistory: Clearing all history')
+        return apiClearHistory()
+      },
       () => {
         store.dispatch(clearHistory())
         toast.success(t('history.cleared'))
@@ -120,16 +130,21 @@ export function useHistory() {
     )
 
   const setSearch = (query: string) => {
+    logger.debug(`useHistory: Setting search query="${query}"`)
     store.dispatch(setSearchQuery(query))
   }
 
   const updateFilters = (newFilters: HistoryFilters) => {
+    logger.debug(`useHistory: Updating filters status=${newFilters.status}`)
     store.dispatch(setFilters(newFilters))
   }
 
   const exportData = async (format: 'json' | 'csv'): Promise<string> =>
     withLoading(
-      () => exportHistory(format),
+      () => {
+        logger.info(`useHistory: Exporting history format=${format}`)
+        return exportHistory(format)
+      },
       () =>
         toast.success(
           format === 'json'

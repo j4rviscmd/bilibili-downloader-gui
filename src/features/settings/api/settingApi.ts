@@ -1,4 +1,5 @@
 import type { Settings } from '@/features/settings/type'
+import { logger } from '@/shared/lib/logger'
 import { invoke } from '@tauri-apps/api/core'
 
 /**
@@ -15,8 +16,19 @@ import { invoke } from '@tauri-apps/api/core'
  * console.log(settings.language) // 'en', 'ja', etc.
  * ```
  */
-export const callGetSettings = async (): Promise<Settings> =>
-  invoke<Settings>('get_settings')
+export const callGetSettings = async (): Promise<Settings> => {
+  logger.debug('callGetSettings: Fetching settings')
+  try {
+    const result = await invoke<Settings>('get_settings')
+    logger.debug(
+      `callGetSettings: Settings loaded, language=${result.language}`,
+    )
+    return result
+  } catch (error) {
+    logger.error('callGetSettings: Failed to fetch settings', error)
+    throw error
+  }
+}
 
 /**
  * Persists application settings to the Tauri backend.
@@ -33,8 +45,18 @@ export const callGetSettings = async (): Promise<Settings> =>
  * await callSetSettings({ dlOutputPath: '/downloads', language: 'en' })
  * ```
  */
-export const callSetSettings = async (settings: Settings): Promise<void> =>
-  invoke('set_settings', { settings })
+export const callSetSettings = async (settings: Settings): Promise<void> => {
+  logger.debug(
+    `callSetSettings: Saving settings, language=${settings.language}`,
+  )
+  try {
+    await invoke('set_settings', { settings })
+    logger.debug('callSetSettings: Settings saved successfully')
+  } catch (error) {
+    logger.error('callSetSettings: Failed to save settings', error)
+    throw error
+  }
+}
 
 /**
  * Updates the library storage path and moves ffmpeg to the new location.
@@ -53,8 +75,19 @@ export const callSetSettings = async (settings: Settings): Promise<void> =>
  * // This will move ffmpeg to '/Volumes/ExternalDrive/MyLib/lib/'
  * ```
  */
-export const callUpdateLibPath = async (newPath: string): Promise<void> =>
-  invoke('update_lib_path', { newPath })
+export const callUpdateLibPath = async (newPath: string): Promise<void> => {
+  logger.info(`callUpdateLibPath: Updating lib path to ${newPath}`)
+  try {
+    await invoke('update_lib_path', { newPath })
+    logger.info('callUpdateLibPath: Lib path updated successfully')
+  } catch (error) {
+    logger.error(
+      `callUpdateLibPath: Failed to update lib path to ${newPath}`,
+      error,
+    )
+    throw error
+  }
+}
 
 /**
  * Retrieves the current library path.
@@ -70,5 +103,17 @@ export const callUpdateLibPath = async (newPath: string): Promise<void> =>
  * console.log(libPath) // '/Users/xxx/Library/Application Support/com.bilibili.downloader/lib'
  * ```
  */
-export const callGetCurrentLibPath = async (): Promise<string> =>
-  invoke<string>('get_current_lib_path')
+export const callGetCurrentLibPath = async (): Promise<string> => {
+  logger.debug('callGetCurrentLibPath: Fetching current lib path')
+  try {
+    const result = await invoke<string>('get_current_lib_path')
+    logger.debug(`callGetCurrentLibPath: Current lib path=${result}`)
+    return result
+  } catch (error) {
+    logger.error(
+      'callGetCurrentLibPath: Failed to fetch current lib path',
+      error,
+    )
+    throw error
+  }
+}

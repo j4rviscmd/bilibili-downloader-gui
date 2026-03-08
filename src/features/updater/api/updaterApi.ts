@@ -1,3 +1,4 @@
+import { logger } from '@/shared/lib/logger'
 import { invoke } from '@tauri-apps/api/core'
 
 /**
@@ -23,9 +24,25 @@ export const fetchReleaseNotes = async (
   owner: string,
   repo: string,
   currentVersion: string,
-): Promise<string> =>
-  invoke<string>('get_release_notes', {
-    owner,
-    repo,
-    currentVersion,
-  })
+): Promise<string> => {
+  logger.debug(
+    `fetchReleaseNotes: owner=${owner}, repo=${repo}, currentVersion=${currentVersion}`,
+  )
+  try {
+    const result = await invoke<string>('get_release_notes', {
+      owner,
+      repo,
+      currentVersion,
+    })
+    logger.debug(
+      `fetchReleaseNotes: Fetched ${result.length} chars of release notes`,
+    )
+    return result
+  } catch (error) {
+    logger.error(
+      `fetchReleaseNotes: Failed to fetch release notes for ${owner}/${repo}`,
+      error,
+    )
+    throw error
+  }
+}

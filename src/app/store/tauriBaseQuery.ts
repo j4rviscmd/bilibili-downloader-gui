@@ -2,6 +2,7 @@ import {
   handleSessionExpiry,
   isUnauthorizedError,
 } from '@/app/lib/invokeErrorHandler'
+import { logger } from '@/shared/lib/logger'
 import type { BaseQueryFn } from '@reduxjs/toolkit/query'
 import { invoke } from '@tauri-apps/api/core'
 import { store } from '.'
@@ -48,11 +49,13 @@ export const tauriBaseQuery: BaseQueryFn<TauriArgs> = async ({
   command,
   args = {},
 }) => {
+  logger.debug(`API call: ${command}`)
   try {
     const result = await invoke(command, args)
     return { data: result }
   } catch (error) {
     const errorString = String(error)
+    logger.error(`API error: ${command}`, error)
 
     if (isUnauthorizedError(errorString)) {
       handleSessionExpiry(store)

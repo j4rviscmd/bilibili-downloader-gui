@@ -1,4 +1,5 @@
 import { useInit } from '@/features/init'
+import { logger } from '@/shared/lib/logger'
 import { Button } from '@/shared/ui/button'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { relaunch } from '@tauri-apps/plugin-process'
@@ -103,6 +104,7 @@ function ErrorPage() {
   }
 
   const handleRelaunch = async () => {
+    logger.info('ErrorPage: User requested application relaunch')
     await relaunch()
   }
 

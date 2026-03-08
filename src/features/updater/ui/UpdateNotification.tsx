@@ -18,6 +18,7 @@ import {
   setIsUpdateReady,
   setShowDialog,
 } from '@/features/updater/model/updaterSlice'
+import { logger } from '@/shared/lib/logger'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { check } from '@tauri-apps/plugin-updater'
 import { Download, RefreshCw, X } from 'lucide-react'
@@ -46,7 +47,7 @@ export const UpdateNotification = React.memo(() => {
 
       const update = await check()
       if (!update) {
-        console.error('[Updater] No update available when trying to download')
+        logger.error('No update available when trying to download')
         dispatch(setError(t('updater.error.no_update_available')))
         dispatch(setIsDownloading(false))
         return
@@ -80,7 +81,7 @@ export const UpdateNotification = React.memo(() => {
       dispatch(setIsDownloading(false))
       dispatch(setIsUpdateReady(true))
     } catch (e) {
-      console.error('[Updater] Update failed:', e)
+      logger.error('Update download/install failed', e)
       dispatch(setError(t('updater.error.download_failed')))
       dispatch(setIsDownloading(false))
       dispatch(setDownloadProgress(0))
@@ -97,10 +98,13 @@ export const UpdateNotification = React.memo(() => {
   }, [dispatch, handleUpdate])
 
   const handleRestart = useCallback(async () => {
+    logger.info(
+      'UpdateNotification: User requested application restart after update',
+    )
     try {
       await relaunch()
     } catch (e) {
-      console.error('[Updater] Restart failed:', e)
+      logger.error('Restart failed', e)
       dispatch(setError(t('updater.error.restart_failed')))
     }
   }, [dispatch, t])

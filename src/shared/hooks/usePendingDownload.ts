@@ -1,5 +1,6 @@
 import { useAppDispatch } from '@/app/store'
 import { setPendingDownload } from '@/features/video'
+import { logger } from '@/shared/lib/logger'
 import { useNavigate } from 'react-router'
 
 /**
@@ -26,6 +27,9 @@ export const usePendingDownload = () => {
   const navigate = useNavigate()
 
   const handleDownload = (bvid: string, cid: number | null, page: number) => {
+    logger.info(
+      `usePendingDownload: Handling pending download bvid=${bvid}, page=${page}`,
+    )
     dispatch(setPendingDownload({ bvid, cid, page }))
     navigate('/home')
   }

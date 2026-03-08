@@ -8,6 +8,7 @@ import {
 import type { User } from '@/features/user/types'
 import { setUser } from '@/features/user/userSlice'
 import { videoApi } from '@/features/video'
+import { logger } from '@/shared/lib/logger'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useEffect, useState } from 'react'
@@ -117,7 +118,7 @@ function SettingsForm() {
         setLoginMethod(state.method)
         setSession(state.session)
       } catch (error) {
-        console.error('Failed to get login state:', error)
+        logger.error('Failed to get login state', error)
       }
     }
     fetchLoginState()
@@ -128,7 +129,7 @@ function SettingsForm() {
       try {
         setCurrentLibPath(await callGetCurrentLibPath())
       } catch (error) {
-        console.error('Failed to get current lib path:', error)
+        logger.error('Failed to get current lib path', error)
         setCurrentLibPath(t('settings.lib_path_error'))
       }
     }
@@ -148,7 +149,7 @@ function SettingsForm() {
         defaultPath,
       })
     } catch (error) {
-      console.error('Failed to open directory dialog:', error)
+      logger.error('Failed to open directory dialog', error)
       return null
     }
   }
@@ -208,7 +209,7 @@ function SettingsForm() {
         toast.info(t('login.usingFirefoxCookie'))
       }
     } catch (error) {
-      console.error('QR logout failed:', error)
+      logger.error('QR logout failed', error)
     }
   }
 

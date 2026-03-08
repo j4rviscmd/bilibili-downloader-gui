@@ -1,4 +1,5 @@
 import type { User } from '@/features/user/types'
+import { logger } from '@/shared/lib/logger'
 import { invoke } from '@tauri-apps/api/core'
 
 /**
@@ -18,4 +19,16 @@ import { invoke } from '@tauri-apps/api/core'
  * }
  * ```
  */
-export const fetchUser = (): Promise<User> => invoke<User>('fetch_user')
+export const fetchUser = async (): Promise<User> => {
+  logger.info('fetchUser: Fetching user info')
+  try {
+    const result = await invoke<User>('fetch_user')
+    logger.debug(
+      `fetchUser: hasCookie=${result.hasCookie}, isLogin=${result.data.isLogin}`,
+    )
+    return result
+  } catch (error) {
+    logger.error('fetchUser: Failed to fetch user info', error)
+    throw error
+  }
+}

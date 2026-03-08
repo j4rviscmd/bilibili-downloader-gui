@@ -117,8 +117,13 @@ impl DownloadCancelRegistry {
         let tokens = self.tokens.lock().await;
         if let Some(token) = tokens.get(download_id) {
             token.cancel();
+            log::info!("[BE] download cancelled: id={}", download_id);
             true
         } else {
+            log::warn!(
+                "[BE] cancel called but download not found: id={}",
+                download_id
+            );
             false
         }
     }

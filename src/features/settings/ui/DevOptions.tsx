@@ -11,6 +11,7 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { useUser } from '@/features/user'
+import { logger } from '@/shared/lib/logger'
 
 import { Switch } from '@/shared/animate-ui/radix/switch'
 import { Label } from '@/shared/ui/label'
@@ -29,7 +30,10 @@ export function DevOptions() {
     try {
       await invoke('set_simulate_logout', { enabled: checked })
     } catch (error) {
-      console.error('Failed to set simulate logout state:', error)
+      logger.error(
+        'handleToggleSimulateLogout: Failed to set simulate logout state',
+        error,
+      )
     }
 
     dispatch({ type: 'dev/setSimulateLogout', payload: checked })

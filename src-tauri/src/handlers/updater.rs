@@ -39,6 +39,12 @@ pub async fn fetch_all_release_notes(
     repo: &str,
     current_version_str: &str,
 ) -> Result<String> {
+    log::info!(
+        "[BE] fetch_all_release_notes: owner={}, repo={}, current_version={}",
+        owner,
+        repo,
+        current_version_str
+    );
     use semver::Version;
 
     let current_version = Version::parse(current_version_str)

@@ -1,3 +1,4 @@
+import { logger } from '@/shared/lib/logger'
 import { invoke } from '@tauri-apps/api/core'
 
 /**
@@ -53,8 +54,10 @@ export const getOs = async (): Promise<SupportedOs> => {
       'unknown',
     ])
     cached = (known.has(raw as SupportedOs) ? raw : 'unknown') as SupportedOs
+    logger.debug(`getOs: Detected OS=${cached}`)
     return cached
-  } catch {
+  } catch (error) {
+    logger.error('getOs: Failed to detect OS', error)
     return 'unknown'
   }
 }

@@ -57,21 +57,26 @@ pub enum MergeMode {
 ///
 /// Returns `true` if ffmpeg is valid and executable, `false` otherwise.
 pub fn validate_ffmpeg(app: &AppHandle) -> bool {
+    log::info!("[BE] validate_ffmpeg: checking ffmpeg installation");
     let ffmpeg_root = get_ffmpeg_root_path(app);
     let ffmpeg_path = get_ffmpeg_path(app);
     if !ffmpeg_root.exists() {
+        log::info!("[BE] validate_ffmpeg: ffmpeg root directory not found");
         return false;
     }
     if !ffmpeg_path.exists() {
+        log::warn!("[BE] validate_ffmpeg: ffmpeg binary not found, cleaning up");
         cleanup_ffmpeg_dir(&ffmpeg_root);
         return false;
     }
 
     if !validate_command(&ffmpeg_path) {
+        log::warn!("[BE] validate_ffmpeg: ffmpeg binary validation failed, cleaning up");
         cleanup_ffmpeg_dir(&ffmpeg_root);
         return false;
     }
 
+    log::info!("[BE] validate_ffmpeg: ffmpeg is valid");
     true
 }
 
@@ -109,6 +114,7 @@ fn cleanup_ffmpeg_dir(ffmpeg_root: &PathBuf) {
 /// - Archive extraction fails
 /// - Permission setting fails (macOS)
 pub async fn install_ffmpeg(app: &AppHandle) -> Result<bool> {
+    log::info!("[BE] install_ffmpeg: starting ffmpeg installation");
     // ffmpegバイナリのダウンロード処理
     // let ffmpeg_path = get_ffmpeg_path(app);
     let ffmpeg_root = get_ffmpeg_root_path(app);
@@ -450,6 +456,11 @@ pub async fn merge_av(
     download_id: Option<String>,
     duration_ms: Option<u64>,
 ) -> Result<(), String> {
+    log::info!(
+        "[BE] merge_av: starting merge download_id={:?}, output={:?}",
+        download_id,
+        output_path
+    );
     let filename = output_path
         .file_stem()
         .and_then(|s| s.to_str())
@@ -602,6 +613,12 @@ pub async fn merge_avs(
     duration_ms: Option<u64>,
     subtitle_mode: MergeMode,
 ) -> Result<(), String> {
+    log::info!(
+        "[BE] merge_avs: starting merge download_id={:?}, output={:?}, subtitle_mode={:?}",
+        download_id,
+        output_path,
+        subtitle_mode
+    );
     let filename = output_path
         .file_stem()
         .and_then(|s| s.to_str())
