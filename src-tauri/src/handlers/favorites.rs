@@ -86,6 +86,9 @@ pub async fn fetch_favorite_folders(
     let response: FavoriteFolderListApiResponse = serde_json::from_str(&raw_text)
         .map_err(|e| format!("Failed to parse favorite folders response: {e}\nRaw: {raw_text}"))?;
 
+    if response.code == -101 {
+        return Err("ERR::UNAUTHORIZED".into());
+    }
     if response.code != 0 {
         return Err(format!(
             "API error (code {}): {}",
@@ -190,6 +193,9 @@ pub async fn fetch_favorite_videos(
         .await
         .map_err(|e| format!("Failed to parse favorite videos response: {e}"))?;
 
+    if response.code == -101 {
+        return Err("ERR::UNAUTHORIZED".into());
+    }
     if response.code != 0 {
         return Err(format!(
             "API error (code {}): {}",

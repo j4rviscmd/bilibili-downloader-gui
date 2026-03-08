@@ -1,3 +1,4 @@
+import { isUnauthorizedError } from '@/app/lib/invokeErrorHandler'
 import { type RootState, store, useSelector } from '@/app/store'
 import { downloadVideo } from '@/features/video/api/downloadVideo'
 import {
@@ -71,7 +72,7 @@ const ERROR_MAP: Record<string, string> = {
  *
  * @param error - The raw error string from the backend
  * @param t - Translation function for localized error messages
- * @returns Localized error message string
+ * @returns Localized error message string, or null if already handled
  *
  * @example
  * ```typescript
@@ -79,7 +80,13 @@ const ERROR_MAP: Record<string, string> = {
  * // Returns localized "Video not found" message
  * ```
  */
-function getErrorMessage(error: string, t: (key: string) => string): string {
+function getErrorMessage(
+  error: string,
+  t: (key: string) => string,
+): string | null {
+  // ERR::UNAUTHORIZED is handled by tauriBaseQuery/interceptInvokeError
+  if (isUnauthorizedError(error)) return null
+
   for (const [code, key] of Object.entries(ERROR_MAP)) {
     if (error.includes(code)) return t(key)
   }
@@ -307,10 +314,12 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
       } else if (fetchResult.error) {
         const raw = String(fetchResult.error)
         const description = getErrorMessage(raw, t)
-        toast.error(t('video.fetch_info'), {
-          duration: 5000,
-          description,
-        })
+        if (description) {
+          toast.error(t('video.fetch_info'), {
+            duration: 5000,
+            description,
+          })
+        }
         console.error('Failed to fetch content info:', raw)
       }
     },
@@ -476,13 +485,15 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
         if (raw.includes('ERR::CANCELLED')) continue
 
         const description = getErrorMessage(raw, t)
-        toast.error(t('video.download_failed'), {
-          duration: Infinity,
-          description,
-          closeButton: true,
-        })
+        if (description) {
+          toast.error(t('video.download_failed'), {
+            duration: Infinity,
+            description,
+            closeButton: true,
+          })
+          store.dispatch(setError(description))
+        }
         console.error('Download failed:', raw)
-        store.dispatch(setError(description))
         break
       }
     }

@@ -441,6 +441,7 @@
     "cancel": "Cancelar",
     "qrSessionDeleted": "Sesión QR eliminada",
     "usingFirefoxCookie": "Usando Firefox Cookie para autenticación",
-    "notLoggedIn": "No has iniciado sesión"
+    "notLoggedIn": "No has iniciado sesión",
+    "session_expired": "La sesión ha expirado. Por favor, inicia sesión de nuevo."
   }
 }

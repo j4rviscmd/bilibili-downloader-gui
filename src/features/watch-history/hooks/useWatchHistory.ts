@@ -1,4 +1,5 @@
-import { useAppDispatch, useSelector } from '@/app/store'
+import { interceptInvokeError } from '@/app/lib/invokeErrorHandler'
+import { store, useAppDispatch, useSelector } from '@/app/store'
 import { useCallback } from 'react'
 import { fetchWatchHistory } from '../api/fetchWatchHistory'
 import {
@@ -88,7 +89,8 @@ export function useWatchHistory() {
       dispatch(setEntries(response.entries))
       dispatch(setCursor(response.cursor))
     } catch (err) {
-      dispatch(setError(err instanceof Error ? err.message : String(err)))
+      const message = interceptInvokeError(store, err)
+      if (message) dispatch(setError(message))
     } finally {
       dispatch(setLoading(false))
     }
@@ -105,7 +107,8 @@ export function useWatchHistory() {
       dispatch(appendEntries(response.entries))
       dispatch(setCursor(response.cursor))
     } catch (err) {
-      dispatch(setError(err instanceof Error ? err.message : String(err)))
+      const message = interceptInvokeError(store, err)
+      if (message) dispatch(setError(message))
     } finally {
       dispatch(setLoadingMore(false))
     }

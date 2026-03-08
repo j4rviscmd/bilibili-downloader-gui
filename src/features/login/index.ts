@@ -27,5 +27,5 @@ export { useLogin } from './model/useLogin'
 export { QRCodeDisplay } from './ui/QRCodeDisplay'
 
 // State
-export { default as loginReducer } from './model/loginSlice'
+export { default as loginReducer, setSession } from './model/loginSlice'
 export type { LoginSliceState } from './model/loginSlice'
