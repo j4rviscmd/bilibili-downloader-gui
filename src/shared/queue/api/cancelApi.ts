@@ -19,7 +19,9 @@ import { invoke } from '@tauri-apps/api/core'
  * }
  * ```
  */
-export const callCancelDownload = async (downloadId: string): Promise<boolean> => {
+export const callCancelDownload = async (
+  downloadId: string,
+): Promise<boolean> => {
   logger.info(`callCancelDownload: id=${downloadId}`)
   const result = await invoke<boolean>('cancel_download', { downloadId })
   if (result) {

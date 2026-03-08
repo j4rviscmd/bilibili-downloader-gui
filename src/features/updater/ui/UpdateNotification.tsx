@@ -98,7 +98,9 @@ export const UpdateNotification = React.memo(() => {
   }, [dispatch, handleUpdate])
 
   const handleRestart = useCallback(async () => {
-    logger.info('UpdateNotification: User requested application restart after update')
+    logger.info(
+      'UpdateNotification: User requested application restart after update',
+    )
     try {
       await relaunch()
     } catch (e) {

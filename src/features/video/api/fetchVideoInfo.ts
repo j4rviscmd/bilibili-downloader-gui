@@ -4,8 +4,8 @@ import type {
   Video,
   VideoQuality,
 } from '@/features/video/types'
-import { invoke } from '@tauri-apps/api/core'
 import { logger } from '@/shared/lib/logger'
+import { invoke } from '@tauri-apps/api/core'
 
 /**
  * Fetches video metadata from Bilibili.
@@ -32,10 +32,15 @@ export const fetchVideoInfo = async (id: string): Promise<Video> => {
   logger.info(`fetchVideoInfo: Fetching video info for id=${id}`)
   try {
     const result = await invoke<Video>('fetch_video_info', { videoId: id })
-    logger.debug(`fetchVideoInfo: Fetched video "${result.title}" with ${result.parts.length} parts`)
+    logger.debug(
+      `fetchVideoInfo: Fetched video "${result.title}" with ${result.parts.length} parts`,
+    )
     return result
   } catch (error) {
-    logger.error(`fetchVideoInfo: Failed to fetch video info for id=${id}`, error)
+    logger.error(
+      `fetchVideoInfo: Failed to fetch video info for id=${id}`,
+      error,
+    )
     throw error
   }
 }
@@ -61,11 +66,17 @@ export const fetchSubtitlesForPart = async (
 ): Promise<SubtitleInfo[]> => {
   logger.debug(`fetchSubtitlesForPart: bvid=${bvid}, cid=${cid}`)
   try {
-    const result = await invoke<SubtitleInfo[]>('fetch_subtitles_for_part', { bvid, cid })
+    const result = await invoke<SubtitleInfo[]>('fetch_subtitles_for_part', {
+      bvid,
+      cid,
+    })
     logger.debug(`fetchSubtitlesForPart: Found ${result.length} subtitles`)
     return result
   } catch (error) {
-    logger.error(`fetchSubtitlesForPart: Failed to fetch subtitles for bvid=${bvid}, cid=${cid}`, error)
+    logger.error(
+      `fetchSubtitlesForPart: Failed to fetch subtitles for bvid=${bvid}, cid=${cid}`,
+      error,
+    )
     throw error
   }
 }
@@ -95,10 +106,15 @@ export const fetchPartQualities = async (
       'fetch_part_qualities',
       { bvid, cid },
     )
-    logger.debug(`fetchPartQualities: Found ${result[0].length} video qualities, ${result[1].length} audio qualities`)
+    logger.debug(
+      `fetchPartQualities: Found ${result[0].length} video qualities, ${result[1].length} audio qualities`,
+    )
     return result
   } catch (error) {
-    logger.error(`fetchPartQualities: Failed to fetch qualities for bvid=${bvid}, cid=${cid}`, error)
+    logger.error(
+      `fetchPartQualities: Failed to fetch qualities for bvid=${bvid}, cid=${cid}`,
+      error,
+    )
     throw error
   }
 }
@@ -125,14 +141,18 @@ export const fetchBangumiPartQualities = async (
 ): Promise<[VideoQuality[], AudioQuality[], boolean | null]> => {
   logger.debug(`fetchBangumiPartQualities: epId=${epId}, cid=${cid}`)
   try {
-    const result = await invoke<[VideoQuality[], AudioQuality[], boolean | null]>(
-      'fetch_bangumi_part_qualities',
-      { epId, cid },
+    const result = await invoke<
+      [VideoQuality[], AudioQuality[], boolean | null]
+    >('fetch_bangumi_part_qualities', { epId, cid })
+    logger.debug(
+      `fetchBangumiPartQualities: Found ${result[0].length} video qualities, ${result[1].length} audio qualities, isPreview=${result[2]}`,
     )
-    logger.debug(`fetchBangumiPartQualities: Found ${result[0].length} video qualities, ${result[1].length} audio qualities, isPreview=${result[2]}`)
     return result
   } catch (error) {
-    logger.error(`fetchBangumiPartQualities: Failed to fetch qualities for epId=${epId}, cid=${cid}`, error)
+    logger.error(
+      `fetchBangumiPartQualities: Failed to fetch qualities for epId=${epId}, cid=${cid}`,
+      error,
+    )
     throw error
   }
 }

@@ -1,5 +1,5 @@
-import { invoke } from '@tauri-apps/api/core'
 import { logger } from '@/shared/lib/logger'
+import { invoke } from '@tauri-apps/api/core'
 
 /**
  * Supported operating system types.

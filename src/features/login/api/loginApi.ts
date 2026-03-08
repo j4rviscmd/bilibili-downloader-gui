@@ -7,8 +7,8 @@
  * @module loginApi
  */
 
-import { invoke } from '@tauri-apps/api/core'
 import { logger } from '@/shared/lib/logger'
+import { invoke } from '@tauri-apps/api/core'
 
 /** QR code login status states. */
 export type QrCodeStatus =
@@ -138,7 +138,9 @@ export async function getLoginMethod(): Promise<LoginMethod> {
 export async function getLoginState(): Promise<LoginState> {
   try {
     const result = await invoke<LoginState>('get_login_state')
-    logger.debug(`getLoginState: method=${result.method}, hasSession=${!!result.session}`)
+    logger.debug(
+      `getLoginState: method=${result.method}, hasSession=${!!result.session}`,
+    )
     return result
   } catch (error) {
     logger.error('getLoginState: Failed to get login state', error)

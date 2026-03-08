@@ -37,7 +37,6 @@ import { PartDownloadProgress } from '@/features/video/ui/PartDownloadProgress'
 import { QualityRadioGroup } from '@/features/video/ui/QualityRadioGroup'
 import { SubtitleSection } from '@/features/video/ui/SubtitleSection'
 import { Checkbox } from '@/shared/animate-ui/radix/checkbox'
-import { logger } from '@/shared/lib/logger'
 import { RadioGroup } from '@/shared/animate-ui/radix/radio-group'
 import {
   Tooltip,
@@ -45,6 +44,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
+import { logger } from '@/shared/lib/logger'
 import { clearProgressByDownloadId } from '@/shared/progress/progressSlice'
 import {
   cancelDownload,

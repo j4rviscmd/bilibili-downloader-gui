@@ -62,7 +62,9 @@ export const downloadVideo = async (
   subtitle?: SubtitleConfig,
   epId?: number,
 ) => {
-  logger.info(`downloadVideo: starting id=${downloadId}, videoId=${videoId}, cid=${cid}`)
+  logger.info(
+    `downloadVideo: starting id=${downloadId}, videoId=${videoId}, cid=${cid}`,
+  )
   store.dispatch(enqueue({ downloadId, parentId, filename, status: 'pending' }))
 
   const subtitleOptions = subtitle
@@ -86,7 +88,9 @@ export const downloadVideo = async (
         subtitle: subtitleOptions,
       },
     })
-    logger.info(`downloadVideo: completed id=${downloadId}, outputPath=${outputPath}`)
+    logger.info(
+      `downloadVideo: completed id=${downloadId}, outputPath=${outputPath}`,
+    )
     store.dispatch(updateQueueItem({ downloadId, outputPath, title: filename }))
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)

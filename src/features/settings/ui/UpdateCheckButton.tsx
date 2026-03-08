@@ -5,8 +5,8 @@ import {
   setError,
   setUpdateAvailable,
 } from '@/features/updater/model/updaterSlice'
-import { cn } from '@/shared/lib/utils'
 import { logger } from '@/shared/lib/logger'
+import { cn } from '@/shared/lib/utils'
 import { getVersion } from '@tauri-apps/api/app'
 import { check as checkUpdate } from '@tauri-apps/plugin-updater'
 import { RefreshCw } from 'lucide-react'
@@ -100,7 +100,9 @@ export function UpdateCheckButton() {
     try {
       const update = await checkUpdate()
       if (update) {
-        logger.info(`UpdateCheckButton: Update available, version=${update.version}`)
+        logger.info(
+          `UpdateCheckButton: Update available, version=${update.version}`,
+        )
         dispatch(
           setUpdateAvailable({
             available: true,

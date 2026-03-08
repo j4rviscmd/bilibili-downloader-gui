@@ -1,19 +1,19 @@
 import { useVideoInfo } from '@/features/video'
 import { RippleButton } from '@/shared/animate-ui/buttons/ripple'
-import { logger } from '@/shared/lib/logger'
-import { useCallback } from 'react'
-import { useSelector } from 'react-redux'
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
+import { logger } from '@/shared/lib/logger'
 import {
   selectHasActiveDownloads,
   selectHasCancellingDownloads,
 } from '@/shared/queue'
+import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSelector } from 'react-redux'
 
 /**
  * Download button component.
@@ -41,7 +41,9 @@ function DownloadButton() {
   const disabled = !(isForm1Valid && isForm2ValidAll) || hasActiveDownloads
 
   const handleClick = useCallback(() => {
-    logger.info(`DownloadButton: Download clicked, selectedCount=${selectedCount}`)
+    logger.info(
+      `DownloadButton: Download clicked, selectedCount=${selectedCount}`,
+    )
     download()
   }, [download, selectedCount])
 

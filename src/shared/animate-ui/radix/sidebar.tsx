@@ -9,7 +9,6 @@ import * as React from 'react'
 
 import { useAppDispatch, useSelector } from '@/app/store'
 import { setSidebarOpen } from '@/features/sidebar'
-import { logger } from '@/shared/lib/logger'
 import {
   MotionHighlight,
   MotionHighlightItem,
@@ -20,6 +19,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
+import { logger } from '@/shared/lib/logger'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'

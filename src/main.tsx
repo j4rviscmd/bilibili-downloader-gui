@@ -32,9 +32,7 @@ setupI18n()
 window.addEventListener('unhandledrejection', (event) => {
   logger.error(
     'Unhandled promise rejection',
-    event.reason instanceof Error
-      ? event.reason.message
-      : String(event.reason)
+    event.reason instanceof Error ? event.reason.message : String(event.reason),
   )
 })
 

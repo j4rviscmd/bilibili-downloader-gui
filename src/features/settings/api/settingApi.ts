@@ -1,6 +1,6 @@
 import type { Settings } from '@/features/settings/type'
-import { invoke } from '@tauri-apps/api/core'
 import { logger } from '@/shared/lib/logger'
+import { invoke } from '@tauri-apps/api/core'
 
 /**
  * Retrieves application settings from the Tauri backend.
@@ -20,7 +20,9 @@ export const callGetSettings = async (): Promise<Settings> => {
   logger.debug('callGetSettings: Fetching settings')
   try {
     const result = await invoke<Settings>('get_settings')
-    logger.debug(`callGetSettings: Settings loaded, language=${result.language}`)
+    logger.debug(
+      `callGetSettings: Settings loaded, language=${result.language}`,
+    )
     return result
   } catch (error) {
     logger.error('callGetSettings: Failed to fetch settings', error)
@@ -44,7 +46,9 @@ export const callGetSettings = async (): Promise<Settings> => {
  * ```
  */
 export const callSetSettings = async (settings: Settings): Promise<void> => {
-  logger.debug(`callSetSettings: Saving settings, language=${settings.language}`)
+  logger.debug(
+    `callSetSettings: Saving settings, language=${settings.language}`,
+  )
   try {
     await invoke('set_settings', { settings })
     logger.debug('callSetSettings: Settings saved successfully')
@@ -77,7 +81,10 @@ export const callUpdateLibPath = async (newPath: string): Promise<void> => {
     await invoke('update_lib_path', { newPath })
     logger.info('callUpdateLibPath: Lib path updated successfully')
   } catch (error) {
-    logger.error(`callUpdateLibPath: Failed to update lib path to ${newPath}`, error)
+    logger.error(
+      `callUpdateLibPath: Failed to update lib path to ${newPath}`,
+      error,
+    )
     throw error
   }
 }
@@ -103,7 +110,10 @@ export const callGetCurrentLibPath = async (): Promise<string> => {
     logger.debug(`callGetCurrentLibPath: Current lib path=${result}`)
     return result
   } catch (error) {
-    logger.error('callGetCurrentLibPath: Failed to fetch current lib path', error)
+    logger.error(
+      'callGetCurrentLibPath: Failed to fetch current lib path',
+      error,
+    )
     throw error
   }
 }

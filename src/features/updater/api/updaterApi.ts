@@ -1,5 +1,5 @@
-import { invoke } from '@tauri-apps/api/core'
 import { logger } from '@/shared/lib/logger'
+import { invoke } from '@tauri-apps/api/core'
 
 /**
  * Fetches all release notes from GitHub for versions newer than current.
@@ -25,17 +25,24 @@ export const fetchReleaseNotes = async (
   repo: string,
   currentVersion: string,
 ): Promise<string> => {
-  logger.debug(`fetchReleaseNotes: owner=${owner}, repo=${repo}, currentVersion=${currentVersion}`)
+  logger.debug(
+    `fetchReleaseNotes: owner=${owner}, repo=${repo}, currentVersion=${currentVersion}`,
+  )
   try {
     const result = await invoke<string>('get_release_notes', {
       owner,
       repo,
       currentVersion,
     })
-    logger.debug(`fetchReleaseNotes: Fetched ${result.length} chars of release notes`)
+    logger.debug(
+      `fetchReleaseNotes: Fetched ${result.length} chars of release notes`,
+    )
     return result
   } catch (error) {
-    logger.error(`fetchReleaseNotes: Failed to fetch release notes for ${owner}/${repo}`, error)
+    logger.error(
+      `fetchReleaseNotes: Failed to fetch release notes for ${owner}/${repo}`,
+      error,
+    )
     throw error
   }
 }

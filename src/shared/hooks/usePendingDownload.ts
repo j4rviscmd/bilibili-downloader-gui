@@ -27,7 +27,9 @@ export const usePendingDownload = () => {
   const navigate = useNavigate()
 
   const handleDownload = (bvid: string, cid: number | null, page: number) => {
-    logger.info(`usePendingDownload: Handling pending download bvid=${bvid}, page=${page}`)
+    logger.info(
+      `usePendingDownload: Handling pending download bvid=${bvid}, page=${page}`,
+    )
     dispatch(setPendingDownload({ bvid, cid, page }))
     navigate('/home')
   }

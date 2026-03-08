@@ -30,7 +30,10 @@ export function DevOptions() {
     try {
       await invoke('set_simulate_logout', { enabled: checked })
     } catch (error) {
-      logger.error('handleToggleSimulateLogout: Failed to set simulate logout state', error)
+      logger.error(
+        'handleToggleSimulateLogout: Failed to set simulate logout state',
+        error,
+      )
     }
 
     dispatch({ type: 'dev/setSimulateLogout', payload: checked })

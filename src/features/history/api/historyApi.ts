@@ -2,8 +2,8 @@ import type {
   HistoryEntry,
   HistoryFilters,
 } from '@/features/history/model/historySlice'
-import { invoke } from '@tauri-apps/api/core'
 import { logger } from '@/shared/lib/logger'
+import { invoke } from '@tauri-apps/api/core'
 
 /**
  * Formats an error from Tauri invoke call with consistent prefix.
