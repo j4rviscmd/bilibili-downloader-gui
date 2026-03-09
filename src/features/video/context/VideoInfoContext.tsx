@@ -479,6 +479,7 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
           pi.thumbnailUrl,
           pi.page,
           pi.subtitle,
+          currentPartInput.subtitles,
           epId,
         )
       } catch (e) {

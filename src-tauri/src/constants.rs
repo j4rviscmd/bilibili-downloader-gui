@@ -6,8 +6,11 @@
 /// User-Agent header value for HTTP requests to Bilibili.
 ///
 /// This mimics a common browser user-agent to ensure proper API access.
-pub const USER_AGENT: &str =
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X) AppleWebKit/537.36 (KHTML, like Gecko) Chrome Safari";
+pub const USER_AGENT: &str = concat!(
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) ",
+    "AppleWebKit/537.36 (KHTML, like Gecko) ",
+    "Chrome/120.0.0.0 Safari/537.36",
+);
 
 /// Referer header value for HTTP requests to Bilibili.
 ///

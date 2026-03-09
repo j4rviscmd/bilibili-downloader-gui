@@ -29,13 +29,14 @@ use tauri::AppHandle;
 use tauri::Manager;
 use tauri_plugin_store::StoreExt;
 
+use crate::constants;
 use crate::handlers::bilibili::fetch_user_info;
 use crate::models::cookie::CookieCache;
 use crate::models::cookie::CookieEntry;
 use crate::models::qr_login::{
-    ConfirmRefreshResponse, CookieRefreshInfo, CookieRefreshInfoResponse, CookieRefreshResponse,
-    LoginMethod, LoginState, QrCodeGenerateResponse, QrCodePollResponse, QrCodeResult,
-    QrCodeStatus, QrPollResult, Session,
+    BuvidResponse, ConfirmRefreshResponse, CookieRefreshInfo, CookieRefreshInfoResponse,
+    CookieRefreshResponse, LoginMethod, LoginState, QrCodeGenerateResponse, QrCodePollResponse,
+    QrCodeResult, QrCodeStatus, QrPollResult, Session,
 };
 
 const QR_GENERATE_URL: &str = "https://passport.bilibili.com/x/passport-login/web/qrcode/generate";
@@ -322,6 +323,19 @@ pub async fn poll_qr_status(app: &AppHandle, qrcode_key: &str) -> Result<QrPollR
     if status == QrCodeStatus::Success {
         let mut session = extract_session_from_url(&data.url, &data.refresh_token, data.timestamp)?;
 
+        // Fetch buvid3/buvid4 for WBI authentication
+        match fetch_buvid().await {
+            Ok((buvid3, buvid4)) => {
+                session.buvid3 = buvid3;
+                session.buvid4 = buvid4;
+                log::info!("[BE] poll_qr_status: successfully fetched buvid3/buvid4 for WBI auth");
+            }
+            Err(e) => {
+                log::warn!("[BE] poll_qr_status: failed to fetch buvid3/buvid4: {}", e);
+                // Continue without buvid - may cause 412 errors on some videos
+            }
+        }
+
         // Also update the in-memory cookie cache for immediate use
         update_cookie_cache(app, &session);
 
@@ -347,6 +361,52 @@ pub async fn poll_qr_status(app: &AppHandle, qrcode_key: &str) -> Result<QrPollR
         message: data.message,
         session: None, // Don't expose session to frontend, it's stored internally
     })
+}
+
+/// Fetches buvid3 and buvid4 from Bilibili API.
+///
+/// These device IDs are required for WBI authentication to work properly.
+/// Without them, some API endpoints may return 412 errors.
+///
+/// # Returns
+///
+/// Returns `Ok((buvid3, buvid4))` on success.
+///
+/// # Errors
+///
+/// Returns an error if the API request fails or returns invalid data.
+async fn fetch_buvid() -> Result<(String, String), String> {
+    log::info!("[BE] fetch_buvid: fetching buvid3/buvid4 from API");
+    let client = Client::new();
+
+    let response = client
+        .get("https://api.bilibili.com/x/frontend/finger/spi")
+        .header(reqwest::header::USER_AGENT, constants::USER_AGENT)
+        .header(reqwest::header::REFERER, constants::REFERER)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch buvid: {}", e))?;
+
+    let buvid_response: BuvidResponse = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse buvid response: {}", e))?;
+
+    if buvid_response.code != 0 {
+        return Err(format!("Buvid API error: {}", buvid_response.message));
+    }
+
+    let data = buvid_response
+        .data
+        .ok_or_else(|| "No data in buvid response".to_string())?;
+
+    log::info!(
+        "[BE] fetch_buvid: successfully retrieved buvid3 ({} bytes), buvid4 ({} bytes)",
+        data.b_3.len(),
+        data.b_4.len()
+    );
+
+    Ok((data.b_3, data.b_4))
 }
 
 /// Extracts session data from the login URL.
@@ -376,6 +436,8 @@ fn extract_session_from_url(
         refresh_token: refresh_token.to_string(),
         timestamp,
         uname: String::new(),
+        buvid3: String::new(),
+        buvid4: String::new(),
     })
 }
 
@@ -441,6 +503,22 @@ fn update_cookie_cache(app: &AppHandle, session: &Session) {
             value: session.dede_user_id_ck_md5.clone(),
         },
     ];
+
+    // Add buvid3 and buvid4 if available (required for WBI authentication)
+    if !session.buvid3.is_empty() {
+        guard.push(CookieEntry {
+            host: ".bilibili.com".to_string(),
+            name: "buvid3".to_string(),
+            value: session.buvid3.clone(),
+        });
+    }
+    if !session.buvid4.is_empty() {
+        guard.push(CookieEntry {
+            host: ".bilibili.com".to_string(),
+            name: "buvid4".to_string(),
+            value: session.buvid4.clone(),
+        });
+    }
 }
 
 /// Loads the stored session from keyring and updates cookie cache.
@@ -466,6 +544,11 @@ pub async fn load_stored_session(app: &AppHandle) -> Result<bool, String> {
     let session = load_session_from_keyring()?;
 
     if let Some(session) = session {
+        log::info!(
+            "[BE] load_stored_session: loaded session with buvid3={} bytes, buvid4={} bytes",
+            session.buvid3.len(),
+            session.buvid4.len()
+        );
         update_cookie_cache(app, &session);
         return Ok(true);
     }
@@ -926,7 +1009,9 @@ pub async fn refresh_cookie(app: &AppHandle) -> Result<Session, String> {
             .unwrap_or_default(),
         refresh_token: new_refresh_token,
         timestamp: chrono::Utc::now().timestamp_millis(),
-        uname: session.uname, // Preserve username from old session
+        uname: session.uname,   // Preserve username from old session
+        buvid3: session.buvid3, // Preserve buvid3 from old session
+        buvid4: session.buvid4, // Preserve buvid4 from old session
     };
 
     // Update cookie cache

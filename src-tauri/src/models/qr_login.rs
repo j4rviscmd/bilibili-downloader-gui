@@ -121,6 +121,12 @@ pub struct Session {
     /// Username (display name)
     #[serde(default)]
     pub uname: String,
+    /// Device ID (buvid3) - required for WBI authentication
+    #[serde(default)]
+    pub buvid3: String,
+    /// Device ID (buvid4) - required for WBI authentication
+    #[serde(default)]
+    pub buvid4: String,
 }
 
 /// Frontend-facing QR code generation result.
@@ -228,4 +234,28 @@ pub struct ConfirmRefreshResponse {
     pub code: i32,
     /// Error message
     pub message: String,
+}
+
+/// Response from buvid3/buvid4 fetch API.
+///
+/// GET https://api.bilibili.com/x/frontend/finger/spi
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BuvidResponse {
+    /// Response code (0 = success)
+    pub code: i32,
+    /// Response message
+    pub message: String,
+    /// Response data
+    pub data: Option<BuvidData>,
+}
+
+/// buvid data containing device IDs.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BuvidData {
+    /// buvid3 device ID
+    #[serde(rename = "b_3")]
+    pub b_3: String,
+    /// buvid4 device ID
+    #[serde(rename = "b_4")]
+    pub b_4: String,
 }

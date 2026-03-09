@@ -488,6 +488,7 @@ const VideoPartCard = memo(function VideoPartCard({
       pi.thumbnailUrl,
       pi.page,
       pi.subtitle,
+      pi.subtitles,
       videoPart.epId,
     )
   }, [page, video.bvid, videoPart.epId])

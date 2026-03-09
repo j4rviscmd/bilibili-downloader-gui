@@ -48,6 +48,25 @@ pub struct SubtitleOptions {
     /// Selected subtitle language codes (e.g., "zh-CN", "en")
     #[serde(default)]
     pub selected_lans: Vec<String>,
+    /// Complete subtitle information for selected languages (passed from frontend to avoid re-fetch)
+    #[serde(default)]
+    pub subtitles: Vec<SubtitleInfo>,
+}
+
+/// Subtitle information passed from frontend.
+///
+/// Contains all data needed to download and process a subtitle.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubtitleInfo {
+    /// Language code (e.g., "zh-CN", "en")
+    pub lan: String,
+    /// Language display text (e.g., "中文（简体）")
+    pub lan_doc: String,
+    /// Subtitle URL (BCC JSON format)
+    pub subtitle_url: String,
+    /// Whether this is an AI-generated subtitle
+    pub is_ai: bool,
 }
 
 /// Payload for quality resolved event.
@@ -1955,9 +1974,9 @@ pub async fn fetch_watch_history(
 ///
 /// # Notes
 ///
-/// - The WBI-signed version (`/x/player/wbi/v2`) returns 412 Precondition Failed, so we use
-///   the non-WBI version (`/x/player/v2`) with Cookie authentication instead
-/// - Determines if subtitle is AI-generated via the `is_ai` field
+/// - Uses `/x/player/v2` with Cookie authentication (per API docs, WBI signature is optional)
+/// - Requires login (SESSDATA cookie) to retrieve subtitle data
+/// - Determines if subtitle is AI-generated via the URL path containing `/ai_subtitle/`
 pub async fn fetch_subtitles(
     client: &Client,
     cookies: &[CookieEntry],
@@ -1971,13 +1990,14 @@ pub async fn fetch_subtitles(
     );
 
     let cookie_header = build_cookie_header(cookies);
-    log::debug!(
-        "[BE] fetch_subtitles: has_cookie={}",
-        !cookie_header.is_empty()
-    );
+    if cookie_header.is_empty() {
+        log::warn!(
+            "[BE] fetch_subtitles: no cookies available, \
+             subtitles require login"
+        );
+        return Vec::new();
+    }
 
-    // Use /x/player/v2 (non-WBI version) with Cookie for authentication
-    // The WBI version (/x/player/wbi/v2) returns 412 Precondition Failed
     let response = match client
         .get("https://api.bilibili.com/x/player/v2")
         .header(header::COOKIE, &cookie_header)
@@ -2005,7 +2025,7 @@ pub async fn fetch_subtitles(
     let body: PlayerV2ApiResponse = match response.json().await {
         Ok(b) => b,
         Err(e) => {
-            log::error!("[BE] fetch_subtitles: failed to parse JSON response: {}", e);
+            log::error!("[BE] fetch_subtitles: failed to parse JSON: {}", e);
             return Vec::new();
         }
     };
@@ -2026,7 +2046,8 @@ pub async fn fetch_subtitles(
         .unwrap_or_default();
 
     log::info!(
-        "[BE] fetch_subtitles: successfully retrieved {} subtitles for bvid={}, cid={}",
+        "[BE] fetch_subtitles: retrieved {} subtitles for \
+         bvid={}, cid={}",
         subtitles.len(),
         bvid,
         cid
@@ -2256,8 +2277,33 @@ async fn prepare_subtitle_mode(
         _ => return Ok((MergeMode::None, vec![])),
     };
 
+    // Build client for subtitle download (needed regardless of source)
     let client = build_client()?;
-    let available_subs = fetch_subtitles(&client, cookies, bvid, cid).await;
+
+    // Use passed subtitles from frontend if available, otherwise fetch from API
+    let available_subs: Vec<_> = if !sub_opts.subtitles.is_empty() {
+        log::info!(
+            "[BE] prepare_subtitle_mode: using {} subtitles passed from frontend",
+            sub_opts.subtitles.len()
+        );
+        sub_opts
+            .subtitles
+            .iter()
+            .map(|s| SubtitleDto {
+                lan: s.lan.clone(),
+                lan_doc: s.lan_doc.clone(),
+                subtitle_url: s.subtitle_url.clone(),
+                is_ai: s.is_ai,
+            })
+            .collect()
+    } else {
+        let subs = fetch_subtitles(&client, cookies, bvid, cid).await;
+        log::info!(
+            "[BE] prepare_subtitle_mode: fetched {} subtitles from API",
+            subs.len()
+        );
+        subs
+    };
 
     let selected_subs: Vec<_> = available_subs
         .iter()
