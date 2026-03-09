@@ -1,5 +1,5 @@
 import { store } from '@/app/store'
-import type { SubtitleConfig } from '@/features/video/types'
+import type { SubtitleConfig, SubtitleInfo } from '@/features/video/types'
 import { logger } from '@/shared/lib/logger'
 import {
   enqueue,
@@ -27,6 +27,7 @@ import { invoke } from '@tauri-apps/api/core'
  * @param thumbnailUrl - Optional thumbnail URL for history
  * @param page - Optional page number for multi-part videos
  * @param subtitle - Optional subtitle configuration
+ * @param subtitles - Available subtitles for this part (passed to avoid re-fetch)
  * @param epId - Optional episode ID for bangumi content
  *
  * @throws Error if backend download fails (network error, quality not found, etc.)
@@ -44,7 +45,8 @@ import { invoke } from '@tauri-apps/api/core'
  *   360, // 6 minutes
  *   null,
  *   1,
- *   { mode: 'soft', selectedLans: ['zh-CN'] }
+ *   { mode: 'soft', selectedLans: ['zh-CN'] },
+ *   [{ lan: 'zh-CN', lanDoc: '中文（简体）', subtitleUrl: '...', isAi: false }]
  * )
  * ```
  */
@@ -60,6 +62,7 @@ export const downloadVideo = async (
   thumbnailUrl?: string,
   page?: number,
   subtitle?: SubtitleConfig,
+  subtitles?: SubtitleInfo[],
   epId?: number,
 ) => {
   logger.info(
@@ -67,8 +70,18 @@ export const downloadVideo = async (
   )
   store.dispatch(enqueue({ downloadId, parentId, filename, status: 'pending' }))
 
+  // Filter subtitles to only include selected languages
+  const selectedSubtitles =
+    subtitle && subtitles
+      ? subtitles.filter((s) => subtitle.selectedLans.includes(s.lan))
+      : []
+
   const subtitleOptions = subtitle
-    ? { mode: subtitle.mode, selectedLans: subtitle.selectedLans }
+    ? {
+        mode: subtitle.mode,
+        selectedLans: subtitle.selectedLans,
+        subtitles: selectedSubtitles,
+      }
     : null
 
   try {

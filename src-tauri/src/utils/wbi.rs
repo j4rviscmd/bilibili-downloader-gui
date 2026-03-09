@@ -49,6 +49,17 @@ fn derive_mixin_key(raw: &str) -> String {
         .collect()
 }
 
+/// Filters special characters from parameter values per WBI spec.
+///
+/// Characters `!'()*` must be removed before signing (not URL-encoded).
+/// This is a Bilibili-specific requirement for WBI signatures.
+fn filter_wbi_value(value: &str) -> String {
+    value
+        .chars()
+        .filter(|c| !matches!(c, '!' | '\'' | '(' | ')' | '*'))
+        .collect()
+}
+
 /// Computes WBI signature from sorted parameters and mixin key.
 ///
 /// Internal helper that is deterministic for a given `wts` value,
@@ -65,7 +76,11 @@ fn derive_mixin_key(raw: &str) -> String {
 fn compute_wbi_rid(params: &BTreeMap<String, String>, mixin_key: &str) -> String {
     let query_string = params
         .iter()
-        .map(|(k, v)| format!("{k}={v}"))
+        .map(|(k, v)| {
+            // Filter special characters per WBI spec
+            let filtered = filter_wbi_value(v);
+            format!("{k}={}", filtered)
+        })
         .collect::<Vec<_>>()
         .join("&");
     let to_hash = format!("{}{}", query_string, mixin_key);
@@ -146,7 +161,9 @@ pub fn generate_wbi_signature(
 /// - wbi_img field is missing or invalid
 pub async fn fetch_mixin_key(client: &Client, cookie: Option<&str>) -> Result<String, String> {
     log::debug!("[BE] fetch_mixin_key: fetching WBI mixin key");
-    let mut req = client.get("https://api.bilibili.com/x/web-interface/nav");
+    let mut req = client
+        .get("https://api.bilibili.com/x/web-interface/nav")
+        .header(reqwest::header::REFERER, "https://www.bilibili.com");
     if let Some(c) = cookie {
         req = req.header(reqwest::header::COOKIE, c);
     }
