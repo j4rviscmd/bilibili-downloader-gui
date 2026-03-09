@@ -1,5 +1,5 @@
 import type { RootState } from '@/app/store'
-import { store, useSelector } from '@/app/store'
+import { useAppDispatch, useSelector } from '@/app/store'
 import { useInit } from '@/features/init'
 import { QRCodeLoginDialog } from '@/features/login'
 import type { Video } from '@/features/video'
@@ -374,6 +374,7 @@ function HomeContentInner() {
   const { video, duplicateIndices, onValid1, isFetching, input } =
     useVideoInfo()
   const { t } = useTranslation()
+  const dispatch = useAppDispatch()
   const hasActiveDownloads = useSelector(selectHasActiveDownloads)
   const user = useSelector((state: RootState) => state.user)
   const isLoggedIn = user.hasCookie && user.data?.isLogin
@@ -531,7 +532,7 @@ function HomeContentInner() {
    */
   const handleConfirmNavigation = useCallback(() => {
     if (pendingPageChange !== null) {
-      store.dispatch(deselectAll())
+      dispatch(deselectAll())
       performPageChange(pendingPageChange)
     }
     setIsConfirmDialogOpen(false)
@@ -577,9 +578,19 @@ function HomeContentInner() {
     }
   }, [video.parts.length, currentPage, totalPages, handlePageChange])
 
-  // Clear browser 'page' param when input URL has 'p' param
+  // Track previous input.url to detect when URL actually changes
+  const prevInputUrlRef = useRef(input.url)
+
+  // Clear browser 'page' param when input URL changes (and has 'p' param)
   // This ensures correct page navigation when URL input changes
+  // IMPORTANT: Only runs when input.url CHANGES, not when searchParams changes
+  // to avoid interfering with pagination navigation
   useEffect(() => {
+    const prevUrl = prevInputUrlRef.current
+    prevInputUrlRef.current = input.url
+
+    // Only run when input.url actually changes
+    if (prevUrl === input.url) return
     if (!input.url) return
 
     try {
@@ -592,7 +603,9 @@ function HomeContentInner() {
     } catch {
       // Invalid URL
     }
-  }, [input.url, searchParams, setSearchParams])
+    // Note: searchParams is intentionally included in deps to read current state,
+    // but the early return on prevUrl === input.url prevents infinite loops
+  }, [input.url, setSearchParams, searchParams])
 
   const selectTooltip = hasActiveDownloads
     ? t('video.download_in_progress')
@@ -600,12 +613,12 @@ function HomeContentInner() {
 
   // Select all parts on current page
   const handleSelectAllCurrentPage = useCallback(() => {
-    store.dispatch(selectPageAll(pageRange))
+    dispatch(selectPageAll(pageRange))
   }, [pageRange])
 
   // Deselect all parts on current page
   const handleDeselectAllCurrentPage = useCallback(() => {
-    store.dispatch(deselectPageAll(pageRange))
+    dispatch(deselectPageAll(pageRange))
   }, [pageRange])
 
   return (
