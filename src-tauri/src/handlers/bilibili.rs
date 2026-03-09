@@ -1983,7 +1983,11 @@ pub async fn fetch_subtitles(
     bvid: &str,
     cid: i64,
 ) -> Vec<SubtitleDto> {
-    log::debug!("[BE] fetch_subtitles: bvid={}, cid={}", bvid, cid);
+    log::info!(
+        "[BE] fetch_subtitles: starting for bvid={}, cid={}",
+        bvid,
+        cid
+    );
 
     let cookie_header = build_cookie_header(cookies);
     if cookie_header.is_empty() {
@@ -2022,11 +2026,7 @@ pub async fn fetch_subtitles(
     let body: PlayerV2ApiResponse = match response.json().await {
         Ok(b) => b,
         Err(e) => {
-            log::error!(
-                "[BE] fetch_subtitles: \
-                 failed to parse response: {}",
-                e
-            );
+            log::error!("[BE] fetch_subtitles: failed to parse JSON: {}", e);
             return Vec::new();
         }
     };
@@ -2047,7 +2047,7 @@ pub async fn fetch_subtitles(
         .and_then(|s| s.subtitles)
         .unwrap_or_default();
 
-    log::debug!(
+    log::info!(
         "[BE] fetch_subtitles: retrieved {} subtitles for \
          bvid={}, cid={}",
         subtitles.len(),
