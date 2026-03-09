@@ -1983,11 +1983,7 @@ pub async fn fetch_subtitles(
     bvid: &str,
     cid: i64,
 ) -> Vec<SubtitleDto> {
-    log::info!(
-        "[BE] fetch_subtitles: starting for bvid={}, cid={}",
-        bvid,
-        cid
-    );
+    log::debug!("[BE] fetch_subtitles: bvid={}, cid={}", bvid, cid);
 
     let cookie_header = build_cookie_header(cookies);
     if cookie_header.is_empty() {
@@ -2016,7 +2012,8 @@ pub async fn fetch_subtitles(
     let status = response.status();
     if !status.is_success() {
         log::error!(
-            "[BE] fetch_subtitles: API returned non-success status: {}",
+            "[BE] fetch_subtitles: API returned \
+             non-success status: {}",
             status
         );
         return Vec::new();
@@ -2025,14 +2022,19 @@ pub async fn fetch_subtitles(
     let body: PlayerV2ApiResponse = match response.json().await {
         Ok(b) => b,
         Err(e) => {
-            log::error!("[BE] fetch_subtitles: failed to parse JSON: {}", e);
+            log::error!(
+                "[BE] fetch_subtitles: \
+                 failed to parse response: {}",
+                e
+            );
             return Vec::new();
         }
     };
 
     if body.code != 0 {
         log::error!(
-            "[BE] fetch_subtitles: API error code={}, message={:?}",
+            "[BE] fetch_subtitles: API error code={}, \
+             message={:?}",
             body.code,
             body.message
         );
@@ -2045,7 +2047,7 @@ pub async fn fetch_subtitles(
         .and_then(|s| s.subtitles)
         .unwrap_or_default();
 
-    log::info!(
+    log::debug!(
         "[BE] fetch_subtitles: retrieved {} subtitles for \
          bvid={}, cid={}",
         subtitles.len(),
@@ -2081,24 +2083,95 @@ pub async fn fetch_subtitles(
 ///
 /// Returns a list of available subtitles with language info and URLs.
 /// Returns an empty vector if no subtitles are available or on error.
+///
+/// Retry behavior is handled by [`fetch_subtitles_with_retry`].
 pub async fn fetch_subtitles_for_part(
     app: &AppHandle,
     bvid: &str,
     cid: i64,
 ) -> Result<Vec<SubtitleDto>, String> {
     log::info!(
-        "[BE] fetch_subtitles_for_part: requesting subtitles for bvid={}, cid={}",
+        "[BE] fetch_subtitles_for_part: requesting \
+         subtitles for bvid={}, cid={}",
         bvid,
         cid
     );
     let cookies = read_cookie(app)?.unwrap_or_default();
     let client = build_client()?;
-    let subtitles = fetch_subtitles(&client, &cookies, bvid, cid).await;
+    let subtitles = fetch_subtitles_with_retry(&client, &cookies, bvid, cid).await;
+
     log::info!(
         "[BE] fetch_subtitles_for_part: received {} subtitles",
         subtitles.len()
     );
     Ok(subtitles)
+}
+
+/// Fetches subtitles with automatic retry for stale CDN responses.
+///
+/// Bilibili's CDN may serve stale cached responses that only include
+/// a single AI subtitle (`ai_type: 0`) instead of the full set of
+/// AI-translated subtitles (`ai_type: 1`). When a stale response is
+/// detected (exactly one AI subtitle returned), this function retries
+/// up to 2 additional times with a 1-second delay between attempts.
+///
+/// # Arguments
+///
+/// * `client` - HTTP client for API requests
+/// * `cookies` - Cookie entries for authentication
+/// * `bvid` - Bilibili video ID (BV identifier)
+/// * `cid` - Content ID for the specific video part
+///
+/// # Returns
+///
+/// Returns a list of available subtitles. May return the stale
+/// single-AI-subtitle response if all retries are exhausted.
+async fn fetch_subtitles_with_retry(
+    client: &Client,
+    cookies: &[CookieEntry],
+    bvid: &str,
+    cid: i64,
+) -> Vec<SubtitleDto> {
+    const MAX_RETRIES: u32 = 2;
+    const RETRY_DELAY_MS: u64 = 1000;
+
+    let mut subtitles = fetch_subtitles(client, cookies, bvid, cid).await;
+
+    for attempt in 1..=MAX_RETRIES {
+        if !should_retry_subtitles(&subtitles) {
+            break;
+        }
+        log::info!(
+            "[BE] fetch_subtitles_with_retry: stale cache \
+             detected, retry {}/{}",
+            attempt,
+            MAX_RETRIES
+        );
+        tokio::time::sleep(std::time::Duration::from_millis(RETRY_DELAY_MS)).await;
+        subtitles = fetch_subtitles(client, cookies, bvid, cid).await;
+    }
+
+    subtitles
+}
+
+/// Determines whether subtitle fetching should be retried.
+///
+/// Returns `true` if the response appears to be from a stale
+/// CDN cache — specifically when exactly one AI subtitle is
+/// present, which indicates the old `ai_type: 0` response
+/// rather than the full AI-translated set.
+///
+/// # Arguments
+///
+/// * `subtitles` - Subtitle list from the most recent fetch attempt
+///
+/// # Returns
+///
+/// Returns `true` if the response looks stale and should be retried.
+fn should_retry_subtitles(subtitles: &[SubtitleDto]) -> bool {
+    // Stale cache returns exactly 1 AI subtitle;
+    // fresh cache returns 0 (no AI) or multiple.
+    subtitles.iter().filter(|s| s.is_ai).count() == 1
 }
 
 /// Fetches available video and audio qualities for a specific part.
@@ -2297,7 +2370,7 @@ async fn prepare_subtitle_mode(
             })
             .collect()
     } else {
-        let subs = fetch_subtitles(&client, cookies, bvid, cid).await;
+        let subs = fetch_subtitles_with_retry(&client, cookies, bvid, cid).await;
         log::info!(
             "[BE] prepare_subtitle_mode: fetched {} subtitles from API",
             subs.len()
