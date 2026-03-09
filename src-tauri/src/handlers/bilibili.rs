@@ -180,7 +180,23 @@ pub fn build_client() -> Result<Client, String> {
         .map_err(|e| format!("failed to build client: {e}"))
 }
 
-/// Validates a Bilibili API response. Returns an error if the response code is non-zero or data is None.
+/// Validates Bilibili API response and returns appropriate error codes.
+///
+/// Checks API response code and data presence, returning standardized error codes.
+/// Used by all API calls for consistent error handling.
+///
+/// # Arguments
+///
+/// * `code` - API response code (0 indicates success)
+/// * `data` - Optional reference to response data
+///
+/// # Returns
+///
+/// Returns `Ok(())` on successful validation.
+/// Returns `Err` with standardized error codes on failure:
+/// - `ERR::UNAUTHORIZED` (-101) - Authentication required
+/// - `ERR::VIDEO_NOT_FOUND` (-404) - Video not found
+/// - `ERR::API_ERROR` - Other API errors
 fn validate_api_response<T>(code: i64, data: Option<&T>) -> Result<(), String> {
     match code {
         -101 => Err("ERR::UNAUTHORIZED".into()),
@@ -191,12 +207,57 @@ fn validate_api_response<T>(code: i64, data: Option<&T>) -> Result<(), String> {
 }
 
 /// Checks HTTP response status and returns appropriate error codes.
-/// Returns `ERR::RATE_LIMITED` for HTTP 429, `ERR::API_ERROR` for other errors.
+///
+/// Validates HTTP status codes and returns standardized error codes.
+/// Returns `Ok(())` for success range (200-299), otherwise returns error.
+///
+/// # Arguments
+///
+/// * `status` - HTTP status code to check
+///
+/// # Returns
+///
+/// Returns `Ok(())` if status is in success range (200-299).
+/// Returns `Err` with error codes otherwise:
+/// - `ERR::RATE_LIMITED` - HTTP 429 (rate limit exceeded)
+/// - `ERR::API_ERROR` - Other errors
 fn check_http_status(status: reqwest::StatusCode) -> Result<(), String> {
     match status.as_u16() {
         200..=299 => Ok(()),
         429 => Err("ERR::RATE_LIMITED".into()),
         _ => Err("ERR::API_ERROR".into()),
+    }
+}
+
+/// Validates bangumi (anime/series) API responses and returns appropriate errors.
+///
+/// Converts bangumi-specific error codes to standardized format.
+/// Handles bangumi-specific restrictions like region and copyright restrictions.
+///
+/// # Arguments
+///
+/// * `code` - API response code
+/// * `message` - Error message (for logging)
+///
+/// # Returns
+///
+/// Returns `Ok(())` on successful validation (code=0).
+/// Returns `Err` with bangumi-specific error codes on failure:
+/// - `ERR::UNAUTHORIZED` (-101) - Authentication required
+/// - `ERR::BANGUMI_NOT_FOUND` (-404) - Bangumi not found
+/// - `ERR::BANGUMI_ACCESS_DENIED` (-403) - Access denied
+/// - `ERR::BANGUMI_REGION_RESTRICTED` (-688) - Region restricted
+/// - `ERR::BANGUMI_COPYRIGHT_RESTRICTED` (-689) - Copyright restricted
+/// - `ERR::API_ERROR` - Other API errors
+fn validate_bangumi_response(code: i64, message: &str) -> Result<(), String> {
+    match code {
+        -101 => Err("ERR::UNAUTHORIZED".into()),
+        -404 => Err("ERR::BANGUMI_NOT_FOUND".into()),
+        -403 => Err("ERR::BANGUMI_ACCESS_DENIED".into()),
+        -688 => Err("ERR::BANGUMI_REGION_RESTRICTED".into()),
+        -689 => Err("ERR::BANGUMI_COPYRIGHT_RESTRICTED".into()),
+        0 => Ok(()),
+        _ => Err(format!("ERR::API_ERROR (code {code}): {message}")),
     }
 }
 
@@ -231,11 +292,41 @@ fn extract_bangumi_ep_id(url: &str) -> Option<i64> {
     })
 }
 
-/// Downloads a bangumi episode using durl format (MP4 direct URL).
-/// This is used when DASH format is not available for bangumi content.
+/// Downloads a bangumi episode using durl format (direct MP4 URL).
 ///
-/// In durl format, audio is embedded in the video file, so no separate
-/// audio download or ffmpeg merge is needed.
+/// This download process is for bangumi content where DASH format is not available.
+/// In durl format, audio is embedded in the video, so audio separation and ffmpeg merge are not needed.
+///
+/// # Processing Flow
+///
+/// 1. Register cancellation token
+/// 2. Select requested quality or best quality entry
+/// 3. Send quality resolution event to frontend
+/// 4. Check disk space
+/// 5. Direct download with retry logic
+/// 6. Save download history (async)
+/// 7. Remove cancellation token
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle
+/// * `options` - Download options (bvid, cid, quality, etc.)
+/// * `output_path` - Output file path
+/// * `cookie_header` - Cookie header for authentication
+/// * `player_result` - Bangumi player API response
+///
+/// # Returns
+///
+/// Returns string representation of output file path on success.
+///
+/// # Errors
+///
+/// Returns errors in the following cases:
+/// - `ERR::BANGUMI_NO_DASH` - No durl data available
+/// - `ERR::QUALITY_NOT_FOUND` - Requested quality not found
+/// - `ERR::DISK_FULL` - Insufficient disk space
+/// - `ERR::NETWORK` - Network error
+/// - `ERR::CANCELLED` - Cancelled by user
 async fn download_bangumi_durl(
     app: &AppHandle,
     options: &DownloadOptions,
@@ -902,6 +993,30 @@ async fn save_to_history(
     Ok(())
 }
 
+/// Returns the first non-empty string in a slice, or `None` if all are empty.
+///
+/// Used to select the first valid (non-empty) string from multiple candidates.
+/// Primarily used for selecting quality display names.
+///
+/// # Arguments
+///
+/// * `strings` - String slice to search
+///
+/// # Returns
+///
+/// Returns `Some(String)` if a non-empty string is found,
+/// or `None` if all strings are empty.
+///
+/// # Examples
+///
+/// ```rust
+/// let options = vec![&"".to_string(), &"1080P".to_string(), &"720P".to_string()];
+/// assert_eq!(first_non_empty(&options), Some("1080P".to_string()));
+/// ```
+fn first_non_empty(strings: &[&String]) -> Option<String> {
+    strings.iter().find(|s| !s.is_empty()).map(|s| (*s).clone())
+}
+
 /// Converts a quality ID to a human-readable string representation.
 ///
 /// Maps Bilibili quality IDs to display names like "4K", "1080P60", "1080P", etc.
@@ -926,10 +1041,10 @@ fn quality_to_string(quality: &i32) -> String {
     }
 }
 
-/// Fetches video information for a history entry.
+/// Fetches video information for history entries.
 ///
 /// Used to retrieve video title and thumbnail when saving download history.
-/// Returns `None` on any failure (network error, API error, etc.).
+/// Returns `None` on all failures (network errors, API errors, etc.) without error propagation.
 ///
 /// # Arguments
 ///
@@ -938,7 +1053,8 @@ fn quality_to_string(quality: &i32) -> String {
 ///
 /// # Returns
 ///
-/// Returns `Some((title, thumbnail_url))` on success, or `None` on failure.
+/// Returns `Some((title, thumbnail_url))` on success.
+/// Returns `None` on failure.
 async fn fetch_video_info_for_history(
     bvid: &str,
     cookies: &[CookieEntry],
@@ -962,7 +1078,24 @@ async fn fetch_video_info_for_history(
     Some((data.title, thumbnail_url))
 }
 
-/// Fetches logged-in user information from Bilibili. Returns a User with is_login=false if no cookies exist.
+/// Fetches logged-in user information from Bilibili.
+///
+/// If no cookies exist, returns user info with `is_login=false`.
+/// Used to check authentication status and retrieve logged-in user's name and ID.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle for cookie cache access
+///
+/// # Returns
+///
+/// Returns a `User` struct:
+/// - With cookies: User info fetched from API
+/// - Without cookies: Default info with `is_login=false`, `has_cookie=false`
+///
+/// # Errors
+///
+/// Returns error on HTTP request or JSON parse failure.
 pub async fn fetch_user_info(app: &AppHandle) -> Result<User, String> {
     log::info!("[BE] fetch_user_info: checking login status");
 
@@ -1017,8 +1150,8 @@ pub async fn fetch_user_info(app: &AppHandle) -> Result<User, String> {
 
 /// Builds a Cookie header string from cookie entries.
 ///
-/// Filters cookies to only include those from bilibili.com domains
-/// and formats them as "name=value; name=value".
+/// Filters only bilibili.com domain cookies and
+/// formats them in "name=value; name=value" format.
 ///
 /// # Arguments
 ///
@@ -1026,7 +1159,7 @@ pub async fn fetch_user_info(app: &AppHandle) -> Result<User, String> {
 ///
 /// # Returns
 ///
-/// Cookie header string (may be empty if no matching cookies).
+/// Returns the Cookie header string (empty string if no matching cookies).
 fn build_cookie_header(cookies: &[CookieEntry]) -> String {
     cookies
         .iter()
@@ -1039,15 +1172,15 @@ fn build_cookie_header(cookies: &[CookieEntry]) -> String {
 /// Builds a Cookie header string from cached cookies.
 ///
 /// Reads cookies from the application's cookie cache and builds a header string.
-/// This function requires cookies to be present; returns an error if the cache is empty.
+/// This function assumes cookies exist and returns an error if the cache is empty.
 ///
 /// # Arguments
 ///
-/// * `app` - Tauri application handle for accessing cookie cache
+/// * `app` - Tauri application handle for cookie cache access
 ///
 /// # Returns
 ///
-/// Returns the cookie header string on success.
+/// Returns the Cookie header string on success.
 ///
 /// # Errors
 ///
@@ -1205,18 +1338,22 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
 
 /// Converts API video/audio quality data to frontend DTO format.
 ///
-/// Processes raw quality data from the Bilibili API:
-/// 1. Groups qualities by ID
-/// 2. Selects the highest codec ID for each quality level
-/// 3. Sorts in descending order (highest quality first)
+/// Processes raw quality data from Bilibili API and converts it to a format usable by the frontend.
+/// When multiple entries have the same quality ID, selects the one with the highest codec ID.
+///
+/// # Processing Steps
+///
+/// 1. Group entries by quality ID
+/// 2. Select the highest codec ID for each quality level
+/// 3. Sort in descending order (highest quality first)
 ///
 /// # Arguments
 ///
-/// * `video` - Slice of quality data from XPlayer API response
+/// * `video` - Quality data slice from XPlayer API response
 ///
 /// # Returns
 ///
-/// Vector of `Quality` structs sorted by quality (highest first).
+/// Returns a vector of `Quality` structs sorted by quality (highest first).
 fn convert_qualities(video: &[XPlayerApiResponseVideo]) -> Vec<Quality> {
     let mut qualities: BTreeMap<i32, &XPlayerApiResponseVideo> = BTreeMap::new();
 
@@ -1242,27 +1379,27 @@ fn convert_qualities(video: &[XPlayerApiResponseVideo]) -> Vec<Quality> {
         .collect()
 }
 
-/// Fetches video title and page information from the Bilibili Web Interface API.
+/// Fetches video title and page information from Bilibili Web Interface API.
 ///
 /// Retrieves basic video metadata including title, thumbnail, and page list.
-/// This is the first API call when fetching video info.
+/// Used as the initial API call when fetching video information.
 ///
 /// # Arguments
 ///
 /// * `bvid` - Bilibili video ID (BV identifier)
-/// * `cookies` - Cookie entries for authentication (optional but recommended)
+/// * `cookies` - Cookie entries for authentication (recommended but optional)
 ///
 /// # Returns
 ///
-/// Returns the raw API response containing video data.
+/// Returns raw API response containing video data.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - Network request fails
-/// - HTTP status is not successful
+/// Returns errors in the following cases:
+/// - Network request failure
+/// - Non-success HTTP status
 /// - API returns non-zero code
-/// - Video is not found (`ERR::VIDEO_NOT_FOUND`)
+/// - Video not found (`ERR::VIDEO_NOT_FOUND`)
 async fn fetch_video_title_by_bvid(
     bvid: &str,
     cookies: &[CookieEntry],
@@ -1371,11 +1508,11 @@ async fn fetch_video_details(
     Ok(body)
 }
 
-/// Automatically renames a file if it already exists.
+/// Automatically renames file if it already exists.
 ///
-/// Generates a unique filename by appending a counter (e.g., "filename (1).mp4")
-/// if the original path exists. Searches up to 10,000 variations before
-/// falling back to a timestamp-based name.
+/// If the original path exists, appends a counter (e.g., "filename (1).mp4")
+/// to generate a unique filename. Searches up to 10,000 variations,
+/// falling back to a timestamp-based name if all are duplicates.
 ///
 /// # Arguments
 ///
@@ -1383,8 +1520,8 @@ async fn fetch_video_details(
 ///
 /// # Returns
 ///
-/// Returns the original path if it doesn't exist, or a renamed path
-/// with an appended counter (e.g., "file (1).mp4").
+/// Returns the original path if it doesn't exist.
+/// Returns a renamed path with counter appended if it exists (e.g., "file (1).mp4").
 fn auto_rename(path: &Path) -> PathBuf {
     if !path.exists() {
         return path.to_path_buf();
@@ -1410,25 +1547,25 @@ fn auto_rename(path: &Path) -> PathBuf {
     parent.join(fallback_name)
 }
 
-/// Builds the complete output path for a download file.
+/// Builds the full output path for a download file.
 ///
-/// Combines the user's configured download directory with the filename.
+/// Combines the user-configured download directory with the filename.
 /// Automatically appends `.mp4` extension if not already present.
-/// Applies title replacement rules from settings to sanitize the filename.
+/// Sanitizes the filename by applying title replacement rules from settings.
 ///
 /// # Arguments
 ///
-/// * `app` - Tauri application handle for accessing settings
+/// * `app` - Tauri application handle for settings access
 /// * `filename` - Desired output filename (with or without extension)
 ///
 /// # Returns
 ///
-/// Returns the full output path on success.
+/// Returns the complete output path.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - Settings cannot be retrieved
+/// Returns errors in the following cases:
+/// - Cannot retrieve settings
 /// - Download output path is not configured
 async fn build_output_path(app: &AppHandle, filename: &str) -> Result<PathBuf, String> {
     let settings = settings::get_settings(app)
@@ -1449,7 +1586,7 @@ async fn build_output_path(app: &AppHandle, filename: &str) -> Result<PathBuf, S
 
 /// Gets the Content-Length of a resource via HEAD request.
 ///
-/// Used to estimate file size before download for disk space validation.
+/// Used to estimate file size for disk space validation before download.
 /// Returns `None` on any failure (network error, missing header, etc.).
 ///
 /// # Arguments
@@ -1459,7 +1596,8 @@ async fn build_output_path(app: &AppHandle, filename: &str) -> Result<PathBuf, S
 ///
 /// # Returns
 ///
-/// Returns `Some(content_length)` on success, or `None` on failure.
+/// Returns `Some(content_length)` on success.
+/// Returns `None` on failure.
 async fn head_content_length(url: &str, cookie: Option<&str>) -> Option<u64> {
     let client = build_client().ok()?;
     let mut req = client.head(url);
@@ -1486,8 +1624,8 @@ async fn head_content_length(url: &str, cookie: Option<&str>) -> Option<u64> {
 
 /// Ensures sufficient disk space is available for download.
 ///
-/// Checks available disk space at the target location using `statvfs`.
-/// Currently only implemented for Unix-like systems; no-op on other platforms.
+/// Uses `statvfs` to check available disk space at the target location.
+/// Currently only implemented for Unix-like systems. Does nothing on other platforms.
 ///
 /// # Arguments
 ///
@@ -1500,7 +1638,7 @@ async fn head_content_length(url: &str, cookie: Option<&str>) -> Option<u64> {
 ///
 /// # Errors
 ///
-/// Returns `ERR::DISK_FULL` if available space is less than required.
+/// Returns `ERR::DISK_FULL` if available space is less than needed.
 fn ensure_free_space(target_path: &Path, needed_bytes: u64) -> Result<(), String> {
     #[cfg(target_family = "unix")]
     {
@@ -1520,8 +1658,7 @@ fn ensure_free_space(target_path: &Path, needed_bytes: u64) -> Result<(), String
                 return Ok(());
             }
             let stat = stat.assume_init();
-            #[allow(clippy::unnecessary_cast)]
-            #[allow(clippy::useless_conversion)]
+            #[allow(clippy::unnecessary_cast, clippy::useless_conversion)]
             let free_bytes = u64::from(stat.f_bavail) * stat.f_frsize;
             if free_bytes < needed_bytes {
                 return Err("ERR::DISK_FULL".into());
@@ -1532,12 +1669,24 @@ fn ensure_free_space(target_path: &Path, needed_bytes: u64) -> Result<(), String
     Ok(())
 }
 
-/// Retries a download operation up to 3 times with linear backoff.
+/// Retries download operations up to 3 times with linear backoff.
 ///
-/// Implements retry logic for transient network failures:
-/// - Maximum 3 attempts
-/// - Linear backoff: 500ms, 1000ms, 1500ms
-/// - Only retries on specific keywords: "segment", "request error", "timeout", "connect"
+/// Implements retry logic for transient network failures.
+/// Only retries when error contains specific keywords, otherwise fails immediately.
+///
+/// # Retry Conditions
+///
+/// Only retries on errors containing these keywords:
+/// - "segment" - Segment download error
+/// - "request error" - Request error
+/// - "timeout" - Timeout
+/// - "connect" - Connection error
+///
+/// # Retry Settings
+///
+/// - Maximum attempts: 3
+/// - Backoff strategy: Linear (500ms, 1000ms, 1500ms)
+/// - Errors with `ERR::` prefix are passed through (no retry)
 ///
 /// # Arguments
 ///
@@ -1549,10 +1698,10 @@ fn ensure_free_space(target_path: &Path, needed_bytes: u64) -> Result<(), String
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - All retry attempts fail
-/// - Error is not retryable (doesn't match keywords)
-/// - Error contains `ERR::` prefix (passed through as-is)
+/// Returns errors in the following cases:
+/// - All retry attempts failed
+/// - Error is not retryable (keyword mismatch)
+/// - Error contains `ERR::` prefix
 async fn retry_download<F, Fut>(mut f: F) -> Result<(), String>
 where
     F: FnMut() -> Fut,
@@ -1584,28 +1733,33 @@ where
     unreachable!()
 }
 
-/// Selects a stream URL from a quality list.
+/// Selects a stream URL from the quality list.
 ///
-/// Searches for a stream matching the requested quality ID.
-/// Selects a stream URL from a list of available qualities with fallback.
+/// Searches for a stream matching the requested quality ID. If not found,
+/// falls back to the best available quality (first item).
 ///
-/// Attempts to find the requested quality in the list. If not found, falls back
-/// to the highest quality (first item) which represents the best available quality.
+/// # Behavior Details
+///
+/// - If requested quality ID exists in the list, returns that stream
+/// - If requested quality is not found, falls back to best quality (first)
+/// - Specifying `-1` always selects best quality
+/// - Backup URLs are also returned
 ///
 /// # Arguments
 ///
-/// * `items` - Slice of available video/audio streams with quality information
-/// * `quality` - Requested quality ID (use -1 for best available)
+/// * `items` - Slice of available video/audio streams
+/// * `quality` - Requested quality ID (`-1` for best quality)
 ///
 /// # Returns
 ///
-/// Returns a tuple of (primary_url, backup_urls, is_fallback) on success.
-/// `is_fallback` is true if the requested quality was not found and
-/// the first available quality was used instead.
+/// Returns tuple `(primary_url, backup_urls, is_fallback)` on success:
+/// - `primary_url` - Main stream URL
+/// - `backup_urls` - List of backup URLs (if any)
+/// - `is_fallback` - `true` if fallback occurred
 ///
 /// # Errors
 ///
-/// Returns `ERR::QUALITY_NOT_FOUND` if the quality list is empty.
+/// Returns `ERR::QUALITY_NOT_FOUND` if quality list is empty.
 fn select_stream_url(
     items: &[crate::models::bilibili_api::XPlayerApiResponseVideo],
     quality: i32,
@@ -1622,11 +1776,6 @@ fn select_stream_url(
         .ok_or_else(|| "ERR::QUALITY_NOT_FOUND".into())
 }
 
-/// Response structure for the watch history API.
-///
-/// Contains a list of history entries and pagination cursor.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
 /// Response from Bilibili watch history API.
 ///
 /// Contains paginated watch history entries with a cursor for fetching
@@ -1636,6 +1785,8 @@ fn select_stream_url(
 ///
 /// * `entries` - List of watch history entries with video metadata
 /// * `cursor` - Pagination cursor for the next page request
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WatchHistoryResponse {
     pub entries: Vec<WatchHistoryEntry>,
     pub cursor: WatchHistoryCursor,
@@ -1643,36 +1794,39 @@ pub struct WatchHistoryResponse {
 
 /// Fetches watch history from Bilibili with pagination support.
 ///
-/// Retrieves the user's viewing history from Bilibili's API using cursor-based
-/// pagination. Requires valid authentication cookies.
-///
-/// # Arguments
-///
-/// * `app` - Tauri application handle for accessing cookie cache
-/// * `max` - Maximum number of entries to fetch (0 for default, typically 20)
-/// * `view_at` - Timestamp cursor for pagination (0 for first page)
-///
-/// # Returns
-///
-/// Returns a `WatchHistoryResponse` containing:
-/// - `entries`: List of watch history entries with video metadata
-/// - `cursor`: Pagination cursor for fetching more entries
-///
-/// # Errors
-///
-/// Returns an error if:
-/// - Cookies are unavailable (`ERR::COOKIE_MISSING`)
-/// - User is not logged in (`ERR::UNAUTHORIZED`)
-/// - HTTP request fails
-/// - Response parsing fails
+/// Uses cursor-based pagination to retrieve user's watch history from Bilibili API.
+/// Requires valid authentication cookies.
 ///
 /// # Pagination
 ///
-/// Use the `cursor` from the response to fetch the next page:
+/// Uses cursor-based pagination:
+/// - Initial request: `max=0`, `view_at=0`
+/// - Subsequent requests: Use `cursor.max`, `cursor.view_at` from previous response
+///
 /// ```rust
 /// let first_page = fetch_watch_history(app, 0, 0).await?;
 /// let next_page = fetch_watch_history(app, first_page.cursor.max, first_page.cursor.view_at).await?;
 /// ```
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle for cookie cache access
+/// * `max` - Maximum number of entries to retrieve (0 for default, usually 20)
+/// * `view_at` - Timestamp cursor for pagination (0 for first page)
+///
+/// # Returns
+///
+/// Returns `WatchHistoryResponse`:
+/// - `entries`: List of watch history entries with video metadata
+/// - `cursor`: Pagination cursor for fetching next page
+///
+/// # Errors
+///
+/// Returns errors in the following cases:
+/// - Cookies unavailable (`ERR::COOKIE_MISSING`)
+/// - User not logged in (`ERR::UNAUTHORIZED`)
+/// - HTTP request failure
+/// - Response parse failure
 pub async fn fetch_watch_history(
     app: &AppHandle,
     max: i32,
@@ -1782,65 +1936,86 @@ pub async fn fetch_watch_history(
     Ok(WatchHistoryResponse { entries, cursor })
 }
 
-/// Fetches available subtitles for a video part from the Player v2 API.
+/// Fetches available subtitles for a video part from Player v2 API.
 ///
-/// Uses WBI signature for authentication.
-/// Returns an empty vector if no subtitles are available or on error.
+/// Retrieves subtitle information using Bilibili Player v2 API.
+/// Returns an empty vector on error or when no subtitles are available (does not propagate errors).
+///
+/// # Arguments
+///
+/// * `client` - HTTP client
+/// * `cookies` - Cookie entries for authentication
+/// * `bvid` - Bilibili video ID
+/// * `cid` - Content ID
+///
+/// # Returns
+///
+/// Returns a list of available subtitles.
+/// Returns an empty vector if no subtitles exist or on error.
+///
+/// # Notes
+///
+/// - The WBI-signed version (`/x/player/wbi/v2`) returns 412 Precondition Failed, so we use
+///   the non-WBI version (`/x/player/v2`) with Cookie authentication instead
+/// - Determines if subtitle is AI-generated via the `is_ai` field
 pub async fn fetch_subtitles(
     client: &Client,
     cookies: &[CookieEntry],
     bvid: &str,
     cid: i64,
 ) -> Vec<SubtitleDto> {
+    log::info!(
+        "[BE] fetch_subtitles: starting for bvid={}, cid={}",
+        bvid,
+        cid
+    );
+
     let cookie_header = build_cookie_header(cookies);
-    let mixin_key = match crate::utils::wbi::fetch_mixin_key(
-        client,
-        if cookie_header.is_empty() {
-            None
-        } else {
-            Some(&cookie_header)
-        },
-    )
-    .await
-    {
-        Ok(key) => key,
-        Err(_) => return Vec::new(),
-    };
+    log::debug!(
+        "[BE] fetch_subtitles: has_cookie={}",
+        !cookie_header.is_empty()
+    );
 
-    let mut params = BTreeMap::from([
-        ("bvid".to_string(), bvid.to_string()),
-        ("cid".to_string(), cid.to_string()),
-    ]);
-
-    let signature = crate::utils::wbi::generate_wbi_signature(&mut params, &mixin_key);
-
+    // Use /x/player/v2 (non-WBI version) with Cookie for authentication
+    // The WBI version (/x/player/wbi/v2) returns 412 Precondition Failed
     let response = match client
-        .get("https://api.bilibili.com/x/player/wbi/v2")
-        .header(header::COOKIE, build_cookie_header(cookies))
+        .get("https://api.bilibili.com/x/player/v2")
+        .header(header::COOKIE, &cookie_header)
         .header(header::REFERER, "https://www.bilibili.com")
-        .query(&[
-            ("bvid", bvid),
-            ("cid", &cid.to_string()),
-            ("w_rid", &signature.w_rid),
-            ("wts", &signature.wts),
-        ])
+        .query(&[("bvid", bvid), ("cid", &cid.to_string())])
         .send()
         .await
     {
         Ok(resp) => resp,
-        Err(_) => return Vec::new(),
+        Err(e) => {
+            log::error!("[BE] fetch_subtitles: HTTP request failed: {}", e);
+            return Vec::new();
+        }
     };
 
-    if !response.status().is_success() {
+    let status = response.status();
+    if !status.is_success() {
+        log::error!(
+            "[BE] fetch_subtitles: API returned non-success status: {}",
+            status
+        );
         return Vec::new();
     }
 
     let body: PlayerV2ApiResponse = match response.json().await {
         Ok(b) => b,
-        Err(_) => return Vec::new(),
+        Err(e) => {
+            log::error!("[BE] fetch_subtitles: failed to parse JSON response: {}", e);
+            return Vec::new();
+        }
     };
 
     if body.code != 0 {
+        log::error!(
+            "[BE] fetch_subtitles: API error code={}, message={:?}",
+            body.code,
+            body.message
+        );
         return Vec::new();
     }
 
@@ -1849,6 +2024,13 @@ pub async fn fetch_subtitles(
         .and_then(|d| d.subtitle)
         .and_then(|s| s.subtitles)
         .unwrap_or_default();
+
+    log::info!(
+        "[BE] fetch_subtitles: successfully retrieved {} subtitles for bvid={}, cid={}",
+        subtitles.len(),
+        bvid,
+        cid
+    );
 
     subtitles
         .into_iter()
@@ -1866,14 +2048,13 @@ pub async fn fetch_subtitles(
 
 /// Fetches available subtitles for a specific video part.
 ///
-/// Used for lazy-loading subtitles when the user opens the subtitle accordion
-/// in the UI.
+/// Used for lazy loading when user opens the subtitle accordion in the UI.
 ///
 /// # Arguments
 ///
-/// * `app` - Tauri application handle for accessing cookie cache
+/// * `app` - Tauri application handle for cookie cache access
 /// * `bvid` - Bilibili video ID (BV identifier)
-/// * `cid` - Content ID for the specific video part
+/// * `cid` - Content ID
 ///
 /// # Returns
 ///
@@ -1901,18 +2082,25 @@ pub async fn fetch_subtitles_for_part(
 
 /// Fetches available video and audio qualities for a specific part.
 ///
-/// Used for lazy-loading qualities when the part is rendered in the UI
+/// Used for lazy loading when parts are rendered in the UI
 /// (virtual scrolling optimization).
+///
+/// # Supported Formats
+///
+/// - **DASH format**: Returns both video and audio quality lists when streams are separated
+/// - **durl format**: Returns video quality only when audio is embedded, audio quality list is empty
 ///
 /// # Arguments
 ///
-/// * `app` - Tauri application handle for accessing cookie cache
+/// * `app` - Tauri application handle for cookie cache access
 /// * `bvid` - Bilibili video ID (BV identifier)
-/// * `cid` - Content ID for the specific video part
+/// * `cid` - Content ID
 ///
 /// # Returns
 ///
-/// Returns a tuple of (video_qualities, audio_qualities).
+/// Returns `(video_qualities, audio_qualities)` tuple:
+/// - `video_qualities` - List of available video qualities
+/// - `audio_qualities` - List of available audio qualities (empty for durl format)
 pub async fn fetch_part_qualities(
     app: &AppHandle,
     bvid: &str,
@@ -1947,15 +2135,8 @@ pub async fn fetch_part_qualities(
             .map(|f| Quality {
                 id: f.quality,
                 codecid: 0,
-                quality: if !f.new_description.is_empty() {
-                    f.new_description.clone()
-                } else if !f.display_desc.is_empty() {
-                    f.display_desc.clone()
-                } else if !f.description.is_empty() {
-                    f.description.clone()
-                } else {
-                    quality_to_string(&f.quality)
-                },
+                quality: first_non_empty(&[&f.new_description, &f.display_desc, &f.description])
+                    .unwrap_or_else(|| quality_to_string(&f.quality)),
             })
             .collect();
         // durl format has no separate audio stream
@@ -1967,22 +2148,30 @@ pub async fn fetch_part_qualities(
 
 /// Downloads a subtitle and saves it in SRT format.
 ///
-/// Fetches a BCC-format JSON subtitle from Bilibili, converts it to SRT format,
-/// and saves it to the specified output path.
+/// Fetches BCC format JSON subtitle from Bilibili, converts to SRT format,
+/// and saves to the specified path.
+///
+/// # Processing Flow
+///
+/// 1. Add "https:" prefix if URL starts with "//"
+/// 2. Download BCC format JSON via HTTP request
+/// 3. Parse JSON and convert to `BccSubtitle` struct
+/// 4. Convert BCC format to SRT format
+/// 5. Write to file
 ///
 /// # Arguments
 ///
-/// * `client` - HTTP client for making the request
-/// * `subtitle_url` - URL to the BCC subtitle JSON (may start with "//")
-/// * `output_path` - Path where the SRT file will be saved
+/// * `client` - HTTP client for requests
+/// * `subtitle_url` - BCC subtitle JSON URL (may start with "//")
+/// * `output_path` - Path to save the SRT file
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - The download fails
-/// - HTTP response is not successful
-/// - JSON parsing fails
-/// - File write fails
+/// Returns errors in the following cases:
+/// - Download failure
+/// - Non-success HTTP response
+/// - JSON parse failure
+/// - File write failure
 pub async fn download_subtitle(
     client: &Client,
     subtitle_url: &str,
@@ -2018,31 +2207,39 @@ pub async fn download_subtitle(
     Ok(())
 }
 
-/// Prepares the subtitle merge mode based on user options.
+/// Prepares subtitle merge mode based on user options.
 ///
-/// Downloads selected subtitles and returns the appropriate merge mode for ffmpeg.
-/// Converts BCC JSON subtitles to SRT format and stores them in temp files.
+/// Downloads selected subtitles and returns appropriate merge mode for ffmpeg.
+/// Converts BCC JSON subtitles to SRT format and saves them as temporary files.
+///
+/// # Processing Flow
+///
+/// 1. Returns `MergeMode::None` if subtitle option is "off" or no language selected
+/// 2. Fetches available subtitles from API
+/// 3. Filters subtitles by user-selected languages
+/// 4. Downloads selected subtitles in SRT format
+/// 5. Returns merge mode and language labels
 ///
 /// # Arguments
 ///
-/// * `subtitle_opts` - User's subtitle selection (mode and languages)
+/// * `subtitle_opts` - User's subtitle selection (mode and language codes)
 /// * `cookies` - Cookie entries for authentication
 /// * `bvid` - Bilibili video ID
-/// * `cid` - Content ID for the specific video part
-/// * `download_id` - Unique download identifier for temp file naming
-/// * `lib_path` - Directory for temp subtitle files
+/// * `cid` - Content ID
+/// * `download_id` - Unique identifier for temporary file naming
+/// * `lib_path` - Directory for temporary subtitle files
 ///
 /// # Returns
 ///
-/// Returns a tuple of (MergeMode, language_labels) where:
-/// - `MergeMode::None` if subtitles are disabled, no languages selected,
-///   or no matching subtitles found
-/// - `MergeMode::SoftSub` for soft-sub mode or `MergeMode::HardSub` for burn-in mode
-/// - `language_labels` contains the display names (lan_doc) of selected subtitles
+/// Returns `(MergeMode, language_labels)` tuple:
+/// - `MergeMode::None` - Subtitles disabled, not selected, or no matching subtitles
+/// - `MergeMode::SoftSub` - Soft subtitle mode (multiple languages supported)
+/// - `MergeMode::HardSub` - Hard subtitle mode (burn-in, single language only)
+/// - `language_labels` - List of display names (lan_doc) for selected subtitles
 ///
 /// # Errors
 ///
-/// Returns an error if HTTP client cannot be built.
+/// Returns error if HTTP client construction fails.
 async fn prepare_subtitle_mode(
     subtitle_opts: &Option<SubtitleOptions>,
     cookies: &[CookieEntry],
@@ -2112,22 +2309,6 @@ async fn prepare_subtitle_mode(
 // Bangumi Handlers
 // ============================================================================
 
-/// Fetches bangumi metadata from Bilibili.
-///
-/// Retrieves bangumi season info, episode list, and basic information.
-/// Quality options are fetched lazily via separate API calls.
-///
-/// # Arguments
-///
-/// * `app` - Tauri application handle for accessing cookie cache
-/// * `ep_id` - Bangumi episode ID (e.g., 3051843)
-///
-/// # Returns
-///
-/// Returns a `Video` struct with title, bvid, parts, and quality limitation flag.
-///
-/// # Errors
-///
 /// Fetches bangumi (anime/series) episode metadata from Bilibili.
 ///
 /// Retrieves comprehensive information for a bangumi episode including title,
@@ -2187,21 +2368,7 @@ pub async fn fetch_bangumi_info(app: &AppHandle, ep_id: i64) -> Result<Video, St
         .await
         .map_err(|e| format!("Failed to parse bangumi response: {}", e))?;
 
-    // Error handling for bangumi-specific codes
-    match body.code {
-        -101 => return Err("ERR::UNAUTHORIZED".into()),
-        -404 => return Err("ERR::BANGUMI_NOT_FOUND".into()),
-        -403 => return Err("ERR::BANGUMI_ACCESS_DENIED".into()),
-        -688 => return Err("ERR::BANGUMI_REGION_RESTRICTED".into()),
-        -689 => return Err("ERR::BANGUMI_COPYRIGHT_RESTRICTED".into()),
-        0 => {}
-        _ => {
-            return Err(format!(
-                "ERR::API_ERROR (code {}): {}",
-                body.code, body.message
-            ))
-        }
-    }
+    validate_bangumi_response(body.code, &body.message)?;
 
     let result = body
         .result
@@ -2293,17 +2460,27 @@ pub async fn fetch_bangumi_info(app: &AppHandle, ep_id: i64) -> Result<Video, St
 }
 
 /// Fetches bangumi player result for quality selection.
-/// Returns raw player result that can contain either DASH or durl format.
+///
+/// Returns raw player result containing either DASH or durl format.
+/// Used to determine download format for bangumi content.
 ///
 /// # Arguments
 ///
 /// * `cookies` - Cookie entries for authentication
 /// * `ep_id` - Bangumi episode ID
-/// * `cid` - Content ID for the specific video part
+/// * `cid` - Content ID
 ///
 /// # Returns
 ///
-/// Returns the raw player result containing either DASH or durl stream data.
+/// Returns raw player result containing DASH or durl stream data.
+///
+/// # Errors
+///
+/// Returns errors in the following cases:
+/// - Network request failure
+/// - Non-success HTTP status
+/// - API errors (`ERR::BANGUMI_NOT_FOUND`, `ERR::BANGUMI_ACCESS_DENIED`, etc.)
+/// - Neither DASH nor durl available (`ERR::BANGUMI_NO_DASH`)
 async fn fetch_bangumi_player_result(
     cookies: &[CookieEntry],
     ep_id: i64,
@@ -2332,17 +2509,7 @@ async fn fetch_bangumi_player_result(
         .await
         .map_err(|e| format!("Failed to parse bangumi playurl response: {}", e))?;
 
-    match body.code {
-        -101 => Err("ERR::UNAUTHORIZED".into()),
-        -403 => Err("ERR::BANGUMI_ACCESS_DENIED".into()),
-        -688 => Err("ERR::BANGUMI_REGION_RESTRICTED".into()),
-        -689 => Err("ERR::BANGUMI_COPYRIGHT_RESTRICTED".into()),
-        0 => Ok(()),
-        _ => Err(format!(
-            "ERR::API_ERROR (code {}): {}",
-            body.code, body.message
-        )),
-    }?;
+    validate_bangumi_response(body.code, &body.message)?;
 
     let result = body
         .result
@@ -2359,10 +2526,26 @@ async fn fetch_bangumi_player_result(
 }
 
 /// Fetches bangumi stream URLs for download (DASH format only).
-/// Returns XPlayerApiResponse for compatibility with existing download flow.
 ///
-/// Note: This function only supports DASH format. For durl format (MP4),
-/// the download_video function handles it separately.
+/// Returns `XPlayerApiResponse` for compatibility with existing download flow.
+/// This function only supports DASH format. For durl format (MP4),
+/// the `download_video` function handles it separately.
+///
+/// # Arguments
+///
+/// * `cookies` - Cookie entries for authentication
+/// * `ep_id` - Bangumi episode ID
+/// * `cid` - Content ID
+///
+/// # Returns
+///
+/// Returns `XPlayerApiResponse` containing DASH data.
+///
+/// # Errors
+///
+/// Returns errors in the following cases:
+/// - Failed to fetch player result
+/// - Only durl format available (`ERR::BANGUMI_DURL_NOT_SUPPORTED`)
 async fn fetch_bangumi_details_for_download(
     cookies: &[CookieEntry],
     ep_id: i64,
@@ -2389,17 +2572,6 @@ async fn fetch_bangumi_details_for_download(
     }
 }
 
-/// Fetches available video and audio qualities for a bangumi episode part.
-///
-/// # Arguments
-///
-/// * `app` - Tauri application handle for accessing cookie cache
-/// * `ep_id` - Bangumi episode ID
-/// * `cid` - Content ID for the specific video part
-///
-/// # Returns
-///
-/// Returns a tuple of (video_qualities, audio_qualities, is_preview).
 /// Fetches available video and audio qualities for a bangumi episode part.
 ///
 /// Used for lazy-loading quality options when a specific part is rendered
