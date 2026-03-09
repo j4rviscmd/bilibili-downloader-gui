@@ -1,6 +1,7 @@
 import type { RootState } from '@/app/store'
 import { store, useSelector } from '@/app/store'
 import { useInit } from '@/features/init'
+import { QRCodeLoginDialog } from '@/features/login'
 import type { Video } from '@/features/video'
 import {
   deselectAll,
@@ -75,13 +76,6 @@ type TooltipButtonProps = {
 /**
  * Button component that displays a tooltip when disabled.
  *
- * Shows a tooltip explaining why the button is disabled.
- *
- * @param props.label - Button label text
- * @param props.onClick - Click callback handler
- * @param props.disabled - Whether the button is disabled
- * @param props.tooltip - Tooltip text to display (optional)
- *
  * @private
  */
 function TooltipButton({
@@ -129,10 +123,6 @@ type PaginatedPartListProps = {
 
 /**
  * Generates pagination items with ellipsis for large page counts.
- *
- * @param totalPages - Total number of pages
- * @param currentPage - Current active page
- * @returns Array of page numbers and 'ellipsis' markers
  */
 function generatePaginationItems(
   totalPages: number,
@@ -146,10 +136,8 @@ function generatePaginationItems(
   for (let page = 1; page <= totalPages; page++) {
     const shouldShow =
       page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1
-
     if (!shouldShow) continue
 
-    // Add ellipsis if there's a gap
     const prevItem = items[items.length - 1]
     if (typeof prevItem === 'number' && page - prevItem > 1) {
       items.push('ellipsis')
@@ -159,20 +147,12 @@ function generatePaginationItems(
   return items
 }
 
-/**
- * Computes the className for pagination navigation buttons.
- *
- * @param isDisabled - Whether this button is at its boundary (first/last page)
- * @param hasActiveDownloads - Whether downloads are in progress
- * @returns CSS class string
- */
+/** Computes the className for pagination navigation buttons. */
 function getPaginationNavClassName(
   isDisabled: boolean,
   hasActiveDownloads: boolean,
 ): string {
-  if (isDisabled) {
-    return 'pointer-events-none opacity-50'
-  }
+  if (isDisabled) return 'pointer-events-none opacity-50'
   return hasActiveDownloads ? 'cursor-not-allowed' : 'cursor-pointer'
 }
 
@@ -181,12 +161,6 @@ function getPaginationNavClassName(
  *
  * Displays parts in pages of 10. Quality info is fetched lazily
  * when the user opens the options accordion for each part.
- *
- * @param props.video - Video information
- * @param props.duplicateIndices - Indices of parts with duplicate titles
- * @param props.isFetching - Whether video info is being fetched
- * @param props.currentPage - Current page number (1-indexed)
- * @param props.onPageChange - Callback when page changes
  *
  * @private
  */
@@ -393,15 +367,6 @@ function PaginatedPartList({
  * Uses VideoInfoContext to display video URL input form and part configuration cards.
  * This component must be rendered within a `VideoInfoProvider`.
  *
- * Features:
- * - Login benefits info (shown when not logged in)
- * - Video URL input (Step 1)
- * - Part selection and configuration (Step 2)
- * - Select all / Deselect all buttons (current page only)
- * - Download button
- * - Auto-fetch via autoFetch query parameter
- * - Pagination synced with ?p=N URL parameter
- *
  * @private
  */
 function HomeContentInner() {
@@ -412,6 +377,7 @@ function HomeContentInner() {
   const hasActiveDownloads = useSelector(selectHasActiveDownloads)
   const user = useSelector((state: RootState) => state.user)
   const isLoggedIn = user.hasCookie && user.data?.isLogin
+  const [isQrLoginDialogOpen, setIsQrLoginDialogOpen] = useState(false)
 
   // Page state management:
   // - `p` parameter: part number (for initial display and part selection)
@@ -658,6 +624,13 @@ function HomeContentInner() {
                   1: (
                     <button
                       type="button"
+                      onClick={() => setIsQrLoginDialogOpen(true)}
+                      className="inline cursor-pointer text-blue-600 underline hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                    />
+                  ),
+                  2: (
+                    <button
+                      type="button"
                       onClick={() => openUrl('https://www.bilibili.com')}
                       className="inline cursor-pointer text-blue-600 underline hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
                     />
@@ -670,6 +643,12 @@ function HomeContentInner() {
             </AlertDescription>
           </Alert>
         )}
+
+        {/* QR Code Login Dialog */}
+        <QRCodeLoginDialog
+          open={isQrLoginDialogOpen}
+          onOpenChange={setIsQrLoginDialogOpen}
+        />
 
         {/* Step 1: URL Input Card */}
         <Card>
@@ -761,22 +740,8 @@ function HomeContentInner() {
  * This is the content portion of the home page without the layout wrapper.
  * It should be rendered inside a PageLayoutShell or similar layout.
  *
- * Displays the primary UI for video downloads including:
- * - Video URL input form (Step 1)
- * - Video parts configuration forms (Step 2)
- * - Select all/deselect all buttons (current page only)
- * - Download button
- * - Download progress (inline in each part card)
- * - Pagination synced with ?p=N URL parameter
- *
  * Redirects to /init if the app is not initialized.
  * Supports autoFetch query parameter to automatically fetch video info.
- *
- * @example
- * ```tsx
- * // Inside PersistentPageLayout
- * <HomeContent />
- * ```
  */
 export function HomeContent() {
   const { initiated } = useInit()
