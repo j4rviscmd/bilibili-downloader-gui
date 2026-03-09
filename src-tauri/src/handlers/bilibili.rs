@@ -180,7 +180,23 @@ pub fn build_client() -> Result<Client, String> {
         .map_err(|e| format!("failed to build client: {e}"))
 }
 
-/// Validates a Bilibili API response. Returns an error if the response code is non-zero or data is None.
+/// Validates Bilibili API response and returns appropriate error codes.
+///
+/// Checks API response code and data presence, returning standardized error codes.
+/// Used by all API calls for consistent error handling.
+///
+/// # Arguments
+///
+/// * `code` - API response code (0 indicates success)
+/// * `data` - Optional reference to response data
+///
+/// # Returns
+///
+/// Returns `Ok(())` on successful validation.
+/// Returns `Err` with standardized error codes on failure:
+/// - `ERR::UNAUTHORIZED` (-101) - Authentication required
+/// - `ERR::VIDEO_NOT_FOUND` (-404) - Video not found
+/// - `ERR::API_ERROR` - Other API errors
 fn validate_api_response<T>(code: i64, data: Option<&T>) -> Result<(), String> {
     match code {
         -101 => Err("ERR::UNAUTHORIZED".into()),
@@ -191,12 +207,57 @@ fn validate_api_response<T>(code: i64, data: Option<&T>) -> Result<(), String> {
 }
 
 /// Checks HTTP response status and returns appropriate error codes.
-/// Returns `ERR::RATE_LIMITED` for HTTP 429, `ERR::API_ERROR` for other errors.
+///
+/// Validates HTTP status codes and returns standardized error codes.
+/// Returns `Ok(())` for success range (200-299), otherwise returns error.
+///
+/// # Arguments
+///
+/// * `status` - HTTP status code to check
+///
+/// # Returns
+///
+/// Returns `Ok(())` if status is in success range (200-299).
+/// Returns `Err` with error codes otherwise:
+/// - `ERR::RATE_LIMITED` - HTTP 429 (rate limit exceeded)
+/// - `ERR::API_ERROR` - Other errors
 fn check_http_status(status: reqwest::StatusCode) -> Result<(), String> {
     match status.as_u16() {
         200..=299 => Ok(()),
         429 => Err("ERR::RATE_LIMITED".into()),
         _ => Err("ERR::API_ERROR".into()),
+    }
+}
+
+/// バンガミ（アニメ/シリーズ）APIレスポンスを検証し、適切なエラーを返します。
+///
+/// バンガミ特有のエラーコードを標準化された形式に変換します。
+/// 地域制限や著作権制限など、バンガミ固有のエラーを適切にハンドリングします。
+///
+/// # 引数
+///
+/// * `code` - APIレスポンスコード
+/// * `message` - エラーメッセージ（ログ用）
+///
+/// # 戻り値
+///
+/// 検証成功時（code=0）は `Ok(())` を返します。
+/// 失敗時はバンガミ特有のエラーコードを含む `Err` を返します：
+/// - `ERR::UNAUTHORIZED` (-101) - 認証が必要
+/// - `ERR::BANGUMI_NOT_FOUND` (-404) - バンガミが見つからない
+/// - `ERR::BANGUMI_ACCESS_DENIED` (-403) - アクセス拒否
+/// - `ERR::BANGUMI_REGION_RESTRICTED` (-688) - 地域制限
+/// - `ERR::BANGUMI_COPYRIGHT_RESTRICTED` (-689) - 著作権制限
+/// - `ERR::API_ERROR` - その他のAPIエラー
+fn validate_bangumi_response(code: i64, message: &str) -> Result<(), String> {
+    match code {
+        -101 => Err("ERR::UNAUTHORIZED".into()),
+        -404 => Err("ERR::BANGUMI_NOT_FOUND".into()),
+        -403 => Err("ERR::BANGUMI_ACCESS_DENIED".into()),
+        -688 => Err("ERR::BANGUMI_REGION_RESTRICTED".into()),
+        -689 => Err("ERR::BANGUMI_COPYRIGHT_RESTRICTED".into()),
+        0 => Ok(()),
+        _ => Err(format!("ERR::API_ERROR (code {code}): {message}")),
     }
 }
 
@@ -231,11 +292,41 @@ fn extract_bangumi_ep_id(url: &str) -> Option<i64> {
     })
 }
 
-/// Downloads a bangumi episode using durl format (MP4 direct URL).
-/// This is used when DASH format is not available for bangumi content.
+/// durl形式（MP4直接URL）を使用してバンガミエピソードをダウンロードします。
 ///
-/// In durl format, audio is embedded in the video file, so no separate
-/// audio download or ffmpeg merge is needed.
+/// DASH形式が利用できないバンガミコンテンツ向けのダウンロード処理です。
+/// durl形式では音声が映像に埋め込まれているため、音声の分離やffmpegによるマージは不要です。
+///
+/// # 処理フロー
+///
+/// 1. キャンセルトークンを登録
+/// 2. 要求品質または最良品質のエントリを選択
+/// 3. フロントエンドに品質解決イベントを送信
+/// 4. ディスク容量を確認
+/// 5. リトライロジック付きで直接ダウンロード
+/// 6. ダウンロード履歴を保存（非同期）
+/// 7. キャンセルトークンを削除
+///
+/// # 引数
+///
+/// * `app` - Tauriアプリケーションハンドル
+/// * `options` - ダウンロードオプション（bvid, cid, 品質など）
+/// * `output_path` - 出力ファイルパス
+/// * `cookie_header` - 認証用クッキーヘッダー
+/// * `player_result` - バンガミプレイヤーAPIレスポンス
+///
+/// # 戻り値
+///
+/// 成功時は出力ファイルパスの文字列表現を返します。
+///
+/// # エラー
+///
+/// 以下の場合はエラーを返します：
+/// - `ERR::BANGUMI_NO_DASH` - durlデータが存在しない
+/// - `ERR::QUALITY_NOT_FOUND` - 要求品質が見つからない
+/// - `ERR::DISK_FULL` - ディスク容量不足
+/// - `ERR::NETWORK` - ネットワークエラー
+/// - `ERR::CANCELLED` - ユーザーによるキャンセル
 async fn download_bangumi_durl(
     app: &AppHandle,
     options: &DownloadOptions,
@@ -902,6 +993,30 @@ async fn save_to_history(
     Ok(())
 }
 
+/// スライス内の最初の空でない文字列を返します。すべてが空の場合は `None` を返します。
+///
+/// 複数の文字列候補から最初の有効な（空でない）文字列を選択する際に使用します。
+/// 主に品質表示名の選択などに利用されます。
+///
+/// # 引数
+///
+/// * `strings` - 検索対象の文字列スライス
+///
+/// # 戻り値
+///
+/// 最初の空でない文字列が見つかった場合は `Some(String)`、
+/// すべての文字列が空の場合は `None` を返します。
+///
+/// # 例
+///
+/// ```rust
+/// let options = vec![&"".to_string(), &"1080P".to_string(), &"720P".to_string()];
+/// assert_eq!(first_non_empty(&options), Some("1080P".to_string()));
+/// ```
+fn first_non_empty(strings: &[&String]) -> Option<String> {
+    strings.iter().find(|s| !s.is_empty()).map(|s| (*s).clone())
+}
+
 /// Converts a quality ID to a human-readable string representation.
 ///
 /// Maps Bilibili quality IDs to display names like "4K", "1080P60", "1080P", etc.
@@ -926,19 +1041,20 @@ fn quality_to_string(quality: &i32) -> String {
     }
 }
 
-/// Fetches video information for a history entry.
+/// 履歴エントリ用の動画情報を取得します。
 ///
-/// Used to retrieve video title and thumbnail when saving download history.
-/// Returns `None` on any failure (network error, API error, etc.).
+/// ダウンロード履歴を保存する際に、動画タイトルとサムネイルを取得するために使用されます。
+/// ネットワークエラーやAPIエラーなど、すべての失敗時に `None` を返します（エラー伝播なし）。
 ///
-/// # Arguments
+/// # 引数
 ///
-/// * `bvid` - Bilibili video ID
-/// * `cookies` - Cookie entries for authentication
+/// * `bvid` - Bilibili動画ID
+/// * `cookies` - 認証用クッキーエントリ
 ///
-/// # Returns
+/// # 戻り値
 ///
-/// Returns `Some((title, thumbnail_url))` on success, or `None` on failure.
+/// 成功時は `Some((title, thumbnail_url))` を返します。
+/// 失敗時は `None` を返します。
 async fn fetch_video_info_for_history(
     bvid: &str,
     cookies: &[CookieEntry],
@@ -962,7 +1078,24 @@ async fn fetch_video_info_for_history(
     Some((data.title, thumbnail_url))
 }
 
-/// Fetches logged-in user information from Bilibili. Returns a User with is_login=false if no cookies exist.
+/// Bilibiliからログインユーザー情報を取得します。
+///
+/// クッキーが存在しない場合、`is_login=false` のユーザー情報を返します。
+/// 認証状態の確認や、ログインユーザーの名前・ID取得に使用されます。
+///
+/// # 引数
+///
+/// * `app` - クッキーキャッシュアクセス用のTauriアプリケーションハンドル
+///
+/// # 戻り値
+///
+/// `User` 構造体を返します：
+/// - クッキーがある場合: APIから取得したユーザー情報
+/// - クッキーがない場合: `is_login=false`, `has_cookie=false` のデフォルト情報
+///
+/// # エラー
+///
+/// HTTPリクエストまたはJSONパース失敗時にエラーを返します。
 pub async fn fetch_user_info(app: &AppHandle) -> Result<User, String> {
     log::info!("[BE] fetch_user_info: checking login status");
 
@@ -1015,18 +1148,18 @@ pub async fn fetch_user_info(app: &AppHandle) -> Result<User, String> {
     })
 }
 
-/// Builds a Cookie header string from cookie entries.
+/// クッキーエントリからCookieヘッダー文字列を構築します。
 ///
-/// Filters cookies to only include those from bilibili.com domains
-/// and formats them as "name=value; name=value".
+/// bilibili.comドメインのクッキーのみをフィルタリングし、
+/// "name=value; name=value" 形式でフォーマットします。
 ///
-/// # Arguments
+/// # 引数
 ///
-/// * `cookies` - Slice of cookie entries to filter and format
+/// * `cookies` - フィルタリング・フォーマット対象のクッキーエントリのスライス
 ///
-/// # Returns
+/// # 戻り値
 ///
-/// Cookie header string (may be empty if no matching cookies).
+/// Cookieヘッダー文字列を返します（一致するクッキーがない場合は空文字列）。
 fn build_cookie_header(cookies: &[CookieEntry]) -> String {
     cookies
         .iter()
@@ -1036,22 +1169,22 @@ fn build_cookie_header(cookies: &[CookieEntry]) -> String {
         .join("; ")
 }
 
-/// Builds a Cookie header string from cached cookies.
+/// キャッシュされたクッキーからCookieヘッダー文字列を構築します。
 ///
-/// Reads cookies from the application's cookie cache and builds a header string.
-/// This function requires cookies to be present; returns an error if the cache is empty.
+/// アプリケーションのクッキーキャッシュからクッキーを読み取り、ヘッダー文字列を構築します。
+/// この関数はクッキーが存在することを前提としており、キャッシュが空の場合はエラーを返します。
 ///
-/// # Arguments
+/// # 引数
 ///
-/// * `app` - Tauri application handle for accessing cookie cache
+/// * `app` - クッキーキャッシュアクセス用のTauriアプリケーションハンドル
 ///
-/// # Returns
+/// # 戻り値
 ///
-/// Returns the cookie header string on success.
+/// 成功時はCookieヘッダー文字列を返します。
 ///
-/// # Errors
+/// # エラー
 ///
-/// Returns `ERR::COOKIE_MISSING` if no cookies are available in the cache.
+/// キャッシュにクッキーが利用可能でない場合、`ERR::COOKIE_MISSING` を返します。
 pub fn build_cookie_header_from_cache(app: &AppHandle) -> Result<String, String> {
     let cookies = read_cookie(app)?.unwrap_or_default();
     let header = build_cookie_header(&cookies);
@@ -1203,20 +1336,24 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
     })
 }
 
-/// Converts API video/audio quality data to frontend DTO format.
+/// APIの映像/音声音質データをフロントエンドDTO形式に変換します。
 ///
-/// Processes raw quality data from the Bilibili API:
-/// 1. Groups qualities by ID
-/// 2. Selects the highest codec ID for each quality level
-/// 3. Sorts in descending order (highest quality first)
+/// Bilibili APIから取得した生の音質データを処理し、フロントエンドで使用できる形式に変換します。
+/// 同じ品質IDを持つ複数のエントリがある場合、最も高いコーデックIDを持つものを選択します。
 ///
-/// # Arguments
+/// # 処理手順
 ///
-/// * `video` - Slice of quality data from XPlayer API response
+/// 1. 品質IDごとにエントリをグループ化
+/// 2. 各品質レベルで最も高いコーデックIDを選択
+/// 3. 降順（最高品質が先頭）にソート
 ///
-/// # Returns
+/// # 引数
 ///
-/// Vector of `Quality` structs sorted by quality (highest first).
+/// * `video` - XPlayer APIレスポンスからの音質データスライス
+///
+/// # 戻り値
+///
+/// 品質順（最高品質が先頭）にソートされた `Quality` 構造体のベクターを返します。
 fn convert_qualities(video: &[XPlayerApiResponseVideo]) -> Vec<Quality> {
     let mut qualities: BTreeMap<i32, &XPlayerApiResponseVideo> = BTreeMap::new();
 
@@ -1242,27 +1379,27 @@ fn convert_qualities(video: &[XPlayerApiResponseVideo]) -> Vec<Quality> {
         .collect()
 }
 
-/// Fetches video title and page information from the Bilibili Web Interface API.
+/// Bilibili Web Interface APIから動画タイトルとページ情報を取得します。
 ///
-/// Retrieves basic video metadata including title, thumbnail, and page list.
-/// This is the first API call when fetching video info.
+/// タイトル、サムネイル、ページリストなど、基本的な動画メタデータを取得します。
+/// 動画情報を取得する際の最初のAPI呼び出しとして使用されます。
 ///
-/// # Arguments
+/// # 引数
 ///
-/// * `bvid` - Bilibili video ID (BV identifier)
-/// * `cookies` - Cookie entries for authentication (optional but recommended)
+/// * `bvid` - Bilibili動画ID（BV識別子）
+/// * `cookies` - 認証用クッキーエントリ（推奨だがオプション）
 ///
-/// # Returns
+/// # 戻り値
 ///
-/// Returns the raw API response containing video data.
+/// 動画データを含む生のAPIレスポンスを返します。
 ///
-/// # Errors
+/// # エラー
 ///
-/// Returns an error if:
-/// - Network request fails
-/// - HTTP status is not successful
-/// - API returns non-zero code
-/// - Video is not found (`ERR::VIDEO_NOT_FOUND`)
+/// 以下の場合はエラーを返します：
+/// - ネットワークリクエスト失敗
+/// - HTTPステータスが成功でない
+/// - APIが非ゼロコードを返す
+/// - 動画が見つからない（`ERR::VIDEO_NOT_FOUND`）
 async fn fetch_video_title_by_bvid(
     bvid: &str,
     cookies: &[CookieEntry],
@@ -1371,20 +1508,20 @@ async fn fetch_video_details(
     Ok(body)
 }
 
-/// Automatically renames a file if it already exists.
+/// ファイルが既に存在する場合、自動的にリネームします。
 ///
-/// Generates a unique filename by appending a counter (e.g., "filename (1).mp4")
-/// if the original path exists. Searches up to 10,000 variations before
-/// falling back to a timestamp-based name.
+/// 元のパスが存在する場合、カウンターを付加（例: "filename (1).mp4"）して
+/// 一意のファイル名を生成します。最大10,000件のバリエーションを検索し、
+/// それでも重複する場合はタイムスタンプベースの名前にフォールバックします。
 ///
-/// # Arguments
+/// # 引数
 ///
-/// * `path` - Original file path to check
+/// * `path` - チェック対象の元のファイルパス
 ///
-/// # Returns
+/// # 戻り値
 ///
-/// Returns the original path if it doesn't exist, or a renamed path
-/// with an appended counter (e.g., "file (1).mp4").
+/// パスが存在しない場合は元のパスを返します。
+/// 存在する場合は、カウンター付加のリネーム済みパス（例: "file (1).mp4"）を返します。
 fn auto_rename(path: &Path) -> PathBuf {
     if !path.exists() {
         return path.to_path_buf();
@@ -1410,26 +1547,26 @@ fn auto_rename(path: &Path) -> PathBuf {
     parent.join(fallback_name)
 }
 
-/// Builds the complete output path for a download file.
+/// ダウンロードファイルの完全な出力パスを構築します。
 ///
-/// Combines the user's configured download directory with the filename.
-/// Automatically appends `.mp4` extension if not already present.
-/// Applies title replacement rules from settings to sanitize the filename.
+/// ユーザーが設定したダウンロードディレクトリとファイル名を結合します。
+/// まだ存在しない場合は自動的に `.mp4` 拡張子を付加します。
+/// 設定からタイトル置換ルールを適用してファイル名をサニタイズします。
 ///
-/// # Arguments
+/// # 引数
 ///
-/// * `app` - Tauri application handle for accessing settings
-/// * `filename` - Desired output filename (with or without extension)
+/// * `app` - 設定アクセス用のTauriアプリケーションハンドル
+/// * `filename` - 希望する出力ファイル名（拡張子の有無は問わない）
 ///
-/// # Returns
+/// # 戻り値
 ///
-/// Returns the full output path on success.
+/// 完全な出力パスを返します。
 ///
-/// # Errors
+/// # エラー
 ///
-/// Returns an error if:
-/// - Settings cannot be retrieved
-/// - Download output path is not configured
+/// 以下の場合はエラーを返します：
+/// - 設定を取得できない
+/// - ダウンロード出力パスが設定されていない
 async fn build_output_path(app: &AppHandle, filename: &str) -> Result<PathBuf, String> {
     let settings = settings::get_settings(app)
         .await
@@ -1447,19 +1584,20 @@ async fn build_output_path(app: &AppHandle, filename: &str) -> Result<PathBuf, S
     Ok(PathBuf::from(&output_path).join(filename_with_ext))
 }
 
-/// Gets the Content-Length of a resource via HEAD request.
+/// HEADリクエストでリソースのContent-Lengthを取得します。
 ///
-/// Used to estimate file size before download for disk space validation.
-/// Returns `None` on any failure (network error, missing header, etc.).
+/// ダウンロード前のディスク容量検証のためにファイルサイズを見積もるために使用されます。
+/// 任意の失敗（ネットワークエラー、ヘッダー欠落など）時に `None` を返します。
 ///
-/// # Arguments
+/// # 引数
 ///
-/// * `url` - URL to check
-/// * `cookie` - Optional cookie header for authentication
+/// * `url` - チェック対象のURL
+/// * `cookie` - 認証用のオプショナルなクッキーヘッダー
 ///
-/// # Returns
+/// # 戻り値
 ///
-/// Returns `Some(content_length)` on success, or `None` on failure.
+/// 成功時は `Some(content_length)` を返します。
+/// 失敗時は `None` を返します。
 async fn head_content_length(url: &str, cookie: Option<&str>) -> Option<u64> {
     let client = build_client().ok()?;
     let mut req = client.head(url);
@@ -1484,23 +1622,23 @@ async fn head_content_length(url: &str, cookie: Option<&str>) -> Option<u64> {
         .ok()
 }
 
-/// Ensures sufficient disk space is available for download.
+/// ダウンロードに十分なディスク容量があることを確認します。
 ///
-/// Checks available disk space at the target location using `statvfs`.
-/// Currently only implemented for Unix-like systems; no-op on other platforms.
+/// `statvfs` を使用してターゲットロケーションの利用可能なディスク容量を確認します。
+/// 現在はUnix系システムのみ実装されています。その他のプラットフォームでは何もしません。
 ///
-/// # Arguments
+/// # 引数
 ///
-/// * `target_path` - Path where file will be saved (checks parent directory)
-/// * `needed_bytes` - Required disk space in bytes
+/// * `target_path` - ファイルが保存されるパス（親ディレクトリを確認）
+/// * `needed_bytes` - 必要なディスク容量（バイト単位）
 ///
-/// # Returns
+/// # 戻り値
 ///
-/// Returns `Ok(())` if sufficient space is available or on non-Unix systems.
+/// 十分な容量がある場合、または非Unixシステムの場合は `Ok(())` を返します。
 ///
-/// # Errors
+/// # エラー
 ///
-/// Returns `ERR::DISK_FULL` if available space is less than required.
+/// 利用可能な容量が必要量より少ない場合、`ERR::DISK_FULL` を返します。
 fn ensure_free_space(target_path: &Path, needed_bytes: u64) -> Result<(), String> {
     #[cfg(target_family = "unix")]
     {
@@ -1520,8 +1658,7 @@ fn ensure_free_space(target_path: &Path, needed_bytes: u64) -> Result<(), String
                 return Ok(());
             }
             let stat = stat.assume_init();
-            #[allow(clippy::unnecessary_cast)]
-            #[allow(clippy::useless_conversion)]
+            #[allow(clippy::unnecessary_cast, clippy::useless_conversion)]
             let free_bytes = u64::from(stat.f_bavail) * stat.f_frsize;
             if free_bytes < needed_bytes {
                 return Err("ERR::DISK_FULL".into());
@@ -1532,27 +1669,39 @@ fn ensure_free_space(target_path: &Path, needed_bytes: u64) -> Result<(), String
     Ok(())
 }
 
-/// Retries a download operation up to 3 times with linear backoff.
+/// ダウンロード操作を最大3回までリトライします（線形バックオフ付き）。
 ///
-/// Implements retry logic for transient network failures:
-/// - Maximum 3 attempts
-/// - Linear backoff: 500ms, 1000ms, 1500ms
-/// - Only retries on specific keywords: "segment", "request error", "timeout", "connect"
+/// 一時的なネットワーク障害に対するリトライロジックを実装します。
+/// 特定のエラーキーワードを含む場合のみリトライを行い、それ以外は即座に失敗します。
 ///
-/// # Arguments
+/// # リトライ条件
 ///
-/// * `f` - Async closure that performs the download operation
+/// 以下のキーワードを含むエラーの場合のみリトライします：
+/// - "segment" - セグメントダウンロードエラー
+/// - "request error" - リクエストエラー
+/// - "timeout" - タイムアウト
+/// - "connect" - 接続エラー
 ///
-/// # Returns
+/// # リトライ設定
 ///
-/// Returns `Ok(())` on successful download.
+/// - 最大試行回数: 3回
+/// - バックオフ戦略: 線形（500ms, 1000ms, 1500ms）
+/// - `ERR::` プレフィックスを含むエラーはそのまま通過（リトライなし）
 ///
-/// # Errors
+/// # 引数
 ///
-/// Returns an error if:
-/// - All retry attempts fail
-/// - Error is not retryable (doesn't match keywords)
-/// - Error contains `ERR::` prefix (passed through as-is)
+/// * `f` - ダウンロード操作を実行する非同期クロージャ
+///
+/// # 戻り値
+///
+/// ダウンロード成功時は `Ok(())` を返します。
+///
+/// # エラー
+///
+/// 以下の場合はエラーを返します：
+/// - すべてのリトライ試行が失敗した場合
+/// - エラーがリトライ可能でない場合（キーワード不一致）
+/// - エラーに `ERR::` プレフィックスが含まれる場合
 async fn retry_download<F, Fut>(mut f: F) -> Result<(), String>
 where
     F: FnMut() -> Fut,
@@ -1584,28 +1733,33 @@ where
     unreachable!()
 }
 
-/// Selects a stream URL from a quality list.
+/// 品質リストからストリームURLを選択します。
 ///
-/// Searches for a stream matching the requested quality ID.
-/// Selects a stream URL from a list of available qualities with fallback.
+/// 要求された品質IDに一致するストリームを検索します。見つからない場合は、
+/// 利用可能な最良品質（先頭項目）にフォールバックします。
 ///
-/// Attempts to find the requested quality in the list. If not found, falls back
-/// to the highest quality (first item) which represents the best available quality.
+/// # 動作詳細
 ///
-/// # Arguments
+/// - 要求された品質IDがリスト内に存在する場合、そのストリームを返します
+/// - 要求された品質が見つからない場合、最良品質（先頭）にフォールバックします
+/// - `-1` を指定した場合は常に最良品質が選択されます
+/// - バックアップURLも同時に返されます
 ///
-/// * `items` - Slice of available video/audio streams with quality information
-/// * `quality` - Requested quality ID (use -1 for best available)
+/// # 引数
 ///
-/// # Returns
+/// * `items` - 利用可能な映像/音声ストリームのスライス
+/// * `quality` - 要求された品質ID（最良品質の場合は `-1`）
 ///
-/// Returns a tuple of (primary_url, backup_urls, is_fallback) on success.
-/// `is_fallback` is true if the requested quality was not found and
-/// the first available quality was used instead.
+/// # 戻り値
 ///
-/// # Errors
+/// 成功時は `(primary_url, backup_urls, is_fallback)` のタプルを返します：
+/// - `primary_url` - メインのストリームURL
+/// - `backup_urls` - バックアップURLのリスト（存在する場合）
+/// - `is_fallback` - フォールバックが発生した場合は `true`
 ///
-/// Returns `ERR::QUALITY_NOT_FOUND` if the quality list is empty.
+/// # エラー
+///
+/// 品質リストが空の場合、`ERR::QUALITY_NOT_FOUND` を返します。
 fn select_stream_url(
     items: &[crate::models::bilibili_api::XPlayerApiResponseVideo],
     quality: i32,
@@ -1622,11 +1776,6 @@ fn select_stream_url(
         .ok_or_else(|| "ERR::QUALITY_NOT_FOUND".into())
 }
 
-/// Response structure for the watch history API.
-///
-/// Contains a list of history entries and pagination cursor.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
 /// Response from Bilibili watch history API.
 ///
 /// Contains paginated watch history entries with a cursor for fetching
@@ -1636,43 +1785,48 @@ fn select_stream_url(
 ///
 /// * `entries` - List of watch history entries with video metadata
 /// * `cursor` - Pagination cursor for the next page request
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WatchHistoryResponse {
     pub entries: Vec<WatchHistoryEntry>,
     pub cursor: WatchHistoryCursor,
 }
 
-/// Fetches watch history from Bilibili with pagination support.
+/// Bilibiliから視聴履歴を取得します（ページネーション対応）。
 ///
-/// Retrieves the user's viewing history from Bilibili's API using cursor-based
-/// pagination. Requires valid authentication cookies.
+/// カーソルベースのページネーションを使用して、Bilibili APIからユーザーの視聴履歴を取得します。
+/// 有効な認証クッキーが必要です。
 ///
-/// # Arguments
+/// # ページネーション
 ///
-/// * `app` - Tauri application handle for accessing cookie cache
-/// * `max` - Maximum number of entries to fetch (0 for default, typically 20)
-/// * `view_at` - Timestamp cursor for pagination (0 for first page)
+/// カーソルベースのページネーションを使用します：
+/// - 初回リクエスト: `max=0`, `view_at=0`
+/// - 2回目以降: 前回のレスポンスの `cursor.max`, `cursor.view_at` を使用
 ///
-/// # Returns
-///
-/// Returns a `WatchHistoryResponse` containing:
-/// - `entries`: List of watch history entries with video metadata
-/// - `cursor`: Pagination cursor for fetching more entries
-///
-/// # Errors
-///
-/// Returns an error if:
-/// - Cookies are unavailable (`ERR::COOKIE_MISSING`)
-/// - User is not logged in (`ERR::UNAUTHORIZED`)
-/// - HTTP request fails
-/// - Response parsing fails
-///
-/// # Pagination
-///
-/// Use the `cursor` from the response to fetch the next page:
 /// ```rust
 /// let first_page = fetch_watch_history(app, 0, 0).await?;
 /// let next_page = fetch_watch_history(app, first_page.cursor.max, first_page.cursor.view_at).await?;
 /// ```
+///
+/// # 引数
+///
+/// * `app` - クッキーキャッシュアクセス用のTauriアプリケーションハンドル
+/// * `max` - 取得するエントリの最大数（0の場合はデフォルト、通常20）
+/// * `view_at` - ページネーション用のタイムスタンプカーソル（0の場合は先頭ページ）
+///
+/// # 戻り値
+///
+/// `WatchHistoryResponse` を返します：
+/// - `entries`: 動画メタデータを含む視聴履歴エントリのリスト
+/// - `cursor`: 次のページ取得用のページネーションカーソル
+///
+/// # エラー
+///
+/// 以下の場合はエラーを返します：
+/// - クッキーが利用不可能（`ERR::COOKIE_MISSING`）
+/// - ユーザーがログインしていない（`ERR::UNAUTHORIZED`）
+/// - HTTPリクエスト失敗
+/// - レスポンスパース失敗
 pub async fn fetch_watch_history(
     app: &AppHandle,
     max: i32,
@@ -1782,65 +1936,86 @@ pub async fn fetch_watch_history(
     Ok(WatchHistoryResponse { entries, cursor })
 }
 
-/// Fetches available subtitles for a video part from the Player v2 API.
+/// Player v2 APIから動画パートの利用可能な字幕を取得します。
 ///
-/// Uses WBI signature for authentication.
-/// Returns an empty vector if no subtitles are available or on error.
+/// Bilibili Player v2 APIを使用して字幕情報を取得します。
+/// エラー時や字幕が利用可能でない場合は空のベクターを返します（エラーを伝播しません）。
+///
+/// # 引数
+///
+/// * `client` - HTTPクライアント
+/// * `cookies` - 認証用クッキーエントリ
+/// * `bvid` - Bilibili動画ID
+/// * `cid` - コンテンツID
+///
+/// # 戻り値
+///
+/// 利用可能な字幕のリストを返します。
+/// 字幕が存在しない場合やエラー時は空のベクターを返します。
+///
+/// # 注意点
+///
+/// - WBI署名バージョン（`/x/player/wbi/v2`）は 412 Precondition Failed を返すため、
+///   Cookie認証を使用する非WBIバージョン（`/x/player/v2`）を使用します
+/// - AI生成字幕かどうかを `is_ai` フィールドで判定します
 pub async fn fetch_subtitles(
     client: &Client,
     cookies: &[CookieEntry],
     bvid: &str,
     cid: i64,
 ) -> Vec<SubtitleDto> {
+    log::info!(
+        "[BE] fetch_subtitles: starting for bvid={}, cid={}",
+        bvid,
+        cid
+    );
+
     let cookie_header = build_cookie_header(cookies);
-    let mixin_key = match crate::utils::wbi::fetch_mixin_key(
-        client,
-        if cookie_header.is_empty() {
-            None
-        } else {
-            Some(&cookie_header)
-        },
-    )
-    .await
-    {
-        Ok(key) => key,
-        Err(_) => return Vec::new(),
-    };
+    log::debug!(
+        "[BE] fetch_subtitles: has_cookie={}",
+        !cookie_header.is_empty()
+    );
 
-    let mut params = BTreeMap::from([
-        ("bvid".to_string(), bvid.to_string()),
-        ("cid".to_string(), cid.to_string()),
-    ]);
-
-    let signature = crate::utils::wbi::generate_wbi_signature(&mut params, &mixin_key);
-
+    // Use /x/player/v2 (non-WBI version) with Cookie for authentication
+    // The WBI version (/x/player/wbi/v2) returns 412 Precondition Failed
     let response = match client
-        .get("https://api.bilibili.com/x/player/wbi/v2")
-        .header(header::COOKIE, build_cookie_header(cookies))
+        .get("https://api.bilibili.com/x/player/v2")
+        .header(header::COOKIE, &cookie_header)
         .header(header::REFERER, "https://www.bilibili.com")
-        .query(&[
-            ("bvid", bvid),
-            ("cid", &cid.to_string()),
-            ("w_rid", &signature.w_rid),
-            ("wts", &signature.wts),
-        ])
+        .query(&[("bvid", bvid), ("cid", &cid.to_string())])
         .send()
         .await
     {
         Ok(resp) => resp,
-        Err(_) => return Vec::new(),
+        Err(e) => {
+            log::error!("[BE] fetch_subtitles: HTTP request failed: {}", e);
+            return Vec::new();
+        }
     };
 
-    if !response.status().is_success() {
+    let status = response.status();
+    if !status.is_success() {
+        log::error!(
+            "[BE] fetch_subtitles: API returned non-success status: {}",
+            status
+        );
         return Vec::new();
     }
 
     let body: PlayerV2ApiResponse = match response.json().await {
         Ok(b) => b,
-        Err(_) => return Vec::new(),
+        Err(e) => {
+            log::error!("[BE] fetch_subtitles: failed to parse JSON response: {}", e);
+            return Vec::new();
+        }
     };
 
     if body.code != 0 {
+        log::error!(
+            "[BE] fetch_subtitles: API error code={}, message={:?}",
+            body.code,
+            body.message
+        );
         return Vec::new();
     }
 
@@ -1849,6 +2024,13 @@ pub async fn fetch_subtitles(
         .and_then(|d| d.subtitle)
         .and_then(|s| s.subtitles)
         .unwrap_or_default();
+
+    log::info!(
+        "[BE] fetch_subtitles: successfully retrieved {} subtitles for bvid={}, cid={}",
+        subtitles.len(),
+        bvid,
+        cid
+    );
 
     subtitles
         .into_iter()
@@ -1864,21 +2046,20 @@ pub async fn fetch_subtitles(
         .collect()
 }
 
-/// Fetches available subtitles for a specific video part.
+/// 特定動画パートの利用可能な字幕を取得します。
 ///
-/// Used for lazy-loading subtitles when the user opens the subtitle accordion
-/// in the UI.
+/// ユーザーがUIで字幕アコーディオンを開いた際の遅延ロード用に使用されます。
 ///
-/// # Arguments
+/// # 引数
 ///
-/// * `app` - Tauri application handle for accessing cookie cache
-/// * `bvid` - Bilibili video ID (BV identifier)
-/// * `cid` - Content ID for the specific video part
+/// * `app` - クッキーキャッシュアクセス用のTauriアプリケーションハンドル
+/// * `bvid` - Bilibili動画ID（BV識別子）
+/// * `cid` - コンテンツID
 ///
-/// # Returns
+/// # 戻り値
 ///
-/// Returns a list of available subtitles with language info and URLs.
-/// Returns an empty vector if no subtitles are available or on error.
+/// 言語情報とURLを含む利用可能な字幕のリストを返します。
+/// 字幕が利用可能でない場合やエラー時は空のベクターを返します。
 pub async fn fetch_subtitles_for_part(
     app: &AppHandle,
     bvid: &str,
@@ -1899,20 +2080,27 @@ pub async fn fetch_subtitles_for_part(
     Ok(subtitles)
 }
 
-/// Fetches available video and audio qualities for a specific part.
+/// 特定パートの利用可能な映像・音声音質を取得します。
 ///
-/// Used for lazy-loading qualities when the part is rendered in the UI
-/// (virtual scrolling optimization).
+/// パートがUIでレンダリングされる際の遅延ロード用に使用されます
+///（仮想スクロール最適化）。
 ///
-/// # Arguments
+/// # 対応フォーマット
 ///
-/// * `app` - Tauri application handle for accessing cookie cache
-/// * `bvid` - Bilibili video ID (BV identifier)
-/// * `cid` - Content ID for the specific video part
+/// - **DASH形式**: 映像と音声が分離されている場合、両方の品質リストを返します
+/// - **durl形式**: 音声が映像に埋め込まれている場合、映像品質のみを返し、音声品質は空リストを返します
 ///
-/// # Returns
+/// # 引数
 ///
-/// Returns a tuple of (video_qualities, audio_qualities).
+/// * `app` - クッキーキャッシュアクセス用のTauriアプリケーションハンドル
+/// * `bvid` - Bilibili動画ID（BV識別子）
+/// * `cid` - コンテンツID
+///
+/// # 戻り値
+///
+/// `(video_qualities, audio_qualities)` タプルを返します：
+/// - `video_qualities` - 利用可能な映像品質のリスト
+/// - `audio_qualities` - 利用可能な音声品質のリスト（durl形式の場合は空）
 pub async fn fetch_part_qualities(
     app: &AppHandle,
     bvid: &str,
@@ -1947,15 +2135,8 @@ pub async fn fetch_part_qualities(
             .map(|f| Quality {
                 id: f.quality,
                 codecid: 0,
-                quality: if !f.new_description.is_empty() {
-                    f.new_description.clone()
-                } else if !f.display_desc.is_empty() {
-                    f.display_desc.clone()
-                } else if !f.description.is_empty() {
-                    f.description.clone()
-                } else {
-                    quality_to_string(&f.quality)
-                },
+                quality: first_non_empty(&[&f.new_description, &f.display_desc, &f.description])
+                    .unwrap_or_else(|| quality_to_string(&f.quality)),
             })
             .collect();
         // durl format has no separate audio stream
@@ -1965,24 +2146,31 @@ pub async fn fetch_part_qualities(
     Err("ERR::NO_STREAM".to_string())
 }
 
-/// Downloads a subtitle and saves it in SRT format.
+/// 字幕をダウンロードしてSRT形式で保存します。
 ///
-/// Fetches a BCC-format JSON subtitle from Bilibili, converts it to SRT format,
-/// and saves it to the specified output path.
+/// BilibiliからBCC形式のJSON字幕を取得し、SRT形式に変換して指定されたパスに保存します。
 ///
-/// # Arguments
+/// # 処理フロー
 ///
-/// * `client` - HTTP client for making the request
-/// * `subtitle_url` - URL to the BCC subtitle JSON (may start with "//")
-/// * `output_path` - Path where the SRT file will be saved
+/// 1. URLが "//" で始まる場合は "https:" プレフィックスを追加
+/// 2. HTTPリクエストでBCC形式のJSONをダウンロード
+/// 3. JSONをパースして `BccSubtitle` 構造体に変換
+/// 4. BCC形式をSRT形式に変換
+/// 5. ファイルに書き込み
 ///
-/// # Errors
+/// # 引数
 ///
-/// Returns an error if:
-/// - The download fails
-/// - HTTP response is not successful
-/// - JSON parsing fails
-/// - File write fails
+/// * `client` - HTTPリクエスト用クライアント
+/// * `subtitle_url` - BCC字幕JSONのURL（"//" で始まる場合あり）
+/// * `output_path` - SRTファイルの保存先パス
+///
+/// # エラー
+///
+/// 以下の場合はエラーを返します：
+/// - ダウンロード失敗
+/// - HTTPレスポンスが成功でない
+/// - JSONパース失敗
+/// - ファイル書き込み失敗
 pub async fn download_subtitle(
     client: &Client,
     subtitle_url: &str,
@@ -2018,31 +2206,39 @@ pub async fn download_subtitle(
     Ok(())
 }
 
-/// Prepares the subtitle merge mode based on user options.
+/// ユーザーオプションに基づいて字幕マージモードを準備します。
 ///
-/// Downloads selected subtitles and returns the appropriate merge mode for ffmpeg.
-/// Converts BCC JSON subtitles to SRT format and stores them in temp files.
+/// 選択された字幕をダウンロードし、ffmpeg用の適切なマージモードを返します。
+/// BCC形式のJSON字幕をSRT形式に変換し、一時ファイルとして保存します。
 ///
-/// # Arguments
+/// # 処理フロー
 ///
-/// * `subtitle_opts` - User's subtitle selection (mode and languages)
-/// * `cookies` - Cookie entries for authentication
-/// * `bvid` - Bilibili video ID
-/// * `cid` - Content ID for the specific video part
-/// * `download_id` - Unique download identifier for temp file naming
-/// * `lib_path` - Directory for temp subtitle files
+/// 1. 字幕オプションが "off" または言語が未選択の場合は `MergeMode::None` を返す
+/// 2. 利用可能な字幕をAPIから取得
+/// 3. ユーザーが選択した言語の字幕をフィルタリング
+/// 4. 選択された字幕をSRT形式でダウンロード
+/// 5. マージモードと言語ラベルを返す
 ///
-/// # Returns
+/// # 引数
 ///
-/// Returns a tuple of (MergeMode, language_labels) where:
-/// - `MergeMode::None` if subtitles are disabled, no languages selected,
-///   or no matching subtitles found
-/// - `MergeMode::SoftSub` for soft-sub mode or `MergeMode::HardSub` for burn-in mode
-/// - `language_labels` contains the display names (lan_doc) of selected subtitles
+/// * `subtitle_opts` - ユーザーの字幕選択（モードと言語コード）
+/// * `cookies` - 認証用クッキーエントリ
+/// * `bvid` - Bilibili動画ID
+/// * `cid` - コンテンツID
+/// * `download_id` - 一時ファイル名用の一意識別子
+/// * `lib_path` - 一時字幕ファイル用ディレクトリ
 ///
-/// # Errors
+/// # 戻り値
 ///
-/// Returns an error if HTTP client cannot be built.
+/// `(MergeMode, language_labels)` タプルを返します：
+/// - `MergeMode::None` - 字幕無効、未選択、または一致する字幕なし
+/// - `MergeMode::SoftSub` - ソフト字幕モード（複数言語対応）
+/// - `MergeMode::HardSub` - ハード字幕モード（焼き込み、単一言語のみ）
+/// - `language_labels` - 選択された字幕の表示名（lan_doc）のリスト
+///
+/// # エラー
+///
+/// HTTPクライアントの構築に失敗した場合にエラーを返します。
 async fn prepare_subtitle_mode(
     subtitle_opts: &Option<SubtitleOptions>,
     cookies: &[CookieEntry],
@@ -2112,22 +2308,6 @@ async fn prepare_subtitle_mode(
 // Bangumi Handlers
 // ============================================================================
 
-/// Fetches bangumi metadata from Bilibili.
-///
-/// Retrieves bangumi season info, episode list, and basic information.
-/// Quality options are fetched lazily via separate API calls.
-///
-/// # Arguments
-///
-/// * `app` - Tauri application handle for accessing cookie cache
-/// * `ep_id` - Bangumi episode ID (e.g., 3051843)
-///
-/// # Returns
-///
-/// Returns a `Video` struct with title, bvid, parts, and quality limitation flag.
-///
-/// # Errors
-///
 /// Fetches bangumi (anime/series) episode metadata from Bilibili.
 ///
 /// Retrieves comprehensive information for a bangumi episode including title,
@@ -2187,21 +2367,7 @@ pub async fn fetch_bangumi_info(app: &AppHandle, ep_id: i64) -> Result<Video, St
         .await
         .map_err(|e| format!("Failed to parse bangumi response: {}", e))?;
 
-    // Error handling for bangumi-specific codes
-    match body.code {
-        -101 => return Err("ERR::UNAUTHORIZED".into()),
-        -404 => return Err("ERR::BANGUMI_NOT_FOUND".into()),
-        -403 => return Err("ERR::BANGUMI_ACCESS_DENIED".into()),
-        -688 => return Err("ERR::BANGUMI_REGION_RESTRICTED".into()),
-        -689 => return Err("ERR::BANGUMI_COPYRIGHT_RESTRICTED".into()),
-        0 => {}
-        _ => {
-            return Err(format!(
-                "ERR::API_ERROR (code {}): {}",
-                body.code, body.message
-            ))
-        }
-    }
+    validate_bangumi_response(body.code, &body.message)?;
 
     let result = body
         .result
@@ -2292,18 +2458,28 @@ pub async fn fetch_bangumi_info(app: &AppHandle, ep_id: i64) -> Result<Video, St
     })
 }
 
-/// Fetches bangumi player result for quality selection.
-/// Returns raw player result that can contain either DASH or durl format.
+/// 品質選択用のバンガミプレイヤー結果を取得します。
 ///
-/// # Arguments
+/// DASH形式またはdurl形式のいずれかを含む生のプレイヤー結果を返します。
+/// バンガミコンテンツのダウンロード形式判定に使用されます。
 ///
-/// * `cookies` - Cookie entries for authentication
-/// * `ep_id` - Bangumi episode ID
-/// * `cid` - Content ID for the specific video part
+/// # 引数
 ///
-/// # Returns
+/// * `cookies` - 認証用クッキーエントリ
+/// * `ep_id` - バンガミエピソードID
+/// * `cid` - コンテンツID
 ///
-/// Returns the raw player result containing either DASH or durl stream data.
+/// # 戻り値
+///
+/// DASHまたはdurlストリームデータを含む生のプレイヤー結果を返します。
+///
+/// # エラー
+///
+/// 以下の場合はエラーを返します：
+/// - ネットワークリクエスト失敗
+/// - HTTPステータスが成功でない
+/// - APIエラー（`ERR::BANGUMI_NOT_FOUND`, `ERR::BANGUMI_ACCESS_DENIED` など）
+/// - DASHもdurlも利用可能でない（`ERR::BANGUMI_NO_DASH`）
 async fn fetch_bangumi_player_result(
     cookies: &[CookieEntry],
     ep_id: i64,
@@ -2332,17 +2508,7 @@ async fn fetch_bangumi_player_result(
         .await
         .map_err(|e| format!("Failed to parse bangumi playurl response: {}", e))?;
 
-    match body.code {
-        -101 => Err("ERR::UNAUTHORIZED".into()),
-        -403 => Err("ERR::BANGUMI_ACCESS_DENIED".into()),
-        -688 => Err("ERR::BANGUMI_REGION_RESTRICTED".into()),
-        -689 => Err("ERR::BANGUMI_COPYRIGHT_RESTRICTED".into()),
-        0 => Ok(()),
-        _ => Err(format!(
-            "ERR::API_ERROR (code {}): {}",
-            body.code, body.message
-        )),
-    }?;
+    validate_bangumi_response(body.code, &body.message)?;
 
     let result = body
         .result
@@ -2358,11 +2524,27 @@ async fn fetch_bangumi_player_result(
     Ok(result)
 }
 
-/// Fetches bangumi stream URLs for download (DASH format only).
-/// Returns XPlayerApiResponse for compatibility with existing download flow.
+/// ダウンロード用のバンガミストリームURLを取得します（DASH形式のみ）。
 ///
-/// Note: This function only supports DASH format. For durl format (MP4),
-/// the download_video function handles it separately.
+/// 既存のダウンロードフローとの互換性のため、`XPlayerApiResponse` を返します。
+/// この関数はDASH形式のみをサポートします。durl形式（MP4）の場合、
+/// `download_video` 関数で別途処理されます。
+///
+/// # 引数
+///
+/// * `cookies` - 認証用クッキーエントリ
+/// * `ep_id` - バンガミエピソードID
+/// * `cid` - コンテンツID
+///
+/// # 戻り値
+///
+/// DASHデータを含む `XPlayerApiResponse` を返します。
+///
+/// # エラー
+///
+/// 以下の場合はエラーを返します：
+/// - プレイヤー結果の取得失敗
+/// - durl形式のみ利用可能（`ERR::BANGUMI_DURL_NOT_SUPPORTED`）
 async fn fetch_bangumi_details_for_download(
     cookies: &[CookieEntry],
     ep_id: i64,
@@ -2389,17 +2571,6 @@ async fn fetch_bangumi_details_for_download(
     }
 }
 
-/// Fetches available video and audio qualities for a bangumi episode part.
-///
-/// # Arguments
-///
-/// * `app` - Tauri application handle for accessing cookie cache
-/// * `ep_id` - Bangumi episode ID
-/// * `cid` - Content ID for the specific video part
-///
-/// # Returns
-///
-/// Returns a tuple of (video_qualities, audio_qualities, is_preview).
 /// Fetches available video and audio qualities for a bangumi episode part.
 ///
 /// Used for lazy-loading quality options when a specific part is rendered
