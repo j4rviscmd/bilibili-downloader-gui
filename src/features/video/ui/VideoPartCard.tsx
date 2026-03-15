@@ -300,6 +300,26 @@ const VideoPartCard = memo(function VideoPartCard({
       ? { duration: 0 }
       : undefined
 
+  /** Ref attached to the card root for scroll-into-view on expand. */
+  const cardRef = useRef<HTMLDivElement>(null)
+
+  /**
+   * Scrolls the [data-part-list] container so this card's top is visible.
+   * Uses a timeout to allow the expand animation (350ms) to settle.
+   */
+  const scrollCardIntoView = useCallback(() => {
+    setTimeout(() => {
+      const container = document.querySelector('[data-part-list]')
+      const item = cardRef.current
+      if (!container || !item) return
+      const containerRect = container.getBoundingClientRect()
+      const itemRect = item.getBoundingClientRect()
+      const scrollOffset =
+        itemRect.top - containerRect.top + container.scrollTop - 8
+      container.scrollTo({ top: scrollOffset, behavior: 'smooth' })
+    }, 400)
+  }, [])
+
   /**
    * Fetches quality options for the current video part.
    */
@@ -362,7 +382,7 @@ const VideoPartCard = memo(function VideoPartCard({
   /**
    * Handles accordion open/close state changes.
    * Fetches qualities and subtitles in parallel when the accordion is
-   * opened for the first time.
+   * opened for the first time. Scrolls the card top into view on open.
    */
   const handleAccordionChange = useCallback(
     async (value: string[]) => {
@@ -371,6 +391,9 @@ const VideoPartCard = memo(function VideoPartCard({
       store.dispatch(setAccordionOpen({ index: partIndex, open: isOpen }))
 
       if (!isOpen) return
+
+      // Scroll card top into view after expand animation (350ms)
+      scrollCardIntoView()
 
       const isBangumi = video.contentType === 'bangumi'
       const epId = videoPart.epId
@@ -536,12 +559,17 @@ const VideoPartCard = memo(function VideoPartCard({
   /**
    * Handles subtitle configuration changes.
    * Dispatches the updated config to Redux store.
+   * Scrolls card into view when switching from off to soft/hard mode.
    */
   const handleSubtitleConfigChange = useCallback(
     (config: Parameters<typeof updateSubtitleConfig>[0]['config']) => {
+      const prevMode = subtitle?.mode ?? 'off'
       store.dispatch(updateSubtitleConfig({ index: page - 1, config }))
+      if (prevMode === 'off' && config.mode !== 'off') {
+        scrollCardIntoView()
+      }
     },
-    [page],
+    [page, subtitle?.mode, scrollCardIntoView],
   )
 
   const schema2 = useMemo(() => buildVideoFormSchema2(t), [t])
@@ -615,7 +643,7 @@ const VideoPartCard = memo(function VideoPartCard({
   )
 
   return (
-    <div className="p-3 md:p-4">
+    <div ref={cardRef} className="p-3 md:p-4">
       <Form {...form}>
         <fieldset
           disabled={
