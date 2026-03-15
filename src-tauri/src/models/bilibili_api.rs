@@ -382,6 +382,10 @@ pub struct PlayerV2SubtitleItem {
     pub lan_doc: String,
     /// Subtitle URL (BCC JSON format)
     pub subtitle_url: String,
+    /// AI subtitle type: 0 = legacy AI subtitle, 1 = translated AI subtitle.
+    /// Absent for manually created subtitles.
+    #[serde(default)]
+    pub ai_type: Option<u8>,
 }
 
 /// BCC (Bilibili Closed Caption) format subtitle data.
