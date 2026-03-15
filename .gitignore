@@ -32,4 +32,4 @@ remotion/
 plans/
 
 # Local references (API docs, etc.)
-references/
+references/.worktrees/
