@@ -20,10 +20,6 @@ No ads, no tracking. 100% free.
 
 </div>
 
-> [!WARNING]
-> This app is intended for personal and educational use. Respect the terms of service and copyright laws.<br/>
-> Do not download or redistribute content without permission from rights holders.
-
 ## Features
 
 ### Download
@@ -92,5 +88,10 @@ Translations are also appreciated — see [CONTRIBUTING.md](./CONTRIBUTING.md) f
 - OSS such as shadcn/ui, Radix UI, sonner
 
 ## License
+
+> [!WARNING]
+> This app is intended for personal and educational use. Respect the terms of service and copyright laws.<br/>
+> Do not download or redistribute content without permission from rights holders.<br/>
+> The authors are not responsible for any issues that may arise from the use of this software.
 
 MIT License — see [LICENSE](./LICENSE) for details.

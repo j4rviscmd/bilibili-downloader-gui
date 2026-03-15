@@ -20,10 +20,6 @@ Sin anuncios, sin seguimiento. 100% gratis.
 
 </div>
 
-> [!WARNING]
-> Esta aplicación está destinada a uso personal y educativo. Respeta los términos de servicio y las leyes de derechos de autor.<br/>
-> No descargues ni redistribuyas contenido sin permiso de los titulares de derechos.
-
 ## Características
 
 ### Descarga
@@ -92,5 +88,10 @@ Las traducciones también son apreciadas — consulta [CONTRIBUTING.md](./CONTRI
 - OSS como shadcn/ui, Radix UI, sonner
 
 ## Licencia
+
+> [!WARNING]
+> Esta aplicación está destinada a uso personal y educativo. Respeta los términos de servicio y las leyes de derechos de autor.<br/>
+> No descargues ni redistribuyas contenido sin permiso de los titulares de derechos.<br/>
+> Los autores no son responsables de ningún problema que pueda surgir del uso de este software.
 
 MIT License — consulta [LICENSE](./LICENSE) para más detalles.
