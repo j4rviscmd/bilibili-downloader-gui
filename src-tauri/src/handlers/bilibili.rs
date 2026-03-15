@@ -169,7 +169,7 @@ use reqwest::header;
 use reqwest::Client;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::AppHandle;
 
 /// Builds a reqwest HTTP client with the default user agent.
@@ -2064,6 +2064,7 @@ pub async fn fetch_subtitles(
                 lan_doc: item.lan_doc,
                 subtitle_url: item.subtitle_url,
                 is_ai,
+                ai_type: item.ai_type,
             }
         })
         .collect()
@@ -2084,7 +2085,7 @@ pub async fn fetch_subtitles(
 /// Returns a list of available subtitles with language info and URLs.
 /// Returns an empty vector if no subtitles are available or on error.
 ///
-/// Retry behavior is handled by [`fetch_subtitles_with_retry`].
+/// Stale CDN mitigation is handled by [`fetch_subtitles_parallel`].
 pub async fn fetch_subtitles_for_part(
     app: &AppHandle,
     bvid: &str,
@@ -2098,7 +2099,7 @@ pub async fn fetch_subtitles_for_part(
     );
     let cookies = read_cookie(app)?.unwrap_or_default();
     let client = build_client()?;
-    let subtitles = fetch_subtitles_with_retry(&client, &cookies, bvid, cid).await;
+    let subtitles = fetch_subtitles_parallel(&client, &cookies, bvid, cid).await;
 
     log::info!(
         "[BE] fetch_subtitles_for_part: received {} subtitles",
@@ -2107,13 +2108,15 @@ pub async fn fetch_subtitles_for_part(
     Ok(subtitles)
 }
 
-/// Fetches subtitles with automatic retry for stale CDN responses.
+/// Fetches subtitles using parallel requests to mitigate stale CDN responses.
 ///
 /// Bilibili's CDN may serve stale cached responses that only include
 /// a single AI subtitle (`ai_type: 0`) instead of the full set of
-/// AI-translated subtitles (`ai_type: 1`). When a stale response is
-/// detected (exactly one AI subtitle returned), this function retries
-/// up to 2 additional times with a 1-second delay between attempts.
+/// AI-translated subtitles (`ai_type: 1`). Rather than retrying
+/// sequentially, this function fires [`PARALLEL_COUNT`] requests
+/// concurrently with a small jitter between them to increase the
+/// chance of hitting a fresh CDN node. The response with the greatest
+/// number of subtitles is returned as the best result.
 ///
 /// # Arguments
 ///
@@ -2124,56 +2127,44 @@ pub async fn fetch_subtitles_for_part(
 ///
 /// # Returns
 ///
-/// Returns a list of available subtitles. May return the stale
-/// single-AI-subtitle response if all retries are exhausted.
-async fn fetch_subtitles_with_retry(
+/// Returns the subtitle list with the most entries across all parallel
+/// attempts. Returns an empty list if all requests fail.
+async fn fetch_subtitles_parallel(
     client: &Client,
     cookies: &[CookieEntry],
     bvid: &str,
     cid: i64,
 ) -> Vec<SubtitleDto> {
-    const MAX_RETRIES: u32 = 2;
-    const RETRY_DELAY_MS: u64 = 1000;
+    const PARALLEL_COUNT: usize = 3;
+    const JITTER_STEP_MS: u64 = 200;
 
-    let mut subtitles = fetch_subtitles(client, cookies, bvid, cid).await;
+    let futures: Vec<_> = (0..PARALLEL_COUNT)
+        .map(|i| {
+            let jitter_ms = (i as u64) * JITTER_STEP_MS;
+            async move {
+                if jitter_ms > 0 {
+                    tokio::time::sleep(Duration::from_millis(jitter_ms)).await;
+                }
+                fetch_subtitles(client, cookies, bvid, cid).await
+            }
+        })
+        .collect();
 
-    for attempt in 1..=MAX_RETRIES {
-        if !should_retry_subtitles(&subtitles) {
-            break;
-        }
-        log::info!(
-            "[BE] fetch_subtitles_with_retry: stale cache \
-             detected, retry {}/{}",
-            attempt,
-            MAX_RETRIES
-        );
-        tokio::time::sleep(std::time::Duration::from_millis(RETRY_DELAY_MS)).await;
-        subtitles = fetch_subtitles(client, cookies, bvid, cid).await;
-    }
+    let results = futures::future::join_all(futures).await;
 
-    subtitles
+    log::info!(
+        "[BE] fetch_subtitles_parallel: got {} results for \
+         bvid={}, cid={}",
+        results.iter().map(|r| r.len()).sum::<usize>(),
+        bvid,
+        cid,
+    );
+
+    results
+        .into_iter()
+        .max_by_key(|subtitles| subtitles.len())
+        .unwrap_or_default()
 }
-
-/// Determines whether subtitle fetching should be retried.
-///
-/// Returns `true` if the response appears to be from a stale
-/// CDN cache — specifically when exactly one AI subtitle is
-/// present, which indicates the old `ai_type: 0` response
-/// rather than the full AI-translated set.
-///
-/// # Arguments
-///
-/// * `subtitles` - Subtitle list from the most recent fetch attempt
-///
-/// # Returns
-///
-/// Returns `true` if the response looks stale and should be retried.
-fn should_retry_subtitles(subtitles: &[SubtitleDto]) -> bool {
-    // Stale cache returns exactly 1 AI subtitle;
-    // fresh cache returns 0 (no AI) or multiple.
-    subtitles.iter().filter(|s| s.is_ai).count() == 1
-}
-
 /// Fetches available video and audio qualities for a specific part.
 ///
 /// Used for lazy loading when parts are rendered in the UI
@@ -2367,10 +2358,11 @@ async fn prepare_subtitle_mode(
                 lan_doc: s.lan_doc.clone(),
                 subtitle_url: s.subtitle_url.clone(),
                 is_ai: s.is_ai,
+                ai_type: None,
             })
             .collect()
     } else {
-        let subs = fetch_subtitles_with_retry(&client, cookies, bvid, cid).await;
+        let subs = fetch_subtitles_parallel(&client, cookies, bvid, cid).await;
         log::info!(
             "[BE] prepare_subtitle_mode: fetched {} subtitles from API",
             subs.len()

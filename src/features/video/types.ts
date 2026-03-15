@@ -166,6 +166,11 @@ export type SubtitleInfo = {
   subtitleUrl: string
   /** Whether this is an AI-generated subtitle */
   isAi: boolean
+  /**
+   * AI subtitle type: 0 = legacy AI subtitle, 1 = translated AI subtitle.
+   * Undefined for manually created subtitles.
+   */
+  aiType?: number
 }
 
 /**

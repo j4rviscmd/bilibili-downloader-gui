@@ -223,4 +223,7 @@ pub struct SubtitleDto {
     pub subtitle_url: String,
     /// Whether this is an AI-generated subtitle
     pub is_ai: bool,
+    /// AI subtitle type: 0 = legacy AI subtitle, 1 = translated AI subtitle.
+    /// None for manually created subtitles.
+    pub ai_type: Option<u8>,
 }
