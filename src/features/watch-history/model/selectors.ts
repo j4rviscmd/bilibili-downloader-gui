@@ -94,10 +94,21 @@ const isWithinDateRange = (
 }
 
 /**
+ * Checks whether the given entry is a Bilibili live stream.
+ *
+ * Live stream entries have an empty `bvid` because they are not
+ * VOD content and cannot be downloaded. They should be excluded
+ * from watch history by default.
+ */
+const isLiveEntry = (entry: WatchHistoryEntry): boolean => !entry.bvid
+
+/**
  * Memoized selector for filtered watch history entries.
  *
- * Applies search query and date filter to the entries list.
- * Search matches against video title (case-insensitive).
+ * Applies the following filters in order:
+ * 1. Excludes live stream entries (empty bvid) by default
+ * 2. Applies date range filter
+ * 3. Applies search query filter (case-insensitive title match)
  *
  * @returns Filtered array of watch history entries
  */
@@ -105,6 +116,11 @@ export const selectFilteredEntries = createSelector(
   [selectWatchHistoryEntries, selectSearchQuery, selectDateFilter],
   (entries, searchQuery, dateFilter): WatchHistoryEntry[] => {
     return entries.filter((entry) => {
+      // Exclude live stream entries (bvid is empty for live streams)
+      if (isLiveEntry(entry)) {
+        return false
+      }
+
       // Apply date filter
       if (!isWithinDateRange(entry.viewAt, dateFilter)) {
         return false
