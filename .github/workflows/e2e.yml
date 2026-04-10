@@ -38,11 +38,11 @@ jobs:
           workspaces: src-tauri
 
       - name: Install frontend dependencies
-        run: npm ci
+        run: npm ci --ignore-engines
 
       - name: Install E2E test dependencies
         working-directory: e2e-tests
-        run: npm ci
+        run: npm ci --ignore-engines
 
       - name: Install tauri-webdriver
         run: cargo install tauri-webdriver --locked
