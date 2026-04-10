@@ -23,7 +23,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20.x
+          node-version: 22.x
           cache: npm
           cache-dependency-path: |
             package-lock.json
@@ -38,11 +38,11 @@ jobs:
           workspaces: src-tauri
 
       - name: Install frontend dependencies
-        run: npm install
+        run: npm ci
 
       - name: Install E2E test dependencies
         working-directory: e2e-tests
-        run: npm install
+        run: npm ci
 
       - name: Install tauri-webdriver
         run: cargo install tauri-webdriver --locked
