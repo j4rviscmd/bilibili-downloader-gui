@@ -31,5 +31,8 @@ dist-ssr
 remotion/
 plans/
 
+# E2E test artifacts
+e2e-tests/screenshots/
+
 # Local references (API docs, etc.)
 references/
