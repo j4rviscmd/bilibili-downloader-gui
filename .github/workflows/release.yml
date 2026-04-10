@@ -26,22 +26,17 @@ jobs:
             const fs = require('fs');
             const path = require('path');
             // Read version primarily from Tauri config, fallback to package.json
-            const cfgPath = path.join(process.cwd(), 'src-tauri', 'tauri.conf.json');
-            let version = '';
-            try {
-              const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
-              version = cfg.version || '';
-            } catch (e) {
-              core.info(`Failed reading ${cfgPath}: ${e.message}`);
-            }
-            if (!version) {
+            function readVersion(filePath) {
               try {
-                const pkg = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'));
-                version = pkg.version || '';
+                return JSON.parse(fs.readFileSync(filePath, 'utf8')).version || '';
               } catch (e) {
-                core.info(`Failed reading package.json: ${e.message}`);
+                core.info(`Failed reading ${filePath}: ${e.message}`);
+                return '';
               }
             }
+            const version =
+              readVersion(path.join(process.cwd(), 'src-tauri', 'tauri.conf.json')) ||
+              readVersion(path.join(process.cwd(), 'package.json'));
             if (!version) {
               core.setFailed('Unable to determine version from src-tauri/tauri.conf.json or package.json');
               return;
@@ -133,13 +128,8 @@ jobs:
       #     sudo apt-get update
       #     sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
-      - name: Install frontend dependencies (npm ci)
-        if: ${{ hashFiles('package-lock.json') != '' }}
-        run: npm ci
-
-      - name: Install frontend dependencies (npm install)
-        if: ${{ hashFiles('package-lock.json') == '' }}
-        run: npm install
+      - name: Install frontend dependencies
+        run: test -f package-lock.json && npm ci || npm install
 
       - name: Build and publish with Tauri
         uses: tauri-apps/tauri-action@v0
@@ -158,3 +148,75 @@ jobs:
           # Windows で NSIS の setup.exe を優先するか（将来 v2 では true になる可能性）
           updaterJsonPreferNsis: true
           args: ${{ matrix.args }}
+
+  upload-stable-assets:
+    name: Upload fixed-name assets for README links
+    needs: publish-tauri
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Upload fixed-name copies
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const cfg = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8'));
+            const version = cfg.version;
+            const tag = `v${version}`;
+
+            const { data: release } = await github.rest.repos.getReleaseByTag({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag,
+            });
+
+            // Mapping: versioned asset name pattern → fixed name
+            const renames = [
+              { match: `_${version}_aarch64.dmg`, fixedName: 'bilibili-downloader-gui_macOS_arm64.dmg' },
+              { match: `_${version}_x64.dmg`, fixedName: 'bilibili-downloader-gui_macOS_x64.dmg' },
+              { match: `_${version}_x64-setup.exe`, fixedName: 'bilibili-downloader-gui_Windows_x64-setup.exe' },
+            ];
+
+            // Remove old fixed-name assets if they exist from a previous run
+            for (const { fixedName } of renames) {
+              const existing = release.assets.find(a => a.name === fixedName);
+              if (existing) {
+                await github.rest.repos.deleteReleaseAsset({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  asset_id: existing.id,
+                });
+                core.info(`Deleted old asset: ${fixedName}`);
+              }
+            }
+
+            for (const { match, fixedName } of renames) {
+              const asset = release.assets.find(a => a.name.endsWith(match));
+              if (!asset) {
+                core.warning(`Asset matching *${match} not found, skipping ${fixedName}`);
+                continue;
+              }
+
+              // Download the versioned asset
+              const download = await github.rest.repos.getReleaseAsset({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                asset_id: asset.id,
+                headers: { accept: 'application/octet-stream' },
+              });
+
+              // Upload with fixed name
+              await github.rest.repos.uploadReleaseAsset({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: release.id,
+                name: fixedName,
+                data: Buffer.from(download.data),
+              });
+              core.info(`Uploaded ${fixedName} (from ${asset.name})`);
+            }
