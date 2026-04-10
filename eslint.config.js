@@ -1,3 +1,14 @@
+/**
+ * Shared ESLint flat configuration for the frontend application.
+ *
+ * Extends the recommended TypeScript, React Hooks, and React Refresh
+ * rule sets. The `react-hooks/exhaustive-deps` rule is intentionally
+ * disabled to allow custom dependency management across the project.
+ *
+ * @remarks
+ * The `e2e-tests` directory is excluded from this configuration because
+ * it uses its own ESLint setup via the E2E test package.
+ */
 import js from '@eslint/js'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
@@ -6,7 +17,7 @@ import globals from 'globals'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config([
-  globalIgnores(['dist', 'src-tauri/target']),
+  globalIgnores(['dist', 'src-tauri/target', 'e2e-tests']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [

@@ -52,7 +52,33 @@ const KEYRING_SESSION_KEY: &str = "session";
 // None = not initialized yet, Some(None) = no session, Some(Some(session)) = session exists
 static SESSION_CACHE: RwLock<Option<Option<Session>>> = RwLock::new(None);
 
+/// Returns true if running in E2E test mode (bypasses OS keyring).
+pub fn is_e2e_testing() -> bool {
+    std::env::var("E2E_TESTING")
+        .map(|v| v == "true")
+        .unwrap_or(false)
+}
+
 // Keyring Helper Functions
+
+/// Creates a keyring entry for the session credential.
+///
+/// # Errors
+///
+/// Returns an error if the keyring entry cannot be created.
+fn create_keyring_entry() -> Result<keyring::Entry, String> {
+    keyring::Entry::new(KEYRING_SERVICE, KEYRING_SESSION_KEY)
+        .map_err(|e| format!("Failed to create keyring entry: {}", e))
+}
+
+/// Creates a bilibili cookie entry with the standard host.
+fn bilibili_cookie(name: &str, value: String) -> CookieEntry {
+    CookieEntry {
+        host: ".bilibili.com".to_string(),
+        name: name.to_string(),
+        value,
+    }
+}
 
 /// Saves session to OS keyring.
 ///
@@ -62,9 +88,12 @@ static SESSION_CACHE: RwLock<Option<Option<Session>>> = RwLock::new(None);
 /// - Keyring is not available (e.g., no Secret Service on Linux)
 /// - Failed to store the credential
 fn save_session_to_keyring(session: &Session) -> Result<(), String> {
+    if is_e2e_testing() {
+        log::info!("[BE] save_session_to_keyring: skipped (E2E_TESTING)");
+        return Ok(());
+    }
     log::info!("[BE] save_session_to_keyring: saving session to keyring");
-    let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_SESSION_KEY)
-        .map_err(|e| format!("Failed to create keyring entry: {}", e))?;
+    let entry = create_keyring_entry()?;
 
     let session_json = serde_json::to_string(session)
         .map_err(|e| format!("Failed to serialize session: {}", e))?;
@@ -104,6 +133,10 @@ fn save_session_to_keyring(session: &Session) -> Result<(), String> {
 /// - Keyring is not available
 /// - Failed to retrieve the credential
 fn load_session_from_keyring() -> Result<Option<Session>, String> {
+    if is_e2e_testing() {
+        log::info!("[BE] load_session_from_keyring: skipped (E2E_TESTING)");
+        return Ok(None);
+    }
     log::info!("[BE] load_session_from_keyring: loading session from keyring");
     // Check cache first
     {
@@ -117,16 +150,10 @@ fn load_session_from_keyring() -> Result<Option<Session>, String> {
     }
 
     // Not cached, read from keyring
-    let entry = match keyring::Entry::new(KEYRING_SERVICE, KEYRING_SESSION_KEY) {
-        Ok(e) => e,
-        Err(e) => {
-            log::error!(
-                "[BE] load_session_from_keyring: failed to create entry: {}",
-                e
-            );
-            return Err(format!("Failed to create keyring entry: {}", e));
-        }
-    };
+    let entry = create_keyring_entry().map_err(|e| {
+        log::error!("[BE] load_session_from_keyring: {}", e);
+        e
+    })?;
 
     let result = match entry.get_password() {
         Ok(json) => {
@@ -165,6 +192,10 @@ fn load_session_from_keyring() -> Result<Option<Session>, String> {
 ///
 /// Returns an error if deletion fails (ignores "no entry" error).
 fn delete_session_from_keyring() -> Result<(), String> {
+    if is_e2e_testing() {
+        log::info!("[BE] delete_session_from_keyring: skipped (E2E_TESTING)");
+        return Ok(());
+    }
     log::info!("[BE] delete_session_from_keyring: deleting session from keyring");
     // Clear cache first
     {
@@ -174,16 +205,10 @@ fn delete_session_from_keyring() -> Result<(), String> {
         *cache = None;
     }
 
-    let entry = match keyring::Entry::new(KEYRING_SERVICE, KEYRING_SESSION_KEY) {
-        Ok(e) => e,
-        Err(e) => {
-            log::error!(
-                "[BE] delete_session_from_keyring: failed to create entry: {}",
-                e
-            );
-            return Err(format!("Failed to create keyring entry: {}", e));
-        }
-    };
+    let entry = create_keyring_entry().map_err(|e| {
+        log::error!("[BE] delete_session_from_keyring: {}", e);
+        e
+    })?;
 
     match entry.delete_credential() {
         Ok(()) => {
@@ -481,44 +506,22 @@ fn update_cookie_cache(app: &AppHandle, session: &Session) {
         return;
     };
 
-    *guard = vec![
-        CookieEntry {
-            host: ".bilibili.com".to_string(),
-            name: "SESSDATA".to_string(),
-            value: session.sessdata.clone(),
-        },
-        CookieEntry {
-            host: ".bilibili.com".to_string(),
-            name: "bili_jct".to_string(),
-            value: session.bili_jct.clone(),
-        },
-        CookieEntry {
-            host: ".bilibili.com".to_string(),
-            name: "DedeUserID".to_string(),
-            value: session.dede_user_id.clone(),
-        },
-        CookieEntry {
-            host: ".bilibili.com".to_string(),
-            name: "DedeUserID__ckMd5".to_string(),
-            value: session.dede_user_id_ck_md5.clone(),
-        },
+    let mut cookies = vec![
+        bilibili_cookie("SESSDATA", session.sessdata.clone()),
+        bilibili_cookie("bili_jct", session.bili_jct.clone()),
+        bilibili_cookie("DedeUserID", session.dede_user_id.clone()),
+        bilibili_cookie("DedeUserID__ckMd5", session.dede_user_id_ck_md5.clone()),
     ];
 
     // Add buvid3 and buvid4 if available (required for WBI authentication)
     if !session.buvid3.is_empty() {
-        guard.push(CookieEntry {
-            host: ".bilibili.com".to_string(),
-            name: "buvid3".to_string(),
-            value: session.buvid3.clone(),
-        });
+        cookies.push(bilibili_cookie("buvid3", session.buvid3.clone()));
     }
     if !session.buvid4.is_empty() {
-        guard.push(CookieEntry {
-            host: ".bilibili.com".to_string(),
-            name: "buvid4".to_string(),
-            value: session.buvid4.clone(),
-        });
+        cookies.push(bilibili_cookie("buvid4", session.buvid4.clone()));
     }
+
+    *guard = cookies;
 }
 
 /// Loads the stored session from keyring and updates cookie cache.

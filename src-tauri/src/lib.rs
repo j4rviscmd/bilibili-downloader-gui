@@ -191,6 +191,14 @@ pub fn run() {
         ])
         // 開発環境以外で`app`宣言ではBuildに失敗するため、`_app`を使用
         .setup(|app| {
+            // Register webdriver plugin for E2E tests (debug only)
+            #[cfg(debug_assertions)]
+            {
+                app.handle()
+                    .plugin(tauri_plugin_webdriver::init())
+                    .expect("Failed to register webdriver plugin");
+            }
+
             // Initialize logging plugin with app_data_dir/logs path
             let log_dir = app
                 .path()
@@ -257,10 +265,13 @@ pub fn run() {
             //     crate::utils::analytics::init_analytics(&handle).await;
             // });
             // 開発環境の場合は、開発者コンソールを有効化
+            // E2Eテスト時はコンソールを開かない
             #[cfg(debug_assertions)]
             {
-                let window = app.get_webview_window("main").unwrap();
-                window.open_devtools();
+                if !crate::handlers::qr_login::is_e2e_testing() {
+                    let window = app.get_webview_window("main").unwrap();
+                    window.open_devtools();
+                }
             }
             Ok(())
         });
