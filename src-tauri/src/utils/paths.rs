@@ -18,20 +18,25 @@
 //! ```
 
 use crate::models::settings::Settings;
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 use tauri::{AppHandle, Manager};
 
 /// Returns the platform-specific ffmpeg subdirectory name.
-const fn ffmpeg_subdir() -> &'static str {
+pub const fn ffmpeg_subdir() -> &'static str {
     if cfg!(target_os = "windows") {
         "ffmpeg-master-latest-win64-lgpl-shared"
+    } else if cfg!(target_os = "linux") {
+        "ffmpeg-master-latest-linux64-lgpl"
     } else {
         "ffmpeg"
     }
 }
 
 /// Ensures a directory exists, creating it if necessary.
-fn ensure_dir_exists(path: &PathBuf) {
+fn ensure_dir_exists(path: &Path) {
     if !path.exists() {
         let _ = fs::create_dir_all(path);
     }
@@ -93,7 +98,8 @@ pub fn get_lib_path(app: &AppHandle) -> PathBuf {
 /// Returns the platform-specific path to the ffmpeg binary.
 ///
 /// On Windows: `{libPath}/ffmpeg-master-latest-win64-lgpl-shared/.../bin/ffmpeg.exe`
-/// On macOS/Linux: `{libPath}/ffmpeg/ffmpeg`
+/// On Linux: `{libPath}/ffmpeg-master-latest-linux64-lgpl/ffmpeg-master-latest-linux64-lgpl/bin/ffmpeg`
+/// On macOS: `{libPath}/ffmpeg/ffmpeg`
 ///
 /// # Arguments
 ///
@@ -112,6 +118,8 @@ pub fn get_ffmpeg_path(app: &AppHandle) -> PathBuf {
             .join("bin")
             .join("ffmpeg")
             .with_extension("exe")
+    } else if cfg!(target_os = "linux") {
+        lib.join(subdir).join(subdir).join("bin").join("ffmpeg")
     } else {
         lib.join(subdir).join("ffmpeg")
     }
@@ -122,7 +130,8 @@ pub fn get_ffmpeg_path(app: &AppHandle) -> PathBuf {
 /// This is the directory where ffmpeg files are extracted.
 ///
 /// On Windows: `{libPath}/ffmpeg-master-latest-win64-lgpl-shared`
-/// On macOS/Linux: `{libPath}/ffmpeg`
+/// On Linux: `{libPath}/ffmpeg-master-latest-linux64-lgpl`
+/// On macOS: `{libPath}/ffmpeg`
 ///
 /// # Arguments
 ///
@@ -137,10 +146,8 @@ pub fn get_ffmpeg_root_path(app: &AppHandle) -> PathBuf {
 
 /// Returns the path to the application settings file.
 ///
-/// **CHANGED:** Now stores settings at `app_data_dir()/settings.json`
-/// (previously was at `resource_dir()/lib/settings.json`).
-///
-/// This ensures settings persist across application updates.
+/// Settings are stored at `app_data_dir()/settings.json` to ensure
+/// they persist across application updates.
 ///
 /// # Arguments
 ///

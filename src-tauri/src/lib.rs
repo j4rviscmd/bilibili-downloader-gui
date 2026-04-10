@@ -49,28 +49,73 @@ pub use utils::wbi;
 /// Initializes and runs the Tauri application.
 ///
 /// This function configures the Tauri application with necessary plugins,
-/// registers Tauri commands, and performs initial setup including developer
-/// tools configuration in debug mode.
+/// registers all Tauri commands, and performs initial setup including:
+/// - Logging plugin initialization with rotation and TTL cleanup
+/// - Cookie cache initialization
+/// - Developer tools activation in debug mode
+/// - Window state restoration in release mode
 ///
 /// # Registered Tauri Commands
 ///
+/// **FFmpeg Management:**
 /// - `validate_ffmpeg`: Validates ffmpeg installation
 /// - `install_ffmpeg`: Downloads and installs ffmpeg binary
+///
+/// **Cookie & Authentication:**
 /// - `get_cookie`: Retrieves cookies from Firefox
+/// - `generate_qr_code`: Generates QR code for login
+/// - `poll_qr_status`: Polls QR code login status
+/// - `qr_logout`: Logs out by clearing stored session and cookies
+/// - `set_login_method`: Sets the preferred login method
+/// - `get_login_method`: Gets the current login method preference
+/// - `get_login_state`: Gets the current login state
+/// - `load_qr_session`: Loads stored QR session on startup
+/// - `check_cookie_refresh`: Checks if cookie refresh is needed
+/// - `refresh_cookie`: Refreshes the cookie using stored refresh token
+///
+/// **User & Video Information:**
 /// - `fetch_user`: Fetches user information from Bilibili
 /// - `fetch_video_info`: Retrieves video metadata
+/// - `fetch_bangumi_info`: Retrieves bangumi episode metadata
+/// - `fetch_subtitles_for_part`: Fetches subtitles for a video part
+/// - `fetch_part_qualities`: Fetches video/audio qualities for a part
+/// - `fetch_bangumi_part_qualities`: Fetches qualities for a bangumi part
+/// - `expand_short_url`: Expands b23.tv short URLs to full URLs
+///
+/// **Downloads:**
 /// - `download_video`: Downloads a video with specified quality
-/// - `get_settings`: Retrieves application settings
-/// - `set_settings`: Updates application settings
-/// - `get_os`: Returns the current operating system identifier
+/// - `cancel_download`: Cancels a specific download by ID
+/// - `cancel_all_downloads`: Cancels all active downloads
+/// - `cleanup_temp_files`: Cleans up orphaned temporary files
+///
+/// **Favorites & History:**
+/// - `fetch_favorite_folders`: Fetches all favorite folders
+/// - `fetch_favorite_videos`: Fetches videos from a favorite folder
+/// - `fetch_watch_history`: Fetches user watch history with pagination
 /// - `get_history`: Retrieves all download history entries
 /// - `add_history_entry`: Adds a new history entry
 /// - `remove_history_entry`: Removes a history entry by ID
 /// - `clear_history`: Clears all history entries
 /// - `search_history`: Searches history with filters
 /// - `export_history`: Exports history in JSON or CSV format
+///
+/// **Settings & Paths:**
+/// - `get_settings`: Retrieves application settings
+/// - `set_settings`: Updates application settings
+/// - `update_lib_path`: Updates library storage path and moves ffmpeg
+/// - `get_current_lib_path`: Returns the current library path
+/// - `get_os`: Returns the current operating system identifier
+///
+/// **File Operations:**
+/// - `reveal_in_folder`: Reveals a file in the system file manager
+/// - `open_file`: Opens a file with the default application
+///
+/// **GitHub Integration:**
 /// - `get_release_notes`: Fetches release notes from GitHub API
 /// - `get_repo_stars`: Fetches star count for a GitHub repository
+///
+/// **Development Only (debug builds):**
+/// - `set_simulate_logout`: Toggles simulate logout flag for testing
 ///
 /// # Panics
 ///
@@ -601,26 +646,17 @@ async fn set_settings(app: AppHandle, settings: Settings) -> Result<(), String> 
 async fn update_lib_path(app: AppHandle, new_path: String) -> Result<(), String> {
     use crate::utils::paths;
 
-    // Get current lib_path (or default)
+    // Get current settings for later update
     let current_settings = settings::get_settings(&app).await?;
-    let _old_lib_path = current_settings
-        .lib_path
-        .as_ref()
-        .map(PathBuf::from)
-        .unwrap_or_else(|| paths::get_default_lib_path(&app));
 
     // Use the user-selected path as-is (no /lib suffix for user-specified paths)
     let new_lib_path = PathBuf::from(&new_path);
 
-    // Get old and new ffmpeg root paths
+    // Get old ffmpeg root path
     let old_ffmpeg_path = paths::get_ffmpeg_root_path(&app);
 
-    // Determine new ffmpeg root path based on new lib path
-    let new_ffmpeg_path = if cfg!(target_os = "windows") {
-        new_lib_path.join("ffmpeg-master-latest-win64-lgpl-shared")
-    } else {
-        new_lib_path.join("ffmpeg")
-    };
+    // Determine new ffmpeg root path using the shared platform resolver
+    let new_ffmpeg_path = new_lib_path.join(paths::ffmpeg_subdir());
 
     // Move ffmpeg (if it exists)
     if old_ffmpeg_path.exists() {

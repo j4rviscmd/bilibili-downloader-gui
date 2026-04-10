@@ -84,9 +84,8 @@ jobs:
             args: '--target aarch64-apple-darwin'
           - platform: 'macos-latest' # Intel
             args: '--target x86_64-apple-darwin'
-          # Uncomment to enable Linux builds
-          # - platform: 'ubuntu-22.04'
-          #   args: ''
+          - platform: 'ubuntu-22.04'
+            args: ''
           - platform: 'windows-latest'
             args: ''
 
@@ -121,12 +120,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      # Uncomment to enable Linux builds
-      # - name: Install dependencies (Ubuntu only)
-      #   if: matrix.platform == 'ubuntu-22.04'
-      #   run: |
-      #     sudo apt-get update
-      #     sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - name: Install dependencies (Ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libdbus-1-dev
 
       - name: Install frontend dependencies
         run: test -f package-lock.json && npm ci || npm install
@@ -180,6 +178,8 @@ jobs:
               { match: `_${version}_aarch64.dmg`, fixedName: 'bilibili-downloader-gui_macOS_arm64.dmg' },
               { match: `_${version}_x64.dmg`, fixedName: 'bilibili-downloader-gui_macOS_x64.dmg' },
               { match: `_${version}_x64-setup.exe`, fixedName: 'bilibili-downloader-gui_Windows_x64-setup.exe' },
+              { match: `_${version}_amd64.deb`, fixedName: 'bilibili-downloader-gui_Linux_x64.deb' },
+              { match: `_${version}_amd64.AppImage.tar.gz`, fixedName: 'bilibili-downloader-gui_Linux_x64.AppImage.tar.gz' },
             ];
 
             // Remove old fixed-name assets if they exist from a previous run
