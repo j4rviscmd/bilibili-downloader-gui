@@ -29,6 +29,9 @@ jobs:
             package-lock.json
             e2e-tests/package-lock.json
 
+      - name: Upgrade npm to meet engines requirement
+        run: npm install -g npm@latest
+
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
@@ -38,11 +41,11 @@ jobs:
           workspaces: src-tauri
 
       - name: Install frontend dependencies
-        run: npm ci --ignore-engines
+        run: npm ci
 
       - name: Install E2E test dependencies
         working-directory: e2e-tests
-        run: npm ci --ignore-engines
+        run: npm ci
 
       - name: Install tauri-webdriver
         run: cargo install tauri-webdriver --locked
