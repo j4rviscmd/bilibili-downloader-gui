@@ -29,9 +29,6 @@ jobs:
             package-lock.json
             e2e-tests/package-lock.json
 
-      - name: Upgrade npm to meet engines requirement
-        run: npm install -g npm@latest
-
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
