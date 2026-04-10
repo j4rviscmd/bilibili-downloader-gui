@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "outDir": "dist",
+    "types": ["node", "mocha"]
+  },
+  "include": [
+    "wdio.conf.ts",
+    "helpers/**/*.ts",
+    "test/**/*.ts",
+    "node_modules/@wdio/globals/types.d.ts",
+    "node_modules/webdriverio/build/types.d.ts"
+  ]
+}

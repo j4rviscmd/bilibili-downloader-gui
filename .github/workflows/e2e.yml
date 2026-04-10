@@ -1,0 +1,223 @@
+name: E2E Tests
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: E2E Tests
+    runs-on: macos-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            e2e-tests/package-lock.json
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install E2E test dependencies
+        working-directory: e2e-tests
+        run: npm ci
+
+      - name: Install tauri-webdriver
+        run: cargo install tauri-webdriver --locked
+
+      - name: Build Tauri app (debug)
+        working-directory: src-tauri
+        run: cargo build
+
+      - name: Run E2E tests
+        working-directory: e2e-tests
+        env:
+          E2E_TESTING: "true"
+        run: npx wdio run wdio.conf.ts
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-screenshots
+          path: e2e-tests/screenshots/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Comment screenshots on PR
+        if: >-
+          always()
+          && github.event_name == 'pull_request'
+          && github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            const screenshotsDir = path.join(
+              process.env.GITHUB_WORKSPACE,
+              'e2e-tests', 'screenshots'
+            );
+
+            if (!fs.existsSync(screenshotsDir)) {
+              console.log('No screenshots directory found');
+              return;
+            }
+
+            // Collect all PNG files recursively
+            const pngFiles = [];
+            function walkDir(dir, base = '') {
+              for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+                const relPath = base ? `${base}/${entry.name}` : entry.name;
+                if (entry.isDirectory()) {
+                  walkDir(path.join(dir, entry.name), relPath);
+                } else if (entry.name.endsWith('.png')) {
+                  pngFiles.push({
+                    absPath: path.join(dir, entry.name),
+                    relPath: relPath,
+                  });
+                }
+              }
+            }
+            walkDir(screenshotsDir);
+
+            if (pngFiles.length === 0) {
+              console.log('No screenshots found');
+              return;
+            }
+
+            const prNumber = context.payload.pull_request.number;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            // Push screenshots to ci-screenshots branch
+            let parentSha;
+            try {
+              const { data: ref } = await github.rest.git.getRef({
+                owner,
+                repo,
+                ref: 'heads/ci-screenshots',
+              });
+              parentSha = ref.object.sha;
+            } catch {
+              const { data: headRef } = await github.rest.git.getRef({
+                owner,
+                repo,
+                ref: `heads/${context.payload.repository.default_branch}`,
+              });
+              parentSha = headRef.object.sha;
+            }
+
+            // Create blobs and tree entries
+            const treeEntries = [];
+            for (const file of pngFiles) {
+              const content = fs.readFileSync(file.absPath);
+              const base64 = content.toString('base64');
+              const { data: blob } = await github.rest.git.createBlob({
+                owner,
+                repo,
+                content: base64,
+                encoding: 'base64',
+              });
+              treeEntries.push({
+                path: `e2e/${prNumber}/${file.relPath}`,
+                mode: '100644',
+                type: 'blob',
+                sha: blob.sha,
+              });
+            }
+
+            const { data: tree } = await github.rest.git.createTree({
+              owner,
+              repo,
+              base_tree: parentSha,
+              tree: treeEntries,
+            });
+
+            const { data: commit } = await github.rest.git.createCommit({
+              owner,
+              repo,
+              message: `E2E screenshots for PR #${prNumber}`,
+              tree: tree.sha,
+              parents: [parentSha],
+            });
+
+            try {
+              await github.rest.git.updateRef({
+                owner,
+                repo,
+                ref: 'heads/ci-screenshots',
+                sha: commit.sha,
+                force: true,
+              });
+            } catch {
+              await github.rest.git.createRef({
+                owner,
+                repo,
+                ref: 'refs/heads/ci-screenshots',
+                sha: commit.sha,
+              });
+            }
+
+            // Build comment body
+            const baseUrl = `https://raw.githubusercontent.com/${owner}/${repo}/ci-screenshots`;
+            let body = '## E2E Test Screenshots\n\n';
+            for (const file of pngFiles) {
+              const url = `${baseUrl}/e2e/${prNumber}/${file.relPath}`;
+              const category = path.dirname(file.relPath).replace('/', ' > ');
+              const name = path.basename(file.relPath, '.png');
+              body += `### ${category} > ${name}\n\n![${name}](${url})\n\n`;
+            }
+
+            // Find existing comment to update
+            const marker = '<!-- e2e-screenshots -->';
+            body = marker + '\n' + body;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner,
+              repo,
+              issue_number: prNumber,
+            });
+
+            const existingComment = comments.find(
+              (c) => c.body && c.body.includes(marker)
+            );
+
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existingComment.id,
+                body: body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: prNumber,
+                body: body,
+              });
+            }
