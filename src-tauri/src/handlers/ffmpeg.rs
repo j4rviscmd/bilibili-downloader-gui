@@ -18,25 +18,37 @@ use tauri::AppHandle;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command as AsyncCommand;
 
-/// 字幕オプション
+/// Options for embedding subtitles during video merging.
+///
+/// Used by [`merge_avs`] to specify subtitle file path, language code,
+/// and display title for each subtitle track.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SubtitleMergeOptions {
-    /// 字幕ファイルのパス
+    /// Absolute path to the subtitle file (e.g., `.srt` or `.ass`).
     pub path: PathBuf,
-    /// 言語コード (ISO 639-2)
+    /// ISO 639-2 language code (e.g., `"eng"`, `"jpn"`, `"chi"`).
     pub language: String,
-    /// トラックタイトル（表示名）
+    /// Human-readable track title displayed in media players (e.g., `"English"`).
     pub title: String,
 }
 
-/// マージモード
+/// Specifies how subtitles should be merged into the output video.
+///
+/// This enum controls the subtitle handling strategy during the ffmpeg merge
+/// process performed by [`merge_avs`].
 #[derive(Debug, Clone, PartialEq)]
 pub enum MergeMode {
-    /// 字幕なし（従来の動画+音声のみ）
+    /// No subtitles; merges video and audio streams only (equivalent to [`merge_av`]).
     None,
-    /// ソフトサブ（字幕をトラックとして埋め込み）
+    /// Soft subtitles: embeds subtitle tracks into the container without re-encoding.
+    ///
+    /// Viewers can toggle subtitle visibility during playback.
+    /// Multiple subtitle tracks are supported.
     SoftSub(Vec<SubtitleMergeOptions>),
-    /// ハードサブ（字幕を動画に焼き付け）
+    /// Hard subtitles: burns subtitles into the video frame via re-encoding.
+    ///
+    /// Subtitles are always visible and cannot be toggled off.
+    /// Uses `libx264` with `fast` preset for encoding.
     HardSub(SubtitleMergeOptions),
 }
 
@@ -81,7 +93,7 @@ pub fn validate_ffmpeg(app: &AppHandle) -> bool {
 }
 
 /// Removes the ffmpeg root directory or file if it exists.
-fn cleanup_ffmpeg_dir(ffmpeg_root: &PathBuf) {
+fn cleanup_ffmpeg_dir(ffmpeg_root: &Path) {
     if ffmpeg_root.is_dir() {
         let _ = fs::remove_dir_all(ffmpeg_root);
     } else if ffmpeg_root.is_file() {
@@ -133,6 +145,11 @@ pub async fn install_ffmpeg(app: &AppHandle) -> Result<bool> {
         )
     } else if cfg!(target_os = "macos") {
         ("https://evermeet.cx/ffmpeg/getrelease/zip", "ffmpeg.zip")
+    } else if cfg!(target_os = "linux") {
+        (
+            "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-lgpl.tar.xz",
+            "ffmpeg-master-latest-linux64-lgpl.tar.xz",
+        )
     } else {
         return Ok(false);
     };
@@ -165,10 +182,10 @@ pub async fn install_ffmpeg(app: &AppHandle) -> Result<bool> {
     // Remove archive file after successful extraction
     let _ = fs::remove_file(&archive_path);
 
-    // Grant execute permission on macOS
-    #[cfg(target_os = "macos")]
+    // Grant execute permission on Unix (macOS and Linux)
+    #[cfg(unix)]
     {
-        let ffmpeg_bin = ffmpeg_root.join("ffmpeg");
+        let ffmpeg_bin = get_ffmpeg_path(app);
         let Some(ffmpeg_path_str) = ffmpeg_bin.to_str() else {
             return Err(anyhow::anyhow!("Invalid ffmpeg path"));
         };
@@ -203,7 +220,7 @@ pub async fn install_ffmpeg(app: &AppHandle) -> Result<bool> {
 /// # Errors
 ///
 /// Returns an error if extraction or file I/O fails.
-async fn unpack_archive(archive_path: &PathBuf, dest: &PathBuf) -> Result<bool> {
+async fn unpack_archive(archive_path: &Path, dest: &Path) -> Result<bool> {
     let ext = archive_path
         .extension()
         .and_then(|s| s.to_str())
@@ -271,6 +288,11 @@ fn build_ffmpeg_bin_path(base_path: &Path) -> PathBuf {
             .join("ffmpeg-master-latest-win64-lgpl-shared")
             .join("bin")
             .join("ffmpeg")
+    } else if cfg!(target_os = "linux") {
+        base_path
+            .join("ffmpeg-master-latest-linux64-lgpl")
+            .join("bin")
+            .join("ffmpeg")
     } else {
         base_path.join("ffmpeg")
     };
@@ -291,7 +313,7 @@ fn build_ffmpeg_bin_path(base_path: &Path) -> PathBuf {
 /// # Returns
 ///
 /// Returns `true` if the binary exists and can be executed successfully.
-fn validate_command(path: &PathBuf) -> bool {
+fn validate_command(path: &Path) -> bool {
     if !path.exists() {
         return false;
     }
@@ -423,9 +445,39 @@ fn copy_dir_recursive(from: &Path, to: &Path) -> std::io::Result<()> {
 
 /// Merges separate video and audio files into a single MP4 file.
 ///
-/// This function uses ffmpeg to combine video and audio streams:
-/// - Video stream is copied without re-encoding (fast)
-/// - Audio stream is re-encoded to AAC
+/// Delegates to [`merge_avs`] with [`MergeMode::None`].
+/// See [`merge_avs`] for detailed documentation on arguments, return values, and errors.
+pub async fn merge_av(
+    app: &AppHandle,
+    video_path: &std::path::Path,
+    audio_path: &std::path::Path,
+    output_path: &std::path::Path,
+    download_id: Option<String>,
+    duration_ms: Option<u64>,
+) -> Result<(), String> {
+    merge_avs(
+        app,
+        video_path,
+        audio_path,
+        output_path,
+        download_id,
+        duration_ms,
+        MergeMode::None,
+    )
+    .await
+}
+
+/// Merges video, audio, and optional subtitles into a single MP4 file.
+///
+/// This is an extended version of [`merge_av`] that supports subtitle handling
+/// based on the specified [`MergeMode`]:
+///
+/// - **None**: Merges video and audio only (identical to [`merge_av`]).
+///   Video stream is copied without re-encoding; audio is re-encoded to AAC.
+/// - **SoftSub**: Embeds subtitle tracks into the container (`mov_text` codec).
+///   Viewers can toggle subtitles on/off during playback. Supports multiple tracks.
+/// - **HardSub**: Burns subtitles into the video frame using the `subtitles` filter.
+///   Requires re-encoding via `libx264` with `fast` preset.
 ///
 /// Progress events are emitted to the frontend during the merge process.
 ///
@@ -437,6 +489,7 @@ fn copy_dir_recursive(from: &Path, to: &Path) -> std::io::Result<()> {
 /// * `output_path` - Path for the merged output file (.mp4)
 /// * `download_id` - Optional download ID for progress tracking
 /// * `duration_ms` - Optional video duration in milliseconds for accurate progress
+/// * `subtitle_mode` - Controls how subtitles are handled during the merge
 ///
 /// # Returns
 ///
@@ -446,164 +499,9 @@ fn copy_dir_recursive(from: &Path, to: &Path) -> std::io::Result<()> {
 ///
 /// Returns an error if:
 /// - File paths contain invalid UTF-8
+/// - Subtitle file paths are invalid (when using SoftSub or HardSub mode)
 /// - ffmpeg execution fails
 /// - ffmpeg returns a non-zero exit code
-pub async fn merge_av(
-    app: &AppHandle,
-    video_path: &std::path::Path,
-    audio_path: &std::path::Path,
-    output_path: &std::path::Path,
-    download_id: Option<String>,
-    duration_ms: Option<u64>,
-) -> Result<(), String> {
-    log::info!(
-        "[BE] merge_av: starting merge download_id={:?}, output={:?}",
-        download_id,
-        output_path
-    );
-    let filename = output_path
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("output");
-
-    // Set dummy filesize of 100MB for merge progress calculation
-    // This allows percentage calculation: downloaded_bytes / (100 * 1024 * 1024) * 100
-    // We'll send percentage * 1048576 as downloaded_bytes to get correct percentage
-    let emits = Emits::new(
-        app.clone(),
-        download_id.unwrap_or(filename.to_string()),
-        Some(100 * 1024 * 1024), // 100MB dummy size
-    );
-    let _ = emits.set_stage("merge").await;
-
-    let ffmpeg_path = get_ffmpeg_path(app);
-
-    // Convert paths to strings for ffmpeg command
-    let to_str_err = || "Invalid path".to_string();
-    let video_str = video_path.to_str().ok_or_else(to_str_err)?;
-    let audio_str = audio_path.to_str().ok_or_else(to_str_err)?;
-    let output_str = output_path.to_str().ok_or_else(to_str_err)?;
-
-    let mut cmd = AsyncCommand::new(&ffmpeg_path);
-    cmd.args([
-        "-i",
-        video_str,
-        "-i",
-        audio_str,
-        "-c:v",
-        "copy",
-        "-c:a",
-        "aac",
-        "-progress",
-        "pipe:1",
-        "-y",
-        output_str,
-    ]);
-
-    // Windowsでコンソールウィンドウが開かないようにする
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        cmd.creation_flags(CREATE_NO_WINDOW);
-    }
-
-    // Spawn ffmpeg with stdout and stderr piped for progress parsing and error handling
-    let mut child = cmd
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("Failed to spawn ffmpeg: {e}"))?;
-
-    let stdout = child.stdout.as_mut().ok_or("Failed to capture stdout")?;
-
-    let stderr = child.stderr.take().ok_or("Failed to capture stderr")?;
-
-    let reader = BufReader::new(stdout);
-    let mut lines = reader.lines();
-
-    // Read stderr in background for error details
-    let mut stderr_reader = BufReader::new(stderr);
-    let mut stderr_lines = String::new();
-    let stderr_task = tokio::spawn(async move {
-        let mut line = String::new();
-        while stderr_reader.read_line(&mut line).await.unwrap_or(0) > 0 {
-            stderr_lines.push_str(&line);
-            line.clear();
-        }
-        stderr_lines
-    });
-
-    // Parse progress from ffmpeg output
-    // Note: out_time_ms is in microseconds (us), not milliseconds (ms)
-    while let Ok(Some(line)) = lines.next_line().await {
-        if let Some(time_str) = line.strip_prefix("out_time_ms=") {
-            let out_time_us: u64 = time_str.trim().parse().unwrap_or(0);
-
-            // Convert microseconds to milliseconds for percentage calculation
-            let out_time_ms = out_time_us / 1000;
-
-            // Calculate percentage using actual video duration or fallback to estimate
-            let total_duration_ms = duration_ms.unwrap_or(300_000); // 5 minutes fallback
-            let percentage = if total_duration_ms > 0 {
-                (out_time_ms as f64 / total_duration_ms as f64) * 100.0
-            } else {
-                0.0
-            };
-
-            // Clamp to 95% max until completion
-            let clamped_percentage = percentage.min(95.0);
-
-            // Convert percentage to "downloaded bytes" for progress calculation
-            // With 100MB dummy filesize: percentage * 1MB = downloaded_bytes
-            emits.update_progress((clamped_percentage as u64) * 1024 * 1024);
-        }
-
-        if line == "progress=end" {
-            break;
-        }
-    }
-
-    let status = child
-        .wait()
-        .await
-        .map_err(|e| format!("Failed to wait for ffmpeg: {e}"))?;
-
-    // Get stderr output for error details
-    let stderr_output = stderr_task
-        .await
-        .unwrap_or_else(|e| format!("Failed to read stderr: {e}"));
-
-    if !status.success() {
-        return Err(format!(
-            "ffmpeg failed to merge video and audio.\nExit code: {:?}\nstderr: {}",
-            status.code(),
-            stderr_output
-        ));
-    }
-    // 完了ステージを送信後 complete 呼び出し (単一 Emits ライフサイクル)
-    let _ = emits.set_stage("complete").await;
-    emits.complete().await;
-
-    Ok(())
-}
-
-/// 動画・音声・字幕をマージしてMP4ファイルを生成する
-///
-/// 字幕オプションに応じて以下のモードをサポート:
-/// - None: 従来の動画+音声のみ（merge_avと同等）
-/// - SoftSub: 字幕をトラックとして埋め込み（再生時にON/OFF可能）
-/// - HardSub: 字幕を動画に焼き付け（再エンコード必要）
-///
-/// # Arguments
-///
-/// * `app` - Tauriアプリケーションハンドル
-/// * `video_path` - 動画ファイルのパス
-/// * `audio_path` - 音声ファイルのパス
-/// * `output_path` - 出力ファイルのパス
-/// * `download_id` - ダウンロードID（進捗通知用）
-/// * `duration_ms` - 動画の長さ（ミリ秒、進捗計算用）
-/// * `subtitle_mode` - 字幕マージモード
 pub async fn merge_avs(
     app: &AppHandle,
     video_path: &std::path::Path,
