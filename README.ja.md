@@ -70,7 +70,7 @@
 | **Linux (AppImage)**      | [bilibili-downloader-gui_Linux_x64.AppImage.tar.gz](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Linux_x64.AppImage.tar.gz) |
 
 > [!NOTE]
-> macOSビルドは署名されていません。初回起動時に以下を実行してください：
+> macOSビルドはアドホックコード署名を使用しています（Appleの公証は受けていません）。初回起動時に **システム設定 > プライバシーとセキュリティ** で **このまま開く** をクリックしてください。または、以下を実行してください：
 >
 > ```bash
 > xattr -dr com.apple.quarantine "/Applications/bilibili-downloader-gui.app"
