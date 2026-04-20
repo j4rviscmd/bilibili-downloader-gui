@@ -70,7 +70,7 @@
 | **Linux (AppImage)**      | [bilibili-downloader-gui_Linux_x64.AppImage.tar.gz](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Linux_x64.AppImage.tar.gz) |
 
 > [!NOTE]
-> macOS 构建未签名。首次启动时运行：
+> macOS 构建使用临时代码签名（未经 Apple 公证）。首次启动时，请前往 **系统设置 > 隐私与安全性** 并点击 **仍要打开**。或者运行：
 >
 > ```bash
 > xattr -dr com.apple.quarantine "/Applications/bilibili-downloader-gui.app"

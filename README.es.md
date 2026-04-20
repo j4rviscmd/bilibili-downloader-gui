@@ -70,7 +70,7 @@ Sin anuncios, sin seguimiento. 100% gratis.
 | **Linux (AppImage)**      | [bilibili-downloader-gui_Linux_x64.AppImage.tar.gz](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Linux_x64.AppImage.tar.gz) |
 
 > [!NOTE]
-> Las compilaciones de macOS no están firmadas. En el primer inicio, ejecuta:
+> Las compilaciones de macOS usan firma de código ad-hoc (sin notarización de Apple). En el primer inicio, ve a **Configuración del Sistema > Privacidad y Seguridad** y haz clic en **Abrir de todos modos**. Alternativamente, ejecuta:
 >
 > ```bash
 > xattr -dr com.apple.quarantine "/Applications/bilibili-downloader-gui.app"
