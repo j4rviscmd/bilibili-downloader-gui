@@ -341,7 +341,7 @@ pub async fn download_url(
                                 // Switch to next CDN URL on reconnect (loops back to start)
                                 let next_cdn_idx =
                                     (cdn_rotation_count as usize + 1) % cdn_urls_c.len();
-                                log::debug!(
+                                log::info!(
                                     "[BE] download_url: segment {} rotating CDN #{} → #{} (rotation {}/{})",
                                     idx,
                                     cdn_idx,

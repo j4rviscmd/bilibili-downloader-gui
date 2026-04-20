@@ -51,17 +51,31 @@ export const progressSlice = createSlice({
      */
     setProgress(state, action: PayloadAction<Progress>) {
       const payload = action.payload
-      // compute internal id and parent id
-      // internalId: 'complete' replaces existing 'merge' to ensure button unlock
       const internalId = computeInternalId(state, payload)
-      const parentId = payload.downloadId
-      const entry = { ...payload, internalId, parentId }
       const idx = state.findIndex((p) => p.internalId === internalId)
 
       if (idx === -1) {
-        state.push(entry)
+        state.push({
+          ...payload,
+          internalId,
+          parentId: payload.downloadId,
+        })
       } else {
-        state[idx] = entry
+        const prev = state[idx]
+        // Monotonic clamp: prevent progress regression during CDN switches
+        const percentage = payload.isComplete
+          ? payload.percentage
+          : Math.max(prev.percentage, payload.percentage)
+        const downloaded = payload.isComplete
+          ? payload.downloaded
+          : Math.max(prev.downloaded, payload.downloaded)
+        state[idx] = {
+          ...payload,
+          internalId,
+          parentId: payload.downloadId,
+          percentage,
+          downloaded,
+        }
       }
     },
     /**
