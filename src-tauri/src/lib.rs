@@ -116,6 +116,8 @@ pub use utils::wbi;
 ///
 /// **Development Only (debug builds):**
 /// - `set_simulate_logout`: Toggles simulate logout flag for testing
+/// - `tauri-plugin-webdriver`: WebDriver automation support for E2E testing
+/// - `tauri-plugin-mcp-bridge`: MCP bridge for AI tool integration during development
 ///
 /// # Panics
 ///
@@ -191,12 +193,15 @@ pub fn run() {
         ])
         // 開発環境以外で`app`宣言ではBuildに失敗するため、`_app`を使用
         .setup(|app| {
-            // Register webdriver plugin for E2E tests (debug only)
+            // Register debug-only plugins
             #[cfg(debug_assertions)]
             {
                 app.handle()
                     .plugin(tauri_plugin_webdriver::init())
                     .expect("Failed to register webdriver plugin");
+                app.handle()
+                    .plugin(tauri_plugin_mcp_bridge::init())
+                    .expect("Failed to register mcp-bridge plugin");
             }
 
             // Initialize logging plugin with app_data_dir/logs path
