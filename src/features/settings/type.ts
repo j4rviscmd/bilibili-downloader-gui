@@ -46,6 +46,12 @@ export interface Settings {
    * Defaults to true if not specified.
    */
   autoRenameDuplicates?: boolean
+  /**
+   * Whether to show GitHub stars in the app bar.
+   *
+   * Defaults to true if not specified.
+   */
+  showGithubStars?: boolean
   // Managed on frontend only, stored in localStorage
   // TODO: manage theme in json
   // theme: 'light' | 'dark'

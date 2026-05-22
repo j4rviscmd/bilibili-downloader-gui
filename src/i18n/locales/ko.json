@@ -225,6 +225,8 @@
     "lib_path_change_success": "라이브러리 저장 위치가 성공적으로 업데이트되었습니다",
     "lib_path_change_error": "라이브러리 저장 위치 변경 실패",
     "app_section_label": "애플리케이션",
+    "show_github_stars_label": "GitHub Stars 표시",
+    "show_github_stars_description": "앱 바에 스타 수를 표시합니다",
     "current_version": "현재 버전: {{version}}",
     "update_check": {
       "aria_label": "업데이트 확인",
