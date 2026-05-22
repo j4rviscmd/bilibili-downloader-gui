@@ -44,7 +44,7 @@ pub fn read_cookie(app: &AppHandle) -> Result<Option<Vec<CookieEntry>>, String> 
         }
     }
 
-    // キャッシュを参照する場合は、app.state::<CookieCache>().cookies.lock() から取出
+    // Retrieve from cache via app.state::<CookieCache>().cookies.lock()
     if let Some(cache) = app.try_state::<CookieCache>() {
         if let Ok(guard) = cache.cookies.lock() {
             let cookies = guard.clone();
@@ -85,7 +85,7 @@ fn find_firefox_cookie_file(app: &AppHandle) -> Option<PathBuf> {
     if !filepath.exists() {
         return None;
     }
-    // プロファイル配下を走査して最初に見つかった cookies.sqlite を返す
+    // Scan profiles directory and return the first cookies.sqlite found
     if let Ok(entries) = fs::read_dir(&filepath) {
         for entry in entries.flatten() {
             let p = entry.path().join("cookies.sqlite");
@@ -121,18 +121,18 @@ fn find_firefox_cookie_file(app: &AppHandle) -> Option<PathBuf> {
 /// - SQLite database cannot be opened or queried
 pub async fn get_cookie(app: &AppHandle) -> Result<bool, String> {
     log::info!("[BE] get_cookie: reading cookies from Firefox");
-    // 1) ローカルの Firefox cookie DB を探索
+    // 1) Search for local Firefox cookie DB
     let Some(cookiefile) = find_firefox_cookie_file(app) else {
         log::warn!("[BE] get_cookie: Firefox cookie file not found");
         return Ok(false);
     };
 
-    // 2) 一時ディレクトリにコピー（Firefox 実行中ロック対策）
+    // 2) Copy to temp directory (to avoid lock while Firefox is running)
     let tmp_dir = std::env::temp_dir();
     let tmp_cookie = tmp_dir.join("temp_cookiefile.sqlite");
     fs::copy(&cookiefile, &tmp_cookie).map_err(|e| format!("failed to copy cookie db: {e}"))?;
 
-    // 3) SQLite を開いて moz_cookies から host, name, value を読む（デバッグ表示）
+    // 3) Open SQLite and read host, name, value from moz_cookies (for debug display)
     let mut cookies = HashMap::<String, String>::new();
     let read_res: SqlResult<bool> = (|| {
         let conn = Connection::open(&tmp_cookie)?;
@@ -160,8 +160,8 @@ pub async fn get_cookie(app: &AppHandle) -> Result<bool, String> {
                 "[BE] get_cookie: successfully loaded {} cookies",
                 cookies.len()
             );
-            // メモリキャッシュへ保存
-            // NOTE: 次回の処理でキャッシュを参照する場合は、app.state::<CookieCache>().cookies.lock() から取出
+            // Save to memory cache
+            // NOTE: To read the cache later, access via app.state::<CookieCache>().cookies.lock()
             if let Some(cache) = app.try_state::<CookieCache>() {
                 if let Ok(mut guard) = cache.cookies.lock() {
                     let mut vec = Vec::with_capacity(cookies.len());

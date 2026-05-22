@@ -2,13 +2,13 @@ import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 
 /**
- * サイドバーの状態管理
+ * Sidebar state management
  *
- * サイドバーの開閉状態を管理するRedux状態。
- * この状態は settings.json に永続化され、ページ遷移後も維持される。
+ * Redux state that manages the sidebar open/close state.
+ * This state is persisted in settings.json and maintained across page transitions.
  */
 export type SidebarState = {
-  /** サイドバーが開いているかどうか */
+  /** Whether the sidebar is open */
   sidebarOpen: boolean
 }
 
@@ -17,20 +17,20 @@ const initialState: SidebarState = {
 }
 
 /**
- * サイドバー用Redux Slice
+ * Redux Slice for sidebar
  *
- * サイドバーの開閉状態を管理する。状態はRedux Toolkitの
- * createSliceを使用して定義され、setSidebarOpenアクションを通じて更新される。
+ * Manages the sidebar open/close state. State is defined using
+ * Redux Toolkit's createSlice and updated via the setSidebarOpen action.
  */
 export const sidebarSlice = createSlice({
   name: 'sidebar',
   initialState,
   reducers: {
     /**
-     * サイドバーの開閉状態を設定
+     * Sets the sidebar open/close state
      *
-     * @param state - 現在のRedux状態
-     * @param action - boolean値を含むアクション（true: 開く, false: 閉じる）
+     * @param state - Current Redux state
+     * @param action - Action containing a boolean value (true: open, false: close)
      */
     setSidebarOpen: (state, action: PayloadAction<boolean>) => {
       state.sidebarOpen = action.payload

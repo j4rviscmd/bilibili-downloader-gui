@@ -1,13 +1,13 @@
 /**
- * シンプルな並行実行数リミッター。
+ * Simple concurrency limiter.
  *
- * 同時に実行できる非同期タスク数を制限し、
- * 超過分はキューに積んで順次実行する。
+ * Limits the number of asynchronous tasks that can run simultaneously,
+ * queuing excess tasks for sequential execution.
  *
  * @example
  * ```typescript
  * const limiter = createConcurrencyLimiter(3)
- * // 最大3並列で実行される
+ * // Runs with max 3 concurrent tasks
  * await limiter.run(() => fetch('/api/1'))
  * ```
  */
@@ -23,10 +23,10 @@ export function createConcurrencyLimiter(maxConcurrency: number) {
   }
 
   /**
-   * タスクをキューに追加し、並行制限内で実行する。
+   * Queues a task and runs it within the concurrency limit.
    *
-   * @param fn - 実行する非同期関数
-   * @returns タスクの戻り値の Promise
+   * @param fn - Async function to execute
+   * @returns Promise resolving to the task's return value
    */
   async function run<T>(fn: () => Promise<T>): Promise<T> {
     await new Promise<void>((resolve) => {

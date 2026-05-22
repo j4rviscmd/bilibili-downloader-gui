@@ -121,7 +121,7 @@ export const buildVideoFormSchema1 = (t: TFunction) =>
             return
           }
 
-          // bilibili.com 直下のみ許可（必要に応じてサブドメインも許可可能）
+          // Only allow bilibili.com directly (subdomains can be allowed if needed)
           const ok = /^www\.bilibili\.com$/i.test(hostname)
           if (!ok) {
             ctx.addIssue({
@@ -130,7 +130,7 @@ export const buildVideoFormSchema1 = (t: TFunction) =>
             })
             return
           }
-          // 動画URL または バンガミURL のパス形式をチェック
+          // Check path format for video URL or bangumi URL
           const isVideoPath = /^\/video\/[a-zA-Z0-9]+/.test(pathname)
           const isBangumiPath = /^\/bangumi\/play\/ep\d+/.test(pathname)
           if (!isVideoPath && !isBangumiPath) {
@@ -140,7 +140,7 @@ export const buildVideoFormSchema1 = (t: TFunction) =>
             })
           }
         } catch {
-          // .url() が既にURL形式の検証とメッセージを担当
+          // .url() already handles URL format validation and messages
         }
       }),
   })

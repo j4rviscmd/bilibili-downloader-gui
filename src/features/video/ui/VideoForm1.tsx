@@ -54,7 +54,7 @@ function VideoForm1() {
 
   useEffect(() => {
     const trimmedUrl = input.url.trim()
-    // 空文字の場合はバリデーションをスキップ（初期表示時のエラー防止）
+    // Skip validation for empty strings (prevent errors on initial render)
     form.setValue('url', trimmedUrl, { shouldValidate: trimmedUrl.length > 0 })
   }, [form, input.url])
 

@@ -1,6 +1,6 @@
 fn main() {
-    // 開発ビルド時はルート .env を優先読み込みし GA 関連値を埋め込む
-    // .env フォーマット: KEY=VALUE (空行/ # コメント行は無視)
+    // In dev builds, prefer root .env for GA-related values
+    // .env format: KEY=VALUE (blank lines / # comment lines are ignored)
     #[cfg(debug_assertions)]
     {
         let mut loaded: Option<&str> = None;
@@ -34,7 +34,7 @@ fn main() {
         }
     }
 
-    // CI / 本番など環境変数で直接渡された値があれば (開発でも .env が与えないキーを補完)
+    // Override with environment variables if set (CI/production, or keys missing from .env)
     if let Ok(secret) = std::env::var("GA_API_SECRET") {
         println!("cargo:rustc-env=GA_API_SECRET={secret}");
     }

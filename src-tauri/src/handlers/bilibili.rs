@@ -506,19 +506,19 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
         .register(&options.download_id)
         .await;
 
-    // 1. 出力ファイルパス決定 + 自動リネーム
+    // 1. Determine output file path + auto-rename
     let output_path = auto_rename(&build_output_path(app, &options.filename).await?);
 
-    // 2. Cookie取得（WBI署名により非ログインユーザでも動作）
+    // 2. Get cookies (WBI signing enables non-logged-in usage)
     let cookies = read_cookie(app)?.unwrap_or_default();
     let cookie_header = build_cookie_header(&cookies);
 
-    // 3. バンガミの場合、プレイヤー結果を取得してis_previewとdurl形式をチェック
+    // 3. For bangumi, fetch player result to check is_preview and durl format
     let bangumi_preview_info: Option<bool> = if let Some(ep_id) = options.ep_id {
         let player_result = fetch_bangumi_player_result(&cookies, ep_id, options.cid).await?;
         let is_preview = player_result.is_preview.map(|v| v == 1);
 
-        // durl形式（MP4直接URL）の場合
+        // durl format (direct MP4 URL)
         if player_result.dash.is_none() {
             return download_bangumi_durl(
                 app,
@@ -534,7 +534,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
         None
     };
 
-    // 4. 動画詳細取得 (選択品質のURL抽出) - DASH形式
+    // 4. Fetch video details (extract URL for selected quality) - DASH format
     let details = if let Some(ep_id) = options.ep_id {
         fetch_bangumi_details_for_download(&cookies, ep_id, options.cid).await?
     } else {
@@ -548,7 +548,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
         )
     })?;
 
-    // 通常動画 durl 形式（音声が映像に埋め込まれているMP4）
+    // Regular video durl format (audio embedded in MP4)
     if data.dash.is_none() {
         if let Some(durl_segments) = &data.durl {
             let durl_segment = durl_segments.first().ok_or("ERR::QUALITY_NOT_FOUND")?;
@@ -633,7 +633,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
 
     let dash_data = data.dash.unwrap();
 
-    // 選択品質が存在しなければフォールバック (先頭 = 最も高品質)
+    // Fallback if selected quality is unavailable (first = highest quality)
     // None means best available → -1 won't match any real quality ID.
     let requested_quality = options.quality.unwrap_or(-1);
     let (video_url, video_backup_urls, raw_video_fallback) =
@@ -680,23 +680,23 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
     )
     .ok();
 
-    // 5. 容量事前チェック (取得できなければスキップ)
+    // 5. Pre-check disk space (skip if size cannot be determined)
     let video_size = head_content_length(&video_url, Some(&cookie_header)).await;
     let audio_size = head_content_length(&audio_url, Some(&cookie_header)).await;
     if let (Some(vs), Some(asz)) = (video_size, audio_size) {
-        let total_needed = vs + asz + (5 * 1024 * 1024); // 余裕 5MB
+        let total_needed = vs + asz + (5 * 1024 * 1024); // 5MB buffer
         ensure_free_space(&output_path, total_needed)?;
     }
 
-    // 6. temp ファイルパス生成
+    // 6. Generate temp file paths
     let lib_path = get_lib_path(app);
     let temp_video_path = lib_path.join(format!("temp_video_{}.m4s", options.download_id));
     let temp_audio_path = lib_path.join(format!("temp_audio_{}.m4s", options.download_id));
 
     // Result to track success/failure for cleanup
     let result = async {
-        // 7. セマフォ取得 + 並列ダウンロード + マージ
-        // セマフォは「マージ完了まで保持」され、並列実行数はマージ処理の負荷に基づく
+        // 7. Acquire semaphore + parallel download + merge
+        // Semaphore is held until merge completes; concurrency is based on merge load
         let permit = crate::handlers::concurrency::VIDEO_SEMAPHORE
             .clone()
             .acquire_owned()
@@ -705,7 +705,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
 
         let cookie = Some(cookie_header);
 
-        // 音声と動画を並列ダウンロード (片方失敗で即時キャンセル)
+        // Download audio and video in parallel (cancel immediately if either fails)
         tokio::try_join!(
             retry_download(|| {
                 download_url(
@@ -735,7 +735,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
             }),
         )?;
 
-        // 字幕処理
+        // Subtitle processing
         let (subtitle_mode, subtitle_language_labels) = prepare_subtitle_mode(
             &options.subtitle,
             &cookies,
@@ -763,7 +763,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
         )
         .ok();
 
-        // 字幕ファイルのパスを保持（クリーンアップ用）
+        // Keep subtitle file paths for cleanup
         let subtitle_paths: Vec<PathBuf> = match &subtitle_mode {
             crate::handlers::ffmpeg::MergeMode::SoftSub(subs) => {
                 subs.iter().map(|s| s.path.clone()).collect()
@@ -774,7 +774,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
             _ => vec![],
         };
 
-        // マージ実行
+        // Execute merge
         log::info!(
             "[BE] download_video: starting ffmpeg merge id={}",
             options.download_id
@@ -791,20 +791,20 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
         .await
         .map_err(|_| String::from("ERR::MERGE_FAILED"))?;
 
-        // マージ完了後にセマフォを解放
+        // Release semaphore after merge completes
         drop(permit);
 
-        // temp 削除
+        // Delete temp files
         let _ = tokio::fs::remove_file(&temp_video_path).await;
         let _ = tokio::fs::remove_file(&temp_audio_path).await;
         for sub_path in subtitle_paths {
             let _ = tokio::fs::remove_file(&sub_path).await;
         }
 
-        // 出力パスを保持 (クローンで履歴保存に渡す)
+        // Keep output path (clone for history saving)
         let output_path_str = output_path.to_string_lossy().to_string();
 
-        // 実際のファイルサイズを取得
+        // Get actual file size
         let actual_file_size = tokio::fs::metadata(&output_path)
             .await
             .ok()
@@ -816,7 +816,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
             actual_file_size
         );
 
-        // 履歴に保存 (非同期で失敗してもダウンロードには影響しない)
+        // Save to history (async failure does not affect download)
         let app = app.clone();
         let bvid = options.bvid.clone();
         let filename = options.filename.clone();
@@ -1684,7 +1684,7 @@ fn ensure_free_space(target_path: &Path, needed_bytes: u64) -> Result<(), String
             }
         }
     }
-    // Windows 等未実装 -> スキップ
+    // Not implemented on Windows, etc. -> skip
     Ok(())
 }
 
@@ -1857,7 +1857,7 @@ pub async fn fetch_watch_history(
         view_at
     );
 
-    // 1. Cookie取得（必須）
+    // 1. Get cookies (required)
     let cookies = read_cookie(app)?.unwrap_or_default();
 
     if cookies.is_empty() {
@@ -1866,8 +1866,8 @@ pub async fn fetch_watch_history(
 
     let cookie_header = build_cookie_header(&cookies);
 
-    // 2. API呼び出し
-    // 初回リクエストではパラメータを省略、2回目以降はmax/view_atを使用
+    // 2. API call
+    // Omit parameters on first request; use max/view_at for subsequent pages
     let client = build_client()?;
     let url = if max == 0 && view_at == 0 {
         "https://api.bilibili.com/x/web-interface/history/cursor?business=archive".to_string()
@@ -1898,7 +1898,7 @@ pub async fn fetch_watch_history(
         )
     })?;
 
-    // 3. エラーハンドリング（-101: 未ログイン）
+    // 3. Error handling (-101: not logged in)
     if body.code == -101 {
         return Err("ERR::UNAUTHORIZED".into());
     }
@@ -1914,7 +1914,7 @@ pub async fn fetch_watch_history(
         .data
         .ok_or_else(|| "Watch history API returned no data".to_string())?;
 
-    // 4. DTO変換（サムネイルを並列でBase64エンコード）
+    // 4. DTO conversion (encode thumbnails to Base64 in parallel)
     let entry_futures: Vec<_> = data
         .list
         .into_iter()

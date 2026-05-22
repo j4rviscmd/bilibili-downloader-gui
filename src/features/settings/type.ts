@@ -46,8 +46,8 @@ export interface Settings {
    * Defaults to true if not specified.
    */
   autoRenameDuplicates?: boolean
-  // Frontendのみの管理につき、localStorageでのみ保存している
-  // TODO: themeをjson管理
+  // Managed on frontend only, stored in localStorage
+  // TODO: manage theme in json
   // theme: 'light' | 'dark'
 }
 
