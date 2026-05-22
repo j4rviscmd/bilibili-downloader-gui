@@ -6,7 +6,7 @@ printWidth: 80
 plugins:
   - prettier-plugin-organize-imports
   - prettier-plugin-tailwindcss
-organizeImportsSkipDestructiveCodeActions: false # 未使用importの削除
+organizeImportsSkipDestructiveCodeActions: false # Remove unused imports
 
 overrides:
   - files: '*.rs'
