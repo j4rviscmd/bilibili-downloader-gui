@@ -15,6 +15,7 @@ const initialState: SettingsState = {
   language: 'en',
   dialogOpen: false,
   autoRenameDuplicates: true,
+  showGithubStars: true,
 }
 
 /**

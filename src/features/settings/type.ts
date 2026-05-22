@@ -46,6 +46,12 @@ export interface Settings {
    * Defaults to true if not specified.
    */
   autoRenameDuplicates?: boolean
+  /**
+   * Whether to show GitHub stars in the app bar.
+   *
+   * Defaults to true if not specified.
+   */
+  showGithubStars?: boolean
   // Frontendのみの管理につき、localStorageでのみ保存している
   // TODO: themeをjson管理
   // theme: 'light' | 'dark'
