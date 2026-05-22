@@ -187,11 +187,11 @@ pub fn run() {
             load_qr_session,
             check_cookie_refresh,
             refresh_cookie,
-            // record_download_click  // NOTE: GA4 Analytics は無効化されています
+            // record_download_click  // NOTE: GA4 Analytics is currently disabled
             #[cfg(debug_assertions)]
             set_simulate_logout,
         ])
-        // 開発環境以外で`app`宣言ではBuildに失敗するため、`_app`を使用
+        // Use `_app` because `app` causes build failure outside dev environment
         .setup(|app| {
             // Register debug-only plugins
             #[cfg(debug_assertions)]
@@ -254,7 +254,7 @@ pub fn run() {
                 });
             }
 
-            // Cookieキャッシュを初期化
+            // Initialize cookie cache
             app.manage(CookieCache::default());
 
             // Development mode: Initialize simulate logout flag
@@ -263,14 +263,14 @@ pub fn run() {
                 app.manage(SimulateLogoutFlag::default());
             }
 
-            // Analytics 初期化 (非同期で失敗握りつぶし)
-            // NOTE: GA4 Analytics は無効化されています
+            // Analytics initialization (async errors are swallowed)
+            // NOTE: GA4 Analytics is currently disabled
             // let handle: AppHandle = app.handle().clone();
             // tauri::async_runtime::spawn(async move {
             //     crate::utils::analytics::init_analytics(&handle).await;
             // });
-            // 開発環境の場合は、開発者コンソールを有効化
-            // E2Eテスト時はコンソールを開かない
+            // Enable dev console in development environment
+            // Don't open console during E2E tests
             #[cfg(debug_assertions)]
             {
                 if !crate::handlers::qr_login::is_e2e_testing() {
@@ -962,7 +962,7 @@ async fn open_file(path: String) -> Result<(), String> {
     Ok(())
 }
 
-// NOTE: GA4 Analytics は無効化されています
+// NOTE: GA4 Analytics is currently disabled
 // #[tauri::command]
 // async fn record_download_click(app: AppHandle, download_id: String) -> Result<(), String> {
 //     tauri::async_runtime::spawn(async move {

@@ -54,10 +54,10 @@ export const useSettings = () => {
       }
     } catch (e) {
       const raw = String(e)
-      // settings.rs で返されるコード (シングルコロン形式) を優先判定
+      // Prefer single-colon format returned by settings.rs
       //   ERR:SETTINGS_PATH_NOT_DIRECTORY
       //   ERR:SETTINGS_PATH_NOT_EXIST
-      // 既存のダブルコロン形式 (将来互換) も一応残す
+      // Keep double-colon format for backward compatibility
       let messageKey: string | null = null
       if (raw.includes('ERR:SETTINGS_PATH_NOT_DIRECTORY'))
         messageKey = 'settings.path_not_directory'

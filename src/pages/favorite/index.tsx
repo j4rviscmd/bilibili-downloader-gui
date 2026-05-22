@@ -65,9 +65,9 @@ export function FavoriteContent() {
   }
 
   /**
-   * お気に入りリストの手動更新を処理します。
+   * Handles manual refresh of the favorite list.
    *
-   * データを再取得し、成功トーストを表示します。
+   * Re-fetches data and shows a success toast.
    */
   const handleRefresh = () => {
     refresh()

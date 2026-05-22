@@ -322,7 +322,7 @@ async fn send_event_internal(
         "events": [Value::Object(event_obj)],
     });
 
-    // Debug モード判定: release build では GA_DEBUG=1 を指定しても無効 (cfg 判定)
+    // Debug mode: GA_DEBUG=1 has no effect in release builds (cfg guard)
     #[cfg(debug_assertions)]
     let debug_mode = true;
     #[cfg(not(debug_assertions))]
@@ -345,7 +345,7 @@ async fn send_event_internal(
         Ok(r) => {
             let status = r.status().as_u16();
             if debug_mode {
-                // Debug エンドポイントは常に 200 で JSON を返す想定
+                // Debug endpoint is expected to return 200 with JSON
                 let parsed = r.json::<serde_json::Value>().await.ok();
                 let mut msgs: Vec<String> = Vec::new();
                 if let Some(p) = parsed.as_ref() {
@@ -365,7 +365,7 @@ async fn send_event_internal(
                     msgs
                 );
             } else if !r.status().is_success() {
-                // 非 debug で失敗時は swallow
+                // Swallow errors in non-debug mode
                 return Ok(());
             }
             Ok(())

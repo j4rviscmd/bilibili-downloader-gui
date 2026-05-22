@@ -39,30 +39,30 @@ type Settings = {
 }
 
 /**
- * サイドバーコンテキストのプロパティ型
+ * Sidebar context property types
  *
- * SidebarProvider から提供されるコンテキスト値の型定義。
+ * Type definition for context values provided by SidebarProvider.
  */
 type SidebarContextProps = {
-  /** サイドバーの現在の状態 */
+  /** Current state of the sidebar */
   state: 'expanded' | 'collapsed'
-  /** デスクトップ表示でサイドバーが開いているか */
+  /** Whether the sidebar is open in desktop view */
   open: boolean
-  /** サイドバーの開閉を設定する関数 */
+  /** Function to set the sidebar open/close state */
   setOpen: (open: boolean) => void
-  /** サイドバーの開閉を切り替える関数 */
+  /** Function to toggle the sidebar open/close state */
   toggleSidebar: () => void
 }
 
 const SidebarContext = React.createContext<SidebarContextProps | null>(null)
 
 /**
- * サイドバーコンテキストを使用するフック
+ * Hook for using the sidebar context
  *
- * SidebarProvider の配下で使用し、サイドバーの状態と操作関数を取得する。
+ * Used within SidebarProvider to get sidebar state and action functions.
  *
- * @throws SidebarProvider の配下以外で使用した場合エラー
- * @returns サイドバーコンテキスト値
+ * @throws Error if used outside of SidebarProvider
+ * @returns Sidebar context value
  *
  * @example
  * ```tsx
@@ -78,28 +78,28 @@ function useSidebar() {
 }
 
 /**
- * SidebarProvider のプロパティ型
+ * SidebarProvider property types
  */
 type SidebarProviderProps = React.ComponentProps<'div'> & {
-  /** デフォルトの開閉状態 */
+  /** Default open/close state */
   defaultOpen?: boolean
-  /** 制御モードでの開閉状態（省略時はRedux状態を使用） */
+  /** Open/close state in controlled mode (uses Redux state when omitted) */
   open?: boolean
-  /** 開閉状態変更時のコールバック */
+  /** Callback on open/close state change */
   onOpenChange?: (open: boolean) => void
 }
 
 /**
- * サイドバーコンテキストプロバイダ
+ * Sidebar context provider
  *
- * サイドバーの状態を管理し、子コンポーネントにコンテキストを提供する。
- * Reduxとsettings.jsonの両方と同期し、ページ遷移後も状態を維持する。
+ * Manages sidebar state and provides context to child components.
+ * Syncs with both Redux and settings.json to maintain state across page navigations.
  *
- * 機能:
- * - settings.json からの初期状態読み込み
- * - Reduxへの状態同期
- * - settings.json への状態永続化
- * - キーボードショートカット対応 (Cmd/Ctrl + B)
+ * Features:
+ * - Load initial state from settings.json
+ * - Sync state to Redux
+ * - Persist state to settings.json
+ * - Keyboard shortcut support (Cmd/Ctrl + B)
  *
  * @example
  * ```tsx
@@ -233,31 +233,31 @@ function SidebarProvider({
 }
 
 /**
- * Sidebar コンポーネントのプロパティ型
+ * Sidebar component property types
  */
 type SidebarProps = React.ComponentProps<'div'> & {
-  /** サイドバーの配置位置 */
+  /** Sidebar placement position */
   side?: 'left' | 'right'
-  /** サイドバーの表示スタイル */
+  /** Sidebar display style */
   variant?: 'sidebar' | 'floating' | 'inset'
-  /** 折りたたみの動作モード */
+  /** Collapse behavior mode */
   collapsible?: 'offcanvas' | 'icon' | 'none'
-  /** コンテナ用の追加クラス名 */
+  /** Additional class names for the container */
   containerClassName?: string
-  /** ホバー時のアニメーションを有効にするか */
+  /** Whether to enable hover animation */
   animateOnHover?: boolean
-  /** アニメーションのトランジション設定 */
+  /** Animation transition settings */
   transition?: Transition
 }
 
 /**
- * サイドバーメインコンポーネント
+ * Main sidebar component
  *
- * デスクトップとモバイルで異なる表示モードをサポートするサイドバー。
+ * A sidebar that supports different display modes for desktop and mobile.
  *
- * 表示モード:
- * - デスクトップ: collapsible='offcanvas' で画面外にスライド、'icon' でアイコンのみ表示
- * - モバイル: Sheet コンポーネントとしてオーバーレイ表示
+ * Display modes:
+ * - Desktop: collapsible='offcanvas' slides off-screen, 'icon' shows icons only
+ * - Mobile: Overlay display using Sheet component
  *
  * @example
  * ```tsx
@@ -362,15 +362,15 @@ function Sidebar({
 }
 
 /**
- * SidebarTrigger のプロパティ型
+ * SidebarTrigger property types
  */
 type SidebarTriggerProps = React.ComponentProps<typeof Button>
 
 /**
- * サイドバー開閉トリガーボタン
+ * Sidebar toggle trigger button
  *
- * クリック時にサイドバーの開閉を切り替えるボタンコンポーネント。
- * AppBar 等に配置して使用する。
+ * A button component that toggles the sidebar open/close on click.
+ * Typically placed in the AppBar.
  *
  * @example
  * ```tsx
@@ -400,15 +400,15 @@ function SidebarTrigger({ className, onClick, ...props }: SidebarTriggerProps) {
 }
 
 /**
- * SidebarRail のプロパティ型
+ * SidebarRail property types
  */
 type SidebarRailProps = React.ComponentProps<'button'>
 
 /**
- * サイドバーレール（ホバー領域）
+ * Sidebar rail (hover area)
  *
- * サイドバーの端に配置される見えないホバー領域。
- * ホバー時にクリックまたはドラッグ操作でサイドバーを切り替えることができる。
+ * An invisible hover area placed at the edge of the sidebar.
+ * Allows toggling the sidebar via click or drag when hovered.
  */
 function SidebarRail({ className, ...props }: SidebarRailProps) {
   const { toggleSidebar } = useSidebar()
@@ -437,15 +437,15 @@ function SidebarRail({ className, ...props }: SidebarRailProps) {
 }
 
 /**
- * SidebarInset のプロパティ型
+ * SidebarInset property types
  */
 type SidebarInsetProps = React.ComponentProps<'main'>
 
 /**
- * サイドバーのメインコンテンツ領域
+ * Main content area of the sidebar
  *
- * サイドバーに隣接するメインコンテンツを表示する領域。
- * variant='inset' の場合、特殊なスタイルが適用される。
+ * Displays the main content adjacent to the sidebar.
+ * Special styles are applied when variant='inset'.
  */
 function SidebarInset({ className, ...props }: SidebarInsetProps) {
   return (
@@ -462,14 +462,14 @@ function SidebarInset({ className, ...props }: SidebarInsetProps) {
 }
 
 /**
- * SidebarInput のプロパティ型
+ * SidebarInput property types
  */
 type SidebarInputProps = React.ComponentProps<typeof Input>
 
 /**
- * サイドバー用入力コンポーネント
+ * Sidebar input component
  *
- * サイドバー内での使用に最適化された入力フィールド。
+ * An input field optimized for use within the sidebar.
  */
 function SidebarInput({ className, ...props }: SidebarInputProps) {
   return (
@@ -483,14 +483,14 @@ function SidebarInput({ className, ...props }: SidebarInputProps) {
 }
 
 /**
- * SidebarHeader のプロパティ型
+ * SidebarHeader property types
  */
 type SidebarHeaderProps = React.ComponentProps<'div'>
 
 /**
- * サイドバーヘッダー領域
+ * Sidebar header area
  *
- * サイドバーの上部に配置されるヘッダーコンテンツ用コンテナ。
+ * A container for header content placed at the top of the sidebar.
  */
 function SidebarHeader({ className, ...props }: SidebarHeaderProps) {
   return (
@@ -504,14 +504,14 @@ function SidebarHeader({ className, ...props }: SidebarHeaderProps) {
 }
 
 /**
- * SidebarFooter のプロパティ型
+ * SidebarFooter property types
  */
 type SidebarFooterProps = React.ComponentProps<'div'>
 
 /**
- * サイドバーフッター領域
+ * Sidebar footer area
  *
- * サイドバーの下部に配置されるフッターコンテンツ用コンテナ。
+ * A container for footer content placed at the bottom of the sidebar.
  */
 function SidebarFooter({ className, ...props }: SidebarFooterProps) {
   return (
@@ -525,12 +525,12 @@ function SidebarFooter({ className, ...props }: SidebarFooterProps) {
 }
 
 /**
- * SidebarSeparator のプロパティ型
+ * SidebarSeparator property types
  */
 type SidebarSeparatorProps = React.ComponentProps<typeof Separator>
 
 /**
- * サイドバー内の区切り線
+ * Divider within the sidebar
  */
 function SidebarSeparator({ className, ...props }: SidebarSeparatorProps) {
   return (
@@ -544,14 +544,14 @@ function SidebarSeparator({ className, ...props }: SidebarSeparatorProps) {
 }
 
 /**
- * SidebarContent のプロパティ型
+ * SidebarContent property types
  */
 type SidebarContentProps = React.ComponentProps<'div'>
 
 /**
- * サイドバーコンテンツ領域
+ * Sidebar content area
  *
- * スクロール可能なメインコンテンツを表示する領域。
+ * Displays the scrollable main content.
  */
 function SidebarContent({ className, ...props }: SidebarContentProps) {
   return (
@@ -568,14 +568,14 @@ function SidebarContent({ className, ...props }: SidebarContentProps) {
 }
 
 /**
- * SidebarGroup のプロパティ型
+ * SidebarGroup property types
  */
 type SidebarGroupProps = React.ComponentProps<'div'>
 
 /**
- * サイドバーグループ
+ * Sidebar group
  *
- * 関連するメニューアイテムをグループ化するコンテナ。
+ * A container for grouping related menu items.
  */
 function SidebarGroup({ className, ...props }: SidebarGroupProps) {
   return (
@@ -589,16 +589,16 @@ function SidebarGroup({ className, ...props }: SidebarGroupProps) {
 }
 
 /**
- * SidebarGroupLabel のプロパティ型
+ * SidebarGroupLabel property types
  */
 type SidebarGroupLabelProps = React.ComponentProps<'div'> & {
   asChild?: boolean
 }
 
 /**
- * サイドバーグループのラベル
+ * Sidebar group label
  *
- * グループのタイトルを表示する。iconモード時は非表示になる。
+ * Displays the group title. Hidden when in icon mode.
  */
 function SidebarGroupLabel({
   className,
@@ -621,16 +621,16 @@ function SidebarGroupLabel({
 }
 
 /**
- * SidebarGroupAction のプロパティ型
+ * SidebarGroupAction property types
  */
 type SidebarGroupActionProps = React.ComponentProps<'button'> & {
   asChild?: boolean
 }
 
 /**
- * サイドバーグループのアクションボタン
+ * Sidebar group action button
  *
- * グループの右上に配置されるアクションボタン。
+ * An action button placed at the top-right of the group.
  */
 function SidebarGroupAction({
   className,
@@ -653,14 +653,14 @@ function SidebarGroupAction({
 }
 
 /**
- * SidebarGroupContent のプロパティ型
+ * SidebarGroupContent property types
  */
 type SidebarGroupContentProps = React.ComponentProps<'div'>
 
 /**
- * サイドバーグループのコンテンツ
+ * Sidebar group content
  *
- * グループ内のメニューアイテムを配置するコンテナ。
+ * A container for placing menu items within a group.
  */
 function SidebarGroupContent({
   className,
@@ -677,14 +677,14 @@ function SidebarGroupContent({
 }
 
 /**
- * SidebarMenu のプロパティ型
+ * SidebarMenu property types
  */
 type SidebarMenuProps = React.ComponentProps<'ul'>
 
 /**
- * サイドバーメニューリスト
+ * Sidebar menu list
  *
- * メニューアイテムのリストを表示するコンテナ。
+ * A container for displaying a list of menu items.
  */
 function SidebarMenu({ className, ...props }: SidebarMenuProps) {
   return (
@@ -698,14 +698,14 @@ function SidebarMenu({ className, ...props }: SidebarMenuProps) {
 }
 
 /**
- * SidebarMenuItem のプロパティ型
+ * SidebarMenuItem property types
  */
 type SidebarMenuItemProps = React.ComponentProps<'li'>
 
 /**
- * サイドバーメニューアイテム
+ * Sidebar menu item
  *
- * 個々のメニューアイテムを表すリスト要素。
+ * A list element representing an individual menu item.
  */
 function SidebarMenuItem({ className, ...props }: SidebarMenuItemProps) {
   return (
@@ -758,7 +758,7 @@ const sidebarMenuButtonVariants = cva(
 )
 
 /**
- * SidebarMenuButton のプロパティ型
+ * SidebarMenuButton property types
  */
 type SidebarMenuButtonProps = React.ComponentProps<'button'> & {
   asChild?: boolean
@@ -767,9 +767,9 @@ type SidebarMenuButtonProps = React.ComponentProps<'button'> & {
 } & VariantProps<typeof sidebarMenuButtonVariants>
 
 /**
- * サイドバーメニューボタン
+ * Sidebar menu button
  *
- * メニューアイテムのボタン。ツールチップ表示とアクティブ状態の管理に対応。
+ * A button for menu items. Supports tooltip display and active state management.
  *
  * @example
  * ```tsx
@@ -831,10 +831,10 @@ type SidebarMenuActionProps = React.ComponentProps<'button'> & {
 }
 
 /**
- * サイドバーメニューアクションボタン
+ * Sidebar menu action button
  *
- * メニューアイテム内に配置されるアクションボタン。
- * showOnHover を有効にすると、ホバー時のみ表示される。
+ * An action button placed within a menu item.
+ * When showOnHover is enabled, it is only visible on hover.
  */
 function SidebarMenuAction({
   className,
@@ -860,14 +860,14 @@ function SidebarMenuAction({
 }
 
 /**
- * SidebarMenuBadge のプロパティ型
+ * SidebarMenuBadge property types
  */
 type SidebarMenuBadgeProps = React.ComponentProps<'div'>
 
 /**
- * サイドバーメニューバッジ
+ * Sidebar menu badge
  *
- * メニューアイテムの右側に表示されるバッジ（通知数など）。
+ * A badge displayed on the right side of a menu item (e.g., notification count).
  */
 function SidebarMenuBadge({ className, ...props }: SidebarMenuBadgeProps) {
   return (
@@ -884,16 +884,16 @@ function SidebarMenuBadge({ className, ...props }: SidebarMenuBadgeProps) {
 }
 
 /**
- * SidebarMenuSkeleton のプロパティ型
+ * SidebarMenuSkeleton property types
  */
 type SidebarMenuSkeletonProps = React.ComponentProps<'div'> & {
   showIcon?: boolean
 }
 
 /**
- * サイドバーメニュースケルトン
+ * Sidebar menu skeleton
  *
- * 読み込み中に表示されるプレースホルダー。
+ * A placeholder displayed during loading.
  */
 function SidebarMenuSkeleton({
   className,
@@ -929,14 +929,14 @@ function SidebarMenuSkeleton({
 }
 
 /**
- * SidebarMenuSub のプロパティ型
+ * SidebarMenuSub property types
  */
 type SidebarMenuSubProps = React.ComponentProps<'ul'>
 
 /**
- * サイドバーサブメニューリスト
+ * Sidebar sub-menu list
  *
- * 入れ子になったサブメニューアイテムのリスト。
+ * A list of nested sub-menu items.
  */
 function SidebarMenuSub({ className, ...props }: SidebarMenuSubProps) {
   return (
@@ -954,14 +954,14 @@ function SidebarMenuSub({ className, ...props }: SidebarMenuSubProps) {
 }
 
 /**
- * SidebarMenuSubItem のプロパティ型
+ * SidebarMenuSubItem property types
  */
 type SidebarMenuSubItemProps = React.ComponentProps<'li'>
 
 /**
- * サイドバーサブメニューアイテム
+ * Sidebar sub-menu item
  *
- * サブメニュー内の個々のアイテム。
+ * An individual item within a sub-menu.
  */
 function SidebarMenuSubItem({ className, ...props }: SidebarMenuSubItemProps) {
   return (
@@ -975,7 +975,7 @@ function SidebarMenuSubItem({ className, ...props }: SidebarMenuSubItemProps) {
 }
 
 /**
- * SidebarMenuSubButton のプロパティ型
+ * SidebarMenuSubButton property types
  */
 type SidebarMenuSubButtonProps = React.ComponentProps<'a'> & {
   asChild?: boolean
@@ -984,9 +984,9 @@ type SidebarMenuSubButtonProps = React.ComponentProps<'a'> & {
 }
 
 /**
- * サイドバーサブメニューボタン
+ * Sidebar sub-menu button
  *
- * サブメニューアイテムのボタン。
+ * A button for sub-menu items.
  */
 function SidebarMenuSubButton({
   asChild = false,

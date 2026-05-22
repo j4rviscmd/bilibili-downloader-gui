@@ -127,11 +127,11 @@ fn cleanup_ffmpeg_dir(ffmpeg_root: &Path) {
 /// - Permission setting fails (macOS)
 pub async fn install_ffmpeg(app: &AppHandle) -> Result<bool> {
     log::info!("[BE] install_ffmpeg: starting ffmpeg installation");
-    // ffmpegバイナリのダウンロード処理
+    // Download ffmpeg binary
     // let ffmpeg_path = get_ffmpeg_path(app);
     let ffmpeg_root = get_ffmpeg_root_path(app);
 
-    // ffmpeg_rootが存在しない場合は作成
+    // Create ffmpeg_root if it doesn't exist
     if !ffmpeg_root.exists() {
         fs::create_dir_all(&ffmpeg_root)
             .map_err(|e| anyhow::anyhow!("Failed to create ffmpeg directory: {}", e))?;
@@ -239,22 +239,22 @@ async fn unpack_archive(archive_path: &Path, dest: &Path) -> Result<bool> {
         let file = File::open(archive_path)?;
         let mut archive = zip::ZipArchive::new(file)?;
 
-        // 出力先ディレクトリが存在しない場合は作成
+        // Create output directory if it doesn't exist
         if !dest.exists() {
             std::fs::create_dir_all(dest)?;
         }
 
-        // アーカイブ内の各ファイルを展開
+        // Extract each file from the archive
         for i in 0..archive.len() {
             let mut file = archive.by_index(i)?;
             let outpath = dest.join(file.name());
 
-            // ディレクトリの場合はスキップ
+            // Skip directories
             if file.name().ends_with('/') {
                 continue;
             }
 
-            // ファイルを展開
+            // Extract file
             if let Some(p) = outpath.parent() {
                 if !p.exists() {
                     std::fs::create_dir_all(p)?;
