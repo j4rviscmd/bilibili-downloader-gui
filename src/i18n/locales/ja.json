@@ -228,6 +228,8 @@
     "lib_path_change_success": "ライブラリ保存先を変更しました",
     "lib_path_change_error": "ライブラリ保存先の変更に失敗しました",
     "app_section_label": "アプリケーション",
+    "show_github_stars_label": "GitHub Stars を表示",
+    "show_github_stars_description": "アプリバーにスター数を表示します",
     "current_version": "現在のバージョン: {{version}}",
     "update_check": {
       "aria_label": "アップデート確認",

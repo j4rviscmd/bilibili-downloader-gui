@@ -57,6 +57,18 @@ import { Separator } from '@/shared/ui/separator'
 import { Switch } from '@/shared/ui/switch'
 
 /**
+ * Returns the login status display text key based on session and method.
+ */
+function getLoginStatusText(
+  session: Session | null,
+  loginMethod: LoginMethod,
+): string {
+  if (session === null) return 'login.notLoggedIn'
+  if (loginMethod === 'qrCode') return 'login.qrCodeLoggedIn'
+  return 'login.firefoxCookieLoggedIn'
+}
+
+/**
  * Converts Session to User type for userSlice.
  *
  * @param session - Session data from login state
@@ -287,6 +299,20 @@ function SettingsForm() {
             </FormItem>
           )}
         />
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label>{t('settings.show_github_stars_label')}</Label>
+            <p className="text-muted-foreground text-sm">
+              {t('settings.show_github_stars_description')}
+            </p>
+          </div>
+          <Switch
+            checked={settings.showGithubStars ?? true}
+            onCheckedChange={(checked) => {
+              saveByForm({ ...settings, showGithubStars: checked })
+            }}
+          />
+        </div>
         <Separator />
         <FormField
           control={form.control}
@@ -380,11 +406,7 @@ function SettingsForm() {
           <Label>{t('login.loginStatus')}</Label>
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground text-sm">
-              {session === null
-                ? t('login.notLoggedIn')
-                : loginMethod === 'qrCode'
-                  ? t('login.qrCodeLoggedIn')
-                  : t('login.firefoxCookieLoggedIn')}
+              {t(getLoginStatusText(session, loginMethod))}
             </span>
             {loginMethod === 'qrCode' && session && (
               <Button

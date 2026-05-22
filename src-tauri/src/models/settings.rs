@@ -81,6 +81,12 @@ pub struct Settings {
         skip_serializing_if = "Option::is_none"
     )]
     pub auto_rename_duplicates: Option<bool>,
+    #[serde(
+        rename = "showGithubStars",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub show_github_stars: Option<bool>,
 }
 
 /// Supported UI languages.

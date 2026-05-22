@@ -1,3 +1,4 @@
+import { useSelector } from '@/app/store'
 import { QRCodeLoginDialog } from '@/features/login'
 import ToggleThemeButton from '@/features/preference/ui/ToggleThemeButton'
 import type { User } from '@/features/user'
@@ -45,6 +46,9 @@ type Props = {
 function AppBar({ user, theme, setTheme }: Props) {
   const { t } = useTranslation()
   const [isQrLoginDialogOpen, setIsQrLoginDialogOpen] = useState(false)
+  const showGithubStars = useSelector(
+    (state) => state.settings.showGithubStars ?? true,
+  )
 
   const maskedUserName = user.data.isLogin ? maskUserName(user.data.uname) : ''
   const hasUsername = user.data.isLogin && user.data.uname
@@ -89,7 +93,9 @@ function AppBar({ user, theme, setTheme }: Props) {
           )}
         </div>
         <div className="flex items-center gap-3">
-          <GitHubStars owner="j4rviscmd" repo="bilibili-downloader-gui" />
+          {showGithubStars && (
+            <GitHubStars owner="j4rviscmd" repo="bilibili-downloader-gui" />
+          )}
           <ToggleThemeButton theme={theme} setTheme={setTheme} />
         </div>
       </div>
