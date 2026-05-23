@@ -885,10 +885,12 @@ async fn export_history(app: AppHandle, format: String) -> Result<String, String
 /// Reveals a file in the system's file manager.
 ///
 /// Opens the parent folder and selects the specified file.
-/// Uses platform-specific commands for file manager integration.
+/// Uses `tauri-plugin-opener` for cross-platform file manager
+/// integration without spawning console windows.
 ///
 /// # Arguments
 ///
+/// * `app` - Tauri application handle
 /// * `path` - Absolute path to the file to reveal
 ///
 /// # Returns
@@ -901,44 +903,21 @@ async fn export_history(app: AppHandle, format: String) -> Result<String, String
 /// - The file does not exist
 /// - The file manager cannot be opened
 #[tauri::command]
-async fn reveal_in_folder(path: String) -> Result<(), String> {
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("open")
-            .args(["-R", &path])
-            .spawn()
-            .map_err(|e| format!("Failed to reveal file on macOS: {}", e))?;
-    }
-    #[cfg(target_os = "windows")]
-    {
-        std::process::Command::new("explorer.exe")
-            .args(["/select,", &path])
-            .spawn()
-            .map_err(|e| format!("Failed to reveal file on Windows: {}", e))?;
-    }
-    #[cfg(target_os = "linux")]
-    {
-        let file_uri = format!("file://{}", path);
-        std::process::Command::new("dbus-send")
-            .args([
-                "--session",
-                "--dest=org.freedesktop.FileManager1",
-                "--type=method_call",
-                "/org/freedesktop/FileManager1",
-                "org.freedesktop.FileManager1.ShowItems",
-                &format!("array:string:{}", file_uri),
-                "string:",
-            ])
-            .spawn()
-            .map_err(|e| format!("Failed to reveal file on Linux: {}", e))?;
-    }
-    Ok(())
+async fn reveal_in_folder(app: AppHandle, path: String) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    app.opener()
+        .reveal_item_in_dir(&path)
+        .map_err(|e| format!("Failed to reveal file: {}", e))
 }
 
 /// Opens a file with the system's default application.
 ///
+/// Uses `tauri-plugin-opener` to open files without spawning
+/// console windows on Windows.
+///
 /// # Arguments
 ///
+/// * `app` - Tauri application handle
 /// * `path` - Absolute path to the file to open
 ///
 /// # Returns
@@ -951,29 +930,11 @@ async fn reveal_in_folder(path: String) -> Result<(), String> {
 /// - The file does not exist
 /// - No application is associated with the file type
 #[tauri::command]
-async fn open_file(path: String) -> Result<(), String> {
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("open")
-            .arg(&path)
-            .spawn()
-            .map_err(|e| format!("Failed to open file on macOS: {}", e))?;
-    }
-    #[cfg(target_os = "windows")]
-    {
-        std::process::Command::new("cmd")
-            .args(["/c", "start", "", &path])
-            .spawn()
-            .map_err(|e| format!("Failed to open file on Windows: {}", e))?;
-    }
-    #[cfg(target_os = "linux")]
-    {
-        std::process::Command::new("xdg-open")
-            .arg(&path)
-            .spawn()
-            .map_err(|e| format!("Failed to open file on Linux: {}", e))?;
-    }
-    Ok(())
+async fn open_file(app: AppHandle, path: String) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    app.opener()
+        .open_path(&path, None::<&str>)
+        .map_err(|e| format!("Failed to open file: {}", e))
 }
 
 // NOTE: GA4 Analytics is currently disabled
