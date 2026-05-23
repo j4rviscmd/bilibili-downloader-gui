@@ -138,17 +138,18 @@ pub async fn install_ffmpeg(app: &AppHandle) -> Result<bool> {
     }
 
     // Download URL and filename based on platform
+    // Windows GPL is available only as .zip; Linux GPL as .tar.xz
     let (url, filename) = if cfg!(target_os = "windows") {
         (
-            "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-lgpl-shared.zip",
-            "ffmpeg-master-latest-win64-lgpl-shared.zip",
+            "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip",
+            "ffmpeg-master-latest-win64-gpl.zip",
         )
     } else if cfg!(target_os = "macos") {
         ("https://evermeet.cx/ffmpeg/getrelease/zip", "ffmpeg.zip")
     } else if cfg!(target_os = "linux") {
         (
-            "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-lgpl.tar.xz",
-            "ffmpeg-master-latest-linux64-lgpl.tar.xz",
+            "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz",
+            "ffmpeg-master-latest-linux64-gpl.tar.xz",
         )
     } else {
         return Ok(false);
@@ -284,13 +285,12 @@ async fn unpack_archive(archive_path: &Path, dest: &Path) -> Result<bool> {
 fn build_ffmpeg_bin_path(base_path: &Path) -> PathBuf {
     let mut path = if cfg!(target_os = "windows") {
         base_path
-            .join("ffmpeg-master-latest-win64-lgpl-shared")
-            .join("ffmpeg-master-latest-win64-lgpl-shared")
+            .join("ffmpeg-master-latest-win64-gpl")
             .join("bin")
             .join("ffmpeg")
     } else if cfg!(target_os = "linux") {
         base_path
-            .join("ffmpeg-master-latest-linux64-lgpl")
+            .join("ffmpeg-master-latest-linux64-gpl")
             .join("bin")
             .join("ffmpeg")
     } else {

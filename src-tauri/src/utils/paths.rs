@@ -27,9 +27,9 @@ use tauri::{AppHandle, Manager};
 /// Returns the platform-specific ffmpeg subdirectory name.
 pub const fn ffmpeg_subdir() -> &'static str {
     if cfg!(target_os = "windows") {
-        "ffmpeg-master-latest-win64-lgpl-shared"
+        "ffmpeg-master-latest-win64-gpl"
     } else if cfg!(target_os = "linux") {
-        "ffmpeg-master-latest-linux64-lgpl"
+        "ffmpeg-master-latest-linux64-gpl"
     } else {
         "ffmpeg"
     }
@@ -97,8 +97,8 @@ pub fn get_lib_path(app: &AppHandle) -> PathBuf {
 
 /// Returns the platform-specific path to the ffmpeg binary.
 ///
-/// On Windows: `{libPath}/ffmpeg-master-latest-win64-lgpl-shared/.../bin/ffmpeg.exe`
-/// On Linux: `{libPath}/ffmpeg-master-latest-linux64-lgpl/ffmpeg-master-latest-linux64-lgpl/bin/ffmpeg`
+/// On Windows: `{libPath}/ffmpeg-master-latest-win64-gpl/.../bin/ffmpeg.exe`
+/// On Linux: `{libPath}/ffmpeg-master-latest-linux64-gpl/.../bin/ffmpeg`
 /// On macOS: `{libPath}/ffmpeg/ffmpeg`
 ///
 /// # Arguments
@@ -129,8 +129,8 @@ pub fn get_ffmpeg_path(app: &AppHandle) -> PathBuf {
 ///
 /// This is the directory where ffmpeg files are extracted.
 ///
-/// On Windows: `{libPath}/ffmpeg-master-latest-win64-lgpl-shared`
-/// On Linux: `{libPath}/ffmpeg-master-latest-linux64-lgpl`
+/// On Windows: `{libPath}/ffmpeg-master-latest-win64-gpl`
+/// On Linux: `{libPath}/ffmpeg-master-latest-linux64-gpl`
 /// On macOS: `{libPath}/ffmpeg`
 ///
 /// # Arguments

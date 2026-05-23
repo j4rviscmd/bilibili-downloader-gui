@@ -789,7 +789,14 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
             subtitle_mode,
         )
         .await
-        .map_err(|_| String::from("ERR::MERGE_FAILED"))?;
+        .map_err(|e| {
+            log::error!(
+                "[BE] download_video: ffmpeg merge failed id={}: {}",
+                options.download_id,
+                e
+            );
+            String::from("ERR::MERGE_FAILED")
+        })?;
 
         // Release semaphore after merge completes
         drop(permit);
