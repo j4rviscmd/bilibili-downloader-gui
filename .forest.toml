@@ -4,6 +4,5 @@ exclude = [
     "src-tauri/gen",    # Tauri auto-generated code (src-tauri/gen)
     # "node_modules",     # npm dependencies (275MB) - npm install for regeneration
     "dist",             # Vite build output - npm run build for regeneration
-    "plans",            # Working plan files (git untracked)
     # "references",       # Local API docs reference (git untracked)
 ]
