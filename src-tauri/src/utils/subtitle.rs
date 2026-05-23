@@ -9,8 +9,12 @@ use crate::models::bilibili_api::BccSubtitle;
 ///
 /// BCC format uses `from`/`to` fields in seconds, while SRT uses
 /// `HH:MM:SS,mmm --> HH:MM:SS,mmm` timestamp format.
+///
+/// The output includes a UTF-8 BOM prefix to ensure correct encoding
+/// detection by ffmpeg on Windows.
 pub fn bcc_to_srt(bcc: &BccSubtitle) -> String {
-    bcc.body
+    let srt_content = bcc
+        .body
         .iter()
         .enumerate()
         .map(|(i, entry)| {
@@ -19,7 +23,10 @@ pub fn bcc_to_srt(bcc: &BccSubtitle) -> String {
             format!("{}\n{} --> {}\n{}\n", i + 1, start, end, entry.content)
         })
         .collect::<Vec<_>>()
-        .join("\n")
+        .join("\n");
+
+    // UTF-8 BOM ensures ffmpeg correctly detects encoding on Windows
+    format!("\u{FEFF}{}", srt_content)
 }
 
 /// Formats a time in seconds to SRT timestamp format (HH:MM:SS,mmm).
@@ -146,7 +153,7 @@ mod tests {
         };
 
         let srt = bcc_to_srt(&bcc);
-        let expected = "1\n00:00:00,000 --> 00:00:02,500\nHello world\n";
+        let expected = "\u{FEFF}1\n00:00:00,000 --> 00:00:02,500\nHello world\n";
         assert_eq!(srt, expected);
     }
 
@@ -191,6 +198,6 @@ mod tests {
         };
 
         let srt = bcc_to_srt(&bcc);
-        assert_eq!(srt, "");
+        assert_eq!(srt, "\u{FEFF}");
     }
 }
