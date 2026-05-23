@@ -241,6 +241,8 @@
     },
     "dev_options": {
       "title": "개발자 옵션",
+      "open_devtools_on_startup": "시작 시 DevTools 열기",
+      "open_devtools_on_startup_description": "활성화하면 앱 시작 시 브라우저 DevTools 콘솔이 자동으로 열립니다. 다음 재시작 시 적용됩니다.",
       "simulate_logout": "비로그인 상태 시뮬레이션",
       "simulate_logout_description": "활성화하면 앱이 로그인하지 않은 상태로 실행됩니다(테스트용)."
     },

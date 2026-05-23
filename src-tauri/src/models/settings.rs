@@ -87,6 +87,14 @@ pub struct Settings {
         skip_serializing_if = "Option::is_none"
     )]
     pub show_github_stars: Option<bool>,
+    /// Whether to open devtools on app startup (development mode only).
+    /// Defaults to true if not specified.
+    #[serde(
+        rename = "openDevtoolsOnStartup",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub open_devtools_on_startup: Option<bool>,
 }
 
 /// Supported UI languages.

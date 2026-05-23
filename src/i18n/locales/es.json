@@ -241,6 +241,8 @@
     },
     "dev_options": {
       "title": "Opciones de desarrollo",
+      "open_devtools_on_startup": "Abrir DevTools al iniciar",
+      "open_devtools_on_startup_description": "Cuando está habilitado, la consola DevTools del navegador se abre automáticamente al iniciar la aplicación. Se aplica en el próximo reinicio.",
       "simulate_logout": "Simular estado sin sesión iniciada",
       "simulate_logout_description": "Cuando está habilitado, la aplicación funciona como si no hubieras iniciado sesión (para pruebas)."
     },

@@ -241,6 +241,8 @@
     },
     "dev_options": {
       "title": "Options de développement",
+      "open_devtools_on_startup": "Ouvrir DevTools au démarrage",
+      "open_devtools_on_startup_description": "Lorsqu'activé, la console DevTools du navigateur s'ouvre automatiquement au démarrage de l'application. Prend effet au prochain redémarrage.",
       "simulate_logout": "Simuler l'état non connecté",
       "simulate_logout_description": "Lorsqu'activé, l'application se comporte comme si vous n'étiez pas connecté (à des fins de test)."
     },
