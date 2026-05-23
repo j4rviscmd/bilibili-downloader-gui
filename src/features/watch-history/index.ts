@@ -47,7 +47,6 @@ export type {
 // UI Components
 export { WatchHistoryFilters } from './ui/WatchHistoryFilters'
 export type { DateFilter } from './ui/WatchHistoryFilters'
-export { WatchHistoryItem } from './ui/WatchHistoryItem'
 export { WatchHistoryList } from './ui/WatchHistoryList'
 export { WatchHistorySearch } from './ui/WatchHistorySearch'
 

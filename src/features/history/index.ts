@@ -5,6 +5,3 @@
  *
  * @module history
  */
-
-// Public API: Components
-export { default as HistoryItem } from './ui/HistoryItem'
