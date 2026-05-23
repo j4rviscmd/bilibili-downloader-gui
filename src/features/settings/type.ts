@@ -52,6 +52,12 @@ export interface Settings {
    * Defaults to true if not specified.
    */
   showGithubStars?: boolean
+  /**
+   * Whether to open devtools on app startup (development mode only).
+   *
+   * Defaults to true if not specified.
+   */
+  openDevtoolsOnStartup?: boolean
   // Managed on frontend only, stored in localStorage
   // TODO: manage theme in json
   // theme: 'light' | 'dark'

@@ -271,11 +271,25 @@ pub fn run() {
             // });
             // Enable dev console in development environment
             // Don't open console during E2E tests
+            // Respects the openDevtoolsOnStartup setting (defaults to true)
             #[cfg(debug_assertions)]
             {
                 if !crate::handlers::qr_login::is_e2e_testing() {
-                    let window = app.get_webview_window("main").unwrap();
-                    window.open_devtools();
+                    let settings_path = crate::utils::paths::get_settings_path(app.handle());
+                    let should_open = if settings_path.exists() {
+                        std::fs::read_to_string(&settings_path)
+                            .ok()
+                            .and_then(|content| serde_json::from_str::<Settings>(&content).ok())
+                            .and_then(|s| s.open_devtools_on_startup)
+                            .unwrap_or(true)
+                    } else {
+                        true
+                    };
+
+                    if should_open {
+                        let window = app.get_webview_window("main").unwrap();
+                        window.open_devtools();
+                    }
                 }
             }
             Ok(())

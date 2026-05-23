@@ -10,6 +10,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import { useSettings } from '@/features/settings/useSettings'
 import { useUser } from '@/features/user'
 import { logger } from '@/shared/lib/logger'
 
@@ -20,6 +21,7 @@ export function DevOptions() {
   const { t } = useTranslation()
   const dispatch = useDispatch()
   const { onChangeUser, getUserInfo } = useUser()
+  const { settings, saveByForm } = useSettings()
   const simulateLogout = useSelector(
     (state: RootState) => state.dev?.simulateLogout ?? false,
   )
@@ -61,6 +63,10 @@ export function DevOptions() {
     }
   }
 
+  const handleToggleDevtools = (checked: boolean) => {
+    saveByForm({ ...settings, openDevtoolsOnStartup: checked })
+  }
+
   // Only show in development mode
   if (!import.meta.env.DEV) {
     return null
@@ -77,6 +83,24 @@ export function DevOptions() {
         />
       </CollapsibleTrigger>
       <CollapsibleContent className="mt-2 space-y-4 rounded-lg border border-amber-500/20 bg-amber-50/30 p-4 dark:border-amber-500/10 dark:bg-amber-950/10">
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label
+              htmlFor="open-devtools-on-startup"
+              className="text-sm font-medium text-amber-800 dark:text-amber-300"
+            >
+              {t('settings.dev_options.open_devtools_on_startup')}
+            </Label>
+            <p className="text-xs text-amber-600 dark:text-amber-400/80">
+              {t('settings.dev_options.open_devtools_on_startup_description')}
+            </p>
+          </div>
+          <Switch
+            id="open-devtools-on-startup"
+            checked={settings.openDevtoolsOnStartup ?? true}
+            onCheckedChange={handleToggleDevtools}
+          />
+        </div>
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <Label

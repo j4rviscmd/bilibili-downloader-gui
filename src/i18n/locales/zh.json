@@ -241,6 +241,8 @@
     },
     "dev_options": {
       "title": "开发者选项",
+      "open_devtools_on_startup": "启动时打开开发者工具",
+      "open_devtools_on_startup_description": "启用后，应用启动时会自动打开浏览器开发者工具控制台。下次启动时生效。",
       "simulate_logout": "模拟未登录状态",
       "simulate_logout_description": "启用后，应用将以未登录状态运行（用于测试）。"
     },
