@@ -1,0 +1,9 @@
+[start]
+exclude = [
+    "target",       # Rust/Cargo build artifacts (17GB+) - cargo build for regeneration
+    "node_modules", # npm dependencies (275MB) - npm install for regeneration
+    "dist",         # Vite build output - npm run build for regeneration
+    "gen",          # Tauri auto-generated code (src-tauri/gen)
+    "plans",        # Working plan files (git untracked)
+    "references",   # Local API docs reference (git untracked)
+]
