@@ -1,12 +1,5 @@
 [start]
 commands = ["npm install"]
-exclude = [
-    "src-tauri/target", # Rust/Cargo build artifacts (17GB+) - cargo build for regeneration
-    "src-tauri/gen",    # Tauri auto-generated code (src-tauri/gen)
-    "node_modules",     # npm dependencies (275MB) - npm install for regeneration
-    "dist",             # Vite build output - npm run build for regeneration
-    # "references",       # Local API docs reference (git untracked)
-]
 
 [finish]
 commands = ["npm install"]
