@@ -35,9 +35,32 @@ import {
   setSession,
 } from './loginSlice'
 
+/** Interval between successive QR status polls, in milliseconds. */
 const POLL_INTERVAL_MS = 2000
+
+/** Time after which an unscanned QR code is considered expired, in milliseconds. */
 const QR_EXPIRY_MS = 180000
 
+/**
+ * Hook that encapsulates the complete QR-code login lifecycle.
+ *
+ * Manages QR code generation, recursive status polling, session
+ * persistence, logout, and login-method switching.  Polling timers
+ * are held in refs so they survive re-renders; an expiry timeout
+ * automatically stops polling after {@link QR_EXPIRY_MS}.
+ *
+ * @returns The full login state spread together with action callbacks:
+ *   - `generateNewQrCode` - requests a new QR code and starts polling
+ *   - `stopPolling` - immediately cancels the active polling loop
+ *   - `logout` - clears the server-side session and local state
+ *   - `changeLoginMethod` - switches the preferred login method
+ *   - `resetLogin` - resets the login slice to its initial state
+ *
+ * @example
+ * ```tsx
+ * const { qrCode, qrStatus, generateNewQrCode } = useLogin()
+ * ```
+ */
 export function useLogin() {
   const dispatch = useDispatch()
   const loginState = useSelector((state: RootState) => state.login)
@@ -48,7 +71,7 @@ export function useLogin() {
   /** Clears all polling timers. */
   const clearTimers = useCallback(() => {
     if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current)
+      clearTimeout(pollIntervalRef.current)
       pollIntervalRef.current = null
     }
     if (expiryTimeoutRef.current) {
@@ -81,8 +104,11 @@ export function useLogin() {
         }
       }, QR_EXPIRY_MS)
 
-      // Start polling interval
-      pollIntervalRef.current = window.setInterval(async () => {
+      // Recursive poll — schedules the next poll only after the previous one
+      // completes.  This prevents overlapping requests which can cause a race
+      // condition where a late second poll returns "expired" before the first
+      // (successful) poll finishes processing.
+      const poll = async () => {
         if (!isPollingRef.current) return
 
         try {
@@ -101,6 +127,9 @@ export function useLogin() {
             stopPolling()
           } else if (result.status === 'expired' || result.status === 'error') {
             stopPolling()
+          } else {
+            // Schedule next poll only after this one completes
+            pollIntervalRef.current = window.setTimeout(poll, POLL_INTERVAL_MS)
           }
         } catch (error) {
           if (isPollingRef.current) {
@@ -112,7 +141,10 @@ export function useLogin() {
             stopPolling()
           }
         }
-      }, POLL_INTERVAL_MS)
+      }
+
+      // Start first poll immediately
+      poll()
     },
     [dispatch, clearTimers, stopPolling],
   )

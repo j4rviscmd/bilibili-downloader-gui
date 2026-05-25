@@ -93,7 +93,7 @@ impl From<i32> for QrCodeStatus {
 
 /// Session data stored after successful login.
 ///
-/// This is persisted using OS keyring for secure storage,
+/// This is persisted in an encrypted file for secure storage,
 /// enabling automatic login on subsequent app launches.
 ///
 /// This structure is shared across different login methods (QR code, Firefox cookies, etc.)
@@ -164,13 +164,14 @@ pub enum LoginMethod {
 
 /// Stored login state for persistence.
 ///
-/// Note: Session data is stored in OS keyring,/// while only the login method preference is stored in tauri-plugin-store.
+/// Note: Session data is stored in an encrypted file,
+/// while only the login method preference is stored in tauri-plugin-store.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct LoginState {
     /// Preferred login method
     pub method: LoginMethod,
-    /// Session data (stored in OS keyring, not in store)
+    /// Session data (stored in encrypted file, not in store)
     #[serde(rename = "session")]
     pub session: Option<Session>,
 }
