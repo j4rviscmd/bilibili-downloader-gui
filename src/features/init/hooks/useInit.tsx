@@ -8,6 +8,7 @@ import {
   loadQrSession,
   refreshCookie,
 } from '@/features/login'
+import { applyFontSize, parseFontSize } from '@/features/settings'
 import { useSettings } from '@/features/settings/useSettings'
 import { useUser } from '@/features/user'
 import { changeLanguage, type SupportedLang } from '@/shared/i18n'
@@ -125,6 +126,7 @@ export const useInit = () => {
     // Version checking is handled by UpdaterProvider (non-blocking dialog)
     const settings = await getAppSettings()
     await applyLanguageSetting(settings?.language)
+    applyFontSize(parseFontSize(settings?.fontSize))
 
     // Early exit on ffmpeg check failure
     if (!(await checkFfmpeg())) {

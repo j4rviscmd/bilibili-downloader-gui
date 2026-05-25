@@ -11,7 +11,7 @@ import { videoApi } from '@/features/video'
 import { logger } from '@/shared/lib/logger'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { open } from '@tauri-apps/plugin-dialog'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -27,12 +27,20 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { Slider } from '@/components/ui/slider'
 import { callGetCurrentLibPath } from '@/features/settings/api/settingApi'
 import {
   buildSettingsFormSchema,
   formSchema,
 } from '@/features/settings/dialog/formSchema'
 import { languages } from '@/features/settings/language/languages'
+import {
+  applyFontSize,
+  FONT_SIZE_MAX,
+  FONT_SIZE_MIN,
+  parseFontSize,
+} from '@/features/settings/lib/fontSize'
+import type { FontSizePreset } from '@/features/settings/type'
 import { DevOptions } from '@/features/settings/ui/DevOptions'
 import { TitleReplacementSettings } from '@/features/settings/ui/TitleReplacementSettings'
 import { UpdateCheckButton } from '@/features/settings/ui/UpdateCheckButton'
@@ -270,6 +278,17 @@ function SettingsForm() {
     form.handleSubmit(onSubmit)()
   }
 
+  const currentFontSize = parseFontSize(settings.fontSize)
+
+  const handleFontSizeChange = useCallback(
+    (value: number[]) => {
+      const size = parseFontSize(value[0]) as FontSizePreset
+      applyFontSize(size)
+      saveByForm({ ...settings, fontSize: size })
+    },
+    [settings, saveByForm],
+  )
+
   return (
     <Form {...form}>
       <FormDescription className="mb-4">
@@ -299,6 +318,28 @@ function SettingsForm() {
             </FormItem>
           )}
         />
+        <div className="space-y-3">
+          <div className="space-y-0.5">
+            <Label>{t('settings.font_size_label')}</Label>
+            <p className="text-muted-foreground text-sm">
+              {t('settings.font_size_description')}
+            </p>
+          </div>
+          <div className="flex items-center gap-4">
+            <Slider
+              min={FONT_SIZE_MIN}
+              max={FONT_SIZE_MAX}
+              step={1}
+              value={[currentFontSize]}
+              onValueChange={handleFontSizeChange}
+              className="flex-1"
+            />
+            <span className="w-10 text-right text-sm tabular-nums">
+              {currentFontSize}px
+            </span>
+          </div>
+        </div>
+        <Separator />
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <Label>{t('settings.show_github_stars_label')}</Label>
