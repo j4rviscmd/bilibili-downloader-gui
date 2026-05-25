@@ -26,6 +26,18 @@ interface DownloadCancelledPayload {
 }
 
 /**
+ * Payload for the `download-subtitle-warning` event.
+ *
+ * Emitted by the backend when one or more subtitle downloads fail after
+ * all retry attempts. Contains the display names of the languages that
+ * could not be downloaded, used to show a warning toast to the user.
+ */
+interface SubtitleWarningPayload {
+  /** Display names of subtitle languages that failed to download (e.g., "日本語", "Español") */
+  failedLanguages: string[]
+}
+
+/**
  * React Context for managing Tauri event listeners.
  *
  * This context enables automatic setup of event listeners for progress
@@ -36,10 +48,16 @@ const ListenerContext = createContext<boolean>(false)
 /**
  * Provider component for Tauri event listeners.
  *
- * Sets up a listener for 'progress' events from the Tauri backend.
- * When progress events are received, it dispatches them to Redux state
- * and displays toast notifications for quality fallback warnings.
- * The listener is automatically cleaned up when the component unmounts.
+ * Sets up listeners for events emitted from the Tauri Rust backend:
+ * - `progress` - Download progress updates dispatched to Redux state,
+ *   with toast notifications for quality fallback warnings
+ * - `history:entry_added` - New history entries dispatched to Redux state
+ * - `download_cancelled` - Clears queue items and progress, shows info toast
+ * - `download-quality-resolved` - Updates resolved video/audio quality in state
+ * - `download-subtitle-resolved` - Updates resolved subtitle mode and labels in state
+ * - `download-subtitle-warning` - Shows a warning toast when subtitle downloads fail
+ *
+ * All listeners are automatically cleaned up when the component unmounts.
  *
  * @param props - Component props
  * @param props.children - Child components to be wrapped by this provider
@@ -58,6 +76,7 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     let unlistenCancelled: UnlistenFn | undefined
     let unlistenQualityResolved: UnlistenFn | undefined
     let unlistenSubtitleResolved: UnlistenFn | undefined
+    let unlistenSubtitleWarning: UnlistenFn | undefined
 
     const setupListeners = async (): Promise<void> => {
       // Setup progress event listener
@@ -135,6 +154,21 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
           )
         },
       )
+
+      // Setup subtitle warning event listener
+      unlistenSubtitleWarning = await listen<SubtitleWarningPayload>(
+        'download-subtitle-warning',
+        (event) => {
+          const { failedLanguages } = event.payload
+          const langList = failedLanguages.join('・')
+          toast.warning(
+            i18n.t('video.subtitle_download_failed', {
+              languages: langList,
+            }),
+            { duration: 6000 },
+          )
+        },
+      )
     }
 
     setupListeners()
@@ -145,6 +179,7 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
       unlistenCancelled?.()
       unlistenQualityResolved?.()
       unlistenSubtitleResolved?.()
+      unlistenSubtitleWarning?.()
     }
   }, [])
   return (

@@ -122,6 +122,7 @@
     "subtitle_hard_label": "Hard Sub ({{lang}})",
     "subtitle_select_multiple": "Select multiple (all selected by default)",
     "subtitle_hard_warning": "Hard sub encoding takes longer to process",
+    "subtitle_download_failed": "Subtitle download failed ({{languages}}). Continuing without those subtitles.",
     "subtitle_description": "Choose how to embed subtitles into the video.",
     "subtitle_note": "※ Soft sub allows toggling subtitles in the player. Hard sub burns subtitles into the video.",
     "options": "Options",

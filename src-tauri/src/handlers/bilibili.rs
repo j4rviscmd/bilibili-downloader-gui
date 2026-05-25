@@ -687,15 +687,16 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
         )?;
 
         // Subtitle processing
-        let (subtitle_mode, subtitle_language_labels) = prepare_subtitle_mode(
-            &options.subtitle,
-            &cookies,
-            &options.bvid,
-            options.cid,
-            &options.download_id,
-            &lib_path,
-        )
-        .await?;
+        let (subtitle_mode, subtitle_language_labels, subtitle_failed_labels) =
+            prepare_subtitle_mode(
+                &options.subtitle,
+                &cookies,
+                &options.bvid,
+                options.cid,
+                &options.download_id,
+                &lib_path,
+            )
+            .await?;
 
         // Emit subtitle resolved event to frontend
         let subtitle_mode_str = match &subtitle_mode {
@@ -713,6 +714,18 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
             },
         )
         .ok();
+
+        // Emit warning if any subtitle downloads failed
+        if !subtitle_failed_labels.is_empty() {
+            app.emit(
+                "download-subtitle-warning",
+                serde_json::json!({
+                    "downloadId": options.download_id,
+                    "failedLanguages": subtitle_failed_labels,
+                }),
+            )
+            .ok();
+        }
 
         // Keep subtitle file paths for cleanup
         let subtitle_paths: Vec<PathBuf> = match &subtitle_mode {
@@ -2068,25 +2081,26 @@ pub async fn fetch_subtitles_for_part(
     Ok(subtitles)
 }
 
-/// 古いCDNキャッシュの影響を緩和するため、並行リクエストで字幕を取得する。
+/// Fetches subtitles via parallel requests to mitigate stale CDN cache.
 ///
-/// BilibiliのCDNは、AI翻訳字幕（`ai_type: 1`）の完全なセットではなく、
-/// 単一のAI字幕（`ai_type: 0`）のみを含む古いキャッシュを返すことがある。
-/// 逐次リトライではなく、[`PARALLEL_COUNT`] 件のリクエストを並行して
-/// 発行し、CDNノード間に小さなジッターを挟むことで、新鲜な応答を
-/// 取得できる確率を高める。最も件数の多い字幕リストを最適結果として返す。
+/// Bilibili's CDN may return stale cached responses that contain only a single
+/// AI subtitle (`ai_type: 0`) instead of the full set of AI-translated
+/// subtitles (`ai_type: 1`). Rather than retrying sequentially, this function
+/// issues [`PARALLEL_COUNT`] concurrent requests with small inter-request
+/// jitter, increasing the probability of hitting a fresh CDN node.
+/// Returns the subtitle list with the most entries as the best result.
 ///
 /// # Arguments
 ///
-/// * `client` - APIリクエストに使用するHTTPクライアント
-/// * `cookies` - 認証用のCookieエントリ
-/// * `bvid` - Bilibili動画ID（BV識別子）
-/// * `cid` - 特定動画パートのコンテンツID
+/// * `client` - HTTP client used for API requests
+/// * `cookies` - Cookie entries for authentication
+/// * `bvid` - Bilibili video ID (BV identifier)
+/// * `cid` - Content ID for the specific video part
 ///
 /// # Returns
 ///
-/// 並行試行の中で最も件数の多い字幕リストを返す。
-/// すべてのリクエストが失敗した場合は空のベクタを返す。
+/// Returns the subtitle list with the most entries from all parallel attempts.
+/// Returns an empty vector if all requests fail.
 async fn fetch_subtitles_parallel(
     client: &Client,
     cookies: &[CookieEntry],
@@ -2250,33 +2264,33 @@ pub async fn download_subtitle(
     Ok(())
 }
 
-/// 指数バックオフ付きで字幕をダウンロードする。
+/// Downloads a subtitle with exponential backoff retry.
 ///
-/// BilibiliのCDNが古いキャッシュを返す場合に備え、最大 [`MAX_RETRIES`] 回
-/// リトライを行う。遅延は 2s, 4s, 8s, 16s, 32s と指数的に増加する。
-/// 各試行の失敗時には、不完全なファイルを残さないよう出力ファイルを
-/// 削除してから次の試行へ移行する。
+/// Retries up to [`MAX_RETRIES`] times when Bilibili's CDN returns stale
+/// cached responses. The delay increases exponentially: 2s, 4s, 8s, 16s, 32s.
+/// On each failed attempt, the output file is deleted to avoid leaving
+/// partial files before proceeding to the next attempt.
 ///
 /// # Arguments
 ///
-/// * `client` - HTTPリクエストに使用するクライアント
-/// * `subtitle_url` - BCC形式字幕JSONのURL（`//` で始まる場合あり）
-/// * `output_path` - 変換後のSRTファイルの出力パス
+/// * `client` - HTTP client used for the request
+/// * `subtitle_url` - BCC subtitle JSON URL (may start with `//`)
+/// * `output_path` - Output path for the converted SRT file
 ///
 /// # Returns
 ///
-/// ダウンロードとSRT変換に成功した場合は `Ok(())` を返す。
+/// Returns `Ok(())` if the download and SRT conversion succeed.
 ///
 /// # Errors
 ///
-/// すべてのリトライ試行が失敗した場合、最後のエラーメッセージを含む
-/// `Err(String)` を返す。リトライ回数は [`MAX_RETRIES`]（デフォルト5回）。
+/// Returns `Err(String)` with the last error message if all retry attempts
+/// fail. Maximum retry count is [`MAX_RETRIES`] (default: 3).
 async fn download_subtitle_with_retry(
     client: &Client,
     subtitle_url: &str,
     output_path: &std::path::Path,
 ) -> Result<(), String> {
-    const MAX_RETRIES: usize = 5;
+    const MAX_RETRIES: usize = 3;
     const BASE_DELAY_SECS: u64 = 2;
 
     for attempt in 0..MAX_RETRIES {
@@ -2316,41 +2330,45 @@ async fn download_subtitle_with_retry(
     ))
 }
 
-/// ユーザーの字幕オプションに基づいて字幕マージモードを準備する。
+/// Prepares subtitle merge mode based on user subtitle options.
 ///
-/// 選択された字幕をダウンロードし、ffmpeg用の適切なマージモードを返す。
-/// BCC JSON形式の字幕をSRT形式に変換し、一時ファイルとして保存する。
-/// 複数言語の字幕は並行してダウンロードされ、失敗した字幕は
-/// 警告ログとともにスキップされる（ダウンロード全体は失敗しない）。
+/// Downloads selected subtitles and returns the appropriate merge mode for
+/// ffmpeg. Converts BCC JSON subtitles to SRT format and saves them as
+/// temporary files.
 ///
-/// # Processing Flow
+/// # Retry Strategy
 ///
-/// 1. 字幕オプションが "off" または言語未選択なら `MergeMode::None` を返す
-/// 2. フロントエンドから渡された字幕情報を使用、なければAPIから取得
-/// 3. ユーザーが選択した言語で字幕をフィルタリング
-/// 4. 選択された各言語の字幕を **並行** でダウンロード（指数バックオフ付きリトライ）
-/// 5. マージモードと言語ラベルを返す
+/// Subtitle downloads execute up to 3 outer-loop attempts:
+/// 1. Download each subtitle in parallel using current URLs (each with
+///    3 exponential-backoff retries via [`download_subtitle_with_retry`])
+/// 2. If any subtitles fail, re-fetch fresh URLs from the API
+/// 3. Re-download only the failed subtitles using the new URLs
+///
+/// When the same URL fails repeatedly due to stale CDN cache data,
+/// re-fetching from the API provides URLs from a different CDN node,
+/// improving the success rate.
 ///
 /// # Arguments
 ///
-/// * `subtitle_opts` - ユーザーの字幕選択（モードと言語コード）
-/// * `cookies` - 認証用のCookieエントリ
-/// * `bvid` - Bilibili動画ID
-/// * `cid` - コンテンツID
-/// * `download_id` - 一時ファイル名に使用する一意識別子
-/// * `lib_path` - 一時字幕ファイルの出力ディレクトリ
+/// * `subtitle_opts` - User subtitle selection (mode and language codes)
+/// * `cookies` - Cookie entries for authentication
+/// * `bvid` - Bilibili video ID
+/// * `cid` - Content ID
+/// * `download_id` - Unique identifier used for temporary file names
+/// * `lib_path` - Output directory for temporary subtitle files
 ///
 /// # Returns
 ///
-/// `(MergeMode, language_labels)` タプルを返す:
-/// - `MergeMode::None` - 字幕無効、未選択、またはマッチする字幕なし
-/// - `MergeMode::SoftSub` - ソフト字幕モード（複数言語対応）
-/// - `MergeMode::HardSub` - ハード字幕モード（焼き込み、1言語のみ）
-/// - `language_labels` - 選択された字幕の表示名（lan_doc）のリスト
+/// Returns a `(MergeMode, language_labels, failed_labels)` tuple:
+/// - `MergeMode::None` - Subtitles disabled, none selected, or no matching subtitles found
+/// - `MergeMode::SoftSub` - Soft subtitle mode (supports multiple languages)
+/// - `MergeMode::HardSub` - Hard subtitle mode (burned-in, single language only)
+/// - `language_labels` - Display names (`lan_doc`) of successfully downloaded subtitles
+/// - `failed_labels` - Display names of subtitles that failed all 3 outer attempts
 ///
 /// # Errors
 ///
-/// HTTPクライアントの構築に失敗した場合にエラーを返す。
+/// Returns an error if the HTTP client cannot be constructed.
 async fn prepare_subtitle_mode(
     subtitle_opts: &Option<SubtitleOptions>,
     cookies: &[CookieEntry],
@@ -2358,22 +2376,21 @@ async fn prepare_subtitle_mode(
     cid: i64,
     download_id: &str,
     lib_path: &Path,
-) -> Result<(crate::handlers::ffmpeg::MergeMode, Vec<String>), String> {
+) -> Result<(crate::handlers::ffmpeg::MergeMode, Vec<String>, Vec<String>), String> {
     use crate::handlers::ffmpeg::{MergeMode, SubtitleMergeOptions};
     use crate::utils::subtitle::lan_to_iso639;
 
     let sub_opts = match subtitle_opts {
         Some(opts) if opts.mode != "off" && !opts.selected_lans.is_empty() => opts,
-        _ => return Ok((MergeMode::None, vec![])),
+        _ => return Ok((MergeMode::None, vec![], vec![])),
     };
 
-    // Build client for subtitle download (needed regardless of source)
     let client = build_client()?;
 
-    // Use passed subtitles from frontend if available, otherwise fetch from API
-    let available_subs: Vec<_> = if !sub_opts.subtitles.is_empty() {
+    // Initial subtitles from frontend or API
+    let initial_subs: Vec<SubtitleDto> = if !sub_opts.subtitles.is_empty() {
         log::info!(
-            "[BE] prepare_subtitle_mode: using {} subtitles passed from frontend",
+            "[BE] prepare_subtitle_mode: using {} subtitles from frontend",
             sub_opts.subtitles.len()
         );
         sub_opts
@@ -2396,63 +2413,116 @@ async fn prepare_subtitle_mode(
         subs
     };
 
-    let selected_subs: Vec<_> = available_subs
-        .iter()
-        .filter(|s| sub_opts.selected_lans.contains(&s.lan))
-        .collect();
-
-    if selected_subs.is_empty() {
-        return Ok((MergeMode::None, vec![]));
-    }
-
     let mut subtitle_files: Vec<SubtitleMergeOptions> = Vec::new();
     let mut language_labels: Vec<String> = Vec::new();
+    let mut remaining_lans: Vec<String> = sub_opts.selected_lans.clone();
 
-    // 選択された各言語の字幕を並行してダウンロードする。
-    // 各リクエストは download_subtitle_with_retry（指数バックオフ付き）を使用し、
-    // 一部の字幕ダウンロードが失敗しても成功した字幕のみで処理を継続する。
-    let futures: Vec<_> = selected_subs
-        .into_iter()
-        .map(|sub| {
-            let srt_path = lib_path.join(format!("temp_sub_{download_id}_{}.srt", sub.lan));
-            let client = client.clone();
-            let sub = sub.clone();
-            async move {
-                match download_subtitle_with_retry(&client, &sub.subtitle_url, &srt_path).await {
-                    Ok(()) => Some((
-                        SubtitleMergeOptions {
-                            path: srt_path,
-                            language: lan_to_iso639(&sub.lan).to_string(),
-                            title: sub.lan_doc.clone(),
-                        },
-                        sub.lan_doc,
-                    )),
-                    Err(e) => {
-                        log::warn!(
-                            "[BE] download_video: failed to download \
-                             subtitle {}: {}",
-                            sub.lan,
-                            e
-                        );
-                        None
-                    }
+    const MAX_OUTER_ATTEMPTS: usize = 3;
+
+    for attempt in 0..MAX_OUTER_ATTEMPTS {
+        if remaining_lans.is_empty() {
+            break;
+        }
+
+        let subs_for_attempt: Vec<SubtitleDto> = if attempt == 0 {
+            initial_subs
+                .iter()
+                .filter(|s| remaining_lans.contains(&s.lan))
+                .cloned()
+                .collect()
+        } else {
+            log::warn!(
+                "[BE] prepare_subtitle_mode: attempt {}/{}: \
+                 re-fetching URLs for {} failed subtitle(s)",
+                attempt + 1,
+                MAX_OUTER_ATTEMPTS,
+                remaining_lans.len(),
+            );
+            let fresh = fetch_subtitles_parallel(&client, cookies, bvid, cid).await;
+            fresh
+                .into_iter()
+                .filter(|s| remaining_lans.contains(&s.lan))
+                .collect()
+        };
+
+        if subs_for_attempt.is_empty() {
+            log::warn!(
+                "[BE] prepare_subtitle_mode: no subtitles found \
+                 for remaining languages: {:?}",
+                remaining_lans
+            );
+            break;
+        }
+
+        let futures: Vec<_> = subs_for_attempt
+            .into_iter()
+            .map(|sub| {
+                let srt_path = lib_path.join(format!("temp_sub_{download_id}_{}.srt", sub.lan));
+                let client = client.clone();
+                async move {
+                    let result =
+                        download_subtitle_with_retry(&client, &sub.subtitle_url, &srt_path).await;
+                    (sub.lan, sub.lan_doc, srt_path, result)
+                }
+            })
+            .collect();
+
+        let results = futures::future::join_all(futures).await;
+
+        let mut failed_lans = Vec::new();
+        for (lan, lan_doc, srt_path, result) in results {
+            match result {
+                Ok(()) => {
+                    subtitle_files.push(SubtitleMergeOptions {
+                        path: srt_path,
+                        language: lan_to_iso639(&lan).to_string(),
+                        title: lan_doc.clone(),
+                    });
+                    language_labels.push(lan_doc);
+                }
+                Err(e) => {
+                    log::warn!(
+                        "[BE] prepare_subtitle_mode: failed to \
+                         download subtitle {}: {}",
+                        lan,
+                        e
+                    );
+                    failed_lans.push(lan);
                 }
             }
-        })
-        .collect();
+        }
 
-    // 並行ダウンロード結果を収集し、成功した字幕のみをマージ対象に追加する
-    for (merge_opt, label) in futures::future::join_all(futures)
-        .await
-        .into_iter()
-        .flatten()
-    {
-        subtitle_files.push(merge_opt);
-        language_labels.push(label);
+        remaining_lans = failed_lans;
+        if remaining_lans.is_empty() {
+            break;
+        }
     }
 
     if subtitle_files.is_empty() {
-        return Ok((MergeMode::None, vec![]));
+        log::warn!("[BE] prepare_subtitle_mode: all subtitle downloads failed");
+    }
+
+    // Resolve display names for languages that failed all outer attempts
+    let failed_labels: Vec<String> = remaining_lans
+        .iter()
+        .filter_map(|lan| {
+            initial_subs
+                .iter()
+                .find(|s| s.lan == *lan)
+                .map(|s| s.lan_doc.clone())
+        })
+        .collect();
+
+    if !failed_labels.is_empty() {
+        log::warn!(
+            "[BE] prepare_subtitle_mode: {} subtitle(s) failed: {:?}",
+            failed_labels.len(),
+            failed_labels
+        );
+    }
+
+    if subtitle_files.is_empty() {
+        return Ok((MergeMode::None, vec![], failed_labels));
     }
 
     let mode = match sub_opts.mode.as_str() {
@@ -2463,7 +2533,7 @@ async fn prepare_subtitle_mode(
             .unwrap_or(MergeMode::None),
         _ => MergeMode::SoftSub(subtitle_files),
     };
-    Ok((mode, language_labels))
+    Ok((mode, language_labels, failed_labels))
 }
 
 // ============================================================================

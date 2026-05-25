@@ -122,6 +122,7 @@
     "subtitle_hard_label": "Hard Sub ({{lang}})",
     "subtitle_select_multiple": "Sélection multiple (tous sélectionnés par défaut)",
     "subtitle_hard_warning": "L'encodage Hard Sub prend plus de temps",
+    "subtitle_download_failed": "Échec du téléchargement des sous-titres ({{languages}}). Continuation sans ces sous-titres.",
     "subtitle_description": "Choisissez comment intégrer les sous-titres dans la vidéo.",
     "subtitle_note": "※ Soft Sub permet d'activer/désactiver les sous-titres dans le lecteur. Hard Sub grave les sous-titres dans la vidéo.",
     "options": "Options",
