@@ -31,7 +31,7 @@ tokio = { version = "1.47.1", features = ["full"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 octocrab = "0.42"
 semver = "0.11"
-xz2 = "0.1.7"
+xz2 = { version = "0.1.7", features = ["static"] }
 tar = "0.4.44"
 zip = "2.2.3"
 rusqlite = { version = "0.31", features = ["bundled"] }
