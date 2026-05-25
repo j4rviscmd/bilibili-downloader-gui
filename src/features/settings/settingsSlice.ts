@@ -16,6 +16,7 @@ const initialState: SettingsState = {
   dialogOpen: false,
   autoRenameDuplicates: true,
   showGithubStars: true,
+  fontSize: 16,
 }
 
 /**

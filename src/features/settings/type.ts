@@ -58,10 +58,23 @@ export interface Settings {
    * Defaults to true if not specified.
    */
   openDevtoolsOnStartup?: boolean
+  /**
+   * Base font size in pixels (12-20).
+   *
+   * Applied as root font-size for rem-based scaling.
+   * Defaults to 16 (browser default) if not specified.
+   */
+  fontSize?: FontSizePreset
   // Managed on frontend only, stored in localStorage
   // TODO: manage theme in json
   // theme: 'light' | 'dark'
 }
+
+/**
+ * Font size preset in pixels, applied as root font-size.
+ * All rem-based Tailwind utilities scale proportionally.
+ */
+export type FontSizePreset = 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20
 
 /**
  * Supported language codes for the application.
