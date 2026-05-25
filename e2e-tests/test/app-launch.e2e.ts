@@ -121,11 +121,18 @@ describe('bilibili-downloader-gui E2E', () => {
   })
 
   it('should close settings dialog', async () => {
-    // Click the dialog overlay instead of pressing Escape or clicking the X button,
-    // because tauri-webdriver + WebKit doesn't reliably propagate keyboard events
-    // or button clicks to Radix UI's internal handlers in CI environment.
-    const overlay = await browser.$(S.DIALOG_OVERLAY)
-    await overlay.click()
+    // Use JavaScript to dispatch Escape key event at document level,
+    // because tauri-webdriver + WebKit doesn't reliably propagate
+    // browser.keys('Escape') or element clicks to Radix UI's handlers.
+    await browser.execute(() => {
+      const event = new KeyboardEvent('keydown', {
+        key: 'Escape',
+        code: 'Escape',
+        keyCode: 27,
+        bubbles: true,
+      })
+      document.dispatchEvent(event)
+    })
 
     const dialog = await browser.$(S.DIALOG_CONTENT)
     await dialog.waitForExist({
