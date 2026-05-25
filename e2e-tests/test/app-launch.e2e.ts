@@ -121,13 +121,13 @@ describe('bilibili-downloader-gui E2E', () => {
   })
 
   it('should close settings dialog', async () => {
-    // Click the close (X) button instead of pressing Escape,
-    // because tauri-webdriver + WebKit doesn't reliably propagate
-    // keyboard events to Radix UI's internal handler.
-    const dialog = await browser.$(S.DIALOG_CONTENT)
-    const closeBtn = await dialog.$('button')
-    await closeBtn.click()
+    // Click the dialog overlay instead of pressing Escape or clicking the X button,
+    // because tauri-webdriver + WebKit doesn't reliably propagate keyboard events
+    // or button clicks to Radix UI's internal handlers in CI environment.
+    const overlay = await browser.$(S.DIALOG_OVERLAY)
+    await overlay.click()
 
+    const dialog = await browser.$(S.DIALOG_CONTENT)
     await dialog.waitForExist({
       timeout: 5_000,
       reverse: true,
