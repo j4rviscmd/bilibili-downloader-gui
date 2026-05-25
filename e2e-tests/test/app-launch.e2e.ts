@@ -151,6 +151,25 @@ describe('bilibili-downloader-gui E2E', () => {
   // -- Phase 3: Video URL Input & Info Fetch (Real API) --
 
   it('should accept a video URL in the input field', async () => {
+    // Close the settings dialog that was left open by the previous test
+    // (the dialog close test is skipped due to WebDriver limitations).
+    // We use the JavaScript execute approach to press Escape, which works
+    // more reliably than browser.keys() in the WebKit environment.
+    const dialog = await browser.$(S.DIALOG_CONTENT)
+    if (await dialog.isExisting()) {
+      await browser.execute(() => {
+        const event = new KeyboardEvent('keydown', {
+          key: 'Escape',
+          code: 'Escape',
+          keyCode: 27,
+          bubbles: true,
+        })
+        document.dispatchEvent(event)
+      })
+      // Wait for dialog to close
+      await dialog.waitForExist({ timeout: 5_000, reverse: true })
+    }
+
     const input = await browser.$(S.URL_INPUT)
     await input.click()
     await input.setValue(TEST_VIDEO_URL)
