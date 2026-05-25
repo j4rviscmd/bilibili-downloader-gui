@@ -97,11 +97,7 @@ pub struct Settings {
     pub open_devtools_on_startup: Option<bool>,
     /// Base font size in pixels (12-20). Applied as root font-size for rem-based scaling.
     /// Defaults to 16 (browser default) if not specified.
-    #[serde(
-        rename = "fontSize",
-        default,
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "fontSize", default, skip_serializing_if = "Option::is_none")]
     pub font_size: Option<u8>,
 }
 
