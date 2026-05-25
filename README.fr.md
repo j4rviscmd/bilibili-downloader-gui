@@ -41,22 +41,16 @@ Pas de publicités, pas de suivi. 100 % gratuit.
 - **Configuration en un clic** - Installation automatique de FFmpeg, sans configuration manuelle
 - **Recherche et exportation de l'historique** - Exportez l'historique de téléchargement en JSON/CSV
 - **Support du mode sombre** - Basculement thème clair/sombre
-- **Expérience sans publicité** - Sans publicité, sans suivi, totalement gratuit
 
 ### Méthodes d'authentification
 
-- **Détection automatique des cookies Firefox** - Détecte automatiquement les cookies du navigateur Firefox pour des téléchargements haute qualité sans connexion manuelle
+- **Détection automatique des cookies Firefox** - Détecte les cookies Firefox pour des téléchargements haute qualité sans connexion manuelle
 - **Connexion par code QR** - Scannez simplement le code QR dans l'application pour vous connecter
   - Uniquement disponible lorsque les cookies Firefox ne sont pas détectés
 
-> [!TIP]
-> Si un mot de passe est demandé pour accéder au stockage sécurisé du système d'exploitation, entrez-le et sélectionnez `Toujours autoriser`. Cela rendra les futures connexions par code QR plus fluides.
-> ![Secure storage sample](public/session-keychain-dialog_ja.png)
-
 ### Confidentialité et sécurité
 
-- **Gestion sécurisée des identifiants** - Les identifiants de connexion par code QR sont gérés par le stockage sécurisé du système d'exploitation (macOS: Keychain, Windows: Credential Manager). L'application ne stocke pas les identifiants.
-- **Pas d'accès aux données d'autres applications** - L'application n'accède jamais aux informations sur d'autres applications dans le stockage sécurisé, vous pouvez être rassuré.
+- **Gestion sécurisée des identifiants** - Les identifiants de connexion par code QR sont chiffrés avec AES-256-GCM et stockés localement. La dérivation de clés avec Argon2id assure une protection spécifique à la machine.
 - **Stockage local uniquement** - Les vidéos téléchargées sont stockées uniquement sur votre PC
 
 ## Installation

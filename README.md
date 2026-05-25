@@ -41,22 +41,16 @@ No ads, no tracking. 100% free.
 - **One-click setup** - FFmpeg auto-install, no manual configuration needed
 - **History search & export** - Export download history to JSON/CSV
 - **Dark mode support** - Light/dark theme toggle
-- **Ad-free experience** - No ads, no tracking, completely free
 
 ### Authentication Methods
 
-- **Firefox Cookie Auto-detection** - Automatically detects Firefox browser cookies for high-quality downloads without manual login
+- **Firefox Cookie Auto-detection** - Detects Firefox cookies for high-quality downloads without manual login
 - **QR Code Login** - Simply scan the QR code in the app to log in
   - Only available when Firefox cookies are not detected
 
-> [!TIP]
-> If prompted for a password to access OS secure storage, enter it and select `Always Allow`. This will make future QR code logins smoother.
-> ![Secure storage sample](public/session-keychain-dialog_ja.png)
-
 ### Privacy & Security
 
-- **Secure Credential Management** - QR code login credentials are managed by OS secure storage (macOS: Keychain, Windows: Credential Manager). The app does not store credentials.
-- **No Access to Other Apps' Data** - The app never accesses information about other applications in secure storage, so you can rest assured.
+- **Secure Credential Management** - QR code login credentials are encrypted with AES-256-GCM and stored locally. Keys are derived using Argon2id, ensuring machine-specific protection.
 - **Local-only Storage** - Downloaded videos are stored only on your PC
 
 ## Installation
