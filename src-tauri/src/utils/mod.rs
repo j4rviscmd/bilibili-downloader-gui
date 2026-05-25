@@ -10,5 +10,6 @@ pub mod error_handler;
 pub mod log_cleanup;
 pub mod paths;
 pub mod sanitize;
+pub mod secure_storage;
 pub mod subtitle;
 pub mod wbi;

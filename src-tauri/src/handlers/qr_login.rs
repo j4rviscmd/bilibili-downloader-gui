@@ -3,16 +3,14 @@
 //! This module handles Bilibili QR code authentication flow:
 //! 1. Generate QR code image
 //! 2. Poll for login status
-//! 3. Store session securely in OS keyring on success
-//! 4. Logout (clear session from keyring)
+//! 3. Store session in encrypted file on success
+//! 4. Logout (clear session file)
 //!
 //! # Security
 //!
-//! Session tokens (SESSDATA, refresh_token, etc.) are stored in the OS's
-//! secure credential storage:
-//! - macOS: Keychain
-//! - Windows: Credential Manager
-//! - Linux: Secret Service (gnome-keyring, KWallet, etc.)
+//! Session tokens (SESSDATA, refresh_token, etc.) are encrypted with
+//! argon2 + AES-256-GCM and stored in the app data directory.
+//! The encryption key is derived from hostname + username.
 //!
 //! The tauri-plugin-store is only used for non-sensitive settings
 //! like the preferred login method.
@@ -38,37 +36,25 @@ use crate::models::qr_login::{
     CookieRefreshResponse, LoginMethod, LoginState, QrCodeGenerateResponse, QrCodePollResponse,
     QrCodeResult, QrCodeStatus, QrPollResult, Session,
 };
+use crate::utils::secure_storage::{EncryptedFileStorage, SecureStorage};
 
 const QR_GENERATE_URL: &str = "https://passport.bilibili.com/x/passport-login/web/qrcode/generate";
 const QR_POLL_URL: &str = "https://passport.bilibili.com/x/passport-login/web/qrcode/poll";
 const STORE_FILE_NAME: &str = "login_state.json";
 const LOGIN_STATE_KEY: &str = "loginState";
 
-// Keyring configuration
-const KEYRING_SERVICE: &str = "com.j4rviscmd.bilibili-downloader-gui";
-const KEYRING_SESSION_KEY: &str = "session";
+// Encrypted file storage instance
+static STORAGE: EncryptedFileStorage = EncryptedFileStorage::new();
 
-// Session cache to avoid multiple keyring access dialogs
+// Session cache to avoid repeated file reads and key derivation
 // None = not initialized yet, Some(None) = no session, Some(Some(session)) = session exists
 static SESSION_CACHE: RwLock<Option<Option<Session>>> = RwLock::new(None);
 
-/// Returns true if running in E2E test mode (bypasses OS keyring).
+/// Returns true if running in E2E test mode (bypasses secure storage).
 pub fn is_e2e_testing() -> bool {
     std::env::var("E2E_TESTING")
         .map(|v| v == "true")
         .unwrap_or(false)
-}
-
-// Keyring Helper Functions
-
-/// Creates a keyring entry for the session credential.
-///
-/// # Errors
-///
-/// Returns an error if the keyring entry cannot be created.
-fn create_keyring_entry() -> Result<keyring::Entry, String> {
-    keyring::Entry::new(KEYRING_SERVICE, KEYRING_SESSION_KEY)
-        .map_err(|e| format!("Failed to create keyring entry: {}", e))
 }
 
 /// Creates a bilibili cookie entry with the standard host.
@@ -80,27 +66,18 @@ fn bilibili_cookie(name: &str, value: String) -> CookieEntry {
     }
 }
 
-/// Saves session to OS keyring.
+/// Saves session to encrypted file storage.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - Keyring is not available (e.g., no Secret Service on Linux)
-/// - Failed to store the credential
-fn save_session_to_keyring(session: &Session) -> Result<(), String> {
+/// Returns an error if encryption or file write fails.
+fn save_session_to_store(app: &AppHandle, session: &Session) -> Result<(), String> {
     if is_e2e_testing() {
-        log::info!("[BE] save_session_to_keyring: skipped (E2E_TESTING)");
+        log::info!("[BE] save_session_to_store: skipped (E2E_TESTING)");
         return Ok(());
     }
-    log::info!("[BE] save_session_to_keyring: saving session to keyring");
-    let entry = create_keyring_entry()?;
-
-    let session_json = serde_json::to_string(session)
-        .map_err(|e| format!("Failed to serialize session: {}", e))?;
-
-    entry
-        .set_password(&session_json)
-        .map_err(|e| format!("Failed to store session in keyring: {}", e))?;
+    log::info!("[BE] save_session_to_store: saving session");
+    STORAGE.save(app, session)?;
 
     // Update cache
     {
@@ -110,17 +87,14 @@ fn save_session_to_keyring(session: &Session) -> Result<(), String> {
         *cache = Some(Some(session.clone()));
     }
 
-    log::info!(
-        "[BE] save_session_to_keyring: session saved successfully ({} bytes)",
-        session_json.len()
-    );
+    log::info!("[BE] save_session_to_store: session saved successfully");
     Ok(())
 }
 
-/// Loads session from OS keyring with caching.
+/// Loads session from encrypted file storage with caching.
 ///
-/// Uses an in-memory cache to avoid multiple keyring access dialogs.
-/// On first call, reads from keyring and caches the result.
+/// Uses an in-memory cache to avoid repeated file reads.
+/// On first call, reads from encrypted file and caches the result.
 /// Subsequent calls return the cached value.
 ///
 /// # Returns
@@ -129,74 +103,59 @@ fn save_session_to_keyring(session: &Session) -> Result<(), String> {
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - Keyring is not available
-/// - Failed to retrieve the credential
-fn load_session_from_keyring() -> Result<Option<Session>, String> {
+/// Returns an error if file read or decryption fails.
+fn load_session_from_store(app: &AppHandle) -> Result<Option<Session>, String> {
     if is_e2e_testing() {
-        log::info!("[BE] load_session_from_keyring: skipped (E2E_TESTING)");
+        log::info!("[BE] load_session_from_store: skipped (E2E_TESTING)");
         return Ok(None);
     }
-    log::info!("[BE] load_session_from_keyring: loading session from keyring");
+    log::info!("[BE] load_session_from_store: loading session");
     // Check cache first
     {
         let cache = SESSION_CACHE
             .read()
             .map_err(|e| format!("Failed to read cache: {}", e))?;
         if let Some(cached) = cache.as_ref() {
-            log::info!("[BE] load_session_from_keyring: returning cached session");
+            log::info!("[BE] load_session_from_store: returning cached session");
             return Ok(cached.clone());
         }
     }
 
-    // Not cached, read from keyring
-    let entry = create_keyring_entry().map_err(|e| {
-        log::error!("[BE] load_session_from_keyring: {}", e);
-        e
-    })?;
+    // Not cached, read from storage
+    let result = STORAGE.load(app);
 
-    let result = match entry.get_password() {
-        Ok(json) => {
-            let session: Session = serde_json::from_str(&json)
-                .map_err(|e| format!("Failed to deserialize session: {}", e))?;
-            log::info!("[BE] load_session_from_keyring: session loaded successfully");
-            Ok(Some(session))
+    match &result {
+        Ok(Some(session)) => {
+            log::info!("[BE] load_session_from_store: session loaded successfully");
+            let mut cache = SESSION_CACHE
+                .write()
+                .map_err(|e| format!("Failed to write cache: {}", e))?;
+            *cache = Some(Some(session.clone()));
         }
-        Err(keyring::Error::NoEntry) => {
-            log::info!("[BE] load_session_from_keyring: no session found");
-            Ok(None)
+        Ok(None) => {
+            log::info!("[BE] load_session_from_store: no session found");
+            let mut cache = SESSION_CACHE
+                .write()
+                .map_err(|e| format!("Failed to write cache: {}", e))?;
+            *cache = Some(None);
         }
-        Err(e) => {
-            log::error!(
-                "[BE] load_session_from_keyring: failed to get password: {}",
-                e
-            );
-            Err(format!("Failed to retrieve session from keyring: {}", e))
-        }
-    };
-
-    // Cache the result
-    if let Ok(ref session) = result {
-        let mut cache = SESSION_CACHE
-            .write()
-            .map_err(|e| format!("Failed to write cache: {}", e))?;
-        *cache = Some(session.clone());
+        Err(e) => log::error!("[BE] load_session_from_store: {}", e),
     }
 
     result
 }
 
-/// Deletes session from OS keyring and clears cache.
+/// Deletes session from encrypted file storage and clears cache.
 ///
 /// # Errors
 ///
-/// Returns an error if deletion fails (ignores "no entry" error).
-fn delete_session_from_keyring() -> Result<(), String> {
+/// Returns an error if file deletion fails.
+fn delete_session_from_store(app: &AppHandle) -> Result<(), String> {
     if is_e2e_testing() {
-        log::info!("[BE] delete_session_from_keyring: skipped (E2E_TESTING)");
+        log::info!("[BE] delete_session_from_store: skipped (E2E_TESTING)");
         return Ok(());
     }
-    log::info!("[BE] delete_session_from_keyring: deleting session from keyring");
+    log::info!("[BE] delete_session_from_store: deleting session");
     // Clear cache first
     {
         let mut cache = SESSION_CACHE
@@ -205,25 +164,10 @@ fn delete_session_from_keyring() -> Result<(), String> {
         *cache = None;
     }
 
-    let entry = create_keyring_entry().map_err(|e| {
-        log::error!("[BE] delete_session_from_keyring: {}", e);
-        e
-    })?;
+    STORAGE.delete(app)?;
 
-    match entry.delete_credential() {
-        Ok(()) => {
-            log::info!("[BE] delete_session_from_keyring: session deleted successfully");
-            Ok(())
-        }
-        Err(keyring::Error::NoEntry) => {
-            log::info!("[BE] delete_session_from_keyring: no session to delete");
-            Ok(())
-        }
-        Err(e) => {
-            log::error!("[BE] delete_session_from_keyring: failed to delete: {}", e);
-            Err(format!("Failed to delete session from keyring: {}", e))
-        }
-    }
+    log::info!("[BE] delete_session_from_store: session deleted successfully");
+    Ok(())
 }
 
 /// Generates a QR code for Bilibili login.
@@ -466,13 +410,13 @@ fn extract_session_from_url(
     })
 }
 
-/// Saves the session to OS keyring and login method to store.
+/// Saves the session to encrypted file storage and login method to store.
 ///
-/// The session tokens are stored securely in the OS's credential storage,
+/// The session tokens are encrypted and stored in the app data directory,
 /// while only the login method preference is stored in the regular store.
 async fn save_session(app: &AppHandle, session: &Session) -> Result<(), String> {
-    // Save session to keyring (secure storage)
-    save_session_to_keyring(session)?;
+    // Save session to encrypted file storage
+    save_session_to_store(app, session)?;
 
     // Save only the login method to store (non-sensitive)
     let store = app
@@ -524,7 +468,7 @@ fn update_cookie_cache(app: &AppHandle, session: &Session) {
     *guard = cookies;
 }
 
-/// Loads the stored session from keyring and updates cookie cache.
+/// Loads the stored session from encrypted file and updates cookie cache.
 ///
 /// This should be called on app startup to restore login state.
 ///
@@ -534,7 +478,7 @@ fn update_cookie_cache(app: &AppHandle, session: &Session) {
 ///
 /// # Errors
 ///
-/// Returns an error if keyring is not available (e.g., no Secret Service on Linux).
+/// Returns an error if file read or decryption fails.
 pub async fn load_stored_session(app: &AppHandle) -> Result<bool, String> {
     // Check login method preference
     let login_state = get_login_state_from_store(app).await?;
@@ -543,8 +487,8 @@ pub async fn load_stored_session(app: &AppHandle) -> Result<bool, String> {
         return Ok(false);
     }
 
-    // Load session from keyring
-    let session = load_session_from_keyring()?;
+    // Load session from encrypted file storage
+    let session = load_session_from_store(app)?;
 
     if let Some(session) = session {
         log::info!(
@@ -559,7 +503,7 @@ pub async fn load_stored_session(app: &AppHandle) -> Result<bool, String> {
     Ok(false)
 }
 
-/// Logs out by clearing the stored session from keyring and cookie cache.
+/// Logs out by clearing the stored session and cookie cache.
 ///
 /// # Arguments
 ///
@@ -576,8 +520,8 @@ pub async fn logout(app: &AppHandle) -> Result<(), String> {
         }
     }
 
-    // Delete session from keyring
-    delete_session_from_keyring()?;
+    // Delete session from encrypted file storage
+    delete_session_from_store(app)?;
 
     // Clear login method from store
     let store = app
@@ -612,7 +556,7 @@ pub async fn set_login_method(app: &AppHandle, method: LoginMethod) -> Result<()
         .store(STORE_FILE_NAME)
         .map_err(|e| format!("Failed to open store: {}", e))?;
 
-    // Only store the method, not the session (session is in keyring)
+    // Only store the method, not the session (session is in encrypted file)
     let login_state = LoginState {
         method,
         session: None,
@@ -646,7 +590,7 @@ pub async fn get_login_method(app: &AppHandle) -> Result<LoginMethod, String> {
 
 /// Gets the current login state from store (method only, no session).
 ///
-/// Session data is loaded from keyring separately.
+/// Session data is loaded from encrypted file separately.
 async fn get_login_state_from_store(app: &AppHandle) -> Result<LoginState, String> {
     let store = match app.store(STORE_FILE_NAME) {
         Ok(s) => s,
@@ -667,7 +611,7 @@ async fn get_login_state_from_store(app: &AppHandle) -> Result<LoginState, Strin
     Ok(state)
 }
 
-/// Gets the current login state including session from keyring.
+/// Gets the current login state including session from encrypted file.
 ///
 /// # Arguments
 ///
@@ -675,17 +619,17 @@ async fn get_login_state_from_store(app: &AppHandle) -> Result<LoginState, Strin
 ///
 /// # Returns
 ///
-/// Returns the current login state with session (if available from keyring).
+/// Returns the current login state with session (if available from encrypted file).
 ///
 /// # Errors
 ///
-/// Returns an error if keyring is not available.
+/// Returns an error if file read or decryption fails.
 pub async fn get_login_state(app: &AppHandle) -> Result<LoginState, String> {
     let store_state = get_login_state_from_store(app).await?;
 
-    // Load session from keyring if using QR code method
+    // Load session from encrypted file if using QR code method
     let session = if store_state.method == LoginMethod::QrCode {
-        load_session_from_keyring()?
+        load_session_from_store(app)?
     } else {
         None
     };
@@ -791,16 +735,11 @@ fn generate_correspond_path(timestamp: i64) -> Result<String, String> {
 ///
 /// The HTML response contains a div with id '1-name' containing the refresh_csrf token.
 async fn fetch_refresh_csrf(app: &AppHandle, correspond_path: &str) -> Result<String, String> {
-    log::debug!("[BE] fetch_refresh_csrf: Starting...");
     let cookies = get_cookie_header(app);
     let url = format!("{}{}", CORRESPOND_URL_PREFIX, correspond_path);
     log::debug!("[BE] fetch_refresh_csrf: URL: {}", url);
 
-    let client = Client::builder()
-        .build()
-        .map_err(|e| format!("Failed to build client: {}", e))?;
-
-    log::debug!("[BE] fetch_refresh_csrf: Sending request...");
+    let client = Client::new();
     let response = client
         .get(&url)
         .header("Cookie", &cookies)
@@ -810,23 +749,19 @@ async fn fetch_refresh_csrf(app: &AppHandle, correspond_path: &str) -> Result<St
         .header("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
         .send()
         .await
-        .map_err(|e| {
-            log::debug!("[BE] fetch_refresh_csrf: Request failed: {}", e);
-            format!("Failed to fetch refresh_csrf: {}", e)
-        })?;
+        .map_err(|e| format!("Failed to fetch refresh_csrf: {}", e))?;
 
     log::debug!(
         "[BE] fetch_refresh_csrf: Response status: {}",
         response.status()
     );
 
-    let html = response.text().await.map_err(|e| {
-        log::debug!("[BE] fetch_refresh_csrf: Failed to read body: {}", e);
-        format!("Failed to read response: {}", e)
-    })?;
+    let html = response
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read response: {}", e))?;
 
     log::debug!("[BE] fetch_refresh_csrf: HTML length: {} bytes", html.len());
-    log::debug!("[BE] fetch_refresh_csrf: HTML content: {}", html);
 
     // Parse refresh_csrf from HTML: <div id="1-name">{refresh_csrf}</div>
     let start_tag = r#"<div id="1-name">"#;
@@ -875,14 +810,10 @@ pub async fn refresh_cookie(app: &AppHandle) -> Result<Session, String> {
     log::debug!("[BE] Refresh needed, timestamp: {}", refresh_info.timestamp);
 
     // Get current session for refresh_token and csrf
-    let login_state = get_login_state(app).await.map_err(|e| {
-        log::debug!("[BE] ERROR getting login state: {}", e);
-        e
-    })?;
-    let session = login_state.session.ok_or_else(|| {
-        log::debug!("[BE] ERROR: No QR session found in login state");
-        "No QR session found".to_string()
-    })?;
+    let login_state = get_login_state(app).await?;
+    let session = login_state
+        .session
+        .ok_or_else(|| "No QR session found".to_string())?;
 
     log::debug!(
         "[BE] Found session: sessdata={} bytes, refresh_token={} bytes",
@@ -891,10 +822,7 @@ pub async fn refresh_cookie(app: &AppHandle) -> Result<Session, String> {
     );
 
     // Step 2: Generate CorrespondPath
-    let correspond_path = generate_correspond_path(refresh_info.timestamp).map_err(|e| {
-        log::debug!("[BE] ERROR generating correspond path: {}", e);
-        e
-    })?;
+    let correspond_path = generate_correspond_path(refresh_info.timestamp)?;
     log::debug!(
         "[BE] Generated CorrespondPath: {} bytes",
         correspond_path.len()
@@ -902,12 +830,7 @@ pub async fn refresh_cookie(app: &AppHandle) -> Result<Session, String> {
 
     // Step 3: Fetch refresh_csrf
     log::debug!("[BE] Fetching refresh_csrf...");
-    let refresh_csrf = fetch_refresh_csrf(app, &correspond_path)
-        .await
-        .map_err(|e| {
-            log::debug!("[BE] ERROR fetching refresh_csrf: {}", e);
-            e
-        })?;
+    let refresh_csrf = fetch_refresh_csrf(app, &correspond_path).await?;
     log::debug!("[BE] Got refresh_csrf: {}", refresh_csrf);
 
     // Step 4: Call cookie refresh API
@@ -936,19 +859,13 @@ pub async fn refresh_cookie(app: &AppHandle) -> Result<Session, String> {
     let new_cookies = extract_cookies_from_response(&response);
     log::debug!("[BE] Extracted {} cookies from response", new_cookies.len());
 
-    // Get response body as text first for debugging
-    let response_text = response.text().await.map_err(|e| {
-        log::debug!("[BE] ERROR reading response body: {}", e);
-        format!("Failed to read response body: {}", e)
-    })?;
+    let response_text = response
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read response body: {}", e))?;
 
-    log::debug!("[BE] Response body: {}", response_text);
-
-    let refresh_response: CookieRefreshResponse =
-        serde_json::from_str(&response_text).map_err(|e| {
-            log::debug!("[BE] ERROR parsing JSON: {}", e);
-            format!("Failed to parse refresh response: {}", e)
-        })?;
+    let refresh_response: CookieRefreshResponse = serde_json::from_str(&response_text)
+        .map_err(|e| format!("Failed to parse refresh response: {}", e))?;
 
     log::debug!(
         "[BE] Refresh API code: {}, message: {}",
