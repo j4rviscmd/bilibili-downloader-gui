@@ -430,32 +430,7 @@ async fn download_bangumi_durl(
     DOWNLOAD_CANCEL_REGISTRY.remove(&options.download_id).await;
 
     // Save to history asynchronously
-    let app = app.clone();
-    let bvid = options.bvid.clone();
-    let filename = options.filename.clone();
-    let quality = options.quality;
-    let thumbnail_url = options.thumbnail_url.clone();
-    let page = options.page;
-
-    tokio::spawn(async move {
-        if let Err(e) = save_to_history(
-            &app,
-            &bvid,
-            quality,
-            actual_file_size,
-            &filename,
-            thumbnail_url,
-            page,
-        )
-        .await
-        {
-            log::warn!(
-                "[BE] download_video: failed to save to history for {}: {}",
-                bvid,
-                e
-            );
-        }
-    });
+    spawn_save_to_history(app, options, actual_file_size);
 
     Ok(output_path_str)
 }
@@ -601,31 +576,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
                 .await
                 .ok()
                 .map(|m| m.len());
-            let app = app.clone();
-            let bvid = options.bvid.clone();
-            let filename = options.filename.clone();
-            let quality = options.quality;
-            let thumbnail_url = options.thumbnail_url.clone();
-            let page = options.page;
-            tokio::spawn(async move {
-                if let Err(e) = save_to_history(
-                    &app,
-                    &bvid,
-                    quality,
-                    actual_file_size,
-                    &filename,
-                    thumbnail_url,
-                    page,
-                )
-                .await
-                {
-                    log::warn!(
-                        "[BE] download_video: failed to save to history for {}: {}",
-                        bvid,
-                        e
-                    );
-                }
-            });
+            spawn_save_to_history(app, options, actual_file_size);
             return Ok(output_path_str);
         }
         return Err("ERR::NO_STREAM".to_string());
@@ -824,31 +775,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
         );
 
         // Save to history (async failure does not affect download)
-        let app = app.clone();
-        let bvid = options.bvid.clone();
-        let filename = options.filename.clone();
-        let quality = options.quality;
-        let thumbnail_url = options.thumbnail_url.clone();
-        let page = options.page;
-        tokio::spawn(async move {
-            if let Err(e) = save_to_history(
-                &app,
-                &bvid,
-                quality,
-                actual_file_size,
-                &filename,
-                thumbnail_url,
-                page,
-            )
-            .await
-            {
-                log::warn!(
-                    "[BE] download_video: failed to save to history for {}: {}",
-                    bvid,
-                    e
-                );
-            }
-        });
+        spawn_save_to_history(app, options, actual_file_size);
 
         Ok(output_path_str)
     }
@@ -935,6 +862,38 @@ mod tests {
             );
         }
     }
+}
+
+/// Spawns an async task to save download history.
+///
+/// Extracts relevant fields from `options` and spawns a background task
+/// that calls [`save_to_history`]. Failures are logged but not propagated.
+fn spawn_save_to_history(app: &AppHandle, options: &DownloadOptions, file_size: Option<u64>) {
+    let app = app.clone();
+    let bvid = options.bvid.clone();
+    let filename = options.filename.clone();
+    let quality = options.quality;
+    let thumbnail_url = options.thumbnail_url.clone();
+    let page = options.page;
+    tokio::spawn(async move {
+        if let Err(e) = save_to_history(
+            &app,
+            &bvid,
+            quality,
+            file_size,
+            &filename,
+            thumbnail_url,
+            page,
+        )
+        .await
+        {
+            log::warn!(
+                "[BE] download_video: failed to save to history for {}: {}",
+                bvid,
+                e
+            );
+        }
+    });
 }
 
 /// Saves a history entry after download completion.
@@ -1505,16 +1464,12 @@ async fn fetch_video_details(
 
     let signature = crate::utils::wbi::generate_wbi_signature(&mut params, &mixin_key);
 
-    let query: Vec<(&str, String)> = params
+    let mut query: Vec<(&str, String)> = params
         .iter()
         .map(|(k, v)| (k.as_str(), v.clone()))
-        .collect::<Vec<_>>()
-        .into_iter()
-        .chain([
-            ("w_rid", signature.w_rid.clone()),
-            ("wts", signature.wts.clone()),
-        ])
         .collect();
+    query.push(("w_rid", signature.w_rid.clone()));
+    query.push(("wts", signature.wts.clone()));
 
     let response = client
         .get("https://api.bilibili.com/x/player/wbi/playurl")
@@ -1634,8 +1589,6 @@ async fn head_content_length(url: &str, cookie: Option<&str>) -> Option<u64> {
 
     // Only accept successful responses (200 OK)
     if !response.status().is_success() {
-        // HEAD request may fail (e.g., 403 Forbidden) but download continues normally
-        // eprintln!("HEAD request failed for {}: {}", url, response.status());
         return None;
     }
 
@@ -2115,27 +2068,25 @@ pub async fn fetch_subtitles_for_part(
     Ok(subtitles)
 }
 
-/// Fetches subtitles using parallel requests to mitigate stale CDN responses.
+/// 古いCDNキャッシュの影響を緩和するため、並行リクエストで字幕を取得する。
 ///
-/// Bilibili's CDN may serve stale cached responses that only include
-/// a single AI subtitle (`ai_type: 0`) instead of the full set of
-/// AI-translated subtitles (`ai_type: 1`). Rather than retrying
-/// sequentially, this function fires [`PARALLEL_COUNT`] requests
-/// concurrently with a small jitter between them to increase the
-/// chance of hitting a fresh CDN node. The response with the greatest
-/// number of subtitles is returned as the best result.
+/// BilibiliのCDNは、AI翻訳字幕（`ai_type: 1`）の完全なセットではなく、
+/// 単一のAI字幕（`ai_type: 0`）のみを含む古いキャッシュを返すことがある。
+/// 逐次リトライではなく、[`PARALLEL_COUNT`] 件のリクエストを並行して
+/// 発行し、CDNノード間に小さなジッターを挟むことで、新鲜な応答を
+/// 取得できる確率を高める。最も件数の多い字幕リストを最適結果として返す。
 ///
 /// # Arguments
 ///
-/// * `client` - HTTP client for API requests
-/// * `cookies` - Cookie entries for authentication
-/// * `bvid` - Bilibili video ID (BV identifier)
-/// * `cid` - Content ID for the specific video part
+/// * `client` - APIリクエストに使用するHTTPクライアント
+/// * `cookies` - 認証用のCookieエントリ
+/// * `bvid` - Bilibili動画ID（BV識別子）
+/// * `cid` - 特定動画パートのコンテンツID
 ///
 /// # Returns
 ///
-/// Returns the subtitle list with the most entries across all parallel
-/// attempts. Returns an empty list if all requests fail.
+/// 並行試行の中で最も件数の多い字幕リストを返す。
+/// すべてのリクエストが失敗した場合は空のベクタを返す。
 async fn fetch_subtitles_parallel(
     client: &Client,
     cookies: &[CookieEntry],
@@ -2143,7 +2094,7 @@ async fn fetch_subtitles_parallel(
     cid: i64,
 ) -> Vec<SubtitleDto> {
     const PARALLEL_COUNT: usize = 3;
-    const JITTER_STEP_MS: u64 = 200;
+    const JITTER_STEP_MS: u64 = 1000;
 
     let futures: Vec<_> = (0..PARALLEL_COUNT)
         .map(|i| {
@@ -2299,39 +2250,107 @@ pub async fn download_subtitle(
     Ok(())
 }
 
-/// Prepares subtitle merge mode based on user options.
+/// 指数バックオフ付きで字幕をダウンロードする。
 ///
-/// Downloads selected subtitles and returns appropriate merge mode for ffmpeg.
-/// Converts BCC JSON subtitles to SRT format and saves them as temporary files.
-///
-/// # Processing Flow
-///
-/// 1. Returns `MergeMode::None` if subtitle option is "off" or no language selected
-/// 2. Fetches available subtitles from API
-/// 3. Filters subtitles by user-selected languages
-/// 4. Downloads selected subtitles in SRT format
-/// 5. Returns merge mode and language labels
+/// BilibiliのCDNが古いキャッシュを返す場合に備え、最大 [`MAX_RETRIES`] 回
+/// リトライを行う。遅延は 2s, 4s, 8s, 16s, 32s と指数的に増加する。
+/// 各試行の失敗時には、不完全なファイルを残さないよう出力ファイルを
+/// 削除してから次の試行へ移行する。
 ///
 /// # Arguments
 ///
-/// * `subtitle_opts` - User's subtitle selection (mode and language codes)
-/// * `cookies` - Cookie entries for authentication
-/// * `bvid` - Bilibili video ID
-/// * `cid` - Content ID
-/// * `download_id` - Unique identifier for temporary file naming
-/// * `lib_path` - Directory for temporary subtitle files
+/// * `client` - HTTPリクエストに使用するクライアント
+/// * `subtitle_url` - BCC形式字幕JSONのURL（`//` で始まる場合あり）
+/// * `output_path` - 変換後のSRTファイルの出力パス
 ///
 /// # Returns
 ///
-/// Returns `(MergeMode, language_labels)` tuple:
-/// - `MergeMode::None` - Subtitles disabled, not selected, or no matching subtitles
-/// - `MergeMode::SoftSub` - Soft subtitle mode (multiple languages supported)
-/// - `MergeMode::HardSub` - Hard subtitle mode (burn-in, single language only)
-/// - `language_labels` - List of display names (lan_doc) for selected subtitles
+/// ダウンロードとSRT変換に成功した場合は `Ok(())` を返す。
 ///
 /// # Errors
 ///
-/// Returns error if HTTP client construction fails.
+/// すべてのリトライ試行が失敗した場合、最後のエラーメッセージを含む
+/// `Err(String)` を返す。リトライ回数は [`MAX_RETRIES`]（デフォルト5回）。
+async fn download_subtitle_with_retry(
+    client: &Client,
+    subtitle_url: &str,
+    output_path: &std::path::Path,
+) -> Result<(), String> {
+    const MAX_RETRIES: usize = 5;
+    const BASE_DELAY_SECS: u64 = 2;
+
+    for attempt in 0..MAX_RETRIES {
+        match download_subtitle(client, subtitle_url, output_path).await {
+            Ok(()) => return Ok(()),
+            Err(e) => {
+                let _ = tokio::fs::remove_file(output_path).await;
+                if attempt + 1 < MAX_RETRIES {
+                    let delay = BASE_DELAY_SECS * 2u64.pow(attempt as u32);
+                    log::warn!(
+                        "[BE] download_subtitle_with_retry: attempt \
+                         {}/{} failed for {}: {}. Retrying in {}s",
+                        attempt + 1,
+                        MAX_RETRIES,
+                        output_path.display(),
+                        e,
+                        delay,
+                    );
+                    tokio::time::sleep(Duration::from_secs(delay)).await;
+                } else {
+                    log::error!(
+                        "[BE] download_subtitle_with_retry: all {} \
+                         attempts exhausted for {}: {}",
+                        MAX_RETRIES,
+                        output_path.display(),
+                        e,
+                    );
+                }
+            }
+        }
+    }
+
+    Err(format!(
+        "Failed after {} retries for {}",
+        MAX_RETRIES,
+        output_path.display(),
+    ))
+}
+
+/// ユーザーの字幕オプションに基づいて字幕マージモードを準備する。
+///
+/// 選択された字幕をダウンロードし、ffmpeg用の適切なマージモードを返す。
+/// BCC JSON形式の字幕をSRT形式に変換し、一時ファイルとして保存する。
+/// 複数言語の字幕は並行してダウンロードされ、失敗した字幕は
+/// 警告ログとともにスキップされる（ダウンロード全体は失敗しない）。
+///
+/// # Processing Flow
+///
+/// 1. 字幕オプションが "off" または言語未選択なら `MergeMode::None` を返す
+/// 2. フロントエンドから渡された字幕情報を使用、なければAPIから取得
+/// 3. ユーザーが選択した言語で字幕をフィルタリング
+/// 4. 選択された各言語の字幕を **並行** でダウンロード（指数バックオフ付きリトライ）
+/// 5. マージモードと言語ラベルを返す
+///
+/// # Arguments
+///
+/// * `subtitle_opts` - ユーザーの字幕選択（モードと言語コード）
+/// * `cookies` - 認証用のCookieエントリ
+/// * `bvid` - Bilibili動画ID
+/// * `cid` - コンテンツID
+/// * `download_id` - 一時ファイル名に使用する一意識別子
+/// * `lib_path` - 一時字幕ファイルの出力ディレクトリ
+///
+/// # Returns
+///
+/// `(MergeMode, language_labels)` タプルを返す:
+/// - `MergeMode::None` - 字幕無効、未選択、またはマッチする字幕なし
+/// - `MergeMode::SoftSub` - ソフト字幕モード（複数言語対応）
+/// - `MergeMode::HardSub` - ハード字幕モード（焼き込み、1言語のみ）
+/// - `language_labels` - 選択された字幕の表示名（lan_doc）のリスト
+///
+/// # Errors
+///
+/// HTTPクライアントの構築に失敗した場合にエラーを返す。
 async fn prepare_subtitle_mode(
     subtitle_opts: &Option<SubtitleOptions>,
     cookies: &[CookieEntry],
@@ -2388,24 +2407,48 @@ async fn prepare_subtitle_mode(
 
     let mut subtitle_files: Vec<SubtitleMergeOptions> = Vec::new();
     let mut language_labels: Vec<String> = Vec::new();
-    for sub in selected_subs {
-        let srt_path = lib_path.join(format!("temp_sub_{download_id}_{}.srt", sub.lan));
 
-        if let Err(e) = download_subtitle(&client, &sub.subtitle_url, &srt_path).await {
-            log::warn!(
-                "[BE] download_video: failed to download subtitle {}: {}",
-                sub.lan,
-                e
-            );
-            continue;
-        }
+    // 選択された各言語の字幕を並行してダウンロードする。
+    // 各リクエストは download_subtitle_with_retry（指数バックオフ付き）を使用し、
+    // 一部の字幕ダウンロードが失敗しても成功した字幕のみで処理を継続する。
+    let futures: Vec<_> = selected_subs
+        .into_iter()
+        .map(|sub| {
+            let srt_path = lib_path.join(format!("temp_sub_{download_id}_{}.srt", sub.lan));
+            let client = client.clone();
+            let sub = sub.clone();
+            async move {
+                match download_subtitle_with_retry(&client, &sub.subtitle_url, &srt_path).await {
+                    Ok(()) => Some((
+                        SubtitleMergeOptions {
+                            path: srt_path,
+                            language: lan_to_iso639(&sub.lan).to_string(),
+                            title: sub.lan_doc.clone(),
+                        },
+                        sub.lan_doc,
+                    )),
+                    Err(e) => {
+                        log::warn!(
+                            "[BE] download_video: failed to download \
+                             subtitle {}: {}",
+                            sub.lan,
+                            e
+                        );
+                        None
+                    }
+                }
+            }
+        })
+        .collect();
 
-        subtitle_files.push(SubtitleMergeOptions {
-            path: srt_path,
-            language: lan_to_iso639(&sub.lan).to_string(),
-            title: sub.lan_doc.clone(),
-        });
-        language_labels.push(sub.lan_doc.clone());
+    // 並行ダウンロード結果を収集し、成功した字幕のみをマージ対象に追加する
+    for (merge_opt, label) in futures::future::join_all(futures)
+        .await
+        .into_iter()
+        .flatten()
+    {
+        subtitle_files.push(merge_opt);
+        language_labels.push(label);
     }
 
     if subtitle_files.is_empty() {
