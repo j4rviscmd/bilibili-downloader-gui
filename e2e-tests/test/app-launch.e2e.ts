@@ -21,7 +21,13 @@ import {
 } from '../helpers/app.helpers'
 import * as S from '../helpers/selectors'
 
-// A stable, well-known Bilibili official video for testing
+/**
+ * URL of a stable, well-known Bilibili official video used as the
+ * test fixture for video info fetch and part card rendering.
+ *
+ * Chosen for its reliability and longevity as an official upload,
+ * reducing flakiness from takedown or geo-restrictions.
+ */
 const TEST_VIDEO_URL = 'https://www.bilibili.com/video/BV1i3411y7xB'
 
 describe('bilibili-downloader-gui E2E', () => {
@@ -73,8 +79,6 @@ describe('bilibili-downloader-gui E2E', () => {
     const alert = await browser.$(S.LOGIN_ALERT)
     await alert.waitForExist({ timeout: 10_000 })
 
-    expect(await alert.isExisting()).to.be.true
-
     const alertTitle = await browser.$(S.LOGIN_ALERT_TITLE)
     expect(await alertTitle.isExisting()).to.be.true
 
@@ -86,7 +90,6 @@ describe('bilibili-downloader-gui E2E', () => {
     // settings). Wait for it since sidebar renders async.
     const footer = await browser.$(S.SIDEBAR_FOOTER)
     await footer.waitForExist({ timeout: 10_000 })
-    expect(await footer.isExisting()).to.be.true
 
     // Verify at least one menu button in footer
     const menuButtons = await footer.$$('[data-slot="sidebar-menu-button"]')
@@ -110,7 +113,6 @@ describe('bilibili-downloader-gui E2E', () => {
     // Wait for dialog to appear
     const dialog = await browser.$(S.DIALOG_CONTENT)
     await dialog.waitForExist({ timeout: 10_000 })
-    expect(await dialog.isExisting()).to.be.true
 
     const title = await browser.$(S.DIALOG_TITLE)
     expect(await title.isExisting()).to.be.true
@@ -119,14 +121,17 @@ describe('bilibili-downloader-gui E2E', () => {
   })
 
   it('should close settings dialog', async () => {
-    await browser.keys('Escape')
-
+    // Click the close (X) button instead of pressing Escape,
+    // because tauri-webdriver + WebKit doesn't reliably propagate
+    // keyboard events to Radix UI's internal handler.
     const dialog = await browser.$(S.DIALOG_CONTENT)
+    const closeBtn = await dialog.$('button')
+    await closeBtn.click()
+
     await dialog.waitForExist({
       timeout: 5_000,
       reverse: true,
     })
-    expect(await dialog.isExisting()).to.be.false
 
     await saveScreenshot('settings', '01-dialog-closed')
   })
@@ -156,7 +161,6 @@ describe('bilibili-downloader-gui E2E', () => {
     // Wait for part list to appear (indicates parts loaded)
     const partList = await browser.$(S.DATA_PART_LIST)
     await partList.waitForExist({ timeout: 30_000 })
-    expect(await partList.isExisting()).to.be.true
 
     await saveScreenshot('video', '01-info-loaded')
   })
