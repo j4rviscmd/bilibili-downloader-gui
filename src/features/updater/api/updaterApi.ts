@@ -46,3 +46,26 @@ export const fetchReleaseNotes = async (
     throw error
   }
 }
+
+export const fetchAllReleaseNotes = async (
+  owner: string,
+  repo: string,
+): Promise<string> => {
+  logger.debug(`fetchAllReleaseNotes: owner=${owner}, repo=${repo}`)
+  try {
+    const result = await invoke<string>('get_all_release_notes', {
+      owner,
+      repo,
+    })
+    logger.debug(
+      `fetchAllReleaseNotes: Fetched ${result.length} chars of release notes`,
+    )
+    return result
+  } catch (error) {
+    logger.error(
+      `fetchAllReleaseNotes: Failed to fetch release notes for ${owner}/${repo}`,
+      error,
+    )
+    throw error
+  }
+}
