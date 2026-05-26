@@ -172,6 +172,7 @@ pub fn run() {
             reveal_in_folder,
             open_file,
             get_release_notes,
+            get_all_release_notes,
             get_repo_stars,
             fetch_favorite_folders,
             fetch_favorite_videos,
@@ -981,6 +982,33 @@ async fn get_release_notes(
     current_version: String,
 ) -> Result<String, String> {
     updater::fetch_all_release_notes(&owner, &repo, &current_version)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Fetches all published releases as a Markdown document.
+///
+/// Unlike `get_release_notes`, this returns all releases regardless
+/// of version, sorted newest-first.
+///
+/// # Arguments
+///
+/// * `owner` - Repository owner (e.g., "j4rviscmd")
+/// * `repo` - Repository name (e.g., "bilibili-downloader-gui")
+///
+/// # Returns
+///
+/// Returns all release notes as a Markdown-formatted string.
+///
+/// # Errors
+///
+/// Returns an error if the GitHub API request fails.
+#[tauri::command]
+async fn get_all_release_notes(
+    owner: String,
+    repo: String,
+) -> Result<String, String> {
+    updater::fetch_all_releases_markdown(&owner, &repo)
         .await
         .map_err(|e| e.to_string())
 }

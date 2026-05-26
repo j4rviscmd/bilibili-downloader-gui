@@ -242,6 +242,13 @@
       "unknown_version": "未知",
       "dev_mode_disabled": "开发模式下更新检查已禁用"
     },
+    "release_notes": {
+      "title": "更新日志",
+      "button": "查看更新日志",
+      "button_aria": "查看更新日志",
+      "loading": "加载中...",
+      "error": "加载更新日志失败，请检查网络连接。"
+    },
     "dev_options": {
       "title": "开发者选项",
       "open_devtools_on_startup": "启动时打开开发者工具",

@@ -44,6 +44,7 @@ import type { FontSizePreset } from '@/features/settings/type'
 import { DevOptions } from '@/features/settings/ui/DevOptions'
 import { TitleReplacementSettings } from '@/features/settings/ui/TitleReplacementSettings'
 import { UpdateCheckButton } from '@/features/settings/ui/UpdateCheckButton'
+import { ReleaseNotesSection } from '@/features/settings/ui/ReleaseNotesSection'
 import { useSettings } from '@/features/settings/useSettings'
 import {
   RadioGroup,
@@ -440,6 +441,7 @@ function SettingsForm() {
         <div className="space-y-2">
           <Label>{t('settings.app_section_label')}</Label>
           <UpdateCheckButton />
+          <ReleaseNotesSection />
         </div>
         <Separator />
         {/* Login Status Section */}

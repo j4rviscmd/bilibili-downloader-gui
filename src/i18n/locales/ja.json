@@ -245,6 +245,13 @@
       "unknown_version": "不明",
       "dev_mode_disabled": "開発モードではアップデート確認は無効です"
     },
+    "release_notes": {
+      "title": "リリースノート",
+      "button": "リリースノートを見る",
+      "button_aria": "リリースノートを表示",
+      "loading": "読み込み中...",
+      "error": "リリースノートの読み込みに失敗しました。インターネット接続を確認してください。"
+    },
     "dev_options": {
       "title": "開発者オプション",
       "open_devtools_on_startup": "起動時にDevToolsを開く",
