@@ -417,6 +417,11 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
    *
    * Starts download process for each selected part, creating queue entries.
    * Shows appropriate toast notifications on errors.
+   *
+   * Download IDs are generated using `crypto.randomUUID()` to guarantee
+   * globally unique identifiers:
+   * - Parent ID: `{videoId}-{uuid}`
+   * - Child ID:  `{videoId}-{uuid}-p{partNumber}`
    */
   const download = useCallback(async () => {
     if (!isForm1Valid || !isForm2ValidAll) return
@@ -449,7 +454,7 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
         store.dispatch(clearQueueItem(completedItem.downloadId))
     }
 
-    const parentId = `${videoId}-${Date.now()}`
+    const parentId = `${videoId}-${crypto.randomUUID()}`
     store.dispatch(
       enqueue({
         downloadId: parentId,

@@ -475,7 +475,9 @@ const VideoPartCard = memo(function VideoPartCard({
   /**
    * Executes redownload by removing completed item and starting
    * fresh download. Clears the queue item, progress entries, and
-   * initiates a new download with a new ID.
+   * initiates a new download with a new UUID-based ID:
+   * - Download ID: `{videoId}-{uuid}-p{page}`
+   * - Parent ID:   `{videoId}-{uuid}` (derived by stripping the `-p{page}` suffix)
    */
   const handleRedownload = useCallback(async () => {
     const partIndex = page - 1
@@ -493,7 +495,7 @@ const VideoPartCard = memo(function VideoPartCard({
       store.dispatch(clearProgressByDownloadId(completedItem.downloadId))
     }
 
-    const newDownloadId = `${videoId}-${Date.now()}-p${page}`
+    const newDownloadId = `${videoId}-${crypto.randomUUID()}-p${page}`
     const videoQuality = pi.videoQuality || String(pi.videoQualities?.[0]?.id)
     const audioQuality = pi.audioQuality
       ? parseInt(pi.audioQuality, 10)
