@@ -245,6 +245,13 @@
       "unknown_version": "Unknown",
       "dev_mode_disabled": "Update check disabled in development mode"
     },
+    "release_notes": {
+      "title": "Release Notes",
+      "button": "View Release Notes",
+      "button_aria": "View release notes",
+      "loading": "Loading...",
+      "error": "Failed to load release notes. Please check your internet connection."
+    },
     "dev_options": {
       "title": "Developer Options",
       "open_devtools_on_startup": "Open DevTools on startup",

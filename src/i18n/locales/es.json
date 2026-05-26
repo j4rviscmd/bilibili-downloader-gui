@@ -242,6 +242,13 @@
       "unknown_version": "Desconocido",
       "dev_mode_disabled": "La verificación de actualizaciones está deshabilitada en modo desarrollo"
     },
+    "release_notes": {
+      "title": "Notas de la versión",
+      "button": "Ver notas de la versión",
+      "button_aria": "Ver notas de la versión",
+      "loading": "Cargando...",
+      "error": "Error al cargar las notas de la versión. Verifique su conexión a internet."
+    },
     "dev_options": {
       "title": "Opciones de desarrollo",
       "open_devtools_on_startup": "Abrir DevTools al iniciar",
