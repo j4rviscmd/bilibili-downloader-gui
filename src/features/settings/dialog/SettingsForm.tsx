@@ -42,9 +42,9 @@ import {
 } from '@/features/settings/lib/fontSize'
 import type { FontSizePreset } from '@/features/settings/type'
 import { DevOptions } from '@/features/settings/ui/DevOptions'
+import { ReleaseNotesSection } from '@/features/settings/ui/ReleaseNotesSection'
 import { TitleReplacementSettings } from '@/features/settings/ui/TitleReplacementSettings'
 import { UpdateCheckButton } from '@/features/settings/ui/UpdateCheckButton'
-import { ReleaseNotesSection } from '@/features/settings/ui/ReleaseNotesSection'
 import { useSettings } from '@/features/settings/useSettings'
 import {
   RadioGroup,

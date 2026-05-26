@@ -126,10 +126,7 @@ pub async fn fetch_all_release_notes(
 ///
 /// Unlike `fetch_all_release_notes`, this function returns all published
 /// releases regardless of version, sorted newest-first.
-pub async fn fetch_all_releases_markdown(
-    owner: &str,
-    repo: &str,
-) -> Result<String> {
+pub async fn fetch_all_releases_markdown(owner: &str, repo: &str) -> Result<String> {
     log::info!(
         "[BE] fetch_all_releases_markdown: owner={}, repo={}",
         owner,
@@ -150,9 +147,7 @@ pub async fn fetch_all_releases_markdown(
             .page(page)
             .send()
             .await
-            .map_err(|e| {
-                anyhow::anyhow!("Failed to fetch releases page {page}: {e}")
-            })?;
+            .map_err(|e| anyhow::anyhow!("Failed to fetch releases page {page}: {e}"))?;
 
         if page_releases.items.is_empty() {
             break;
@@ -171,10 +166,7 @@ pub async fn fetch_all_releases_markdown(
 
     releases.sort_by(|a, b| {
         let parse_ver = |r: &octocrab::models::repos::Release| {
-            Version::parse(
-                r.tag_name.strip_prefix('v').unwrap_or(&r.tag_name),
-            )
-            .ok()
+            Version::parse(r.tag_name.strip_prefix('v').unwrap_or(&r.tag_name)).ok()
         };
         match (parse_ver(b), parse_ver(a)) {
             (Some(vb), Some(va)) => vb.cmp(&va),
@@ -183,16 +175,12 @@ pub async fn fetch_all_releases_markdown(
     });
 
     let mut notes = String::new();
-    const DEFAULT_BODY: &str =
-        "See the assets to download this version and install.";
+    const DEFAULT_BODY: &str = "See the assets to download this version and install.";
 
     for release in releases {
         if let Some(body) = &release.body {
             if !body.is_empty() && body != DEFAULT_BODY {
-                notes.push_str(&format!(
-                    "## {}\n\n{}\n\n---\n\n",
-                    release.tag_name, body
-                ));
+                notes.push_str(&format!("## {}\n\n{}\n\n---\n\n", release.tag_name, body));
             }
         }
     }

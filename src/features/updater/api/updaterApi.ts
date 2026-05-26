@@ -51,9 +51,7 @@ export const fetchAllReleaseNotes = async (
   owner: string,
   repo: string,
 ): Promise<string> => {
-  logger.debug(
-    `fetchAllReleaseNotes: owner=${owner}, repo=${repo}`,
-  )
+  logger.debug(`fetchAllReleaseNotes: owner=${owner}, repo=${repo}`)
   try {
     const result = await invoke<string>('get_all_release_notes', {
       owner,

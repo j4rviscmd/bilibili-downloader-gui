@@ -1004,10 +1004,7 @@ async fn get_release_notes(
 ///
 /// Returns an error if the GitHub API request fails.
 #[tauri::command]
-async fn get_all_release_notes(
-    owner: String,
-    repo: String,
-) -> Result<String, String> {
+async fn get_all_release_notes(owner: String, repo: String) -> Result<String, String> {
     updater::fetch_all_releases_markdown(&owner, &repo)
         .await
         .map_err(|e| e.to_string())
