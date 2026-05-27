@@ -6,6 +6,7 @@ import {
 import {
   checkCookieRefresh,
   loadQrSession,
+  qrLogout,
   refreshCookie,
 } from '@/features/login'
 import { applyFontSize, parseFontSize } from '@/features/settings'
@@ -20,6 +21,7 @@ import { exit } from '@tauri-apps/plugin-process'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 
+/** Languages supported by the application's i18n configuration. */
 const SUPPORTED_LANGS: readonly SupportedLang[] = [
   'en',
   'ja',
@@ -77,6 +79,11 @@ export const useInit = () => {
   const isSupportedLang = (lang: string): lang is SupportedLang =>
     (SUPPORTED_LANGS as readonly string[]).includes(lang)
 
+  /**
+   * Dispatches the initiated flag to the Redux store.
+   *
+   * @param value - True when initialization is complete.
+   */
   const setInitiated = (value: boolean) => {
     store.dispatch(setValue(value))
   }
@@ -218,11 +225,23 @@ export const useInit = () => {
     return false
   }
 
+  /**
+   * Retrieves application settings and updates the init status message.
+   *
+   * @returns The current application settings.
+   */
   const getAppSettings = async () => {
     setMessage(t('init.fetch_settings'))
     return getSettings()
   }
 
+  /**
+   * Retrieves cookies from the local Firefox profile via the Tauri backend.
+   *
+   * This is used as a fallback when no QR session is available.
+   *
+   * @returns Always returns `true` after invocation completes.
+   */
   const checkCookie = async (): Promise<boolean> => {
     logger.debug('checkCookie: Checking Firefox cookies')
     await invoke('get_cookie')
@@ -255,9 +274,15 @@ export const useInit = () => {
           await refreshCookie()
           setMessage(t('init.cookie_refreshed', 'Login session refreshed'))
         } catch (e) {
-          // Refresh failed - session might be expired
-          logger.error('refreshCookie failed', e)
-          // Return false to fall back to unauthenticated state
+          logger.error(
+            'refreshCookie: Cookie refresh failed, clearing session',
+            e,
+          )
+          try {
+            await qrLogout()
+          } catch (logoutErr) {
+            logger.error('refreshCookie: Failed to clear session', logoutErr)
+          }
           return false
         }
       } else {
@@ -270,6 +295,14 @@ export const useInit = () => {
     }
   }
 
+  /**
+   * Dispatches an initialization step message to the Redux store.
+   *
+   * The message is displayed to the user on the initialization screen
+   * to indicate the current progress step.
+   *
+   * @param message - The status message to display.
+   */
   const setMessage = (message: string) => {
     store.dispatch(setProcessingFnc(message))
   }
