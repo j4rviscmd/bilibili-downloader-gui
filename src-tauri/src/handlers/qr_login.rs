@@ -38,16 +38,22 @@ use crate::models::qr_login::{
 };
 use crate::utils::secure_storage::{EncryptedFileStorage, SecureStorage};
 
+/// Bilibili QR code generation API endpoint.
 const QR_GENERATE_URL: &str = "https://passport.bilibili.com/x/passport-login/web/qrcode/generate";
+/// Bilibili QR code login polling API endpoint.
 const QR_POLL_URL: &str = "https://passport.bilibili.com/x/passport-login/web/qrcode/poll";
+/// Store file name for login method preference (non-sensitive data only).
 const STORE_FILE_NAME: &str = "login_state.json";
+/// Key used within the store file for login state persistence.
 const LOGIN_STATE_KEY: &str = "loginState";
 
-// Encrypted file storage instance
+/// Encrypted file storage instance for persisting session tokens.
 static STORAGE: EncryptedFileStorage = EncryptedFileStorage::new();
 
-// Session cache to avoid repeated file reads and key derivation
-// None = not initialized yet, Some(None) = no session, Some(Some(session)) = session exists
+/// In-memory session cache to avoid repeated file reads and key derivation.
+///
+/// Three-state sentinel: `None` = not initialized, `Some(None)` = no session,
+/// `Some(Some(session))` = session loaded.
 static SESSION_CACHE: RwLock<Option<Option<Session>>> = RwLock::new(None);
 
 /// Returns true if running in E2E test mode (bypasses secure storage).
@@ -642,11 +648,15 @@ pub async fn get_login_state(app: &AppHandle) -> Result<LoginState, String> {
 
 // Cookie Refresh API
 
+/// Bilibili cookie info API endpoint for checking if refresh is needed.
 const COOKIE_INFO_URL: &str = "https://passport.bilibili.com/x/passport-login/web/cookie/info";
+/// Bilibili cookie refresh API endpoint for exchanging refresh tokens.
 const COOKIE_REFRESH_URL: &str =
     "https://passport.bilibili.com/x/passport-login/web/cookie/refresh";
+/// Bilibili confirm refresh endpoint to invalidate the old refresh token.
 const CONFIRM_REFRESH_URL: &str =
     "https://passport.bilibili.com/x/passport-login/web/confirm/refresh";
+/// URL prefix for fetching the CorrespondPath page that contains refresh_csrf.
 const CORRESPOND_URL_PREFIX: &str = "https://www.bilibili.com/correspond/1/";
 
 /// Checks if cookie refresh is needed.
@@ -687,10 +697,14 @@ pub async fn check_cookie_refresh(app: &AppHandle) -> Result<CookieRefreshInfo, 
             .data
             .ok_or_else(|| "No data in cookie info response".to_string()),
         -101 => {
-            log::debug!("[BE] Session expired (code: -101)");
+            let now_ts = chrono::Utc::now().timestamp_millis();
+            log::warn!(
+                "[BE] Session expired (code: -101), forcing refresh with timestamp: {}",
+                now_ts
+            );
             Ok(CookieRefreshInfo {
-                refresh: false,
-                timestamp: 0,
+                refresh: true,
+                timestamp: now_ts,
             })
         }
         _ => Err(format!("Cookie info API error: {}", info_response.message)),
@@ -787,27 +801,21 @@ async fn fetch_refresh_csrf(app: &AppHandle, correspond_path: &str) -> Result<St
 /// Refreshes the cookie using the stored refresh_token.
 ///
 /// This function:
-/// 1. Checks if refresh is needed
-/// 2. Generates CorrespondPath
-/// 3. Fetches refresh_csrf
-/// 4. Calls cookie refresh API
-/// 5. Confirms the refresh
-/// 6. Updates stored session with new cookies and refresh_token
+/// 1. Generates timestamp for CorrespondPath
+/// 2. Fetches refresh_csrf
+/// 3. Calls cookie refresh API
+/// 4. Confirms the refresh
+/// 5. Updates stored session with new cookies and refresh_token
 ///
 /// # Returns
 ///
 /// Returns the new session data on success.
 pub async fn refresh_cookie(app: &AppHandle) -> Result<Session, String> {
-    log::debug!("[BE] Starting cookie refresh process...");
+    log::info!("[BE] Starting cookie refresh process...");
 
-    // Step 1: Check if refresh is needed
-    let refresh_info = check_cookie_refresh(app).await?;
-    if !refresh_info.refresh {
-        log::debug!("[BE] Refresh not needed, aborting");
-        return Err("Cookie refresh not needed".to_string());
-    }
-
-    log::debug!("[BE] Refresh needed, timestamp: {}", refresh_info.timestamp);
+    // Generate timestamp for CorrespondPath
+    let timestamp = chrono::Utc::now().timestamp_millis();
+    log::debug!("[BE] Using timestamp: {}", timestamp);
 
     // Get current session for refresh_token and csrf
     let login_state = get_login_state(app).await?;
@@ -821,19 +829,19 @@ pub async fn refresh_cookie(app: &AppHandle) -> Result<Session, String> {
         session.refresh_token.len()
     );
 
-    // Step 2: Generate CorrespondPath
-    let correspond_path = generate_correspond_path(refresh_info.timestamp)?;
+    // Step 1: Generate CorrespondPath
+    let correspond_path = generate_correspond_path(timestamp)?;
     log::debug!(
         "[BE] Generated CorrespondPath: {} bytes",
         correspond_path.len()
     );
 
-    // Step 3: Fetch refresh_csrf
+    // Step 2: Fetch refresh_csrf
     log::debug!("[BE] Fetching refresh_csrf...");
     let refresh_csrf = fetch_refresh_csrf(app, &correspond_path).await?;
     log::debug!("[BE] Got refresh_csrf: {}", refresh_csrf);
 
-    // Step 4: Call cookie refresh API
+    // Step 3: Call cookie refresh API
     let cookies = get_cookie_header(app);
     let client = Client::new();
 
@@ -890,7 +898,7 @@ pub async fn refresh_cookie(app: &AppHandle) -> Result<Session, String> {
         new_refresh_token.len()
     );
 
-    // Step 5: Confirm refresh (invalidate old refresh_token)
+    // Step 4: Confirm refresh (invalidate old refresh_token)
     let new_cookies_header = build_cookie_header(&new_cookies);
     let confirm_params = [
         (
@@ -918,7 +926,7 @@ pub async fn refresh_cookie(app: &AppHandle) -> Result<Session, String> {
         confirm_response.message
     );
 
-    // Step 6: Build new session and save
+    // Step 5: Build new session and save
     let new_session = Session {
         sessdata: new_cookies.get("SESSDATA").cloned().unwrap_or_default(),
         bili_jct: new_cookies.get("bili_jct").cloned().unwrap_or_default(),
