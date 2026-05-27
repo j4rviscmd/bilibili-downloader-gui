@@ -112,16 +112,17 @@ export function FavoriteContent() {
         </div>
       </div>
 
-      <FavoriteList
-        videos={videos}
-        loading={loading}
-        foldersLoading={foldersLoading}
-        hasMore={hasMore}
-        onLoadMore={loadMore}
-        onDownload={onDownload}
-        height="calc(100dvh - 2.3rem - 80px)"
-        disabled={hasActiveDownloads}
-      />
+      <div className="min-h-0 flex-1">
+        <FavoriteList
+          videos={videos}
+          loading={loading}
+          foldersLoading={foldersLoading}
+          hasMore={hasMore}
+          onLoadMore={loadMore}
+          onDownload={onDownload}
+          disabled={hasActiveDownloads}
+        />
+      </div>
     </div>
   )
 }
