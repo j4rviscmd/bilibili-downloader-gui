@@ -3,17 +3,25 @@ import FavoriteItem from '@/features/favorite/ui/FavoriteItem'
 import { useTranslation } from 'react-i18next'
 import { Virtuoso } from 'react-virtuoso'
 
+/** Props for the FavoriteList component. */
 type Props = {
+  /** Array of favorite videos to display. */
   videos: FavoriteVideo[]
+  /** Whether the video list is currently loading. */
   loading: boolean
+  /** Whether the folder list is currently loading. */
   foldersLoading: boolean
+  /** Whether there are more videos to load via infinite scroll. */
   hasMore: boolean
+  /** Callback invoked when more videos should be loaded. */
   onLoadMore: () => void
+  /** Callback invoked when the user requests to download a video. */
   onDownload: (video: FavoriteVideo) => void
-  height?: string
+  /** Whether download buttons should be disabled. */
   disabled?: boolean
 }
 
+/** Approximate height in pixels for each FavoriteItem (used for virtual scrolling). */
 const DEFAULT_ITEM_HEIGHT = 120
 
 /**
@@ -37,7 +45,24 @@ const EmptyStateIcon = () => (
 )
 
 /**
- * Favorite video list component with infinite scroll.
+ * Virtualized list component for favorite videos.
+ *
+ * Uses react-virtuoso for efficient rendering of large lists with infinite
+ * scroll. Shows a loading skeleton while folders or videos are being fetched,
+ * and an empty state when no videos are available.
+ *
+ * @example
+ * ```tsx
+ * <FavoriteList
+ *   videos={videos}
+ *   loading={loading}
+ *   foldersLoading={foldersLoading}
+ *   hasMore={hasMore}
+ *   onLoadMore={loadMore}
+ *   onDownload={onDownload}
+ *   disabled={hasActiveDownloads}
+ * />
+ * ```
  */
 function FavoriteList({
   videos,
@@ -46,7 +71,6 @@ function FavoriteList({
   hasMore,
   onLoadMore,
   onDownload,
-  height,
   disabled,
 }: Props) {
   const { t } = useTranslation()
@@ -76,7 +100,7 @@ function FavoriteList({
 
   return (
     <Virtuoso
-      style={{ height }}
+      style={{ height: '100%' }}
       data={videos}
       endReached={() => {
         if (hasMore && !loading) {

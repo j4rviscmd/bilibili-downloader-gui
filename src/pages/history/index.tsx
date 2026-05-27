@@ -13,9 +13,9 @@ import { writeTextFile } from '@tauri-apps/plugin-fs'
 import { FileText, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { logger } from '@/shared/lib/logger'
-import { toast } from 'sonner'
 
 /**
  * History page content component.
@@ -158,14 +158,15 @@ export function HistoryContent() {
         </div>
       </div>
 
-      <HistoryList
-        entries={entries}
-        loading={loading}
-        onDelete={remove}
-        onDownload={onDownload}
-        disabled={hasActiveDownloads}
-        height="calc(100dvh - 2.3rem - 80px)"
-      />
+      <div className="min-h-0 flex-1">
+        <HistoryList
+          entries={entries}
+          loading={loading}
+          onDelete={remove}
+          onDownload={onDownload}
+          disabled={hasActiveDownloads}
+        />
+      </div>
 
       <HistoryExportDialog
         open={exportDialogOpen}

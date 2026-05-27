@@ -17,8 +17,6 @@ type Props = {
   onLoadMore: () => void
   /** Callback when user clicks download on an entry */
   onDownload: (entry: WatchHistoryEntry) => void
-  /** Fixed height for the list container (e.g., "calc(100dvh - 200px)") */
-  height?: string
   /** Whether download buttons should be disabled */
   disabled?: boolean
 }
@@ -41,7 +39,6 @@ const DEFAULT_ITEM_HEIGHT = 100
  *   hasMore={cursor ? !cursor.isEnd : false}
  *   onLoadMore={fetchMore}
  *   onDownload={handleDownload}
- *   height="calc(100dvh - 2.3rem - 80px)"
  * />
  * ```
  */
@@ -52,7 +49,6 @@ export function WatchHistoryList({
   hasMore,
   onLoadMore,
   onDownload,
-  height,
   disabled,
 }: Props) {
   const { t } = useTranslation()
@@ -75,7 +71,7 @@ export function WatchHistoryList({
 
   return (
     <Virtuoso
-      style={{ height }}
+      style={{ height: '100%' }}
       data={entries}
       itemContent={(_index, entry) => (
         <div className="py-1">
