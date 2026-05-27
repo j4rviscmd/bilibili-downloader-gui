@@ -130,16 +130,17 @@ export function WatchHistoryContent() {
       )}
 
       {/* List */}
-      <WatchHistoryList
-        entries={entries}
-        loading={loading}
-        loadingMore={loadingMore}
-        hasMore={!!cursor && !cursor.isEnd}
-        onLoadMore={fetchMore}
-        onDownload={onDownload}
-        height="calc(100dvh - 2.3rem - 80px)"
-        disabled={hasActiveDownloads}
-      />
+      <div className="min-h-0 flex-1">
+        <WatchHistoryList
+          entries={entries}
+          loading={loading}
+          loadingMore={loadingMore}
+          hasMore={!!cursor && !cursor.isEnd}
+          onLoadMore={fetchMore}
+          onDownload={onDownload}
+          disabled={hasActiveDownloads}
+        />
+      </div>
     </div>
   )
 }

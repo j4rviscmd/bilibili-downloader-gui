@@ -8,12 +8,16 @@ const DEFAULT_ITEM_HEIGHT = 120
 
 /** Props for the HistoryList component. */
 type Props = {
+  /** Array of history entries to display. */
   entries: HistoryEntry[]
+  /** Whether the list is currently loading. */
   loading: boolean
+  /** Callback invoked when the user requests to delete an entry. */
   onDelete: (id: string) => void
+  /** Optional callback invoked when the user requests to download an entry. */
   onDownload?: (entry: HistoryEntry) => void
+  /** Whether download buttons should be disabled. */
   disabled?: boolean
-  height?: string
 }
 
 /** Empty state icon component. Displays an icon representing no history entries. */
@@ -44,7 +48,6 @@ function HistoryList({
   onDelete,
   onDownload,
   disabled,
-  height,
 }: Props) {
   const { t } = useTranslation()
 
@@ -76,7 +79,7 @@ function HistoryList({
   // Virtualized list for efficient rendering of large datasets
   return (
     <Virtuoso
-      style={{ height }}
+      style={{ height: '100%' }}
       data={entries}
       itemContent={(_index, entry) => (
         <div key={entry.id} className="py-1">
