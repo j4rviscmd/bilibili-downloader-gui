@@ -52,6 +52,8 @@ type SidebarContextProps = {
   setOpen: (open: boolean) => void
   /** Function to toggle the sidebar open/close state */
   toggleSidebar: () => void
+  /** Whether initial render is complete (transitions disabled until true) */
+  isHydrated: boolean
 }
 
 const SidebarContext = React.createContext<SidebarContextProps | null>(null)
@@ -96,9 +98,8 @@ type SidebarProviderProps = React.ComponentProps<'div'> & {
  * Syncs with both Redux and settings.json to maintain state across page navigations.
  *
  * Features:
- * - Load initial state from settings.json
- * - Sync state to Redux
- * - Persist state to settings.json
+ * - Read initial state from Redux (preloaded during init)
+ * - Persist state changes to settings.json
  * - Keyboard shortcut support (Cmd/Ctrl + B)
  *
  * @example
@@ -123,31 +124,17 @@ function SidebarProvider({
   const [cachedSettings, setCachedSettings] = React.useState<Settings | null>(
     null,
   )
-
-  // Use Redux state via selector (controlled mode uses openProp if provided)
-  const reduxOpen = useSelector((state) => state.sidebar.sidebarOpen)
-  const open = openProp ?? reduxOpen ?? fallbackOpen
-
-  // Load initial state from settings.json (executes only once on mount)
-  const hasLoadedInitialSettings = React.useRef(false)
+  const [isHydrated, setIsHydrated] = React.useState(false)
 
   React.useEffect(() => {
-    if (hasLoadedInitialSettings.current) return
+    const id = requestAnimationFrame(() => setIsHydrated(true))
+    return () => cancelAnimationFrame(id)
+  }, [])
 
-    const loadSidebarState = async () => {
-      try {
-        const settings = (await invoke('get_settings')) as Settings
-        setCachedSettings(settings)
-        if (settings.sidebarExpanded !== undefined) {
-          dispatch(setSidebarOpen(settings.sidebarExpanded))
-        }
-      } catch (error) {
-        logger.error('Failed to load sidebar state from settings', error)
-      }
-    }
-    loadSidebarState()
-    hasLoadedInitialSettings.current = true
-  }, [dispatch])
+  // Use Redux state via selector (controlled mode uses openProp if provided)
+  // Initial state is preloaded during init sequence in useInit.tsx
+  const reduxOpen = useSelector((state) => state.sidebar.sidebarOpen)
+  const open = openProp ?? reduxOpen ?? fallbackOpen
 
   const setOpen = React.useCallback(
     (value: boolean | ((value: boolean) => boolean)) => {
@@ -155,23 +142,25 @@ function SidebarProvider({
       if (setOpenProp) {
         setOpenProp(openState)
       } else {
-        // Update Redux state
         dispatch(setSidebarOpen(openState))
       }
 
-      // Persist to settings.json (use cached settings to avoid unnecessary get_settings call)
-      if (cachedSettings) {
-        const updatedSettings = {
-          ...cachedSettings,
-          sidebarExpanded: openState,
-        }
-        setCachedSettings(updatedSettings)
-        invoke('set_settings', { settings: updatedSettings }).catch((error) => {
+      // Persist to settings.json
+      const persist = async () => {
+        try {
+          const current =
+            cachedSettings ?? ((await invoke('get_settings')) as Settings)
+          const updatedSettings = {
+            ...current,
+            sidebarExpanded: openState,
+          }
+          setCachedSettings(updatedSettings)
+          await invoke('set_settings', { settings: updatedSettings })
+        } catch (error) {
           logger.error('Failed to save sidebar state to settings', error)
-          // Rollback on error
-          setCachedSettings(cachedSettings)
-        })
+        }
       }
+      persist()
     },
     [dispatch, open, setOpenProp, cachedSettings],
   )
@@ -203,8 +192,9 @@ function SidebarProvider({
       open,
       setOpen,
       toggleSidebar,
+      isHydrated,
     }),
-    [state, open, setOpen, toggleSidebar],
+    [state, open, setOpen, toggleSidebar, isHydrated],
   )
 
   return (
@@ -279,7 +269,7 @@ function Sidebar({
   transition = { type: 'spring', stiffness: 350, damping: 35 },
   ...props
 }: SidebarProps) {
-  const { state } = useSidebar()
+  const { state, isHydrated } = useSidebar()
 
   if (collapsible === 'none') {
     return (
@@ -317,7 +307,9 @@ function Sidebar({
       <div
         data-slot="sidebar-gap"
         className={cn(
-          'relative w-(--sidebar-width) bg-transparent transition-[width] duration-400 ease-[cubic-bezier(0.7,-0.15,0.25,1.15)]',
+          'relative w-(--sidebar-width) bg-transparent',
+          isHydrated &&
+            'transition-[width] duration-400 ease-[cubic-bezier(0.7,-0.15,0.25,1.15)]',
           'group-data-[collapsible=offcanvas]:w-0',
           'group-data-[side=right]:rotate-180',
           variant === 'floating' || variant === 'inset'
@@ -328,7 +320,9 @@ function Sidebar({
       <div
         data-slot="sidebar-container"
         className={cn(
-          'fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-400 ease-[cubic-bezier(0.75,0,0.25,1)] md:flex',
+          'fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) md:flex',
+          isHydrated &&
+            'transition-[left,right,width] duration-400 ease-[cubic-bezier(0.75,0,0.25,1)]',
           side === 'left'
             ? 'left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]'
             : 'right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]',

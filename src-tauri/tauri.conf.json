@@ -11,15 +11,7 @@
   },
   "app": {
     "withGlobalTauri": true,
-    "windows": [
-      {
-        "title": "Bilibili Downloader",
-        "width": 980,
-        "minWidth": 980,
-        "height": 609,
-        "minHeight": 609
-      }
-    ],
+    "windows": [],
     "security": {
       "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost; img-src 'self' http: https: data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline'"
     }

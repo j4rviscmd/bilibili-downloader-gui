@@ -44,6 +44,7 @@ pub mod handlers;
 pub mod models;
 pub mod store;
 pub mod utils;
+pub mod window;
 pub use utils::wbi;
 
 /// Initializes and runs the Tauri application.
@@ -205,6 +206,9 @@ pub fn run() {
                     .expect("Failed to register mcp-bridge plugin");
             }
 
+            // Create main window with saved geometry (prevents startup flash)
+            window::create_main_window(app.handle())?;
+
             // Initialize logging plugin with app_data_dir/logs path
             let log_dir = app
                 .path()
@@ -246,10 +250,12 @@ pub fn run() {
                 std::env::consts::OS
             );
 
-            // Log application exit when main window is closed
+            // Log application exit and save window geometry on close
             if let Some(window) = app.get_webview_window("main") {
+                let app_handle = app.handle().clone();
                 window.on_window_event(move |event| {
                     if let tauri::WindowEvent::CloseRequested { .. } = event {
+                        window::save_window_geometry(&app_handle);
                         log::info!("[BE] Application exiting - main window closed");
                     }
                 });
@@ -295,12 +301,6 @@ pub fn run() {
             }
             Ok(())
         });
-
-    // Add window state plugin only in release builds
-    #[cfg(not(debug_assertions))]
-    {
-        builder = builder.plugin(tauri_plugin_window_state::Builder::new().build());
-    }
 
     builder
         .run(tauri::generate_context!())
