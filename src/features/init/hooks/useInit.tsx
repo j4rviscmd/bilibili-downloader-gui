@@ -11,6 +11,7 @@ import {
 } from '@/features/login'
 import { applyFontSize, parseFontSize } from '@/features/settings'
 import { useSettings } from '@/features/settings/useSettings'
+import { setSidebarOpen } from '@/features/sidebar'
 import { useUser } from '@/features/user'
 import { changeLanguage, type SupportedLang } from '@/shared/i18n'
 import { logger } from '@/shared/lib/logger'
@@ -134,6 +135,11 @@ export const useInit = () => {
     const settings = await getAppSettings()
     await applyLanguageSetting(settings?.language)
     applyFontSize(parseFontSize(settings?.fontSize))
+
+    // Preload sidebar state to prevent layout shift on main page render
+    if (settings?.sidebarExpanded !== undefined) {
+      store.dispatch(setSidebarOpen(settings.sidebarExpanded))
+    }
 
     // Early exit on ffmpeg check failure
     if (!(await checkFfmpeg())) {

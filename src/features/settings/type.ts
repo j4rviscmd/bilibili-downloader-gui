@@ -59,6 +59,12 @@ export interface Settings {
    */
   openDevtoolsOnStartup?: boolean
   /**
+   * Whether the sidebar is expanded.
+   *
+   * Defaults to true if not specified.
+   */
+  sidebarExpanded?: boolean
+  /**
    * Base font size in pixels (12-20).
    *
    * Applied as root font-size for rem-based scaling.
