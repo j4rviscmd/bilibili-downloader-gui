@@ -5,7 +5,7 @@
 //! defaults followed by async resize via tao's dispatch_async.
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, Theme, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_store::StoreExt;
 
 const DEFAULT_WIDTH: f64 = 980.0;
@@ -25,15 +25,13 @@ struct WindowGeometry {
 }
 
 /// Creates the main application window with saved or default geometry.
-///
-/// Reads saved geometry from the store and creates the window at the
-/// correct size from the start, avoiding the resize flash caused by
-/// tao's async `setContentSize:` on macOS.
 pub fn create_main_window(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let geometry = read_saved_geometry(app);
 
     let mut builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
         .title(WINDOW_TITLE)
+        .theme(Some(Theme::Light))
+        .resizable(false)
         .min_inner_size(MIN_WIDTH, MIN_HEIGHT);
 
     builder = match geometry {
@@ -45,6 +43,16 @@ pub fn create_main_window(app: &AppHandle) -> Result<(), Box<dyn std::error::Err
 
     let window = builder.build()?;
     window.set_focus()?;
+    Ok(())
+}
+
+/// Enables window resizing after the splash screen completes.
+#[tauri::command]
+pub fn enable_window_resize(app: AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or("Window not found")?;
+    window.set_resizable(true).map_err(|e| format!("{e}"))?;
     Ok(())
 }
 

@@ -18,6 +18,7 @@ import { ThemeProvider } from '@/app/providers/ThemeContext'
 import { UpdaterProvider } from '@/app/providers/UpdaterProvider'
 import { store } from '@/app/store'
 import { setupI18n } from '@/i18n'
+import { SplashScreen } from '@/features/splash'
 import { logger } from '@/shared/lib/logger'
 import { ErrorBoundary } from '@/shared/ui/ErrorBoundary'
 import '@/styles/index.css'
@@ -40,6 +41,7 @@ createRoot(document.getElementById('root')!).render(
   <ErrorBoundary>
     <Provider store={store}>
       <ThemeProvider storageKey="ui-theme">
+        <SplashScreen />
         <ListenerProvider>
           <UpdaterProvider>
             <BrowserRouter>

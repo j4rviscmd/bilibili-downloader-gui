@@ -189,6 +189,7 @@ pub fn run() {
             load_qr_session,
             check_cookie_refresh,
             refresh_cookie,
+            window::enable_window_resize,
             // record_download_click  // NOTE: GA4 Analytics is currently disabled
             #[cfg(debug_assertions)]
             set_simulate_logout,
