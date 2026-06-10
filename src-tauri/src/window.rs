@@ -49,9 +49,7 @@ pub fn create_main_window(app: &AppHandle) -> Result<(), Box<dyn std::error::Err
 /// Enables window resizing after the splash screen completes.
 #[tauri::command]
 pub fn enable_window_resize(app: AppHandle) -> Result<(), String> {
-    let window = app
-        .get_webview_window("main")
-        .ok_or("Window not found")?;
+    let window = app.get_webview_window("main").ok_or("Window not found")?;
     window.set_resizable(true).map_err(|e| format!("{e}"))?;
     Ok(())
 }
