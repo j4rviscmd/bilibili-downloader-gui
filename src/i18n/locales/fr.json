@@ -153,7 +153,10 @@
     "downloaded": "Téléchargé",
     "queued": "En file d'attente"
   },
-  "toast": { "success": "Succès", "error": "Une erreur est survenue" },
+  "toast": {
+    "success": "Succès",
+    "error": "Une erreur est survenue"
+  },
   "user": {
     "cookie_valid": "Cookies chargées",
     "cookie_missing": "Aucun cookie trouvé (qualité limitée)",
@@ -162,24 +165,24 @@
   },
   "init": {
     "initializing": "Initialisation...",
-    "fetch_settings": "🛠️ Récupération des paramètres...",
-    "applying_language": "🌐 Application de la langue ({{lang}})...",
-    "applied_language": "✅ Langue changée en {{lang}}",
-    "checking_ffmpeg": "ℹ️ Vérification de ffmpeg...",
-    "ffmpeg_ok": "✅ Vérification ffmpeg réussie",
-    "installing_ffmpeg": "ℹ️ Installation de ffmpeg...",
-    "ffmpeg_install_ok": "✅ ffmpeg installé avec succès",
-    "qr_session_restored": "✅ Session de connexion restaurée",
-    "cookie_refreshed": "✅ Session de connexion actualisée",
-    "ffmpeg_install_failed": "😫 Échec de l'installation de ffmpeg",
-    "dev_skip_version": "🛠️ Vérification de version ignorée (dev)",
-    "checking_version": "ℹ️ Vérification de la version...",
-    "latest_version": "✅ Dernière version déjà installée",
-    "downloading_update": "⬇️ Téléchargement de la mise à jour ({{ver}})...",
-    "update_done_restart": "✅ Mise à jour terminée. Redémarrage...",
-    "update_failed": "😫 Échec de la mise à jour",
-    "cookie_success": "✅ Récupération du cookie réussie",
-    "cookie_failed": "😫 Échec de la récupération du cookie"
+    "fetch_settings": "Récupération des paramètres...",
+    "applying_language": "Application de la langue ({{lang}})...",
+    "applied_language": "Langue changée en {{lang}}",
+    "checking_ffmpeg": "Vérification de ffmpeg...",
+    "ffmpeg_ok": "Vérification ffmpeg réussie",
+    "installing_ffmpeg": "Installation de ffmpeg...",
+    "ffmpeg_install_ok": "ffmpeg installé avec succès",
+    "qr_session_restored": "Session de connexion restaurée",
+    "cookie_refreshed": "Session de connexion actualisée",
+    "ffmpeg_install_failed": "Échec de l'installation de ffmpeg",
+    "dev_skip_version": "Vérification de version ignorée (dev)",
+    "checking_version": "Vérification de la version...",
+    "latest_version": "Dernière version déjà installée",
+    "downloading_update": "Téléchargement de la mise à jour ({{ver}})...",
+    "update_done_restart": "Mise à jour terminée. Redémarrage...",
+    "update_failed": "Échec de la mise à jour",
+    "cookie_success": "Récupération du cookie réussie",
+    "cookie_failed": "Échec de la récupération du cookie"
   },
   "errorPage": {
     "title": "Une erreur est survenue",
@@ -293,7 +296,9 @@
         "reserved": "Noms réservés interdits (CON, PRN, AUX, NUL, COM1.., LPT1..)."
       }
     },
-    "language": { "required": "Veuillez sélectionner une langue." },
+    "language": {
+      "required": "Veuillez sélectionner une langue."
+    },
     "video": {
       "url": {
         "min": "L'URL doit contenir au moins 2 caractères.",

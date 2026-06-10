@@ -153,7 +153,10 @@
     "downloaded": "다운로드됨",
     "queued": "대기 중"
   },
-  "toast": { "success": "성공", "error": "문제가 발생했습니다" },
+  "toast": {
+    "success": "성공",
+    "error": "문제가 발생했습니다"
+  },
   "user": {
     "cookie_valid": "Cookie가 로드됨",
     "cookie_missing": "Cookie를 찾을 수 없음（화질 제한됨）",
@@ -162,24 +165,24 @@
   },
   "init": {
     "initializing": "초기화 중...",
-    "fetch_settings": "🛠️ 앱 설정을 불러오는 중...",
-    "applying_language": "🌐 언어 적용 중 ({{lang}})...",
-    "applied_language": "✅ 언어가 {{lang}}(으)로 변경되었습니다",
-    "checking_ffmpeg": "ℹ️ ffmpeg 확인 중...",
-    "ffmpeg_ok": "✅ ffmpeg 확인 성공",
-    "installing_ffmpeg": "ℹ️ ffmpeg 설치 중...",
-    "ffmpeg_install_ok": "✅ ffmpeg 설치 성공",
-    "qr_session_restored": "✅ 로그인 세션 복원됨",
-    "cookie_refreshed": "✅ 로그인 세션 갱신됨",
-    "ffmpeg_install_failed": "😫 ffmpeg 설치 실패",
-    "dev_skip_version": "🛠️ 개발 모드: 버전 확인 건너뜀",
-    "checking_version": "ℹ️ 버전 확인 중...",
-    "latest_version": "✅ 최신 버전을 사용 중입니다",
-    "downloading_update": "⬇️ 업데이트 다운로드 중 ({{ver}})...",
-    "update_done_restart": "✅ 업데이트 완료. 재시작 중...",
-    "update_failed": "😫 업데이트 확인 또는 적용 실패",
-    "cookie_success": "✅ 쿠키 가져오기 성공",
-    "cookie_failed": "😫 쿠키 가져오기 실패"
+    "fetch_settings": "앱 설정을 불러오는 중...",
+    "applying_language": "언어 적용 중 ({{lang}})...",
+    "applied_language": "언어가 {{lang}}(으)로 변경되었습니다",
+    "checking_ffmpeg": "ffmpeg 확인 중...",
+    "ffmpeg_ok": "ffmpeg 확인 성공",
+    "installing_ffmpeg": "ffmpeg 설치 중...",
+    "ffmpeg_install_ok": "ffmpeg 설치 성공",
+    "qr_session_restored": "로그인 세션 복원됨",
+    "cookie_refreshed": "로그인 세션 갱신됨",
+    "ffmpeg_install_failed": "ffmpeg 설치 실패",
+    "dev_skip_version": "개발 모드: 버전 확인 건너뜀",
+    "checking_version": "버전 확인 중...",
+    "latest_version": "최신 버전을 사용 중입니다",
+    "downloading_update": "업데이트 다운로드 중 ({{ver}})...",
+    "update_done_restart": "업데이트 완료. 재시작 중...",
+    "update_failed": "업데이트 확인 또는 적용 실패",
+    "cookie_success": "쿠키 가져오기 성공",
+    "cookie_failed": "쿠키 가져오기 실패"
   },
   "errorPage": {
     "title": "오류가 발생했습니다",
@@ -293,7 +296,9 @@
         "reserved": "예약된 장치 이름(CON, PRN, AUX, NUL, COM1.., LPT1..)은 사용할 수 없습니다."
       }
     },
-    "language": { "required": "언어를 선택하세요." },
+    "language": {
+      "required": "언어를 선택하세요."
+    },
     "video": {
       "url": {
         "min": "URL은 최소 2자여야 합니다.",

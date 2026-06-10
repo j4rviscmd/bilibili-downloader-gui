@@ -153,7 +153,10 @@
     "downloaded": "Descargado",
     "queued": "En cola"
   },
-  "toast": { "success": "Éxito", "error": "Ocurrió un error" },
+  "toast": {
+    "success": "Éxito",
+    "error": "Ocurrió un error"
+  },
   "user": {
     "cookie_valid": "Cookies cargadas",
     "cookie_missing": "No se encontraron cookies (calidad limitada)",
@@ -162,24 +165,24 @@
   },
   "init": {
     "initializing": "Inicializando...",
-    "fetch_settings": "🛠️ Obteniendo configuración de la app...",
-    "applying_language": "🌐 Aplicando idioma ({{lang}})...",
-    "applied_language": "✅ Idioma cambiado a {{lang}}",
-    "checking_ffmpeg": "ℹ️ Verificando ffmpeg...",
-    "ffmpeg_ok": "✅ Verificación de ffmpeg correcta",
-    "installing_ffmpeg": "ℹ️ Instalando ffmpeg...",
-    "ffmpeg_install_ok": "✅ ffmpeg instalado correctamente",
-    "qr_session_restored": "✅ Sesión de inicio restaurada",
-    "cookie_refreshed": "✅ Sesión de inicio actualizada",
-    "ffmpeg_install_failed": "😫 Error al instalar ffmpeg",
-    "dev_skip_version": "🛠️ Omitiendo verificación de versión (dev)",
-    "checking_version": "ℹ️ Verificando versión...",
-    "latest_version": "✅ Ya tienes la última versión",
-    "downloading_update": "⬇️ Descargando actualización ({{ver}})...",
-    "update_done_restart": "✅ Actualización completada. Reiniciando...",
-    "update_failed": "😫 Error en la actualización",
-    "cookie_success": "✅ Cookie obtenida correctamente",
-    "cookie_failed": "😫 Error al obtener cookie"
+    "fetch_settings": "Obteniendo configuración de la app...",
+    "applying_language": "Aplicando idioma ({{lang}})...",
+    "applied_language": "Idioma cambiado a {{lang}}",
+    "checking_ffmpeg": "Verificando ffmpeg...",
+    "ffmpeg_ok": "Verificación de ffmpeg correcta",
+    "installing_ffmpeg": "Instalando ffmpeg...",
+    "ffmpeg_install_ok": "ffmpeg instalado correctamente",
+    "qr_session_restored": "Sesión de inicio restaurada",
+    "cookie_refreshed": "Sesión de inicio actualizada",
+    "ffmpeg_install_failed": "Error al instalar ffmpeg",
+    "dev_skip_version": "Omitiendo verificación de versión (dev)",
+    "checking_version": "Verificando versión...",
+    "latest_version": "Ya tienes la última versión",
+    "downloading_update": "Descargando actualización ({{ver}})...",
+    "update_done_restart": "Actualización completada. Reiniciando...",
+    "update_failed": "Error en la actualización",
+    "cookie_success": "Cookie obtenida correctamente",
+    "cookie_failed": "Error al obtener cookie"
   },
   "errorPage": {
     "title": "Ocurrió un error",
@@ -293,7 +296,9 @@
         "reserved": "No se permiten nombres reservados (CON, PRN, AUX, NUL, COM1.., LPT1..)."
       }
     },
-    "language": { "required": "Selecciona un idioma." },
+    "language": {
+      "required": "Selecciona un idioma."
+    },
     "video": {
       "url": {
         "min": "La URL debe tener al menos 2 caracteres.",

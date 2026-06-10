@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vite + React + TS</title>
+    <title>Bilibili Downloader</title>
     <script>
       ;(function () {
         var t = localStorage.getItem('ui-theme') || 'system'
@@ -15,10 +15,11 @@
         var c = d ? 'dark' : 'light'
         document.documentElement.classList.add(c)
         document.documentElement.style.colorScheme = c
+        document.body.style.backgroundColor = d ? '#252525' : '#ffffff'
       })()
     </script>
   </head>
-  <body>
+  <body style="margin: 0">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

@@ -12,6 +12,7 @@ import {
 import { applyFontSize, parseFontSize } from '@/features/settings'
 import { useSettings } from '@/features/settings/useSettings'
 import { setSidebarOpen } from '@/features/sidebar'
+import { notifyInitComplete } from '@/features/splash'
 import { useUser } from '@/features/user'
 import { changeLanguage, type SupportedLang } from '@/shared/i18n'
 import { logger } from '@/shared/lib/logger'
@@ -172,6 +173,7 @@ export const useInit = () => {
     logger.debug('finalizeInit: Finalizing initialization')
     await sleep(500)
     setInitiated(true)
+    notifyInitComplete()
   }
 
   /**

@@ -1,4 +1,3 @@
-import { getCurrentWindow } from '@tauri-apps/api/window'
 import { createContext, useContext, useEffect, useState } from 'react'
 
 /**
@@ -75,13 +74,6 @@ export function ThemeProvider({
     }
 
     root.classList.add(effectiveTheme)
-
-    // Sync Tauri window theme with the effective theme
-    getCurrentWindow()
-      .setTheme(effectiveTheme)
-      .catch(() => {
-        // Ignore errors when running outside Tauri (e.g., browser preview)
-      })
   }, [theme])
 
   const setThemeAndPersist = (newTheme: Theme): void => {
