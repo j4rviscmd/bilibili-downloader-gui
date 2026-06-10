@@ -89,7 +89,7 @@ export function useWatchHistory() {
       dispatch(setEntries(response.entries))
       dispatch(setCursor(response.cursor))
     } catch (err) {
-      const message = interceptInvokeError(store, err)
+      const message = await interceptInvokeError(store, err)
       if (message) dispatch(setError(message))
     } finally {
       dispatch(setLoading(false))
@@ -107,22 +107,32 @@ export function useWatchHistory() {
       dispatch(appendEntries(response.entries))
       dispatch(setCursor(response.cursor))
     } catch (err) {
-      const message = interceptInvokeError(store, err)
+      const message = await interceptInvokeError(store, err)
       if (message) dispatch(setError(message))
     } finally {
       dispatch(setLoadingMore(false))
     }
   }, [dispatch, cursor, loadingMore])
 
+  /**
+   * Updates the search query used to filter watch history entries.
+   *
+   * @param query - Search text to filter by (empty string clears the filter)
+   */
   const setSearch = useCallback(
     (query: string) => dispatch(setSearchQuery(query)),
     [dispatch],
   )
 
+  /**
+   * Updates the date filter applied to watch history entries.
+   *
+   * @param filter - Date range filter:
+   *   `'all'` | `'today'` | `'week'` | `'month'`
+   */
   const setDate = useCallback(
-    (filter: 'all' | 'today' | 'week' | 'month') => {
-      dispatch(setDateFilter(filter))
-    },
+    (filter: 'all' | 'today' | 'week' | 'month') =>
+      dispatch(setDateFilter(filter)),
     [dispatch],
   )
 

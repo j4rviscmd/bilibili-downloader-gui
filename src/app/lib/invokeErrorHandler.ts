@@ -1,4 +1,4 @@
-import { setSession } from '@/features/login'
+import { refreshCookie, setSession } from '@/features/login'
 import type { User } from '@/features/user'
 import { setUser } from '@/features/user'
 import i18n from '@/i18n'
@@ -32,28 +32,56 @@ export type SessionStore = {
   dispatch: (action: unknown) => void
 }
 
+/** Mutex to prevent concurrent refresh attempts. */
+let refreshInProgress: Promise<boolean> | null = null
+
+/**
+ * Attempts a cookie refresh exactly once per batch of concurrent
+ * `-101` errors. Subsequent callers share the same promise.
+ */
+async function tryRefreshOnce(): Promise<boolean> {
+  if (refreshInProgress) return refreshInProgress
+
+  refreshInProgress = (async () => {
+    try {
+      await refreshCookie()
+      return true
+    } catch {
+      return false
+    } finally {
+      refreshInProgress = null
+    }
+  })()
+
+  return refreshInProgress
+}
+
 /**
  * Handles session expiry when the backend returns ERR::UNAUTHORIZED.
  *
+ * Attempts to refresh the session using the stored refresh_token
+ * before falling back to logout. If the refresh succeeds the user
+ * stays logged in; otherwise the session is cleared.
+ *
  * Only shows a toast notification if the user was previously logged in
  * (`user.data.isLogin === true`), preventing duplicate notifications.
- * Resets login status and session to logged-out state while preserving
- * other user data (uname, face, etc.).
- *
- * This function accesses the Redux store directly (not via hooks) so it
- * can be called from both React component context and non-component
- * code such as RTK Query base queries.
  *
  * @param store - Redux store instance (or compatible subset)
  */
-export function handleSessionExpiry(store: SessionStore): void {
+export async function handleSessionExpiry(store: SessionStore): Promise<void> {
   const state = store.getState()
   const wasLoggedIn = state.user.data.isLogin
 
-  if (wasLoggedIn) {
-    toast.warning(i18n.t('login.session_expired'))
+  if (!wasLoggedIn) return
+
+  const refreshed = await tryRefreshOnce()
+
+  if (refreshed) {
+    toast.info(i18n.t('login.cookie_refreshed'))
+    return
   }
 
+  toast.warning(i18n.t('login.session_expired'))
   store.dispatch(
     setUser({
       ...state.user,
@@ -84,19 +112,19 @@ export function handleSessionExpiry(store: SessionStore): void {
  * try {
  *   const data = await invoke('fetch_watch_history', { max: 20 })
  * } catch (err) {
- *   const errorString = interceptInvokeError(store, err)
+ *   const errorString = await interceptInvokeError(store, err)
  *   if (errorString) dispatch(setError(errorString))
  * }
  * ```
  */
-export function interceptInvokeError(
+export async function interceptInvokeError(
   store: SessionStore,
   error: unknown,
-): string | null {
+): Promise<string | null> {
   const errorString = error instanceof Error ? error.message : String(error)
 
   if (isUnauthorizedError(errorString)) {
-    handleSessionExpiry(store)
+    await handleSessionExpiry(store)
     return null
   }
 

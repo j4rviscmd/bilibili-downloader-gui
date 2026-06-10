@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { mockRefreshCookie } = vi.hoisted(() => ({
+  mockRefreshCookie: vi.fn(),
+}))
+
 // Mock sonner
 vi.mock('sonner', () => ({
   toast: {
@@ -37,6 +41,7 @@ vi.mock('@/features/login', async (importOriginal) => {
       type: 'login/setSession',
       payload,
     })),
+    refreshCookie: mockRefreshCookie,
   }
 })
 
@@ -50,6 +55,7 @@ import {
 } from './invokeErrorHandler'
 
 const mockToastWarning = toast.warning as unknown as ReturnType<typeof vi.fn>
+const mockToastInfo = toast.info as unknown as ReturnType<typeof vi.fn>
 
 /**
  * Creates a mock SessionStore with the given login state.
@@ -115,38 +121,32 @@ describe('invokeErrorHandler', () => {
   })
 
   describe('handleSessionExpiry', () => {
-    it('should show toast when user was logged in', () => {
+    it('should show info toast and NOT log out when refresh succeeds', async () => {
+      mockRefreshCookie.mockResolvedValue({ sessdata: 'new' })
       const mockStore = createMockStore(true)
 
-      handleSessionExpiry(mockStore)
+      await handleSessionExpiry(mockStore)
 
-      expect(mockToastWarning).toHaveBeenCalledWith('login.session_expired')
-    })
-
-    it('should NOT show toast when user was already logged out', () => {
-      const mockStore = createMockStore(false)
-
-      handleSessionExpiry(mockStore)
-
+      expect(mockRefreshCookie).toHaveBeenCalled()
+      expect(mockToastInfo).toHaveBeenCalledWith('login.cookie_refreshed')
       expect(mockToastWarning).not.toHaveBeenCalled()
+      expect(mockStore.dispatched.length).toBe(0)
     })
 
-    it('should dispatch setUser with isLogin=false', () => {
+    it('should show warning toast and log out when refresh fails', async () => {
+      mockRefreshCookie.mockRejectedValue(new Error('refresh failed'))
       const mockStore = createMockStore(true)
 
-      handleSessionExpiry(mockStore)
+      await handleSessionExpiry(mockStore)
+
+      expect(mockRefreshCookie).toHaveBeenCalled()
+      expect(mockToastWarning).toHaveBeenCalledWith('login.session_expired')
 
       const setUserAction = mockStore.dispatched.find(
         (a: unknown) => (a as { type: string }).type === 'user/setUser',
       ) as { type: string; payload: { data: { isLogin: boolean } } }
       expect(setUserAction).toBeDefined()
       expect(setUserAction.payload.data.isLogin).toBe(false)
-    })
-
-    it('should dispatch setSession(null)', () => {
-      const mockStore = createMockStore(true)
-
-      handleSessionExpiry(mockStore)
 
       const setSessionAction = mockStore.dispatched.find(
         (a: unknown) => (a as { type: string }).type === 'login/setSession',
@@ -155,10 +155,21 @@ describe('invokeErrorHandler', () => {
       expect(setSessionAction.payload).toBeNull()
     })
 
-    it('should preserve user data except isLogin', () => {
+    it('should NOT show toast when user was already logged out', async () => {
+      const mockStore = createMockStore(false)
+
+      await handleSessionExpiry(mockStore)
+
+      expect(mockToastWarning).not.toHaveBeenCalled()
+      expect(mockToastInfo).not.toHaveBeenCalled()
+      expect(mockStore.dispatched.length).toBe(0)
+    })
+
+    it('should preserve user data except isLogin on logout', async () => {
+      mockRefreshCookie.mockRejectedValue(new Error('refresh failed'))
       const mockStore = createMockStore(true)
 
-      handleSessionExpiry(mockStore)
+      await handleSessionExpiry(mockStore)
 
       const setUserAction = mockStore.dispatched.find(
         (a: unknown) => (a as { type: string }).type === 'user/setUser',
@@ -169,21 +180,37 @@ describe('invokeErrorHandler', () => {
       expect(setUserAction.payload.data.uname).toBe('TestUser')
       expect(setUserAction.payload.data.isLogin).toBe(false)
     })
+
+    it('should only refresh once for concurrent calls', async () => {
+      mockRefreshCookie.mockResolvedValue({ sessdata: 'new' })
+      const mockStore = createMockStore(true)
+
+      await Promise.all([
+        handleSessionExpiry(mockStore),
+        handleSessionExpiry(mockStore),
+        handleSessionExpiry(mockStore),
+      ])
+
+      expect(mockRefreshCookie).toHaveBeenCalledTimes(1)
+    })
   })
 
   describe('interceptInvokeError', () => {
-    it('should return error string for string errors', () => {
+    it('should return error string for string errors', async () => {
       const mockStore = createMockStore(false)
 
-      const result = interceptInvokeError(mockStore, 'ERR::VIDEO_NOT_FOUND')
+      const result = await interceptInvokeError(
+        mockStore,
+        'ERR::VIDEO_NOT_FOUND',
+      )
 
       expect(result).toBe('ERR::VIDEO_NOT_FOUND')
     })
 
-    it('should return error message for Error instances', () => {
+    it('should return error message for Error instances', async () => {
       const mockStore = createMockStore(false)
 
-      const result = interceptInvokeError(
+      const result = await interceptInvokeError(
         mockStore,
         new Error('Something failed'),
       )
@@ -191,44 +218,46 @@ describe('invokeErrorHandler', () => {
       expect(result).toBe('Something failed')
     })
 
-    it('should handle non-string/non-Error values', () => {
+    it('should handle non-string/non-Error values', async () => {
       const mockStore = createMockStore(false)
 
-      const result = interceptInvokeError(mockStore, 42)
+      const result = await interceptInvokeError(mockStore, 42)
 
       expect(result).toBe('42')
     })
 
-    it('should trigger session expiry for ERR::UNAUTHORIZED', () => {
+    it('should trigger session refresh for ERR::UNAUTHORIZED', async () => {
+      mockRefreshCookie.mockResolvedValue({ sessdata: 'new' })
       const mockStore = createMockStore(true)
 
-      const result = interceptInvokeError(mockStore, 'ERR::UNAUTHORIZED')
+      const result = await interceptInvokeError(mockStore, 'ERR::UNAUTHORIZED')
 
       expect(result).toBeNull()
-      expect(mockToastWarning).toHaveBeenCalledWith('login.session_expired')
-      expect(mockStore.dispatched.length).toBe(2)
+      expect(mockRefreshCookie).toHaveBeenCalled()
+      expect(mockToastInfo).toHaveBeenCalledWith('login.cookie_refreshed')
     })
 
-    it('should NOT trigger session expiry for other errors', () => {
+    it('should NOT trigger session expiry for other errors', async () => {
       const mockStore = createMockStore(true)
 
-      const result = interceptInvokeError(mockStore, 'ERR::API_ERROR')
+      const result = await interceptInvokeError(mockStore, 'ERR::API_ERROR')
 
       expect(result).toBe('ERR::API_ERROR')
       expect(mockToastWarning).not.toHaveBeenCalled()
       expect(mockStore.dispatched.length).toBe(0)
     })
 
-    it('should handle ERR::UNAUTHORIZED in Error message', () => {
+    it('should handle ERR::UNAUTHORIZED in Error message', async () => {
+      mockRefreshCookie.mockResolvedValue({ sessdata: 'new' })
       const mockStore = createMockStore(true)
 
-      const result = interceptInvokeError(
+      const result = await interceptInvokeError(
         mockStore,
         new Error('ERR::UNAUTHORIZED (code -101)'),
       )
 
       expect(result).toBeNull()
-      expect(mockToastWarning).toHaveBeenCalled()
+      expect(mockRefreshCookie).toHaveBeenCalled()
     })
   })
 })

@@ -339,7 +339,7 @@ const VideoPartCard = memo(function VideoPartCard({
           }),
         )
       } catch (e) {
-        const message = interceptInvokeError(store, e)
+        const message = await interceptInvokeError(store, e)
         if (message) {
           logger.error('Failed to fetch qualities', message)
         }
@@ -369,7 +369,7 @@ const VideoPartCard = memo(function VideoPartCard({
           setPartSubtitles({ index: partIndex, subtitles: fetchedSubtitles }),
         )
       } catch (e) {
-        const message = interceptInvokeError(store, e)
+        const message = await interceptInvokeError(store, e)
         if (message) {
           logger.error('Failed to fetch subtitles', message)
         }
@@ -400,10 +400,10 @@ const VideoPartCard = memo(function VideoPartCard({
       const shouldFetchQualities =
         videoQualities === undefined && !qualitiesLoading
       const shouldFetchSubtitles = subtitles.length === 0 && !subtitlesLoading
+      const isVipOnly = isBangumi && !epId
 
-      // Mark loading states
       if (shouldFetchQualities) {
-        if (isBangumi && !epId) {
+        if (isVipOnly) {
           // VIP-only bangumi without epId - no qualities available
           store.dispatch(
             setPartQualities({
@@ -424,7 +424,7 @@ const VideoPartCard = memo(function VideoPartCard({
 
       // Fetch data in parallel
       const tasks: Promise<void>[] = []
-      if (shouldFetchQualities && !(isBangumi && !epId)) {
+      if (shouldFetchQualities && !isVipOnly) {
         tasks.push(doFetchQualities(partIndex, isBangumi, epId))
       }
       if (shouldFetchSubtitles) {
