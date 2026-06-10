@@ -44,7 +44,7 @@ async function withErrorHandling<T>(
     onSuccess?.(result)
     return result
   } catch (err) {
-    const message = interceptInvokeError(store, err)
+    const message = await interceptInvokeError(store, err)
     if (message) {
       store.dispatch(setError(message))
       toast.error(message)
@@ -55,21 +55,22 @@ async function withErrorHandling<T>(
 
 /**
  * Custom hook for managing Bilibili favorites.
+ *
+ * On mount, fetches the user's favorite folders (skipping if already
+ * cached) and auto-selects the first folder. Exposes folder selection,
+ * video pagination, and a full refresh operation.
+ *
+ * @param mid - Bilibili member ID, or `null` when logged out
+ * @returns Favorite state combined with action functions
+ *
+ * @example
+ * ```typescript
+ * const { folders, videos, selectFolder, loadMore, refresh } =
+ *   useFavorite(userMid)
+ * ```
  */
 export function useFavorite(mid: number | null) {
   const state = useSelector((state: RootState) => state.favorite)
-
-  const {
-    folders,
-    selectedFolderId,
-    videos,
-    hasMore,
-    totalCount,
-    currentPage,
-    loading,
-    foldersLoading,
-    error,
-  } = state
 
   /**
    * Fetches favorite folders on mount when mid is available.
@@ -92,7 +93,7 @@ export function useFavorite(mid: number | null) {
         () => apiFetchFolders(mid),
         (folders) => {
           store.dispatch(setFolders(folders))
-          if (folders.length > 0 && !selectedFolderId) {
+          if (folders.length > 0 && !state.selectedFolderId) {
             store.dispatch(setSelectedFolder(folders[0].id))
           }
         },
@@ -109,19 +110,19 @@ export function useFavorite(mid: number | null) {
    * Fetches videos when selected folder changes.
    */
   useEffect(() => {
-    if (!selectedFolderId) {
+    if (!state.selectedFolderId) {
       return
     }
 
     store.dispatch(setLoading(true))
     withErrorHandling(
-      () => apiFetchVideos(selectedFolderId, 1, PAGE_SIZE),
+      () => apiFetchVideos(state.selectedFolderId!, 1, PAGE_SIZE),
       (response) => {
         store.dispatch(setVideos(response))
         store.dispatch(setLoading(false))
       },
     )
-  }, [selectedFolderId])
+  }, [state.selectedFolderId])
 
   /**
    * Selects a folder and loads its videos.
@@ -135,15 +136,17 @@ export function useFavorite(mid: number | null) {
    * Loads more videos (pagination).
    */
   const loadMore = useCallback(async () => {
-    if (!selectedFolderId || !hasMore || loading) {
+    if (!state.selectedFolderId || !state.hasMore || state.loading) {
       return
     }
 
-    logger.debug(`useFavorite: Loading more videos, page=${currentPage + 1}`)
+    logger.debug(
+      `useFavorite: Loading more videos, page=${state.currentPage + 1}`,
+    )
     store.dispatch(setLoading(true))
-    const nextPage = currentPage + 1
+    const nextPage = state.currentPage + 1
     const result = await withErrorHandling(
-      () => apiFetchVideos(selectedFolderId, nextPage, PAGE_SIZE),
+      () => apiFetchVideos(state.selectedFolderId!, nextPage, PAGE_SIZE),
       (response: FavoriteVideoListResponse) => {
         store.dispatch(appendVideos(response))
       },
@@ -151,7 +154,7 @@ export function useFavorite(mid: number | null) {
     if (result) {
       store.dispatch(setLoading(false))
     }
-  }, [selectedFolderId, hasMore, loading, currentPage])
+  }, [state.selectedFolderId, state.hasMore, state.loading, state.currentPage])
 
   /**
    * Refreshes both folders and videos.
@@ -167,14 +170,15 @@ export function useFavorite(mid: number | null) {
       () => apiFetchFolders(mid),
       (folders) => {
         store.dispatch(setFolders(folders))
-        const currentExists = folders.some((f) => f.id === selectedFolderId)
+        const currentExists = folders.some(
+          (f) => f.id === state.selectedFolderId,
+        )
         if (!currentExists) {
           if (folders.length > 0) {
             store.dispatch(setSelectedFolder(folders[0].id))
           } else {
             store.dispatch(reset())
           }
-          return
         }
       },
     )
@@ -194,18 +198,10 @@ export function useFavorite(mid: number | null) {
         },
       )
     }
-  }, [mid, selectedFolderId])
+  }, [mid, state.selectedFolderId])
 
   return {
-    folders,
-    selectedFolderId,
-    videos,
-    hasMore,
-    totalCount,
-    currentPage,
-    loading,
-    foldersLoading,
-    error,
+    ...state,
     selectFolder,
     loadMore,
     refresh,

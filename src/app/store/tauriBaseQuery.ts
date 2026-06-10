@@ -53,12 +53,12 @@ export const tauriBaseQuery: BaseQueryFn<TauriArgs> = async ({
   try {
     const result = await invoke(command, args)
     return { data: result }
-  } catch (error) {
+  } catch (error: unknown) {
     const errorString = String(error)
     logger.error(`API error: ${command}`, error)
 
     if (isUnauthorizedError(errorString)) {
-      handleSessionExpiry(store)
+      await handleSessionExpiry(store)
     }
 
     return { error: errorString }
