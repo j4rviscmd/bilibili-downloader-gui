@@ -20,6 +20,8 @@ interface SplashLifecycle {
   phase: SplashPhase
   /** Callback to invoke when the CSS fade-out transition finishes. */
   onFadeComplete: () => void
+  /** Whether the minimal (skip-animation) mode is active. Null while loading. */
+  skipMode: boolean | null
 }
 
 /**
@@ -43,16 +45,20 @@ function resolveTheme(): 'dark' | 'light' {
  *
  * Orchestrates three phases:
  * 1. **active**  -- splash is visible; waits for both backend initialization
- *    and a minimum display duration before advancing.
+ *    and a minimum display duration before advancing (unless skip mode).
  * 2. **fading**  -- CSS opacity transition is running; the caller is expected
  *    to call `onFadeComplete` when the transition ends.
  * 3. **done**    -- splash is removed from the DOM; the native window theme is
  *    restored and resizing is enabled.
  *
- * @returns The current phase and a fade-completion callback.
+ * When `skipSplashAnimation` is enabled in settings, the minimum display time
+ * and fade animation are skipped for fastest possible startup.
+ *
+ * @returns The current phase, a fade-completion callback, and skip mode flag.
  */
 export function useSplashLifecycle(): SplashLifecycle {
   const [phase, setPhase] = useState<SplashPhase>('active')
+  const [skipMode, setSkipMode] = useState<boolean | null>(null)
   const disposedRef = useRef(false)
 
   // Force light theme during splash
@@ -65,12 +71,33 @@ export function useSplashLifecycle(): SplashLifecycle {
   useEffect(() => {
     disposedRef.current = false
 
-    Promise.all([initCompletePromise, sleep(MIN_DISPLAY_MS)]).then(() => {
-      if (!disposedRef.current) {
-        notifySplashFading()
-        setPhase('fading')
+    const run = async () => {
+      let skip = false
+      try {
+        const s = await invoke<{ skipSplashAnimation?: boolean }>(
+          'get_settings',
+        )
+        skip = s.skipSplashAnimation ?? false
+      } catch {
+        // Default to normal splash on error
       }
-    })
+
+      if (disposedRef.current) return
+      setSkipMode(skip)
+
+      // Skip mode bypasses the minimum display time and fade phase entirely
+      if (skip) {
+        await initCompletePromise
+      } else {
+        await Promise.all([initCompletePromise, sleep(MIN_DISPLAY_MS)])
+      }
+
+      if (disposedRef.current) return
+      notifySplashFading()
+      setPhase(skip ? 'done' : 'fading')
+    }
+
+    run()
 
     return () => {
       disposedRef.current = true
@@ -108,5 +135,5 @@ export function useSplashLifecycle(): SplashLifecycle {
     setPhase('done')
   }, [])
 
-  return { phase, onFadeComplete }
+  return { phase, onFadeComplete, skipMode }
 }

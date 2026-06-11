@@ -228,6 +228,8 @@
     "lib_path_error": "获取路径失败",
     "lib_path_change_success": "库存储位置已成功更新",
     "lib_path_change_error": "更改库存储位置失败",
+    "skip_splash_animation_label": "跳过启动动画",
+    "skip_splash_animation_description": "使用简洁的加载指示器代替3D动画，实现更快的启动速度",
     "app_section_label": "应用程序",
     "show_github_stars_label": "显示 GitHub Stars",
     "show_github_stars_description": "在应用栏中显示星标数",

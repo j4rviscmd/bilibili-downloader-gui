@@ -228,6 +228,8 @@
     "lib_path_error": "パスの取得に失敗しました",
     "lib_path_change_success": "ライブラリ保存先を変更しました",
     "lib_path_change_error": "ライブラリ保存先の変更に失敗しました",
+    "skip_splash_animation_label": "起動アニメーションをスキップ",
+    "skip_splash_animation_description": "3Dアニメーションの代わりに最小限のローディング表示で高速起動",
     "app_section_label": "アプリケーション",
     "show_github_stars_label": "GitHub Stars を表示",
     "show_github_stars_description": "アプリバーにスター数を表示します",

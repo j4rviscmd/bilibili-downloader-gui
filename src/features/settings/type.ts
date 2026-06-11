@@ -71,6 +71,14 @@ export interface Settings {
    * Defaults to 16 (browser default) if not specified.
    */
   fontSize?: FontSizePreset
+  /**
+   * Whether to skip the splash screen animation on startup.
+   *
+   * When enabled, a minimal loading indicator is shown instead
+   * of the 3D animation for fastest possible startup.
+   * Defaults to false if not specified.
+   */
+  skipSplashAnimation?: boolean
   // Managed on frontend only, stored in localStorage
   // TODO: manage theme in json
   // theme: 'light' | 'dark'
