@@ -234,8 +234,6 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
       selected: isSelected(p),
       duration: p.duration,
       thumbnailUrl: p.thumbnail.url,
-      subtitles: [],
-      subtitlesLoading: false,
       qualitiesLoading: false,
     }))
 
