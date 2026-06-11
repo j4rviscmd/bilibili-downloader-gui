@@ -167,7 +167,7 @@ use crate::utils::paths::get_lib_path;
 use crate::{constants::USER_AGENT, models::frontend_dto::User};
 use reqwest::header;
 use reqwest::Client;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::AppHandle;
@@ -2081,6 +2081,27 @@ pub async fn fetch_subtitles_for_part(
     Ok(subtitles)
 }
 
+/// Merges multiple subtitle lists, deduplicating by `lan` (language code).
+///
+/// When the same `lan` appears in multiple results, the first occurrence
+/// is kept. This ensures each language appears at most once, which is
+/// required because the downstream download pipeline selects subtitles
+/// by `lan` alone and cannot handle duplicates.
+fn merge_subtitles(results: Vec<Vec<SubtitleDto>>) -> Vec<SubtitleDto> {
+    let mut seen: HashSet<String> = HashSet::new();
+    let mut merged: Vec<SubtitleDto> = Vec::new();
+
+    for subtitles in results {
+        for sub in subtitles {
+            if seen.insert(sub.lan.clone()) {
+                merged.push(sub);
+            }
+        }
+    }
+
+    merged
+}
+
 /// Fetches subtitles via parallel requests to mitigate stale CDN cache.
 ///
 /// Bilibili's CDN may return stale cached responses that contain only a single
@@ -2088,7 +2109,7 @@ pub async fn fetch_subtitles_for_part(
 /// subtitles (`ai_type: 1`). Rather than retrying sequentially, this function
 /// issues [`PARALLEL_COUNT`] concurrent requests with small inter-request
 /// jitter, increasing the probability of hitting a fresh CDN node.
-/// Returns the subtitle list with the most entries as the best result.
+/// All results are merged and deduplicated via [`merge_subtitles`].
 ///
 /// # Arguments
 ///
@@ -2099,8 +2120,8 @@ pub async fn fetch_subtitles_for_part(
 ///
 /// # Returns
 ///
-/// Returns the subtitle list with the most entries from all parallel attempts.
-/// Returns an empty vector if all requests fail.
+/// Returns the merged and deduplicated subtitle list from all parallel
+/// attempts. Returns an empty vector if all requests fail.
 async fn fetch_subtitles_parallel(
     client: &Client,
     cookies: &[CookieEntry],
@@ -2124,19 +2145,30 @@ async fn fetch_subtitles_parallel(
 
     let results = futures::future::join_all(futures).await;
 
+    for (i, subs) in results.iter().enumerate() {
+        log::info!(
+            "[BE] fetch_subtitles_parallel: request {} returned \
+             {} subtitles for bvid={}, cid={}",
+            i,
+            subs.len(),
+            bvid,
+            cid,
+        );
+    }
+
+    let merged = merge_subtitles(results);
+
     log::info!(
-        "[BE] fetch_subtitles_parallel: got {} results for \
-         bvid={}, cid={}",
-        results.iter().map(|r| r.len()).sum::<usize>(),
+        "[BE] fetch_subtitles_parallel: merged into {} unique \
+         subtitles for bvid={}, cid={}",
+        merged.len(),
         bvid,
         cid,
     );
 
-    results
-        .into_iter()
-        .max_by_key(|subtitles| subtitles.len())
-        .unwrap_or_default()
+    merged
 }
+
 /// Fetches available video and audio qualities for a specific part.
 ///
 /// Used for lazy loading when parts are rendered in the UI

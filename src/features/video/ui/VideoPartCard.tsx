@@ -215,7 +215,7 @@ const VideoPartCard = memo(function VideoPartCard({
   const subtitle = partInput?.subtitle
   const isSubtitleInvalid =
     subtitle && subtitle.mode !== 'off' && !subtitle.selectedLans?.length
-  const subtitles = partInput?.subtitles ?? []
+  const subtitles = partInput?.subtitles
   const subtitlesLoading = partInput?.subtitlesLoading ?? false
 
   const videoQualities = partInput?.videoQualities
@@ -399,7 +399,7 @@ const VideoPartCard = memo(function VideoPartCard({
       const epId = videoPart.epId
       const shouldFetchQualities =
         videoQualities === undefined && !qualitiesLoading
-      const shouldFetchSubtitles = subtitles.length === 0 && !subtitlesLoading
+      const shouldFetchSubtitles = subtitles === undefined && !subtitlesLoading
       const isVipOnly = isBangumi && !epId
 
       if (shouldFetchQualities) {
@@ -438,7 +438,7 @@ const VideoPartCard = memo(function VideoPartCard({
       videoPart.epId,
       videoQualities,
       qualitiesLoading,
-      subtitles.length,
+      subtitles,
       subtitlesLoading,
       doFetchQualities,
       doFetchSubtitles,
@@ -802,7 +802,7 @@ const VideoPartCard = memo(function VideoPartCard({
                       {/* Unified loading skeleton: shown until all fetches complete */}
                       {qualitiesLoading ||
                       videoQualities === undefined ||
-                      subtitlesLoading ? (
+                      (subtitlesLoading && subtitles === undefined) ? (
                         <>
                           <div className="space-y-2">
                             <Skeleton className="h-4 w-16" />
@@ -943,7 +943,7 @@ const VideoPartCard = memo(function VideoPartCard({
                           )}
 
                           {/* Subtitle Section */}
-                          {subtitles.length > 0 && (
+                          {subtitles && subtitles.length > 0 && (
                             <div>
                               <div className="mb-2 flex items-center gap-1.5">
                                 <span className="text-sm font-medium">
