@@ -6,6 +6,7 @@
  * @module features/settings
  */
 
+export { languages } from '@/features/settings/language/languages'
 export {
   FONT_SIZE_DEFAULT,
   FONT_SIZE_MAX,
@@ -15,3 +16,4 @@ export {
 } from '@/features/settings/lib/fontSize'
 export * from '@/features/settings/settingsSlice'
 export * from '@/features/settings/type'
+export { useSettings } from '@/features/settings/useSettings'
