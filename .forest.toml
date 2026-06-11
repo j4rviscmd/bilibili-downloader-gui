@@ -1,5 +1,6 @@
 [start]
-commands = ["npm install"]
+commands = ["npm ci"]
+share = ["references/"]
 
 [finish]
-commands = ["npm install"]
+commands = ["npm ci"]
