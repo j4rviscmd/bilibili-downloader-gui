@@ -10,20 +10,37 @@ import { FADE_DURATION_MS } from '../lib/constants'
 /**
  * Full-screen splash overlay displayed while the application initializes.
  *
- * Renders a Three.js particle-and-TV animation, a title heading, the current
- * initialization step label, and an optional progress bar. Once initialization
- * completes (and the minimum display time elapses) the component fades out and
- * unmounts itself.
+ * In normal mode, renders a Three.js particle-and-TV animation, a title
+ * heading, the current initialization step label, and an optional progress
+ * bar. Once initialization completes (and the minimum display time elapses)
+ * the component fades out and unmounts itself.
+ *
+ * When `skipSplashAnimation` is enabled, renders only a minimal CSS spinner
+ * and the initialization step label for fastest possible startup.
  */
 export function SplashScreen() {
-  const { phase, onFadeComplete } = useSplashLifecycle()
+  const { phase, onFadeComplete, skipMode } = useSplashLifecycle()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const processingFnc = useSelector((state) => state.init.processingFnc)
   const progress = useSelector((state) => state.progress)
 
-  useThreeScene(canvasRef, phase !== 'done')
+  useThreeScene(canvasRef, skipMode === false && phase !== 'done')
 
   if (phase === 'done') return null
+
+  // Show minimal spinner while loading settings or when skip mode is active
+  if (skipMode === null || skipMode === true) {
+    return (
+      <div className="bg-background fixed inset-0 z-50 flex flex-col items-center justify-center">
+        <div className="border-foreground/20 border-t-foreground h-8 w-8 animate-spin rounded-full border-2" />
+        {processingFnc && (
+          <p className="text-muted-foreground mt-4 text-sm select-none">
+            {processingFnc}
+          </p>
+        )}
+      </div>
+    )
+  }
 
   const activeProgress = progress.find((p) => !p.isComplete)
   const pct = activeProgress?.percentage ?? 0

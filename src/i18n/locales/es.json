@@ -228,6 +228,8 @@
     "lib_path_error": "Error al obtener la ruta",
     "lib_path_change_success": "Ubicación de almacenamiento de biblioteca actualizada correctamente",
     "lib_path_change_error": "Error al cambiar la ubicación de almacenamiento de biblioteca",
+    "skip_splash_animation_label": "Omitir animación de inicio",
+    "skip_splash_animation_description": "Mostrar un indicador de carga mínimo en lugar de la animación 3D para un inicio más rápido",
     "app_section_label": "Aplicación",
     "show_github_stars_label": "Mostrar GitHub Stars",
     "show_github_stars_description": "Mostrar el recuento de estrellas en la barra de la aplicación",

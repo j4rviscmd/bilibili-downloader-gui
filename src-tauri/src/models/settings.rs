@@ -6,12 +6,31 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct TitleReplacement {
+    /// Character or text to match for replacement.
     pub from: String,
+    /// Replacement text. Use an empty string to delete the match.
     pub to: String,
+    /// Whether this replacement rule is active.
     pub enabled: bool,
 }
 
 impl TitleReplacement {
+    /// Creates a new title replacement rule.
+    ///
+    /// # Arguments
+    ///
+    /// * `from` - The character or text to match for replacement.
+    /// * `to` - The replacement text. Use an empty string to delete the match.
+    /// * `enabled` - Whether this rule is active.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let rule = TitleReplacement::new(":", "_", true);
+    /// assert_eq!(rule.from, ":");
+    /// assert_eq!(rule.to, "_");
+    /// assert!(rule.enabled);
+    /// ```
     pub fn new(from: impl Into<String>, to: impl Into<String>, enabled: bool) -> Self {
         Self {
             from: from.into(),
@@ -62,25 +81,39 @@ pub fn default_title_replacements() -> Vec<TitleReplacement> {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub struct Settings {
+    /// Directory path for downloaded videos.
     #[serde(rename = "dlOutputPath")]
     pub dl_output_path: Option<String>,
+    /// Current application language.
     pub language: Language,
+    /// Custom path for library dependencies (ffmpeg, etc.).
+    ///
+    /// Defaults to `app_data_dir()/lib/` if not specified. Allows users to
+    /// store large dependencies on a different drive or location.
     #[serde(rename = "libPath")]
     pub lib_path: Option<String>,
+    /// Whether the sidebar is expanded. Defaults to true.
     #[serde(rename = "sidebarExpanded")]
     pub sidebar_expanded: Option<bool>,
+    /// Custom title replacement rules for filename sanitization.
+    ///
+    /// If not specified, backend uses default replacements.
+    /// Maximum 20 rules allowed.
     #[serde(
         rename = "titleReplacements",
         default,
         skip_serializing_if = "Option::is_none"
     )]
     pub title_replacements: Option<Vec<TitleReplacement>>,
+    /// Whether to automatically rename duplicate part titles with
+    /// index suffixes. Defaults to true.
     #[serde(
         rename = "autoRenameDuplicates",
         default,
         skip_serializing_if = "Option::is_none"
     )]
     pub auto_rename_duplicates: Option<bool>,
+    /// Whether to show GitHub stars in the app bar. Defaults to true.
     #[serde(
         rename = "showGithubStars",
         default,
@@ -99,17 +132,33 @@ pub struct Settings {
     /// Defaults to 16 (browser default) if not specified.
     #[serde(rename = "fontSize", default, skip_serializing_if = "Option::is_none")]
     pub font_size: Option<u8>,
+    /// Whether to skip the splash screen animation on startup.
+    /// When true, a minimal loading indicator is shown instead of the 3D animation.
+    #[serde(
+        rename = "skipSplashAnimation",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub skip_splash_animation: Option<bool>,
 }
 
 /// Supported UI languages.
+///
+/// Each variant maps to a locale file in `src/i18n/locales/`.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum Language {
+    /// English (default).
     #[default]
     En,
+    /// Japanese.
     Ja,
+    /// French.
     Fr,
+    /// Spanish.
     Es,
+    /// Simplified Chinese.
     Zh,
+    /// Korean.
     Ko,
 }

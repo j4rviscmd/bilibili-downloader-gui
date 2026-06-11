@@ -281,6 +281,14 @@ function SettingsForm() {
 
   const currentFontSize = parseFontSize(settings.fontSize)
 
+  /**
+   * Handles font size slider changes.
+   *
+   * Parses the raw slider value into a valid preset, applies it to the
+   * document root, and persists the setting via the settings hook.
+   *
+   * @param value - Array of slider values (single-element from shadcn Slider).
+   */
   const handleFontSizeChange = useCallback(
     (value: number[]) => {
       const size = parseFontSize(value[0]) as FontSizePreset
@@ -339,21 +347,6 @@ function SettingsForm() {
               {currentFontSize}px
             </span>
           </div>
-        </div>
-        <Separator />
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label>{t('settings.show_github_stars_label')}</Label>
-            <p className="text-muted-foreground text-sm">
-              {t('settings.show_github_stars_description')}
-            </p>
-          </div>
-          <Switch
-            checked={settings.showGithubStars ?? true}
-            onCheckedChange={(checked) => {
-              saveByForm({ ...settings, showGithubStars: checked })
-            }}
-          />
         </div>
         <Separator />
         <FormField
@@ -438,10 +431,42 @@ function SettingsForm() {
           </FormDescription>
         </div>
         <Separator />
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label>{t('settings.show_github_stars_label')}</Label>
+            <p className="text-muted-foreground text-sm">
+              {t('settings.show_github_stars_description')}
+            </p>
+          </div>
+          <Switch
+            checked={settings.showGithubStars ?? true}
+            onCheckedChange={(checked) => {
+              saveByForm({ ...settings, showGithubStars: checked })
+            }}
+          />
+        </div>
+        <Separator />
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label>{t('settings.skip_splash_animation_label')}</Label>
+            <p className="text-muted-foreground text-sm">
+              {t('settings.skip_splash_animation_description')}
+            </p>
+          </div>
+          <Switch
+            checked={settings.skipSplashAnimation ?? false}
+            onCheckedChange={(checked) => {
+              saveByForm({ ...settings, skipSplashAnimation: checked })
+            }}
+          />
+        </div>
+        <Separator />
         <div className="space-y-2">
           <Label>{t('settings.app_section_label')}</Label>
-          <UpdateCheckButton />
-          <ReleaseNotesSection />
+          <div className="flex w-full items-end gap-2">
+            <UpdateCheckButton />
+            <ReleaseNotesSection />
+          </div>
         </div>
         <Separator />
         {/* Login Status Section */}

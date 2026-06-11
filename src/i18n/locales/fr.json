@@ -228,6 +228,8 @@
     "lib_path_error": "Échec de l'obtention du chemin",
     "lib_path_change_success": "Emplacement de stockage de la bibliothèque mis à jour avec succès",
     "lib_path_change_error": "Échec de la modification de l'emplacement de stockage de la bibliothèque",
+    "skip_splash_animation_label": "Ignorer l'animation de démarrage",
+    "skip_splash_animation_description": "Afficher un indicateur de chargement minimal au lieu de l'animation 3D pour un démarrage plus rapide",
     "app_section_label": "Application",
     "show_github_stars_label": "Afficher les GitHub Stars",
     "show_github_stars_description": "Afficher le nombre d'étoiles dans la barre d'application",

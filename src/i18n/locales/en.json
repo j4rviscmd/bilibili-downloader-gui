@@ -228,6 +228,8 @@
     "lib_path_error": "Failed to get path",
     "lib_path_change_success": "Library storage location updated successfully",
     "lib_path_change_error": "Failed to change library storage location",
+    "skip_splash_animation_label": "Skip Startup Animation",
+    "skip_splash_animation_description": "Show a minimal loading indicator instead of the 3D animation for faster startup",
     "app_section_label": "Application",
     "show_github_stars_label": "Show GitHub Stars",
     "show_github_stars_description": "Display the star count in the app bar",

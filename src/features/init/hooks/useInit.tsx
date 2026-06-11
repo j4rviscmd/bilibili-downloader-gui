@@ -33,8 +33,11 @@ const SUPPORTED_LANGS: readonly SupportedLang[] = [
   'ko',
 ]
 
+/** Result of the application initialization sequence. */
 export interface InitResult {
+  /** Status code: 0 for success, non-zero for failure. */
   code: number
+  /** Optional error detail when initialization fails. */
   detail?: string
 }
 
@@ -134,6 +137,7 @@ export const useInit = () => {
 
     // Version checking is handled by UpdaterProvider (non-blocking dialog)
     const settings = await getAppSettings()
+    const skipSplash = settings?.skipSplashAnimation ?? false
     await applyLanguageSetting(settings?.language)
     applyFontSize(parseFontSize(settings?.fontSize))
 
@@ -145,7 +149,7 @@ export const useInit = () => {
     // Early exit on ffmpeg check failure
     if (!(await checkFfmpeg())) {
       logger.warn('initApp: ffmpeg check failed')
-      await finalizeInit()
+      await finalizeInit(skipSplash)
       return { code: 1 }
     }
 
@@ -161,7 +165,7 @@ export const useInit = () => {
     // Fetch user info and store in Redux (hasCookie=false if no cookie)
     await getUserInfo()
 
-    await finalizeInit()
+    await finalizeInit(skipSplash)
     logger.info('initApp: Initialization completed successfully')
     return { code: 0 }
   }
@@ -169,9 +173,11 @@ export const useInit = () => {
   /**
    * Finalizes initialization by setting flag and sleeping briefly.
    */
-  const finalizeInit = async (): Promise<void> => {
+  const finalizeInit = async (skipSplash: boolean): Promise<void> => {
     logger.debug('finalizeInit: Finalizing initialization')
-    await sleep(500)
+    if (!skipSplash) {
+      await sleep(500)
+    }
     setInitiated(true)
     notifyInitComplete()
   }
