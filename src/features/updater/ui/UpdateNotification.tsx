@@ -10,22 +10,75 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Progress } from '@/components/ui/progress'
+import { setShowDialog, useUpdateDownload } from '@/features/updater'
 import {
-  setDownloadProgress,
-  setError,
-  setIsDownloading,
-  setIsUpdateReady,
-  setShowDialog,
-} from '@/features/updater/model/updaterSlice'
-import { logger } from '@/shared/lib/logger'
-import { relaunch } from '@tauri-apps/plugin-process'
-import { check } from '@tauri-apps/plugin-updater'
+  Progress,
+  ProgressTrack,
+  ProgressValue,
+} from '@/shared/animate-ui/base/progress'
 import { Download, RefreshCw, X } from 'lucide-react'
-import React, { useCallback } from 'react'
+import React from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+
+/**
+ * Markdown rendering components for release notes.
+ *
+ * Defined at module level to avoid re-creation on every render,
+ * preserving the effectiveness of React.memo.
+ */
+const markdownComponents = {
+  h1: ({ children }: { children?: React.ReactNode }) => (
+    <h1 className="mb-4 text-xl font-bold">{children}</h1>
+  ),
+  h2: ({ children }: { children?: React.ReactNode }) => (
+    <h2 className="mt-4 mb-3 text-lg font-semibold">{children}</h2>
+  ),
+  h3: ({ children }: { children?: React.ReactNode }) => (
+    <h3 className="mt-3 mb-2 text-base font-medium">{children}</h3>
+  ),
+  p: ({ children }: { children?: React.ReactNode }) => (
+    <p className="mb-2 leading-relaxed">{children}</p>
+  ),
+  ul: ({ children }: { children?: React.ReactNode }) => (
+    <ul className="mb-3 list-inside list-disc space-y-1">{children}</ul>
+  ),
+  ol: ({ children }: { children?: React.ReactNode }) => (
+    <ol className="mb-3 list-inside list-decimal space-y-1">{children}</ol>
+  ),
+  li: ({ children }: { children?: React.ReactNode }) => (
+    <li className="ml-4">{children}</li>
+  ),
+  code: ({ children }: { children?: React.ReactNode }) => (
+    <code className="bg-muted rounded px-1.5 py-0.5 font-mono text-xs">
+      {children}
+    </code>
+  ),
+  pre: ({ children }: { children?: React.ReactNode }) => (
+    <pre className="bg-muted mb-3 overflow-x-auto rounded-md p-3">
+      {children}
+    </pre>
+  ),
+  a: ({ href, children }: { href?: string; children?: React.ReactNode }) => (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-primary hover:text-primary/80 underline"
+    >
+      {children}
+    </a>
+  ),
+  strong: ({ children }: { children?: React.ReactNode }) => (
+    <strong className="font-semibold">{children}</strong>
+  ),
+  blockquote: ({ children }: { children?: React.ReactNode }) => (
+    <blockquote className="border-muted-foreground/20 my-3 border-l-4 pl-4 italic">
+      {children}
+    </blockquote>
+  ),
+}
 
 /**
  * Update notification dialog component.
@@ -38,138 +91,16 @@ export const UpdateNotification = React.memo(() => {
   const dispatch = useAppDispatch()
 
   const updater = useSelector((state) => state.updater)
+  const { handleUpdate, handleRetry, handleRestart } = useUpdateDownload()
 
-  const handleUpdate = useCallback(async () => {
-    try {
-      dispatch(setIsDownloading(true))
-      dispatch(setError(null))
-      dispatch(setDownloadProgress(0))
-
-      const update = await check()
-      if (!update) {
-        logger.error('No update available when trying to download')
-        dispatch(setError(t('updater.error.no_update_available')))
-        dispatch(setIsDownloading(false))
-        return
-      }
-
-      let contentLength = 0
-      let downloaded = 0
-
-      await update.downloadAndInstall((event) => {
-        switch (event.event) {
-          case 'Started':
-            contentLength = event.data.contentLength ?? 0
-            dispatch(setDownloadProgress(0))
-            break
-          case 'Progress':
-            downloaded += event.data.chunkLength
-            dispatch(
-              setDownloadProgress(
-                Math.min(100, (downloaded / contentLength) * 100),
-              ),
-            )
-            break
-          case 'Finished':
-            dispatch(setDownloadProgress(100))
-            dispatch(setIsUpdateReady(true))
-            dispatch(setIsDownloading(false))
-            break
-        }
-      })
-
-      dispatch(setIsDownloading(false))
-      dispatch(setIsUpdateReady(true))
-    } catch (e) {
-      logger.error('Update download/install failed', e)
-      dispatch(setError(t('updater.error.download_failed')))
-      dispatch(setIsDownloading(false))
-      dispatch(setDownloadProgress(0))
-    }
-  }, [dispatch, t])
-
-  const handleCancel = useCallback(() => {
-    dispatch(setShowDialog(false))
-  }, [dispatch])
-
-  const handleRetry = useCallback(() => {
-    dispatch(setError(null))
-    handleUpdate()
-  }, [dispatch, handleUpdate])
-
-  const handleRestart = useCallback(async () => {
-    logger.info(
-      'UpdateNotification: User requested application restart after update',
-    )
-    try {
-      await relaunch()
-    } catch (e) {
-      logger.error('Restart failed', e)
-      dispatch(setError(t('updater.error.restart_failed')))
-    }
-  }, [dispatch, t])
-
-  const markdownComponents = {
-    h1: ({ children }: { children?: React.ReactNode }) => (
-      <h1 className="mb-4 text-xl font-bold">{children}</h1>
-    ),
-    h2: ({ children }: { children?: React.ReactNode }) => (
-      <h2 className="mt-4 mb-3 text-lg font-semibold">{children}</h2>
-    ),
-    h3: ({ children }: { children?: React.ReactNode }) => (
-      <h3 className="mt-3 mb-2 text-base font-medium">{children}</h3>
-    ),
-    p: ({ children }: { children?: React.ReactNode }) => (
-      <p className="mb-2 leading-relaxed">{children}</p>
-    ),
-    ul: ({ children }: { children?: React.ReactNode }) => (
-      <ul className="mb-3 list-inside list-disc space-y-1">{children}</ul>
-    ),
-    ol: ({ children }: { children?: React.ReactNode }) => (
-      <ol className="mb-3 list-inside list-decimal space-y-1">{children}</ol>
-    ),
-    li: ({ children }: { children?: React.ReactNode }) => (
-      <li className="ml-4">{children}</li>
-    ),
-    code: ({ children }: { children?: React.ReactNode }) => (
-      <code className="bg-muted rounded px-1.5 py-0.5 font-mono text-xs">
-        {children}
-      </code>
-    ),
-    pre: ({ children }: { children?: React.ReactNode }) => (
-      <pre className="bg-muted mb-3 overflow-x-auto rounded-md p-3">
-        {children}
-      </pre>
-    ),
-    a: ({ href, children }: { href?: string; children?: React.ReactNode }) => (
-      <a
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-primary hover:text-primary/80 underline"
-      >
-        {children}
-      </a>
-    ),
-    strong: ({ children }: { children?: React.ReactNode }) => (
-      <strong className="font-semibold">{children}</strong>
-    ),
-    blockquote: ({ children }: { children?: React.ReactNode }) => (
-      <blockquote className="border-muted-foreground/20 my-3 border-l-4 pl-4 italic">
-        {children}
-      </blockquote>
-    ),
-  }
+  const closeDialog = () => dispatch(setShowDialog(false))
 
   return (
     <AlertDialog
       open={updater.showDialog}
       onOpenChange={(open) => !open && dispatch(setShowDialog(false))}
     >
-      <AlertDialogContent
-        size="lg"
-        className="flex max-h-[90vh] w-[1200px] max-w-none flex-col"
-      >
+      <AlertDialogContent className="flex max-h-[90vh] !max-w-4xl flex-col">
         <AlertDialogHeader className="place-items-start text-left">
           <AlertDialogTitle>
             {t('updater.title', { version: `v${updater.latestVersion}` })}
@@ -192,17 +123,19 @@ export const UpdateNotification = React.memo(() => {
 
         <div className="my-4 flex min-h-0 flex-1 flex-col">
           {updater.isDownloading ? (
-            <div className="space-y-2">
+            <Progress value={Math.round(updater.downloadProgress)}>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">
                   {t('updater.downloading')}
                 </span>
                 <span className="font-medium">
-                  {Math.round(updater.downloadProgress)}%
+                  <ProgressValue />%
                 </span>
               </div>
-              <Progress value={updater.downloadProgress} />
-            </div>
+              <div className="mt-2 w-full">
+                <ProgressTrack />
+              </div>
+            </Progress>
           ) : updater.isUpdateReady ? (
             <div className="rounded-md bg-green-50 p-4 dark:bg-green-950">
               <p className="text-sm font-medium text-green-800 dark:text-green-200">
@@ -251,7 +184,7 @@ export const UpdateNotification = React.memo(() => {
         <AlertDialogFooter>
           {updater.isUpdateReady ? (
             <>
-              <AlertDialogCancel onClick={handleCancel}>
+              <AlertDialogCancel onClick={closeDialog}>
                 {t('updater.actions.later')}
               </AlertDialogCancel>
               <Button onClick={handleRestart}>
@@ -261,7 +194,7 @@ export const UpdateNotification = React.memo(() => {
             </>
           ) : updater.error ? (
             <>
-              <AlertDialogCancel onClick={handleCancel}>
+              <AlertDialogCancel onClick={closeDialog}>
                 {t('updater.actions.cancel')}
               </AlertDialogCancel>
               <Button onClick={handleRetry} variant="default">
@@ -272,7 +205,7 @@ export const UpdateNotification = React.memo(() => {
           ) : (
             <>
               <AlertDialogCancel
-                onClick={handleCancel}
+                onClick={closeDialog}
                 disabled={updater.isDownloading}
               >
                 {t('updater.actions.later')}

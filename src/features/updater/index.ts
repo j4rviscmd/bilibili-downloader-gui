@@ -7,6 +7,7 @@
  */
 
 export * from '@/features/updater/api/updaterApi'
+export { useUpdateDownload } from '@/features/updater/hooks/useUpdateDownload'
 export * from '@/features/updater/model/updaterSlice'
 export * from '@/features/updater/types'
 export { UpdateNotification } from '@/features/updater/ui/UpdateNotification'
