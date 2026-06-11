@@ -1,5 +1,6 @@
 import { useSelector } from '@/app/store'
 import { QRCodeLoginDialog } from '@/features/login'
+import LanguageSwitcher from '@/features/preference/ui/LanguageSwitcher'
 import ToggleThemeButton from '@/features/preference/ui/ToggleThemeButton'
 import type { User } from '@/features/user'
 import {
@@ -41,6 +42,7 @@ type Props = {
  * Displays:
  * - Logged-in username (masked for privacy)
  * - GitHub repository stars (with caching)
+ * - Language switcher
  * - Theme toggle button
  */
 function AppBar({ user, theme, setTheme }: Props) {
@@ -96,6 +98,7 @@ function AppBar({ user, theme, setTheme }: Props) {
           {showGithubStars && (
             <GitHubStars owner="j4rviscmd" repo="bilibili-downloader-gui" />
           )}
+          <LanguageSwitcher />
           <ToggleThemeButton theme={theme} setTheme={setTheme} />
         </div>
       </div>
