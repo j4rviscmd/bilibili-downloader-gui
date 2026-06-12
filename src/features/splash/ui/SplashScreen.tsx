@@ -28,8 +28,14 @@ export function SplashScreen() {
 
   if (phase === 'done') return null
 
-  // Show minimal spinner while loading settings or when skip mode is active
-  if (skipMode === null || skipMode === true) {
+  // Show blank splash background while settings are loading (prevents
+  // circle-indicator flash before the 3D animation starts)
+  if (skipMode === null) {
+    return <div className="fixed inset-0 z-50 bg-[#f5f7fa]" />
+  }
+
+  // Show minimal spinner when skip mode is active
+  if (skipMode === true) {
     return (
       <div className="bg-background fixed inset-0 z-50 flex flex-col items-center justify-center">
         <div className="border-foreground/20 border-t-foreground h-8 w-8 animate-spin rounded-full border-2" />
@@ -54,7 +60,7 @@ export function SplashScreen() {
         phase === 'fading' ? 'opacity-0' : 'opacity-100',
       )}
       style={{ transitionDuration: `${FADE_DURATION_MS}ms` }}
-      onTransitionEnd={(e) => {
+      onTransitionEnd={function handleTransitionEnd(e) {
         if (e.target === e.currentTarget && e.propertyName === 'opacity') {
           onFadeComplete()
         }
@@ -72,8 +78,7 @@ export function SplashScreen() {
           textShadow: '0 0 40px rgba(0,161,214,0.2)',
         }}
       >
-        <span style={{ color: '#00A1D6' }}>Bilibili</span>{' '}
-        <span style={{ color: '#333333ee' }}>Downloader</span>
+        <span style={{ color: '#00A1D6' }}>Bilibili</span> Downloader
       </h1>
       {processingFnc && (
         <p className="relative z-10 mt-4 text-sm text-[#00A1D6]/60 select-none">
