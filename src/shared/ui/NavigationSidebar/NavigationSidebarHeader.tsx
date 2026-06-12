@@ -17,8 +17,8 @@ import {
 } from '@/shared/animate-ui/radix/tooltip'
 import { cn } from '@/shared/lib/utils'
 import { selectHasActiveDownloads } from '@/shared/queue'
-import { Eye, Home, Scissors, Star } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import { Eye, Home, Scissors, Star } from 'lucide-react'
 import { Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router'
@@ -130,9 +130,7 @@ export function NavigationSidebarHeader({
         aria-label={item.ariaLabel}
         aria-current={isActive ? 'page' : undefined}
         aria-disabled={isDisabled || undefined}
-        className={
-          isDisabled ? 'cursor-not-allowed opacity-50' : undefined
-        }
+        className={isDisabled ? 'cursor-not-allowed opacity-50' : undefined}
       >
         {isHome && hasActiveDownloads ? (
           <Download
@@ -174,9 +172,7 @@ export function NavigationSidebarHeader({
           <Fragment key={group.id}>
             {index > 0 && <SidebarSeparator className="mx-0 my-1" />}
             <SidebarGroup
-              className={
-                index < groups.length - 1 ? 'pb-0' : undefined
-              }
+              className={index < groups.length - 1 ? 'pb-0' : undefined}
             >
               {group.label ? (
                 <SidebarGroupLabel>{group.label}</SidebarGroupLabel>

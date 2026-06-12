@@ -50,6 +50,12 @@ import {
   RadioGroup,
   RadioGroupItem,
 } from '@/shared/animate-ui/radix/radio-group'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/shared/animate-ui/radix/tooltip'
 import { Button } from '@/shared/ui/button'
 import {
   Form,
@@ -64,12 +70,6 @@ import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
 import { Separator } from '@/shared/ui/separator'
 import { Switch } from '@/shared/ui/switch'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/shared/animate-ui/radix/tooltip'
 import { Info } from 'lucide-react'
 
 /**
@@ -488,7 +488,10 @@ function SettingsForm() {
             >
               <div className="flex items-center space-x-3">
                 <RadioGroupItem value="copy" id="trim-copy" />
-                <Label htmlFor="trim-copy" className="flex items-center gap-1 whitespace-nowrap">
+                <Label
+                  htmlFor="trim-copy"
+                  className="flex items-center gap-1 whitespace-nowrap"
+                >
                   {t('settings.trim_mode_copy')}
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -502,16 +505,17 @@ function SettingsForm() {
                       </button>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p className="max-w-xs">
-                        {t('trim.warningKeyframe')}
-                      </p>
+                      <p className="max-w-xs">{t('trim.warningKeyframe')}</p>
                     </TooltipContent>
                   </Tooltip>
                 </Label>
               </div>
               <div className="flex items-center space-x-3">
                 <RadioGroupItem value="reencode" id="trim-reencode" />
-                <Label htmlFor="trim-reencode" className="flex items-center gap-1 whitespace-nowrap">
+                <Label
+                  htmlFor="trim-reencode"
+                  className="flex items-center gap-1 whitespace-nowrap"
+                >
                   {t('settings.trim_mode_reencode')}
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -525,9 +529,7 @@ function SettingsForm() {
                       </button>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p className="max-w-xs">
-                        {t('trim.warningReencode')}
-                      </p>
+                      <p className="max-w-xs">{t('trim.warningReencode')}</p>
                     </TooltipContent>
                   </Tooltip>
                 </Label>
