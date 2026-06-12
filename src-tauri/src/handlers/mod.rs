@@ -9,6 +9,7 @@
 //! - **ffmpeg**: Binary validation and installation, A/V merging
 //! - **github**: GitHub API integration (repository info)
 //! - **settings**: Application settings persistence
+//! - **trim**: Local MP4 file trimming via ffmpeg stream copy
 //! - **updater**: GitHub release notes fetching
 
 pub mod bilibili;
@@ -20,4 +21,5 @@ pub mod ffmpeg;
 pub mod github;
 pub mod qr_login;
 pub mod settings;
+pub mod trim;
 pub mod updater;
