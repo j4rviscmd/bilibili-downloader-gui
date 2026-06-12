@@ -102,18 +102,18 @@ pub fn build_ffmpeg_args(
     output_path: &str,
     mode: TrimMode,
 ) -> Vec<String> {
-    let mut args: Vec<String> = Vec::new();
-
     // Suppress default stats and emit structured `key=value` progress to
     // stderr so we can parse `out_time=` for the progress bar. Emit at
     // 1-second cadence; the frontend's CSS transition (1s ease-linear)
     // interpolates between updates so the bar moves continuously instead
     // of jumping per emit.
-    args.push("-nostats".to_string());
-    args.push("-stats_period".to_string());
-    args.push("1".to_string());
-    args.push("-progress".to_string());
-    args.push("pipe:2".to_string());
+    let mut args: Vec<String> = vec![
+        "-nostats".to_string(),
+        "-stats_period".to_string(),
+        "1".to_string(),
+        "-progress".to_string(),
+        "pipe:2".to_string(),
+    ];
 
     if mode == TrimMode::Copy {
         if let Some(s) = start {
@@ -265,7 +265,6 @@ async fn probe_input_duration_sec(ffmpeg_path: &Path, input_path: &str) -> Optio
 
     #[cfg(target_os = "windows")]
     {
-        use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
@@ -361,7 +360,6 @@ pub async fn trim_video(app: &AppHandle, options: &TrimOptions) -> Result<TrimRe
 
     #[cfg(target_os = "windows")]
     {
-        use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
