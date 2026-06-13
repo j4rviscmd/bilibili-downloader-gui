@@ -1,5 +1,6 @@
 import type { FavoriteVideo } from '@/features/favorite/types'
 import FavoriteItem from '@/features/favorite/ui/FavoriteItem'
+import CircleIndicator from '@/shared/ui/CircleIndicator'
 import { useTranslation } from 'react-i18next'
 import { Virtuoso } from 'react-virtuoso'
 
@@ -77,10 +78,8 @@ function FavoriteList({
 
   if ((loading || foldersLoading) && videos.length === 0) {
     return (
-      <div className="flex min-h-[400px] items-center justify-center">
-        <div className="text-muted-foreground animate-pulse">
-          {t('init.initializing')}
-        </div>
+      <div className="flex h-full items-center justify-center">
+        <CircleIndicator size="lg" />
       </div>
     )
   }
@@ -108,7 +107,7 @@ function FavoriteList({
         }
       }}
       itemContent={(_index, video) => (
-        <div key={video.id} className="py-1">
+        <div className="py-1">
           <FavoriteItem
             video={video}
             onDownload={onDownload}

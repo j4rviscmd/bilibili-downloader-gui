@@ -1,36 +1,35 @@
 import { cn } from '@/shared/lib/utils'
+import { Loader2 } from 'lucide-react'
 
-/**
- * Props for CircleIndicator component.
- */
+/** Props for the CircleIndicator component. */
 type Props = {
-  /** Radius of the spinner in pixels. Defaults to 30. */
-  r?: number
+  /** Size variant: 'sm' (16px), 'md' (24px), or 'lg' (32px). */
+  size?: 'sm' | 'md' | 'lg'
+  /** Additional CSS class names to apply. */
+  className?: string
 }
 
+/** Tailwind CSS class mapping for each size variant. */
+const sizeClasses = {
+  sm: 'h-4 w-4',
+  md: 'h-6 w-6',
+  lg: 'h-8 w-8',
+} as const
+
 /**
- * Animated circular loading spinner.
+ * Circular loading spinner using lucide-react Loader2 icon.
  *
- * Displays a spinning circle with a transparent top border to create
- * the loading animation effect.
- *
- * @param props - Component props
- *
- * @example
- * ```tsx
- * <CircleIndicator r={20} /> // Small spinner
- * <CircleIndicator /> // Default size (r=30)
- * ```
+ * @param size - 'sm' (16px), 'md' (24px), or 'lg' (32px). Defaults to 'lg'.
+ * @param className - Additional CSS classes.
  */
-export default function CircleIndicator({ r = 30 }: Props) {
+export default function CircleIndicator({ size = 'lg', className }: Props) {
   return (
-    <div className="flex justify-center p-3">
-      <div
-        className={cn(
-          'animate-spin rounded-full border-4 border-blue-500 border-t-transparent',
-        )}
-        style={{ width: r * 2, height: r * 2 }}
-      />
-    </div>
+    <Loader2
+      className={cn(
+        'text-muted-foreground animate-spin',
+        sizeClasses[size],
+        className,
+      )}
+    />
   )
 }
