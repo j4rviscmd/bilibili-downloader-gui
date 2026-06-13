@@ -98,7 +98,9 @@ export function useSplashLifecycle(): SplashLifecycle {
     invoke('enable_window_resize').catch(() => {})
 
     const theme = store.getState().settings.theme ?? 'light'
-    getCurrentWindow().setTheme(theme).catch(() => {})
+    getCurrentWindow()
+      .setTheme(theme)
+      .catch(() => {})
     markTauriThemeReady()
   }, [phase])
 

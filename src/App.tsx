@@ -1,3 +1,4 @@
+import { useSelector } from '@/app/store'
 import { useThemeEffect } from '@/features/settings/hooks/useThemeEffect'
 import { UpdateNotification } from '@/features/updater'
 import IndexPage from '@/pages'
@@ -6,7 +7,6 @@ import InitPage from '@/pages/init'
 import { PersistentPageLayout } from '@/shared/layout/PersistentPageLayout'
 import { Toaster } from '@/shared/ui/sonner'
 import '@/styles/global.css'
-import { useSelector } from '@/app/store'
 import { useEffect } from 'react'
 import { Route, Routes } from 'react-router'
 

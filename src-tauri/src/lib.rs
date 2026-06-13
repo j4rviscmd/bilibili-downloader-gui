@@ -212,20 +212,19 @@ pub fn run() {
             }
 
             // Read settings for window theme before creating the window
-            let window_theme =
-                crate::utils::paths::get_settings_path(app.handle())
-                    .exists()
-                    .then(|| {
-                        std::fs::read_to_string(crate::utils::paths::get_settings_path(app.handle()))
-                            .ok()
-                            .and_then(|content| serde_json::from_str::<Settings>(&content).ok())
-                            .and_then(|s| s.theme)
-                    })
-                    .flatten()
-                    .map(|t| match t {
-                        UiTheme::Dark => tauri::Theme::Dark,
-                        UiTheme::Light => tauri::Theme::Light,
-                    });
+            let window_theme = crate::utils::paths::get_settings_path(app.handle())
+                .exists()
+                .then(|| {
+                    std::fs::read_to_string(crate::utils::paths::get_settings_path(app.handle()))
+                        .ok()
+                        .and_then(|content| serde_json::from_str::<Settings>(&content).ok())
+                        .and_then(|s| s.theme)
+                })
+                .flatten()
+                .map(|t| match t {
+                    UiTheme::Dark => tauri::Theme::Dark,
+                    UiTheme::Light => tauri::Theme::Light,
+                });
 
             // Create main window with saved geometry (prevents startup flash)
             window::create_main_window(app.handle(), window_theme)?;

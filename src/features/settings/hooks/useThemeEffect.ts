@@ -25,7 +25,9 @@ export function useThemeEffect() {
     localStorage.setItem('ui-theme', effective)
 
     if (tauriThemeReady) {
-      getCurrentWindow().setTheme(effective).catch(() => {})
+      getCurrentWindow()
+        .setTheme(effective)
+        .catch(() => {})
     }
   }, [theme])
 }
