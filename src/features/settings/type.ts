@@ -79,6 +79,11 @@ export interface Settings {
    * Defaults to false if not specified.
    */
   skipSplashAnimation?: boolean
+  /**
+   * Default trim mode for the MP4 trimming feature.
+   * Defaults to 'copy' if not specified.
+   */
+  trimMode?: TrimMode
   // Managed on frontend only, stored in localStorage
   // TODO: manage theme in json
   // theme: 'light' | 'dark'
@@ -89,6 +94,13 @@ export interface Settings {
  * All rem-based Tailwind utilities scale proportionally.
  */
 export type FontSizePreset = 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20
+
+/**
+ * Trim mode for MP4 trimming.
+ * - copy: Stream copy, fast but keyframe-accurate only
+ * - reencode: Re-encode, slow but frame-accurate
+ */
+export type TrimMode = 'copy' | 'reencode'
 
 /**
  * Supported language codes for the application.

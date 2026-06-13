@@ -140,6 +140,21 @@ pub struct Settings {
         skip_serializing_if = "Option::is_none"
     )]
     pub skip_splash_animation: Option<bool>,
+    /// Default trim mode for the MP4 trimming feature.
+    /// Defaults to "copy" (stream copy) if not specified.
+    #[serde(rename = "trimMode", default, skip_serializing_if = "Option::is_none")]
+    pub trim_mode: Option<TrimMode>,
+}
+
+/// Trim mode for the MP4 trimming feature.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum TrimMode {
+    /// Stream copy (-c copy), fast but keyframe-accurate only.
+    #[default]
+    Copy,
+    /// Re-encode (libx264), slow but frame-accurate.
+    Reencode,
 }
 
 /// Supported UI languages.

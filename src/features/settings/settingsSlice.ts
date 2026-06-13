@@ -17,6 +17,7 @@ const initialState: SettingsState = {
   autoRenameDuplicates: true,
   showGithubStars: true,
   fontSize: 16,
+  trimMode: 'copy',
 }
 
 /**

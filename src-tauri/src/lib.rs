@@ -17,6 +17,7 @@ use crate::handlers::ffmpeg;
 use crate::handlers::github;
 use crate::handlers::qr_login;
 use crate::handlers::settings;
+use crate::handlers::trim;
 use crate::handlers::updater;
 use crate::models::cookie::CookieCache;
 #[cfg(debug_assertions)]
@@ -88,6 +89,7 @@ pub use utils::wbi;
 /// - `cancel_download`: Cancels a specific download by ID
 /// - `cancel_all_downloads`: Cancels all active downloads
 /// - `cleanup_temp_files`: Cleans up orphaned temporary files
+/// - `trim_video`: Losslessly trims a local MP4 file by start/end time
 ///
 /// **Favorites & History:**
 /// - `fetch_favorite_folders`: Fetches all favorite folders
@@ -180,6 +182,7 @@ pub fn run() {
             fetch_watch_history,
             expand_short_url,
             cleanup_temp_files,
+            trim_video,
             generate_qr_code,
             poll_qr_status,
             qr_logout,
@@ -1159,6 +1162,17 @@ async fn fetch_watch_history(
 #[tauri::command]
 async fn cleanup_temp_files(app: AppHandle) -> Result<cleanup::CleanupResult, String> {
     Ok(cleanup::cleanup_temp_files(&app, None))
+}
+
+/// Trims a local MP4 file by start/end time using ffmpeg stream copy.
+///
+/// Returns the absolute path of the written output file.
+#[tauri::command]
+async fn trim_video(
+    app: AppHandle,
+    options: trim::TrimOptions,
+) -> Result<trim::TrimResult, String> {
+    trim::trim_video(&app, &options).await
 }
 
 /// Sets the simulate logout flag for development mode.

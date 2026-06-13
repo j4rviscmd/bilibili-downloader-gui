@@ -50,6 +50,12 @@ import {
   RadioGroup,
   RadioGroupItem,
 } from '@/shared/animate-ui/radix/radio-group'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/shared/animate-ui/radix/tooltip'
 import { Button } from '@/shared/ui/button'
 import {
   Form,
@@ -64,6 +70,7 @@ import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
 import { Separator } from '@/shared/ui/separator'
 import { Switch } from '@/shared/ui/switch'
+import { Info } from 'lucide-react'
 
 /**
  * Returns the login status display text key based on session and method.
@@ -459,6 +466,76 @@ function SettingsForm() {
               saveByForm({ ...settings, skipSplashAnimation: checked })
             }}
           />
+        </div>
+        <Separator />
+        <div className="space-y-2">
+          <div className="space-y-0.5">
+            <Label>{t('settings.trim_mode_label')}</Label>
+            <p className="text-muted-foreground text-sm">
+              {t('settings.trim_mode_description')}
+            </p>
+          </div>
+          <TooltipProvider>
+            <RadioGroup
+              value={settings.trimMode ?? 'copy'}
+              onValueChange={(value) => {
+                saveByForm({
+                  ...settings,
+                  trimMode: value as 'copy' | 'reencode',
+                })
+              }}
+              className="grid grid-cols-2 gap-4"
+            >
+              <div className="flex items-center space-x-3">
+                <RadioGroupItem value="copy" id="trim-copy" />
+                <Label
+                  htmlFor="trim-copy"
+                  className="flex items-center gap-1 whitespace-nowrap"
+                >
+                  {t('settings.trim_mode_copy')}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={(e) => e.preventDefault()}
+                        className="text-muted-foreground hover:text-foreground"
+                        aria-label={t('trim.warningKeyframe')}
+                      >
+                        <Info className="size-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="max-w-xs">{t('trim.warningKeyframe')}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </Label>
+              </div>
+              <div className="flex items-center space-x-3">
+                <RadioGroupItem value="reencode" id="trim-reencode" />
+                <Label
+                  htmlFor="trim-reencode"
+                  className="flex items-center gap-1 whitespace-nowrap"
+                >
+                  {t('settings.trim_mode_reencode')}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={(e) => e.preventDefault()}
+                        className="text-muted-foreground hover:text-foreground"
+                        aria-label={t('trim.warningReencode')}
+                      >
+                        <Info className="size-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="max-w-xs">{t('trim.warningReencode')}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </Label>
+              </div>
+            </RadioGroup>
+          </TooltipProvider>
         </div>
         <Separator />
         <div className="space-y-2">

@@ -1,9 +1,13 @@
 import { useSelector } from '@/app/store'
 import { Download } from '@/shared/animate-ui/icons/download'
 import {
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarSeparator,
 } from '@/shared/animate-ui/radix/sidebar'
 import {
   Tooltip,
@@ -13,7 +17,9 @@ import {
 } from '@/shared/animate-ui/radix/tooltip'
 import { cn } from '@/shared/lib/utils'
 import { selectHasActiveDownloads } from '@/shared/queue'
-import { Eye, Home, Star } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import { Eye, Home, Scissors, Star } from 'lucide-react'
+import { Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router'
 
@@ -21,14 +27,30 @@ type NavigationSidebarHeaderProps = {
   className?: string
 }
 
+type MenuItem = {
+  path: string
+  icon: LucideIcon
+  label: string
+  ariaLabel: string
+  requiresAuth: boolean
+}
+
+type MenuGroup = {
+  id: string
+  label?: string
+  items: MenuItem[]
+}
+
 /**
- * Navigation sidebar header with main menu items.
+ * Navigation sidebar header with categorized menu items.
  *
- * Provides navigation to:
- * - Home (/home) - Video download interface
- * - Favorite (/favorite) - Favorite videos (requires login)
- * - Watch History (/watch-history) - Bilibili watch history
- *   (requires login)
+ * Layout:
+ * - Home (/home) - standalone (no category), video download interface
+ * - Bilibili category:
+ *   - Favorite (/favorite) - requires login
+ *   - Watch History (/watch-history) - requires login
+ * - Tool category:
+ *   - Trim (/trim) - Trim local MP4 files by start/end time
  *
  * Note: Download history (/history) is provided separately in SidebarFooter.
  *
@@ -46,85 +68,121 @@ export function NavigationSidebarHeader({
   const isLoggedIn = user.hasCookie && user.data?.isLogin
   const hasActiveDownloads = useSelector(selectHasActiveDownloads)
 
-  const menuItems = [
+  const groups: MenuGroup[] = [
     {
-      path: '/home',
-      icon: Home,
-      label: t('nav.home'),
-      ariaLabel: t('nav.aria.home'),
-      requiresAuth: false,
+      id: 'home',
+      items: [
+        {
+          path: '/home',
+          icon: Home,
+          label: t('nav.home'),
+          ariaLabel: t('nav.aria.home'),
+          requiresAuth: false,
+        },
+      ],
     },
     {
-      path: '/favorite',
-      icon: Star,
-      label: t('nav.favorite'),
-      ariaLabel: t('nav.aria.favorite'),
-      requiresAuth: true,
+      id: 'bilibili',
+      label: t('nav.category.bilibili'),
+      items: [
+        {
+          path: '/favorite',
+          icon: Star,
+          label: t('nav.favorite'),
+          ariaLabel: t('nav.aria.favorite'),
+          requiresAuth: true,
+        },
+        {
+          path: '/watch-history',
+          icon: Eye,
+          label: t('nav.watchHistory'),
+          ariaLabel: t('nav.aria.watchHistory'),
+          requiresAuth: true,
+        },
+      ],
     },
     {
-      path: '/watch-history',
-      icon: Eye,
-      label: t('nav.watchHistory'),
-      ariaLabel: t('nav.aria.watchHistory'),
-      requiresAuth: true,
+      id: 'tool',
+      label: t('nav.category.tool'),
+      items: [
+        {
+          path: '/trim',
+          icon: Scissors,
+          label: t('nav.trim'),
+          ariaLabel: t('nav.aria.trim'),
+          requiresAuth: false,
+        },
+      ],
     },
   ]
+
+  const renderItem = (item: MenuItem) => {
+    const Icon = item.icon
+    const isActive = location.pathname === item.path
+    const isDisabled = item.requiresAuth && !isLoggedIn
+    const isHome = item.path === '/home'
+
+    const button = (
+      <SidebarMenuButton
+        isActive={isActive}
+        tooltip={isDisabled ? undefined : item.label}
+        onClick={() => !isDisabled && navigate(item.path)}
+        aria-label={item.ariaLabel}
+        aria-current={isActive ? 'page' : undefined}
+        aria-disabled={isDisabled || undefined}
+        className={isDisabled ? 'cursor-not-allowed opacity-50' : undefined}
+      >
+        {isHome && hasActiveDownloads ? (
+          <Download
+            animate={true}
+            animation="default-loop"
+            loop={true}
+            size={16}
+          />
+        ) : (
+          <Icon />
+        )}
+        <span>{item.label}</span>
+      </SidebarMenuButton>
+    )
+
+    return (
+      <SidebarMenuItem key={item.path}>
+        {isDisabled ? (
+          <Tooltip>
+            <TooltipTrigger asChild>{button}</TooltipTrigger>
+            <TooltipContent>
+              <p>{t('nav.favoriteLoginRequired')}</p>
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          button
+        )}
+      </SidebarMenuItem>
+    )
+  }
 
   return (
     <TooltipProvider>
       <nav
         aria-label={t('nav.aria.mainNavigation')}
-        className={cn('flex flex-col gap-2 p-2', className)}
+        className={cn('flex flex-col px-2', className)}
       >
-        <SidebarMenu>
-          {menuItems.map((item) => {
-            const Icon = item.icon
-            const isActive = location.pathname === item.path
-            const isDisabled = item.requiresAuth && !isLoggedIn
-            const isHome = item.path === '/home'
-
-            const button = (
-              <SidebarMenuButton
-                isActive={isActive}
-                tooltip={isDisabled ? undefined : item.label}
-                onClick={() => !isDisabled && navigate(item.path)}
-                aria-label={item.ariaLabel}
-                aria-current={isActive ? 'page' : undefined}
-                aria-disabled={isDisabled || undefined}
-                className={
-                  isDisabled ? 'cursor-not-allowed opacity-50' : undefined
-                }
-              >
-                {isHome && hasActiveDownloads ? (
-                  <Download
-                    animate={true}
-                    animation="default-loop"
-                    loop={true}
-                    size={16}
-                  />
-                ) : (
-                  <Icon />
-                )}
-                <span>{item.label}</span>
-              </SidebarMenuButton>
-            )
-
-            return (
-              <SidebarMenuItem key={item.path}>
-                {isDisabled ? (
-                  <Tooltip>
-                    <TooltipTrigger asChild>{button}</TooltipTrigger>
-                    <TooltipContent>
-                      <p>{t('nav.favoriteLoginRequired')}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                ) : (
-                  button
-                )}
-              </SidebarMenuItem>
-            )
-          })}
-        </SidebarMenu>
+        {groups.map((group, index) => (
+          <Fragment key={group.id}>
+            {index > 0 && <SidebarSeparator className="mx-0 my-1" />}
+            <SidebarGroup
+              className={index < groups.length - 1 ? 'pb-0' : undefined}
+            >
+              {group.label ? (
+                <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+              ) : null}
+              <SidebarGroupContent>
+                <SidebarMenu>{group.items.map(renderItem)}</SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </Fragment>
+        ))}
       </nav>
     </TooltipProvider>
   )

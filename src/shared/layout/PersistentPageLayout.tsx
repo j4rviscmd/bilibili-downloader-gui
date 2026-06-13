@@ -7,6 +7,7 @@ import { Navigate, useLocation } from 'react-router'
 import { FavoriteContent } from '@/pages/favorite'
 import { HistoryContent } from '@/pages/history'
 import { HomeContent } from '@/pages/home'
+import { TrimContent } from '@/pages/trim'
 import { WatchHistoryContent } from '@/pages/watch-history'
 
 interface PageConfig {
@@ -21,6 +22,11 @@ const PAGES: readonly PageConfig[] = [
   { path: '/history', Component: HistoryContent, maxWidth: true },
   { path: '/favorite', Component: FavoriteContent, maxWidth: true },
   { path: '/watch-history', Component: WatchHistoryContent, maxWidth: true },
+  {
+    path: '/trim',
+    Component: TrimContent,
+    maxWidth: true,
+  },
 ] as const
 
 const VALID_PATHS: readonly string[] = PAGES.map((p) => p.path)
@@ -86,7 +92,7 @@ export function PersistentPageLayout(): ReactElement {
               </ScrollArea>
             ) : (
               <div
-                className={`h-full w-full ${maxWidth ? 'mx-auto max-w-5xl' : ''}`}
+                className={`h-full w-full overflow-hidden ${maxWidth ? 'mx-auto max-w-5xl' : ''}`}
               >
                 <Component />
               </div>
