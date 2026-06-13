@@ -1,20 +1,5 @@
-/**
- * Application entry point.
- *
- * Sets up the React root with all necessary providers:
- * - Redux store provider
- * - Theme provider (with localStorage persistence)
- * - Tauri event listener provider
- * - Updater provider (automatic update checking)
- * - React Router browser router
- * - Error Boundary for unexpected errors
- *
- * Also initializes i18n at startup and sets up global error handlers
- * for unhandled promise rejections.
- */
 import App from '@/App'
 import { ListenerProvider } from '@/app/providers/ListenerContext'
-import { ThemeProvider } from '@/app/providers/ThemeContext'
 import { UpdaterProvider } from '@/app/providers/UpdaterProvider'
 import { store } from '@/app/store'
 import { SplashScreen } from '@/features/splash'
@@ -40,16 +25,14 @@ window.addEventListener('unhandledrejection', (event) => {
 createRoot(document.getElementById('root')!).render(
   <ErrorBoundary>
     <Provider store={store}>
-      <ThemeProvider storageKey="ui-theme">
-        <SplashScreen />
-        <ListenerProvider>
-          <UpdaterProvider>
-            <BrowserRouter>
-              <App />
-            </BrowserRouter>
-          </UpdaterProvider>
-        </ListenerProvider>
-      </ThemeProvider>
+      <SplashScreen />
+      <ListenerProvider>
+        <UpdaterProvider>
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+        </UpdaterProvider>
+      </ListenerProvider>
     </Provider>
   </ErrorBoundary>,
 )

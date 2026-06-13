@@ -37,6 +37,7 @@ use crate::models::qr_login::QrCodeResult;
 use crate::models::qr_login::QrPollResult;
 use crate::models::qr_login::Session;
 use crate::models::settings::Settings;
+use crate::models::settings::UiTheme;
 use crate::store::HistoryStore;
 
 pub mod constants;
@@ -210,8 +211,23 @@ pub fn run() {
                     .expect("Failed to register mcp-bridge plugin");
             }
 
+            // Read settings for window theme before creating the window
+            let window_theme = crate::utils::paths::get_settings_path(app.handle())
+                .exists()
+                .then(|| {
+                    std::fs::read_to_string(crate::utils::paths::get_settings_path(app.handle()))
+                        .ok()
+                        .and_then(|content| serde_json::from_str::<Settings>(&content).ok())
+                        .and_then(|s| s.theme)
+                })
+                .flatten()
+                .map(|t| match t {
+                    UiTheme::Dark => tauri::Theme::Dark,
+                    UiTheme::Light => tauri::Theme::Light,
+                });
+
             // Create main window with saved geometry (prevents startup flash)
-            window::create_main_window(app.handle())?;
+            window::create_main_window(app.handle(), window_theme)?;
 
             // Initialize logging plugin with app_data_dir/logs path
             let log_dir = app

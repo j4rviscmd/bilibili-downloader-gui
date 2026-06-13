@@ -1,4 +1,4 @@
-import { useTheme } from '@/app/providers/ThemeContext'
+import { useSettings } from '@/features/settings'
 import OpenSettingsDialogButton from '@/features/settings/dialog/OpenSettingsDialogButton'
 import SettingsDialog from '@/features/settings/dialog/SettingsDialog'
 import { useUser } from '@/features/user'
@@ -105,7 +105,11 @@ function EnhancedSidebarTrigger({ className }: { className?: string }) {
  */
 export function PageLayoutShell({ children }: PageLayoutShellProps) {
   const { user } = useUser()
-  const { theme, setTheme } = useTheme()
+  const { settings, saveByForm } = useSettings()
+  const theme = settings.theme ?? 'light'
+  const setTheme = (t: 'light' | 'dark') => {
+    saveByForm({ ...settings, theme: t })
+  }
   const { t } = useTranslation()
   const navigate = useNavigate()
   const location = useLocation()

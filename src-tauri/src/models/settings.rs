@@ -144,6 +144,9 @@ pub struct Settings {
     /// Defaults to "copy" (stream copy) if not specified.
     #[serde(rename = "trimMode", default, skip_serializing_if = "Option::is_none")]
     pub trim_mode: Option<TrimMode>,
+    /// UI theme preference. Defaults to system preference if not set.
+    #[serde(rename = "theme", default, skip_serializing_if = "Option::is_none")]
+    pub theme: Option<UiTheme>,
 }
 
 /// Trim mode for the MP4 trimming feature.
@@ -155,6 +158,17 @@ pub enum TrimMode {
     Copy,
     /// Re-encode (libx264), slow but frame-accurate.
     Reencode,
+}
+
+/// UI theme preference for light/dark mode.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum UiTheme {
+    /// Light theme (default).
+    #[default]
+    Light,
+    /// Dark theme.
+    Dark,
 }
 
 /// Supported UI languages.

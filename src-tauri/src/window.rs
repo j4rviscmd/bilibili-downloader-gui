@@ -25,12 +25,15 @@ struct WindowGeometry {
 }
 
 /// Creates the main application window with saved or default geometry.
-pub fn create_main_window(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
+pub fn create_main_window(
+    app: &AppHandle,
+    theme: Option<Theme>,
+) -> Result<(), Box<dyn std::error::Error>> {
     let geometry = read_saved_geometry(app);
 
     let mut builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
         .title(WINDOW_TITLE)
-        .theme(Some(Theme::Light))
+        .theme(theme.or(Some(Theme::Light)))
         .resizable(false)
         .min_inner_size(MIN_WIDTH, MIN_HEIGHT);
 

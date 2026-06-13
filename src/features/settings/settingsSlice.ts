@@ -18,6 +18,7 @@ const initialState: SettingsState = {
   showGithubStars: true,
   fontSize: 16,
   trimMode: 'copy',
+  theme: 'light',
 }
 
 /**

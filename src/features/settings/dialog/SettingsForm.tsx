@@ -334,6 +334,28 @@ function SettingsForm() {
             </FormItem>
           )}
         />
+        <FormItem>
+          <FormLabel>{t('settings.theme_label')}</FormLabel>
+          <RadioGroup
+            value={settings.theme ?? 'light'}
+            onValueChange={(value) => {
+              saveByForm({
+                ...settings,
+                theme: value as 'light' | 'dark',
+              })
+            }}
+            className="flex gap-6"
+          >
+            <div className="flex items-center space-x-3">
+              <RadioGroupItem value="light" id="theme-light" />
+              <Label htmlFor="theme-light">{t('settings.theme_light')}</Label>
+            </div>
+            <div className="flex items-center space-x-3">
+              <RadioGroupItem value="dark" id="theme-dark" />
+              <Label htmlFor="theme-dark">{t('settings.theme_dark')}</Label>
+            </div>
+          </RadioGroup>
+        </FormItem>
         <div className="space-y-3">
           <div className="space-y-0.5">
             <Label>{t('settings.font_size_label')}</Label>

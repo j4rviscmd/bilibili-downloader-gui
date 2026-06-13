@@ -32,7 +32,7 @@ function maskUserName(userName: string | undefined): string {
 
 type Props = {
   readonly user: User
-  readonly theme: 'light' | 'dark' | 'system'
+  readonly theme: 'light' | 'dark'
   readonly setTheme: (theme: 'light' | 'dark') => void
 }
 
