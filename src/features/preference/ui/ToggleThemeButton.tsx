@@ -6,7 +6,7 @@ import { Moon, Sun } from 'lucide-react'
  */
 type Props = {
   /** Current theme mode */
-  theme: 'light' | 'dark' | 'system'
+  theme: 'light' | 'dark'
   /** Function to update the theme */
   setTheme: (theme: 'light' | 'dark') => void
 }

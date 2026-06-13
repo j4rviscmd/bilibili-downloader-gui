@@ -1,8 +1,11 @@
+import { store } from '@/app/store'
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { sleep } from '@/shared/lib/utils'
+
+import { markTauriThemeReady } from '@/features/settings/hooks/useThemeEffect'
 
 import { MIN_DISPLAY_MS } from '../lib/constants'
 import {
@@ -22,22 +25,6 @@ interface SplashLifecycle {
   onFadeComplete: () => void
   /** Whether the minimal (skip-animation) mode is active. Null while loading. */
   skipMode: boolean | null
-}
-
-/**
- * Resolves the user's preferred UI theme from localStorage or the system
- * preference.
- *
- * @returns `'dark'` or `'light'`
- */
-function resolveTheme(): 'dark' | 'light' {
-  const stored = localStorage.getItem('ui-theme') || 'system'
-  if (stored === 'system') {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches
-      ? 'dark'
-      : 'light'
-  }
-  return stored === 'dark' ? 'dark' : 'light'
 }
 
 /**
@@ -109,26 +96,10 @@ export function useSplashLifecycle(): SplashLifecycle {
     if (phase !== 'done') return
     notifySplashDone()
     invoke('enable_window_resize').catch(() => {})
-    getCurrentWindow()
-      .setTheme(resolveTheme())
-      .catch(() => {})
-  }, [phase])
 
-  // Sync Tauri theme when user changes theme after splash
-  useEffect(() => {
-    if (phase !== 'done') return
-
-    const mq = window.matchMedia('(prefers-color-scheme: dark)')
-    const handler = () => {
-      getCurrentWindow()
-        .setTheme(resolveTheme())
-        .catch(() => {})
-    }
-    mq.addEventListener('change', handler)
-
-    return () => {
-      mq.removeEventListener('change', handler)
-    }
+    const theme = store.getState().settings.theme ?? 'light'
+    getCurrentWindow().setTheme(theme).catch(() => {})
+    markTauriThemeReady()
   }, [phase])
 
   const onFadeComplete = useCallback(() => {

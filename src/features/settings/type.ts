@@ -84,9 +84,12 @@ export interface Settings {
    * Defaults to 'copy' if not specified.
    */
   trimMode?: TrimMode
-  // Managed on frontend only, stored in localStorage
-  // TODO: manage theme in json
-  // theme: 'light' | 'dark'
+  /**
+   * UI theme: 'light' or 'dark'.
+   * Persisted to settings.json via Tauri backend.
+   * Defaults to 'light' if not set.
+   */
+  theme?: Theme
 }
 
 /**
@@ -94,6 +97,13 @@ export interface Settings {
  * All rem-based Tailwind utilities scale proportionally.
  */
 export type FontSizePreset = 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20
+
+/**
+ * UI theme preference.
+ * - light: Light theme
+ * - dark: Dark theme
+ */
+export type Theme = 'light' | 'dark'
 
 /**
  * Trim mode for MP4 trimming.
