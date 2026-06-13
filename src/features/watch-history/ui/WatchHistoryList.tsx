@@ -1,4 +1,4 @@
-import { Loader2 } from 'lucide-react'
+import CircleIndicator from '@/shared/ui/CircleIndicator'
 import { useTranslation } from 'react-i18next'
 import { Virtuoso } from 'react-virtuoso'
 import type { WatchHistoryEntry } from '../types'
@@ -55,8 +55,8 @@ export function WatchHistoryList({
 
   if (loading) {
     return (
-      <div className="flex min-h-[400px] items-center justify-center">
-        <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+      <div className="flex h-full items-center justify-center">
+        <CircleIndicator size="lg" />
       </div>
     )
   }
@@ -92,7 +92,7 @@ export function WatchHistoryList({
         Footer: () =>
           loadingMore ? (
             <div className="flex items-center justify-center py-4">
-              <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
+              <CircleIndicator size="md" />
             </div>
           ) : null,
       }}
