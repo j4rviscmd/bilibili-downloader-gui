@@ -558,6 +558,9 @@
     "cancel": "Cancelar",
     "qrSessionDeleted": "Sesión QR eliminada",
     "usingFirefoxCookie": "Usando Firefox Cookie para autenticación",
-    "session_expired": "La sesión ha expirado. Por favor, inicia sesión de nuevo."
+    "session_expired": "La sesión ha expirado. Por favor, inicia sesión de nuevo.",
+    "loginMethodDescription": "Elige cómo se autentica la app con Bilibili. Es necesario reiniciar la app después de cambiar.",
+    "loginMethodChanged": "Método de inicio de sesión actualizado",
+    "restartRequired": "Reinicia la app para que el cambio surta efecto."
   }
 }

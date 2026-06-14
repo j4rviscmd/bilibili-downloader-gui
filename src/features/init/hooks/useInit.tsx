@@ -5,6 +5,7 @@ import {
 } from '@/features/init/model/initSlice'
 import {
   checkCookieRefresh,
+  getLoginMethod,
   loadQrSession,
   qrLogout,
   refreshCookie,
@@ -80,6 +81,10 @@ export const useInit = () => {
 
   /**
    * Type guard to check if a string is a supported language.
+   *
+   * Narrows an opaque `string` (typically read from persisted settings)
+   * to `SupportedLang` so it can be passed to `changeLanguage` without
+   * further runtime checks.
    */
   const isSupportedLang = (lang: string): lang is SupportedLang =>
     (SUPPORTED_LANGS as readonly string[]).includes(lang)
@@ -153,12 +158,13 @@ export const useInit = () => {
       return { code: 1 }
     }
 
-    // Try to restore QR session first (takes priority over Firefox cookies)
-    const hasQrSession = await checkQrSession()
-
-    // Only check Firefox cookies if no QR session was restored
-    if (!hasQrSession) {
-      logger.debug('initApp: No QR session, checking Firefox cookies')
+    // Honor the user-selected login method strictly. No cross-method
+    // fallback: if the user chose QR but has no session, they stay logged
+    // out (and can switch to Firefox in Settings).
+    const loginMethod = await getLoginMethod()
+    if (loginMethod === 'qrCode') {
+      await checkQrSession()
+    } else {
       await checkCookie()
     }
 
@@ -172,6 +178,13 @@ export const useInit = () => {
 
   /**
    * Finalizes initialization by setting flag and sleeping briefly.
+   *
+   * Marks the app as initialized in the Redux store and notifies the splash
+   * screen so it can tear down. The 500ms sleep lets the splash animation
+   * finish naturally unless `skipSplash` is `true`, in which case the sleep
+   * is skipped entirely.
+   *
+   * @param skipSplash - When `true`, omits the 500ms splash-animation pause.
    */
   const finalizeInit = async (skipSplash: boolean): Promise<void> => {
     logger.debug('finalizeInit: Finalizing initialization')
@@ -184,6 +197,14 @@ export const useInit = () => {
 
   /**
    * Applies language setting if different from current.
+   *
+   * Loads the i18n bundle dynamically, compares the persisted language
+   * preference to the active i18n language, and calls `changeLanguage`
+   * when they differ. Status messages are dispatched before and after the
+   * switch. Failures are swallowed because an unsupported language value
+   * should not block startup.
+   *
+   * @param language - Persisted language code. Early return when falsy.
    */
   const applyLanguageSetting = async (
     language: string | undefined,
@@ -242,7 +263,11 @@ export const useInit = () => {
   /**
    * Retrieves application settings and updates the init status message.
    *
-   * @returns The current application settings.
+   * Wraps `useSettings().getSettings` purely so the init screen can show a
+   * localized "fetching settings" message while the Tauri store is read.
+   *
+   * @returns The current application settings, or `undefined` if the
+   * underlying store lookup returns nothing.
    */
   const getAppSettings = async () => {
     setMessage(t('init.fetch_settings'))
@@ -283,27 +308,27 @@ export const useInit = () => {
       // Check if cookie refresh is needed
       const refreshInfo = await checkCookieRefresh()
       logger.info('refreshCookie: refreshInfo')
-      if (refreshInfo.refresh) {
-        try {
-          await refreshCookie()
-          setMessage(t('init.cookie_refreshed', 'Login session refreshed'))
-        } catch (e) {
-          logger.error(
-            'refreshCookie: Cookie refresh failed, clearing session',
-            e,
-          )
-          try {
-            await qrLogout()
-          } catch (logoutErr) {
-            logger.error('refreshCookie: Failed to clear session', logoutErr)
-          }
-          return false
-        }
-      } else {
+      if (!refreshInfo.refresh) {
         setMessage(t('init.qr_session_restored', 'Restored login session'))
+        return true
       }
 
-      return true
+      try {
+        await refreshCookie()
+        setMessage(t('init.cookie_refreshed', 'Login session refreshed'))
+        return true
+      } catch (e) {
+        logger.error(
+          'refreshCookie: Cookie refresh failed, clearing session',
+          e,
+        )
+        try {
+          await qrLogout()
+        } catch (logoutErr) {
+          logger.error('refreshCookie: Failed to clear session', logoutErr)
+        }
+        return false
+      }
     } catch {
       return false
     }

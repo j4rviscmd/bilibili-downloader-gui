@@ -42,6 +42,19 @@ const POLL_INTERVAL_MS = 2000
 const QR_EXPIRY_MS = 180000
 
 /**
+ * Extracts a human-readable message from a thrown value, falling back to a
+ * default.
+ *
+ * @param error - The thrown value. Only `Error` instances expose `.message`;
+ *   all other values (strings, objects, etc.) trigger the fallback.
+ * @param fallback - Message returned when `error` is not an `Error`.
+ * @returns The error message or `fallback`.
+ */
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback
+}
+
+/**
  * Hook that encapsulates the complete QR-code login lifecycle.
  *
  * Manages QR code generation, recursive status polling, session
@@ -86,7 +99,24 @@ export function useLogin() {
     clearTimers()
   }, [clearTimers])
 
-  /** Starts polling for QR code status every 2 seconds until terminal state. */
+  /**
+   * Starts polling for QR code status every {@link POLL_INTERVAL_MS} until a
+   * terminal state (`success`, `expired`, or `error`) is reached.
+   *
+   * Polling is implemented recursively with `setTimeout` instead of
+   * `setInterval` so each request completes before the next one is
+   * scheduled. This prevents overlapping requests that could race and
+   * cause a late poll returning `expired` to overwrite a successful login.
+   *
+   * Guards:
+   * - `isPollingRef` prevents double-starting and short-circuits stale
+   *   callbacks that fire after `stopPolling`.
+   * - `expiryTimeoutRef` auto-expires the QR code after
+   *   {@link QR_EXPIRY_MS} so polling never runs forever even if the API
+   *   keeps returning `waiting`.
+   *
+   * @param qrcodeKey - The polling key returned by `generateQrCode`.
+   */
   const startPolling = useCallback(
     (qrcodeKey: string) => {
       if (isPollingRef.current) return
@@ -121,6 +151,9 @@ export function useLogin() {
 
           if (result.status === 'success') {
             const loginStateResult = await getLoginState()
+            // Backend persists method=qrCode on successful QR login; sync the
+            // local slice so any open SettingsForm reflects the new method.
+            dispatch(setLoginMethod(loginStateResult.method))
             if (loginStateResult.session) {
               dispatch(setSession(loginStateResult.session))
             }
@@ -133,11 +166,7 @@ export function useLogin() {
           }
         } catch (error) {
           if (isPollingRef.current) {
-            dispatch(
-              setError(
-                error instanceof Error ? error.message : 'Polling failed',
-              ),
-            )
+            dispatch(setError(errorMessage(error, 'Polling failed')))
             stopPolling()
           }
         }
@@ -160,11 +189,7 @@ export function useLogin() {
       dispatch(setQrCode({ image: result.qrCodeImage, key: result.qrcodeKey }))
       startPolling(result.qrcodeKey)
     } catch (error) {
-      dispatch(
-        setError(
-          error instanceof Error ? error.message : 'Failed to generate QR code',
-        ),
-      )
+      dispatch(setError(errorMessage(error, 'Failed to generate QR code')))
     } finally {
       dispatch(setQrLoading(false))
     }
@@ -176,9 +201,7 @@ export function useLogin() {
       await qrLogout()
       dispatch(setSession(null))
     } catch (error) {
-      dispatch(
-        setError(error instanceof Error ? error.message : 'Logout failed'),
-      )
+      dispatch(setError(errorMessage(error, 'Logout failed')))
     }
   }, [dispatch])
 
@@ -189,19 +212,17 @@ export function useLogin() {
         await setLoginMethodApi(method)
         dispatch(setLoginMethod(method))
       } catch (error) {
-        dispatch(
-          setError(
-            error instanceof Error
-              ? error.message
-              : 'Failed to change login method',
-          ),
-        )
+        dispatch(setError(errorMessage(error, 'Failed to change login method')))
       }
     },
     [dispatch],
   )
 
-  // Cleanup on unmount
+  /**
+   * Stops any active polling loop and clears timers when the component
+   * unmounts. The ref guard (`isPollingRef`) is flipped first so any
+   * in-flight fetch that resolves after unmount is ignored.
+   */
   useEffect(() => {
     return () => {
       isPollingRef.current = false

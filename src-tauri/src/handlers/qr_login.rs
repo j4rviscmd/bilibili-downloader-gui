@@ -53,17 +53,35 @@ static STORAGE: EncryptedFileStorage = EncryptedFileStorage::new();
 /// In-memory session cache to avoid repeated file reads and key derivation.
 ///
 /// Three-state sentinel: `None` = not initialized, `Some(None)` = no session,
-/// `Some(Some(session))` = session loaded.
+/// `Some(Some(session))` = session loaded. The sentinel is reset back to
+/// `None` by [`delete_session_from_store`] so that the next load attempt
+/// re-reads from disk instead of returning a stale "no session" result.
 static SESSION_CACHE: RwLock<Option<Option<Session>>> = RwLock::new(None);
 
 /// Returns true if running in E2E test mode (bypasses secure storage).
+///
+/// Checks the `E2E_TESTING` environment variable. When enabled, all
+/// session load/save/delete operations become no-ops so tests can run
+/// without touching encrypted files on disk.
 pub fn is_e2e_testing() -> bool {
     std::env::var("E2E_TESTING")
         .map(|v| v == "true")
         .unwrap_or(false)
 }
 
+/// Maps a poisoned-cache lock error to a `String` error.
+///
+/// Used as a convenience to convert the `PoisonError` returned by
+/// [`RwLock::write`](std::sync::RwLock::write) into the module's
+/// `Result<_, String>` signature.
+fn cache_lock_err(e: impl std::fmt::Display) -> String {
+    format!("Failed to access session cache: {}", e)
+}
+
 /// Creates a bilibili cookie entry with the standard host.
+///
+/// All Bilibili cookies use the `.bilibili.com` host; this helper keeps
+/// that knowledge in one place instead of repeating the string literal.
 fn bilibili_cookie(name: &str, value: String) -> CookieEntry {
     CookieEntry {
         host: ".bilibili.com".to_string(),
@@ -87,9 +105,7 @@ fn save_session_to_store(app: &AppHandle, session: &Session) -> Result<(), Strin
 
     // Update cache
     {
-        let mut cache = SESSION_CACHE
-            .write()
-            .map_err(|e| format!("Failed to write cache: {}", e))?;
+        let mut cache = SESSION_CACHE.write().map_err(cache_lock_err)?;
         *cache = Some(Some(session.clone()));
     }
 
@@ -118,9 +134,7 @@ fn load_session_from_store(app: &AppHandle) -> Result<Option<Session>, String> {
     log::info!("[BE] load_session_from_store: loading session");
     // Check cache first
     {
-        let cache = SESSION_CACHE
-            .read()
-            .map_err(|e| format!("Failed to read cache: {}", e))?;
+        let cache = SESSION_CACHE.read().map_err(cache_lock_err)?;
         if let Some(cached) = cache.as_ref() {
             log::info!("[BE] load_session_from_store: returning cached session");
             return Ok(cached.clone());
@@ -130,19 +144,17 @@ fn load_session_from_store(app: &AppHandle) -> Result<Option<Session>, String> {
     // Not cached, read from storage
     let result = STORAGE.load(app);
 
+    // Populate cache based on outcome (keeps two-state sentinel consistent).
+    // On error, leave cache untouched so the next call retries storage.
     match &result {
         Ok(Some(session)) => {
             log::info!("[BE] load_session_from_store: session loaded successfully");
-            let mut cache = SESSION_CACHE
-                .write()
-                .map_err(|e| format!("Failed to write cache: {}", e))?;
+            let mut cache = SESSION_CACHE.write().map_err(cache_lock_err)?;
             *cache = Some(Some(session.clone()));
         }
         Ok(None) => {
             log::info!("[BE] load_session_from_store: no session found");
-            let mut cache = SESSION_CACHE
-                .write()
-                .map_err(|e| format!("Failed to write cache: {}", e))?;
+            let mut cache = SESSION_CACHE.write().map_err(cache_lock_err)?;
             *cache = Some(None);
         }
         Err(e) => log::error!("[BE] load_session_from_store: {}", e),
@@ -164,9 +176,7 @@ fn delete_session_from_store(app: &AppHandle) -> Result<(), String> {
     log::info!("[BE] delete_session_from_store: deleting session");
     // Clear cache first
     {
-        let mut cache = SESSION_CACHE
-            .write()
-            .map_err(|e| format!("Failed to write cache: {}", e))?;
+        let mut cache = SESSION_CACHE.write().map_err(cache_lock_err)?;
         *cache = None;
     }
 
@@ -448,6 +458,11 @@ async fn save_session(app: &AppHandle, session: &Session) -> Result<(), String> 
 }
 
 /// Updates the in-memory cookie cache with QR session cookies.
+///
+/// Replaces the entire [`CookieCache`] contents with the QR session's
+/// cookies so that subsequent Bilibili requests are authenticated.
+/// Includes `buvid3`/`buvid4` only when present, since they are required
+/// for WBI signing but may not have been fetched yet.
 fn update_cookie_cache(app: &AppHandle, session: &Session) {
     let Some(cache) = app.try_state::<CookieCache>() else {
         return;
@@ -509,6 +524,19 @@ pub async fn load_stored_session(app: &AppHandle) -> Result<bool, String> {
     Ok(false)
 }
 
+/// Clears the in-memory cookie cache.
+///
+/// Empties the [`CookieCache`] vector in place. Used during logout and
+/// when switching to the Firefox login method so stale QR cookies do not
+/// leak into subsequent requests.
+fn clear_cookie_cache(app: &AppHandle) {
+    if let Some(cache) = app.try_state::<CookieCache>() {
+        if let Ok(mut guard) = cache.cookies.lock() {
+            guard.clear();
+        }
+    }
+}
+
 /// Logs out by clearing the stored session and cookie cache.
 ///
 /// # Arguments
@@ -519,12 +547,7 @@ pub async fn load_stored_session(app: &AppHandle) -> Result<bool, String> {
 ///
 /// Returns `Ok(())` on success.
 pub async fn logout(app: &AppHandle) -> Result<(), String> {
-    // Clear cookie cache
-    if let Some(cache) = app.try_state::<CookieCache>() {
-        if let Ok(mut guard) = cache.cookies.lock() {
-            guard.clear();
-        }
-    }
+    clear_cookie_cache(app);
 
     // Delete session from encrypted file storage
     delete_session_from_store(app)?;
@@ -549,6 +572,10 @@ pub async fn logout(app: &AppHandle) -> Result<(), String> {
 
 /// Sets the preferred login method.
 ///
+/// When switching to `Firefox`, any QR session artifacts (encrypted session
+/// file and in-memory cookie cache) are cleared. This prevents a stale QR
+/// session from overriding Firefox cookies on the next app startup.
+///
 /// # Arguments
 ///
 /// * `app` - Tauri application handle
@@ -558,6 +585,13 @@ pub async fn logout(app: &AppHandle) -> Result<(), String> {
 ///
 /// Returns `Ok(())` on success.
 pub async fn set_login_method(app: &AppHandle, method: LoginMethod) -> Result<(), String> {
+    if method == LoginMethod::Firefox {
+        if let Err(e) = delete_session_from_store(app) {
+            log::warn!("[BE] set_login_method: failed to delete session: {}", e);
+        }
+        clear_cookie_cache(app);
+    }
+
     let store = app
         .store(STORE_FILE_NAME)
         .map_err(|e| format!("Failed to open store: {}", e))?;
@@ -662,11 +696,26 @@ const CORRESPOND_URL_PREFIX: &str = "https://www.bilibili.com/correspond/1/";
 /// Checks if cookie refresh is needed.
 ///
 /// Calls Bilibili's cookie info API to determine if the current session
-/// needs to be refreshed.
+/// needs to be refreshed. The caller should inspect the `refresh` flag on
+/// the returned [`CookieRefreshInfo`] and invoke [`refresh_cookie`] when it
+/// is `true` to exchange the stored refresh token for a fresh SESSDATA.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle used to read the in-memory cookie
+///   cache.
 ///
 /// # Returns
 ///
-/// Returns `CookieRefreshInfo` with `refresh` flag indicating if refresh is needed.
+/// Returns `Ok(CookieRefreshInfo)` when the API responds successfully.
+/// When the API returns `-101` (session expired server-side), this function
+/// synthesises a refresh request with the current timestamp so the caller
+/// can still attempt a refresh rather than treating the session as dead.
+///
+/// # Errors
+///
+/// Returns an error if the HTTP request fails, the response cannot be
+/// parsed, or the API returns a non-zero code other than `-101`.
 pub async fn check_cookie_refresh(app: &AppHandle) -> Result<CookieRefreshInfo, String> {
     let cookies = get_cookie_header(app);
     log::debug!("[BE] Checking with cookies: {} bytes", cookies.len());
@@ -713,7 +762,18 @@ pub async fn check_cookie_refresh(app: &AppHandle) -> Result<CookieRefreshInfo, 
 
 /// Generates CorrespondPath using RSA-OAEP encryption.
 ///
-/// The path is generated by encrypting `refresh_{timestamp}` with Bilibili's public key.
+/// The path is generated by encrypting `refresh_{timestamp}` with Bilibili's
+/// public key and hex-encoding the resulting ciphertext. The encrypted path
+/// is later appended to [`CORRESPOND_URL_PREFIX`] to fetch `refresh_csrf`.
+///
+/// # Arguments
+///
+/// * `timestamp` - Unix-epoch millisecond timestamp used in the plaintext
+///   payload. Must match the timestamp sent to the refresh endpoint.
+///
+/// # Errors
+///
+/// Returns an error if the public key fails to parse or encryption fails.
 fn generate_correspond_path(timestamp: i64) -> Result<String, String> {
     use base16ct::lower::encode_string;
     use rsa::{pkcs8::DecodePublicKey, Oaep};
@@ -747,7 +807,22 @@ fn generate_correspond_path(timestamp: i64) -> Result<String, String> {
 
 /// Fetches refresh_csrf from Bilibili's correspond endpoint.
 ///
-/// The HTML response contains a div with id '1-name' containing the refresh_csrf token.
+/// The HTML response contains a div with id '1-name' containing the
+/// refresh_csrf token. The token is extracted via a lightweight substring
+/// scan rather than a full HTML parser because the markup is a tiny,
+/// server-controlled fragment.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle used to read the current cookie
+///   header.
+/// * `correspond_path` - Encrypted path segment produced by
+///   [`generate_correspond_path`].
+///
+/// # Errors
+///
+/// Returns an error if the request fails, the response body cannot be
+/// read, or the expected `<div id="1-name">...</div>` element is absent.
 async fn fetch_refresh_csrf(app: &AppHandle, correspond_path: &str) -> Result<String, String> {
     let cookies = get_cookie_header(app);
     let url = format!("{}{}", CORRESPOND_URL_PREFIX, correspond_path);
@@ -807,9 +882,23 @@ async fn fetch_refresh_csrf(app: &AppHandle, correspond_path: &str) -> Result<St
 /// 4. Confirms the refresh
 /// 5. Updates stored session with new cookies and refresh_token
 ///
+/// # Arguments
+///
+/// * `app` - Tauri application handle. The current session is loaded from
+///   the encrypted file store and the in-memory cookie cache is updated in
+///   place before returning.
+///
 /// # Returns
 ///
-/// Returns the new session data on success.
+/// Returns the new [`Session`] on success. The returned session is also
+/// persisted via [`save_session`] so callers do not need to save it again.
+///
+/// # Errors
+///
+/// Returns an error if any of the following fail: loading the current
+/// session, generating the CorrespondPath, fetching or parsing the
+/// `refresh_csrf`, the refresh or confirm HTTP calls, or persisting the
+/// updated session to the encrypted store.
 pub async fn refresh_cookie(app: &AppHandle) -> Result<Session, String> {
     log::info!("[BE] Starting cookie refresh process...");
 
@@ -958,6 +1047,12 @@ pub async fn refresh_cookie(app: &AppHandle) -> Result<Session, String> {
 }
 
 /// Gets the Cookie header value from the cache.
+///
+/// Builds a single `name=value; name=value` string suitable for the
+/// `Cookie` HTTP header from the entries currently held in the
+/// [`CookieCache`]. Returns an empty string when the cache is missing or
+/// locked, which lets callers send an unauthenticated request rather than
+/// surfacing a hard error.
 fn get_cookie_header(app: &AppHandle) -> String {
     let Some(cache) = app.try_state::<CookieCache>() else {
         return String::new();
@@ -974,6 +1069,11 @@ fn get_cookie_header(app: &AppHandle) -> String {
 }
 
 /// Extracts cookies from Set-Cookie headers.
+///
+/// Parses every `Set-Cookie` header on `response`, splitting on the first
+/// `=` to capture the name/value pair and ignoring attribute pairs such as
+/// `Path=` or `HttpOnly`. When the same cookie name appears multiple times,
+/// the last occurrence wins.
 fn extract_cookies_from_response(
     response: &reqwest::Response,
 ) -> std::collections::HashMap<String, String> {
@@ -994,6 +1094,9 @@ fn extract_cookies_from_response(
 }
 
 /// Builds a Cookie header from a HashMap.
+///
+/// Inverse of [`extract_cookies_from_response`]: joins each entry with
+/// `; ` to form a value suitable for the `Cookie` request header.
 fn build_cookie_header(cookies: &std::collections::HashMap<String, String>) -> String {
     cookies
         .iter()
