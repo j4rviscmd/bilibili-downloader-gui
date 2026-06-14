@@ -5,6 +5,7 @@ import {
   clearProgressByDownloadId,
   progressSlice,
   setProgress,
+  setRetrying,
 } from '@/shared/progress/progressSlice'
 import type { Progress } from '@/shared/ui/Progress'
 
@@ -211,6 +212,179 @@ describe('progressSlice', () => {
 
       expect(state).toHaveLength(1)
       expect(state[0].downloadId).toBe('dl-2')
+    })
+  })
+
+  describe('isRetrying propagation', () => {
+    it('should preserve previous isRetrying when payload is undefined', () => {
+      // Simulate retry_download flow: existing entry has isRetrying=true
+      // (set via setRetrying), then a new Emits instance sends Progress
+      // without isRetrying (Rust Option<bool> = None). The existing
+      // isRetrying state must be preserved to avoid flicker.
+      let state = progressSlice.reducer(
+        [],
+        setProgress({ ...baseProgress, percentage: 50 }),
+      )
+      state = progressSlice.reducer(
+        state,
+        setRetrying({
+          downloadId: 'test-dl-1',
+          stage: 'video',
+          isRetrying: true,
+        }),
+      )
+      expect(state[0].isRetrying).toBe(true)
+
+      // New Emits instance emits Progress with isRetrying undefined (None)
+      state = progressSlice.reducer(
+        state,
+        setProgress({ ...baseProgress, percentage: 55 }),
+      )
+      expect(state[0].isRetrying).toBe(true)
+    })
+
+    it('should update isRetrying when explicitly set via setProgress', () => {
+      // CDN rotation path: Emits::set_retrying(true/false) sends Progress
+      // with isRetrying explicitly set. This must overwrite the value.
+      let state = progressSlice.reducer(
+        [],
+        setProgress({ ...baseProgress, percentage: 50 }),
+      )
+      expect(state[0].isRetrying).toBeUndefined()
+
+      // CDN rotation detected → set_retrying(true)
+      state = progressSlice.reducer(
+        state,
+        setProgress({ ...baseProgress, percentage: 50, isRetrying: true }),
+      )
+      expect(state[0].isRetrying).toBe(true)
+
+      // First chunk from new CDN → set_retrying(false)
+      state = progressSlice.reducer(
+        state,
+        setProgress({ ...baseProgress, percentage: 55, isRetrying: false }),
+      )
+      expect(state[0].isRetrying).toBe(false)
+    })
+  })
+
+  describe('setRetrying', () => {
+    it('should update isRetrying for matching downloadId', () => {
+      let state = progressSlice.reducer(
+        [],
+        setProgress({ ...baseProgress, downloadId: 'dl-1' }),
+      )
+      state = progressSlice.reducer(
+        state,
+        setProgress({ ...baseProgress, downloadId: 'dl-2' }),
+      )
+
+      state = progressSlice.reducer(
+        state,
+        setRetrying({
+          downloadId: 'dl-1',
+          isRetrying: true,
+        }),
+      )
+
+      expect(state[0].isRetrying).toBe(true)
+      expect(state[1].isRetrying).toBeUndefined()
+    })
+
+    it('should update isRetrying only for matching stage', () => {
+      let state = progressSlice.reducer(
+        [],
+        setProgress({
+          ...baseProgress,
+          stage: 'audio',
+          percentage: 50,
+        }),
+      )
+      state = progressSlice.reducer(
+        state,
+        setProgress({
+          ...baseProgress,
+          stage: 'video',
+          percentage: 50,
+        }),
+      )
+
+      state = progressSlice.reducer(
+        state,
+        setRetrying({
+          downloadId: 'test-dl-1',
+          stage: 'audio',
+          isRetrying: true,
+        }),
+      )
+
+      expect(state[0].isRetrying).toBe(true) // audio
+      expect(state[1].isRetrying).toBeUndefined() // video
+    })
+
+    it('should update all stages when stage is undefined', () => {
+      let state = progressSlice.reducer(
+        [],
+        setProgress({
+          ...baseProgress,
+          stage: 'audio',
+          percentage: 50,
+        }),
+      )
+      state = progressSlice.reducer(
+        state,
+        setProgress({
+          ...baseProgress,
+          stage: 'video',
+          percentage: 50,
+        }),
+      )
+
+      state = progressSlice.reducer(
+        state,
+        setRetrying({
+          downloadId: 'test-dl-1',
+          isRetrying: true,
+        }),
+      )
+
+      expect(state[0].isRetrying).toBe(true) // audio
+      expect(state[1].isRetrying).toBe(true) // video
+    })
+
+    it('should be a no-op when no entries match', () => {
+      let state = progressSlice.reducer(
+        [],
+        setProgress({ ...baseProgress, downloadId: 'dl-1' }),
+      )
+      const stateBefore = state
+
+      state = progressSlice.reducer(
+        state,
+        setRetrying({
+          downloadId: 'dl-other',
+          isRetrying: true,
+        }),
+      )
+
+      expect(state).toBe(stateBefore)
+    })
+
+    it('should clear isRetrying when set to false', () => {
+      let state = progressSlice.reducer(
+        [],
+        setProgress({ ...baseProgress, isRetrying: true }),
+      )
+      expect(state[0].isRetrying).toBe(true)
+
+      state = progressSlice.reducer(
+        state,
+        setRetrying({
+          downloadId: 'test-dl-1',
+          isRetrying: false,
+        }),
+      )
+      expect(state[0].isRetrying).toBe(false)
     })
   })
 })

@@ -43,6 +43,16 @@ pub struct Progress {
     /// Whether the download has completed
     #[serde(rename = "isComplete")]
     pub is_complete: bool,
+    /// Whether the download is currently retrying (e.g., CDN rotation).
+    /// When true, the frontend hides transfer rate display to avoid flicker
+    /// between pre-retry and post-retry speed values.
+    ///
+    /// `None` means "no explicit signal" — the frontend preserves the
+    /// previous value. This allows retry_download's new `Emits` instance
+    /// (which defaults to `None`) to not clobber a retrying state set
+    /// via the separate `download-retrying` event.
+    #[serde(rename = "isRetrying")]
+    pub is_retrying: Option<bool>,
 }
 
 /// Internal state for progress tracking.
@@ -191,6 +201,41 @@ impl Emits {
         // Get current bytes from watch channel for immediate update
         let bytes = *self.progress_tx.subscribe().borrow();
         // Send immediate update reflecting stage change
+        Self::send_progress_locked(&self.app, &mut guard, bytes);
+    }
+
+    /// Resets speed tracking state after CDN rotation or retry.
+    ///
+    /// Clears the EMA-smoothed speed and recalibrates the speed measurement
+    /// baseline to the current byte count. This prevents the previous CDN's
+    /// low speed from being carried over to the new CDN via EMA smoothing,
+    /// which would otherwise cause speed display flicker.
+    ///
+    /// Note: `last_downloaded_bytes` is intentionally not reset because the
+    /// frontend clamps `downloaded`/`percentage` monotonically; resetting it
+    /// here would cause the next tick to treat rolled-back bytes as new data.
+    pub async fn reset_speed_tracking(&self) {
+        let mut guard = self.inner.lock().await;
+        let current_bytes = *self.progress_tx.subscribe().borrow();
+        guard.smoothed_speed_kbps = 0.0;
+        guard.last_speed_calc_instant = Instant::now();
+        guard.last_speed_calc_bytes = current_bytes;
+    }
+
+    /// Sets the retrying flag and emits an immediate update.
+    ///
+    /// When `retrying` is true, the frontend hides the transfer rate display
+    /// to avoid flicker between pre-retry and post-retry speed values. When
+    /// set back to false (e.g., on first chunk from the new CDN), normal
+    /// speed display resumes.
+    ///
+    /// # Arguments
+    ///
+    /// * `retrying` - Whether the download is currently retrying
+    pub async fn set_retrying(&self, retrying: bool) {
+        let mut guard = self.inner.lock().await;
+        guard.progress.is_retrying = Some(retrying);
+        let bytes = *self.progress_tx.subscribe().borrow();
         Self::send_progress_locked(&self.app, &mut guard, bytes);
     }
 

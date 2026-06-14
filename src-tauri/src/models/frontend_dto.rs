@@ -227,3 +227,25 @@ pub struct SubtitleDto {
     /// None for manually created subtitles.
     pub ai_type: Option<u8>,
 }
+
+/// Retry state notification sent to the frontend.
+///
+/// Emitted via the `download-retrying` event when `retry_download` starts
+/// a new attempt after a failure. Unlike the `progress` event, this only
+/// carries retry state, leaving all other progress fields untouched on the
+/// frontend. This avoids side effects where re-sending a full `Progress`
+/// payload would reset `filesize`/`downloaded` to `None`.
+///
+/// CDN rotation inside `download_url` does NOT use this event; it sets
+/// `is_retrying` directly on the `Progress` payload via `Emits::set_retrying`.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DownloadRetrying {
+    /// Unique identifier for this download operation
+    pub download_id: String,
+    /// Current download stage (e.g., "audio", "video"). When `None`, the
+    /// frontend applies the retry state to all stages for this download.
+    pub stage: Option<String>,
+    /// Whether the download is currently retrying
+    pub is_retrying: bool,
+}

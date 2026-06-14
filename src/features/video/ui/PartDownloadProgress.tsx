@@ -96,7 +96,11 @@ function StageProgress({
     <div className={`flex ${MIN_HEIGHT} items-center gap-1`}>
       <StageIcon icon={icon} label={stageLabel} fontWeight="medium" />
       <span>{progress.percentage.toFixed(0)}%</span>
-      <span>{formatTransferRate(progress.transferRate || 0)}</span>
+      <span>
+        {progress.isRetrying
+          ? '--MB/s'
+          : formatTransferRate(progress.transferRate || 0)}
+      </span>
       {progress.filesize != null && (
         <span>
           {progress.downloaded?.toFixed(1) ?? '0'}mb/

@@ -69,13 +69,46 @@ export const progressSlice = createSlice({
         const downloaded = payload.isComplete
           ? payload.downloaded
           : Math.max(prev.downloaded, payload.downloaded)
+        // isRetrying is preserved when undefined (Rust sends Option<bool>).
+        // CDN rotation explicitly sets Some(true)/Some(false); retry_download
+        // leaves it None so it doesn't clobber state set via setRetrying.
+        const isRetrying = payload.isRetrying ?? prev.isRetrying
         state[idx] = {
           ...payload,
           internalId,
           parentId: payload.downloadId,
           percentage,
           downloaded,
+          isRetrying,
         }
+      }
+    },
+    /**
+     * Updates the retrying flag for progress entries matching the given
+     * download (and optionally stage).
+     *
+     * Driven by the `download-retrying` event emitted from `retry_download`
+     * in the Rust backend. Unlike `setProgress`, this only updates
+     * `isRetrying` and leaves all other fields untouched, avoiding the
+     * side effect of resetting `filesize`/`downloaded` to null when
+     * sending a partial Progress payload.
+     *
+     * @param state - Current progress array
+     * @param action - Action containing downloadId, optional stage, and isRetrying
+     */
+    setRetrying(
+      state,
+      action: PayloadAction<{
+        downloadId: string
+        stage?: string
+        isRetrying: boolean
+      }>,
+    ) {
+      const { downloadId, stage, isRetrying } = action.payload
+      for (const p of state) {
+        if (p.downloadId !== downloadId) continue
+        if (stage && p.stage !== stage) continue
+        p.isRetrying = isRetrying
       }
     },
     /**
@@ -99,8 +132,12 @@ export const progressSlice = createSlice({
   },
 })
 
-export const { setProgress, clearProgress, clearProgressByDownloadId } =
-  progressSlice.actions
+export const {
+  setProgress,
+  setRetrying,
+  clearProgress,
+  clearProgressByDownloadId,
+} = progressSlice.actions
 export default progressSlice.reducer
 
 /**

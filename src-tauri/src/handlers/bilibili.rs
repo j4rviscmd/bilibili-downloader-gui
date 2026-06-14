@@ -159,8 +159,8 @@ use crate::models::bilibili_api::{
 };
 use crate::models::cookie::CookieEntry;
 use crate::models::frontend_dto::{
-    Quality, SubtitleDto, Thumbnail, UserData, Video, VideoPart, WatchHistoryCursor,
-    WatchHistoryEntry,
+    DownloadRetrying, Quality, SubtitleDto, Thumbnail, UserData, Video, VideoPart,
+    WatchHistoryCursor, WatchHistoryEntry,
 };
 use crate::utils::downloads::download_url;
 use crate::utils::paths::get_lib_path;
@@ -408,7 +408,7 @@ async fn download_bangumi_durl(
     }
 
     // Download directly
-    retry_download(|| {
+    retry_download(app, &options.download_id, Some("video"), || {
         download_url(
             app,
             video_url.clone(),
@@ -556,7 +556,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
                 ensure_free_space(&output_path, vs + 5 * 1024 * 1024)?;
             }
 
-            retry_download(|| {
+            retry_download(app, &options.download_id, Some("video"), || {
                 download_url(
                     app,
                     video_url.clone(),
@@ -658,7 +658,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
 
         // Download audio and video in parallel (cancel immediately if either fails)
         tokio::try_join!(
-            retry_download(|| {
+            retry_download(app, &options.download_id, Some("audio"), || {
                 download_url(
                     app,
                     audio_url.clone(),
@@ -671,7 +671,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
                     false, // emit_complete: will be emitted after merge
                 )
             }),
-            retry_download(|| {
+            retry_download(app, &options.download_id, Some("video"), || {
                 download_url(
                     app,
                     video_url.clone(),
@@ -1682,8 +1682,20 @@ fn ensure_free_space(target_path: &Path, needed_bytes: u64) -> Result<(), String
 /// - Backoff strategy: Linear (500ms, 1000ms, 1500ms)
 /// - Final failure is wrapped as `ERR::NETWORK::{original_message}`
 ///
+/// # Retry State Notification
+///
+/// Emits `download-retrying` events to notify the frontend of retry state
+/// changes. Before each retry attempt (attempt > 1), an event with
+/// `is_retrying: true` is sent so the frontend can hide the transfer rate
+/// display. On success or final failure, `is_retrying: false` is sent to
+/// resume normal display.
+///
 /// # Arguments
 ///
+/// * `app` - Tauri application handle for event emission
+/// * `download_id` - Unique identifier for this download
+/// * `stage` - Current download stage ("audio" or "video"); when `None`,
+///   the frontend applies retry state to all stages for this download
 /// * `f` - Async closure that performs the download operation
 ///
 /// # Returns
@@ -1695,7 +1707,12 @@ fn ensure_free_space(target_path: &Path, needed_bytes: u64) -> Result<(), String
 /// Returns errors in the following cases:
 /// - All retry attempts failed (wrapped as `ERR::NETWORK::*`)
 /// - Error contains `ERR::` prefix (passed through unchanged)
-async fn retry_download<F, Fut>(mut f: F) -> Result<(), String>
+async fn retry_download<F, Fut>(
+    app: &AppHandle,
+    download_id: &str,
+    stage: Option<&str>,
+    mut f: F,
+) -> Result<(), String>
 where
     F: FnMut() -> Fut,
     Fut: std::future::Future<Output = Result<(), anyhow::Error>>,
@@ -1703,15 +1720,38 @@ where
     const MAX_ATTEMPTS: u8 = 3;
     const BACKOFF_BASE_MS: u64 = 500;
 
+    let emit_retrying = |is_retrying: bool| {
+        let _ = app.emit(
+            "download-retrying",
+            DownloadRetrying {
+                download_id: download_id.to_string(),
+                stage: stage.map(|s| s.to_string()),
+                is_retrying,
+            },
+        );
+    };
+
     for attempt in 1..=MAX_ATTEMPTS {
+        if attempt > 1 {
+            // Notify frontend to hide transfer rate display during retry.
+            emit_retrying(true);
+        }
         match f().await {
-            Ok(_) => return Ok(()),
+            Ok(_) => {
+                if attempt > 1 {
+                    emit_retrying(false);
+                }
+                return Ok(());
+            }
             Err(e) => {
                 let msg = e.to_string();
 
                 // ERR:: prefix = business logic error, never retry
                 if msg.contains("ERR::") {
                     log::warn!("[BE] retry_download: non-retryable: {msg}");
+                    if attempt > 1 {
+                        emit_retrying(false);
+                    }
                     return Err(msg);
                 }
 
@@ -1719,6 +1759,9 @@ where
                 // Retry unconditionally; final attempt wraps as ERR::NETWORK.
                 if attempt >= MAX_ATTEMPTS {
                     log::error!("[BE] retry_download: exhausted {MAX_ATTEMPTS} attempts: {msg}");
+                    if attempt > 1 {
+                        emit_retrying(false);
+                    }
                     return Err(format!("ERR::NETWORK::{msg}"));
                 }
 
