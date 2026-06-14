@@ -72,6 +72,8 @@ export type Input = {
   partInputs: PartInput[]
   /** Pending download from watch history navigation */
   pendingDownload: PendingDownload | null
+  /** Last viewed home page number (1-indexed). Used to restore page on home button click during downloads. */
+  homePage: number
 }
 
 /**

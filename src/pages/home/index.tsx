@@ -9,6 +9,7 @@ import {
   DownloadButton,
   selectHasSelectedParts,
   selectPageAll,
+  setHomePage,
   useVideoInfo,
   VideoForm1,
   VideoInfoProvider,
@@ -479,10 +480,13 @@ function HomeContentInner() {
 
     if (prevPending && !input.pendingDownload) {
       const targetIndex = prevPending.page - 1
+      const targetPage = Math.ceil(prevPending.page / PARTS_PER_PAGE)
+      // Persist target page so the sidebar Home button restores it
+      dispatch(setHomePage(targetPage))
       setScrollToPartIndex(targetIndex)
       setScrollRequestId((prev) => prev + 1)
     }
-  }, [input.pendingDownload, video.parts.length, isFetching])
+  }, [input.pendingDownload, video.parts.length, isFetching, dispatch])
 
   /**
    * Performs the actual page change without confirmation.
@@ -495,12 +499,14 @@ function HomeContentInner() {
       newParams.delete('p')
       newParams.set('page', String(page))
       setSearchParams(newParams, { replace: true })
+      // Persist page so the sidebar Home button restores it
+      dispatch(setHomePage(page))
       const cardContent = document.querySelector('[data-part-list]')
       if (cardContent) {
         cardContent.scrollTop = 0
       }
     },
-    [searchParams, setSearchParams],
+    [searchParams, setSearchParams, dispatch],
   )
 
   /**
