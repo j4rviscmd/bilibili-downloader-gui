@@ -9,6 +9,7 @@ import { setOpenDialog, setSettings } from '@/features/settings/settingsSlice'
 import type { Settings } from '@/features/settings/type'
 import type { SupportedLang } from '@/i18n'
 import { changeLanguage } from '@/shared/i18n'
+import { logger } from '@/shared/lib/logger'
 import { t as staticT, t } from 'i18next'
 import { toast } from 'sonner'
 
@@ -31,29 +32,38 @@ import { toast } from 'sonner'
  *
  * // Save settings from form
  * await saveByForm({ dlOutputPath: '/downloads', language: 'en' })
+ *
+ * // Save settings silently (no toast notifications)
+ * await saveByForm({ theme: 'dark' }, true)
  * ```
  */
 export const useSettings = () => {
   const settings = useSelector((state) => state.settings)
 
   /**
-   * Saves settings from the form with toast notifications.
+   * Saves settings from the form with optional toast notifications.
    *
    * Attempts to save settings via `updateSettings`. On success, displays
-   * a success toast. On failure, parses backend error codes and displays
-   * localized error messages (e.g., 'ERR:SETTINGS_PATH_NOT_DIRECTORY').
+   * a success toast (unless silent mode is enabled). On failure, parses
+   * backend error codes and displays localized error messages
+   * (e.g., 'ERR:SETTINGS_PATH_NOT_DIRECTORY').
    *
    * @param settings - The settings object to save
+   * @param silent - If true, suppresses toast notifications for both
+   *   success and error cases. Errors are still logged to console.
    */
-  const saveByForm = async (settings: Settings): Promise<void> => {
+  const saveByForm = async (
+    settings: Settings,
+    silent = false,
+  ): Promise<void> => {
     try {
-      const isSuccessful = await updateSettings(settings)
-      if (isSuccessful) {
+      await updateSettings(settings)
+      if (!silent) {
         toast.success(staticT('settings.save_success', 'Settings saved'))
-        return
       }
     } catch (e) {
       const raw = String(e)
+      logger.error('Failed to save settings', e)
       // Prefer single-colon format returned by settings.rs
       //   ERR:SETTINGS_PATH_NOT_DIRECTORY
       //   ERR:SETTINGS_PATH_NOT_EXIST
@@ -70,11 +80,13 @@ export const useSettings = () => {
       else if (raw.includes('ERR::DISK_FULL')) messageKey = 'settings.disk_full'
 
       const description = messageKey ? staticT(messageKey) : raw
-      toast.error(t('settings.save_failed_generic'), {
-        duration: 10000,
-        description,
-        closeButton: true,
-      })
+      if (!silent) {
+        toast.error(t('settings.save_failed_generic'), {
+          duration: 10000,
+          description,
+          closeButton: true,
+        })
+      }
     }
   }
 
