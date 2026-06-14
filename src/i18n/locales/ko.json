@@ -10,6 +10,7 @@
     "watchHistory": "시청 기록",
     "favorite": "즐겨찾기",
     "trim": "트림",
+    "concat": "병합",
     "init": "초기화",
     "error": "오류",
     "favoriteLoginRequired": "로그인 후 이용할 수 있습니다",
@@ -24,6 +25,7 @@
       "watchHistory": "시청 기록으로 이동",
       "favorite": "즐겨찾기 페이지로 이동",
       "trim": "트림 페이지로 이동",
+      "concat": "병합 페이지로 이동",
       "toggleSidebar": "사이드바 토글",
       "openSidebar": "사이드바 열기",
       "closeSidebar": "사이드바 닫기"
@@ -73,6 +75,40 @@
       "fastBadge": "권장",
       "accurate": "정밀 (재인코딩)",
       "accurateHint": "재인코딩으로 시간이 걸립니다"
+    }
+  },
+  "concat": {
+    "title": "비디오 병합",
+    "description": "여러 비디오 파일을 하나로 병합합니다.",
+    "addFiles": "파일 추가",
+    "noFilesSelected": "선택된 파일이 없습니다",
+    "fileList": "파일 목록",
+    "dragToReorder": "드래그하여 순서 변경",
+    "outputFile": "출력 파일",
+    "chooseOutput": "저장 위치 선택",
+    "noOutputSelected": "저장 경로가 선택되지 않았습니다",
+    "concat": "병합",
+    "concatting": "병합 중...",
+    "clear": "지우기",
+    "success": "병합이 완료되었습니다",
+    "failed": "병합에 실패했습니다",
+    "fallbackNotice": "스트림 복사에 실패했습니다. 재인코딩으로 재시도 중...",
+    "dragToReorderAria": "{{index}}번 항목을 드래그하여 순서 변경",
+    "removeFileAria": "{{filename}} 삭제",
+    "openFolder": "폴더 열기",
+    "elapsed": "경과",
+    "remaining": "남음",
+    "error": {
+      "no_files": "선택된 파일이 없습니다",
+      "single_file": "최소 두 개의 파일이 필요합니다",
+      "duplicate_paths": "중복된 파일 경로가 감지되었습니다",
+      "too_few_files": "최소 두 개의 파일이 필요합니다",
+      "file_not_found": "파일을 찾을 수 없습니다",
+      "unsupported_format": "지원하지 않는 파일 형식입니다 (MP4만 지원)",
+      "unsupported_output_format": "출력 파일은 MP4 형식이어야 합니다",
+      "output_collision": "출력 경로가 입력 파일과 충돌합니다",
+      "ffmpeg_failed": "ffmpeg 실행에 실패했습니다",
+      "reencode_failed": "재인코딩에 실패했습니다"
     }
   },
   "actions": {

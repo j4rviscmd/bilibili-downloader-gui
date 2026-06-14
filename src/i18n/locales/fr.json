@@ -10,6 +10,7 @@
     "watchHistory": "Historique de visionnage",
     "favorite": "Favoris",
     "trim": "Découper",
+    "concat": "Concaténer",
     "init": "Initialisation",
     "error": "Erreur",
     "favoriteLoginRequired": "Disponible après connexion",
@@ -24,6 +25,7 @@
       "watchHistory": "Accéder à l'historique de visionnage",
       "favorite": "Accéder aux favoris",
       "trim": "Accéder à la page de découpage",
+      "concat": "Accéder à la page de concaténation",
       "toggleSidebar": "Basculer la barre latérale",
       "openSidebar": "Ouvrir la barre latérale",
       "closeSidebar": "Fermer la barre latérale"
@@ -73,6 +75,40 @@
       "fastBadge": "Recommandé",
       "accurate": "Précis (Réencodage)",
       "accurateHint": "Plus lent en raison du réencodage"
+    }
+  },
+  "concat": {
+    "title": "Concaténer les vidéos",
+    "description": "Combine plusieurs fichiers vidéo en un seul.",
+    "addFiles": "Ajouter des fichiers",
+    "noFilesSelected": "Aucun fichier sélectionné",
+    "fileList": "Liste des fichiers",
+    "dragToReorder": "Glisser pour réorganiser",
+    "outputFile": "Fichier de sortie",
+    "chooseOutput": "Choisir la destination",
+    "noOutputSelected": "Aucune destination sélectionnée",
+    "concat": "Concaténer",
+    "concatting": "Concaténation...",
+    "clear": "Effacer",
+    "success": "Concaténation terminée",
+    "failed": "Échec de la concaténation",
+    "fallbackNotice": "La copie de flux a échoué. Nouvelle tentative avec réencodage...",
+    "dragToReorderAria": "Glisser pour réordonner l'élément {{index}}",
+    "removeFileAria": "Supprimer {{filename}}",
+    "openFolder": "Ouvrir le dossier",
+    "elapsed": "Écoulé",
+    "remaining": "Restant",
+    "error": {
+      "no_files": "Aucun fichier sélectionné",
+      "single_file": "Au moins deux fichiers sont requis",
+      "duplicate_paths": "Des chemins de fichier en double ont été détectés",
+      "too_few_files": "Au moins deux fichiers sont requis",
+      "file_not_found": "Fichier introuvable",
+      "unsupported_format": "Format de fichier non pris en charge (MP4 uniquement)",
+      "unsupported_output_format": "Le fichier de sortie doit être au format MP4",
+      "output_collision": "Le chemin de sortie est en conflit avec un fichier d'entrée",
+      "ffmpeg_failed": "Échec de l'exécution de ffmpeg",
+      "reencode_failed": "Échec du réencodage"
     }
   },
   "actions": {

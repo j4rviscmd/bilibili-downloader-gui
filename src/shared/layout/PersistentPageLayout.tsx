@@ -4,6 +4,7 @@ import type { FC, ReactElement } from 'react'
 import { useEffect, useState } from 'react'
 import { Navigate, useLocation } from 'react-router'
 
+import { ConcatContent } from '@/pages/concat'
 import { FavoriteContent } from '@/pages/favorite'
 import { HistoryContent } from '@/pages/history'
 import { HomeContent } from '@/pages/home'
@@ -25,6 +26,11 @@ const PAGES: readonly PageConfig[] = [
   {
     path: '/trim',
     Component: TrimContent,
+    maxWidth: true,
+  },
+  {
+    path: '/concat',
+    Component: ConcatContent,
     maxWidth: true,
   },
 ] as const

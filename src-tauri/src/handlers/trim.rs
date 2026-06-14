@@ -10,6 +10,8 @@
 //! This module is independent of the Bilibili download pipeline: it operates
 //! only on local files specified by absolute paths.
 
+use crate::utils::ffmpeg_probe::probe_duration_sec;
+use crate::utils::ffmpeg_progress::parse_out_time;
 use crate::utils::paths::get_ffmpeg_path;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -233,54 +235,6 @@ fn compute_total_duration(start: Option<f64>, end: Option<f64>) -> Option<f64> {
     }
 }
 
-/// Parses an `out_time=HH:MM:SS.fraction` line from ffmpeg's `-progress`
-/// output into seconds. Returns `None` for unrelated lines or malformed
-/// timestamps.
-fn parse_out_time(line: &str) -> Option<f64> {
-    let s = line.strip_prefix("out_time=")?.trim();
-    parse_hhmmss(s)
-}
-
-/// Parses an `HH:MM:SS.fraction` timestamp into seconds.
-fn parse_hhmmss(s: &str) -> Option<f64> {
-    let parts: Vec<&str> = s.split(':').collect();
-    if parts.len() != 3 {
-        return None;
-    }
-    let h: f64 = parts[0].parse().ok()?;
-    let m: f64 = parts[1].parse().ok()?;
-    let sec: f64 = parts[2].parse().ok()?;
-    Some(h * 3600.0 + m * 60.0 + sec)
-}
-
-/// Probes the duration of `input_path` in seconds by running `ffmpeg -i`
-/// and parsing the `Duration: HH:MM:SS.xx` line from stderr.
-///
-/// Used when only a start time is supplied so we can still compute a
-/// progress percentage. Returns `None` on any parse failure — the caller
-/// falls back to no progress events.
-async fn probe_input_duration_sec(ffmpeg_path: &Path, input_path: &str) -> Option<f64> {
-    let mut cmd = AsyncCommand::new(ffmpeg_path);
-    cmd.arg("-i").arg(input_path);
-
-    #[cfg(target_os = "windows")]
-    {
-        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        cmd.creation_flags(CREATE_NO_WINDOW);
-    }
-
-    let output = cmd.output().await.ok()?;
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    for line in stderr.lines() {
-        if let Some(idx) = line.find("Duration:") {
-            let rest = &line[idx + "Duration:".len()..];
-            let token = rest.trim().split([',', ' ']).next()?;
-            return parse_hhmmss(token);
-        }
-    }
-    None
-}
-
 /// Validates inputs and runs ffmpeg to produce the trimmed output.
 ///
 /// # Errors
@@ -346,7 +300,7 @@ pub async fn trim_video(app: &AppHandle, options: &TrimOptions) -> Result<TrimRe
             // start-only case: probe input duration, then subtract start
             // so the bar reflects the actual trim length.
             if let Some(start) = options.start_time {
-                probe_input_duration_sec(&ffmpeg_path, &input_str)
+                probe_duration_sec(&ffmpeg_path, &input_str)
                     .await
                     .map(|d| (d - start).max(0.0))
             } else {
@@ -580,32 +534,5 @@ mod tests {
     #[test]
     fn compute_total_duration_clamps_negative() {
         assert_eq!(compute_total_duration(Some(100.0), Some(50.0)), Some(0.0));
-    }
-
-    #[test]
-    fn parse_out_time_seconds() {
-        assert_eq!(parse_out_time("out_time=00:00:12.500000\n"), Some(12.5));
-    }
-
-    #[test]
-    fn parse_out_time_with_hours() {
-        assert_eq!(parse_out_time("out_time=01:02:03.000000\n"), Some(3723.0));
-    }
-
-    #[test]
-    fn parse_out_time_ignores_other_keys() {
-        assert_eq!(parse_out_time("frame=123\n"), None);
-        assert_eq!(parse_out_time("out_time_ms=12345678\n"), None);
-    }
-
-    #[test]
-    fn parse_hhmmss_with_fraction() {
-        assert_eq!(parse_hhmmss("00:01:23.450000"), Some(83.45));
-    }
-
-    #[test]
-    fn parse_hhmmss_rejects_short_input() {
-        assert_eq!(parse_hhmmss("01:23"), None);
-        assert_eq!(parse_hhmmss("not a time"), None);
     }
 }
