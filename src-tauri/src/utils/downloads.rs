@@ -58,7 +58,15 @@ fn map_io_error(e: std::io::Error) -> anyhow::Error {
     }
 }
 
-/// Adds cookie header to a request builder if provided.
+/// Adds a Cookie header to a request builder when credentials are supplied.
+///
+/// This is a no-op when `cookie` is `None` or empty. Returns the modified
+/// `RequestBuilder` for chaining.
+///
+/// # Arguments
+///
+/// * `req` - Request builder to attach the header to
+/// * `cookie` - Optional cookie header value
 fn apply_cookie(mut req: RequestBuilder, cookie: &Option<String>) -> RequestBuilder {
     if let Some(c) = cookie {
         req = req.header(header::COOKIE, c);
@@ -66,8 +74,22 @@ fn apply_cookie(mut req: RequestBuilder, cookie: &Option<String>) -> RequestBuil
     req
 }
 
-/// Checks if cancellation has been requested.
-/// Returns an error if the token exists and is cancelled.
+/// Checks whether a download cancellation has been requested.
+///
+/// Returns `Err` with `ERR::CANCELLED` when a cancellation token exists and
+/// has already been triggered. Used at strategic checkpoints (file
+/// existence, before each chunk write, before retry attempts) to short
+/// circuit in-flight downloads.
+///
+/// # Arguments
+///
+/// * `token` - Optional cancellation token registered via
+///   `DOWNLOAD_CANCEL_REGISTRY`
+///
+/// # Returns
+///
+/// - `Ok(())` if no token is registered or the token is not cancelled.
+/// - `Err` containing `ERR::CANCELLED` when cancellation has been requested.
 fn check_cancelled(token: &Option<CancellationToken>) -> Result<()> {
     if let Some(t) = token {
         if t.is_cancelled() {
@@ -77,11 +99,18 @@ fn check_cancelled(token: &Option<CancellationToken>) -> Result<()> {
     Ok(())
 }
 
-/// Speed check result.
+/// Outcome of a time-based download speed check.
+///
+/// Produced by [`check_download_speed`] to signal whether the current
+/// throughput should continue, trigger a CDN rotation, or wait for more
+/// data before evaluating.
 enum SpeedCheckResult {
-    Acceptable,       // Speed is acceptable, continue download
-    Slow,             // Speed is too slow, should reconnect
-    InsufficientData, // Not enough data or time for speed check
+    /// Throughput is at or above [`MIN_SPEED_THRESHOLD`]; continue as-is.
+    Acceptable,
+    /// Throughput is below threshold and CDN rotations remain; reconnect.
+    Slow,
+    /// Not enough elapsed time or bytes received yet for a reliable check.
+    InsufficientData,
 }
 
 /// Checks if download speed meets minimum threshold.
@@ -135,10 +164,60 @@ fn check_download_speed(
     SpeedCheckResult::Acceptable
 }
 
-/// Downloads a file from URL with CDN rotation support.
+/// Downloads a file from a URL with automatic CDN rotation and retry.
+///
+/// Orchestrates the full segmented download pipeline used for audio and
+/// video streams:
+///
+/// 1. Resolves and registers a cancellation token via
+///    `DOWNLOAD_CANCEL_REGISTRY`.
+/// 2. Handles existing file (override or error) and probes total size
+///    using [`fetch_total_size`].
+/// 3. Falls back to [`single_stream_fallback`] when the server does not
+///    advertise `Accept-Ranges`/Content-Length.
+/// 4. Splits the payload into 8 MB segments (concurrency pinned to 1
+///    because Bilibili's CDN is unstable with parallel range requests).
+/// 5. Pre-allocates the output file and emits progress updates via
+///    [`Emits`] to the frontend.
+/// 6. Streams each segment through [`download_segment_with_speed_check`],
+///    transparently rotating CDN URLs when throughput drops below
+///    [`MIN_SPEED_THRESHOLD`] and rolling back any progress that was
+///    already reported for a segment being retried.
+/// 7. Verifies the final byte count against the advertised total and
+///    emits either `complete` or `stop` to the frontend.
 ///
 /// When download speed drops below threshold, automatically switches to
 /// backup CDN URLs if provided. Supports cancellation via global registry.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle used for event emission
+/// * `url` - Primary CDN URL to download from
+/// * `backup_urls` - Optional list of backup CDN URLs for rotation
+/// * `output_path` - Destination file path
+/// * `cookie` - Optional Cookie header value for authenticated requests
+/// * `is_override` - When `true`, overwrites an existing file; otherwise
+///   returns `ERR::FILE_EXISTS`
+/// * `download_id` - Optional unique ID used to register a cancellation
+///   token and scope emitted events
+/// * `override_stage` - Optional stage label (e.g., `"audio"`, `"video"`)
+///   forced onto the emitter regardless of filename
+/// * `emit_complete` - When `true`, emits the `complete` event on success;
+///   when `false`, calls `Emits::stop` to terminate the progress task
+///   without notifying the frontend (used for intermediate temp files
+///   that are merged later)
+///
+/// # Returns
+///
+/// Returns `Ok(())` on successful download and verification.
+///
+/// # Errors
+///
+/// Returns an anyhow error in the following cases:
+/// - `ERR::FILE_EXISTS` - File already exists and `is_override` is `false`
+/// - `ERR::CANCELLED` - Download was cancelled via the registry
+/// - Segment or final size mismatch after exhausting retries
+/// - Disk I/O failure (mapped to `ERR::DISK_FULL` for ENOSPC)
 #[allow(clippy::too_many_arguments)]
 pub async fn download_url(
     app: &AppHandle,
@@ -261,6 +340,8 @@ pub async fn download_url(
             const MAX_SEG_RETRIES: u8 = 3;
             let size = e - s + 1;
             let mut cdn_rotation_count: u8 = 0;
+            let max_cdn_rotations: u8 =
+                (cdn_urls_c.len().min(255) as u8).saturating_mul(MAX_CDN_LOOPS);
             // Track bytes this segment has added to dl_total_c
             // for rollback on retry
             let seg_bytes_added = Arc::new(AtomicU64::new(0));
@@ -303,6 +384,14 @@ pub async fn download_url(
                                 && size == resp.content_length().unwrap_or(size));
 
                         if !is_valid_response {
+                            log::warn!(
+                                "[BE] download_url: segment {} invalid status {} (attempt {}/{}, cdn_idx={})",
+                                idx,
+                                resp.status(),
+                                attempt + 1,
+                                MAX_SEG_RETRIES,
+                                cdn_idx
+                            );
                             if attempt < MAX_SEG_RETRIES {
                                 backoff_sleep(attempt).await;
                                 continue;
@@ -347,23 +436,59 @@ pub async fn download_url(
                                     cdn_idx,
                                     next_cdn_idx,
                                     cdn_rotation_count + 1,
-                                    (cdn_urls_c.len().min(255) as u8).saturating_mul(MAX_CDN_LOOPS)
+                                    max_cdn_rotations
                                 );
                                 cdn_rotation_count += 1;
                                 backoff_sleep(cdn_rotation_count).await;
                                 continue;
                             }
                             Err(_) => {
+                                log::warn!(
+                                    "[BE] download_url: segment {} download failed (attempt {}/{}, cdn_idx={})",
+                                    idx,
+                                    attempt + 1,
+                                    MAX_SEG_RETRIES,
+                                    cdn_idx
+                                );
                                 return Err(anyhow::anyhow!("segment {} download failed", idx))
                             }
                         };
 
                         // Verify size
                         if received != size {
-                            if attempt < MAX_SEG_RETRIES {
-                                backoff_sleep(attempt).await;
+                            log::warn!(
+                                "[BE] download_url: segment {} size mismatch: expected {}, got {} (attempt {}/{}, cdn_idx={})",
+                                idx,
+                                size,
+                                received,
+                                attempt + 1,
+                                MAX_SEG_RETRIES,
+                                cdn_idx
+                            );
+                            // Size mismatch typically indicates CDN edge cache
+                            // corruption or rate-limit cutoff. Rotate to a
+                            // different CDN immediately instead of retrying
+                            // the same node, which tends to reproduce the
+                            // same truncated response.
+                            if cdn_rotation_count < max_cdn_rotations {
+                                let next_cdn_idx =
+                                    (cdn_rotation_count as usize + 1) % cdn_urls_c.len();
+                                log::info!(
+                                    "[BE] download_url: segment {} rotating CDN #{} → #{} due to size mismatch (rotation {}/{})",
+                                    idx,
+                                    cdn_idx,
+                                    next_cdn_idx,
+                                    cdn_rotation_count + 1,
+                                    max_cdn_rotations
+                                );
+                                cdn_rotation_count += 1;
+                                backoff_sleep(cdn_rotation_count).await;
                                 continue;
                             }
+                            log::warn!(
+                                "[BE] download_url: segment {} CDN rotation exhausted, giving up",
+                                idx
+                            );
                             return Err(anyhow::anyhow!("segment {} size mismatch", idx));
                         }
 
@@ -373,6 +498,13 @@ pub async fn download_url(
                         return Ok(());
                     }
                     Err(e) => {
+                        log::warn!(
+                            "[BE] download_url: segment {} request error: {e} (attempt {}/{}, cdn_idx={})",
+                            idx,
+                            attempt + 1,
+                            MAX_SEG_RETRIES,
+                            cdn_idx
+                        );
                         if attempt < MAX_SEG_RETRIES {
                             backoff_sleep(attempt).await;
                             continue;
@@ -510,7 +642,22 @@ async fn download_segment_with_speed_check(
     Ok((buf, received, false))
 }
 
-/// Writes a segment buffer to the file at the specified position.
+/// Writes a downloaded segment buffer at the specified byte offset.
+///
+/// Opens the pre-allocated file for random-access write, seeks to `pos`,
+/// and flushes `buf`. Disk errors are translated via [`map_io_error`] so
+/// that `ENOSPC` surfaces as `ERR::DISK_FULL`.
+///
+/// # Arguments
+///
+/// * `path` - Pre-allocated output file path
+/// * `pos` - Absolute byte offset where the segment should be written
+/// * `buf` - Segment bytes to persist
+///
+/// # Errors
+///
+/// Returns an anyhow error on open, seek, or write failure (including
+/// `ERR::DISK_FULL`).
 async fn write_segment(path: &PathBuf, pos: u64, buf: &[u8]) -> Result<(), anyhow::Error> {
     let mut file = tokio::fs::OpenOptions::new()
         .write(true)
@@ -527,8 +674,36 @@ async fn write_segment(path: &PathBuf, pos: u64, buf: &[u8]) -> Result<(), anyho
 
 /// Fallback single-stream download for when Range requests are not supported.
 ///
+/// Used when [`fetch_total_size`] returns `None`, which typically means the
+/// server did not return `Content-Length` or `Content-Range` headers. The
+/// entire response is streamed sequentially into a single file with
+/// per-chunk cancellation checks and progress emission.
+///
 /// Note: CDN rotation is not implemented in fallback mode since parallel
 /// downloads are not possible without Range support.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle used for event emission
+/// * `url` - URL to download (CDN rotation is not applied in fallback mode)
+/// * `_backup_urls` - Unused; backup URLs cannot be used without range support
+/// * `output_path` - Destination file path
+/// * `cookie` - Optional Cookie header value for authenticated requests
+/// * `is_override` - When `true`, overwrites an existing file; otherwise
+///   returns `ERR::FILE_EXISTS`
+/// * `download_id` - Optional unique ID used for cancellation registration
+///   and event scoping
+/// * `override_stage` - Optional stage label forced onto the emitter
+/// * `emit_complete` - When `true`, emits `complete`; otherwise calls
+///   `Emits::stop` after the stream ends
+///
+/// # Errors
+///
+/// Returns an anyhow error in the following cases:
+/// - `ERR::FILE_EXISTS` - File already exists and `is_override` is `false`
+/// - `ERR::CANCELLED` - Download was cancelled via the registry
+/// - Disk I/O failure (mapped to `ERR::DISK_FULL` for ENOSPC)
+/// - HTTP/streaming failure from the underlying reqwest response
 #[allow(clippy::too_many_arguments)]
 async fn single_stream_fallback(
     app: &AppHandle,
@@ -609,7 +784,16 @@ async fn single_stream_fallback(
     Ok(())
 }
 
-/// Implements exponential backoff sleep for retry logic.
+/// Implements capped exponential backoff sleep for retry logic.
+///
+/// Sleep durations double per attempt, capped at 3000 ms:
+/// 500 ms (attempt 1), 1000 ms (attempt 2), 2000 ms (attempt 3+).
+/// Used between segment download retries to throttle reconnection
+/// attempts to unstable CDN nodes.
+///
+/// # Arguments
+///
+/// * `attempt` - 1-indexed retry attempt number
 async fn backoff_sleep(attempt: u8) {
     // Cap at 3000ms: 500ms (attempt 1), 1000ms (attempt 2), 2000ms (attempt 3+)
     let ms = (500u64 << attempt.saturating_sub(1)).min(3000);
@@ -617,6 +801,26 @@ async fn backoff_sleep(attempt: u8) {
 }
 
 /// Attempts to fetch total file size via HEAD request or Range probe.
+///
+/// Probes the remote resource to determine its full Content-Length. Tries
+/// a HEAD request first and falls back to a single-byte Range request
+/// (`bytes=0-0`) when the HEAD response lacks a usable header. The
+/// fallback parses the `Content-Range` header of the form
+/// `bytes START-END/TOTAL` to recover the total size.
+///
+/// A `None` return signals to the caller that segmented download is not
+/// possible and that [`single_stream_fallback`] should be used instead.
+///
+/// # Arguments
+///
+/// * `client` - HTTP client used for the probe
+/// * `url` - Resource URL
+/// * `cookie` - Optional Cookie header value for authenticated requests
+///
+/// # Returns
+///
+/// Returns `Some(total_bytes)` when a valid Content-Length or
+/// Content-Range header was observed, otherwise `None`.
 async fn fetch_total_size(
     client: &reqwest::Client,
     url: &str,
@@ -652,11 +856,22 @@ async fn fetch_total_size(
         .and_then(|v| v.parse::<u64>().ok())
 }
 
-/// Calculates segment ranges for segmented download.
+/// Calculates segment byte ranges for segmented download.
 ///
-/// Divides the total file size into segments of the specified size.
-/// Each segment is represented as a (start, end) byte range tuple.
-/// The last segment may be smaller if the total size is not evenly divisible.
+/// Divides the total file size into segments of the specified size,
+/// each represented as an inclusive `(start, end)` byte range tuple.
+/// The last segment is shorter when the total size is not evenly
+/// divisible by `segment_size`. Returns an empty vector when
+/// `total == 0`.
+///
+/// # Arguments
+///
+/// * `total` - Total file size in bytes
+/// * `segment_size` - Maximum size of each segment in bytes
+///
+/// # Returns
+///
+/// Vector of `(start, end)` inclusive byte ranges, ascending order.
 fn calculate_segments(total: u64, segment_size: u64) -> Vec<(u64, u64)> {
     let mut segments = Vec::new();
     let mut start = 0;
@@ -668,7 +883,24 @@ fn calculate_segments(total: u64, segment_size: u64) -> Vec<(u64, u64)> {
     segments
 }
 
-/// Pre-allocates file with specified size, checking for disk space.
+/// Pre-allocates the output file to the requested size.
+///
+/// Creates (or truncates) the file and invokes `set_len` so that the OS
+/// reserves the required space up front. This both validates that enough
+/// disk space is available and enables parallel segments to seek and
+/// write into specific offsets without growing the file each time. I/O
+/// errors are translated via [`map_io_error`] so that `ENOSPC` surfaces
+/// as `ERR::DISK_FULL`.
+///
+/// # Arguments
+///
+/// * `path` - Output file path to create
+/// * `size` - Final file size in bytes
+///
+/// # Errors
+///
+/// Returns an anyhow error on open or `set_len` failure (including
+/// `ERR::DISK_FULL`).
 async fn preallocate_file(path: &PathBuf, size: u64) -> Result<()> {
     let file = tokio::fs::OpenOptions::new()
         .create(true)

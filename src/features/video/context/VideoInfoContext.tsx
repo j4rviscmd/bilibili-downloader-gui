@@ -161,7 +161,11 @@ export function useVideoInfo(): VideoInfoContextValue {
   return context
 }
 
+/**
+ * Props for {@linkcode VideoInfoProvider}.
+ */
 type VideoInfoProviderProps = {
+  /** React nodes rendered inside the provider's context scope. */
   children: React.ReactNode
 }
 
@@ -433,14 +437,9 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
         : `av${video.parts[0]?.aid ?? ''}`
 
     // Extract selected parts with their indices for download processing
-    const selectedParts = input.partInputs
-      .map((pi, idx) => (pi.selected ? { pi, idx } : null))
-      .filter(
-        (
-          item,
-        ): item is { pi: (typeof input.partInputs)[number]; idx: number } =>
-          item !== null,
-      )
+    const selectedParts = input.partInputs.flatMap((pi, idx) =>
+      pi.selected ? [{ pi, idx }] : [],
+    )
 
     // Clear previous resolved quality/subtitle info before starting new download
     store.dispatch(clearResolvedInfo())
@@ -487,19 +486,29 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
         )
       } catch (e) {
         const raw = String(e)
-        if (raw.includes('ERR::CANCELLED')) continue
+
+        // User-initiated cancel stops the entire playlist to avoid
+        // the next part auto-starting (which looks like a restart).
+        if (raw.includes('ERR::CANCELLED')) break
 
         const description = getErrorMessage(raw, t)
         if (description) {
           toast.error(t('video.download_failed'), {
             duration: Infinity,
-            description,
+            description: t('video.download_failed_part_description', {
+              page: pi.page,
+              title: pi.title,
+              description,
+            }),
             closeButton: true,
           })
           store.dispatch(setError(description))
         }
         logger.error('Download failed', raw)
-        break
+
+        // Transient failures (e.g. network errors) should not block
+        // the remaining selected parts from being attempted.
+        continue
       }
     }
 

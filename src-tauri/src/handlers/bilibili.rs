@@ -1663,22 +1663,24 @@ fn ensure_free_space(target_path: &Path, needed_bytes: u64) -> Result<(), String
 
 /// Retries download operations up to 3 times with linear backoff.
 ///
-/// Implements retry logic for transient network failures.
-/// Only retries when error contains specific keywords, otherwise fails immediately.
+/// Implements retry logic for transient network failures originating from
+/// `download_url`. Errors are classified by prefix:
 ///
-/// # Retry Conditions
-///
-/// Only retries on errors containing these keywords:
-/// - "segment" - Segment download error
-/// - "request error" - Request error
-/// - "timeout" - Timeout
-/// - "connect" - Connection error
+/// - `ERR::` prefix: Business logic errors (e.g. `ERR::DISK_FULL`,
+///   `ERR::CANCELLED`, `ERR::FILE_EXISTS`) are passed through immediately
+///   without retry.
+/// - All other errors: Treated as transient network failures and retried.
+///   `download_url` only produces non-`ERR::` errors for network-related
+///   causes (request failures, connection resets, timeouts, segment issues),
+///   so retrying them unconditionally is safer than keyword matching which
+///   previously missed common cases like `connection reset by peer`, DNS
+///   failures, and TLS errors.
 ///
 /// # Retry Settings
 ///
 /// - Maximum attempts: 3
 /// - Backoff strategy: Linear (500ms, 1000ms, 1500ms)
-/// - Errors with `ERR::` prefix are passed through (no retry)
+/// - Final failure is wrapped as `ERR::NETWORK::{original_message}`
 ///
 /// # Arguments
 ///
@@ -1691,33 +1693,37 @@ fn ensure_free_space(target_path: &Path, needed_bytes: u64) -> Result<(), String
 /// # Errors
 ///
 /// Returns errors in the following cases:
-/// - All retry attempts failed
-/// - Error is not retryable (keyword mismatch)
-/// - Error contains `ERR::` prefix
+/// - All retry attempts failed (wrapped as `ERR::NETWORK::*`)
+/// - Error contains `ERR::` prefix (passed through unchanged)
 async fn retry_download<F, Fut>(mut f: F) -> Result<(), String>
 where
     F: FnMut() -> Fut,
     Fut: std::future::Future<Output = Result<(), anyhow::Error>>,
 {
     const MAX_ATTEMPTS: u8 = 3;
-    const RETRYABLE_KEYWORDS: &[&str] = &["segment", "request error", "timeout", "connect"];
+    const BACKOFF_BASE_MS: u64 = 500;
 
     for attempt in 1..=MAX_ATTEMPTS {
         match f().await {
             Ok(_) => return Ok(()),
             Err(e) => {
                 let msg = e.to_string();
-                let is_retryable = RETRYABLE_KEYWORDS.iter().any(|&kw| msg.contains(kw));
 
-                if attempt >= MAX_ATTEMPTS || !is_retryable {
-                    return Err(if msg.contains("ERR::") {
-                        msg
-                    } else {
-                        format!("ERR::NETWORK::{msg}")
-                    });
+                // ERR:: prefix = business logic error, never retry
+                if msg.contains("ERR::") {
+                    log::warn!("[BE] retry_download: non-retryable: {msg}");
+                    return Err(msg);
                 }
 
-                tokio::time::sleep(std::time::Duration::from_millis(500 * attempt as u64)).await;
+                // Non-ERR:: errors from download_url are network-related.
+                // Retry unconditionally; final attempt wraps as ERR::NETWORK.
+                if attempt >= MAX_ATTEMPTS {
+                    log::error!("[BE] retry_download: exhausted {MAX_ATTEMPTS} attempts: {msg}");
+                    return Err(format!("ERR::NETWORK::{msg}"));
+                }
+
+                log::warn!("[BE] retry_download: attempt {attempt}/{MAX_ATTEMPTS} failed: {msg}");
+                tokio::time::sleep(Duration::from_millis(BACKOFF_BASE_MS * attempt as u64)).await;
             }
         }
     }
