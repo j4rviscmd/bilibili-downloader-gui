@@ -29,7 +29,9 @@ export {
   inputSlice,
   selectAll,
   selectHasSelectedParts,
+  selectHomePage,
   selectPageAll,
+  setHomePage,
   setPendingDownload,
   updatePartSelected,
 } from './model/inputSlice'
