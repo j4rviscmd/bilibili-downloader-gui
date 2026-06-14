@@ -18,7 +18,7 @@ import {
 import { cn } from '@/shared/lib/utils'
 import { selectHasActiveDownloads } from '@/shared/queue'
 import type { LucideIcon } from 'lucide-react'
-import { Eye, Home, Combine, Scissors, Star } from 'lucide-react'
+import { Combine, Eye, Home, Scissors, Star } from 'lucide-react'
 import { Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router'
