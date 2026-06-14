@@ -15,6 +15,7 @@ import type { Progress } from '@/shared/progress'
 import {
   clearProgressByDownloadId,
   setProgress,
+  setRetrying,
 } from '@/shared/progress/progressSlice'
 import { clearQueueItem, updateQueueStatus } from '@/shared/queue/queueSlice'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
@@ -23,6 +24,22 @@ import { toast } from 'sonner'
 
 interface DownloadCancelledPayload {
   downloadId: string
+}
+
+/**
+ * Payload for the `download-retrying` event.
+ *
+ * Emitted by `retry_download` in the Rust backend when a retry attempt
+ * starts (isRetrying: true) or completes (isRetrying: false). Drives the
+ * `setRetrying` Redux action to hide transfer rate display during retries.
+ */
+interface DownloadRetryingPayload {
+  /** Unique identifier for this download operation */
+  downloadId: string
+  /** Stage identifier ("audio" or "video"). When undefined, applies to all stages */
+  stage?: string
+  /** Whether the download is currently retrying */
+  isRetrying: boolean
 }
 
 /**
@@ -77,6 +94,7 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     let unlistenQualityResolved: UnlistenFn | undefined
     let unlistenSubtitleResolved: UnlistenFn | undefined
     let unlistenSubtitleWarning: UnlistenFn | undefined
+    let unlistenRetrying: UnlistenFn | undefined
 
     const setupListeners = async (): Promise<void> => {
       // Setup progress event listener
@@ -169,6 +187,16 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
           )
         },
       )
+
+      // Setup download retrying event listener
+      // Updates isRetrying flag on matching progress entries to hide
+      // transfer rate display during CDN rotation / full retry.
+      unlistenRetrying = await listen<DownloadRetryingPayload>(
+        'download-retrying',
+        (event) => {
+          store.dispatch(setRetrying(event.payload))
+        },
+      )
     }
 
     setupListeners()
@@ -180,6 +208,7 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
       unlistenQualityResolved?.()
       unlistenSubtitleResolved?.()
       unlistenSubtitleWarning?.()
+      unlistenRetrying?.()
     }
   }, [])
   return (

@@ -22,7 +22,7 @@ use futures::StreamExt;
 use reqwest::header;
 use reqwest::RequestBuilder;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tauri::AppHandle;
@@ -345,6 +345,9 @@ pub async fn download_url(
             // Track bytes this segment has added to dl_total_c
             // for rollback on retry
             let seg_bytes_added = Arc::new(AtomicU64::new(0));
+            // Track retry state for this segment to clear isRetrying flag
+            // exactly once on the first chunk from the new CDN.
+            let seg_is_retrying = Arc::new(AtomicBool::new(false));
 
             loop {
                 attempt += 1;
@@ -362,6 +365,13 @@ pub async fn download_url(
                     dl_total_c.fetch_sub(prev, Ordering::Relaxed);
                     // Reset progress display after rollback
                     emits_c.update_progress(dl_total_c.load(Ordering::Relaxed));
+                    // Reset speed tracking so the previous CDN's low speed
+                    // doesn't bleed into the new CDN via EMA smoothing,
+                    // and notify the frontend to hide transfer rate display
+                    // until the new CDN's first chunk arrives.
+                    emits_c.reset_speed_tracking().await;
+                    emits_c.set_retrying(true).await;
+                    seg_is_retrying.store(true, Ordering::Relaxed);
                 }
 
                 // Select CDN URL based on rotation count (CDN rotation with loop)
@@ -407,6 +417,7 @@ pub async fn download_url(
                         let emits_cb = emits_c.clone();
                         let dl_total_cb = dl_total_c.clone();
                         let seg_bytes_cb = seg_bytes_added.clone();
+                        let seg_is_retrying_cb = seg_is_retrying.clone();
                         let download_result = download_segment_with_speed_check(
                             &mut resp,
                             idx,
@@ -416,6 +427,15 @@ pub async fn download_url(
                             cdn_rotation_count,
                             cdn_urls_c.len(),
                             |chunk_len| {
+                                // On first chunk after retry, clear isRetrying flag.
+                                // swap returns the previous value and sets to false atomically,
+                                // so this only fires once per retry cycle.
+                                if seg_is_retrying_cb.swap(false, Ordering::Relaxed) {
+                                    let emits_for_retry = emits_cb.clone();
+                                    tokio::spawn(async move {
+                                        emits_for_retry.set_retrying(false).await;
+                                    });
+                                }
                                 seg_bytes_cb.fetch_add(chunk_len, Ordering::Relaxed);
                                 let new_total =
                                     dl_total_cb.fetch_add(chunk_len, Ordering::Relaxed) + chunk_len;
