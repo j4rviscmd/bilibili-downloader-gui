@@ -4,6 +4,7 @@
 //! - **bilibili**: Video info retrieval and download operations
 //! - **cleanup**: Orphaned temp file cleanup on app init
 //! - **concurrency**: Semaphore management for parallel downloads
+//! - **concat**: Local MP4 file concatenation via ffmpeg concat demuxer
 //! - **cookie**: Firefox cookie extraction and caching
 //! - **favorites**: Bilibili favorite folder and video retrieval
 //! - **ffmpeg**: Binary validation and installation, A/V merging
@@ -14,6 +15,7 @@
 
 pub mod bilibili;
 pub mod cleanup;
+pub mod concat;
 pub mod concurrency;
 pub mod cookie;
 pub mod favorites;

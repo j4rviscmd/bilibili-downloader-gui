@@ -10,6 +10,7 @@
     "watchHistory": "視聴履歴",
     "favorite": "お気に入り",
     "trim": "トリム",
+    "concat": "結合",
     "init": "初期化",
     "error": "エラー",
     "favoriteLoginRequired": "ログインすると利用できます",
@@ -24,6 +25,7 @@
       "watchHistory": "視聴履歴に移動",
       "favorite": "お気に入り画面へ移動",
       "trim": "トリム画面へ移動",
+      "concat": "結合画面へ移動",
       "toggleSidebar": "サイドバーを切り替え",
       "openSidebar": "サイドバーを開く",
       "closeSidebar": "サイドバーを閉じる"
@@ -73,6 +75,40 @@
       "fastBadge": "推奨",
       "accurate": "高精度（再エンコード）",
       "accurateHint": "再エンコードで時間がかかります"
+    }
+  },
+  "concat": {
+    "title": "動画結合",
+    "description": "複数の動画ファイルを1つに結合します。",
+    "addFiles": "ファイルを追加",
+    "noFilesSelected": "ファイルが選択されていません",
+    "fileList": "ファイル一覧",
+    "dragToReorder": "ドラッグで並べ替え",
+    "outputFile": "出力ファイル",
+    "chooseOutput": "保存先を選択",
+    "noOutputSelected": "保存先が選択されていません",
+    "concat": "結合",
+    "concatting": "結合中...",
+    "clear": "クリア",
+    "success": "結合が完了しました",
+    "failed": "結合に失敗しました",
+    "fallbackNotice": "ストリームコピーに失敗しました。再エンコードでリトライしています...",
+    "dragToReorderAria": "{{index}}番目の項目をドラッグして並べ替え",
+    "removeFileAria": "{{filename}}を削除",
+    "openFolder": "フォルダを開く",
+    "elapsed": "経過",
+    "remaining": "残り",
+    "error": {
+      "no_files": "ファイルが選択されていません",
+      "single_file": "2つ以上のファイルが必要です",
+      "duplicate_paths": "重複したファイルパスが検出されました",
+      "too_few_files": "2つ以上のファイルが必要です",
+      "file_not_found": "ファイルが見つかりません",
+      "unsupported_format": "対応していないファイル形式です（MP4のみ対応）",
+      "unsupported_output_format": "出力ファイルはMP4形式にしてください",
+      "output_collision": "出力パスが入力ファイルと重複しています",
+      "ffmpeg_failed": "ffmpegの実行に失敗しました",
+      "reencode_failed": "再エンコードに失敗しました"
     }
   },
   "actions": {

@@ -10,6 +10,7 @@
     "watchHistory": "Watch History",
     "favorite": "Favorites",
     "trim": "Trim",
+    "concat": "Concat",
     "init": "Init",
     "error": "Error",
     "favoriteLoginRequired": "Available after login",
@@ -24,6 +25,7 @@
       "watchHistory": "Navigate to watch history",
       "favorite": "Navigate to favorites page",
       "trim": "Navigate to trim page",
+      "concat": "Navigate to concat page",
       "toggleSidebar": "Toggle Sidebar",
       "openSidebar": "Open sidebar",
       "closeSidebar": "Close sidebar"
@@ -73,6 +75,40 @@
       "fastBadge": "Recommended",
       "accurate": "Accurate (Re-encode)",
       "accurateHint": "Slower due to re-encoding"
+    }
+  },
+  "concat": {
+    "title": "Concatenate Videos",
+    "description": "Combine multiple video files into one.",
+    "addFiles": "Add files",
+    "noFilesSelected": "No files selected",
+    "fileList": "File list",
+    "dragToReorder": "Drag to reorder",
+    "outputFile": "Output file",
+    "chooseOutput": "Choose output",
+    "noOutputSelected": "No output path selected",
+    "concat": "Concatenate",
+    "concatting": "Concatenating...",
+    "clear": "Clear",
+    "success": "Concatenation completed",
+    "failed": "Concatenation failed",
+    "fallbackNotice": "Stream copy failed. Retrying with re-encode...",
+    "dragToReorderAria": "Drag to reorder item {{index}}",
+    "removeFileAria": "Remove {{filename}}",
+    "openFolder": "Open folder",
+    "elapsed": "Elapsed",
+    "remaining": "Remaining",
+    "error": {
+      "no_files": "No files selected",
+      "single_file": "At least two files are required",
+      "duplicate_paths": "Duplicate file paths detected",
+      "too_few_files": "At least two files are required",
+      "file_not_found": "File not found",
+      "unsupported_format": "Unsupported file format (MP4 only)",
+      "unsupported_output_format": "Output file must be MP4 format",
+      "output_collision": "Output path conflicts with an input file",
+      "ffmpeg_failed": "ffmpeg execution failed",
+      "reencode_failed": "Re-encoding failed"
     }
   },
   "actions": {

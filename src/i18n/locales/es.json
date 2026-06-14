@@ -10,6 +10,7 @@
     "watchHistory": "Historial de visualización",
     "favorite": "Favoritos",
     "trim": "Recortar",
+    "concat": "Concatenar",
     "init": "Inicialización",
     "error": "Error",
     "favoriteLoginRequired": "Disponible tras iniciar sesión",
@@ -24,6 +25,7 @@
       "watchHistory": "Ir al historial de visualización",
       "favorite": "Ir a la página de favoritos",
       "trim": "Ir a la página de recorte",
+      "concat": "Ir a la página de concatenación",
       "toggleSidebar": "Alternar barra lateral",
       "openSidebar": "Abrir barra lateral",
       "closeSidebar": "Cerrar barra lateral"
@@ -73,6 +75,40 @@
       "fastBadge": "Recomendado",
       "accurate": "Preciso (Recodificar)",
       "accurateHint": "Más lento por recodificación"
+    }
+  },
+  "concat": {
+    "title": "Concatenar vídeos",
+    "description": "Combina varios archivos de vídeo en uno.",
+    "addFiles": "Añadir archivos",
+    "noFilesSelected": "Ningún archivo seleccionado",
+    "fileList": "Lista de archivos",
+    "dragToReorder": "Arrastra para reordenar",
+    "outputFile": "Archivo de salida",
+    "chooseOutput": "Elegir destino",
+    "noOutputSelected": "No se ha seleccionado destino",
+    "concat": "Concatenar",
+    "concatting": "Concatenando...",
+    "clear": "Limpiar",
+    "success": "Concatenación completada",
+    "failed": "Error al concatenar",
+    "fallbackNotice": "La copia de flujo falló. Reintentando con recodificación...",
+    "dragToReorderAria": "Arrastra para reordenar el elemento {{index}}",
+    "removeFileAria": "Eliminar {{filename}}",
+    "openFolder": "Abrir carpeta",
+    "elapsed": "Transcurrido",
+    "remaining": "Restante",
+    "error": {
+      "no_files": "Ningún archivo seleccionado",
+      "single_file": "Se necesitan al menos dos archivos",
+      "duplicate_paths": "Se detectaron rutas de archivo duplicadas",
+      "too_few_files": "Se necesitan al menos dos archivos",
+      "file_not_found": "Archivo no encontrado",
+      "unsupported_format": "Formato de archivo no compatible (solo MP4)",
+      "unsupported_output_format": "El archivo de salida debe ser MP4",
+      "output_collision": "La ruta de salida coincide con un archivo de entrada",
+      "ffmpeg_failed": "Error al ejecutar ffmpeg",
+      "reencode_failed": "Error al recodificar"
     }
   },
   "actions": {

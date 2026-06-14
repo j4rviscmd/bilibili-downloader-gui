@@ -10,6 +10,7 @@
     "watchHistory": "观看历史",
     "favorite": "收藏",
     "trim": "裁剪",
+    "concat": "合并",
     "init": "初始化",
     "error": "错误",
     "favoriteLoginRequired": "登录后可用",
@@ -24,6 +25,7 @@
       "watchHistory": "转到观看历史",
       "favorite": "前往收藏页面",
       "trim": "前往裁剪页面",
+      "concat": "前往合并页面",
       "toggleSidebar": "切换侧边栏",
       "openSidebar": "打开侧边栏",
       "closeSidebar": "关闭侧边栏"
@@ -73,6 +75,40 @@
       "fastBadge": "推荐",
       "accurate": "精确（重编码）",
       "accurateHint": "因重新编码耗时较长"
+    }
+  },
+  "concat": {
+    "title": "合并视频",
+    "description": "将多个视频文件合并为一个。",
+    "addFiles": "添加文件",
+    "noFilesSelected": "未选择文件",
+    "fileList": "文件列表",
+    "dragToReorder": "拖拽以排序",
+    "outputFile": "输出文件",
+    "chooseOutput": "选择保存位置",
+    "noOutputSelected": "未选择保存路径",
+    "concat": "合并",
+    "concatting": "合并中...",
+    "clear": "清除",
+    "success": "合并完成",
+    "failed": "合并失败",
+    "fallbackNotice": "流复制失败，正在使用重新编码重试...",
+    "dragToReorderAria": "拖拽以重新排列第{{index}}项",
+    "removeFileAria": "删除{{filename}}",
+    "openFolder": "打开文件夹",
+    "elapsed": "已用",
+    "remaining": "剩余",
+    "error": {
+      "no_files": "未选择文件",
+      "single_file": "至少需要两个文件",
+      "duplicate_paths": "检测到重复的文件路径",
+      "too_few_files": "至少需要两个文件",
+      "file_not_found": "文件未找到",
+      "unsupported_format": "不支持的文件格式（仅支持MP4）",
+      "unsupported_output_format": "输出文件必须为MP4格式",
+      "output_collision": "输出路径与输入文件冲突",
+      "ffmpeg_failed": "ffmpeg执行失败",
+      "reencode_failed": "重新编码失败"
     }
   },
   "actions": {

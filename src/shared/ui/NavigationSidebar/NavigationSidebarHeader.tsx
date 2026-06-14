@@ -18,7 +18,7 @@ import {
 import { cn } from '@/shared/lib/utils'
 import { selectHasActiveDownloads } from '@/shared/queue'
 import type { LucideIcon } from 'lucide-react'
-import { Eye, Home, Scissors, Star } from 'lucide-react'
+import { Combine, Eye, Home, Scissors, Star } from 'lucide-react'
 import { Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router'
@@ -51,6 +51,7 @@ type MenuGroup = {
  *   - Watch History (/watch-history) - requires login
  * - Tool category:
  *   - Trim (/trim) - Trim local MP4 files by start/end time
+ *   - Concat (/concat) - Concatenate multiple MP4 files into one
  *
  * Note: Download history (/history) is provided separately in SidebarFooter.
  *
@@ -110,6 +111,13 @@ export function NavigationSidebarHeader({
           icon: Scissors,
           label: t('nav.trim'),
           ariaLabel: t('nav.aria.trim'),
+          requiresAuth: false,
+        },
+        {
+          path: '/concat',
+          icon: Combine,
+          label: t('nav.concat'),
+          ariaLabel: t('nav.aria.concat'),
           requiresAuth: false,
         },
       ],

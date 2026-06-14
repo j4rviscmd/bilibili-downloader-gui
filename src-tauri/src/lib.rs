@@ -11,6 +11,7 @@ use tauri::Manager;
 
 use crate::handlers::bilibili;
 use crate::handlers::cleanup;
+use crate::handlers::concat;
 use crate::handlers::cookie;
 use crate::handlers::favorites;
 use crate::handlers::ffmpeg;
@@ -184,6 +185,7 @@ pub fn run() {
             expand_short_url,
             cleanup_temp_files,
             trim_video,
+            concat_videos,
             generate_qr_code,
             poll_qr_status,
             qr_logout,
@@ -1189,6 +1191,14 @@ async fn trim_video(
     options: trim::TrimOptions,
 ) -> Result<trim::TrimResult, String> {
     trim::trim_video(&app, &options).await
+}
+
+#[tauri::command]
+async fn concat_videos(
+    app: AppHandle,
+    options: concat::ConcatOptions,
+) -> Result<concat::ConcatResult, String> {
+    concat::concat_videos(&app, &options).await
 }
 
 /// Sets the simulate logout flag for development mode.

@@ -7,6 +7,8 @@
 pub mod analytics;
 pub mod downloads;
 pub mod error_handler;
+pub mod ffmpeg_probe;
+pub mod ffmpeg_progress;
 pub mod log_cleanup;
 pub mod paths;
 pub mod sanitize;
