@@ -558,6 +558,9 @@
     "cancel": "Annuler",
     "qrSessionDeleted": "Session QR supprimée",
     "usingFirefoxCookie": "Utilisation de Firefox Cookie pour l'authentification",
-    "session_expired": "La session a expiré. Veuillez vous reconnecter."
+    "session_expired": "La session a expiré. Veuillez vous reconnecter.",
+    "loginMethodDescription": "Choisissez comment l'application s'authentifie auprès de Bilibili. Un redémarrage est nécessaire après le changement.",
+    "loginMethodChanged": "Méthode de connexion mise à jour",
+    "restartRequired": "Veuillez redémarrer l'application pour appliquer le changement."
   }
 }

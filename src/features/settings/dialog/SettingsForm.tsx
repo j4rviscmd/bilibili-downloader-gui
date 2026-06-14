@@ -2,9 +2,11 @@ import { store } from '@/app/store'
 import {
   getLoginState,
   qrLogout,
+  setLoginMethod as setLoginMethodApi,
   type LoginMethod,
   type Session,
 } from '@/features/login'
+import { useUser } from '@/features/user'
 import type { User } from '@/features/user/types'
 import { setUser } from '@/features/user/userSlice'
 import { videoApi } from '@/features/video'
@@ -73,22 +75,45 @@ import { Switch } from '@/shared/ui/switch'
 import { Info } from 'lucide-react'
 
 /**
- * Returns the login status display text key based on session and method.
+ * Returns the login status display text key based on session, method, and
+ * the live user state from the Bilibili API.
+ *
+ * Firefox logins never populate `session` (no encrypted session file is
+ * written), so we fall back to the user info fetched from the nav API to
+ * decide whether the user is actually logged in.
+ *
+ * @param session - QR session payload, or `null` when no QR session is
+ *   stored. Ignored for the Firefox method.
+ * @param loginMethod - The currently selected login method.
+ * @param user - The user object from Redux, used to detect whether the
+ *   Firefox cookie actually authenticates the user.
+ * @returns An i18n key (`login.qrCodeLoggedIn`, `login.firefoxCookieLoggedIn`,
+ *   or `login.notLoggedIn`) suitable for `t()`.
  */
 function getLoginStatusText(
   session: Session | null,
   loginMethod: LoginMethod,
+  user: User,
 ): string {
+  if (loginMethod === 'firefox') {
+    return user.hasCookie && user.data.isLogin
+      ? 'login.firefoxCookieLoggedIn'
+      : 'login.notLoggedIn'
+  }
   if (session === null) return 'login.notLoggedIn'
-  if (loginMethod === 'qrCode') return 'login.qrCodeLoggedIn'
-  return 'login.firefoxCookieLoggedIn'
+  return 'login.qrCodeLoggedIn'
 }
 
 /**
  * Converts Session to User type for userSlice.
  *
- * @param session - Session data from login state
- * @returns User object compatible with userSlice
+ * When `session` is `null`, returns a minimal logged-out `User` object so
+ * the rest of the UI can treat the two sources uniformly. The `mid` field
+ * is parsed from `dedeUserId` and left `undefined` when the value is not a
+ * valid integer, matching the shape returned by the user-info API.
+ *
+ * @param session - Session data from login state, or `null` for logged-out.
+ * @returns User object compatible with userSlice.
  */
 function sessionToUser(session: Session | null): User {
   if (!session) {
@@ -126,11 +151,20 @@ function sessionToUser(session: Session | null): User {
 
 /**
  * Settings form component.
- * Provides form inputs for application settings with auto-save on blur.
+ *
+ * Renders the full application settings panel including language, theme,
+ * font size, download output directory, login method, and developer
+ * options. Most fields auto-save on blur via the shared `useSettings`
+ * hook; only the download-output path and language flow through
+ * `react-hook-form` so they can participate in change detection and
+ * validation.
+ *
+ * @returns The settings form element wrapped in a `react-hook-form` `Form`.
  */
 function SettingsForm() {
   const { t } = useTranslation()
   const { settings, saveByForm, updateLanguage, updateLibPath } = useSettings()
+  const { user } = useUser()
   const [isUpdatingLibPath, setIsUpdatingLibPath] = useState(false)
   const [isUpdatingDlOutputPath, setIsUpdatingDlOutputPath] = useState(false)
   const [currentLibPath, setCurrentLibPath] = useState<string>('')
@@ -164,7 +198,17 @@ function SettingsForm() {
     fetchCurrentLibPath()
   }, [settings.libPath, t])
 
-  /** Opens a directory selection dialog. */
+  /**
+   * Opens a directory selection dialog.
+   *
+   * Thin wrapper around the Tauri `open` dialog used to keep error
+   * handling consistent across the library-path and output-path pickers.
+   *
+   * @param titleKey - i18n key used as the dialog title.
+   * @param defaultPath - Optional path the dialog opens at.
+   * @returns The selected path, or `null` if the user cancels or an error
+   *   occurs.
+   */
   const openDirectoryDialog = async (
     titleKey: string,
     defaultPath?: string,
@@ -218,6 +262,20 @@ function SettingsForm() {
     }
   }
 
+  /**
+   * Refreshes local login state from the backend and syncs userSlice.
+   *
+   * Used after operations that change server-side session state (logout,
+   * login-method switch) so the form and AppBar stay consistent.
+   */
+  const refreshLoginState = async () => {
+    const state = await getLoginState()
+    setLoginMethod(state.method)
+    setSession(state.session)
+    store.dispatch(setUser(sessionToUser(state.session)))
+    return state
+  }
+
   /** Handles QR logout with confirmation. */
   const handleLogout = async () => {
     try {
@@ -226,18 +284,35 @@ function SettingsForm() {
       toast.success(t('login.qrSessionDeleted'))
 
       // Get fresh login state and update UI smoothly
-      const state = await getLoginState()
-      setLoginMethod(state.method)
-      setSession(state.session)
-
-      // Sync userSlice with AppBar
-      store.dispatch(setUser(sessionToUser(state.session)))
+      const state = await refreshLoginState()
 
       if (state.session) {
         toast.info(t('login.usingFirefoxCookie'))
       }
     } catch (error) {
       logger.error('QR logout failed', error)
+    }
+  }
+
+  /**
+   * Switches the preferred login method.
+   *
+   * Persists the new method via `set_login_method` (the backend also clears any
+   * QR session artifacts when switching to Firefox). A restart is required for
+   * the change to take effect because the cookie cache is populated during the
+   * init sequence.
+   */
+  const handleLoginMethodChange = async (value: string) => {
+    const next = value as LoginMethod
+    if (next === loginMethod) return
+    try {
+      await setLoginMethodApi(next)
+      setLoginMethod(next)
+      await refreshLoginState()
+      toast.success(t('login.loginMethodChanged'))
+      toast.info(t('login.restartRequired'))
+    } catch (error) {
+      logger.error('Failed to change login method', error)
     }
   }
 
@@ -259,7 +334,16 @@ function SettingsForm() {
     })
   }, [form, settings.dlOutputPath, settings.language])
 
-  /** Handles form submission, saving only changed fields. */
+  /**
+   * Handles form submission, saving only changed fields.
+   *
+   * Compares the submitted values against the current settings and skips
+   * the persistence call entirely when nothing changed. When the language
+   * differs, `updateLanguage` is invoked separately so the i18n bundle is
+   * reloaded immediately rather than waiting for the next render cycle.
+   *
+   * @param data - Validated form values for `dlOutputPath` and `language`.
+   */
   const onSubmit = async (data: z.infer<typeof formSchema>) => {
     const changedKeys = (['dlOutputPath', 'language'] as const).filter(
       (key) => data[key] !== settings[key],
@@ -568,12 +652,38 @@ function SettingsForm() {
           </div>
         </div>
         <Separator />
+        {/* Login Method Section */}
+        <div className="space-y-3">
+          <div className="space-y-0.5">
+            <Label>{t('login.loginMethod')}</Label>
+            <p className="text-muted-foreground text-sm">
+              {t('login.loginMethodDescription')}
+            </p>
+          </div>
+          <RadioGroup
+            value={loginMethod}
+            onValueChange={handleLoginMethodChange}
+            className="flex gap-6"
+          >
+            <div className="flex items-center space-x-3">
+              <RadioGroupItem value="firefox" id="login-method-firefox" />
+              <Label htmlFor="login-method-firefox">
+                {t('login.firefoxCookie')}
+              </Label>
+            </div>
+            <div className="flex items-center space-x-3">
+              <RadioGroupItem value="qrCode" id="login-method-qrcode" />
+              <Label htmlFor="login-method-qrcode">{t('login.qrCode')}</Label>
+            </div>
+          </RadioGroup>
+        </div>
+        <Separator />
         {/* Login Status Section */}
         <div className="space-y-3">
           <Label>{t('login.loginStatus')}</Label>
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground text-sm">
-              {t(getLoginStatusText(session, loginMethod))}
+              {t(getLoginStatusText(session, loginMethod, user))}
             </span>
             {loginMethod === 'qrCode' && session && (
               <Button

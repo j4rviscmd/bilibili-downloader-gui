@@ -558,6 +558,9 @@
     "cancel": "キャンセル",
     "qrSessionDeleted": "QRセッションを削除しました",
     "usingFirefoxCookie": "Firefox Cookieを使用して認証中です",
-    "session_expired": "セッションの有効期限が切れました。再度ログインしてください。"
+    "session_expired": "セッションの有効期限が切れました。再度ログインしてください。",
+    "loginMethodDescription": "Bilibiliとの認証方法を選択します。切り替え後にアプリの再起動が必要です。",
+    "loginMethodChanged": "ログイン方法を変更しました",
+    "restartRequired": "変更を反映するにはアプリを再起動してください。"
   }
 }

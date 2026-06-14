@@ -558,6 +558,9 @@
     "cancel": "取消",
     "qrSessionDeleted": "QR会话已删除",
     "usingFirefoxCookie": "正在使用Firefox Cookie进行认证",
-    "session_expired": "会话已过期，请重新登录。"
+    "session_expired": "会话已过期，请重新登录。",
+    "loginMethodDescription": "选择应用与哔哩哔哩的认证方式。切换后需要重启应用。",
+    "loginMethodChanged": "登录方式已更新",
+    "restartRequired": "请重启应用以使更改生效。"
   }
 }
