@@ -1,4 +1,5 @@
 import { useSelector } from '@/app/store'
+import { selectHomePage } from '@/features/video'
 import { Download } from '@/shared/animate-ui/icons/download'
 import {
   SidebarGroup,
@@ -68,6 +69,7 @@ export function NavigationSidebarHeader({
   const user = useSelector((state) => state.user)
   const isLoggedIn = user.hasCookie && user.data?.isLogin
   const hasActiveDownloads = useSelector(selectHasActiveDownloads)
+  const homePage = useSelector(selectHomePage)
 
   const groups: MenuGroup[] = [
     {
@@ -130,11 +132,32 @@ export function NavigationSidebarHeader({
     const isDisabled = item.requiresAuth && !isLoggedIn
     const isHome = item.path === '/home'
 
+    /**
+     * Click handler for navigation menu items.
+     *
+     * For the Home item, navigates with the last viewed `?page` parameter
+     * restored from Redux state, so the sidebar Home button returns the
+     * user to the pagination page they were on (rather than page 1).
+     * The `?page` param is always set (even for page 1) so it takes
+     * URL resolution priority over any stale `?p` embedded in `input.url`.
+     *
+     * For other items, performs a plain path navigation.
+     * Disabled items (auth required but not logged in) are no-ops.
+     */
+    const handleClick = () => {
+      if (isDisabled) return
+      if (isHome) {
+        navigate({ pathname: '/home', search: `?page=${homePage}` })
+      } else {
+        navigate(item.path)
+      }
+    }
+
     const button = (
       <SidebarMenuButton
         isActive={isActive}
         tooltip={isDisabled ? undefined : item.label}
-        onClick={() => !isDisabled && navigate(item.path)}
+        onClick={handleClick}
         aria-label={item.ariaLabel}
         aria-current={isActive ? 'page' : undefined}
         aria-disabled={isDisabled || undefined}

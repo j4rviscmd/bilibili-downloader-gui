@@ -24,6 +24,7 @@ const initialState: Input = {
   url: '',
   partInputs: [],
   pendingDownload: null,
+  homePage: 1,
 }
 
 /**
@@ -202,6 +203,19 @@ export const inputSlice = createSlice({
      */
     clearPendingDownload: (state) => {
       state.pendingDownload = null
+    },
+    /**
+     * Updates the last viewed home page number.
+     *
+     * Persisted when the user navigates pagination on the home page,
+     * and read by the sidebar Home button to restore the page when
+     * returning during an active download.
+     *
+     * @param state - Current input state
+     * @param action - Action containing the page number (1-indexed)
+     */
+    setHomePage: (state, action: PayloadAction<number>) => {
+      state.homePage = action.payload
     },
     /**
      * Updates subtitle configuration for a specific part.
@@ -402,6 +416,7 @@ export const {
   selectAll,
   selectPageAll,
   setAccordionOpen,
+  setHomePage,
   setInput,
   setPartQualities,
   setPartSubtitles,
@@ -424,5 +439,14 @@ export const {
  */
 export const selectHasSelectedParts = (state: { input: Input }) =>
   state.input.partInputs.some((p) => p.selected)
+
+/**
+ * Selector for the last viewed home page number.
+ *
+ * @param state - The Redux root state
+ * @returns The last viewed page number (1-indexed), default 1
+ */
+export const selectHomePage = (state: { input: Input }) =>
+  state.input.homePage ?? 1
 
 export default inputSlice.reducer
