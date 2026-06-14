@@ -108,7 +108,7 @@ export function PageLayoutShell({ children }: PageLayoutShellProps) {
   const { settings, saveByForm } = useSettings()
   const theme = settings.theme ?? 'light'
   const setTheme = (t: 'light' | 'dark') => {
-    saveByForm({ ...settings, theme: t })
+    saveByForm({ ...settings, theme: t }, true)
   }
   const { t } = useTranslation()
   const navigate = useNavigate()
