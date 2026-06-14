@@ -183,6 +183,7 @@
     "redownload": "다시 다운로드",
     "retry": "재시도",
     "download_failed_part": "다운로드 실패",
+    "download_failed_part_description": "p{{page}} - {{title}}: {{description}}",
     "time_remaining": "{{time}} 남음",
     "quality_limited_title": "화질 제한됨",
     "quality_limited_description": "미로그인（Cookie 없음）시 480p 이하의 화질만 이용할 수 있습니다.",

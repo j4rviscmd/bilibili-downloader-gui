@@ -183,6 +183,7 @@
     "redownload": "Télécharger à nouveau",
     "retry": "Réessayer",
     "download_failed_part": "Échec du téléchargement",
+    "download_failed_part_description": "p{{page}} - {{title}}: {{description}}",
     "time_remaining": "{{time}} restante",
     "quality_limited_title": "Qualité Limitée",
     "quality_limited_description": "Si non connecté (sans cookies), seule la qualité 480p ou moins est disponible.",

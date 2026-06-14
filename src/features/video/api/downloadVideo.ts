@@ -105,6 +105,10 @@ export const downloadVideo = async (
       `downloadVideo: completed id=${downloadId}, outputPath=${outputPath}`,
     )
     store.dispatch(updateQueueItem({ downloadId, outputPath, title: filename }))
+    // Mark queue item as done immediately on successful invoke to avoid
+    // relying on the 'complete' progress event, which can race with the
+    // invoke response and cause the UI to stay locked in "downloading".
+    store.dispatch(updateQueueStatus({ downloadId, status: 'done' }))
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     logger.error(`downloadVideo: failed id=${downloadId}`, error)

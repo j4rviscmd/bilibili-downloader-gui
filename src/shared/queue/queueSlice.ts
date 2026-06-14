@@ -4,6 +4,16 @@ import { createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit'
 import type { RootState } from '@/app/store'
 import { callCancelAllDownloads, callCancelDownload } from './api/cancelApi'
 
+/**
+ * Lifecycle state of a single {@linkcode QueueItem}.
+ *
+ * - `pending` - Enqueued but not yet started by the backend.
+ * - `running` - Actively downloading.
+ * - `cancelling` - User requested cancellation; awaiting backend confirmation.
+ * - `cancelled` - Backend confirmed cancellation via the `download_cancelled` event.
+ * - `done` - Download finished successfully.
+ * - `error` - Download failed; see `errorMessage` for details.
+ */
 type QueueItemStatus =
   | 'pending'
   | 'running'
@@ -87,6 +97,10 @@ export type QueueItem = {
   title?: string
 }
 
+/**
+ * Empty initial state for the queue slice. The queue is populated at
+ * runtime as downloads are enqueued.
+ */
 const initialState: QueueItem[] = []
 
 /**
@@ -176,6 +190,12 @@ export const queueSlice = createSlice({
     /**
      * Updates the status of a queue item.
      * Automatically aggregates parent status based on children.
+     *
+     * Protected states (done, error, cancelled, cancelling) reject downgrade
+     * to running/pending. This prevents stale progress events that arrive
+     * after invoke resolve (or during cancellation) from reviving a finished
+     * item and locking the UI — Tauri IPC does not guarantee event-listener
+     * vs invoke-resolve ordering.
      */
     updateQueueStatus(
       state,
@@ -187,10 +207,25 @@ export const queueSlice = createSlice({
     ) {
       const { downloadId, status, errorMessage } = action.payload
       const target = state.find((i) => i.downloadId === downloadId)
-      if (target) {
-        target.status = status
-        if (errorMessage) target.errorMessage = errorMessage
+      if (!target) {
+        aggregateParentStatuses(state)
+        return
       }
+
+      const PROTECTED_STATUSES = ['done', 'error', 'cancelled', 'cancelling']
+      const DOWNGRADE_STATUSES = ['running', 'pending']
+      // Ignore stale progress event arriving after completion or
+      // during cancellation. This prevents the UI from briefly
+      // snapping back to "downloading" when the user just cancelled.
+      if (
+        PROTECTED_STATUSES.includes(target.status ?? '') &&
+        DOWNGRADE_STATUSES.includes(status)
+      ) {
+        return
+      }
+
+      target.status = status
+      if (errorMessage) target.errorMessage = errorMessage
       aggregateParentStatuses(state)
     },
     /**
