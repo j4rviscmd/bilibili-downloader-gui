@@ -4,6 +4,8 @@ name: CI
 on:
   pull_request:
     branches: [main]
+  push:
+    branches: [main]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -17,6 +19,7 @@ jobs:
   format:
     name: Format
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,12 +28,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20.x
-          cache: npm
 
-      - name: Upgrade npm
-        run: npm install -g npm@11.8.0
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        id: cache-nm-format
+        with:
+          path: node_modules
+          key: nm-format-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Install dependencies
+        if: steps.cache-nm-format.outputs.cache-hit != 'true'
         run: npm ci
 
       - name: Check formatting
@@ -39,6 +46,7 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -47,12 +55,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20.x
-          cache: npm
 
-      - name: Upgrade npm
-        run: npm install -g npm@11.8.0
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        id: cache-nm-lint
+        with:
+          path: node_modules
+          key: nm-lint-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Install dependencies
+        if: steps.cache-nm-lint.outputs.cache-hit != 'true'
         run: npm ci
 
       - name: Run ESLint
@@ -61,6 +73,7 @@ jobs:
   frontend-build:
     name: Frontend Build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -69,12 +82,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20.x
-          cache: npm
 
-      - name: Upgrade npm
-        run: npm install -g npm@11.8.0
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        id: cache-nm-build
+        with:
+          path: node_modules
+          key: nm-build-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Install dependencies
+        if: steps.cache-nm-build.outputs.cache-hit != 'true'
         run: npm ci
 
       - name: Type check and build
@@ -83,6 +100,7 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -91,12 +109,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20.x
-          cache: npm
 
-      - name: Upgrade npm
-        run: npm install -g npm@11.8.0
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        id: cache-nm-test
+        with:
+          path: node_modules
+          key: nm-test-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Install dependencies
+        if: steps.cache-nm-test.outputs.cache-hit != 'true'
         run: npm ci
 
       - name: Run tests
@@ -111,12 +133,18 @@ jobs:
   rust-check:
     name: Rust Check
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: rust-ci
 
       - name: Install dependencies (Ubuntu only)
         run: |
@@ -130,12 +158,18 @@ jobs:
   rust-clippy:
     name: Rust Clippy
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: rust-ci
 
       - name: Install dependencies (Ubuntu only)
         run: |
@@ -149,12 +183,18 @@ jobs:
   rust-format:
     name: Rust Format
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: rust-ci
 
       - name: Install dependencies (Ubuntu only)
         run: |
@@ -168,6 +208,7 @@ jobs:
   docs-format:
     name: Docs Format
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -176,10 +217,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20.x
-          cache: npm
-          cache-dependency-path: docs/package-lock.json
+
+      - name: Cache docs/node_modules
+        uses: actions/cache@v4
+        id: cache-nm-docs
+        with:
+          path: docs/node_modules
+          key: nm-docs-${{ runner.os }}-${{ hashFiles('docs/package-lock.json') }}
 
       - name: Install dependencies
+        if: steps.cache-nm-docs.outputs.cache-hit != 'true'
         working-directory: docs
         run: npm ci
 

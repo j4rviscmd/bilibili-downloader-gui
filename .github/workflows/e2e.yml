@@ -44,7 +44,15 @@ jobs:
         working-directory: e2e-tests
         run: npm ci
 
+      - name: Cache tauri-webdriver
+        id: cache-tw
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/tauri-webdriver
+          key: tauri-webdriver-${{ runner.os }}-v1
+
       - name: Install tauri-webdriver
+        if: steps.cache-tw.outputs.cache-hit != 'true'
         run: cargo install tauri-webdriver --locked
 
       - name: Build Tauri app (debug)
