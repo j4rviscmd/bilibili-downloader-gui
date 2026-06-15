@@ -20,6 +20,12 @@ export type Progress = {
   elapsedTime: number
   /** Whether this stage is complete */
   isComplete: boolean
+  /**
+   * Whether the download is currently retrying (e.g., CDN rotation or
+   * full retry). When true, the UI hides the transfer rate display to
+   * avoid flicker between pre-retry and post-retry speed values.
+   */
+  isRetrying?: boolean
   /** Download stage ('audio', 'video', 'merge', 'complete') */
   stage?: string
   /** Parent download ID for multi-part downloads */
