@@ -30,7 +30,26 @@ import * as S from '../helpers/selectors'
  */
 const TEST_VIDEO_URL = 'https://www.bilibili.com/video/BV1i3411y7xB'
 
+/**
+ * End-to-end test suite for the bilibili-downloader-gui application.
+ *
+ * Executes a sequential, phase-based happy path through the app:
+ * Phase 0 - App launch and initialization sequence
+ * Phase 1 - Home page UI verification (URL input, alerts, sidebar)
+ * Phase 2 - Settings dialog interactions (currently skipped, see notes)
+ * Phase 3 - Real video info fetch and part card rendering
+ *
+ * Tests within this suite are order-dependent; each `it` builds on state
+ * established by the previous one (e.g. video info loaded in Phase 3
+ * is reused by subsequent assertions).
+ */
 describe('bilibili-downloader-gui E2E', () => {
+  /**
+   * Suite-level setup executed once before any test runs.
+   *
+   * Ensures the screenshot output directory exists and maximizes the
+   * browser window so responsive layout assertions are stable.
+   */
   before(() => {
     ensureScreenshotDir()
     browser.maximizeWindow()
@@ -38,15 +57,9 @@ describe('bilibili-downloader-gui E2E', () => {
 
   // -- Phase 0: App Launch & Initialization --
 
-  it('should show initialization page on launch', async () => {
+  it('should show splash screen on launch', async () => {
     const container = await browser.$(S.INIT_CONTAINER)
     await container.waitForExist({ timeout: 15_000 })
-
-    const spinner = await browser.$(S.INIT_SPINNER)
-    expect(await spinner.isExisting()).to.be.true
-
-    const statusText = await browser.$(S.INIT_STATUS_TEXT)
-    expect(await statusText.isExisting()).to.be.true
 
     await saveScreenshot('launch', '00-init-page')
   })

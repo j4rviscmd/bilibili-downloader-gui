@@ -28,16 +28,28 @@ export function SplashScreen() {
 
   if (phase === 'done') return null
 
-  // Show blank splash background while settings are loading (prevents
-  // circle-indicator flash before the 3D animation starts)
+  // Rendering branch 1 of 3: settings still loading.
+  // Renders a blank splash background while settings are loading to prevent
+  // the circle-indicator flash that would otherwise appear before the 3D
+  // animation is ready to mount.
   if (skipMode === null) {
-    return <div className="fixed inset-0 z-50 bg-[#f5f7fa]" />
+    return (
+      <div
+        data-testid="splash-screen"
+        className="fixed inset-0 z-50 bg-[#f5f7fa]"
+      />
+    )
   }
 
-  // Show minimal spinner when skip mode is active
+  // Rendering branch 2 of 3: skip mode active.
+  // Renders a minimal CSS spinner instead of the full 3D animation to
+  // minimize startup time when the user has opted out of the animation.
   if (skipMode === true) {
     return (
-      <div className="bg-background fixed inset-0 z-50 flex flex-col items-center justify-center">
+      <div
+        data-testid="splash-screen"
+        className="bg-background fixed inset-0 z-50 flex flex-col items-center justify-center"
+      >
         <div className="border-foreground/20 border-t-foreground h-8 w-8 animate-spin rounded-full border-2" />
         {processingFnc && (
           <p className="text-muted-foreground mt-4 text-sm select-none">
@@ -48,11 +60,15 @@ export function SplashScreen() {
     )
   }
 
+  // Rendering branch 3 of 3: full animation mode.
+  // Renders the complete splash experience: Three.js canvas, title heading,
+  // current initialization step label, and an optional progress bar.
   const activeProgress = progress.find((p) => !p.isComplete)
   const pct = activeProgress?.percentage ?? 0
 
   return (
     <div
+      data-testid="splash-screen"
       className={cn(
         'fixed inset-0 z-50 flex flex-col items-center justify-center',
         'bg-[#f5f7fa]',
@@ -61,6 +77,9 @@ export function SplashScreen() {
       )}
       style={{ transitionDuration: `${FADE_DURATION_MS}ms` }}
       onTransitionEnd={function handleTransitionEnd(e) {
+        // Only react to the opacity transition bubbling up from the root
+        // container itself (not from child elements) to signal that the
+        // fade-out animation has completed and the splash can unmount.
         if (e.target === e.currentTarget && e.propertyName === 'opacity') {
           onFadeComplete()
         }
