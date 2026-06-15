@@ -4,20 +4,21 @@
  * Selectors are derived from actual DOM attributes in the codebase:
  * - data-slot attributes from shadcn/ui / Radix UI primitives
  * - data-part-list / data-part-index custom attributes
+ * - data-testid attributes on custom components (e.g. SplashScreen)
  * - aria-label attributes on navigation buttons
  * - Standard HTML attributes (input[name], [role="alert"])
  */
 
-// -- Init Page --
+// -- Splash Screen --
 
-/** Full-page centered container shown during app initialization. */
-export const INIT_CONTAINER = '.flex.h-full.w-full.items-center.justify-center'
-
-/** Spinning loader indicator on the initialization page. */
-export const INIT_SPINNER = '.animate-spin.rounded-full'
-
-/** Status text label shown below the spinner during initialization. */
-export const INIT_STATUS_TEXT = '.text-muted-foreground.text-sm'
+/**
+ * Splash screen overlay container shown during app initialization.
+ *
+ * Uses `data-testid` so the selector is decoupled from CSS classes that vary
+ * across the splash screen's rendering modes (settings-loading, skip-mode,
+ * full-animation).
+ */
+export const INIT_CONTAINER = '[data-testid="splash-screen"]'
 
 // -- Sidebar --
 
