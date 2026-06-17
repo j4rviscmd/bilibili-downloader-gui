@@ -18,15 +18,13 @@
 
 ## 必須ルール（gotcha）
 
-### shadcn/ui / animate-ui
+### shadcn/ui
 
 **IMPORTANT**: UI コンポーネントファイルを手動作成しないこと。必ず以下でインストール:
 
 ```bash
 npx shadcn@latest add <component>
 ```
-
-animate-ui コンポーネントも shadcn MCP（`@animate-ui` registry）経由で追加すること。
 
 ### i18n（多言語対応）
 
@@ -58,12 +56,13 @@ vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 
 ## 動作確認前チェック
 
-ユーザー動確前に以下を満たすこと（動確は原則ヒトが行う）:
-
-- `npm run lint` がエラーなし
-- `src-tauri/` で `cargo build` が通る（コンパイルエラー時は同ディレクトリで
-  `cargo build` を実行し詳細確認）
-- 開発サーバー起動問題時は `@hypothesi/tauri-mcp-server` でログ・DOM 要素を取得
+- `@hypothesi/tauri-mcp-server` を利用してログや HTML 要素取得を行うこと
+- 動確前は以下をチェックすること
+  - `npm run lint` でエラーがないこと
+  - `cargo build` でコンパイルが通ること
+- 動確は原則、ヒトが行う
+- `animate-ui` コンポーネントについては `shadcn` mcp を利用すること
+- Rust のコンパイルエラー → `src-tauri/` で `cargo build` を実行しエラー詳細を確認
 
 ## 参照（必要時に読む）
 
