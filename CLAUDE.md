@@ -1,72 +1,76 @@
 # CLAUDE.md
 
-本リポジトリで Claude Code が作業する際の必須ルール。アーキテクチャ・コードスタイル・
-ブランチ/コミット規約は CONTRIBUTING.md を参照。
+Essential rules for Claude Code when working in this repository. For
+architecture, code style, and branch/commit conventions, see
+CONTRIBUTING.md.
 
-## コマンド
+## Commands
 
-| コマンド              | 用途                        |
-| --------------------- | --------------------------- |
-| `npm run tauri dev`   | Tauri アプリ起動（HMR）     |
-| `npm run dev`         | フロントのみ（Vite）        |
-| `npm run build`       | 型チェック + ビルド         |
-| `npm run typecheck`   | TypeScript 型チェック       |
-| `npm run lint`        | ESLint                      |
-| `npm run test`        | Vitest 実行                 |
-| `npm run tauri build` | 配布バイナリ作成            |
-| `cargo build` / `fmt` | Rust（`src-tauri/` で実行） |
+| Command               | Purpose                      |
+| --------------------- | ---------------------------- |
+| `npm run tauri dev`   | Launch Tauri app (HMR)       |
+| `npm run dev`         | Frontend only (Vite)         |
+| `npm run build`       | Type-check + build           |
+| `npm run typecheck`   | TypeScript type check        |
+| `npm run lint`        | ESLint                       |
+| `npm run test`        | Run Vitest                   |
+| `npm run tauri build` | Build distributable binaries |
+| `cargo build` / `fmt` | Rust (run in `src-tauri/`)   |
 
-## 必須ルール
+## Required Rules
 
 ### shadcn/ui
 
-**IMPORTANT**: UI コンポーネントファイルを手動作成しないこと。必ず以下でインストール:
+**IMPORTANT**: Never create component files by hand. Always install via:
 
 ```bash
 npx shadcn@latest add <component>
 ```
 
-### i18n（多言語対応）
+### i18n (Internationalization)
 
-- ユーザー向けテキストは必ず `react-i18next` 経由
-- 翻訳キー命名: `{feature}.{description}`（例: `video.video_not_found`）
-- **IMPORTANT**: いずれかの言語ファイルにキーを追加・変更する場合は、
-  **全6言語（`en`/`ja`/`zh`/`ko`/`es`/`fr`）に同じ変更を適用**すること。
-  一部のみの追加は実行時エラーの原因。検証:
+- All user-facing text must go through `react-i18next`
+- Translation key naming: `{feature}.{description}` (e.g.,
+  `video.video_not_found`)
+- **IMPORTANT**: When adding or changing a key in any language file,
+  apply the same change to **all 6 languages
+  (`en`/`ja`/`zh`/`ko`/`es`/`fr`)**. Adding to only some languages causes
+  runtime errors. Verify:
 
   ```bash
   for f in src/i18n/locales/*.json; do echo "$f: $(grep -c '":' "$f")"; done
   ```
 
-- バックエンドの `ERR::*` エラーコードは翻訳キーへマッピング
-  （例: `ERR::VIDEO_NOT_FOUND` → `video.video_not_found`）
+- Map backend `ERR::*` error codes to translation keys (e.g.,
+  `ERR::VIDEO_NOT_FOUND` → `video.video_not_found`)
 
-### Tauri command（フロント ↔ バック）
+### Tauri Commands (Frontend ↔ Backend)
 
-- Rust command 名と TS 側 `invoke()` の文字列は一致（snake_case）
-- 新規 command は `src-tauri/src/lib.rs` の `invoke_handler`
-  （`generate_handler!`）に登録が必須
-- 開発専用機能は `#[cfg(debug_assertions)]` で分離
+- The Rust command name must match the string passed to `invoke()` on
+  the TS side (snake_case)
+- New commands must be registered in the `invoke_handler`
+  (`generate_handler!`) in `src-tauri/src/lib.rs`
+- Gate dev-only features behind `#[cfg(debug_assertions)]`
 
-### Tauri API モック（テスト）
+### Tauri API Mock (tests)
 
 ```typescript
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 ```
 
-## 動作確認前チェック
+## Pre-verification Checklist
 
-- `@hypothesi/tauri-mcp-server` を利用してログや HTML 要素取得を行うこと
-- 動確前は以下をチェックすること
-  - `npm run lint` でエラーがないこと
-  - `cargo build` でコンパイルが通ること
-- 動確は原則、ヒトが行う
-- `animate-ui` コンポーネントについては `shadcn` mcp を利用すること
-- Rust のコンパイルエラー → `src-tauri/` で `cargo build` を実行しエラー詳細を確認
+- Use `@hypothesi/tauri-mcp-server` to retrieve logs and HTML elements
+- Before user verification, check the following:
+  - `npm run lint` has no errors
+  - `cargo build` compiles successfully
+- Verification is performed by a human, as a rule
+- For `animate-ui` components, use the `shadcn` MCP
+- For Rust compile errors → run `cargo build` in `src-tauri/` for details
 
-## 参照（必要時に読む）
+## References (read on demand)
 
-- **CONTRIBUTING.md** — アーキテクチャ・ディレクトリ構造・インポートルール・
-  コードスタイル・ブランチ/コミット規約
-- **README.md** — プロジェクト概要・機能一覧
-- **references/bilibili-API-collect/** — bilibili API 仕様
+- **CONTRIBUTING.md** — architecture, directory structure, import rules,
+  code style, branch/commit conventions
+- **README.md** — project overview, feature list
+- **references/bilibili-API-collect/** — bilibili API reference
