@@ -16,7 +16,7 @@
 | `npm run tauri build` | 配布バイナリ作成            |
 | `cargo build` / `fmt` | Rust（`src-tauri/` で実行） |
 
-## 必須ルール（gotcha）
+## 必須ルール
 
 ### shadcn/ui
 
