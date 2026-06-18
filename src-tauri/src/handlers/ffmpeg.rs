@@ -17,6 +17,7 @@ use std::{
 use tauri::AppHandle;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command as AsyncCommand;
+use tokio_util::sync::CancellationToken;
 
 /// Options for embedding subtitles during video merging.
 ///
@@ -463,6 +464,7 @@ pub async fn merge_av(
         download_id,
         duration_ms,
         MergeMode::None,
+        None,
     )
     .await
 }
@@ -502,6 +504,7 @@ pub async fn merge_av(
 /// - Subtitle file paths are invalid (when using SoftSub or HardSub mode)
 /// - ffmpeg execution fails
 /// - ffmpeg returns a non-zero exit code
+#[allow(clippy::too_many_arguments)]
 pub async fn merge_avs(
     app: &AppHandle,
     video_path: &std::path::Path,
@@ -510,6 +513,7 @@ pub async fn merge_avs(
     download_id: Option<String>,
     duration_ms: Option<u64>,
     subtitle_mode: MergeMode,
+    cancel_token: Option<CancellationToken>,
 ) -> Result<(), String> {
     log::info!(
         "[BE] merge_avs: starting merge download_id={:?}, output={:?}, subtitle_mode={:?}",
@@ -650,7 +654,7 @@ pub async fn merge_avs(
         .spawn()
         .map_err(|e| format!("Failed to spawn ffmpeg: {e}"))?;
 
-    let stdout = child.stdout.as_mut().ok_or("Failed to capture stdout")?;
+    let stdout = child.stdout.take().ok_or("Failed to capture stdout")?;
     let stderr = child.stderr.take().ok_or("Failed to capture stderr")?;
 
     let reader = BufReader::new(stdout);
@@ -668,6 +672,21 @@ pub async fn merge_avs(
     });
 
     while let Ok(Some(line)) = lines.next_line().await {
+        // Cancel check (inline; check_cancelled is private + anyhow-typed).
+        // On cancel: kill ffmpeg, remove partial output, stop the progress
+        // emitter (prevents progress ghost), reap stderr task, then return.
+        if let Some(t) = &cancel_token {
+            if t.is_cancelled() {
+                // Kill ffmpeg; its stderr closes and the stderr_task winds down
+                // on its own (avoid moving stderr_task so the post-loop await
+                // stays valid).
+                let _ = child.kill().await;
+                let _ = child.wait().await; // reap to avoid a zombie process
+                let _ = tokio::fs::remove_file(output_path).await;
+                let _ = emits.stop().await;
+                return Err("ERR::CANCELLED".to_string());
+            }
+        }
         if let Some(time_str) = line.strip_prefix("out_time_ms=") {
             let out_time_us: u64 = time_str.trim().parse().unwrap_or(0);
             let out_time_ms = out_time_us / 1000;
@@ -698,6 +717,15 @@ pub async fn merge_avs(
         .unwrap_or_else(|e| format!("Failed to read stderr: {e}"));
 
     if !status.success() {
+        // ffmpeg didn't finish cleanly. If a cancel was requested, report it
+        // as cancelled and remove the partial output.
+        if let Some(t) = &cancel_token {
+            if t.is_cancelled() {
+                let _ = tokio::fs::remove_file(output_path).await;
+                let _ = emits.stop().await;
+                return Err("ERR::CANCELLED".to_string());
+            }
+        }
         return Err(format!(
             "ffmpeg failed to merge.\nExit code: {:?}\nstderr: {}",
             status.code(),
@@ -705,6 +733,9 @@ pub async fn merge_avs(
         ));
     }
 
+    // ffmpeg finished successfully. Treat as complete even if a cancel
+    // arrived in the brief window after progress=end; don't discard a
+    // finished file.
     let _ = emits.set_stage("complete").await;
     emits.complete().await;
 

@@ -563,5 +563,22 @@
     "loginMethodDescription": "Choisissez comment l'application s'authentifie auprès de Bilibili. Un redémarrage est nécessaire après le changement.",
     "loginMethodChanged": "Méthode de connexion mise à jour",
     "restartRequired": "Veuillez redémarrer l'application pour appliquer le changement."
+  },
+  "downloadStatus": {
+    "title": "Statut du téléchargement",
+    "no_downloads": "Aucun téléchargement",
+    "elapsed": "Temps écoulé",
+    "cancel_all": "Tout annuler",
+    "open": "Téléchargements",
+    "status_completed": "Terminé",
+    "status_downloading": "Téléchargement",
+    "status_waiting": "En attente",
+    "status_cancelling": "Annulation",
+    "status_cancelled": "Annulé",
+    "status_error": "Erreur",
+    "status_merging": "Fusion",
+    "stage_audio": "Audio",
+    "stage_video": "Vidéo",
+    "stage_merge": "Fusion"
   }
 }

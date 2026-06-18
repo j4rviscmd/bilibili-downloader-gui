@@ -1,5 +1,6 @@
 import { isUnauthorizedError } from '@/app/lib/invokeErrorHandler'
 import { type RootState, store, useSelector } from '@/app/store'
+import { openDownloadStatusDialog } from '@/features/download-status'
 import { downloadVideo } from '@/features/video/api/downloadVideo'
 import {
   useLazyFetchBangumiInfoQuery,
@@ -451,6 +452,8 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
         store.dispatch(clearQueueItem(completedItem.downloadId))
     }
 
+    // Each download session gets a unique parentId so the dialog shows a
+    // fresh state every time. Child downloadIds derive from parentId.
     const parentId = `${videoId}-${crypto.randomUUID()}`
     store.dispatch(
       enqueue({
@@ -460,7 +463,36 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
       }),
     )
 
+    // Pre-enqueue every selected part as pending so the download status
+    // dialog shows all parts immediately. Downloads run serially, so without
+    // this only the in-flight part would appear. downloadVideo's own enqueue
+    // is a no-op for these IDs (deduped by downloadId).
     for (const { pi, idx } of selectedParts) {
+      store.dispatch(
+        enqueue({
+          downloadId: `${parentId}-p${idx + 1}`,
+          parentId,
+          filename: pi.title.trim(),
+          status: 'pending',
+        }),
+      )
+    }
+
+    // Open the download status dialog on start so the user can follow
+    // each part's progress. Closing the dialog keeps the download running.
+    store.dispatch(openDownloadStatusDialog(parentId))
+
+    for (const { pi, idx } of selectedParts) {
+      // Abort remaining parts if cancelled (e.g. via cancelAllDownloads).
+      // Stop deterministically on the parent's status rather than relying on
+      // downloadVideo's reject error message.
+      const parent = store
+        .getState()
+        .queue.find((q) => q.downloadId === parentId)
+      if (parent?.status === 'cancelling' || parent?.status === 'cancelled') {
+        break
+      }
+
       const currentPartInput = store.getState().input.partInputs[idx]
       if (!currentPartInput?.selected) continue
 
@@ -489,7 +521,18 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
 
         // User-initiated cancel stops the entire playlist to avoid
         // the next part auto-starting (which looks like a restart).
-        if (raw.includes('ERR::CANCELLED')) break
+        // Judge by the parent's status (not just the error string) so
+        // error-message format changes don't let the next part start.
+        const parent = store
+          .getState()
+          .queue.find((q) => q.downloadId === parentId)
+        if (
+          parent?.status === 'cancelling' ||
+          parent?.status === 'cancelled' ||
+          raw.includes('ERR::CANCELLED')
+        ) {
+          break
+        }
 
         const description = getErrorMessage(raw, t)
         if (description) {
@@ -512,11 +555,33 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
       }
     }
 
-    const finalChildren = store
-      .getState()
-      .queue.filter((i) => i.parentId === parentId)
-    if (finalChildren.length === 0) {
-      store.dispatch(clearQueueItem(parentId))
+    const parent = store.getState().queue.find((q) => q.downloadId === parentId)
+    if (parent?.status === 'cancelled' || parent?.status === 'cancelling') {
+      // On cancel, remove only aborted/not-started children. Keep completed
+      // (done/error) children so their queue state (used by re-download
+      // checks) is preserved.
+      const children = store
+        .getState()
+        .queue.filter((q) => q.parentId === parentId)
+      for (const child of children) {
+        if (child.status !== 'done' && child.status !== 'error') {
+          store.dispatch(clearQueueItem(child.downloadId))
+        }
+      }
+      // Remove the parent if no children remain.
+      const remaining = store
+        .getState()
+        .queue.filter((q) => q.parentId === parentId)
+      if (remaining.length === 0) {
+        store.dispatch(clearQueueItem(parentId))
+      }
+    } else {
+      const finalChildren = store
+        .getState()
+        .queue.filter((i) => i.parentId === parentId)
+      if (finalChildren.length === 0) {
+        store.dispatch(clearQueueItem(parentId))
+      }
     }
   }, [
     isForm1Valid,

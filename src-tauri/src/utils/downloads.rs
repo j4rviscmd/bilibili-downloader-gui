@@ -332,6 +332,7 @@ pub async fn download_url(
             // Check cancellation before starting segment
             if let Some(ref t) = cancel_token_c {
                 if t.is_cancelled() {
+                    let _ = emits_c.stop().await;
                     return Err(anyhow::anyhow!("ERR::CANCELLED"));
                 }
             }
@@ -355,6 +356,7 @@ pub async fn download_url(
                 // Check cancellation on each retry
                 if let Some(ref t) = cancel_token_c {
                     if t.is_cancelled() {
+                        let _ = emits_c.stop().await;
                         return Err(anyhow::anyhow!("ERR::CANCELLED"));
                     }
                 }
@@ -546,6 +548,8 @@ pub async fn download_url(
     }
 
     if seg_errors > 0 {
+        // Stop the background emitter so it doesn't leak a progress loop.
+        emits.stop().await;
         return Err(anyhow::anyhow!("{seg_errors} segment(s) failed"));
     }
 
@@ -557,6 +561,8 @@ pub async fn download_url(
             final_downloaded,
             total
         );
+        // Stop the background emitter so it doesn't leak a progress loop.
+        emits.stop().await;
         return Err(anyhow::anyhow!(
             "final size mismatch: {} vs {}",
             final_downloaded,
@@ -786,7 +792,10 @@ async fn single_stream_fallback(
     let emits_for_callback = emits.clone();
     while let Some(chunk) = resp.chunk().await? {
         // Check cancellation on each chunk
-        check_cancelled(&cancel_token)?;
+        if let Err(e) = check_cancelled(&cancel_token) {
+            let _ = emits.stop().await;
+            return Err(e);
+        }
 
         file.write_all(&chunk).await.map_err(map_io_error)?;
         downloaded += chunk.len() as u64;

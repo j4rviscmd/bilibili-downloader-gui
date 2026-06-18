@@ -563,5 +563,22 @@
     "loginMethodDescription": "Bilibiliとの認証方法を選択します。切り替え後にアプリの再起動が必要です。",
     "loginMethodChanged": "ログイン方法を変更しました",
     "restartRequired": "変更を反映するにはアプリを再起動してください。"
+  },
+  "downloadStatus": {
+    "title": "ダウンロード状況",
+    "no_downloads": "ダウンロードなし",
+    "elapsed": "経過",
+    "cancel_all": "すべてキャンセル",
+    "open": "DL状況",
+    "status_completed": "完了",
+    "status_downloading": "DL中",
+    "status_waiting": "待機中",
+    "status_cancelling": "キャンセル中",
+    "status_cancelled": "キャンセル済み",
+    "status_error": "エラー",
+    "status_merging": "マージ中",
+    "stage_audio": "音声",
+    "stage_video": "動画",
+    "stage_merge": "マージ"
   }
 }

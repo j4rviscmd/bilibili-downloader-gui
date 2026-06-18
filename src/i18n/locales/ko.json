@@ -563,5 +563,22 @@
     "loginMethodDescription": "Bilibili 인증 방식을 선택합니다. 전환 후 앱 재시작이 필요합니다.",
     "loginMethodChanged": "로그인 방식이 업데이트되었습니다.",
     "restartRequired": "변경 사항을 적용하려면 앱을 재시작하세요."
+  },
+  "downloadStatus": {
+    "title": "다운로드 상태",
+    "no_downloads": "다운로드 없음",
+    "elapsed": "경과",
+    "cancel_all": "모두 취소",
+    "open": "다운로드",
+    "status_completed": "완료",
+    "status_downloading": "다운로드 중",
+    "status_waiting": "대기 중",
+    "status_cancelling": "취소 중",
+    "status_cancelled": "취소됨",
+    "status_error": "오류",
+    "status_merging": "병합 중",
+    "stage_audio": "오디오",
+    "stage_video": "비디오",
+    "stage_merge": "병합"
   }
 }

@@ -112,9 +112,27 @@ export const downloadVideo = async (
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     logger.error(`downloadVideo: failed id=${downloadId}`, error)
-    store.dispatch(
-      updateQueueStatus({ downloadId, status: 'error', errorMessage }),
-    )
+    // Cancel-induced reject: don't mark as error. Check the error string AND
+    // the queue status (self/parent) so a non-ERR::CANCELLED message during a
+    // cancel doesn't wrongly become an error.
+    const queueState = store.getState().queue
+    const selfStatus = queueState.find(
+      (q) => q.downloadId === downloadId,
+    )?.status
+    const parentStatus = parentId
+      ? queueState.find((q) => q.downloadId === parentId)?.status
+      : undefined
+    const isCancel =
+      errorMessage.includes('ERR::CANCELLED') ||
+      selfStatus === 'cancelling' ||
+      selfStatus === 'cancelled' ||
+      parentStatus === 'cancelling' ||
+      parentStatus === 'cancelled'
+    if (!isCancel) {
+      store.dispatch(
+        updateQueueStatus({ downloadId, status: 'error', errorMessage }),
+      )
+    }
     throw error
   }
 }

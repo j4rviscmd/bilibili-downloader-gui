@@ -1,5 +1,6 @@
 import type { RootState } from '@/app/store'
 import { useAppDispatch, useSelector } from '@/app/store'
+import { OpenDownloadStatusDialogButton } from '@/features/download-status'
 import { useInit } from '@/features/init'
 import { QRCodeLoginDialog } from '@/features/login'
 import type { Video } from '@/features/video'
@@ -774,6 +775,7 @@ export function HomeContent() {
   return (
     <VideoInfoProvider>
       <HomeContentInner />
+      <OpenDownloadStatusDialogButton />
     </VideoInfoProvider>
   )
 }

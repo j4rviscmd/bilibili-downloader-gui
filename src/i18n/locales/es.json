@@ -563,5 +563,22 @@
     "loginMethodDescription": "Elige cómo se autentica la app con Bilibili. Es necesario reiniciar la app después de cambiar.",
     "loginMethodChanged": "Método de inicio de sesión actualizado",
     "restartRequired": "Reinicia la app para que el cambio surta efecto."
+  },
+  "downloadStatus": {
+    "title": "Estado de descarga",
+    "no_downloads": "Sin descargas",
+    "elapsed": "Transcurrido",
+    "cancel_all": "Cancelar todo",
+    "open": "Descargas",
+    "status_completed": "Completado",
+    "status_downloading": "Descargando",
+    "status_waiting": "En espera",
+    "status_cancelling": "Cancelando",
+    "status_cancelled": "Cancelado",
+    "status_error": "Error",
+    "status_merging": "Combinando",
+    "stage_audio": "Audio",
+    "stage_video": "Video",
+    "stage_merge": "Combinar"
   }
 }

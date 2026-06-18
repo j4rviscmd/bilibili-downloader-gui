@@ -107,17 +107,12 @@ type DialogContentProps = React.ComponentProps<
 function DialogContent({
   className,
   children,
-  from = 'top',
   transition = { type: 'spring', stiffness: 150, damping: 25 },
   disableOutsideClick,
   onEscapeKeyDown,
   ...props
 }: DialogContentProps) {
   const { isOpen } = useDialog()
-
-  const initialRotation = from === 'top' || from === 'left' ? '20deg' : '-20deg'
-  const isVertical = from === 'top' || from === 'bottom'
-  const rotateAxis = isVertical ? 'rotateX' : 'rotateY'
 
   return (
     <AnimatePresence>
@@ -153,17 +148,17 @@ function DialogContent({
               initial={{
                 opacity: 0,
                 filter: 'blur(4px)',
-                transform: `perspective(500px) ${rotateAxis}(${initialRotation}) scale(0.8)`,
+                transform: 'perspective(500px) scale(0.95)',
               }}
               animate={{
                 opacity: 1,
                 filter: 'blur(0px)',
-                transform: `perspective(500px) ${rotateAxis}(0deg) scale(1)`,
+                transform: 'perspective(500px) scale(1)',
               }}
               exit={{
                 opacity: 0,
                 filter: 'blur(4px)',
-                transform: `perspective(500px) ${rotateAxis}(${initialRotation}) scale(0.8)`,
+                transform: 'perspective(500px) scale(0.95)',
               }}
               transition={transition}
               className={cn(

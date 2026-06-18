@@ -563,5 +563,22 @@
     "loginMethodDescription": "Choose how the app authenticates with Bilibili. Restart required after switching.",
     "loginMethodChanged": "Login method updated",
     "restartRequired": "Please restart the app for the change to take effect."
+  },
+  "downloadStatus": {
+    "title": "Download Status",
+    "no_downloads": "No downloads",
+    "elapsed": "Elapsed",
+    "cancel_all": "Cancel All",
+    "open": "Downloads",
+    "status_completed": "Completed",
+    "status_downloading": "Downloading",
+    "status_waiting": "Waiting",
+    "status_cancelling": "Cancelling",
+    "status_cancelled": "Cancelled",
+    "status_error": "Error",
+    "status_merging": "Merging",
+    "stage_audio": "Audio",
+    "stage_video": "Video",
+    "stage_merge": "Merge"
   }
 }

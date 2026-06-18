@@ -9,7 +9,7 @@ import { logger } from '@/shared/lib/logger'
 import type { Progress } from '@/shared/ui/Progress'
 import { Button } from '@/shared/ui/button'
 import { invoke } from '@tauri-apps/api/core'
-import { CheckCircle2, Download, FolderOpen, RotateCcw } from 'lucide-react'
+import { CheckCircle2, FolderOpen, RotateCcw } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { PartDownloadStatus } from '../hooks/usePartDownloadStatus'
@@ -175,7 +175,6 @@ function MergeStageProgress({ progressEntries, t }: MergeStageProgressProps) {
 type Props = {
   status: PartDownloadStatus
   isWaitingForTurn?: boolean
-  onRedownload: () => void
   onRetry: () => void
   onCancel?: () => void
   /** True if audio is embedded (durl format), so only video stage is shown */
@@ -189,7 +188,6 @@ type Props = {
 export function PartDownloadProgress({
   status,
   isWaitingForTurn = false,
-  onRedownload,
   onRetry,
   onCancel,
   hasEmbeddedAudio = false,
@@ -249,10 +247,6 @@ export function PartDownloadProgress({
     })
   }, [outputPath])
 
-  const handleRedownload = useCallback(() => {
-    onRedownload()
-  }, [onRedownload])
-
   if (
     !isPending &&
     !isDownloading &&
@@ -291,15 +285,6 @@ export function PartDownloadProgress({
             >
               <FolderOpen className="mr-1 h-3 w-3" />
               {t('video.open_folder')}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRedownload}
-              className="h-8 px-2 text-xs"
-            >
-              <Download className="mr-1 h-3 w-3" />
-              {t('video.redownload')}
             </Button>
           </div>
         </div>
@@ -403,18 +388,9 @@ export function PartDownloadProgress({
 
       {isCancelled && (
         <div
-          className={`text-muted-foreground ${MIN_HEIGHT} flex items-center justify-between text-sm`}
+          className={`text-muted-foreground ${MIN_HEIGHT} flex items-center text-sm`}
         >
           <span>{t('video.download_cancelled')}</span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onRedownload}
-            className="h-8 px-2 text-xs"
-          >
-            <Download className="mr-1 h-3 w-3" />
-            {t('video.redownload')}
-          </Button>
         </div>
       )}
 
