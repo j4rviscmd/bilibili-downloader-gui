@@ -386,7 +386,11 @@ export function PartDownloadProgress({
         </div>
       )}
 
-      {isCancelled && (
+      {/* @why: Prefer isComplete. When cancel-all lands right after a merge
+          finishes, status becomes 'cancelled' but the file is actually
+          complete, so the "complete" view is accurate. Showing both is
+          contradictory. */}
+      {isCancelled && !isComplete && (
         <div
           className={`text-muted-foreground ${MIN_HEIGHT} flex items-center text-sm`}
         >

@@ -569,6 +569,7 @@
     "no_downloads": "Sin descargas",
     "elapsed": "Transcurrido",
     "cancel_all": "Cancelar todo",
+    "cancel_all_disabled_merging": "Combinación en curso: no se puede cancelar",
     "open": "Descargas",
     "status_completed": "Completado",
     "status_downloading": "Descargando",

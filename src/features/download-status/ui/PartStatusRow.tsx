@@ -1,3 +1,5 @@
+import { IconButton } from '@/components/animate-ui/components/buttons/icon'
+import { CircleX } from '@/components/animate-ui/icons/circle-x'
 import {
   Tooltip,
   TooltipContent,
@@ -68,10 +70,23 @@ function StageMini({
  * 左から: ステータスドット / P番号 / パート名 / [DL中] audio bar+%+speed +
  * video bar+%+speed / [マージ中] merge bar+% / ステータスラベル。
  */
-export function PartStatusRow({ part }: { part: PartStatusRowModel }) {
+export function PartStatusRow({
+  part,
+  onCancel,
+}: {
+  part: PartStatusRowModel
+  onCancel?: () => void
+}) {
   const { t } = useTranslation()
   const isDownloading = part.status === 'running'
   const dotClass = STATUS_DOT_CLASS[part.status] ?? STATUS_DOT_CLASS.pending
+  // Only pending/running parts are cancellable. Merge stage (stage=merge) and
+  // completed (isComplete) are excluded — cancelling mid-merge races with the
+  // ffmpeg kill and produces a contradictory display.
+  const canCancel =
+    (part.status === 'pending' || part.status === 'running') &&
+    part.stage !== 'merge' &&
+    !part.isComplete
   const rawName =
     part.status === 'error' && part.errorMessage
       ? part.errorMessage
@@ -105,7 +120,15 @@ export function PartStatusRow({ part }: { part: PartStatusRowModel }) {
       </span>
       <Tooltip>
         <TooltipTrigger asChild>
-          <span className="min-w-0 flex-1 cursor-default truncate">
+          <span
+            className={cn(
+              'min-w-0 flex-1 cursor-default truncate',
+              // Cancelled parts: greyed text (matches the waiting dot) +
+              // strikethrough so they never read as a successful download.
+              part.status === 'cancelled' &&
+                'text-muted-foreground line-through',
+            )}
+          >
             {rawName}
           </span>
         </TooltipTrigger>
@@ -155,6 +178,23 @@ export function PartStatusRow({ part }: { part: PartStatusRowModel }) {
             {mergePct}%
           </span>
         </div>
+      )}
+      {canCancel && onCancel && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <IconButton
+              variant="ghost"
+              size="sm"
+              onClick={onCancel}
+              className="text-muted-foreground hover:text-destructive size-5 shrink-0 p-0"
+            >
+              <CircleX animateOnHover className="size-3.5" />
+            </IconButton>
+          </TooltipTrigger>
+          <TooltipContent side="top" arrow>
+            {t('video.cancel_download')}
+          </TooltipContent>
+        </Tooltip>
       )}
     </div>
   )

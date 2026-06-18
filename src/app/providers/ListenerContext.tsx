@@ -17,7 +17,7 @@ import {
   setProgress,
   setRetrying,
 } from '@/shared/progress/progressSlice'
-import { clearQueueItem, updateQueueStatus } from '@/shared/queue/queueSlice'
+import { updateQueueStatus } from '@/shared/queue/queueSlice'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { createContext, useEffect, type FC, type ReactNode } from 'react'
 import { toast } from 'sonner'
@@ -149,8 +149,11 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
           if (item && (item.status === 'done' || item.status === 'error')) {
             return
           }
-          // Remove queue item to restore pre-download state
-          store.dispatch(clearQueueItem(downloadId))
+          // @why: Keep the row as 'cancelled' instead of removing it. Silently
+          //   deleting the item hides which part the user cancelled, leaving the
+          //   status dialog and part card unclear about what was cancelled. The
+          //   cancelled row stays visible with a strikethrough.
+          store.dispatch(updateQueueStatus({ downloadId, status: 'cancelled' }))
           // Clear progress entries for this download
           store.dispatch(clearProgressByDownloadId(downloadId))
           // Show toast notification

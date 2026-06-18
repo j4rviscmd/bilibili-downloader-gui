@@ -53,13 +53,20 @@ function aggregateParentStatuses(state: QueueItem[]): void {
 
     const statuses = children.map((c) => c.status)
 
-    // Priority: error > cancelling > running > done > cancelled > pending
+    // Priority: error > cancelling > running > pending > done > cancelled.
+    // A pending child means the playlist hasn't finished yet, so a cancelled
+    // sibling (from a per-part cancel) must NOT flip the parent to
+    // 'cancelled' — that would abort the remaining parts in the serial
+    // download loop. Only once every remaining part is done/cancelled does
+    // the parent settle to 'cancelled' (or 'done' if nothing was skipped).
     if (statuses.includes('error')) {
       parent.status = 'error'
     } else if (statuses.includes('cancelling')) {
       parent.status = 'cancelling'
     } else if (statuses.includes('running')) {
       parent.status = 'running'
+    } else if (statuses.includes('pending')) {
+      parent.status = 'pending'
     } else if (statuses.every((s) => s === 'done')) {
       parent.status = 'done'
     } else if (statuses.includes('cancelled')) {
@@ -111,24 +118,37 @@ const initialState: QueueItem[] = []
  *
  * @param downloadId - Unique identifier of the download to cancel
  */
-export const cancelDownload = createAsyncThunk(
+export const cancelDownload = createAsyncThunk<
+  { downloadId: string; wasCancelled: boolean },
+  string,
+  { state: RootState; pendingMeta: { wasPending: boolean } }
+>(
   'queue/cancelDownload',
-  async (downloadId: string, { getState }) => {
-    const state = getState() as RootState
-    const item = state.queue.find((i) => i.downloadId === downloadId)
-    if (!item) {
-      throw new Error(`Download not found: ${downloadId}`)
-    }
-
-    const cancellableStatuses = ['pending', 'running', 'cancelling']
-    if (!cancellableStatuses.includes(item.status || '')) {
-      throw new Error(
-        `Download is not cancellable: ${downloadId} (status: ${item.status})`,
-      )
-    }
-
+  async (downloadId) => {
+    // Note: cancellability is enforced in `condition` (runs before the
+    // pending reducer), not here. By the time this runs, the pending
+    // reducer may have already finalized a pending child to 'cancelled', so
+    // a status check here would wrongly abort the backend call that sets
+    // mark_cancelled — and the part would later be re-downloaded.
     const wasCancelled = await callCancelDownload(downloadId)
     return { downloadId, wasCancelled }
+  },
+  {
+    // Run before the pending reducer flips the status. Reject done/error
+    // items here: returning false aborts before pending fires, leaving the
+    // status unchanged.
+    condition: (downloadId, { getState }) => {
+      const item = getState().queue.find((i) => i.downloadId === downloadId)
+      if (!item) return false
+      return ['pending', 'running', 'cancelling'].includes(item.status || '')
+    },
+    // Capture the pre-cancel status BEFORE the pending reducer flips it to
+    // 'cancelling'. The pending reducer uses it to finalize a pre-enqueued
+    // pending child (no backend token) immediately as 'cancelled'.
+    getPendingMeta: ({ arg }, { getState }) => {
+      const item = getState().queue.find((i) => i.downloadId === arg)
+      return { wasPending: item?.status === 'pending' }
+    },
   },
 )
 
@@ -141,8 +161,16 @@ export const cancelAllDownloads = createAsyncThunk(
   'queue/cancelAllDownloads',
   async (_, { getState }) => {
     const state = getState() as RootState
+    // Include 'cancelling': this thunk's own pending action has already
+    // flipped pending/running items to 'cancelling' before this body runs,
+    // so filtering only pending/running would drop them and short-circuit
+    // without ever calling the backend (the backend cancel never fires,
+    // while the frontend still settles to 'cancelled' — the exact bug we
+    // saw where P0 "cancelled" but kept downloading).
     const cancellableIds = state.queue
-      .filter((i) => i.status === 'pending' || i.status === 'running')
+      .filter((i) =>
+        ['pending', 'running', 'cancelling'].includes(i.status || ''),
+      )
       .map((i) => i.downloadId)
 
     if (cancellableIds.length === 0) {
@@ -258,13 +286,20 @@ export const queueSlice = createSlice({
     builder.addCase(cancelDownload.pending, (state, action) => {
       const item = state.find((i) => i.downloadId === action.meta.arg)
       if (item) {
-        item.status = 'cancelling'
+        // wasPending is captured pre-cancel in pendingMeta (before this
+        // reducer runs). A pre-enqueued pending child has no backend token,
+        // so cancel can only pre-mark it (mark_cancelled). Finalize to
+        // 'cancelled' immediately instead of routing through 'cancelling',
+        // which the fulfilled case relies on to detect a running→done race.
+        item.status = action.meta.wasPending ? 'cancelled' : 'cancelling'
       }
       aggregateParentStatuses(state)
     })
 
-    // Finalize cancel status regardless of backend result so the UI never
-    // sticks in "cancelling". wasCancelled=false means it already finished.
+    // Finalize the cancel status of a running download. Only running
+    // downloads reach here with status 'cancelling' (pending children were
+    // finalized in the pending case). wasCancelled=false means it raced to
+    // completion just before the cancel signal arrived, so treat as done.
     builder.addCase(cancelDownload.fulfilled, (state, action) => {
       const { wasCancelled } = action.payload
       const item = state.find((i) => i.downloadId === action.meta.arg)
@@ -356,10 +391,18 @@ export const selectDownloadIdByPartIndex = (
   state: { queue: QueueItem[] },
   partIndex: number,
 ): string | undefined => {
-  return state.queue.find((item) => {
-    const match = item.downloadId.match(/-p(\d+)$/)
-    return match && parseInt(match[1], 10) === partIndex + 1
-  })?.downloadId
+  // Search from the end: the most recently enqueued part for this index
+  // wins. During a re-download, stale items from a prior session (e.g.
+  // cancelled children kept for visibility) coexist with the new ones, and
+  // resolving to an old downloadId would make the part card show the prior
+  // session's state.
+  for (let i = state.queue.length - 1; i >= 0; i--) {
+    const match = state.queue[i].downloadId.match(/-p(\d+)$/)
+    if (match && parseInt(match[1], 10) === partIndex + 1) {
+      return state.queue[i].downloadId
+    }
+  }
+  return undefined
 }
 
 /** Memoized selector factory for queue item by download ID. */

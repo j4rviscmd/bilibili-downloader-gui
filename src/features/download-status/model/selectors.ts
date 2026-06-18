@@ -145,11 +145,17 @@ export const selectPartStatusRows = createSelector(
         const rep = pickStageData(progressEntries)
         // partInputs is 0-based; partIndex is 1-based
         const title = partInputs[partIndex - 1]?.title ?? `Part ${partIndex}`
+        // @why: When cancel-all lands right after a merge finishes, child.status
+        //   becomes 'cancelled' even though the file is actually complete. Override
+        //   to 'done' when isComplete so the display matches the real artifact —
+        //   this keeps the PartStatusRow dot/strikethrough and OverallSummary
+        //   completedCount free of a contradictory "cancelled but complete" state.
+        const status = rep.isComplete ? 'done' : (child.status ?? 'pending')
         return {
           downloadId: child.downloadId,
           partIndex,
           title,
-          status: child.status ?? 'pending',
+          status,
           errorMessage: child.errorMessage,
           percentage: rep.percentage,
           audio: rep.audio,
@@ -170,32 +176,43 @@ export const selectPartStatusRows = createSelector(
 export const selectOverallSummary = createSelector(
   [selectPartStatusRows],
   (rows): OverallSummary => {
-    const totalParts = rows.length
-    const completedCount = rows.filter((r) => r.status === 'done').length
-    const errorCount = rows.filter((r) => r.status === 'error').length
-    const cancelledCount = rows.filter((r) => r.status === 'cancelled').length
-    const activeCount = rows.filter(
+    // Exclude cancelled parts from totals/progress: they won't download, so
+    // counting them in the denominator reads as "still pending" (e.g. 7/10
+    // with 3 cancelled looks like 3 are left). cancelledCount is still
+    // reported separately for display.
+    const active = rows.filter((r) => r.status !== 'cancelled')
+    const totalParts = active.length
+    const completedCount = active.filter((r) => r.status === 'done').length
+    const errorCount = active.filter((r) => r.status === 'error').length
+    const cancelledCount = rows.length - active.length
+    const activeCount = active.filter(
       (r) => r.status === 'running' || r.status === 'pending',
     ).length
-    // Average of per-part progress ratios (done=1, cancelled=0, otherwise
-    // percentage/100). Cancelled parts freeze at 0 so a still-running backend
-    // download doesn't move the overall bar.
+    // Average progress ratio over non-cancelled parts (done=1, otherwise
+    // percentage/100).
     const overallRatio =
       totalParts > 0
-        ? rows.reduce((sum, r) => {
-            let ratio: number
-            if (r.status === 'done') ratio = 1
-            else if (r.status === 'cancelled') ratio = 0
-            else ratio = r.percentage / 100
-            return sum + ratio
-          }, 0) / totalParts
+        ? active.reduce(
+            (sum, r) => sum + (r.status === 'done' ? 1 : r.percentage / 100),
+            0,
+          ) / totalParts
         : 0
-    // Sum elapsed times across all non-cancelled parts. Serial downloads
-    // run one after another, so total wall-clock time = sum of each part's
-    // elapsed time.
-    const elapsedSeconds = rows.reduce(
-      (sum, r) => (r.status === 'cancelled' ? sum : sum + r.elapsedTime),
-      0,
+    // Sum elapsed times across non-cancelled parts. Serial downloads run one
+    // after another, so total wall-clock time = sum of each part's elapsed time.
+    const elapsedSeconds = active.reduce((sum, r) => sum + r.elapsedTime, 0)
+    // Any part in the merge stage blocks cancel-all: ffmpeg is a CLI
+    // process that's unsafe to interrupt mid-merge.
+    // @why: The merge stage runs an ffmpeg CLI child process. Cancelling kills
+    //   the child, but if the cancel arrives in the brief window right after
+    //   ffmpeg reaches `progress=end`, it exits successfully and the output file
+    //   is already complete (see src-tauri/src/handlers/ffmpeg.rs merge_avs
+    //   "don't discard a finished file", commit d9202270). This actually caused
+    //   a contradictory "cancelled yet complete progress emitted" display.
+    // @constraint: Fully closing that race window in the backend is hard, so the
+    //   safest and simplest fix is to refuse cancel-all while any part is
+    //   merging (disable the button).
+    const isMerging = rows.some(
+      (r) => r.status === 'running' && r.stage === 'merge',
     )
     return {
       totalParts,
@@ -204,6 +221,7 @@ export const selectOverallSummary = createSelector(
       cancelledCount,
       activeCount,
       hasActive: activeCount > 0,
+      isMerging,
       overallRatio,
       elapsedSeconds,
     }

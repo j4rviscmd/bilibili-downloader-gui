@@ -58,6 +58,31 @@ npx shadcn@latest add <component>
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 ```
 
+### Tooltips for Ambiguous / Disabled Controls
+
+**Proactively add tooltips where the user may be confused (disabled
+buttons, state-dependent restrictions, non-obvious behavior). Explain
+_why_, not just _what_.**
+
+- Use `@/shared/animate-ui/radix/tooltip` (`Tooltip` / `TooltipTrigger` /
+  `TooltipContent`). `TooltipProvider` may be omitted when an ancestor
+  already provides it (e.g. `DownloadStatusDialog`)
+- **Disabled buttons**: native `title` won't fire because
+  `pointer-events: none` blocks hover. Wrap with
+  `<TooltipTrigger asChild><span><Button disabled>…</Button></span></TooltipTrigger>`
+  so the wrapper receives the hover
+- Tooltip text must be **i18n**-ized across all 6 languages; key naming
+  follows `{feature}.{description}`
+- Render `TooltipContent` only when the reason applies (conditional), not
+  always-on
+
+### Code Comments
+
+**Write all code comments in English.** This includes inline `//`
+comments, JSDoc/docstring descriptions, and WHY/CAUTION/CONSTRAINT tags.
+Existing Japanese comments may remain, but never add new Japanese
+comments.
+
 ## Pre-verification Checklist
 
 - Use `@hypothesi/tauri-mcp-server` to retrieve logs and HTML elements

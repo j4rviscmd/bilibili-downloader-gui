@@ -66,6 +66,22 @@ export type OverallSummary = {
   activeCount: number
   /** 何らかのDLが進行中か */
   hasActive: boolean
+  /**
+   * True when any part is currently merging (ffmpeg CLI running). Blocks cancel-all.
+   *
+   * @why The merge stage spawns an ffmpeg CLI child process to combine video
+   *   and audio. Cancelling must kill that child, but if the cancel arrives in
+   *   the brief window right after ffmpeg reaches `progress=end` (done), the
+   *   process exits successfully and the output file is already complete. This
+   *   follows the "don't discard a finished file" intent in
+   *   `src-tauri/src/handlers/ffmpeg.rs` `merge_avs` (commit d9202270). It
+   *   actually caused a contradictory "cancelled yet complete progress emitted"
+   *   UI state.
+   * @constraint Fully closing that race window in the backend is hard, so the
+   *   safest and simplest workaround is to refuse cancel-all while any part is
+   *   merging (disable the button).
+   */
+  isMerging: boolean
   /** 全体進捗 0..1（完了=1、進行中=percentage/100 の平均） */
   overallRatio: number
   /** 経過時間 秒（全子の max(elapsedTime)） */
