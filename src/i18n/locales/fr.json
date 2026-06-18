@@ -569,6 +569,7 @@
     "no_downloads": "Aucun téléchargement",
     "elapsed": "Temps écoulé",
     "cancel_all": "Tout annuler",
+    "cancel_all_disabled_merging": "Fusion en cours — annulation indisponible",
     "open": "Téléchargements",
     "status_completed": "Terminé",
     "status_downloading": "Téléchargement",

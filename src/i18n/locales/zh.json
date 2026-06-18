@@ -569,6 +569,7 @@
     "no_downloads": "无下载",
     "elapsed": "已用时间",
     "cancel_all": "全部取消",
+    "cancel_all_disabled_merging": "正在合并，无法取消",
     "open": "下载",
     "status_completed": "完成",
     "status_downloading": "下载中",

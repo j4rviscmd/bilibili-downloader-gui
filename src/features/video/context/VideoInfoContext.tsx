@@ -23,12 +23,8 @@ import { selectDuplicateIndices } from '@/features/video/model/selectors'
 import { setVideo } from '@/features/video/model/videoSlice'
 import { setError } from '@/shared/downloadStatus/downloadStatusSlice'
 import { logger } from '@/shared/lib/logger'
-import {
-  clearQueue,
-  clearQueueItem,
-  enqueue,
-  findCompletedItemForPart,
-} from '@/shared/queue/queueSlice'
+import { clearProgressByDownloadId } from '@/shared/progress/progressSlice'
+import { clearQueue, clearQueueItem, enqueue } from '@/shared/queue/queueSlice'
 import {
   createContext,
   useCallback,
@@ -445,11 +441,26 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
     // Clear previous resolved quality/subtitle info before starting new download
     store.dispatch(clearResolvedInfo())
 
-    // Clear previously completed items for the selected parts to allow re-download
+    // Clear previously finished items (done/cancelled/error) for the selected
+    // parts so a re-download starts clean. selectDownloadIdByPartIndex
+    // resolves by part suffix only, so stale items from a prior session would
+    // otherwise shadow the new download and show wrong state in the part card.
     for (const { idx } of selectedParts) {
-      const completedItem = findCompletedItemForPart(store.getState(), idx + 1)
-      if (completedItem)
-        store.dispatch(clearQueueItem(completedItem.downloadId))
+      const partNumber = idx + 1
+      const staleItems = store.getState().queue.filter((item) => {
+        const match = item.downloadId.match(/-p(\d+)$/)
+        return (
+          match &&
+          parseInt(match[1], 10) === partNumber &&
+          (item.status === 'done' ||
+            item.status === 'cancelled' ||
+            item.status === 'error')
+        )
+      })
+      for (const item of staleItems) {
+        store.dispatch(clearQueueItem(item.downloadId))
+        store.dispatch(clearProgressByDownloadId(item.downloadId))
+      }
     }
 
     // Each download session gets a unique parentId so the dialog shows a
@@ -519,19 +530,22 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
       } catch (e) {
         const raw = String(e)
 
-        // User-initiated cancel stops the entire playlist to avoid
-        // the next part auto-starting (which looks like a restart).
-        // Judge by the parent's status (not just the error string) so
-        // error-message format changes don't let the next part start.
         const parent = store
           .getState()
           .queue.find((q) => q.downloadId === parentId)
-        if (
-          parent?.status === 'cancelling' ||
-          parent?.status === 'cancelled' ||
-          raw.includes('ERR::CANCELLED')
-        ) {
+        // Whole-playlist cancel (cancelAllDownloads) stops the loop. Judge by
+        // the parent's status so error-message format changes can't let the
+        // next part start.
+        if (parent?.status === 'cancelling' || parent?.status === 'cancelled') {
           break
+        }
+
+        // Per-part cancel (cancelDownload) only rejects this part with
+        // ERR::CANCELLED while leaving the parent running/pending — skip this
+        // part silently and continue to the next. Don't toast: the user
+        // intentionally cancelled.
+        if (raw.includes('ERR::CANCELLED')) {
+          continue
         }
 
         const description = getErrorMessage(raw, t)
@@ -557,14 +571,15 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
 
     const parent = store.getState().queue.find((q) => q.downloadId === parentId)
     if (parent?.status === 'cancelled' || parent?.status === 'cancelling') {
-      // On cancel, remove only aborted/not-started children. Keep completed
-      // (done/error) children so their queue state (used by re-download
-      // checks) is preserved.
+      // Keep cancelled children visible (strikethrough) so the user can see
+      // which parts they skipped. Only remove orphaned pending children
+      // (left behind when the loop was interrupted before they could start).
+      // Done/error children are always kept for their re-download queue state.
       const children = store
         .getState()
         .queue.filter((q) => q.parentId === parentId)
       for (const child of children) {
-        if (child.status !== 'done' && child.status !== 'error') {
+        if (child.status === 'pending') {
           store.dispatch(clearQueueItem(child.downloadId))
         }
       }

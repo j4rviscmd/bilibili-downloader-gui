@@ -252,7 +252,10 @@ pub fn run() {
                 .max_file_size(10_000_000) // 10MB
                 .timezone_strategy(tauri_plugin_log::TimezoneStrategy::UseLocal)
                 .targets([
-                    // tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
+                    // Mirror logs to stderr so the dev terminal shows them
+                    // live (stderr is unbuffered, so panics/crashes don't
+                    // lose log lines). Stdout is left disabled.
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stderr),
                     tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Folder {
                         path: log_dir,
                         file_name: Some("app".into()),
@@ -576,6 +579,15 @@ async fn cancel_download(app: AppHandle, download_id: String) -> Result<bool, St
             "download_cancelled",
             serde_json::json!({ "downloadId": download_id }),
         );
+    } else {
+        // No token: either a pre-enqueued pending child (download_video not
+        // started yet) or a finished download whose token was already
+        // removed. Mark it pre-cancelled so download_video rejects it on
+        // start, mirroring cancel_all_downloads. We deliberately do NOT emit
+        // download_cancelled here: that event triggers clearQueueItem on the
+        // frontend, which would drop the row. A cancelled pending part must
+        // stay visible (greyed dot + strikethrough) instead of vanishing.
+        DOWNLOAD_CANCEL_REGISTRY.mark_cancelled(&download_id).await;
     }
 
     Ok(was_found)

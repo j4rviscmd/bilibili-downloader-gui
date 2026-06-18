@@ -569,6 +569,7 @@
     "no_downloads": "ダウンロードなし",
     "elapsed": "経過",
     "cancel_all": "すべてキャンセル",
+    "cancel_all_disabled_merging": "マージ中のためキャンセルできません",
     "open": "DL状況",
     "status_completed": "完了",
     "status_downloading": "DL中",

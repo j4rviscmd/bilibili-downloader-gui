@@ -569,6 +569,7 @@
     "no_downloads": "다운로드 없음",
     "elapsed": "경과",
     "cancel_all": "모두 취소",
+    "cancel_all_disabled_merging": "병합 중이라 취소할 수 없습니다",
     "open": "다운로드",
     "status_completed": "완료",
     "status_downloading": "다운로드 중",

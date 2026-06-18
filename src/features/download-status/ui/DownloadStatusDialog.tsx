@@ -1,4 +1,5 @@
-import { useSelector } from '@/app/store'
+import { useAppDispatch, useSelector } from '@/app/store'
+import { updatePartSelected } from '@/features/video/model/inputSlice'
 import {
   Dialog,
   DialogContent,
@@ -8,6 +9,7 @@ import {
 } from '@/shared/animate-ui/radix/dialog'
 import { TooltipProvider } from '@/shared/animate-ui/radix/tooltip'
 import { cn } from '@/shared/lib/utils'
+import { cancelDownload } from '@/shared/queue'
 import { useTranslation } from 'react-i18next'
 
 import { useDownloadStatusDialog } from '../hooks/useDownloadStatusDialog'
@@ -33,6 +35,7 @@ import { PartStatusRow } from './PartStatusRow'
  */
 export function DownloadStatusDialog() {
   const { t } = useTranslation()
+  const dispatch = useAppDispatch()
   const { close } = useDownloadStatusDialog()
   const isOpen = useSelector(selectDownloadStatusDialogOpen)
   const rows = useSelector(selectPartStatusRows)
@@ -64,7 +67,23 @@ export function DownloadStatusDialog() {
             ) : (
               <div className="space-y-1 py-2">
                 {rows.map((row) => (
-                  <PartStatusRow key={row.downloadId} part={row} />
+                  <PartStatusRow
+                    key={row.downloadId}
+                    part={row}
+                    onCancel={() => {
+                      dispatch(cancelDownload(row.downloadId))
+                      // @why: Mirror the home (VideoPartCard.handleCancel) behavior and
+                      //   also clear the selection on cancel. Without this, a re-download
+                      //   would re-fetch this part, contradicting the user's "I don't want
+                      //   it" intent. partIndex is 1-based, so -1 converts to 0-based.
+                      dispatch(
+                        updatePartSelected({
+                          index: row.partIndex - 1,
+                          selected: false,
+                        }),
+                      )
+                    }}
+                  />
                 ))}
               </div>
             )}

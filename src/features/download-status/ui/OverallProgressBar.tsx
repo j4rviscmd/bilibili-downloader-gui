@@ -1,4 +1,9 @@
 import { useAppDispatch, useSelector } from '@/app/store'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/shared/animate-ui/radix/tooltip'
 import { cancelAllDownloads } from '@/shared/queue'
 import { Button } from '@/shared/ui/button'
 import { useTranslation } from 'react-i18next'
@@ -37,14 +42,43 @@ export function OverallProgressBar() {
       <span className="text-muted-foreground text-sm whitespace-nowrap tabular-nums">
         {t('downloadStatus.elapsed')} {formatElapsed(summary.elapsedSeconds)}
       </span>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={handleCancelAll}
-        disabled={!summary.hasActive}
-      >
-        {t('downloadStatus.cancel_all')}
-      </Button>
+      {/*
+        @why: Disabling on isMerging is because the merge stage spawns an ffmpeg
+          CLI child process. Cancelling kills the child, but if the cancel hits
+          the brief window right after ffmpeg reaches `progress=end`, it exits
+          successfully and the output is already complete
+          (src-tauri/src/handlers/ffmpeg.rs merge_avs "don't discard a finished
+          file", commit d9202270). This actually caused a contradictory
+          "cancelled yet complete progress emitted" display.
+        @caution: Removing this disable lets the cancel slip through the race
+          window and the UI shows a contradictory "complete" + "cancelled" state.
+        @constraint: Fully closing the race window in the backend is hard, so
+          refusing cancel-all while merging is the safest and simplest approach.
+      */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          {/*
+            A span wrapper is required: a disabled button gets pointer-events:
+            none and hover never reaches it. The wrapper receives the hover and
+            shows the tooltip.
+          */}
+          <span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCancelAll}
+              disabled={!summary.hasActive || summary.isMerging}
+            >
+              {t('downloadStatus.cancel_all')}
+            </Button>
+          </span>
+        </TooltipTrigger>
+        {summary.isMerging && (
+          <TooltipContent side="top">
+            {t('downloadStatus.cancel_all_disabled_merging')}
+          </TooltipContent>
+        )}
+      </Tooltip>
     </div>
   )
 }
