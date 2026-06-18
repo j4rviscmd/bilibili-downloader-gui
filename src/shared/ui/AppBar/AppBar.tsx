@@ -11,6 +11,7 @@ import {
 } from '@/shared/animate-ui/radix/tooltip'
 import { Button } from '@/shared/ui/button'
 import { GitHubStars } from '@/shared/ui/GitHubStars'
+import { Separator } from '@/shared/ui/separator'
 import { QrCode, UserRound } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -96,7 +97,18 @@ function AppBar({ user, theme, setTheme }: Props) {
         </div>
         <div className="flex items-center gap-3">
           {showGithubStars && (
-            <GitHubStars owner="j4rviscmd" repo="bilibili-downloader-gui" />
+            <>
+              <GitHubStars owner="j4rviscmd" repo="bilibili-downloader-gui" />
+              {/*
+               * Constraint: keep the `data-[orientation=vertical]:` variant. A plain `h-4`
+               * loses CSS specificity to shadcn's default `data-[orientation=vertical]:h-full`
+               * and collapses to height:0 (invisible). See src/shared/ui/separator.tsx.
+               */}
+              <Separator
+                orientation="vertical"
+                className="data-[orientation=vertical]:h-4"
+              />
+            </>
           )}
           <LanguageSwitcher />
           <ToggleThemeButton theme={theme} setTheme={setTheme} />
