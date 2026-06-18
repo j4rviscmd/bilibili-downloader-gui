@@ -1,5 +1,4 @@
 import { PageLayoutShell } from '@/shared/layout/PageLayout'
-import { ScrollArea, ScrollBar } from '@/shared/ui/scroll-area'
 import type { FC, ReactElement } from 'react'
 import { useEffect, useState } from 'react'
 import { Navigate, useLocation } from 'react-router'
@@ -14,25 +13,15 @@ import { WatchHistoryContent } from '@/pages/watch-history'
 interface PageConfig {
   readonly path: string
   readonly Component: FC
-  readonly withScrollArea?: boolean
-  readonly maxWidth?: boolean
 }
 
 const PAGES: readonly PageConfig[] = [
   { path: '/home', Component: HomeContent },
-  { path: '/history', Component: HistoryContent, maxWidth: true },
-  { path: '/favorite', Component: FavoriteContent, maxWidth: true },
-  { path: '/watch-history', Component: WatchHistoryContent, maxWidth: true },
-  {
-    path: '/trim',
-    Component: TrimContent,
-    maxWidth: true,
-  },
-  {
-    path: '/concat',
-    Component: ConcatContent,
-    maxWidth: true,
-  },
+  { path: '/history', Component: HistoryContent },
+  { path: '/favorite', Component: FavoriteContent },
+  { path: '/watch-history', Component: WatchHistoryContent },
+  { path: '/trim', Component: TrimContent },
+  { path: '/concat', Component: ConcatContent },
 ] as const
 
 const VALID_PATHS: readonly string[] = PAGES.map((p) => p.path)
@@ -49,6 +38,10 @@ function isValidPath(pathname: string): boolean {
  * 2. Page content is lazy-mounted on first visit and kept in DOM
  * 3. Inactive pages are hidden with display:none to preserve state
  * 4. Active pages are shown with their normal display
+ *
+ * Per-page content frames (max-width centering, header, body scroll mode)
+ * are owned by each page via PageTemplate, so this layout only handles
+ * mounting and the shared chrome.
  *
  * Benefits:
  * - Scroll position is preserved when navigating back to a page
@@ -79,30 +72,16 @@ export function PersistentPageLayout(): ReactElement {
 
   return (
     <PageLayoutShell>
-      {PAGES.map(({ path, Component, withScrollArea, maxWidth }) =>
+      {PAGES.map(({ path, Component }) =>
         mountedPages.has(path) ? (
           <div
             key={path}
             style={{ display: pathname === path ? undefined : 'none' }}
             className="min-h-0 w-full flex-1"
           >
-            {withScrollArea ? (
-              <ScrollArea
-                style={{ height: 'calc(100dvh - 2.3rem)' }}
-                className="flex w-full"
-              >
-                <div className="mx-auto flex w-full max-w-5xl flex-col gap-3 p-3 sm:px-6">
-                  <Component />
-                </div>
-                <ScrollBar />
-              </ScrollArea>
-            ) : (
-              <div
-                className={`h-full w-full overflow-hidden ${maxWidth ? 'mx-auto max-w-5xl' : ''}`}
-              >
-                <Component />
-              </div>
-            )}
+            <div className="h-full w-full overflow-hidden">
+              <Component />
+            </div>
           </div>
         ) : null,
       )}

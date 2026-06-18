@@ -24,23 +24,10 @@ import { cn } from '@/shared/lib/utils'
 import AppBar from '@/shared/ui/AppBar/AppBar'
 import { Button } from '@/shared/ui/button'
 import { NavigationSidebarHeader } from '@/shared/ui/NavigationSidebar'
-import { ScrollArea, ScrollBar } from '@/shared/ui/scroll-area'
 import { Archive, PanelLeft, PanelLeftClose } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router'
-
-/**
- * Props for PageLayout component.
- */
-export interface PageLayoutProps {
-  /** Page content to render */
-  children: ReactNode
-  /** Whether to wrap content in ScrollArea */
-  withScrollArea?: boolean
-  /** Additional className for the inner content wrapper */
-  innerClassName?: string
-}
 
 /**
  * Props for PageLayoutShell component.
@@ -152,71 +139,5 @@ export function PageLayoutShell({ children }: PageLayoutShellProps) {
       <DownloadStatusDialog />
       <SettingsDialog />
     </>
-  )
-}
-
-/**
- * Standardized page layout component with sidebar navigation.
- *
- * Provides consistent layout structure across all pages including:
- * - Collapsible sidebar with navigation
- * - App bar with user info and theme toggle
- * - Optional scrollable content area
- * - Centered content with max-width constraint
- *
- * This is a convenience wrapper around PageLayoutShell that provides
- * common content styling. For more control, use PageLayoutShell directly.
- *
- * @example
- * ```tsx
- * // With scroll area (default)
- * <PageLayout>
- *   <YourPageContent />
- * </PageLayout>
- *
- * // Without scroll area
- * <PageLayout withScrollArea={false}>
- *   <YourPageContent />
- * </PageLayout>
- *
- * // With custom classes
- * <PageLayout
- *   withScrollArea={false}
- *   innerClassName="gap-6"
- * >
- *   <YourPageContent />
- * </PageLayout>
- * ```
- */
-export function PageLayout({
-  children,
-  withScrollArea = true,
-  innerClassName,
-}: PageLayoutProps) {
-  const content = (
-    <div
-      className={cn(
-        'mx-auto flex w-full max-w-5xl flex-col gap-3 p-3 sm:px-6',
-        innerClassName,
-      )}
-    >
-      {children}
-    </div>
-  )
-
-  return (
-    <PageLayoutShell>
-      {withScrollArea ? (
-        <ScrollArea
-          style={{ height: 'calc(100dvh - 2.3rem)' }}
-          className="flex w-full"
-        >
-          {content}
-          <ScrollBar />
-        </ScrollArea>
-      ) : (
-        content
-      )}
-    </PageLayoutShell>
   )
 }

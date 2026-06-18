@@ -107,7 +107,8 @@ function FavoriteList({
         }
       }}
       itemContent={(_index, video) => (
-        <div className="py-1">
+        // Why: pr-3 reserves space so the Virtuoso scrollbar gutter does not overlap the right-aligned download button on each FavoriteItem.
+        <div className="py-1 pr-3">
           <FavoriteItem
             video={video}
             onDownload={onDownload}

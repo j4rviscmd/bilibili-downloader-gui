@@ -74,7 +74,8 @@ export function WatchHistoryList({
       style={{ height: '100%' }}
       data={entries}
       itemContent={(_index, entry) => (
-        <div className="py-1">
+        // Why: pr-3 reserves space so the Virtuoso scrollbar gutter does not overlap the right-aligned download button on each WatchHistoryItem.
+        <div className="py-1 pr-3">
           <WatchHistoryItem
             entry={entry}
             onDownload={onDownload}

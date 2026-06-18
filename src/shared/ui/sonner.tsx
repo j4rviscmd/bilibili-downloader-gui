@@ -9,6 +9,8 @@ const Toaster = ({ ...props }: ToasterProps) => {
           '--normal-bg': 'var(--popover)',
           '--normal-text': 'var(--popover-foreground)',
           '--normal-border': 'var(--border)',
+          // Ensure toasts render above dialogs (z-50) and other overlays.
+          zIndex: 9999,
         } as React.CSSProperties
       }
       {...props}

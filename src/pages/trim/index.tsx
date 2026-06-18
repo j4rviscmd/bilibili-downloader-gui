@@ -1,4 +1,5 @@
 import { TrimForm } from '@/features/trim'
+import { PageTemplate } from '@/shared/layout'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -16,17 +17,11 @@ export function TrimContent() {
   }, [t])
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <div className="border-border shrink-0 border-b p-3">
-        <h1 className="text-xl font-semibold">{t('trim.title')}</h1>
-        <p className="text-muted-foreground mt-1 text-sm">
-          {t('trim.description')}
-        </p>
-      </div>
-      <div className="min-h-0 w-full flex-1 overflow-x-hidden overflow-y-auto px-4 pt-2 pb-4 sm:px-6 sm:pt-3 sm:pb-6">
+    <PageTemplate title={t('trim.title')} description={t('trim.description')}>
+      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto pt-2 pb-4 sm:pt-3 sm:pb-6">
         <TrimForm />
       </div>
-    </div>
+    </PageTemplate>
   )
 }
 

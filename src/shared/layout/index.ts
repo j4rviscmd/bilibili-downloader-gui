@@ -1,3 +1,5 @@
-export { PageLayout, PageLayoutShell } from './PageLayout'
-export type { PageLayoutProps, PageLayoutShellProps } from './PageLayout'
+export { PageLayoutShell } from './PageLayout'
+export type { PageLayoutShellProps } from './PageLayout'
+export { PageTemplate } from './PageTemplate'
+export type { PageTemplateProps } from './PageTemplate'
 export { PersistentPageLayout } from './PersistentPageLayout'

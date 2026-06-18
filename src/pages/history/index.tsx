@@ -6,6 +6,7 @@ import HistoryFilters from '@/features/history/ui/HistoryFilters'
 import HistoryList from '@/features/history/ui/HistoryList'
 import HistorySearch from '@/features/history/ui/HistorySearch'
 import { usePendingDownload } from '@/shared/hooks/usePendingDownload'
+import { PageTemplate } from '@/shared/layout'
 import { selectHasActiveDownloads } from '@/shared/queue'
 import { Button } from '@/shared/ui/button'
 import { confirm, save } from '@tauri-apps/plugin-dialog'
@@ -122,10 +123,10 @@ export function HistoryContent() {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <div className="border-border shrink-0 border-b p-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="text-xl font-semibold">{t('nav.downloadHistory')}</h1>
+    <PageTemplate
+      title={t('nav.downloadHistory')}
+      actions={
+        <>
           <div className="flex flex-1 items-center gap-2">
             <HistorySearch value={searchQuery} onChange={setSearch} />
             <HistoryFilters
@@ -133,7 +134,6 @@ export function HistoryContent() {
               onChange={(status) => updateFilters({ status })}
             />
           </div>
-
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
@@ -155,9 +155,9 @@ export function HistoryContent() {
               <span className="hidden md:inline">{t('history.clearAll')}</span>
             </Button>
           </div>
-        </div>
-      </div>
-
+        </>
+      }
+    >
       <div className="min-h-0 flex-1">
         <HistoryList
           entries={entries}
@@ -173,7 +173,7 @@ export function HistoryContent() {
         onOpenChange={setExportDialogOpen}
         onExport={handleExport}
       />
-    </div>
+    </PageTemplate>
   )
 }
 
