@@ -504,6 +504,7 @@ pub async fn merge_av(
 /// - Subtitle file paths are invalid (when using SoftSub or HardSub mode)
 /// - ffmpeg execution fails
 /// - ffmpeg returns a non-zero exit code
+#[allow(clippy::too_many_arguments)]
 pub async fn merge_avs(
     app: &AppHandle,
     video_path: &std::path::Path,
