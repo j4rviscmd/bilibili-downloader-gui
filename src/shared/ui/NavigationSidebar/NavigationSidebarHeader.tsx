@@ -197,7 +197,7 @@ export function NavigationSidebarHeader({
     <TooltipProvider>
       <nav
         aria-label={t('nav.aria.mainNavigation')}
-        className={cn('flex flex-col px-2', className)}
+        className={cn('flex flex-col', className)}
       >
         {groups.map((group, index) => (
           <Fragment key={group.id}>
