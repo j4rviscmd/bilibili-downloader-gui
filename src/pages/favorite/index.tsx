@@ -4,6 +4,7 @@ import type { FavoriteVideo } from '@/features/favorite/types'
 import FavoriteList from '@/features/favorite/ui/FavoriteList'
 import FolderSelector from '@/features/favorite/ui/FolderSelector'
 import { usePendingDownload } from '@/shared/hooks/usePendingDownload'
+import { PageTemplate } from '@/shared/layout'
 import { selectHasActiveDownloads } from '@/shared/queue'
 import { Button } from '@/shared/ui/button'
 import { RefreshCw } from 'lucide-react'
@@ -85,10 +86,10 @@ export function FavoriteContent() {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <div className="border-border shrink-0 border-b p-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="text-xl font-semibold">{t('favorite.title')}</h1>
+    <PageTemplate
+      title={t('favorite.title')}
+      actions={
+        <>
           <div className="flex flex-1 items-center gap-2">
             <FolderSelector
               folders={folders}
@@ -97,7 +98,6 @@ export function FavoriteContent() {
               loading={foldersLoading}
             />
           </div>
-
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
@@ -109,9 +109,9 @@ export function FavoriteContent() {
               <span className="hidden md:inline">{t('favorite.refresh')}</span>
             </Button>
           </div>
-        </div>
-      </div>
-
+        </>
+      }
+    >
       <div className="min-h-0 flex-1">
         <FavoriteList
           videos={videos}
@@ -123,7 +123,7 @@ export function FavoriteContent() {
           disabled={hasActiveDownloads}
         />
       </div>
-    </div>
+    </PageTemplate>
   )
 }
 

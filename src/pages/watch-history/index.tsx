@@ -7,6 +7,7 @@ import {
   WatchHistorySearch,
 } from '@/features/watch-history'
 import { usePendingDownload } from '@/shared/hooks/usePendingDownload'
+import { PageTemplate } from '@/shared/layout'
 import { selectHasActiveDownloads } from '@/shared/queue'
 import { Alert, AlertDescription } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
@@ -97,10 +98,10 @@ export function WatchHistoryContent() {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <div className="border-border shrink-0 border-b p-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="text-xl font-semibold">{t('watchHistory.title')}</h1>
+    <PageTemplate
+      title={t('watchHistory.title')}
+      actions={
+        <>
           <div className="flex flex-1 items-center gap-2">
             <WatchHistorySearch value={searchQuery} onChange={setSearch} />
             <WatchHistoryFilters value={dateFilter} onChange={setDate} />
@@ -118,12 +119,13 @@ export function WatchHistoryContent() {
               </span>
             </Button>
           </div>
-        </div>
-      </div>
-
+        </>
+      }
+    >
       {/* Error */}
+      {/* Why: render OUTSIDE the virtualized list's flex-1 wrapper so the Alert is a sibling, not a list item. shrink-0 keeps it from being squeezed by the min-h-0 flex-1 list below (commit 1c6b98f, watch-history refresh feature). */}
       {error && (
-        <Alert variant="destructive" className="m-3">
+        <Alert variant="destructive" className="my-3 shrink-0">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>{error}</AlertDescription>
         </Alert>
@@ -141,7 +143,7 @@ export function WatchHistoryContent() {
           disabled={hasActiveDownloads}
         />
       </div>
-    </div>
+    </PageTemplate>
   )
 }
 

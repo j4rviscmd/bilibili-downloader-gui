@@ -82,7 +82,8 @@ function HistoryList({
       style={{ height: '100%' }}
       data={entries}
       itemContent={(_index, entry) => (
-        <div key={entry.id} className="py-1">
+        // Why: pr-3 reserves space so the Virtuoso scrollbar gutter does not overlap the right-aligned action buttons on each HistoryItem.
+        <div key={entry.id} className="py-1 pr-3">
           <HistoryItem
             entry={entry}
             onDelete={() => onDelete(entry.id)}
