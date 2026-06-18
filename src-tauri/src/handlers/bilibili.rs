@@ -730,6 +730,13 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
             }),
         )?;
 
+        // Check for cancellation after download completes but before merge starts.
+        // This TOCTOU fix prevents wasted ffmpeg launches when the user cancels
+        // immediately after download finishes.
+        if cancel_token.is_cancelled() {
+            return Err("ERR::CANCELLED".to_string());
+        }
+
         // Subtitle processing
         let (subtitle_mode, subtitle_language_labels, subtitle_failed_labels) =
             prepare_subtitle_mode(
@@ -781,6 +788,14 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
             }
             _ => vec![],
         };
+
+        // Check cancellation before starting merge. A cancel that arrived
+        // during the final chunk write can slip past download_url's check
+        // (the chunk was already written), so without this guard we'd spawn
+        // ffmpeg only to abort it on the first progress line (ERR::CANCELLED).
+        if cancel_token.is_cancelled() {
+            return Err("ERR::CANCELLED".to_string());
+        }
 
         // Execute merge
         log::info!(
