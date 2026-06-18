@@ -62,7 +62,7 @@ vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 
 **Proactively add tooltips where the user may be confused (disabled
 buttons, state-dependent restrictions, non-obvious behavior). Explain
-*why*, not just *what*.**
+_why_, not just _what_.**
 
 - Use `@/shared/animate-ui/radix/tooltip` (`Tooltip` / `TooltipTrigger` /
   `TooltipContent`). `TooltipProvider` may be omitted when an ancestor
