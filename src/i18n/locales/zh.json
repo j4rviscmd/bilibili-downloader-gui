@@ -563,5 +563,22 @@
     "loginMethodDescription": "选择应用与哔哩哔哩的认证方式。切换后需要重启应用。",
     "loginMethodChanged": "登录方式已更新",
     "restartRequired": "请重启应用以使更改生效。"
+  },
+  "downloadStatus": {
+    "title": "下载状态",
+    "no_downloads": "无下载",
+    "elapsed": "已用时间",
+    "cancel_all": "全部取消",
+    "open": "下载",
+    "status_completed": "完成",
+    "status_downloading": "下载中",
+    "status_waiting": "等待中",
+    "status_cancelling": "取消中",
+    "status_cancelled": "已取消",
+    "status_error": "错误",
+    "status_merging": "合并中",
+    "stage_audio": "音频",
+    "stage_video": "视频",
+    "stage_merge": "合并"
   }
 }

@@ -1,8 +1,8 @@
+import { DownloadStatusDialog } from '@/features/download-status'
 import { useSettings } from '@/features/settings'
 import OpenSettingsDialogButton from '@/features/settings/dialog/OpenSettingsDialogButton'
 import SettingsDialog from '@/features/settings/dialog/SettingsDialog'
 import { useUser } from '@/features/user'
-import { Download } from '@/shared/animate-ui/icons/download'
 import {
   Sidebar,
   SidebarContent,
@@ -25,9 +25,8 @@ import AppBar from '@/shared/ui/AppBar/AppBar'
 import { Button } from '@/shared/ui/button'
 import { NavigationSidebarHeader } from '@/shared/ui/NavigationSidebar'
 import { ScrollArea, ScrollBar } from '@/shared/ui/scroll-area'
-import { PanelLeft, PanelLeftClose } from 'lucide-react'
+import { Archive, PanelLeft, PanelLeftClose } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router'
 
@@ -113,7 +112,6 @@ export function PageLayoutShell({ children }: PageLayoutShellProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const location = useLocation()
-  const [isDownloadHovered, setIsDownloadHovered] = useState(false)
 
   return (
     <>
@@ -128,11 +126,9 @@ export function PageLayoutShell({ children }: PageLayoutShellProps) {
                   isActive={location.pathname === '/history'}
                   tooltip={t('nav.downloadHistory')}
                   onClick={() => navigate('/history')}
-                  onMouseEnter={() => setIsDownloadHovered(true)}
-                  onMouseLeave={() => setIsDownloadHovered(false)}
                   aria-label={t('nav.aria.downloadHistory')}
                 >
-                  <Download animate={isDownloadHovered} />
+                  <Archive className="size-4" />
                   <span>{t('nav.downloadHistory')}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -153,6 +149,7 @@ export function PageLayoutShell({ children }: PageLayoutShellProps) {
           </div>
         </SidebarInset>
       </SidebarProvider>
+      <DownloadStatusDialog />
       <SettingsDialog />
     </>
   )

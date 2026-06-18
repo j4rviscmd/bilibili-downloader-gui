@@ -149,7 +149,7 @@ export const cancelAllDownloads = createAsyncThunk(
       return { count: 0, downloadIds: [] as string[] }
     }
 
-    const count = await callCancelAllDownloads()
+    const count = await callCancelAllDownloads(cancellableIds)
     return { count, downloadIds: cancellableIds }
   },
 )
@@ -174,14 +174,6 @@ export const queueSlice = createSlice({
         state.push({ ...payload, status: payload.status || 'pending' })
       }
       aggregateParentStatuses(state)
-    },
-    /**
-     * Removes a download from the queue.
-     * Also removes all children if the provided ID is a parent.
-     */
-    dequeue(state, action: PayloadAction<string>) {
-      const id = action.payload
-      return state.filter((i) => i.downloadId !== id && i.parentId !== id)
     },
     /** Clears all items from the queue. */
     clearQueue() {
@@ -220,6 +212,14 @@ export const queueSlice = createSlice({
       if (
         PROTECTED_STATUSES.includes(target.status ?? '') &&
         DOWNGRADE_STATUSES.includes(status)
+      ) {
+        return
+      }
+      // Ignore complete (done) while cancelling/cancelled. Even if the backend
+      // download finishes after a cancel request, keep the cancelled state.
+      if (
+        (target.status === 'cancelling' || target.status === 'cancelled') &&
+        status === 'done'
       ) {
         return
       }
@@ -263,10 +263,55 @@ export const queueSlice = createSlice({
       aggregateParentStatuses(state)
     })
 
+    // Finalize cancel status regardless of backend result so the UI never
+    // sticks in "cancelling". wasCancelled=false means it already finished.
+    builder.addCase(cancelDownload.fulfilled, (state, action) => {
+      const { wasCancelled } = action.payload
+      const item = state.find((i) => i.downloadId === action.meta.arg)
+      if (item && item.status === 'cancelling') {
+        item.status = wasCancelled ? 'cancelled' : 'done'
+      }
+      aggregateParentStatuses(state)
+    })
+
+    builder.addCase(cancelDownload.rejected, (state, action) => {
+      const item = state.find((i) => i.downloadId === action.meta.arg)
+      if (item && item.status === 'cancelling') {
+        item.status = 'cancelled'
+      }
+      aggregateParentStatuses(state)
+    })
+
     builder.addCase(cancelAllDownloads.pending, (state) => {
       state.forEach((item) => {
         if (item.status === 'pending' || item.status === 'running') {
           item.status = 'cancelling'
+        }
+      })
+      aggregateParentStatuses(state)
+    })
+
+    // cancel_all_downloads only cancels in-flight download_video; pre-enqueued
+    // (pending) children are not cancelled by the backend. Finalize
+    // cancelling → cancelled on fulfillment.
+    builder.addCase(cancelAllDownloads.fulfilled, (state) => {
+      // Finalize every cancelling item (children and parents). Parents can
+      // get stuck in cancelling when their children were removed by
+      // download_cancelled events arriving before this fulfilled action.
+      state.forEach((item) => {
+        if (item.status === 'cancelling') {
+          item.status = 'cancelled'
+        }
+      })
+      aggregateParentStatuses(state)
+    })
+
+    // If the backend call fails, still finalize cancelling → cancelled to
+    // avoid permanently locking the UI in "cancelling".
+    builder.addCase(cancelAllDownloads.rejected, (state) => {
+      state.forEach((item) => {
+        if (item.status === 'cancelling') {
+          item.status = 'cancelled'
         }
       })
       aggregateParentStatuses(state)
@@ -276,7 +321,6 @@ export const queueSlice = createSlice({
 
 export const {
   enqueue,
-  dequeue,
   clearQueue,
   updateQueueStatus,
   updateQueueItem,

@@ -355,10 +355,19 @@ async fn download_bangumi_durl(
 ) -> Result<String, String> {
     use crate::handlers::concurrency::DOWNLOAD_CANCEL_REGISTRY;
 
-    // Register cancellation token
-    let _cancel_token = DOWNLOAD_CANCEL_REGISTRY
-        .register(&options.download_id)
-        .await;
+    // download_video already registered the cancellation token. Do NOT
+    // re-register here (it would overwrite the existing token and lose an
+    // in-flight cancel). Just check the pre-cancel flag.
+    if DOWNLOAD_CANCEL_REGISTRY
+        .is_cancelled(&options.download_id)
+        .await
+    {
+        DOWNLOAD_CANCEL_REGISTRY
+            .clear_cancelled(&options.download_id)
+            .await;
+        DOWNLOAD_CANCEL_REGISTRY.remove(&options.download_id).await;
+        return Err("ERR::CANCELLED".to_string());
+    }
 
     // Extract is_preview info before moving player_result
     let is_preview = player_result.is_preview.map(|v| v == 1);
@@ -407,8 +416,9 @@ async fn download_bangumi_durl(
         ensure_free_space(output_path, total_needed)?;
     }
 
-    // Download directly
-    retry_download(app, &options.download_id, Some("video"), || {
+    // Download directly. Capture the result so we always remove the token
+    // (success or error) to avoid a registry leak on the early-return path.
+    let result = retry_download(app, &options.download_id, Some("video"), || {
         download_url(
             app,
             video_url.clone(),
@@ -421,18 +431,25 @@ async fn download_bangumi_durl(
             true,
         )
     })
-    .await?;
+    .await;
 
-    let output_path_str = output_path.to_string_lossy().to_string();
-    let actual_file_size = tokio::fs::metadata(output_path).await.ok().map(|m| m.len());
-
-    // Remove cancellation token
+    // Always remove the cancellation token (success or error).
     DOWNLOAD_CANCEL_REGISTRY.remove(&options.download_id).await;
 
-    // Save to history asynchronously
-    spawn_save_to_history(app, options, actual_file_size);
-
-    Ok(output_path_str)
+    match result {
+        Ok(()) => {
+            let output_path_str = output_path.to_string_lossy().to_string();
+            let actual_file_size = tokio::fs::metadata(output_path).await.ok().map(|m| m.len());
+            // Save to history asynchronously (success only)
+            spawn_save_to_history(app, options, actual_file_size);
+            Ok(output_path_str)
+        }
+        Err(e) => {
+            // Remove partial output on failure/cancel to avoid leftover garbage.
+            let _ = tokio::fs::remove_file(output_path).await;
+            Err(e)
+        }
+    }
 }
 
 /// Downloads a Bilibili video with the specified quality settings.
@@ -476,8 +493,20 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
         options.cid
     );
 
+    // If this part was cancelled (via cancel_all_downloads) before
+    // download_video started, reject immediately so it never runs.
+    if DOWNLOAD_CANCEL_REGISTRY
+        .is_cancelled(&options.download_id)
+        .await
+    {
+        DOWNLOAD_CANCEL_REGISTRY
+            .clear_cancelled(&options.download_id)
+            .await;
+        return Err("ERR::CANCELLED".to_string());
+    }
+
     // Register cancellation token for this download
-    let _cancel_token = DOWNLOAD_CANCEL_REGISTRY
+    let cancel_token = DOWNLOAD_CANCEL_REGISTRY
         .register(&options.download_id)
         .await;
 
@@ -523,9 +552,15 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
         )
     })?;
 
-    // Regular video durl format (audio embedded in MP4)
+    // Regular video durl format (audio embedded in MP4). Wrapped in a block so
+    // all early returns funnel through the cleanup below — this path otherwise
+    // bypasses download_video's final cleanup (remove + clear_cancelled).
     if data.dash.is_none() {
-        if let Some(durl_segments) = &data.durl {
+        let result: Result<String, String> = async {
+            let durl_segments = data
+                .durl
+                .as_ref()
+                .ok_or_else(|| "ERR::NO_STREAM".to_string())?;
             let durl_segment = durl_segments.first().ok_or("ERR::QUALITY_NOT_FOUND")?;
             let video_url = durl_segment.url.clone();
             let backup_urls = durl_segment
@@ -577,9 +612,18 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
                 .ok()
                 .map(|m| m.len());
             spawn_save_to_history(app, options, actual_file_size);
-            return Ok(output_path_str);
+            Ok(output_path_str)
         }
-        return Err("ERR::NO_STREAM".to_string());
+        .await;
+
+        // Cleanup: remove token and clear the pre-cancel flag (this path
+        // bypasses download_video's final cleanup).
+        DOWNLOAD_CANCEL_REGISTRY.remove(&options.download_id).await;
+        DOWNLOAD_CANCEL_REGISTRY
+            .clear_cancelled(&options.download_id)
+            .await;
+
+        return result;
     }
 
     let dash_data = data.dash.unwrap();
@@ -751,6 +795,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
             Some(options.download_id.clone()),
             Some((options.duration_seconds * 1000) as u64),
             subtitle_mode,
+            Some(cancel_token.clone()),
         )
         .await
         .map_err(|e| {
@@ -759,7 +804,13 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
                 options.download_id,
                 e
             );
-            String::from("ERR::MERGE_FAILED")
+            // Preserve ERR::CANCELLED so the frontend can detect cancellation
+            // (otherwise it would be masked as ERR::MERGE_FAILED).
+            if e.contains("CANCELLED") {
+                e
+            } else {
+                String::from("ERR::MERGE_FAILED")
+            }
         })?;
 
         // Release semaphore after merge completes
@@ -794,8 +845,12 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
     }
     .await;
 
-    // Cleanup: Remove cancellation token from registry
+    // Cleanup: Remove cancellation token from registry and clear any
+    // pre-cancel flag so cancelled_ids doesn't accumulate.
     DOWNLOAD_CANCEL_REGISTRY.remove(&options.download_id).await;
+    DOWNLOAD_CANCEL_REGISTRY
+        .clear_cancelled(&options.download_id)
+        .await;
 
     // On error, clean up temp files
     if result.is_err() {

@@ -5,7 +5,7 @@
 //! - Download cancellation tokens for aborting in-progress downloads
 
 use once_cell::sync::Lazy;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::{Mutex, Semaphore};
 use tokio_util::sync::CancellationToken;
@@ -73,6 +73,10 @@ pub static DOWNLOAD_CANCEL_REGISTRY: Lazy<Arc<DownloadCancelRegistry>> =
 pub struct DownloadCancelRegistry {
     /// Maps download ID to its cancellation token
     tokens: Mutex<HashMap<String, CancellationToken>>,
+    /// IDs cancelled before `download_video` started (pre-enqueued pending
+    /// children that are not in `tokens` yet). `download_video` checks this
+    /// on start and rejects immediately so cancelled pending parts never run.
+    cancelled_ids: Mutex<HashSet<String>>,
 }
 
 impl DownloadCancelRegistry {
@@ -80,6 +84,7 @@ impl DownloadCancelRegistry {
     pub fn new() -> Self {
         Self {
             tokens: Mutex::new(HashMap::new()),
+            cancelled_ids: Mutex::new(HashSet::new()),
         }
     }
 
@@ -196,5 +201,32 @@ impl DownloadCancelRegistry {
     pub async fn get_all_ids(&self) -> Vec<String> {
         let tokens = self.tokens.lock().await;
         tokens.keys().cloned().collect()
+    }
+
+    /// Marks a download ID as cancelled before it started (pending parts not
+    /// yet registered as tokens). `download_video` checks this on start.
+    pub async fn mark_cancelled(&self, download_id: &str) {
+        let mut ids = self.cancelled_ids.lock().await;
+        ids.insert(download_id.to_string());
+    }
+
+    /// Marks multiple download IDs as cancelled at once.
+    pub async fn mark_cancelled_many(&self, download_ids: &[String]) {
+        let mut ids = self.cancelled_ids.lock().await;
+        for id in download_ids {
+            ids.insert(id.clone());
+        }
+    }
+
+    /// Returns true if the download ID was cancelled before it started.
+    pub async fn is_cancelled(&self, download_id: &str) -> bool {
+        let ids = self.cancelled_ids.lock().await;
+        ids.contains(download_id)
+    }
+
+    /// Clears the pre-cancelled flag for a download ID.
+    pub async fn clear_cancelled(&self, download_id: &str) {
+        let mut ids = self.cancelled_ids.lock().await;
+        ids.remove(download_id);
     }
 }

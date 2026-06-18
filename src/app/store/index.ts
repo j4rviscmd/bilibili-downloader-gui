@@ -11,7 +11,7 @@ import { videoApi } from '@/features/video/api/videoApi'
 import inputReducer from '@/features/video/model/inputSlice'
 import videoReducer from '@/features/video/model/videoSlice'
 import watchHistoryReducer from '@/features/watch-history/model/watchHistorySlice'
-import downloadStatusReducer from '@/shared/downloadStatus/downloadStatusSlice'
+import downloadStatusDialogReducer from '@/features/download-status/model/downloadStatusDialogSlice'
 import progressReducer from '@/shared/progress/progressSlice'
 import queueReducer from '@/shared/queue/queueSlice'
 import { configureStore } from '@reduxjs/toolkit'
@@ -31,7 +31,7 @@ import {
 export const store = configureStore({
   reducer: {
     dev: devReducer,
-    downloadStatus: downloadStatusReducer,
+    downloadStatusDialog: downloadStatusDialogReducer,
     favorite: favoriteReducer,
     history: historyReducer,
     init: initReducer,

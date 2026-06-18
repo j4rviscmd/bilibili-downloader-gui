@@ -8,7 +8,6 @@ import {
   AccordionTrigger,
 } from '@/components/animate-ui/components/radix/accordion'
 import { useVideoInfo } from '@/features/video'
-import { downloadVideo } from '@/features/video/api/downloadVideo'
 import {
   fetchBangumiPartQualities,
   fetchPartQualities,
@@ -45,11 +44,8 @@ import {
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
 import { logger } from '@/shared/lib/logger'
-import { clearProgressByDownloadId } from '@/shared/progress/progressSlice'
 import {
   cancelDownload,
-  clearQueueItem,
-  findCompletedItemForPart,
   selectHasActiveDownloads,
 } from '@/shared/queue/queueSlice'
 import {
@@ -473,52 +469,6 @@ const VideoPartCard = memo(function VideoPartCard({
   )
 
   /**
-   * Executes redownload by removing completed item and starting
-   * fresh download. Clears the queue item, progress entries, and
-   * initiates a new download with a new UUID-based ID:
-   * - Download ID: `{videoId}-{uuid}-p{page}`
-   * - Parent ID:   `{videoId}-{uuid}` (derived by stripping the `-p{page}` suffix)
-   */
-  const handleRedownload = useCallback(async () => {
-    const partIndex = page - 1
-    const state = store.getState()
-    const pi = state.input.partInputs[partIndex]
-
-    if (!pi) return
-
-    // Use video.bvid (works for both regular videos and bangumi)
-    const videoId = video.bvid
-
-    const completedItem = findCompletedItemForPart(state, page)
-    if (completedItem) {
-      store.dispatch(clearQueueItem(completedItem.downloadId))
-      store.dispatch(clearProgressByDownloadId(completedItem.downloadId))
-    }
-
-    const newDownloadId = `${videoId}-${crypto.randomUUID()}-p${page}`
-    const videoQuality = pi.videoQuality || String(pi.videoQualities?.[0]?.id)
-    const audioQuality = pi.audioQuality
-      ? parseInt(pi.audioQuality, 10)
-      : pi.audioQualities?.[0]?.id || null
-
-    await downloadVideo(
-      videoId,
-      pi.cid,
-      pi.title.trim(),
-      parseInt(videoQuality, 10),
-      audioQuality,
-      newDownloadId,
-      newDownloadId.replace(/-p\d+$/, ''),
-      pi.duration,
-      pi.thumbnailUrl,
-      pi.page,
-      pi.subtitle,
-      pi.subtitles,
-      videoPart.epId,
-    )
-  }, [page, video.bvid, videoPart.epId])
-
-  /**
    * Handles retry action by re-selecting the part for download.
    */
   const handleRetry = useCallback(() => {
@@ -660,11 +610,16 @@ const VideoPartCard = memo(function VideoPartCard({
             {/* Thumbnail and Title Section */}
             <div>
               <div className="flex items-center gap-3">
-                <Checkbox
-                  checked={selected}
-                  onCheckedChange={handleSelectedChange}
-                  size="lg"
-                />
+                <div className="relative">
+                  <span className="text-muted-foreground bg-muted absolute -top-6 left-1/2 -translate-x-1/2 rounded-full px-1.5 text-[10px] leading-4 font-medium tabular-nums">
+                    P{page}
+                  </span>
+                  <Checkbox
+                    checked={selected}
+                    onCheckedChange={handleSelectedChange}
+                    size="lg"
+                  />
+                </div>
                 {videoPart.thumbnail.url ? (
                   <TooltipProvider delayDuration={200}>
                     <Tooltip>
@@ -1007,7 +962,6 @@ const VideoPartCard = memo(function VideoPartCard({
           <PartDownloadProgress
             status={downloadStatus}
             isWaitingForTurn={isWaitingForTurn}
-            onRedownload={handleRedownload}
             onRetry={handleRetry}
             onCancel={handleCancel}
             hasEmbeddedAudio={

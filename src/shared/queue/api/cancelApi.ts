@@ -35,19 +35,24 @@ export const callCancelDownload = async (
 /**
  * Cancels all active downloads.
  *
- * Calls the 'cancel_all_downloads' Tauri command to stop all in-progress downloads.
- * Each cancelled download emits a 'download_cancelled' event.
+ * Calls the 'cancel_all_downloads' Tauri command to stop all in-progress
+ * downloads. The backend also pre-marks the given IDs (including not-yet-
+ * started pending children) so download_video rejects them on start.
+ * Each active download emits a 'download_cancelled' event.
  *
- * @returns Promise that resolves to the number of cancelled downloads
+ * @param downloadIds - IDs to cancel (pending + running)
+ * @returns Promise that resolves to the number of cancelled active downloads
  *
  * @example
  * ```typescript
- * const count = await callCancelAllDownloads()
+ * const count = await callCancelAllDownloads(['BV123-p1', 'BV123-p2'])
  * console.log(`Cancelled ${count} downloads`)
  * ```
  */
-export const callCancelAllDownloads = async (): Promise<number> => {
-  const count = await invoke<number>('cancel_all_downloads')
+export const callCancelAllDownloads = async (
+  downloadIds: string[],
+): Promise<number> => {
+  const count = await invoke<number>('cancel_all_downloads', { downloadIds })
   logger.info(`callCancelAllDownloads: cancelled ${count} downloads`)
   return count
 }

@@ -597,18 +597,25 @@ async fn cancel_download(app: AppHandle, download_id: String) -> Result<bool, St
 /// const count = await invoke<number>('cancel_all_downloads');
 /// ```
 #[tauri::command]
-async fn cancel_all_downloads(app: AppHandle) -> Result<usize, String> {
+async fn cancel_all_downloads(app: AppHandle, download_ids: Vec<String>) -> Result<usize, String> {
     use crate::handlers::concurrency::DOWNLOAD_CANCEL_REGISTRY;
     use tauri::Emitter;
 
-    // Get all active download IDs before cancelling
-    let download_ids = DOWNLOAD_CANCEL_REGISTRY.get_all_ids().await;
+    // Mark all requested IDs (including not-yet-started pending children) as
+    // cancelled so download_video rejects them on start.
+    DOWNLOAD_CANCEL_REGISTRY
+        .mark_cancelled_many(&download_ids)
+        .await;
 
-    // Cancel all downloads
+    // Force-cancel every registered token. Per-ID cancel() can miss an
+    // in-flight download due to timing, so cancel_all() is more reliable for
+    // stopping a running download. Serial-download assumption means there is
+    // effectively one parent at a time, so the blast radius is bounded.
+    let active_ids = DOWNLOAD_CANCEL_REGISTRY.get_all_ids().await;
     let count = DOWNLOAD_CANCEL_REGISTRY.cancel_all().await;
 
-    // Emit cancellation events for each download
-    for download_id in download_ids {
+    // Emit cancellation events for each active download
+    for download_id in active_ids {
         let _ = app.emit(
             "download_cancelled",
             serde_json::json!({ "downloadId": download_id }),

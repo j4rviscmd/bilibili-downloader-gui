@@ -4,7 +4,6 @@ export {
   clearQueue,
   clearQueueItem,
   default,
-  dequeue,
   enqueue,
   findCompletedItemForPart,
   selectDownloadIdByPartIndex,

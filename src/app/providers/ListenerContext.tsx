@@ -140,6 +140,15 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
         'download_cancelled',
         (event) => {
           const { downloadId } = event.payload
+          // Don't wipe a finished download if the cancel arrived just after
+          // completion (race with download_video's remove). done/error are
+          // kept so their queue state (used by re-download checks) survives.
+          const item = store
+            .getState()
+            .queue.find((q) => q.downloadId === downloadId)
+          if (item && (item.status === 'done' || item.status === 'error')) {
+            return
+          }
           // Remove queue item to restore pre-download state
           store.dispatch(clearQueueItem(downloadId))
           // Clear progress entries for this download
