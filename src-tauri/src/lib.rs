@@ -252,10 +252,14 @@ pub fn run() {
                 .max_file_size(10_000_000) // 10MB
                 .timezone_strategy(tauri_plugin_log::TimezoneStrategy::UseLocal)
                 .targets([
-                    // Mirror logs to stderr so the dev terminal shows them
-                    // live (stderr is unbuffered, so panics/crashes don't
-                    // lose log lines). Stdout is left disabled.
-                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stderr),
+                    // Mirror only WARN-and-above logs to stderr so the dev
+                    // terminal surfaces warnings/errors without flooding it
+                    // with INFO noise (stderr is unbuffered, so
+                    // panics/crashes don't lose log lines). The global level
+                    // stays Info, so the Folder target below still captures
+                    // INFO. Stdout is left disabled.
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stderr)
+                        .filter(|metadata| metadata.level() <= log::Level::Warn),
                     tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Folder {
                         path: log_dir,
                         file_name: Some("app".into()),
