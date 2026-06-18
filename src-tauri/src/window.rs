@@ -35,6 +35,7 @@ pub fn create_main_window(
         .title(WINDOW_TITLE)
         .theme(theme.or(Some(Theme::Light)))
         .resizable(false)
+        .maximizable(false)
         .min_inner_size(MIN_WIDTH, MIN_HEIGHT);
 
     builder = match geometry {
@@ -49,11 +50,19 @@ pub fn create_main_window(
     Ok(())
 }
 
-/// Enables window resizing after the splash screen completes.
+/// Re-enables window resizing and maximizing after the splash screen completes.
+///
+/// The window is created with `resizable(false)` and `maximizable(false)` to
+/// lock its geometry during the splash screen. This restores both so the user
+/// can resize and maximize the main window once initialization is done.
 #[tauri::command]
 pub fn enable_window_resize(app: AppHandle) -> Result<(), String> {
     let window = app.get_webview_window("main").ok_or("Window not found")?;
+    // Constraint: set_resizable MUST run before set_maximizable. When the window
+    // is still non-resizable, Tauri/tao silently ignores set_maximizable on
+    // Windows, so reversing the order would leave the maximize button disabled.
     window.set_resizable(true).map_err(|e| format!("{e}"))?;
+    window.set_maximizable(true).map_err(|e| format!("{e}"))?;
     Ok(())
 }
 
