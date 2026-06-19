@@ -353,7 +353,7 @@ pub fn run() {
 /// Returns `true` if ffmpeg is installed and functional, `false` otherwise.
 #[tauri::command]
 async fn validate_ffmpeg(app: AppHandle) -> bool {
-    ffmpeg::validate_ffmpeg(&app)
+    ffmpeg::validate_ffmpeg(&app).await
 }
 
 /// Downloads and installs the ffmpeg binary for the current platform.
@@ -739,7 +739,7 @@ async fn update_lib_path(app: AppHandle, new_path: String) -> Result<(), String>
 
     // Move ffmpeg (if it exists)
     if old_ffmpeg_path.exists() {
-        ffmpeg::move_ffmpeg(old_ffmpeg_path.clone(), new_ffmpeg_path)?;
+        ffmpeg::move_ffmpeg(old_ffmpeg_path.clone(), new_ffmpeg_path).await?;
     }
 
     // Update settings with new lib_path

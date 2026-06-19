@@ -280,7 +280,7 @@
     "cannot_continue": "アプリを続行することができません",
     "message_label": "エラーメッセージ:",
     "code_label": "エラーコード:",
-    "ffmpeg_not_found": "ffmpegが見つかりません。",
+    "ffmpeg_not_found": "ffmpegが見つからないか、初期化できませんでした。",
     "cookie_invalid": "Cookieが無効です。",
     "user_info_failed": "ユーザ情報が取得できませんでした。",
     "user_info_failed_other": "ユーザ情報が取得できません（未ログイン以外）。",
