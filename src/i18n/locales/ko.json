@@ -280,7 +280,7 @@
     "cannot_continue": "애플리케이션을 계속 실행할 수 없습니다",
     "message_label": "오류 메시지:",
     "code_label": "오류 코드:",
-    "ffmpeg_not_found": "ffmpeg 를 찾을 수 없습니다.",
+    "ffmpeg_not_found": "ffmpeg 를 찾을 수 없거나 초기화할 수 없습니다.",
     "cookie_invalid": "쿠키가 유효하지 않습니다.",
     "user_info_failed": "사용자 정보를 가져올 수 없습니다.",
     "user_info_failed_other": "사용자 정보를 가져올 수 없습니다(로그인 문제 제외).",

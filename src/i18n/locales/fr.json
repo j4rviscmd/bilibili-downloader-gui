@@ -280,7 +280,7 @@
     "cannot_continue": "L'application ne peut pas continuer",
     "message_label": "Message d'erreur:",
     "code_label": "Code d'erreur:",
-    "ffmpeg_not_found": "ffmpeg introuvable.",
+    "ffmpeg_not_found": "ffmpeg est introuvable ou n'a pas pu être initialisé.",
     "cookie_invalid": "Cookie invalide.",
     "user_info_failed": "Impossible d'obtenir les informations utilisateur.",
     "user_info_failed_other": "Impossible d'obtenir les informations utilisateur (autre qu'absence de connexion).",

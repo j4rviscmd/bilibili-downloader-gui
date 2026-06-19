@@ -134,13 +134,16 @@ function ErrorPage() {
           {t('errorPage.code_label')} {errorCode}
         </div>
       </div>
-      {errorCode === 6 && (
+      {/* Why: errorCode 1 is included because the strengthened ffmpeg
+          validation now rejects and removes a corrupt binary (issue #440);
+          a relaunch triggers a clean re-download instead of forcing a quit. */}
+      {(errorCode === 1 || errorCode === 6) && (
         <div className="text-muted-foreground text-sm">
           {t('errorPage.try_restart')}
         </div>
       )}
       <div className="m-3 flex gap-3">
-        {errorCode === 6 && (
+        {(errorCode === 1 || errorCode === 6) && (
           <Button onClick={handleRelaunch} variant="default" className="p-3">
             {t('errorPage.restart_app')}
           </Button>

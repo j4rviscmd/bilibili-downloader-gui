@@ -280,7 +280,7 @@
     "cannot_continue": "应用无法继续运行",
     "message_label": "错误信息:",
     "code_label": "错误代码:",
-    "ffmpeg_not_found": "未找到 ffmpeg。",
+    "ffmpeg_not_found": "未找到 ffmpeg 或无法初始化。",
     "cookie_invalid": "Cookie 无效。",
     "user_info_failed": "无法获取用户信息。",
     "user_info_failed_other": "无法获取用户信息（非未登录原因）。",

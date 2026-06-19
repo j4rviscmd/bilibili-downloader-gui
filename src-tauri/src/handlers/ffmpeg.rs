@@ -4,11 +4,13 @@
 //! It downloads platform-specific ffmpeg binaries and provides functionality
 //! to merge separate video and audio streams into a single MP4 file.
 
+use crate::constants::FFMPEG_VALIDATION_TIMEOUT_SECS;
 use crate::emits::Emits;
 use crate::utils::downloads::download_url;
 use crate::utils::paths::{get_ffmpeg_path, get_ffmpeg_root_path};
 use anyhow::Result;
 use std::fs::File;
+use std::time::Duration;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -17,6 +19,7 @@ use std::{
 use tauri::AppHandle;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command as AsyncCommand;
+use tokio::time::timeout;
 use tokio_util::sync::CancellationToken;
 
 /// Options for embedding subtitles during video merging.
@@ -69,7 +72,7 @@ pub enum MergeMode {
 /// # Returns
 ///
 /// Returns `true` if ffmpeg is valid and executable, `false` otherwise.
-pub fn validate_ffmpeg(app: &AppHandle) -> bool {
+pub async fn validate_ffmpeg(app: &AppHandle) -> bool {
     log::info!("[BE] validate_ffmpeg: checking ffmpeg installation");
     let ffmpeg_root = get_ffmpeg_root_path(app);
     let ffmpeg_path = get_ffmpeg_path(app);
@@ -83,7 +86,7 @@ pub fn validate_ffmpeg(app: &AppHandle) -> bool {
         return false;
     }
 
-    if !validate_command(&ffmpeg_path) {
+    if !validate_command(&ffmpeg_path).await {
         log::warn!("[BE] validate_ffmpeg: ffmpeg binary validation failed, cleaning up");
         cleanup_ffmpeg_dir(&ffmpeg_root);
         return false;
@@ -201,6 +204,19 @@ pub async fn install_ffmpeg(app: &AppHandle) -> Result<bool> {
         }
     }
 
+    // Functional validation: confirm the freshly installed binary can
+    // actually encode audio. A download/extract that produced a
+    // partially corrupted binary would otherwise be accepted and only
+    // surface later as broken merges (issue #440). On failure, remove
+    // the corrupt tree so the next launch re-downloads from scratch.
+    let ffmpeg_bin = get_ffmpeg_path(app);
+    if !validate_command(&ffmpeg_bin).await {
+        log::warn!("[BE] install_ffmpeg: post-install validation failed, removing ffmpeg");
+        let _ = fs::remove_dir_all(&ffmpeg_root);
+        return Ok(false);
+    }
+
+    log::info!("[BE] install_ffmpeg: installed and validated successfully");
     Ok(true)
 }
 
@@ -303,33 +319,87 @@ fn build_ffmpeg_bin_path(base_path: &Path) -> PathBuf {
     path
 }
 
-/// Validates that a binary can be executed by running it with --help.
+/// Validates that the ffmpeg binary is functionally intact.
+///
+/// Runs a tiny AAC encode driven by a built-in `lavfi` source
+/// (`anullsrc`) so no external test file is needed. This is stronger
+/// than a `--help` probe, which only confirms the binary can start: a
+/// partially corrupted build whose codec pipeline is broken can still
+/// answer `--help` but silently produce truncated/broken merges (see
+/// issue #440). A successful encode exit proves the AAC codec works.
 ///
 /// On Windows, this function prevents console window creation during validation.
 ///
+/// The probe is bounded by [`FFMPEG_VALIDATION_TIMEOUT_SECS`]; a hung
+/// ffmpeg (another corruption symptom) is treated as failure.
+///
 /// # Arguments
 ///
-/// * `path` - Path to the binary to validate
+/// * `path` - Path to the ffmpeg binary to validate
 ///
 /// # Returns
 ///
-/// Returns `true` if the binary exists and can be executed successfully.
-fn validate_command(path: &Path) -> bool {
+/// Returns `true` if the binary exists and the test encode succeeds
+/// within the timeout.
+async fn validate_command(path: &Path) -> bool {
     if !path.exists() {
         return false;
     }
 
-    let mut cmd_builder = Command::new(path);
-    cmd_builder.arg("--help");
+    log::info!("[BE] validate_command: running functional AAC encode probe");
+
+    let mut cmd = AsyncCommand::new(path);
+    // Ensure the probe child is reaped on timeout. Without this, a hung
+    // (corrupted) ffmpeg would be orphaned when the timeout future drops,
+    // which on Windows can also block the subsequent remove_dir_all.
+    cmd.kill_on_drop(true);
+    cmd.args([
+        "-hide_banner",
+        "-f",
+        "lavfi",
+        "-i",
+        "anullsrc=r=44100:cl=stereo",
+        "-t",
+        "0.05",
+        "-c:a",
+        "aac",
+        "-f",
+        "null",
+        "-",
+    ]);
+    cmd.stdout(Stdio::null());
+    cmd.stderr(Stdio::null());
 
     #[cfg(target_os = "windows")]
     {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        cmd_builder.creation_flags(CREATE_NO_WINDOW);
+        cmd.creation_flags(CREATE_NO_WINDOW);
     }
 
-    cmd_builder.output().is_ok()
+    match timeout(
+        Duration::from_secs(FFMPEG_VALIDATION_TIMEOUT_SECS),
+        cmd.status(),
+    )
+    .await
+    {
+        Ok(Ok(status)) if status.success() => true,
+        Ok(Ok(status)) => {
+            log::warn!("[BE] validate_command: probe failed, exit={:?}", status);
+            false
+        }
+        Ok(Err(e)) => {
+            log::warn!("[BE] validate_command: probe spawn error: {}", e);
+            false
+        }
+        Err(_) => {
+            log::warn!(
+                "[BE] validate_command: probe timed out after {}s",
+                FFMPEG_VALIDATION_TIMEOUT_SECS
+            );
+            false
+        }
+    }
 }
 
 /// Moves ffmpeg from one location to another with validation.
@@ -359,7 +429,7 @@ fn validate_command(path: &Path) -> bool {
 /// - Directory creation fails
 /// - Copy operation fails
 /// - Validation fails (new path is cleaned up)
-pub fn move_ffmpeg(from_path: PathBuf, to_path: PathBuf) -> Result<(), String> {
+pub async fn move_ffmpeg(from_path: PathBuf, to_path: PathBuf) -> Result<(), String> {
     // Validate source ffmpeg
     if !from_path.exists() {
         return Err(format!(
@@ -374,7 +444,7 @@ pub fn move_ffmpeg(from_path: PathBuf, to_path: PathBuf) -> Result<(), String> {
         return Err(format!("Source ffmpeg binary not found: {:?}", ffmpeg_bin));
     }
 
-    if !validate_command(&ffmpeg_bin) {
+    if !validate_command(&ffmpeg_bin).await {
         return Err(format!(
             "Source ffmpeg binary is not valid: {:?}",
             ffmpeg_bin
@@ -396,7 +466,7 @@ pub fn move_ffmpeg(from_path: PathBuf, to_path: PathBuf) -> Result<(), String> {
     // Validate the copied ffmpeg
     let new_ffmpeg_bin = build_ffmpeg_bin_path(&to_path);
 
-    if !validate_command(&new_ffmpeg_bin) {
+    if !validate_command(&new_ffmpeg_bin).await {
         // Validation failed - clean up the new directory
         let _ = fs::remove_dir_all(&to_path);
         return Err(format!(

@@ -280,7 +280,7 @@
     "cannot_continue": "The application cannot continue",
     "message_label": "Error message:",
     "code_label": "Error code:",
-    "ffmpeg_not_found": "ffmpeg was not found.",
+    "ffmpeg_not_found": "ffmpeg was not found or could not be initialized.",
     "cookie_invalid": "Cookie is invalid.",
     "user_info_failed": "Failed to obtain user information.",
     "user_info_failed_other": "Failed to obtain user information (not login related).",

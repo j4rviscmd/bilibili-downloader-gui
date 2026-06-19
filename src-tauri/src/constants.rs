@@ -39,3 +39,11 @@ pub const MIN_DATA_FOR_SPEED_CHECK: u64 = 100 * 1024; // 100 KiB
 /// Limits the number of times CDN nodes are rotated when slow speeds
 /// are detected. Max is (number of CDN URLs) × MAX_CDN_LOOPS.
 pub const MAX_CDN_LOOPS: u8 = 3;
+
+/// Timeout in seconds for the ffmpeg functional validation probe.
+///
+/// The validation runs a tiny AAC encode to confirm the binary is not
+/// partially corrupted. A generous timeout covers low-spec machines
+/// where process spawn + codec init is slower; a hung ffmpeg (a symptom
+/// of corruption) is treated as validation failure.
+pub const FFMPEG_VALIDATION_TIMEOUT_SECS: u64 = 60;
