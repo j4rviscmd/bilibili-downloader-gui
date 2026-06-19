@@ -28,8 +28,10 @@
       "concat": "結合画面へ移動",
       "toggleSidebar": "サイドバーを切り替え",
       "openSidebar": "サイドバーを開く",
-      "closeSidebar": "サイドバーを閉じる"
-    }
+      "closeSidebar": "サイドバーを閉じる",
+      "audio": "音声抽出ページへ移動"
+    },
+    "audio": "音声抽出"
   },
   "trim": {
     "title": "動画トリム",
@@ -377,7 +379,11 @@
       "confirm_delete": "このルールを削除しますか？",
       "from_label": "置換前",
       "to_label": "置換後"
-    }
+    },
+    "audio_format_label": "音声出力フォーマット",
+    "audio_format_description": "音声抽出時のデフォルト出力フォーマット",
+    "audio_format_mp3": "MP3",
+    "audio_format_m4a": "M4A (AAC)"
   },
   "validation": {
     "path": {
@@ -581,5 +587,44 @@
     "stage_audio": "音声",
     "stage_video": "動画",
     "stage_merge": "マージ"
+  },
+  "audio": {
+    "title": "音声抽出",
+    "description": "ローカルのMP4ファイルから音声をMP3またはM4Aとして抽出します。",
+    "inputFile": "入力ファイル",
+    "browse": "参照",
+    "noFileSelected": "ファイルが選択されていません",
+    "sourceBitrate": "ソース音声ビットレート: {{value}} kbps",
+    "format": {
+      "label": "フォーマット",
+      "mp3": "MP3",
+      "mp3Hint": "ファイルサイズ小、互換性高い",
+      "m4a": "M4A (AAC)",
+      "m4aHint": "同じビットレートでより高音質"
+    },
+    "bitrate": {
+      "label": "ビットレート",
+      "hint": "ソースビットレートを超えるプリセットは、無駄なアップコンバートを避けるため無効化されます。",
+      "exceedsSource": "ソースビットレート（{{value}} kbps）を超えています。アップコンバートしても音質は向上しません。"
+    },
+    "outputFile": "出力ファイル",
+    "chooseOutput": "出力先を選択",
+    "noOutputSelected": "出力先が選択されていません",
+    "extract": "音声を抽出",
+    "extracting": "抽出中...",
+    "clear": "クリア",
+    "success": "音声を抽出しました",
+    "failed": "音声の抽出に失敗しました",
+    "openFolder": "フォルダを開く",
+    "elapsed": "経過",
+    "remaining": "残り",
+    "error": {
+      "input_not_found": "入力ファイルが見つかりません",
+      "unsupported_format": "入力はMP4ファイルである必要があります",
+      "unsupported_output_format": "出力の拡張子が選択したフォーマットと一致しません",
+      "same_path": "出力パスは入力と異なる必要があります",
+      "invalid_bitrate": "無効なビットレートです",
+      "ffmpeg_failed": "ffmpegでの音声抽出に失敗しました"
+    }
   }
 }

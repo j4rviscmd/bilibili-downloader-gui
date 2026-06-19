@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use tauri::AppHandle;
 use tauri::Manager;
 
+use crate::handlers::audio;
 use crate::handlers::bilibili;
 use crate::handlers::cleanup;
 use crate::handlers::concat;
@@ -186,6 +187,8 @@ pub fn run() {
             cleanup_temp_files,
             trim_video,
             concat_videos,
+            extract_audio,
+            probe_audio_bitrate,
             generate_qr_code,
             poll_qr_status,
             qr_logout,
@@ -1222,6 +1225,28 @@ async fn concat_videos(
     options: concat::ConcatOptions,
 ) -> Result<concat::ConcatResult, String> {
     concat::concat_videos(&app, &options).await
+}
+
+/// Extracts the audio track from a local MP4 file into MP3 or M4a.
+///
+/// Returns the absolute path of the written output file.
+#[tauri::command]
+async fn extract_audio(
+    app: AppHandle,
+    options: audio::AudioOptions,
+) -> Result<audio::AudioResult, String> {
+    audio::extract_audio(&app, &options).await
+}
+
+/// Probes the audio stream bitrate (kbps) of a local media file.
+///
+/// Returns `null` when ffmpeg reports no concrete bitrate (e.g. VBR). Used
+/// by the frontend to disable lossy up-conversion presets and to auto-select
+/// the best-effort bitrate.
+#[tauri::command]
+async fn probe_audio_bitrate(app: AppHandle, input_path: String) -> Result<Option<u32>, String> {
+    let ffmpeg_path = crate::utils::paths::get_ffmpeg_path(&app);
+    Ok(crate::utils::ffmpeg_probe::probe_audio_bitrate_kbps(&ffmpeg_path, &input_path).await)
 }
 
 /// Sets the simulate logout flag for development mode.

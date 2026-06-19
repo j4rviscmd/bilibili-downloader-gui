@@ -85,6 +85,11 @@ export interface Settings {
    */
   trimMode?: TrimMode
   /**
+   * Default output format for the audio extraction feature.
+   * Defaults to 'mp3' if not specified.
+   */
+  audioFormat?: AudioFormat
+  /**
    * UI theme: 'light' or 'dark'.
    * Persisted to settings.json via Tauri backend.
    * Defaults to 'light' if not set.
@@ -111,6 +116,13 @@ export type Theme = 'light' | 'dark'
  * - reencode: Re-encode, slow but frame-accurate
  */
 export type TrimMode = 'copy' | 'reencode'
+
+/**
+ * Output format for audio extraction.
+ * - mp3: MP3 (libmp3lame)
+ * - m4a: AAC in MP4 container
+ */
+export type AudioFormat = 'mp3' | 'm4a'
 
 /**
  * Supported language codes for the application.

@@ -645,6 +645,38 @@ function SettingsForm() {
         </div>
         <Separator />
         <div className="space-y-2">
+          <div className="space-y-0.5">
+            <Label>{t('settings.audio_format_label')}</Label>
+            <p className="text-muted-foreground text-sm">
+              {t('settings.audio_format_description')}
+            </p>
+          </div>
+          <RadioGroup
+            value={settings.audioFormat ?? 'mp3'}
+            onValueChange={(value) => {
+              saveByForm({
+                ...settings,
+                audioFormat: value as 'mp3' | 'm4a',
+              })
+            }}
+            className="grid grid-cols-2 gap-4"
+          >
+            <div className="flex items-center space-x-3">
+              <RadioGroupItem value="mp3" id="audio-mp3" />
+              <Label htmlFor="audio-mp3">
+                {t('settings.audio_format_mp3')}
+              </Label>
+            </div>
+            <div className="flex items-center space-x-3">
+              <RadioGroupItem value="m4a" id="audio-m4a" />
+              <Label htmlFor="audio-m4a">
+                {t('settings.audio_format_m4a')}
+              </Label>
+            </div>
+          </RadioGroup>
+        </div>
+        <Separator />
+        <div className="space-y-2">
           <Label>{t('settings.app_section_label')}</Label>
           <div className="flex w-full items-end gap-2">
             <UpdateCheckButton />

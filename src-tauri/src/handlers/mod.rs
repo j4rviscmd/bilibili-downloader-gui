@@ -13,6 +13,7 @@
 //! - **trim**: Local MP4 file trimming via ffmpeg stream copy
 //! - **updater**: GitHub release notes fetching
 
+pub mod audio;
 pub mod bilibili;
 pub mod cleanup;
 pub mod concat;

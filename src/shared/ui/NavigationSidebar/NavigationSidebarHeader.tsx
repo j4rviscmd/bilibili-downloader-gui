@@ -19,7 +19,7 @@ import {
 import { cn } from '@/shared/lib/utils'
 import { selectHasActiveDownloads } from '@/shared/queue'
 import type { LucideIcon } from 'lucide-react'
-import { Combine, Eye, Home, Scissors, Star } from 'lucide-react'
+import { Combine, Eye, Home, Music, Scissors, Star } from 'lucide-react'
 import { Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router'
@@ -120,6 +120,13 @@ export function NavigationSidebarHeader({
           icon: Combine,
           label: t('nav.concat'),
           ariaLabel: t('nav.aria.concat'),
+          requiresAuth: false,
+        },
+        {
+          path: '/audio',
+          icon: Music,
+          label: t('nav.audio'),
+          ariaLabel: t('nav.aria.audio'),
           requiresAuth: false,
         },
       ],

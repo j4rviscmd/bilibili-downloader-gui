@@ -28,8 +28,10 @@
       "concat": "Navigate to concat page",
       "toggleSidebar": "Toggle Sidebar",
       "openSidebar": "Open sidebar",
-      "closeSidebar": "Close sidebar"
-    }
+      "closeSidebar": "Close sidebar",
+      "audio": "Navigate to audio page"
+    },
+    "audio": "Audio"
   },
   "trim": {
     "title": "Trim Video",
@@ -377,7 +379,11 @@
       "confirm_delete": "Delete this rule?",
       "from_label": "From",
       "to_label": "To"
-    }
+    },
+    "audio_format_label": "Audio Output Format",
+    "audio_format_description": "Default output format used when extracting audio",
+    "audio_format_mp3": "MP3",
+    "audio_format_m4a": "M4A (AAC)"
   },
   "validation": {
     "path": {
@@ -581,5 +587,44 @@
     "stage_audio": "Audio",
     "stage_video": "Video",
     "stage_merge": "Merge"
+  },
+  "audio": {
+    "title": "Audio Extraction",
+    "description": "Extract the audio track from a local MP4 file into MP3 or M4A.",
+    "inputFile": "Input File",
+    "browse": "Browse",
+    "noFileSelected": "No file selected",
+    "sourceBitrate": "Source audio bitrate: {{value}} kbps",
+    "format": {
+      "label": "Format",
+      "mp3": "MP3",
+      "mp3Hint": "Smaller file, widely compatible",
+      "m4a": "M4A (AAC)",
+      "m4aHint": "Better quality at the same bitrate"
+    },
+    "bitrate": {
+      "label": "Bitrate",
+      "hint": "Presets above the source bitrate are disabled to avoid wasteful up-conversion.",
+      "exceedsSource": "Exceeds the source bitrate ({{value}} kbps); up-conversion would not improve quality."
+    },
+    "outputFile": "Output File",
+    "chooseOutput": "Choose Output",
+    "noOutputSelected": "No output selected",
+    "extract": "Extract Audio",
+    "extracting": "Extracting...",
+    "clear": "Clear",
+    "success": "Audio extracted successfully",
+    "failed": "Audio extraction failed",
+    "openFolder": "Open Folder",
+    "elapsed": "elapsed",
+    "remaining": "remaining",
+    "error": {
+      "input_not_found": "Input file not found",
+      "unsupported_format": "Input must be an MP4 file",
+      "unsupported_output_format": "Output extension does not match the selected format",
+      "same_path": "Output path must differ from the input",
+      "invalid_bitrate": "Invalid bitrate",
+      "ffmpeg_failed": "ffmpeg failed to extract audio"
+    }
   }
 }
