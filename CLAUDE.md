@@ -83,6 +83,17 @@ comments, JSDoc/docstring descriptions, and WHY/CAUTION/CONSTRAINT tags.
 Existing Japanese comments may remain, but never add new Japanese
 comments.
 
+## CI & E2E Workflows
+
+- **CI** (`.github/workflows/ci.yml`) runs 9 jobs on Ubuntu and is
+  aggregated into the **required** `ci-status` status check.
+- **E2E Tests** (`.github/workflows/e2e.yml`) runs separately on macOS
+  and is **NOT a required** status check.
+- When monitoring CI (e.g. during `worktree-finish`), do **not** wait
+  for the E2E workflow to finish — `ci-status` passing is sufficient to
+  treat CI as green. Treat E2E as informational (screenshots are still
+  useful for visual review).
+
 ## Pre-verification Checklist
 
 - Use `@hypothesi/tauri-mcp-server` to retrieve logs and HTML elements
