@@ -137,6 +137,18 @@ function DialogContent({
             onInteractOutside={(e) => {
               if (disableOutsideClick) {
                 e.preventDefault()
+                return
+              }
+              // @why: Sonner toasts live in their own portal outside the dialog.
+              //   Without this guard, interacting with a toast (close button /
+              //   swipe) is detected as an outside interaction and dismisses the
+              //   dialog beneath it.
+              if (
+                (e.target as HTMLElement | null)?.closest(
+                  '[data-sonner-toaster]',
+                )
+              ) {
+                e.preventDefault()
               }
             }}
             forceMount
