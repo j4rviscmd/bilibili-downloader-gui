@@ -144,6 +144,14 @@ pub struct Settings {
     /// Defaults to "copy" (stream copy) if not specified.
     #[serde(rename = "trimMode", default, skip_serializing_if = "Option::is_none")]
     pub trim_mode: Option<TrimMode>,
+    /// Default output format for the audio extraction feature.
+    /// Defaults to "mp3" if not specified.
+    #[serde(
+        rename = "audioFormat",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub audio_format: Option<AudioFormat>,
     /// UI theme preference. Defaults to system preference if not set.
     #[serde(rename = "theme", default, skip_serializing_if = "Option::is_none")]
     pub theme: Option<UiTheme>,
@@ -158,6 +166,17 @@ pub enum TrimMode {
     Copy,
     /// Re-encode (libx264), slow but frame-accurate.
     Reencode,
+}
+
+/// Output format for the audio extraction feature.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum AudioFormat {
+    /// MP3 (libmp3lame), `.mp3`.
+    #[default]
+    Mp3,
+    /// AAC in MP4 container, `.m4a`.
+    M4a,
 }
 
 /// UI theme preference for light/dark mode.

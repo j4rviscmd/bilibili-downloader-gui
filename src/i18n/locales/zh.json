@@ -28,8 +28,10 @@
       "concat": "前往合并页面",
       "toggleSidebar": "切换侧边栏",
       "openSidebar": "打开侧边栏",
-      "closeSidebar": "关闭侧边栏"
-    }
+      "closeSidebar": "关闭侧边栏",
+      "audio": "前往音频提取页面"
+    },
+    "audio": "音频提取"
   },
   "trim": {
     "title": "裁剪视频",
@@ -377,7 +379,11 @@
       "confirm_delete": "确定删除此规则？",
       "from_label": "原字符",
       "to_label": "替换为"
-    }
+    },
+    "audio_format_label": "音频输出格式",
+    "audio_format_description": "提取音频时的默认输出格式",
+    "audio_format_mp3": "MP3",
+    "audio_format_m4a": "M4A (AAC)"
   },
   "validation": {
     "path": {
@@ -581,5 +587,44 @@
     "stage_audio": "音频",
     "stage_video": "视频",
     "stage_merge": "合并"
+  },
+  "audio": {
+    "title": "音频提取",
+    "description": "从本地 MP4 文件中提取音频为 MP3 或 M4A。",
+    "inputFile": "输入文件",
+    "browse": "浏览",
+    "noFileSelected": "未选择文件",
+    "sourceBitrate": "源音频比特率：{{value}} kbps",
+    "format": {
+      "label": "格式",
+      "mp3": "MP3",
+      "mp3Hint": "文件更小，兼容性广",
+      "m4a": "M4A (AAC)",
+      "m4aHint": "相同比特率下音质更好"
+    },
+    "bitrate": {
+      "label": "比特率",
+      "hint": "高于源比特率的预设已禁用，以避免无意义的升码转换。",
+      "exceedsSource": "超过源比特率（{{value}} kbps）；升码转换不会提升音质。"
+    },
+    "outputFile": "输出文件",
+    "chooseOutput": "选择输出",
+    "noOutputSelected": "未选择输出",
+    "extract": "提取音频",
+    "extracting": "提取中...",
+    "clear": "清除",
+    "success": "音频提取成功",
+    "failed": "音频提取失败",
+    "openFolder": "打开文件夹",
+    "elapsed": "已用",
+    "remaining": "剩余",
+    "error": {
+      "input_not_found": "找不到输入文件",
+      "unsupported_format": "输入必须是 MP4 文件",
+      "unsupported_output_format": "输出扩展名与所选格式不匹配",
+      "same_path": "输出路径必须与输入不同",
+      "invalid_bitrate": "无效的比特率",
+      "ffmpeg_failed": "ffmpeg 提取音频失败"
+    }
   }
 }

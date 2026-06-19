@@ -28,8 +28,10 @@
       "concat": "Accéder à la page de concaténation",
       "toggleSidebar": "Basculer la barre latérale",
       "openSidebar": "Ouvrir la barre latérale",
-      "closeSidebar": "Fermer la barre latérale"
-    }
+      "closeSidebar": "Fermer la barre latérale",
+      "audio": "Aller à la page audio"
+    },
+    "audio": "Audio"
   },
   "trim": {
     "title": "Découper la vidéo",
@@ -377,7 +379,11 @@
       "confirm_delete": "Supprimer cette règle ?",
       "from_label": "De",
       "to_label": "Vers"
-    }
+    },
+    "audio_format_label": "Format de sortie audio",
+    "audio_format_description": "Format de sortie par défaut lors de l'extraction audio",
+    "audio_format_mp3": "MP3",
+    "audio_format_m4a": "M4A (AAC)"
   },
   "validation": {
     "path": {
@@ -581,5 +587,44 @@
     "stage_audio": "Audio",
     "stage_video": "Vidéo",
     "stage_merge": "Fusion"
+  },
+  "audio": {
+    "title": "Extraction audio",
+    "description": "Extrait la piste audio d'un fichier MP4 local au format MP3 ou M4A.",
+    "inputFile": "Fichier d'entrée",
+    "browse": "Parcourir",
+    "noFileSelected": "Aucun fichier sélectionné",
+    "sourceBitrate": "Débit audio source : {{value}} kbps",
+    "format": {
+      "label": "Format",
+      "mp3": "MP3",
+      "mp3Hint": "Fichier plus petit, large compatibilité",
+      "m4a": "M4A (AAC)",
+      "m4aHint": "Meilleure qualité à débit égal"
+    },
+    "bitrate": {
+      "label": "Débit binaire",
+      "hint": "Les débits supérieurs à celui de la source sont désactivés pour éviter une conversion ascendante inutile.",
+      "exceedsSource": "Dépasse le débit source ({{value}} kbps) ; la conversion ascendante n'améliorerait pas la qualité."
+    },
+    "outputFile": "Fichier de sortie",
+    "chooseOutput": "Choisir la sortie",
+    "noOutputSelected": "Aucune sortie sélectionnée",
+    "extract": "Extraire l'audio",
+    "extracting": "Extraction...",
+    "clear": "Effacer",
+    "success": "Audio extrait avec succès",
+    "failed": "Échec de l'extraction audio",
+    "openFolder": "Ouvrir le dossier",
+    "elapsed": "écoulé",
+    "remaining": "restant",
+    "error": {
+      "input_not_found": "Fichier d'entrée introuvable",
+      "unsupported_format": "L'entrée doit être un fichier MP4",
+      "unsupported_output_format": "L'extension de sortie ne correspond pas au format sélectionné",
+      "same_path": "Le chemin de sortie doit être différent de l'entrée",
+      "invalid_bitrate": "Débit binaire invalide",
+      "ffmpeg_failed": "ffmpeg n'a pas pu extraire l'audio"
+    }
   }
 }

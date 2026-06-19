@@ -3,6 +3,7 @@ import type { FC, ReactElement } from 'react'
 import { useEffect, useState } from 'react'
 import { Navigate, useLocation } from 'react-router'
 
+import { AudioContent } from '@/pages/audio'
 import { ConcatContent } from '@/pages/concat'
 import { FavoriteContent } from '@/pages/favorite'
 import { HistoryContent } from '@/pages/history'
@@ -22,6 +23,7 @@ const PAGES: readonly PageConfig[] = [
   { path: '/watch-history', Component: WatchHistoryContent },
   { path: '/trim', Component: TrimContent },
   { path: '/concat', Component: ConcatContent },
+  { path: '/audio', Component: AudioContent },
 ] as const
 
 const VALID_PATHS: readonly string[] = PAGES.map((p) => p.path)
