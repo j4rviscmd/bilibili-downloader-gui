@@ -604,7 +604,7 @@
     },
     "bitrate": {
       "label": "Débit binaire",
-      "hint": "Les débits supérieurs à celui de la source sont désactivés pour éviter une conversion ascendante inutile.",
+      "hint": "Les débits supérieurs à celui de la source sont désactivés pour éviter une conversion ascendante inutile",
       "exceedsSource": "Dépasse le débit source ({{value}} kbps) ; la conversion ascendante n'améliorerait pas la qualité."
     },
     "outputFile": "Fichier de sortie",
