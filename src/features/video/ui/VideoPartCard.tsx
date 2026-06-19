@@ -850,7 +850,7 @@ const VideoPartCard = memo(function VideoPartCard({
                                     <p>
                                       {t('video.audio_quality_description')}
                                     </p>
-                                    <p className="mt-1">
+                                    <p className="mt-1 whitespace-pre-line">
                                       {t('video.audio_quality_note')}
                                     </p>
                                   </TooltipContent>

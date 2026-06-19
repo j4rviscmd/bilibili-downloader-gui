@@ -135,7 +135,7 @@
     "quality_note": "* Algunas calidades altas como 720p60 / 1080p60 pueden no estar disponibles según el estado de inicio de sesión o la región.",
     "audio_quality_label": "Calidad de audio",
     "audio_quality_description": "Selecciona la calidad de audio a descargar.",
-    "audio_quality_note": "* El audio de alta calidad (Dolby Atmos / Hi-Res) puede requerir inicio de sesión o región y podría no estar disponible.",
+    "audio_quality_note": "* El audio de alta calidad (Dolby Atmos / Hi-Res) puede requerir inicio de sesión o región y podría no estar disponible.\n* Obtenemos la calidad más cercana a la seleccionada; si no está disponible, se usa la calidad más alta disponible actualmente.",
     "progress_title": "Progreso de descarga",
     "bar_audio": "Datos de audio",
     "bar_video": "Datos de video",
