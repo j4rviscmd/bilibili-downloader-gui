@@ -135,7 +135,7 @@
     "quality_note": "* Some high qualities like 720p60 / 1080p60 may not be selectable depending on login state or region.",
     "audio_quality_label": "Audio Quality",
     "audio_quality_description": "Select the audio quality to download.",
-    "audio_quality_note": "* Some high-quality audio (Dolby Atmos / Hi-Res) may require login status or region and may not be selectable.",
+    "audio_quality_note": "* Some high-quality audio (Dolby Atmos / Hi-Res) may require login status or region and may not be selectable.\n* We fetch the closest available quality to your selection; if unavailable, the highest quality currently available is used.",
     "progress_title": "Download Progress",
     "bar_audio": "Audio Data",
     "bar_video": "Video Data",

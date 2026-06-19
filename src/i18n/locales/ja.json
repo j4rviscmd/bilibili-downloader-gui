@@ -135,7 +135,7 @@
     "quality_note": "※ 720p60や1080p60などの高画質は、ログイン状態や地域によっては選択できない場合があります。",
     "audio_quality_label": "音質",
     "audio_quality_description": "ダウンロードする音声の音質を選択してください。",
-    "audio_quality_note": "※ Dolby Atmos や ハイレゾ などの高音質は、ログイン状態や地域によっては選択できない場合があります。",
+    "audio_quality_note": "※ Dolby Atmos や ハイレゾ などの高音質は、ログイン状態や地域によっては選択できない場合があります。\n※ 選んだ音質にできる限り近いものを取得しますが、状況により利用可能な最も高い音質となります。",
     "progress_title": "ダウンロード進行状況",
     "bar_audio": "音声データ",
     "bar_video": "動画データ",
