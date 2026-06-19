@@ -604,7 +604,7 @@
     },
     "bitrate": {
       "label": "Tasa de bits",
-      "hint": "Las tasas superiores a la de origen se desactivan para evitar una conversión ascendente innecesaria.",
+      "hint": "Las tasas superiores a la de origen se desactivan para evitar una conversión ascendente innecesaria",
       "exceedsSource": "Supera la tasa de bits de origen ({{value}} kbps); la conversión ascendente no mejoraría la calidad."
     },
     "outputFile": "Archivo de salida",
