@@ -59,7 +59,9 @@ const platforms = [
             class="flex justify-center text-muted-foreground"
             set:html={platform.svg}
           />
-          <h3 class="mt-4 font-semibold">{t(`download.${platform.key}`)}</h3>
+          <h3 class="mt-4 min-h-[3rem] font-semibold">
+            {t(`download.${platform.key}`)}
+          </h3>
           {platform.disabled ? (
             <p class="mt-4 text-sm text-muted-foreground">
               {t("download.comingSoon")}

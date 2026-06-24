@@ -142,6 +142,9 @@ const translations: Record<Lang, Record<string, unknown>> = {
         batch: "Batch Download",
         bangumi: "Anime & Drama Support",
         hires: "Hi-Res Audio",
+        localTools: "Local MP4 Tools",
+        bilibili: "Bilibili Integration",
+        autoupdate: "Auto-update",
         adfree: "Ad-free",
       },
       descriptions: {
@@ -150,14 +153,20 @@ const translations: Record<Lang, Record<string, unknown>> = {
         quality:
           "Choose from 360p to 4K quality. Pick the best quality for your device and internet speed.\nMaximum quality depends on your Bilibili membership level.",
         subtitle:
-          "Download subtitles in up to 15 languages. Choose soft subtitles as separate files or hard-burn them into the video.",
-        cdn: "Automatically selects the fastest server for you. No more waiting on slow downloads.",
+          "Download subtitles in up to 15 languages. Choose soft subtitles as separate files or hard-burn them into the video. AI-generated subtitles are also supported.",
+        cdn: "Automatically selects the fastest server for you, with automatic retry on network errors. No more waiting on slow downloads.",
         batch:
           "Download multiple videos at once. Just paste multiple links and let the app do the rest.",
         bangumi:
           "Download official Bilibili content including anime, dramas, and variety shows.",
         hires:
           "Dolby Atmos and Hi-Res Lossless audio quality support for the best listening experience.\nRequires Bilibili Premium membership.",
+        localTools:
+          "Trim, merge, or extract audio from local MP4 files — no need to re-download.",
+        bilibili:
+          "Browse your favorites and watch history, and auto-expand b23.tv short links.",
+        autoupdate:
+          "Built-in updater with signed release verification and release notes.",
         adfree: "No ads, no tracking, completely free.",
       },
     },
@@ -196,6 +205,9 @@ const translations: Record<Lang, Record<string, unknown>> = {
         batch: "一括ダウンロード",
         bangumi: "アニメ・ドラマ対応",
         hires: "ハイレゾ音声",
+        localTools: "ローカルMP4ツール",
+        bilibili: "Bilibili連携",
+        autoupdate: "自動アップデート",
         adfree: "広告なし",
       },
       descriptions: {
@@ -204,14 +216,18 @@ const translations: Record<Lang, Record<string, unknown>> = {
         quality:
           "360pから4Kまで選べる画質。端末やインターネット速度に合わせて最適な画質を選べます。\n利用可能な最高画質はBilibiliの会員ランクによって異なります。",
         subtitle:
-          "最大15言語の字幕をダウンロード。字幕別ファイル（soft）または動画埋め込み（hard）を選択可能。",
-        cdn: "最も高速なサーバーを自動で選択。遅いダウンロードで待たされるストレスから解放されます。",
+          "最大15言語の字幕をダウンロード。字幕別ファイル（soft）または動画埋め込み（hard）を選択可能。AI生成字幕にも対応。",
+        cdn: "最も高速なサーバーを自動で選択。ネットワークエラー時は自動でリトライします。遅いダウンロードで待たされるストレスから解放されます。",
         batch:
           "複数の動画をまとめてダウンロード。リンクを複数貼り付けるだけで、あとはアプリにおまかせ。",
         bangumi:
           "Bilibiliの公式コンテンツ（アニメ、ドラマ、バラエティ番組など）をダウンロード。",
         hires:
           "Dolby Atmos、Hi-Res Lossless対応。最高品質の音声で楽しめます。\n利用にはBilibiliプレミアム会員が必要です。",
+        localTools:
+          "ローカルのMP4ファイルのトリム、結合、音声抽出が可能。ダウンロードし直す必要はありません。",
+        bilibili: "お気に入りや視聴履歴の参照、b23.tv短縮URLの自動展開に対応。",
+        autoupdate: "署名検証付きのアップデーターとリリースノートを内蔵。",
         adfree: "広告なし、トラッキングなし、完全無料。",
       },
     },
@@ -250,6 +266,9 @@ const translations: Record<Lang, Record<string, unknown>> = {
         batch: "批量下载",
         bangumi: "番剧支持",
         hires: "高解析度音频",
+        localTools: "本地 MP4 工具",
+        bilibili: "Bilibili 集成",
+        autoupdate: "自动更新",
         adfree: "无广告",
       },
       descriptions: {
@@ -257,12 +276,15 @@ const translations: Record<Lang, Record<string, unknown>> = {
         quality:
           "从360p到4K画质任您选择。根据您的设备和网络速度选择最佳画质。\n最高可用画质取决于您的Bilibili会员等级。",
         subtitle:
-          "支持最多15种语言的字幕下载。可选择软字幕（独立文件）或硬字幕（嵌入视频）。",
-        cdn: "自动选择最快的下载服务器。告别漫长的等待。",
+          "支持最多15种语言的字幕下载。可选择软字幕（独立文件）或硬字幕（嵌入视频）。也支持AI生成字幕。",
+        cdn: "自动选择最快的下载服务器，网络错误时自动重试。告别漫长的等待。",
         batch: "批量下载多个视频。只需粘贴多个链接，剩下的交给应用即可。",
         bangumi: "下载Bilibili番剧，包括动漫、电视剧和综艺等官方内容。",
         hires:
           "支持 Dolby Atmos 和 Hi-Res Lossless，享受最高品质音频。\n需要Bilibili大会员。",
+        localTools: "剪辑、合并本地 MP4 文件或从中提取音频，无需重新下载。",
+        bilibili: "浏览收藏夹和观看历史，并自动展开 b23.tv 短链接。",
+        autoupdate: "内置带签名验证的更新器和发布说明。",
         adfree: "无广告、无追踪、完全免费。",
       },
     },
@@ -301,6 +323,9 @@ const translations: Record<Lang, Record<string, unknown>> = {
         batch: "일괄 다운로드",
         bangumi: "애니메이션・드라마 지원",
         hires: "하이레즈 오디오",
+        localTools: "로컬 MP4 도구",
+        bilibili: "Bilibili 연동",
+        autoupdate: "자동 업데이트",
         adfree: "광고 없음",
       },
       descriptions: {
@@ -309,14 +334,19 @@ const translations: Record<Lang, Record<string, unknown>> = {
         quality:
           "360p부터 4K까지 선택 가능. 기기와 인터넷 속도에 맞는 최적의 화질을 선택하세요.\n이용 가능한 최고 화질은 Bilibili 회원 등급에 따라 다릅니다.",
         subtitle:
-          "최대 15개 언어 자막을 다운로드하세요. 소프트 자막(별도 파일) 또는 하드 자막(비디오 내장) 선택 가능.",
-        cdn: "가장 빠른 서버를 자동으로 선택해 드립니다. 느린 다운로드로 기다릴 필요가 없습니다.",
+          "최대 15개 언어 자막을 다운로드하세요. 소프트 자막(별도 파일) 또는 하드 자막(비디오 내장) 선택 가능. AI 생성 자막도 지원합니다.",
+        cdn: "가장 빠른 서버를 자동으로 선택하며, 네트워크 오류 시 자동으로 재시도합니다. 느린 다운로드로 기다릴 필요가 없습니다.",
         batch:
           "여러 비디오를 한 번에 다운로드하세요. 여러 링크만 붙여넣으면 나머지는 앱이 알아서 처리합니다.",
         bangumi:
           "Bilibili 공식 콘텐츠(애니메이션, 드라마, 예능 프로그램 등)를 다운로드하세요.",
         hires:
           "Dolby Atmos, Hi-Res Lossless 지원으로 최고 품질의 음향을 경험하세요.\nBilibili 프리미엄 회원이 필요합니다.",
+        localTools:
+          "로컬 MP4 파일을 자르고, 병합하고, 오디오를 추출할 수 있습니다. 다시 다운로드할 필요가 없습니다.",
+        bilibili:
+          "즐겨찾기와 시청 기록을 탐색하고, b23.tv 단축 URL을 자동으로 확장합니다.",
+        autoupdate: "서명 검증 업데이터와 릴리스 노트를 내장했습니다.",
         adfree: "광고 없음, 추적 없음, 완전 무료.",
       },
     },
@@ -355,6 +385,9 @@ const translations: Record<Lang, Record<string, unknown>> = {
         batch: "Descarga por lotes",
         bangumi: "Soporte de anime y dramas",
         hires: "Audio de alta resolución",
+        localTools: "Herramientas locales de MP4",
+        bilibili: "Integración con Bilibili",
+        autoupdate: "Actualización automática",
         adfree: "Sin publicidad",
       },
       descriptions: {
@@ -363,14 +396,20 @@ const translations: Record<Lang, Record<string, unknown>> = {
         quality:
           "Elige entre calidad de 360p a 4K. Selecciona la mejor calidad para tu dispositivo y velocidad de internet.\nLa calidad máxima disponible depende de tu nivel de membresía en Bilibili.",
         subtitle:
-          "Descarga subtítulos en hasta 15 idiomas. Elige entre subtítulos suaves (archivos separados) o duros (incrustados en el video).",
-        cdn: "Selecciona automáticamente el servidor más rápido para ti. Olvídate de las descargas lentas.",
+          "Descarga subtítulos en hasta 15 idiomas. Elige entre subtítulos suaves (archivos separados) o duros (incrustados en el video). También se admiten subtítulos generados por IA.",
+        cdn: "Selecciona automáticamente el servidor más rápido para ti, con reintento automático ante errores de red. Olvídate de las descargas lentas.",
         batch:
           "Descarga múltiples videos a la vez. Solo pega varios enlaces y deja que la aplicación haga el resto.",
         bangumi:
           "Descarga contenido oficial de Bilibili, incluyendo anime, dramas y programas de variedades.",
         hires:
           "Compatibilidad con Dolby Atmos y Hi-Res Lossless para la mejor experiencia de audio.\nRequiere membresía Premium de Bilibili.",
+        localTools:
+          "Recorta, combina o extrae el audio de archivos MP4 locales, sin necesidad de volver a descargar.",
+        bilibili:
+          "Explora tus favoritos y tu historial de visualización, y expande automáticamente los enlaces cortos de b23.tv.",
+        autoupdate:
+          "Actualizador integrado con verificación de versiones firmadas y notas de versión.",
         adfree: "Sin anuncios, sin rastreo, completamente gratis.",
       },
     },
@@ -409,6 +448,9 @@ const translations: Record<Lang, Record<string, unknown>> = {
         batch: "Téléchargement par lots",
         bangumi: "Support anime et dramas",
         hires: "Audio haute résolution",
+        localTools: "Outils MP4 locaux",
+        bilibili: "Intégration Bilibili",
+        autoupdate: "Mise à jour automatique",
         adfree: "Sans publicité",
       },
       descriptions: {
@@ -417,14 +459,20 @@ const translations: Record<Lang, Record<string, unknown>> = {
         quality:
           "Choisissez parmi des qualités de 360p à 4K. Sélectionnez la meilleure qualité pour votre appareil et votre connexion.\nLa qualité maximale disponible dépend de votre niveau d'abonnement Bilibili.",
         subtitle:
-          "Téléchargez des sous-titres dans jusqu'à 15 langues. Choisissez entre sous-titres soft (fichiers séparés) ou hard (incrustés dans la vidéo).",
-        cdn: "Sélectionne automatiquement le serveur le plus rapide pour vous. Finis les téléchargements lents.",
+          "Téléchargez des sous-titres dans jusqu'à 15 langues. Choisissez entre sous-titres soft (fichiers séparés) ou hard (incrustés dans la vidéo). Les sous-titres générés par IA sont également pris en charge.",
+        cdn: "Sélectionne automatiquement le serveur le plus rapide pour vous, avec réessai automatique en cas d'erreurs réseau. Finis les téléchargements lents.",
         batch:
           "Téléchargez plusieurs vidéos à la fois. Collez simplement plusieurs liens et laissez l'application faire le reste.",
         bangumi:
           "Téléchargez du contenu officiel Bilibili, y compris anime, dramas et émissions de variétés.",
         hires:
           "Prise en charge Dolby Atmos et Hi-Res Lossless pour une expérience audio optimale.\nNécessite un abonnement Premium Bilibili.",
+        localTools:
+          "Coupez, fusionnez ou extrayez l'audio de fichiers MP4 locaux, sans avoir à les retélécharger.",
+        bilibili:
+          "Parcourez vos favoris et votre historique de visionnage, et développez automatiquement les liens courts b23.tv.",
+        autoupdate:
+          "Metteur à jour intégré avec vérification des versions signées et notes de version.",
         adfree: "Sans publicité, sans suivi, totalement gratuit.",
       },
     },
