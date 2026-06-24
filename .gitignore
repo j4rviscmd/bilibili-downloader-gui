@@ -36,3 +36,6 @@ e2e-tests/screenshots/
 
 # Local references (API docs, etc.)
 references/
+
+# Playwright MCP artifacts
+.playwright-mcp/
