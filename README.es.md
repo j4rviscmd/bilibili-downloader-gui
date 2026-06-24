@@ -29,29 +29,44 @@ Sin anuncios, sin seguimiento. 100% gratis.
 ### Descarga
 
 - **Descarga de video de alta calidad** - Elige cualquier calidad: 4K/1080p/720p/HDR
+- **Soporte de Bangumi (anime y series)** - Descarga episodios de anime y series además de videos regulares
 - **Guardado por lotes de videos multiparte** - Descarga automáticamente todas las partes de cursos, series, etc.
-- **Descargas rápidas y estables** - Cambio automático de CDN
+- **Descargas rápidas y estables** - Cambio automático de CDN con reintento automático ante errores de red
 - **Procesamiento en segundo plano** - Gestión de cola con progreso en tiempo real
-- **Incrustación de subtítulos** - Selección de subtítulos blandos/duros con soporte multiidioma
+- **Incrustación de subtítulos** - Selección de subtítulos blandos/duros con soporte multiidioma y subtítulos con IA
 - **Audio de alta resolución** - Compatible con Dolby Atmos y Hi-Res Lossless
+
+### Herramientas locales de MP4
+
+- **Recortar** - Corta archivos MP4 locales por tiempo de inicio/fin (copia sin pérdida o recodificación)
+- **Concatenar** - Fusiona varios archivos MP4 en uno (recodificación automática si los códecs no coinciden)
+- **Extracción de audio** - Extrae audio de MP4 local a MP3/M4A con presets de bitrate
+
+### Integración con Bilibili
+
+- **Favoritos** - Explora y descarga videos de tus carpetas de favoritos de Bilibili
+- **Historial de visualización** - Descarga videos directamente de tu historial de visualización de Bilibili
+- **Expansión automática de URL corta** - Los enlaces cortos de b23.tv se expanden automáticamente a la URL completa del video
 
 ### Facilidad de uso
 
 - **Interfaz en 6 idiomas** - Inglés / Japonés / Francés / Español / Chino / Coreano
-- **Configuración con un clic** - Instalación automática de FFmpeg, sin configuración manual
+- **Configuración con un clic** - Instalación automática de FFmpeg con validación de funcionamiento, sin configuración manual
+- **Actualización automática** - Actualizador integrado con verificación de versiones firmadas y notas de versión
 - **Búsqueda y exportación de historial** - Exporta el historial de descargas a JSON/CSV
 - **Soporte de modo oscuro** - Alternancia de tema claro/oscuro
 
 ### Métodos de autenticación
 
 - **Detección automática de cookies de Firefox** - Detecta las cookies de Firefox para descargas de alta calidad sin inicio de sesión manual
-- **Inicio de sesión con código QR** - Simplemente escanea el código QR en la aplicación para iniciar sesión
-  - Solo disponible cuando no se detectan cookies de Firefox
+- **Inicio de sesión con código QR** - Escanea el código QR en la aplicación para iniciar sesión
+  - Alterna entre Cookie e inicio de sesión QR en cualquier momento
 
 ### Privacidad y seguridad
 
 - **Gestión segura de credenciales** - Las credenciales de inicio de sesión con código QR se cifran con AES-256-GCM y se almacenan localmente. La derivación de claves con Argon2id garantiza protección específica por máquina.
 - **Almacenamiento solo local** - Los videos descargados se almacenan solo en tu PC
+- **Sin seguimiento** - Solo se comunica con las APIs de Bilibili y GitHub (para actualizaciones); sin telemetría
 
 ## Instalación
 
