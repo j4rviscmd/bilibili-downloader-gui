@@ -273,7 +273,9 @@
     "update_done_restart": "Actualización completada. Reiniciando...",
     "update_failed": "Error en la actualización",
     "cookie_success": "Cookie obtenida correctamente",
-    "cookie_failed": "Error al obtener cookie"
+    "cookie_failed": "Error al obtener cookie",
+    "cleanup_in_progress": "Limpiando archivos temporales...",
+    "cleanup_completed": "Limpiados {{deleted}} archivos temporales ({{failed}} fallidos)"
   },
   "errorPage": {
     "title": "Ocurrió un error",

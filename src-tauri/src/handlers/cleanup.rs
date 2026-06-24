@@ -25,8 +25,9 @@ pub struct CleanupResult {
 /// Cleans up orphaned temporary files older than 24 hours.
 ///
 /// Scans the lib directory for temp files matching:
-/// - `temp_video_*.m4s`
-/// - `temp_audio_*.m4s`
+/// - `temp_video_*.m4s` - Temporary video segments
+/// - `temp_audio_*.m4s` - Temporary audio segments
+/// - `temp_sub_*.srt` - Temporary subtitle files
 ///
 /// Files older than 24 hours are deleted.
 pub fn cleanup_temp_files(app: &AppHandle, max_age_hours: Option<u64>) -> CleanupResult {
@@ -86,6 +87,7 @@ pub fn cleanup_temp_files(app: &AppHandle, max_age_hours: Option<u64>) -> Cleanu
 /// Matches files with the following naming conventions:
 /// - `temp_video_*.m4s` - Temporary video segments
 /// - `temp_audio_*.m4s` - Temporary audio segments
+/// - `temp_sub_*.srt` - Temporary subtitle files
 ///
 /// # Arguments
 ///
@@ -102,6 +104,7 @@ pub fn cleanup_temp_files(app: &AppHandle, max_age_hours: Option<u64>) -> Cleanu
 /// # use crate::handlers::cleanup::is_temp_file;
 /// assert!(is_temp_file(Path::new("temp_video_123.m4s")));
 /// assert!(is_temp_file(Path::new("temp_audio_456.m4s")));
+/// assert!(is_temp_file(Path::new("temp_sub_789.srt")));
 /// assert!(!is_temp_file(Path::new("final_video.mp4")));
 /// ```
 fn is_temp_file(path: &Path) -> bool {
@@ -110,6 +113,9 @@ fn is_temp_file(path: &Path) -> bool {
         None => return false,
     };
 
-    (file_name.starts_with("temp_video_") || file_name.starts_with("temp_audio_"))
-        && file_name.ends_with(".m4s")
+    let is_video = file_name.starts_with("temp_video_") && file_name.ends_with(".m4s");
+    let is_audio = file_name.starts_with("temp_audio_") && file_name.ends_with(".m4s");
+    let is_subtitle = file_name.starts_with("temp_sub_") && file_name.ends_with(".srt");
+
+    is_video || is_audio || is_subtitle
 }
