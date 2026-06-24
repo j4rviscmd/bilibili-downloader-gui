@@ -29,29 +29,44 @@ No ads, no tracking. 100% free.
 ### Download
 
 - **High-quality video download** - Choose any quality from 4K/1080p/720p/HDR
+- **Bangumi (anime & series) support** - Download anime and series episodes alongside regular videos
 - **Multi-part video batch save** - Automatically download all parts of courses, series, etc.
-- **Fast & stable downloads** - Auto CDN switching
+- **Fast & stable downloads** - Auto CDN switching with automatic retry on network errors
 - **Background processing** - Queue management with real-time progress
-- **Subtitle embedding** - Soft/hard subtitle selection with multi-language support
+- **Subtitle embedding** - Soft/hard subtitle selection with multi-language and AI subtitle support
 - **Hi-Res Audio** - Dolby Atmos and Hi-Res Lossless audio quality support
+
+### Local MP4 Tools
+
+- **Trim** - Cut local MP4 files by start/end time (lossless stream copy or re-encode)
+- **Concat** - Merge multiple MP4 files into one (auto re-encode fallback on codec mismatch)
+- **Audio Extract** - Extract audio from local MP4 to MP3/M4A with bitrate presets
+
+### Bilibili Integration
+
+- **Favorites** - Browse and download videos from your Bilibili favorite folders
+- **Watch History** - Download videos directly from your Bilibili watch history
+- **Short URL auto-expand** - b23.tv short links automatically expand to full video URLs
 
 ### Ease of Use
 
 - **6-language UI** - English / 日本語 / Français / Español / 中文 / 한국어
-- **One-click setup** - FFmpeg auto-install, no manual configuration needed
+- **One-click setup** - FFmpeg auto-install with functionality validation, no manual configuration needed
+- **Auto-update** - Built-in updater with signed release verification and release notes
 - **History search & export** - Export download history to JSON/CSV
 - **Dark mode support** - Light/dark theme toggle
 
 ### Authentication Methods
 
 - **Firefox Cookie Auto-detection** - Detects Firefox cookies for high-quality downloads without manual login
-- **QR Code Login** - Simply scan the QR code in the app to log in
-  - Only available when Firefox cookies are not detected
+- **QR Code Login** - Scan the QR code in the app to log in
+  - Switch between Cookie and QR login at any time
 
 ### Privacy & Security
 
 - **Secure Credential Management** - QR code login credentials are encrypted with AES-256-GCM and stored locally. Keys are derived using Argon2id, ensuring machine-specific protection.
 - **Local-only Storage** - Downloaded videos are stored only on your PC
+- **No tracking** - Communicates only with Bilibili APIs and GitHub (for updates); no telemetry
 
 ## Installation
 
