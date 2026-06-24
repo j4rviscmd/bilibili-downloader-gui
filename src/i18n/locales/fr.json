@@ -273,7 +273,9 @@
     "update_done_restart": "Mise à jour terminée. Redémarrage...",
     "update_failed": "Échec de la mise à jour",
     "cookie_success": "Récupération du cookie réussie",
-    "cookie_failed": "Échec de la récupération du cookie"
+    "cookie_failed": "Échec de la récupération du cookie",
+    "cleanup_in_progress": "Nettoyage des fichiers temporaires...",
+    "cleanup_completed": "{{deleted}} fichiers temporaires nettoyés ({{failed}} échoués)"
   },
   "errorPage": {
     "title": "Une erreur est survenue",

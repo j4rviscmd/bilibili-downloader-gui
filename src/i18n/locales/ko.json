@@ -273,7 +273,9 @@
     "update_done_restart": "업데이트 완료. 재시작 중...",
     "update_failed": "업데이트 확인 또는 적용 실패",
     "cookie_success": "쿠키 가져오기 성공",
-    "cookie_failed": "쿠키 가져오기 실패"
+    "cookie_failed": "쿠키 가져오기 실패",
+    "cleanup_in_progress": "임시 파일 정리 중...",
+    "cleanup_completed": "{{deleted}}개의 임시 파일을 정리했습니다 ({{failed}}개 실패)"
   },
   "errorPage": {
     "title": "오류가 발생했습니다",

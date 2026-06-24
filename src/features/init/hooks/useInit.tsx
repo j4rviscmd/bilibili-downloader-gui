@@ -133,12 +133,26 @@ export const useInit = () => {
     // Fire & forget OS detection (don't await)
     getOs()
 
-    // Clean up orphaned temp files (fire-and-forget, non-blocking)
-    invoke<{ deletedCount: number; failedCount: number }>(
-      'cleanup_temp_files',
-    ).catch(() => {
-      // Silently ignore cleanup failures
-    })
+    // Clean up orphaned temp files from previous sessions. Awaited so the
+    // status label stays visible during cleanup (mirroring the ffmpeg
+    // check step), even though it usually completes in a blink.
+    setMessage(t('init.cleanup_in_progress'))
+    try {
+      const result = await invoke<{
+        deletedCount: number
+        failedCount: number
+      }>('cleanup_temp_files')
+      if (result.deletedCount > 0 || result.failedCount > 0) {
+        setMessage(
+          t('init.cleanup_completed', {
+            deleted: result.deletedCount,
+            failed: result.failedCount,
+          }),
+        )
+      }
+    } catch {
+      // Silently ignore cleanup failures (non-fatal for startup)
+    }
 
     // Version checking is handled by UpdaterProvider (non-blocking dialog)
     const settings = await getAppSettings()
