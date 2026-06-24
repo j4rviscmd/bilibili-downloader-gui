@@ -273,7 +273,9 @@
     "update_done_restart": "更新完成，正在重启...",
     "update_failed": "更新检查或应用失败",
     "cookie_success": "Cookie 获取成功",
-    "cookie_failed": "Cookie 获取失败"
+    "cookie_failed": "Cookie 获取失败",
+    "cleanup_in_progress": "正在清理临时文件...",
+    "cleanup_completed": "已清理 {{deleted}} 个临时文件（{{failed}} 个失败）"
   },
   "errorPage": {
     "title": "发生错误",

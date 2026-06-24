@@ -273,7 +273,9 @@
     "update_done_restart": "Update finished. Restarting...",
     "update_failed": "Failed to check or apply update",
     "cookie_success": "Cookie retrieval succeeded",
-    "cookie_failed": "Cookie retrieval failed"
+    "cookie_failed": "Cookie retrieval failed",
+    "cleanup_in_progress": "Cleaning up temporary files...",
+    "cleanup_completed": "Cleaned up {{deleted}} temporary files ({{failed}} failed)"
   },
   "errorPage": {
     "title": "An error occurred",

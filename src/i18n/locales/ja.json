@@ -273,7 +273,9 @@
     "update_done_restart": "アップデートが完了しました。アプリを再起動します...",
     "update_failed": "アップデートの確認または適用に失敗しました",
     "cookie_success": "Cookieの取得に成功しました",
-    "cookie_failed": "Cookieの取得に失敗しました"
+    "cookie_failed": "Cookieの取得に失敗しました",
+    "cleanup_in_progress": "一時ファイルをクリーンアップしています...",
+    "cleanup_completed": "{{deleted}}個の一時ファイルをクリーンアップしました（{{failed}}個失敗）"
   },
   "errorPage": {
     "title": "エラーが発生しました",

@@ -1190,9 +1190,11 @@ async fn fetch_watch_history(
 /// Scans the lib directory for temp files matching:
 /// - `temp_video_*.m4s`
 /// - `temp_audio_*.m4s`
+/// - `temp_sub_*.srt`
 ///
-/// Files older than 24 hours are deleted. This is a fire-and-forget
-/// operation that logs errors instead of returning them.
+/// Files older than 24 hours are deleted. Errors during the scan or
+/// individual deletions are logged, and the counts are returned via
+/// `CleanupResult`.
 ///
 /// # Arguments
 ///
