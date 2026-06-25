@@ -1,9 +1,12 @@
 import type { FontSizePreset } from '@/features/settings/type'
 
 /**
- * Default font size in pixels (browser standard).
+ * Default font size in pixels.
+ *
+ * Slightly smaller than the browser default (16px) to fit more
+ * content on screen while remaining readable.
  */
-export const FONT_SIZE_DEFAULT: FontSizePreset = 16
+export const FONT_SIZE_DEFAULT: FontSizePreset = 14
 
 /**
  * Minimum allowed font size in pixels.

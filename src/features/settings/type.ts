@@ -68,7 +68,7 @@ export interface Settings {
    * Base font size in pixels (12-20).
    *
    * Applied as root font-size for rem-based scaling.
-   * Defaults to 16 (browser default) if not specified.
+   * Defaults to 14 if not specified.
    */
   fontSize?: FontSizePreset
   /**
