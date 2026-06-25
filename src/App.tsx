@@ -1,4 +1,5 @@
 import { useSelector } from '@/app/store'
+import { useFontSizeShortcuts } from '@/features/settings/hooks/useFontSizeShortcuts'
 import { useThemeEffect } from '@/features/settings/hooks/useThemeEffect'
 import { UpdateNotification } from '@/features/updater'
 import IndexPage from '@/pages'
@@ -13,6 +14,7 @@ import { Route, Routes } from 'react-router'
 function App() {
   const theme = useSelector((state) => state.settings.theme) ?? 'light'
   useThemeEffect()
+  useFontSizeShortcuts()
 
   useEffect(() => {
     if (import.meta.env.DEV) return

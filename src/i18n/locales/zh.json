@@ -335,6 +335,7 @@
     "theme_dark": "深色",
     "font_size_label": "字体大小",
     "font_size_description": "调整基础字体大小。更改会立即生效。",
+    "font_size_changed": "字体大小: {{size}}px",
     "current_version": "当前版本: {{version}}",
     "update_check": {
       "aria_label": "更新检查",

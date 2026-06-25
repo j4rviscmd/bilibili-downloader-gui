@@ -335,6 +335,7 @@
     "theme_dark": "ダーク",
     "font_size_label": "フォントサイズ",
     "font_size_description": "基本のフォントサイズを調整します。変更は即座に適用されます。",
+    "font_size_changed": "フォントサイズ: {{size}}px",
     "current_version": "現在のバージョン: {{version}}",
     "update_check": {
       "aria_label": "アップデート確認",

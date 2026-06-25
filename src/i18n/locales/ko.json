@@ -335,6 +335,7 @@
     "theme_dark": "다크",
     "font_size_label": "글꼴 크기",
     "font_size_description": "기본 글꼴 크기를 조정합니다. 변경 사항이 즉시 적용됩니다.",
+    "font_size_changed": "글꼴 크기: {{size}}px",
     "current_version": "현재 버전: {{version}}",
     "update_check": {
       "aria_label": "업데이트 확인",
