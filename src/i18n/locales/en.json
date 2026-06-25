@@ -335,6 +335,7 @@
     "theme_dark": "Dark",
     "font_size_label": "Font Size",
     "font_size_description": "Adjust the base font size. Changes apply immediately.",
+    "font_size_changed": "Font size: {{size}}px",
     "current_version": "Current version: {{version}}",
     "update_check": {
       "aria_label": "Update check",

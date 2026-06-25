@@ -29,6 +29,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import { Slider } from '@/components/ui/slider'
 import { callGetCurrentLibPath } from '@/features/settings/api/settingApi'
 import {
@@ -372,6 +373,13 @@ function SettingsForm() {
 
   const currentFontSize = parseFontSize(settings.fontSize)
 
+  // Show the platform-native modifier in shortcut hints (Cmd on macOS,
+  // Ctrl elsewhere). `userAgent` is used because `navigator.platform` is
+  // deprecated.
+  const isMac =
+    typeof navigator !== 'undefined' && /Mac/i.test(navigator.userAgent)
+  const shortcutModKey = isMac ? '⌘' : 'Ctrl'
+
   /**
    * Handles font size slider changes.
    *
@@ -442,7 +450,13 @@ function SettingsForm() {
         </FormItem>
         <div className="space-y-3">
           <div className="space-y-0.5">
-            <Label>{t('settings.font_size_label')}</Label>
+            <div className="flex items-center justify-between gap-2">
+              <Label>{t('settings.font_size_label')}</Label>
+              <KbdGroup>
+                <Kbd>{shortcutModKey}</Kbd>
+                <Kbd>+/-</Kbd>
+              </KbdGroup>
+            </div>
             <p className="text-muted-foreground text-sm">
               {t('settings.font_size_description')}
             </p>

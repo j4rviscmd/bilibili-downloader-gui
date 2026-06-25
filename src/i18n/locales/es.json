@@ -335,6 +335,7 @@
     "theme_dark": "Oscuro",
     "font_size_label": "Tamaño de fuente",
     "font_size_description": "Ajusta el tamaño de fuente base. Los cambios se aplican inmediatamente.",
+    "font_size_changed": "Tamaño de fuente: {{size}}px",
     "current_version": "Versión actual: {{version}}",
     "update_check": {
       "aria_label": "Verificación de actualizaciones",
