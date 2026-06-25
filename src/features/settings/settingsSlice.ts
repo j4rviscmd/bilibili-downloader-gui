@@ -1,3 +1,4 @@
+import { FONT_SIZE_DEFAULT } from '@/features/settings/lib/fontSize'
 import type { Settings } from '@/features/settings/type'
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
@@ -16,7 +17,7 @@ const initialState: SettingsState = {
   dialogOpen: false,
   autoRenameDuplicates: true,
   showGithubStars: true,
-  fontSize: 16,
+  fontSize: FONT_SIZE_DEFAULT,
   trimMode: 'copy',
   audioFormat: 'mp3',
   theme: 'light',
