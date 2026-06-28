@@ -125,20 +125,11 @@ pub fn save_window_geometry(app: &AppHandle) {
         return;
     };
 
-    // CAUTION: Under "Approach A", a maximized restore opens the window at the
-    // primary monitor's work-area size as a normal (non-isZoomed) window, so
-    // is_maximized() is false at launch. The construction-time sizing also
-    // emits a Resized event, which would otherwise overwrite the user's real
-    // normal geometry with the transient work-area bounds (silent data loss).
-    // When the saved intent was maximized but the window isn't in a true
-    // maximized state, skip persisting so the stored {normal geometry,
-    // maximized: true} survives until the user maximizes (green button) or
-    // explicitly resizes.
-    let saved_was_maximized = read_raw_geometry(app).map(|g| g.maximized).unwrap_or(false);
-    if !is_maximized && saved_was_maximized {
-        return;
-    }
-
+    // NOTE: Known trade-off of "Approach A" (maximized → work-area-sized
+    // normal window at launch): the construction-time sizing emits a Resized
+    // event, which can overwrite the user's real normal geometry with the
+    // transient work-area bounds if they resize before the next persist.
+    // This data loss is accepted as the cost of avoiding the startup flash.
     let geo = if is_maximized {
         // Persist only the flag; reuse the last normal geometry so un-maximizing
         // on next launch restores the real size instead of full-screen bounds.
