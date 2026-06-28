@@ -59,20 +59,44 @@ function aggregateParentStatuses(state: QueueItem[]): void {
     // 'cancelled' — that would abort the remaining parts in the serial
     // download loop. Only once every remaining part is done/cancelled does
     // the parent settle to 'cancelled' (or 'done' if nothing was skipped).
+    const previousStatus = parent.status
+    let nextStatus: QueueItemStatus
     if (statuses.includes('error')) {
-      parent.status = 'error'
+      nextStatus = 'error'
     } else if (statuses.includes('cancelling')) {
-      parent.status = 'cancelling'
+      nextStatus = 'cancelling'
     } else if (statuses.includes('running')) {
-      parent.status = 'running'
+      nextStatus = 'running'
     } else if (statuses.includes('pending')) {
-      parent.status = 'pending'
+      nextStatus = 'pending'
     } else if (statuses.every((s) => s === 'done')) {
-      parent.status = 'done'
+      nextStatus = 'done'
     } else if (statuses.includes('cancelled')) {
-      parent.status = 'cancelled'
+      nextStatus = 'cancelled'
     } else {
-      parent.status = 'pending'
+      nextStatus = 'pending'
+    }
+    parent.status = nextStatus
+
+    // @why: Record wall-clock timestamps on parent lifecycle transitions so the
+    //   download dialog can show real elapsed time. audio and video stages run
+    //   in parallel (tokio::try_join!), each emitting its own elapsed time —
+    //   summing them makes the timer advance at ~2x real time. A single parent
+    //   clock sidesteps that entirely. The existing-value guard keeps the
+    //   original start/completion time even if the parent is re-aggregated
+    //   (e.g. a later part starts after an earlier one finishes).
+    if (
+      nextStatus === 'running' &&
+      previousStatus !== 'running' &&
+      !parent.startedAtMs
+    ) {
+      parent.startedAtMs = Date.now()
+    }
+    if (
+      (nextStatus === 'done' || nextStatus === 'error') &&
+      !parent.completedAtMs
+    ) {
+      parent.completedAtMs = Date.now()
     }
   })
 
@@ -102,6 +126,10 @@ export type QueueItem = {
   outputPath?: string
   /** Video title */
   title?: string
+  /** Parent download start timestamp (ms since epoch) */
+  startedAtMs?: number
+  /** Parent download completion timestamp (ms since epoch) */
+  completedAtMs?: number
 }
 
 /**
@@ -254,6 +282,7 @@ export const queueSlice = createSlice({
 
       target.status = status
       if (errorMessage) target.errorMessage = errorMessage
+
       aggregateParentStatuses(state)
     },
     /**
