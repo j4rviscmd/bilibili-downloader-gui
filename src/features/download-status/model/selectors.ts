@@ -60,7 +60,6 @@ function pickStageData(entries: Progress[]): {
   isRetrying: boolean
   stage?: string
   isComplete: boolean
-  elapsedTime: number
 } {
   if (entries.length === 0) {
     return {
@@ -70,7 +69,6 @@ function pickStageData(entries: Progress[]): {
       merge: null,
       isRetrying: false,
       isComplete: false,
-      elapsedTime: 0,
     }
   }
   const complete = entries.find((p) => p.stage === 'complete')
@@ -83,8 +81,6 @@ function pickStageData(entries: Progress[]): {
       isRetrying: complete.isRetrying ?? false,
       stage: 'complete',
       isComplete: true,
-      // Sum ALL entries so completion doesn't lose audio+video time.
-      elapsedTime: entries.reduce((sum, e) => sum + (e.elapsedTime ?? 0), 0),
     }
   }
   const byStage = (stage: string) =>
@@ -112,10 +108,6 @@ function pickStageData(entries: Progress[]): {
       (merge?.isRetrying ?? false),
     stage: merge ? 'merge' : 'download',
     isComplete: false,
-    // Sum ALL stage elapsed times (audio + video + merge) for the total.
-    // Look at all entries including completed ones so earlier stages
-    // aren't lost when a later stage starts.
-    elapsedTime: entries.reduce((sum, e) => sum + (e.elapsedTime ?? 0), 0),
   }
 }
 
@@ -164,7 +156,6 @@ export const selectPartStatusRows = createSelector(
           isRetrying: rep.isRetrying,
           stage: rep.stage,
           isComplete: rep.isComplete,
-          elapsedTime: rep.elapsedTime,
         }
       })
       .filter((row): row is PartStatusRowModel => row !== null)
@@ -174,8 +165,12 @@ export const selectPartStatusRows = createSelector(
 
 /** ダイアログヘッダーの全体サマリ。 */
 export const selectOverallSummary = createSelector(
-  [selectPartStatusRows],
-  (rows): OverallSummary => {
+  [
+    selectResolvedParentId,
+    selectPartStatusRows,
+    (state: RootState) => state.queue,
+  ],
+  (parentId, rows, queue): OverallSummary => {
     // Exclude cancelled parts from totals/progress: they won't download, so
     // counting them in the denominator reads as "still pending" (e.g. 7/10
     // with 3 cancelled looks like 3 are left). cancelledCount is still
@@ -197,9 +192,19 @@ export const selectOverallSummary = createSelector(
             0,
           ) / totalParts
         : 0
-    // Sum elapsed times across non-cancelled parts. Serial downloads run one
-    // after another, so total wall-clock time = sum of each part's elapsed time.
-    const elapsedSeconds = active.reduce((sum, r) => sum + r.elapsedTime, 0)
+
+    // Calculate wall-clock time based on parent download timestamps.
+    // For parallel downloads (audio + video), we use the parent's actual
+    // start/completion times instead of summing stage elapsed times.
+    let elapsedSeconds = 0
+    if (parentId) {
+      const parent = queue.find((q) => q.downloadId === parentId)
+      if (parent?.startedAtMs) {
+        const endTime = parent.completedAtMs ?? Date.now()
+        elapsedSeconds = Math.max(0, (endTime - parent.startedAtMs) / 1000)
+      }
+    }
+
     // Any part in the merge stage blocks cancel-all: ffmpeg is a CLI
     // process that's unsafe to interrupt mid-merge.
     // @why: The merge stage runs an ffmpeg CLI child process. Cancelling kills

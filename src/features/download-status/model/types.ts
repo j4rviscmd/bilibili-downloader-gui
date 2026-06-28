@@ -44,8 +44,6 @@ export type PartStatusRowModel = {
   stage?: string
   /** 完了しているか（progress の complete ステージ有無） */
   isComplete: boolean
-  /** 経過時間 秒 */
-  elapsedTime: number
 }
 
 /**
@@ -84,7 +82,15 @@ export type OverallSummary = {
   isMerging: boolean
   /** 全体進捗 0..1（完了=1、進行中=percentage/100 の平均） */
   overallRatio: number
-  /** 経過時間 秒（全子の max(elapsedTime)） */
+  /**
+   * Elapsed time in seconds — real wall-clock time from the parent download's
+   * start to its completion (or now if still active).
+   *
+   * @why Derived from the parent QueueItem's startedAtMs/completedAtMs, not by
+   *   summing per-stage elapsed times. audio and video stages run in parallel
+   *   (tokio::try_join! in the backend), so summing their elapsed times would
+   *   make this advance at ~2x real time.
+   */
   elapsedSeconds: number
 }
 
