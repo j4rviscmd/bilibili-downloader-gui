@@ -285,11 +285,21 @@ pub fn run() {
             // Log application exit and save window geometry on close
             if let Some(window) = app.get_webview_window("main") {
                 let app_handle = app.handle().clone();
-                window.on_window_event(move |event| {
-                    if let tauri::WindowEvent::CloseRequested { .. } = event {
+                window.on_window_event(move |event| match event {
+                    tauri::WindowEvent::CloseRequested { .. } => {
                         window::save_window_geometry(&app_handle);
                         log::info!("[BE] Application exiting - main window closed");
                     }
+                    // CAUTION: Cmd+Q (macOS) and programmatic exit() bypass
+                    // CloseRequested, so persisting here keeps the latest normal
+                    // geometry available even when the app exits without closing
+                    // the window normally. save_window_geometry internally skips
+                    // fullscreen and maximized states, so only real changes to
+                    // the normal geometry land on disk.
+                    tauri::WindowEvent::Resized { .. } | tauri::WindowEvent::Moved { .. } => {
+                        window::save_window_geometry(&app_handle);
+                    }
+                    _ => {}
                 });
             }
 
@@ -335,8 +345,19 @@ pub fn run() {
         });
 
     builder
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            // CAUTION: Cmd+Q (macOS native quit), programmatic exit(), and OS
+            // shutdown all bypass WindowEvent::CloseRequested. Without this hook,
+            // geometry is never saved on those exit paths and the window fails to
+            // restore on next launch. ExitRequested fires while the main window
+            // is still alive, so the current geometry can still be read.
+            if let tauri::RunEvent::ExitRequested { .. } = event {
+                window::save_window_geometry(app_handle);
+                log::info!("[BE] Application exit requested - window geometry saved");
+            }
+        });
 }
 
 /// Validates whether ffmpeg is properly installed and functional.

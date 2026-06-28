@@ -22,6 +22,11 @@ struct WindowGeometry {
     y: f64,
     width: f64,
     height: f64,
+    // CONSTRAINT: `#[serde(default)]` keeps deserialization backward-compatible
+    // with store entries written before this field existed (older versions only
+    // persisted x/y/width/height).
+    #[serde(default)]
+    maximized: bool,
 }
 
 /// Creates the main application window with saved or default geometry.
@@ -30,6 +35,7 @@ pub fn create_main_window(
     theme: Option<Theme>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let geometry = read_saved_geometry(app);
+    let should_maximize = geometry.as_ref().map(|g| g.maximized).unwrap_or(false);
 
     let mut builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
         .title(WINDOW_TITLE)
@@ -38,11 +44,32 @@ pub fn create_main_window(
         .maximizable(false)
         .min_inner_size(MIN_WIDTH, MIN_HEIGHT);
 
-    builder = match geometry {
-        Some(geo) => builder
-            .inner_size(geo.width, geo.height)
-            .position(geo.x, geo.y),
-        None => builder.inner_size(DEFAULT_WIDTH, DEFAULT_HEIGHT),
+    // CAUTION: Do NOT use builder.maximized(true). On macOS, tao implements
+    // maximized by creating the window at inner_size, showing it, then calling
+    // set_maximized async — which dispatches setFrame:display:animate:YES (or
+    // NSWindow zoom:). Both branches animate and cannot be suppressed through
+    // Tauri's public API, so the "normal-size -> maximized" resize is always
+    // visible, even with visible(false)+show() (show() flushes the pending
+    // animated frame change). This was confirmed against tao's
+    // platform_impl/macos/util/async.rs.
+    //
+    // Instead, when the saved state is maximized, size the window to the
+    // primary monitor's work area at construction time. No post-create resize
+    // ever happens, so there is no animation. Trade-off: this yields a
+    // "maximized-sized normal window" rather than a true isZoomed state, so
+    // un-maximizing does not restore the previous size automatically.
+    builder = if should_maximize {
+        match primary_monitor_work_area_logical(app) {
+            Some((w, h, x, y)) => builder.inner_size(w, h).position(x, y),
+            None => builder.inner_size(DEFAULT_WIDTH, DEFAULT_HEIGHT),
+        }
+    } else {
+        match geometry {
+            Some(geo) => builder
+                .inner_size(geo.width, geo.height)
+                .position(geo.x, geo.y),
+            None => builder.inner_size(DEFAULT_WIDTH, DEFAULT_HEIGHT),
+        }
     };
 
     let window = builder.build()?;
@@ -67,26 +94,82 @@ pub fn enable_window_resize(app: AppHandle) -> Result<(), String> {
 }
 
 /// Saves the current window geometry to the store.
+///
+/// Called from multiple lifecycle points (window close, app exit request,
+/// resize, move) so geometry survives every exit path — including Cmd+Q on
+/// macOS, which bypasses `WindowEvent::CloseRequested`.
+///
+/// Behavior:
+/// - Fullscreen windows are skipped: the window reports full-screen bounds
+///   here, and since the fullscreen state itself is intentionally not
+///   persisted, overwriting would restore an oversized normal window.
+/// - Maximized windows persist only the `maximized` flag, reusing the last
+///   saved normal geometry so un-maximizing on next launch restores the real
+///   size instead of the full-screen bounds.
+/// - Normal windows persist their current bounds with `maximized: false`.
 pub fn save_window_geometry(app: &AppHandle) {
     let Some(window) = app.get_webview_window("main") else {
         return;
     };
 
-    let Ok(scale) = window.scale_factor() else {
+    // Skip while fullscreen: the reported bounds would corrupt the saved normal
+    // geometry (fullscreen state itself is intentionally not persisted).
+    let Ok(is_fullscreen) = window.is_fullscreen() else {
         return;
     };
-    let Ok(pos) = window.outer_position() else {
+    if is_fullscreen {
         return;
-    };
-    let Ok(size) = window.inner_size() else {
+    }
+
+    let Ok(is_maximized) = window.is_maximized() else {
         return;
     };
 
-    let geo = WindowGeometry {
-        x: pos.x as f64 / scale,
-        y: pos.y as f64 / scale,
-        width: size.width as f64 / scale,
-        height: size.height as f64 / scale,
+    // CAUTION: Under "Approach A", a maximized restore opens the window at the
+    // primary monitor's work-area size as a normal (non-isZoomed) window, so
+    // is_maximized() is false at launch. The construction-time sizing also
+    // emits a Resized event, which would otherwise overwrite the user's real
+    // normal geometry with the transient work-area bounds (silent data loss).
+    // When the saved intent was maximized but the window isn't in a true
+    // maximized state, skip persisting so the stored {normal geometry,
+    // maximized: true} survives until the user maximizes (green button) or
+    // explicitly resizes.
+    let saved_was_maximized = read_raw_geometry(app).map(|g| g.maximized).unwrap_or(false);
+    if !is_maximized && saved_was_maximized {
+        return;
+    }
+
+    let geo = if is_maximized {
+        // Persist only the flag; reuse the last normal geometry so un-maximizing
+        // on next launch restores the real size instead of full-screen bounds.
+        let prev = read_raw_geometry(app).unwrap_or(WindowGeometry {
+            x: 0.0,
+            y: 0.0,
+            width: DEFAULT_WIDTH,
+            height: DEFAULT_HEIGHT,
+            maximized: false,
+        });
+        WindowGeometry {
+            maximized: true,
+            ..prev
+        }
+    } else {
+        let Ok(scale) = window.scale_factor() else {
+            return;
+        };
+        let Ok(pos) = window.outer_position() else {
+            return;
+        };
+        let Ok(size) = window.inner_size() else {
+            return;
+        };
+        WindowGeometry {
+            x: pos.x as f64 / scale,
+            y: pos.y as f64 / scale,
+            width: size.width as f64 / scale,
+            height: size.height as f64 / scale,
+            maximized: false,
+        }
     };
 
     if let Ok(store) = app.store("window-state.json") {
@@ -95,6 +178,36 @@ pub fn save_window_geometry(app: &AppHandle) {
             serde_json::to_value(&geo).unwrap_or_default(),
         );
     }
+}
+
+/// Returns the primary monitor's work area in logical coordinates as
+/// (width, height, x, y).
+///
+/// The work area excludes the taskbar/Dock and menu bar, so sizing the window
+/// to it reproduces the "maximized" look at construction time without going
+/// through tao's animated maximized API (see create_main_window). Returns None
+/// if the primary monitor can't be queried.
+fn primary_monitor_work_area_logical(app: &AppHandle) -> Option<(f64, f64, f64, f64)> {
+    let monitor = app.primary_monitor().ok().flatten()?;
+    let scale = monitor.scale_factor();
+    let rect = monitor.work_area();
+    Some((
+        rect.size.width as f64 / scale,
+        rect.size.height as f64 / scale,
+        rect.position.x as f64 / scale,
+        rect.position.y as f64 / scale,
+    ))
+}
+
+/// Reads the raw saved geometry without monitor validation.
+///
+/// Unlike `read_saved_geometry`, this performs no position/size validation and
+/// is used only to preserve the last normal geometry when persisting the
+/// `maximized` flag alone (maximized windows report full-screen bounds).
+fn read_raw_geometry(app: &AppHandle) -> Option<WindowGeometry> {
+    let store = app.store("window-state.json").ok()?;
+    let raw = store.get(GEOMETRY_STORE_KEY)?;
+    serde_json::from_value(raw).ok()
 }
 
 /// Reads saved window geometry from the persistent store.
