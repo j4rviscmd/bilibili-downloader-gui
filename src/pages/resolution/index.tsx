@@ -17,7 +17,10 @@ export function ResolutionContent() {
   }, [t])
 
   return (
-    <PageTemplate title={t('resolution.title')} description={t('resolution.description')}>
+    <PageTemplate
+      title={t('resolution.title')}
+      description={t('resolution.description')}
+    >
       <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto pt-2 pb-4 sm:pt-3 sm:pb-6">
         <ResolutionForm />
       </div>

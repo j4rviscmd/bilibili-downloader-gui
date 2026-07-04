@@ -19,16 +19,16 @@ export {
 
 // Public API: Preset helpers
 export {
-  RESOLUTION_HEIGHT_PRESETS,
-  type ResolutionHeightPreset,
   DEFAULT_TARGET_HEIGHT,
+  RESOLUTION_HEIGHT_PRESETS,
   getEnabledResolutions,
   selectBestEffortResolution,
+  type ResolutionHeightPreset,
 } from './lib/resolution'
 
 // Public API: Types
 export type {
   ResolutionOptions,
-  ResolutionResult,
   ResolutionProgress,
+  ResolutionResult,
 } from './types'

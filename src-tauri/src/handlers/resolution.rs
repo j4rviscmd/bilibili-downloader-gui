@@ -138,7 +138,9 @@ pub async fn extract_resolution(
     // libx264's default yuv420p requires even dimensions; `scale=-2:H`
     // guarantees an even width but not height, so reject odd heights and
     // enforce the same 120-4320 range the UI advertises.
-    if options.target_height < 120 || options.target_height > 4320 || options.target_height % 2 != 0
+    if options.target_height < 120
+        || options.target_height > 4320
+        || !options.target_height.is_multiple_of(2)
     {
         return Err("ERR::RESOLUTION_INVALID_HEIGHT".to_string());
     }

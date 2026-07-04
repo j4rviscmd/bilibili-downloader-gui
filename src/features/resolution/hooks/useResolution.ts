@@ -69,8 +69,9 @@ export function useResolution(): UseResolutionResult {
   const { t } = useTranslation()
   const [inputPath, setInputPath] = useState<string | null>(null)
   const [outputPath, setOutputPath] = useState<string | null>(null)
-  const [targetHeight, setTargetHeightLocal] =
-    useState<number>(DEFAULT_TARGET_HEIGHT)
+  const [targetHeight, setTargetHeightLocal] = useState<number>(
+    DEFAULT_TARGET_HEIGHT,
+  )
   const [isCustomHeight, setIsCustomHeightLocal] = useState<boolean>(false)
   const [inputResolution, setInputResolution] = useState<{
     width: number
@@ -96,7 +97,9 @@ export function useResolution(): UseResolutionResult {
     }
   }, [])
 
-  const enabledResolutions = getEnabledResolutions(inputResolution?.height ?? null)
+  const enabledResolutions = getEnabledResolutions(
+    inputResolution?.height ?? null,
+  )
 
   const setTargetHeight = useCallback((value: number) => {
     setTargetHeightLocal(value)
@@ -130,7 +133,9 @@ export function useResolution(): UseResolutionResult {
       // Auto-pick the best-effort preset when not in custom mode so the
       // selected height never silently up-scales the new input.
       if (!isCustomHeight) {
-        setTargetHeightLocal(selectBestEffortResolution(resolution?.height ?? null))
+        setTargetHeightLocal(
+          selectBestEffortResolution(resolution?.height ?? null),
+        )
       }
       setStatus('idle')
     }
@@ -246,7 +251,10 @@ export function useResolution(): UseResolutionResult {
  * `movie.mp4` → `movie_resolution720.mp4`. Cross-platform path separator
  * detection via both `/` and `\`.
  */
-function makeDefaultOutputName(inputPath: string, targetHeight: number): string {
+function makeDefaultOutputName(
+  inputPath: string,
+  targetHeight: number,
+): string {
   const filename = inputPath.split(/[\\/]/).pop() ?? `output.mp4`
   const dot = filename.lastIndexOf('.')
   const base = dot > 0 ? filename.slice(0, dot) : filename
