@@ -18,6 +18,7 @@ use crate::handlers::favorites;
 use crate::handlers::ffmpeg;
 use crate::handlers::github;
 use crate::handlers::qr_login;
+use crate::handlers::resolution;
 use crate::handlers::settings;
 use crate::handlers::trim;
 use crate::handlers::updater;
@@ -189,6 +190,8 @@ pub fn run() {
             concat_videos,
             extract_audio,
             probe_audio_bitrate,
+            extract_resolution,
+            probe_video_resolution,
             generate_qr_code,
             poll_qr_status,
             qr_logout,
@@ -1270,6 +1273,30 @@ async fn extract_audio(
 async fn probe_audio_bitrate(app: AppHandle, input_path: String) -> Result<Option<u32>, String> {
     let ffmpeg_path = crate::utils::paths::get_ffmpeg_path(&app);
     Ok(crate::utils::ffmpeg_probe::probe_audio_bitrate_kbps(&ffmpeg_path, &input_path).await)
+}
+
+/// Downscale video resolution using ffmpeg scale filter.
+///
+/// Returns the absolute path of the written output file.
+#[tauri::command]
+async fn extract_resolution(
+    app: AppHandle,
+    options: resolution::ResolutionOptions,
+) -> Result<resolution::ResolutionResult, String> {
+    resolution::extract_resolution(&app, &options).await
+}
+
+/// Probes the video stream resolution (width × height) of a local media file.
+///
+/// Returns the video dimensions in pixels. Used by the frontend to display
+/// the current resolution and validate target height selection.
+#[tauri::command]
+async fn probe_video_resolution(
+    app: AppHandle,
+    input_path: String,
+) -> Result<Option<crate::utils::ffmpeg_probe::VideoResolution>, String> {
+    let ffmpeg_path = crate::utils::paths::get_ffmpeg_path(&app);
+    Ok(crate::utils::ffmpeg_probe::probe_video_resolution(&ffmpeg_path, &input_path).await)
 }
 
 /// Sets the simulate logout flag for development mode.

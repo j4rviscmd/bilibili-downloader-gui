@@ -29,9 +29,11 @@
       "toggleSidebar": "사이드바 토글",
       "openSidebar": "사이드바 열기",
       "closeSidebar": "사이드바 닫기",
-      "audio": "오디오 추출 페이지로 이동"
+      "audio": "오디오 추출 페이지로 이동",
+      "resolution": "해상도 변환 페이지로 이동"
     },
-    "audio": "오디오 추출"
+    "audio": "오디오 추출",
+    "resolution": "해상도 변환"
   },
   "trim": {
     "title": "영상 트림",
@@ -628,6 +630,40 @@
       "same_path": "출력 경로는 입력과 달라야 합니다",
       "invalid_bitrate": "잘못된 비트레이트",
       "ffmpeg_failed": "ffmpeg 오디오 추출 실패"
+    }
+  },
+  "resolution": {
+    "title": "해상도 변환",
+    "description": "동영상 해상도를 축소합니다. 오디오는 그대로 유지됩니다.",
+    "inputFile": "입력 파일",
+    "browse": "찾아보기",
+    "noFileSelected": "선택된 파일이 없습니다",
+    "sourceResolution": "소스 해상도: {{width}}×{{height}}",
+    "resolution": {
+      "label": "대상 해상도",
+      "custom": "사용자 지정",
+      "customHeightLabel": "사용자 지정 높이 (px)",
+      "hint": "종횡비를 유지하도록 너비를 자동으로 계산합니다.",
+      "exceedsSource": "소스 해상도({{height}}p)를 초과합니다. 업스케일해도 화질이 개선되지 않습니다."
+    },
+    "outputFile": "출력 파일",
+    "chooseOutput": "출력 선택",
+    "noOutputSelected": "출력이 선택되지 않음",
+    "convert": "변환",
+    "converting": "변환 중...",
+    "clear": "지우기",
+    "success": "해상도가 변환되었습니다",
+    "failed": "해상도 변환에 실패했습니다",
+    "openFolder": "폴더 열기",
+    "elapsed": "경과",
+    "remaining": "남음",
+    "error": {
+      "input_not_found": "입력 파일을 찾을 수 없습니다",
+      "unsupported_format": "입력은 MP4 파일이어야 합니다",
+      "unsupported_output_format": "출력은 MP4 파일이어야 합니다",
+      "same_path": "출력 경로는 입력과 달라야 합니다",
+      "invalid_height": "잘못된 높이입니다 (120-4320 사이의 짝수여야 함)",
+      "ffmpeg_failed": "ffmpeg가 해상도 변환에 실패했습니다"
     }
   }
 }

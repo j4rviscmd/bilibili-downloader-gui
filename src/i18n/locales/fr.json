@@ -29,9 +29,11 @@
       "toggleSidebar": "Basculer la barre latérale",
       "openSidebar": "Ouvrir la barre latérale",
       "closeSidebar": "Fermer la barre latérale",
-      "audio": "Aller à la page audio"
+      "audio": "Aller à la page audio",
+      "resolution": "Aller à la page de résolution"
     },
-    "audio": "Audio"
+    "audio": "Audio",
+    "resolution": "Résolution"
   },
   "trim": {
     "title": "Découper la vidéo",
@@ -628,6 +630,40 @@
       "same_path": "Le chemin de sortie doit être différent de l'entrée",
       "invalid_bitrate": "Débit binaire invalide",
       "ffmpeg_failed": "ffmpeg n'a pas pu extraire l'audio"
+    }
+  },
+  "resolution": {
+    "title": "Convertisseur de résolution",
+    "description": "Réduisez la résolution de la vidéo. L'audio est conservé tel quel.",
+    "inputFile": "Fichier d'entrée",
+    "browse": "Parcourir",
+    "noFileSelected": "Aucun fichier sélectionné",
+    "sourceResolution": "Résolution source : {{width}}×{{height}}",
+    "resolution": {
+      "label": "Résolution cible",
+      "custom": "Personnalisée",
+      "customHeightLabel": "Hauteur personnalisée (px)",
+      "hint": "La largeur est calculée automatiquement pour préserver le rapport d'aspect.",
+      "exceedsSource": "Dépasse la résolution source ({{height}}p) ; l'agrandissement n'améliore pas la qualité."
+    },
+    "outputFile": "Fichier de sortie",
+    "chooseOutput": "Choisir la sortie",
+    "noOutputSelected": "Sortie non sélectionnée",
+    "convert": "Convertir",
+    "converting": "Conversion...",
+    "clear": "Effacer",
+    "success": "Résolution convertie avec succès",
+    "failed": "Échec de la conversion de résolution",
+    "openFolder": "Ouvrir le dossier",
+    "elapsed": "écoulé",
+    "remaining": "restant",
+    "error": {
+      "input_not_found": "Fichier d'entrée introuvable",
+      "unsupported_format": "L'entrée doit être un fichier MP4",
+      "unsupported_output_format": "La sortie doit être un fichier MP4",
+      "same_path": "Le chemin de sortie doit différer de l'entrée",
+      "invalid_height": "Hauteur invalide (doit être un nombre pair entre 120 et 4320)",
+      "ffmpeg_failed": "ffmpeg n’a pas pu convertir la résolution"
     }
   }
 }

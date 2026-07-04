@@ -29,9 +29,11 @@
       "toggleSidebar": "サイドバーを切り替え",
       "openSidebar": "サイドバーを開く",
       "closeSidebar": "サイドバーを閉じる",
-      "audio": "音声抽出ページへ移動"
+      "audio": "音声抽出ページへ移動",
+      "resolution": "解像度変換ページへ移動"
     },
-    "audio": "音声抽出"
+    "audio": "音声抽出",
+    "resolution": "解像度変換"
   },
   "trim": {
     "title": "動画トリム",
@@ -628,6 +630,40 @@
       "same_path": "出力パスは入力と異なる必要があります",
       "invalid_bitrate": "無効なビットレートです",
       "ffmpeg_failed": "ffmpegでの音声抽出に失敗しました"
+    }
+  },
+  "resolution": {
+    "title": "解像度変換",
+    "description": "動画の解像度をダウンスケールします。音声はそのまま保持します。",
+    "inputFile": "入力ファイル",
+    "browse": "参照",
+    "noFileSelected": "ファイルが選択されていません",
+    "sourceResolution": "ソース解像度: {{width}}×{{height}}",
+    "resolution": {
+      "label": "ターゲット解像度",
+      "custom": "カスタム",
+      "customHeightLabel": "カスタム高さ (px)",
+      "hint": "縦横比を保つよう幅を自動で計算します。",
+      "exceedsSource": "ソース解像度（{{height}}p）を超えます。アップスケールしても画質は向上しません。"
+    },
+    "outputFile": "出力ファイル",
+    "chooseOutput": "出力先を選択",
+    "noOutputSelected": "出力先が未選択",
+    "convert": "変換",
+    "converting": "変換中...",
+    "clear": "クリア",
+    "success": "解像度を変換しました",
+    "failed": "解像度変換に失敗しました",
+    "openFolder": "フォルダを開く",
+    "elapsed": "経過",
+    "remaining": "残り",
+    "error": {
+      "input_not_found": "入力ファイルが見つかりません",
+      "unsupported_format": "入力は MP4 ファイルである必要があります",
+      "unsupported_output_format": "出力は MP4 ファイルである必要があります",
+      "same_path": "出力パスは入力と異なる必要があります",
+      "invalid_height": "無効な高さです（120〜4320の偶数）",
+      "ffmpeg_failed": "ffmpeg が解像度変換に失敗しました"
     }
   }
 }

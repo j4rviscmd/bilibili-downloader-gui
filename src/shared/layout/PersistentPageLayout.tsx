@@ -8,6 +8,7 @@ import { ConcatContent } from '@/pages/concat'
 import { FavoriteContent } from '@/pages/favorite'
 import { HistoryContent } from '@/pages/history'
 import { HomeContent } from '@/pages/home'
+import { ResolutionContent } from '@/pages/resolution'
 import { TrimContent } from '@/pages/trim'
 import { WatchHistoryContent } from '@/pages/watch-history'
 
@@ -24,6 +25,7 @@ const PAGES: readonly PageConfig[] = [
   { path: '/trim', Component: TrimContent },
   { path: '/concat', Component: ConcatContent },
   { path: '/audio', Component: AudioContent },
+  { path: '/resolution', Component: ResolutionContent },
 ] as const
 
 const VALID_PATHS: readonly string[] = PAGES.map((p) => p.path)

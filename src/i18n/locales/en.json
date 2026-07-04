@@ -29,9 +29,11 @@
       "toggleSidebar": "Toggle Sidebar",
       "openSidebar": "Open sidebar",
       "closeSidebar": "Close sidebar",
-      "audio": "Navigate to audio page"
+      "audio": "Navigate to audio page",
+      "resolution": "Navigate to resolution page"
     },
-    "audio": "Audio"
+    "audio": "Audio",
+    "resolution": "Resolution"
   },
   "trim": {
     "title": "Trim Video",
@@ -628,6 +630,40 @@
       "same_path": "Output path must differ from the input",
       "invalid_bitrate": "Invalid bitrate",
       "ffmpeg_failed": "ffmpeg failed to extract audio"
+    }
+  },
+  "resolution": {
+    "title": "Resolution Converter",
+    "description": "Downscale the video resolution. Audio is preserved as-is.",
+    "inputFile": "Input File",
+    "browse": "Browse",
+    "noFileSelected": "No file selected",
+    "sourceResolution": "Source resolution: {{width}}×{{height}}",
+    "resolution": {
+      "label": "Target Resolution",
+      "custom": "Custom",
+      "customHeightLabel": "Custom height (px)",
+      "hint": "Width is auto-calculated to preserve the aspect ratio.",
+      "exceedsSource": "Exceeds the source resolution ({{height}}p); up-scaling cannot improve quality."
+    },
+    "outputFile": "Output File",
+    "chooseOutput": "Choose Output",
+    "noOutputSelected": "No output selected",
+    "convert": "Convert",
+    "converting": "Converting...",
+    "clear": "Clear",
+    "success": "Resolution converted successfully",
+    "failed": "Resolution conversion failed",
+    "openFolder": "Open Folder",
+    "elapsed": "elapsed",
+    "remaining": "remaining",
+    "error": {
+      "input_not_found": "Input file not found",
+      "unsupported_format": "Input must be an MP4 file",
+      "unsupported_output_format": "Output must be an MP4 file",
+      "same_path": "Output path must differ from the input",
+      "invalid_height": "Invalid height (must be an even number between 120 and 4320)",
+      "ffmpeg_failed": "ffmpeg failed to convert resolution"
     }
   }
 }
