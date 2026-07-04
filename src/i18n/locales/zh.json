@@ -29,9 +29,11 @@
       "toggleSidebar": "切换侧边栏",
       "openSidebar": "打开侧边栏",
       "closeSidebar": "关闭侧边栏",
-      "audio": "前往音频提取页面"
+      "audio": "前往音频提取页面",
+      "resolution": "转到分辨率转换页面"
     },
-    "audio": "音频提取"
+    "audio": "音频提取",
+    "resolution": "分辨率转换"
   },
   "trim": {
     "title": "裁剪视频",
@@ -628,6 +630,40 @@
       "same_path": "输出路径必须与输入不同",
       "invalid_bitrate": "无效的比特率",
       "ffmpeg_failed": "ffmpeg 提取音频失败"
+    }
+  },
+  "resolution": {
+    "title": "分辨率转换",
+    "description": "降低视频分辨率。音频保持不变。",
+    "inputFile": "输入文件",
+    "browse": "浏览",
+    "noFileSelected": "未选择文件",
+    "sourceResolution": "源分辨率：{{width}}×{{height}}",
+    "resolution": {
+      "label": "目标分辨率",
+      "custom": "自定义",
+      "customHeightLabel": "自定义高度 (px)",
+      "hint": "自动计算宽度以保持宽高比。",
+      "exceedsSource": "超过源分辨率（{{height}}p）；放大无法提升画质。"
+    },
+    "outputFile": "输出文件",
+    "chooseOutput": "选择输出",
+    "noOutputSelected": "未选择输出",
+    "convert": "转换",
+    "converting": "转换中...",
+    "clear": "清除",
+    "success": "分辨率转换成功",
+    "failed": "分辨率转换失败",
+    "openFolder": "打开文件夹",
+    "elapsed": "已用",
+    "remaining": "剩余",
+    "error": {
+      "input_not_found": "未找到输入文件",
+      "unsupported_format": "输入必须是 MP4 文件",
+      "unsupported_output_format": "输出必须是 MP4 文件",
+      "same_path": "输出路径必须与输入不同",
+      "invalid_height": "无效高度（必须是 120-4320 之间的偶数）",
+      "ffmpeg_failed": "ffmpeg 转换分辨率失败"
     }
   }
 }
