@@ -27,8 +27,13 @@ export interface PageTemplateProps {
  *   or a responsive toolbar row (title / actions) when `actions` is provided.
  * - `children` are rendered inside a body wrapper that shares the header's
  *   horizontal padding (`px-4 sm:px-6`), so titles and content align. Each
- *   page controls its body height/scroll via children (scrollable form,
- *   virtualized list, or extra elements such as error banners).
+ *   page controls its body height/scroll via children. Two idioms:
+ *   1. Whole-body scroll — a single `min-h-0 flex-1 overflow-y-auto` child
+ *      scrolls the entire body (trim / audio / resolution).
+ *   2. Internal scroll regions — a `flex min-h-0 flex-1 flex-col` child
+ *      whose inner sections use `flex-1 min-h-0 overflow-y-auto` for the
+ *      scrollable area and `shrink-0` for pinned sections/actions, so action
+ *      buttons stay visible regardless of content length (concat).
  *
  * The root is `h-full` to stay compatible with PersistentPageLayout's
  * `display:none` persistence strategy (keeps the template mounted but hidden).
