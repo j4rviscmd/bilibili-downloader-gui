@@ -1203,7 +1203,7 @@ async fn fetch_favorite_videos(
 #[tauri::command]
 async fn fetch_watch_history(
     app: AppHandle,
-    max: i32,
+    max: i64,
     view_at: i64,
 ) -> Result<bilibili::WatchHistoryResponse, String> {
     bilibili::fetch_watch_history(&app, max, view_at).await
