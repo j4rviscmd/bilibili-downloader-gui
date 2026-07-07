@@ -102,7 +102,16 @@ export function PageLayoutShell({ children }: PageLayoutShellProps) {
 
   return (
     <>
-      <SidebarProvider defaultOpen={true}>
+      {/*
+        CONSTRAINT: Bound the app shell to viewport height so the flex chain
+        (SidebarInset -> h-full wrappers -> flex-1 min-h-0 scroll regions)
+        resolves to definite heights. The sidebar primitive defaults to
+        `min-h-svh` (a floor, not a definite height); without this override,
+        growing content makes the wrapper exceed 100svh and `#root`'s
+        `overflow:hidden` (global.css) clips it, so page-level
+        `overflow-y-auto` regions never trigger (issue #461).
+      */}
+      <SidebarProvider defaultOpen={true} className="h-svh min-h-0">
         <Sidebar collapsible="icon">
           <NavigationSidebarHeader />
           <SidebarContent />
