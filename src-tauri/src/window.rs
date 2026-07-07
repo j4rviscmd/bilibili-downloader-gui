@@ -41,38 +41,76 @@ pub fn create_main_window(
         .title(WINDOW_TITLE)
         .theme(theme.or(Some(Theme::Light)))
         .resizable(false)
+        // Why: resizable(false) should auto-disable the maximize button per
+        // Tauri docs, but the Windows/tao backend ignores this — without an
+        // explicit maximizable(false) the button stays clickable during splash,
+        // letting users maximize and distort geometry (commit c4343ac).
         .maximizable(false)
         .min_inner_size(MIN_WIDTH, MIN_HEIGHT);
 
-    // CAUTION: Do NOT use builder.maximized(true). On macOS, tao implements
-    // maximized by creating the window at inner_size, showing it, then calling
-    // set_maximized async — which dispatches setFrame:display:animate:YES (or
-    // NSWindow zoom:). Both branches animate and cannot be suppressed through
-    // Tauri's public API, so the "normal-size -> maximized" resize is always
-    // visible, even with visible(false)+show() (show() flushes the pending
-    // animated frame change). This was confirmed against tao's
-    // platform_impl/macos/util/async.rs.
+    // Maximized restoration branches by platform because the correct approach
+    // differs between Windows and macOS.
     //
-    // Instead, when the saved state is maximized, size the window to the
-    // primary monitor's work area at construction time. No post-create resize
-    // ever happens, so there is no animation. Trade-off: this yields a
-    // "maximized-sized normal window" rather than a true isZoomed state, so
-    // un-maximizing does not restore the previous size automatically.
-    builder = if should_maximize {
-        match primary_monitor_work_area_logical(app) {
-            Some((w, h, x, y)) => builder.inner_size(w, h).position(x, y),
-            None => builder.inner_size(DEFAULT_WIDTH, DEFAULT_HEIGHT),
+    // - Windows: builder.maximized(true) produces the OS-native maximized
+    //   window, which correctly handles the invisible resize border (~7
+    //   physical px). Sizing to the work area instead cannot reproduce that
+    //   border and yields a window that spills over the taskbar or is smaller
+    //   than a true maximize.
+    //
+    // - macOS: CAUTION — do NOT use builder.maximized(true). tao implements
+    //   maximized by creating the window at inner_size, showing it, then
+    //   calling set_maximized async — which dispatches
+    //   setFrame:display:animate:YES (or NSWindow zoom:). Both branches
+    //   animate and cannot be suppressed through Tauri's public API, so the
+    //   "normal-size -> maximized" resize is always visible, even with
+    //   visible(false)+show() (show() flushes the pending animated frame
+    //   change). This was confirmed against tao's
+    //   platform_impl/macos/util/async.rs. So on macOS we instead size the
+    //   window to the primary monitor's work area at construction time. No
+    //   post-create resize ever happens, so there is no animation. Trade-off:
+    //   this yields a "maximized-sized normal window" rather than a true
+    //   isZoomed state, so un-maximizing does not restore the previous size
+    //   automatically.
+    if should_maximize {
+        #[cfg(target_os = "windows")]
+        {
+            // Why: set the saved (pre-maximize normal) geometry as inner_size
+            // so un-maximizing auto-restores the previous size (resolves the
+            // macOS work-area trade-off). Build invisible, then maximize, then
+            // show so the normal-size frame never flashes on screen.
+            if let Some(geo) = &geometry {
+                builder = builder
+                    .inner_size(geo.width, geo.height)
+                    .position(geo.x, geo.y);
+            }
+            builder = builder.visible(false).maximized(true);
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            builder = match primary_monitor_work_area_logical(app) {
+                Some((w, h, x, y)) => builder.inner_size(w, h).position(x, y),
+                None => builder.inner_size(DEFAULT_WIDTH, DEFAULT_HEIGHT),
+            };
         }
     } else {
-        match geometry {
+        builder = match geometry {
             Some(geo) => builder
                 .inner_size(geo.width, geo.height)
                 .position(geo.x, geo.y),
             None => builder.inner_size(DEFAULT_WIDTH, DEFAULT_HEIGHT),
-        }
-    };
+        };
+    }
 
     let window = builder.build()?;
+
+    // Why: on Windows the window was built invisible (visible(false)) to avoid
+    // flashing the normal-size frame before maximization is applied. Reveal it
+    // once the maximized frame is in place.
+    #[cfg(target_os = "windows")]
+    if should_maximize {
+        let _ = window.show();
+    }
+
     window.set_focus()?;
     Ok(())
 }
@@ -168,6 +206,11 @@ pub fn save_window_geometry(app: &AppHandle) {
             GEOMETRY_STORE_KEY,
             serde_json::to_value(&geo).unwrap_or_default(),
         );
+        // Why: store.set() only schedules a debounced autosave (~100ms), but
+        // Windows tears down the process as soon as the last window closes, so
+        // the timer may not fire before exit. Save explicitly (mirrors
+        // settings.rs) to guarantee the latest geometry reaches disk.
+        let _ = store.save();
     }
 }
 
@@ -178,6 +221,10 @@ pub fn save_window_geometry(app: &AppHandle) {
 /// to it reproduces the "maximized" look at construction time without going
 /// through tao's animated maximized API (see create_main_window). Returns None
 /// if the primary monitor can't be queried.
+///
+/// Note: only used on macOS/Linux for the pseudo-maximize restore; Windows
+/// uses `builder.maximized(true)` instead (see create_main_window).
+#[cfg(not(target_os = "windows"))]
 fn primary_monitor_work_area_logical(app: &AppHandle) -> Option<(f64, f64, f64, f64)> {
     let monitor = app.primary_monitor().ok().flatten()?;
     let scale = monitor.scale_factor();
@@ -238,6 +285,13 @@ fn available_monitors(app: &AppHandle) -> Vec<tauri::Monitor> {
 /// Converts physical monitor positions/sizes to logical coordinates using
 /// each monitor's scale factor before performing the hit test.
 fn is_position_on_screen(app: &AppHandle, x: f64, y: f64) -> bool {
+    // Why: Windows has an invisible resize border (~7 physical px), so a
+    // window snapped to the screen's left/top edge reports a slightly negative
+    // outer_position. Strictly rejecting that marks the saved geometry as
+    // "offscreen" and falls back to defaults, losing both size and position
+    // restore (surfaces after Win+arrow snap or un-maximize). Allow a small
+    // physical-px margin in the negative direction to tolerate this.
+    const OFFSCREEN_MARGIN_PHYSICAL_PX: f64 = 16.0;
     available_monitors(app).iter().any(|m| {
         let pos = m.position();
         let size = m.size();
@@ -246,8 +300,11 @@ fn is_position_on_screen(app: &AppHandle, x: f64, y: f64) -> bool {
         let my = pos.y as f64 / scale;
         let mw = size.width as f64 / scale;
         let mh = size.height as f64 / scale;
+        // Why: ~7px border in physical pixels; allow 16 physical px (covers
+        // high-DPI scales) converted to logical per monitor.
+        let margin = OFFSCREEN_MARGIN_PHYSICAL_PX / scale;
 
-        x >= mx && x < mx + mw && y >= my && y < my + mh
+        x >= mx - margin && x < mx + mw && y >= my - margin && y < my + mh
     })
 }
 
