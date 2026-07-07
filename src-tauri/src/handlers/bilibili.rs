@@ -1940,7 +1940,7 @@ pub struct WatchHistoryResponse {
 /// - Response parse failure
 pub async fn fetch_watch_history(
     app: &AppHandle,
-    max: i32,
+    max: i64,
     view_at: i64,
 ) -> Result<WatchHistoryResponse, String> {
     log::info!(

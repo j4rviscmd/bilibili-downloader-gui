@@ -85,7 +85,9 @@ export function useWatchHistory() {
     dispatch(setLoading(true))
     dispatch(setError(null))
     try {
-      const response = await fetchWatchHistory(20, 0)
+      // Why: max=0 & viewAt=0 hits the backend's first-page branch (no cursor),
+      // so Bilibili returns the newest entries without a stale target id.
+      const response = await fetchWatchHistory(0, 0)
       dispatch(setEntries(response.entries))
       dispatch(setCursor(response.cursor))
     } catch (err) {
@@ -103,7 +105,19 @@ export function useWatchHistory() {
     if (!cursor || cursor.isEnd || loadingMore) return
     dispatch(setLoadingMore(true))
     try {
-      const response = await fetchWatchHistory(20, cursor.viewAt)
+      // Why: pass cursor.max (target id of the last entry of the previous page)
+      // so Bilibili can exclude that boundary entry. A fixed value here made the
+      // API return overlapping entries on every subsequent load, which surfaced
+      // as duplicate list items (especially visible after switching date filters).
+      const response = await fetchWatchHistory(cursor.max, cursor.viewAt)
+      // Why: Bilibili returns an empty page and resets the cursor to {max:0, viewAt:0}
+      // (still isEnd=false) once the archive-filtered history is exhausted at the
+      // cursor position. Without this guard, the next fetchMore re-fetches page 0 and
+      // the list loops forever, duplicating entries.
+      if (response.entries.length === 0) {
+        dispatch(setCursor({ ...response.cursor, isEnd: true }))
+        return
+      }
       dispatch(appendEntries(response.entries))
       dispatch(setCursor(response.cursor))
     } catch (err) {
