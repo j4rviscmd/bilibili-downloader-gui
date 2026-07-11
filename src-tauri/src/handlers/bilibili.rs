@@ -489,7 +489,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
     log::info!(
         "[BE] download_video: starting download id={}, bvid={}, cid={}",
         options.download_id,
-        &options.bvid,
+        options.bvid,
         options.cid
     );
 
@@ -1242,7 +1242,7 @@ async fn download_audio_with_fallback(
                 primary_quality_id,
                 download_id
             );
-            return Ok(());
+            Ok(())
         }
         Err(e) => {
             // Check if this is an invalid media response (18-byte error page)
