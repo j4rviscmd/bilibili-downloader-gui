@@ -628,6 +628,17 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
 
     let dash_data = data.dash.unwrap();
 
+    // Diagnostic: record the audio stream landscape and any VIP-only
+    // objects (dolby/flac) present in the manifest. Does not affect
+    // selection; lets us confirm from reporter logs whether a VIP account's
+    // manifest contained Hi-Res/Dolby entries (issue #467 investigation).
+    log::info!(
+        "[BE] download_video: dash audio landscape id={} audio_ids={:?} extra_keys={:?}",
+        options.download_id,
+        dash_data.audio.iter().map(|a| a.id).collect::<Vec<_>>(),
+        dash_data.extra.keys().collect::<Vec<_>>(),
+    );
+
     // Fallback if selected quality is unavailable (first = highest quality)
     // None means best available → -1 won't match any real quality ID.
     let requested_quality = options.quality.unwrap_or(-1);
@@ -658,6 +669,13 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
         .iter()
         .find(|a| a.base_url == audio_url)
         .map(|a| a.id);
+
+    log::info!(
+        "[BE] download_video: resolved audio quality id={:?} (requested {:?}) for id={}",
+        resolved_audio_quality,
+        options.audio_quality,
+        options.download_id,
+    );
 
     // Emit quality resolved event to frontend
     let page = options.page.unwrap_or(1);
@@ -700,35 +718,32 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
 
         let cookie = Some(cookie_header);
 
-        // Download audio and video in parallel (cancel immediately if either fails)
-        tokio::try_join!(
-            retry_download(app, &options.download_id, Some("audio"), || {
-                download_url(
-                    app,
-                    audio_url.clone(),
-                    audio_backup_urls.clone(),
-                    temp_audio_path.clone(),
-                    cookie.clone(),
-                    true,
-                    Some(options.download_id.clone()),
-                    None,
-                    false, // emit_complete: will be emitted after merge
-                )
-            }),
-            retry_download(app, &options.download_id, Some("video"), || {
-                download_url(
-                    app,
-                    video_url.clone(),
-                    video_backup_urls.clone(),
-                    temp_video_path.clone(),
-                    cookie.clone(),
-                    true,
-                    Some(options.download_id.clone()),
-                    None,
-                    false, // emit_complete: will be emitted after merge
-                )
-            }),
-        )?;
+        // Download audio with fallback and video in parallel (cancel immediately if either fails)
+        // Audio uses fallback to handle invalid media responses from VIP-specific CDN edges
+        let audio_download = download_audio_with_fallback(
+            app,
+            &options.download_id,
+            audio_url.clone(),
+            audio_backup_urls.clone(),
+            temp_audio_path.clone(),
+            cookie.clone(),
+            &dash_data.audio,
+        );
+        let video_download = retry_download(app, &options.download_id, Some("video"), || {
+            download_url(
+                app,
+                video_url.clone(),
+                video_backup_urls.clone(),
+                temp_video_path.clone(),
+                cookie.clone(),
+                true,
+                Some(options.download_id.clone()),
+                None,
+                false, // emit_complete: will be emitted after merge
+            )
+        });
+
+        tokio::try_join!(audio_download, video_download)?;
 
         // Check for cancellation after download completes but before merge starts.
         // This TOCTOU fix prevents wasted ffmpeg launches when the user cancels
@@ -1144,6 +1159,189 @@ async fn fetch_video_info_for_history(
     let data = body.data?;
     let thumbnail_url = (!data.pic.is_empty()).then_some(data.pic);
     Some((data.title, thumbnail_url))
+}
+
+/// Extracts just the host (CDN origin) from a Bilibili media URL for
+/// logging, so signed query parameters (mid, upsig, deadline, ...) are
+/// never written to logs that may be shared for diagnostics.
+fn url_host(url: &str) -> String {
+    reqwest::Url::parse(url)
+        .ok()
+        .and_then(|u| u.host_str().map(|h| h.to_string()))
+        .unwrap_or_else(|| "<invalid>".to_string())
+}
+
+/// Downloads audio with fallback to alternative streams.
+///
+/// When primary audio URL fails with an invalid media response (e.g., 18-byte error
+/// page instead of actual audio), tries alternative audio streams from the quality
+/// list. This handles VIP-specific CDN edge cases where some audio formats are
+/// unavailable or return error responses.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle
+/// * `download_id` - Unique download ID for progress tracking
+/// * `primary_url` - Primary audio URL to try first
+/// * `backup_urls` - Backup URLs for the primary stream
+/// * `output_path` - Where to save the downloaded audio
+/// * `cookie` - Cookie header for authentication
+/// * `all_audio_streams` - All available audio streams for fallback
+///
+/// # Returns
+///
+/// Returns `Ok(())` on successful download (primary or fallback).
+///
+/// # Errors
+///
+/// Returns `ERR::AUDIO_DOWNLOAD_FAILED` if all attempts fail.
+async fn download_audio_with_fallback(
+    app: &AppHandle,
+    download_id: &str,
+    primary_url: String,
+    backup_urls: Option<Vec<String>>,
+    output_path: PathBuf,
+    cookie: Option<String>,
+    all_audio_streams: &[crate::models::bilibili_api::XPlayerApiResponseVideo],
+) -> Result<(), String> {
+    // Resolve the requested (primary) audio quality id from the stream
+    // list so any fallback can be logged as an explicit
+    // "quality X -> Y" transition for traceability.
+    let primary_quality_id = all_audio_streams
+        .iter()
+        .find(|s| s.base_url == primary_url)
+        .map(|s| s.id);
+
+    log::info!(
+        "[BE] download_audio_with_fallback: starting audio download id={}, primary quality_id={:?}, host={}",
+        download_id,
+        primary_quality_id,
+        url_host(&primary_url)
+    );
+
+    // Try primary URL first
+    let primary_result = retry_download(app, download_id, Some("audio"), || {
+        download_url(
+            app,
+            primary_url.clone(),
+            backup_urls.clone(),
+            output_path.clone(),
+            cookie.clone(),
+            true,
+            Some(download_id.to_string()),
+            None,
+            false,
+        )
+    })
+    .await;
+
+    match primary_result {
+        Ok(()) => {
+            log::info!(
+                "[BE] download_audio_with_fallback: primary audio succeeded (quality_id={:?}) id={}",
+                primary_quality_id,
+                download_id
+            );
+            return Ok(());
+        }
+        Err(e) => {
+            // Check if this is an invalid media response (18-byte error page)
+            // In this case, try alternative audio streams
+            // Why: ERR::NETWORK is grouped with the invalid-media error because
+            // both are tied to a specific URL/CDN edge rather than the whole
+            // environment, so a different stream URL may still succeed. This is
+            // the complement of the systemic errors (cancel/disk-full/file-exists)
+            // that are documented as affecting every remaining stream and abort.
+            if e.contains("ERR::INVALID_MEDIA_RESPONSE") || e.contains("ERR::NETWORK") {
+                log::warn!(
+                    "[BE] download_audio_with_fallback: primary audio (quality_id={:?}) failed with {} - trying fallback streams id={}",
+                    primary_quality_id,
+                    e,
+                    download_id
+                );
+
+                // Try alternative audio streams (excluding the already-tried primary URL)
+                for (idx, stream) in all_audio_streams.iter().enumerate() {
+                    // Skip the primary stream if it's in the list
+                    if stream.base_url == primary_url {
+                        continue;
+                    }
+
+                    log::info!(
+                        "[BE] download_audio_with_fallback: trying fallback audio stream {}/{} id={}, quality_id={}, host={}",
+                        idx + 1,
+                        all_audio_streams.len(),
+                        download_id,
+                        stream.id,
+                        url_host(&stream.base_url)
+                    );
+
+                    let fallback_result = retry_download(app, download_id, Some("audio"), || {
+                        download_url(
+                            app,
+                            stream.base_url.clone(),
+                            stream.backup_urls.clone(),
+                            output_path.clone(),
+                            cookie.clone(),
+                            true,
+                            Some(download_id.to_string()),
+                            None,
+                            false,
+                        )
+                    })
+                    .await;
+
+                    match fallback_result {
+                        Ok(()) => {
+                            log::info!(
+                                "[BE] download_audio_with_fallback: audio quality fallback {:?} -> {} succeeded id={}",
+                                primary_quality_id,
+                                stream.id,
+                                download_id
+                            );
+                            return Ok(());
+                        }
+                        Err(fallback_err) => {
+                            // Systemic errors (user cancel, full disk, ...)
+                            // affect every remaining stream — abort
+                            // immediately and preserve the true cause
+                            // instead of looping through the rest and
+                            // masking it as ERR::AUDIO_DOWNLOAD_FAILED.
+                            if fallback_err.contains("ERR::CANCELLED")
+                                || fallback_err.contains("ERR::DISK_FULL")
+                                || fallback_err.contains("ERR::FILE_EXISTS")
+                            {
+                                return Err(fallback_err);
+                            }
+                            log::warn!(
+                                "[BE] download_audio_with_fallback: fallback audio stream {} (quality_id={}) failed with {} id={}",
+                                idx + 1,
+                                stream.id,
+                                fallback_err,
+                                download_id
+                            );
+                            continue;
+                        }
+                    }
+                }
+
+                log::error!(
+                    "[BE] download_audio_with_fallback: all audio streams exhausted id={} (primary quality_id={:?})",
+                    download_id,
+                    primary_quality_id
+                );
+                Err("ERR::AUDIO_DOWNLOAD_FAILED".to_string())
+            } else {
+                // For other errors (disk full, cancelled, etc.), don't attempt fallback
+                log::error!(
+                    "[BE] download_audio_with_fallback: non-retryable error id={}: {}",
+                    download_id,
+                    e
+                );
+                Err(e)
+            }
+        }
+    }
 }
 
 /// Fetches logged-in user information from Bilibili.

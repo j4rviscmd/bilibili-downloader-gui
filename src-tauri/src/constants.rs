@@ -47,3 +47,11 @@ pub const MAX_CDN_LOOPS: u8 = 3;
 /// where process spawn + codec init is slower; a hung ffmpeg (a symptom
 /// of corruption) is treated as validation failure.
 pub const FFMPEG_VALIDATION_TIMEOUT_SECS: u64 = 60;
+
+/// Minimum byte threshold for media files.
+///
+/// Any downloaded media file smaller than this is treated as invalid
+/// (likely an error page or API response instead of actual media).
+/// This threshold catches cases where CDN/URL issues cause downloads
+/// to return HTML/XML error pages masquerading as media files.
+pub const MIN_MEDIA_BYTES: u64 = 1024; // 1 KiB
