@@ -90,6 +90,16 @@ export interface Settings {
    */
   audioFormat?: AudioFormat
   /**
+   * Default rotation angle for the MP4 rotation feature.
+   * Defaults to 90 if not specified.
+   */
+  rotationAngle?: RotationAngle
+  /**
+   * Default rotation mode for the MP4 rotation feature.
+   * Defaults to 'copy' if not specified.
+   */
+  rotationMode?: RotationMode
+  /**
    * UI theme: 'light' or 'dark'.
    * Persisted to settings.json via Tauri backend.
    * Defaults to 'light' if not set.
@@ -123,6 +133,21 @@ export type TrimMode = 'copy' | 'reencode'
  * - m4a: AAC in MP4 container
  */
 export type AudioFormat = 'mp3' | 'm4a'
+
+/**
+ * Rotation angle for MP4 rotation (clockwise degrees).
+ * - 90: Rotate clockwise 90° (right)
+ * - 180: Rotate 180° (upside-down)
+ * - 270: Rotate clockwise 270° (left, counter-clockwise 90°)
+ */
+export type RotationAngle = 90 | 180 | 270
+
+/**
+ * Rotation mode for MP4 rotation.
+ * - copy: Metadata-only rotation, fast but some players ignore it
+ * - reencode: Re-encode with transpose filter, works in all players
+ */
+export type RotationMode = 'copy' | 'reencode'
 
 /**
  * Supported language codes for the application.

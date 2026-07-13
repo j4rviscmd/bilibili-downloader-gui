@@ -30,10 +30,12 @@
       "openSidebar": "Ouvrir la barre latérale",
       "closeSidebar": "Fermer la barre latérale",
       "audio": "Aller à la page audio",
-      "resolution": "Aller à la page de résolution"
+      "resolution": "Aller à la page de résolution",
+      "rotation": "Aller à la page de rotation"
     },
     "audio": "Audio",
-    "resolution": "Résolution"
+    "resolution": "Résolution",
+    "rotation": "Rotation"
   },
   "trim": {
     "title": "Découper la vidéo",
@@ -113,6 +115,51 @@
       "output_collision": "Le chemin de sortie est en conflit avec un fichier d'entrée",
       "ffmpeg_failed": "Échec de l'exécution de ffmpeg",
       "reencode_failed": "Échec du réencodage"
+    }
+  },
+  "rotation": {
+    "title": "Pivoter la vidéo",
+    "description": "Pivote un fichier MP4 de 90°, 180° ou 270°.",
+    "inputFile": "Fichier d'entrée",
+    "browse": "Parcourir",
+    "noFileSelected": "Aucun fichier sélectionné",
+    "angle": {
+      "label": "Angle de rotation",
+      "right90": "Droite 90°",
+      "right90Hint": "Pivoter de 90° dans le sens des aiguilles",
+      "180": "180°",
+      "180Hint": "Pivoter de 180° (inversé)",
+      "left90": "Gauche 90°",
+      "left90Hint": "Pivoter de 90° dans le sens inverse des aiguilles"
+    },
+    "mode": {
+      "label": "Mode de rotation",
+      "fast": "Rapide (Copie)",
+      "fastHint": "Modifie uniquement les métadonnées, certains lecteurs peuvent l'ignorer",
+      "fastBadge": "Recommandé",
+      "accurate": "Précis (Réencodage)",
+      "accurateHint": "Réencode avec le filtre de transposition"
+    },
+    "warningMetadata": "La rotation utilise uniquement des indicateurs de métadonnées. Certains lecteurs respectent ces indicateurs, d'autres les ignorent. Le fichier vidéo lui-même n'est pas réencodé.",
+    "warningReencode": "La rotation précise à l'image près utilise le réencodage, ce qui entraîne une légère perte de qualité due à la recompression.",
+    "outputFile": "Fichier de sortie",
+    "chooseOutput": "Choisir la destination",
+    "noOutputSelected": "Aucune destination sélectionnée",
+    "rotate": "Pivoter",
+    "rotating": "Rotation...",
+    "clear": "Effacer",
+    "success": "Rotation terminée",
+    "failed": "Échec de la rotation",
+    "openFolder": "Ouvrir le dossier",
+    "elapsed": "Écoulé",
+    "remaining": "Restant",
+    "error": {
+      "input_not_found": "Fichier d'entrée introuvable",
+      "unsupported_format": "Format de fichier non pris en charge (MP4 uniquement)",
+      "unsupported_output_format": "Le fichier de sortie doit être au format MP4",
+      "same_path": "Les chemins d'entrée et de sortie doivent être différents",
+      "invalid_angle": "Angle de rotation invalide (doit être 90, 180 ou 270)",
+      "ffmpeg_failed": "Échec de l'exécution de ffmpeg"
     }
   },
   "actions": {
@@ -390,7 +437,13 @@
     "audio_format_label": "Format de sortie audio",
     "audio_format_description": "Format de sortie par défaut lors de l'extraction audio",
     "audio_format_mp3": "MP3",
-    "audio_format_m4a": "M4A (AAC)"
+    "audio_format_m4a": "M4A (AAC)",
+    "rotation_mode_label": "Mode de rotation par défaut",
+    "rotation_mode_description": "Choisissez comment les vidéos sont pivotées par défaut",
+    "rotation_mode_copy": "Rapide (Copie)",
+    "rotation_mode_reencode": "Précis (Recodage)",
+    "rotation_angle_label": "Angle de rotation par défaut",
+    "rotation_angle_description": "Choisissez la direction de rotation par défaut"
   },
   "validation": {
     "path": {

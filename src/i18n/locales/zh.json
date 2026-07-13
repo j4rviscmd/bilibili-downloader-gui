@@ -30,10 +30,12 @@
       "openSidebar": "打开侧边栏",
       "closeSidebar": "关闭侧边栏",
       "audio": "前往音频提取页面",
-      "resolution": "转到分辨率转换页面"
+      "resolution": "转到分辨率转换页面",
+      "rotation": "转到旋转视频页面"
     },
     "audio": "音频提取",
-    "resolution": "分辨率转换"
+    "resolution": "分辨率转换",
+    "rotation": "旋转视频"
   },
   "trim": {
     "title": "裁剪视频",
@@ -113,6 +115,51 @@
       "output_collision": "输出路径与输入文件冲突",
       "ffmpeg_failed": "ffmpeg执行失败",
       "reencode_failed": "重新编码失败"
+    }
+  },
+  "rotation": {
+    "title": "旋转视频",
+    "description": "将MP4文件旋转90°、180°或270°。",
+    "inputFile": "输入文件",
+    "browse": "浏览",
+    "noFileSelected": "未选择文件",
+    "angle": {
+      "label": "旋转角度",
+      "right90": "右90°",
+      "right90Hint": "顺时针旋转90°",
+      "180": "180°",
+      "180Hint": "旋转180°（上下颠倒）",
+      "left90": "左90°",
+      "left90Hint": "逆时针旋转90°"
+    },
+    "mode": {
+      "label": "旋转方式",
+      "fast": "快速（复制）",
+      "fastHint": "仅修改元数据，部分播放器可能忽略",
+      "fastBadge": "推荐",
+      "accurate": "精确（重新编码）",
+      "accurateHint": "使用转置滤镜重新编码"
+    },
+    "warningMetadata": "旋转仅使用元数据标记。某些播放器会尊重这些标记，其他播放器可能忽略。视频文件本身不会重新编码。",
+    "warningReencode": "为获得帧精度旋转会进行重新编码，因再次压缩画质会略微下降。",
+    "outputFile": "输出文件",
+    "chooseOutput": "选择保存位置",
+    "noOutputSelected": "未选择保存路径",
+    "rotate": "旋转",
+    "rotating": "旋转中...",
+    "clear": "清除",
+    "success": "旋转完成",
+    "failed": "旋转失败",
+    "openFolder": "打开文件夹",
+    "elapsed": "已用",
+    "remaining": "剩余",
+    "error": {
+      "input_not_found": "输入文件未找到",
+      "unsupported_format": "不支持的文件格式（仅支持MP4）",
+      "unsupported_output_format": "输出文件必须为MP4格式",
+      "same_path": "输入文件和输出文件路径不能相同",
+      "invalid_angle": "无效的旋转角度（必须是 90、180 或 270）",
+      "ffmpeg_failed": "ffmpeg执行失败"
     }
   },
   "actions": {
@@ -390,7 +437,13 @@
     "audio_format_label": "音频输出格式",
     "audio_format_description": "提取音频时的默认输出格式",
     "audio_format_mp3": "MP3",
-    "audio_format_m4a": "M4A (AAC)"
+    "audio_format_m4a": "M4A (AAC)",
+    "rotation_mode_label": "默认旋转模式",
+    "rotation_mode_description": "选择旋转视频的默认方式",
+    "rotation_mode_copy": "快速（复制）",
+    "rotation_mode_reencode": "精确（重编码）",
+    "rotation_angle_label": "默认旋转角度",
+    "rotation_angle_description": "选择默认旋转方向"
   },
   "validation": {
     "path": {

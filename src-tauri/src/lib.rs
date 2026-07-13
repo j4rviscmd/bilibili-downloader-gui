@@ -19,6 +19,7 @@ use crate::handlers::ffmpeg;
 use crate::handlers::github;
 use crate::handlers::qr_login;
 use crate::handlers::resolution;
+use crate::handlers::rotation;
 use crate::handlers::settings;
 use crate::handlers::trim;
 use crate::handlers::updater;
@@ -187,6 +188,7 @@ pub fn run() {
             expand_short_url,
             cleanup_temp_files,
             trim_video,
+            rotate_video,
             concat_videos,
             extract_audio,
             probe_audio_bitrate,
@@ -1243,6 +1245,17 @@ async fn trim_video(
     options: trim::TrimOptions,
 ) -> Result<trim::TrimResult, String> {
     trim::trim_video(&app, &options).await
+}
+
+/// Rotates a local MP4 file by 90°, 180°, or 270°.
+///
+/// Returns the absolute path of the written output file.
+#[tauri::command]
+async fn rotate_video(
+    app: AppHandle,
+    options: rotation::RotationOptions,
+) -> Result<rotation::RotationResult, String> {
+    rotation::rotate_video(&app, &options).await
 }
 
 #[tauri::command]

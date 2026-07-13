@@ -30,10 +30,12 @@
       "openSidebar": "サイドバーを開く",
       "closeSidebar": "サイドバーを閉じる",
       "audio": "音声抽出ページへ移動",
-      "resolution": "解像度変換ページへ移動"
+      "resolution": "解像度変換ページへ移動",
+      "rotation": "動画回転ページへ移動"
     },
     "audio": "音声抽出",
-    "resolution": "解像度変換"
+    "resolution": "解像度変換",
+    "rotation": "動画回転"
   },
   "trim": {
     "title": "動画トリム",
@@ -113,6 +115,51 @@
       "output_collision": "出力パスが入力ファイルと重複しています",
       "ffmpeg_failed": "ffmpegの実行に失敗しました",
       "reencode_failed": "再エンコードに失敗しました"
+    }
+  },
+  "rotation": {
+    "title": "動画回転",
+    "description": "MP4ファイルを90°、180°、270°回転させます",
+    "inputFile": "入力ファイル",
+    "browse": "参照",
+    "noFileSelected": "ファイルが選択されていません",
+    "angle": {
+      "label": "回転角度",
+      "right90": "右90°",
+      "right90Hint": "時計回りに90°回転",
+      "180": "180°",
+      "180Hint": "180°回転（上下反転）",
+      "left90": "左90°",
+      "left90Hint": "反時計回りに90°回転"
+    },
+    "mode": {
+      "label": "回転方式",
+      "fast": "高速（コピー）",
+      "fastHint": "メタデータのみ変更（一部プレイヤーで無視される可能性あり）",
+      "fastBadge": "推奨",
+      "accurate": "高精度（再エンコード）",
+      "accurateHint": "transposeフィルタで再エンコード"
+    },
+    "warningMetadata": "メタデータフラグのみを使用して回転します。フラグを尊重するプレイヤーと無視するプレイヤーがあります。動画ファイル自体は再エンコードされません。",
+    "warningReencode": "フレーム精度の回転のために再エンコードを行うため、再圧縮により画質がわずかに低下します。",
+    "outputFile": "出力ファイル",
+    "chooseOutput": "保存先を選択",
+    "noOutputSelected": "保存先が選択されていません",
+    "rotate": "回転",
+    "rotating": "回転中...",
+    "clear": "クリア",
+    "success": "回転が完了しました",
+    "failed": "回転に失敗しました",
+    "openFolder": "フォルダを開く",
+    "elapsed": "経過",
+    "remaining": "残り",
+    "error": {
+      "input_not_found": "入力ファイルが見つかりません",
+      "unsupported_format": "対応していないファイル形式です（MP4のみ対応）",
+      "unsupported_output_format": "出力ファイルはMP4形式にしてください",
+      "same_path": "入力ファイルと出力ファイルは別のパスにしてください",
+      "invalid_angle": "無効な回転角度です（90、180、270 のいずれかを指定してください）",
+      "ffmpeg_failed": "ffmpegの実行に失敗しました"
     }
   },
   "actions": {
@@ -390,7 +437,13 @@
     "audio_format_label": "音声出力フォーマット",
     "audio_format_description": "音声抽出時のデフォルト出力フォーマット",
     "audio_format_mp3": "MP3",
-    "audio_format_m4a": "M4A (AAC)"
+    "audio_format_m4a": "M4A (AAC)",
+    "rotation_mode_label": "デフォルトの回転モード",
+    "rotation_mode_description": "動画を回転する際の既定の方式を選びます",
+    "rotation_mode_copy": "高速（コピー）",
+    "rotation_mode_reencode": "正確（再エンコード）",
+    "rotation_angle_label": "デフォルトの回転角度",
+    "rotation_angle_description": "既定の回転方向を選びます"
   },
   "validation": {
     "path": {

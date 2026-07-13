@@ -691,6 +691,118 @@ function SettingsForm() {
         </div>
         <Separator />
         <div className="space-y-2">
+          <div className="space-y-0.5">
+            <Label>{t('settings.rotation_mode_label')}</Label>
+            <p className="text-muted-foreground text-sm">
+              {t('settings.rotation_mode_description')}
+            </p>
+          </div>
+          <TooltipProvider>
+            <RadioGroup
+              value={settings.rotationMode ?? 'copy'}
+              onValueChange={(value) => {
+                saveByForm({
+                  ...settings,
+                  rotationMode: value as 'copy' | 'reencode',
+                })
+              }}
+              className="grid grid-cols-2 gap-4"
+            >
+              <div className="flex items-center space-x-3">
+                <RadioGroupItem value="copy" id="rotation-mode-copy" />
+                <Label
+                  htmlFor="rotation-mode-copy"
+                  className="flex items-center gap-1 whitespace-nowrap"
+                >
+                  {t('settings.rotation_mode_copy')}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={(e) => e.preventDefault()}
+                        className="text-muted-foreground hover:text-foreground"
+                        aria-label={t('rotation.warningMetadata')}
+                      >
+                        <Info className="size-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="max-w-xs">
+                        {t('rotation.warningMetadata')}
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </Label>
+              </div>
+              <div className="flex items-center space-x-3">
+                <RadioGroupItem value="reencode" id="rotation-mode-reencode" />
+                <Label
+                  htmlFor="rotation-mode-reencode"
+                  className="flex items-center gap-1 whitespace-nowrap"
+                >
+                  {t('settings.rotation_mode_reencode')}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={(e) => e.preventDefault()}
+                        className="text-muted-foreground hover:text-foreground"
+                        aria-label={t('rotation.warningReencode')}
+                      >
+                        <Info className="size-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="max-w-xs">
+                        {t('rotation.warningReencode')}
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </Label>
+              </div>
+            </RadioGroup>
+          </TooltipProvider>
+        </div>
+        <Separator />
+        <div className="space-y-2">
+          <div className="space-y-0.5">
+            <Label>{t('settings.rotation_angle_label')}</Label>
+            <p className="text-muted-foreground text-sm">
+              {t('settings.rotation_angle_description')}
+            </p>
+          </div>
+          <RadioGroup
+            value={String(settings.rotationAngle ?? 90)}
+            onValueChange={(value) => {
+              saveByForm({
+                ...settings,
+                rotationAngle: Number(value) as 90 | 180 | 270,
+              })
+            }}
+            className="grid grid-cols-3 gap-4"
+          >
+            <div className="flex items-center space-x-3">
+              <RadioGroupItem value="90" id="rotation-angle-90" />
+              <Label htmlFor="rotation-angle-90">
+                {t('rotation.angle.right90')}
+              </Label>
+            </div>
+            <div className="flex items-center space-x-3">
+              <RadioGroupItem value="180" id="rotation-angle-180" />
+              <Label htmlFor="rotation-angle-180">
+                {t('rotation.angle.180')}
+              </Label>
+            </div>
+            <div className="flex items-center space-x-3">
+              <RadioGroupItem value="270" id="rotation-angle-270" />
+              <Label htmlFor="rotation-angle-270">
+                {t('rotation.angle.left90')}
+              </Label>
+            </div>
+          </RadioGroup>
+        </div>
+        <Separator />
+        <div className="space-y-2">
           <Label>{t('settings.app_section_label')}</Label>
           <div className="flex w-full items-end gap-2">
             <UpdateCheckButton />

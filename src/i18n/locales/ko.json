@@ -30,10 +30,12 @@
       "openSidebar": "사이드바 열기",
       "closeSidebar": "사이드바 닫기",
       "audio": "오디오 추출 페이지로 이동",
-      "resolution": "해상도 변환 페이지로 이동"
+      "resolution": "해상도 변환 페이지로 이동",
+      "rotation": "영상 회전 페이지로 이동"
     },
     "audio": "오디오 추출",
-    "resolution": "해상도 변환"
+    "resolution": "해상도 변환",
+    "rotation": "영상 회전"
   },
   "trim": {
     "title": "영상 트림",
@@ -113,6 +115,51 @@
       "output_collision": "출력 경로가 입력 파일과 충돌합니다",
       "ffmpeg_failed": "ffmpeg 실행에 실패했습니다",
       "reencode_failed": "재인코딩에 실패했습니다"
+    }
+  },
+  "rotation": {
+    "title": "영상 회전",
+    "description": "MP4 파일을 90°, 180°, 270° 회전시킵니다.",
+    "inputFile": "입력 파일",
+    "browse": "찾아보기",
+    "noFileSelected": "선택된 파일이 없습니다",
+    "angle": {
+      "label": "회전 각도",
+      "right90": "오른쪽 90°",
+      "right90Hint": "시계 방향으로 90° 회전",
+      "180": "180°",
+      "180Hint": "180° 회전 (상하 반전)",
+      "left90": "왼쪽 90°",
+      "left90Hint": "반시계 방향으로 90° 회전"
+    },
+    "mode": {
+      "label": "회전 방식",
+      "fast": "빠름 (복사)",
+      "fastHint": "메타데이터만 수정 (일부 플레이어에서 무시될 수 있음)",
+      "fastBadge": "권장",
+      "accurate": "정밀 (재인코딩)",
+      "accurateHint": "전치 필터로 재인코딩"
+    },
+    "warningMetadata": "회전은 메타데이터 플래그만 사용합니다. 일부 플레이어는 이 플래그를 존중하고 다른 플레이어는 무시할 수 있습니다. 비디오 파일 자체는 재인코딩되지 않습니다.",
+    "warningReencode": "프레임 단위 정밀 회전을 위해 재인코딩하므로 재압축으로 화질이 약간 저하됩니다.",
+    "outputFile": "출력 파일",
+    "chooseOutput": "저장 위치 선택",
+    "noOutputSelected": "저장 경로가 선택되지 않았습니다",
+    "rotate": "회전",
+    "rotating": "회전 중...",
+    "clear": "지우기",
+    "success": "회전 완료",
+    "failed": "회전 실패",
+    "openFolder": "폴더 열기",
+    "elapsed": "경과",
+    "remaining": "남음",
+    "error": {
+      "input_not_found": "입력 파일을 찾을 수 없습니다",
+      "unsupported_format": "지원하지 않는 파일 형식입니다 (MP4만 지원)",
+      "unsupported_output_format": "출력 파일은 MP4 형식이어야 합니다",
+      "same_path": "입력과 출력 경로는 달라야 합니다",
+      "invalid_angle": "잘못된 회전 각도입니다 (90, 180, 270 중 하나여야 합니다)",
+      "ffmpeg_failed": "ffmpeg 실행에 실패했습니다"
     }
   },
   "actions": {
@@ -390,7 +437,13 @@
     "audio_format_label": "오디오 출력 형식",
     "audio_format_description": "오디오 추출 시 기본 출력 형식",
     "audio_format_mp3": "MP3",
-    "audio_format_m4a": "M4A (AAC)"
+    "audio_format_m4a": "M4A (AAC)",
+    "rotation_mode_label": "기본 회전 모드",
+    "rotation_mode_description": "비디오 회전 기본 방식을 선택합니다",
+    "rotation_mode_copy": "빠름 (복사)",
+    "rotation_mode_reencode": "정확 (재인코딩)",
+    "rotation_angle_label": "기본 회전 각도",
+    "rotation_angle_description": "기본 회전 방향을 선택합니다"
   },
   "validation": {
     "path": {
