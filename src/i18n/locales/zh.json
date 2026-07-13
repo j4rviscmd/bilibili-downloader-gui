@@ -160,6 +160,8 @@
     "rate_limited": "请求过于频繁，请稍后再试。",
     "video_quality_fallback": "选定的视频清晰度 ({{from}}) 不可用，已使用 {{to}}。",
     "audio_quality_fallback": "选定的音频音质 ({{from}}) 不可用，已使用 {{to}}。",
+    "invalid_media_response": "服务器返回了无效的媒体响应（接收到错误页面而非媒体）。",
+    "audio_download_failed": "尝试了所有可用流后，音频下载失败。",
     "queue_waiting_prefix": "排队中:",
     "reload_after_error": "刷新页面后重试",
     "select_all": "全选",

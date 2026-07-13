@@ -112,6 +112,13 @@ pub struct XPlayerApiResponseDash {
     pub video: Vec<XPlayerApiResponseVideo>,
     /// Available audio stream qualities
     pub audio: Vec<XPlayerApiResponseVideo>,
+    /// Unparsed top-level DASH fields (e.g. `dolby`, `flac`) captured for
+    /// diagnostic logging only. These VIP-only audio objects are
+    /// intentionally NOT fed into stream selection (see issue #467
+    /// investigation), but recording their presence helps confirm whether
+    /// the manifest included them for a given account.
+    #[serde(flatten, default)]
+    pub extra: std::collections::HashMap<String, serde_json::Value>,
 }
 
 /// Individual video or audio stream.

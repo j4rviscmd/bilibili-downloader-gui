@@ -60,6 +60,9 @@ const ERROR_MAP: Record<string, string> = {
   'ERR::BANGUMI_ACCESS_DENIED': 'video.bangumi_access_denied',
   'ERR::BANGUMI_NO_DASH': 'video.bangumi_no_dash',
   'ERR::BANGUMI_DURL_NOT_SUPPORTED': 'video.bangumi_durl_not_supported',
+  // Audio download error codes
+  'ERR::INVALID_MEDIA_RESPONSE': 'video.invalid_media_response',
+  'ERR::AUDIO_DOWNLOAD_FAILED': 'video.audio_download_failed',
 }
 
 /**

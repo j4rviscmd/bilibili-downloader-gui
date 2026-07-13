@@ -159,6 +159,8 @@
     "rate_limited": "Trop de requêtes. Veuillez patienter un instant et réessayer.",
     "video_quality_fallback": "La qualité vidéo sélectionnée ({{from}}) est indisponible. Utilisation de {{to}}.",
     "audio_quality_fallback": "La qualité audio sélectionnée ({{from}}) est indisponible. Utilisation de {{to}}.",
+    "invalid_media_response": "Réponse média non valide du serveur (page d'erreur reçue).",
+    "audio_download_failed": "Échec du téléchargement audio après avoir essayé tous les flux disponibles.",
     "queue_waiting_prefix": "En file d'attente:",
     "reload_after_error": "Recharger la page pour réessayer",
     "select_all": "Tout sélectionner",

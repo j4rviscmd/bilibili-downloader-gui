@@ -10,7 +10,7 @@
 
 use crate::{
     constants::{
-        MAX_CDN_LOOPS, MIN_DATA_FOR_SPEED_CHECK, MIN_SPEED_THRESHOLD, REFERER,
+        MAX_CDN_LOOPS, MIN_DATA_FOR_SPEED_CHECK, MIN_MEDIA_BYTES, MIN_SPEED_THRESHOLD, REFERER,
         SPEED_CHECK_INTERVAL_SECS, USER_AGENT,
     },
     emits::Emits,
@@ -415,6 +415,20 @@ pub async fn download_url(
                             ));
                         }
 
+                        // Reject non-media responses. Bilibili serves a JSON
+                        // error body with HTTP 200 + matching Content-Length
+                        // for gated/expired stream URLs; without this check an
+                        // 18-byte error payload is accepted as a valid segment
+                        // and later breaks the ffmpeg merge (issue #467).
+                        if !is_media_content_type(resp.headers().get(header::CONTENT_TYPE)) {
+                            log::error!(
+                                "[BE] download_url: segment {} non-media content-type (likely error body), status={}",
+                                idx,
+                                resp.status()
+                            );
+                            return Err(anyhow::anyhow!("ERR::INVALID_MEDIA_RESPONSE"));
+                        }
+
                         // Download segment with progress tracking
                         let emits_cb = emits_c.clone();
                         let dl_total_cb = dl_total_c.clone();
@@ -543,7 +557,16 @@ pub async fn download_url(
     while let Some(res) = futs.next().await {
         match res {
             Ok(Ok(())) => {}
-            Ok(Err(_)) | Err(_) => seg_errors += 1,
+            Ok(Err(e)) => {
+                // Propagate invalid-media errors immediately so the caller's
+                // fallback logic runs without retrying the same error URL.
+                if e.to_string().contains("ERR::INVALID_MEDIA_RESPONSE") {
+                    emits.stop().await;
+                    return Err(e);
+                }
+                seg_errors += 1;
+            }
+            Err(_) => seg_errors += 1,
         }
     }
 
@@ -555,6 +578,20 @@ pub async fn download_url(
 
     // Final verification
     let final_downloaded = downloaded_total.load(Ordering::Relaxed);
+    // Why: a dedicated size floor is needed because the issue #467 error body
+    // was served with HTTP 200 and a matching Content-Length, so the
+    // `final_downloaded != total` check below would pass it as valid. This
+    // minimum-size check must run before the total-mismatch check to catch it.
+    if final_downloaded < MIN_MEDIA_BYTES {
+        log::error!(
+            "[BE] download_url: downloaded size too small: {} bytes (min {} bytes) - likely error response",
+            final_downloaded,
+            MIN_MEDIA_BYTES
+        );
+        // Stop the background emitter so it doesn't leak a progress loop.
+        emits.stop().await;
+        return Err(anyhow::anyhow!("ERR::INVALID_MEDIA_RESPONSE"));
+    }
     if final_downloaded != total {
         log::error!(
             "[BE] download_url: final size mismatch: {} vs {}",
@@ -765,6 +802,16 @@ async fn single_stream_fallback(
     let client = reqwest::Client::builder().user_agent(USER_AGENT).build()?;
     let req = apply_cookie(client.get(&url).header(header::REFERER, REFERER), &cookie);
     let mut resp = req.send().await?;
+    // Reject non-media error responses before streaming to disk (see
+    // is_media_content_type). Mirrors the segmented path's guard so the
+    // fallback path cannot silently persist a JSON/text error payload.
+    if !is_media_content_type(resp.headers().get(header::CONTENT_TYPE)) {
+        log::error!(
+            "[BE] download_url: single-stream non-media content-type (likely error body), status={}",
+            resp.status()
+        );
+        return Err(anyhow::anyhow!("ERR::INVALID_MEDIA_RESPONSE"));
+    }
     let total = resp.content_length();
 
     // Setup emitter
@@ -941,4 +988,20 @@ async fn preallocate_file(path: &PathBuf, size: u64) -> Result<()> {
 
     file.set_len(size).await.map_err(map_io_error)?;
     Ok(())
+}
+
+/// Returns true when the response content-type looks like real media.
+///
+/// Bilibili's CDN serves m4s segments as `application/octet-stream` or
+/// `video/*`. When a stream URL is gated or expired it instead returns a
+/// short JSON or text error body with HTTP 200. Rejecting those makes the
+/// download fail fast as `ERR::INVALID_MEDIA_RESPONSE` instead of writing
+/// the error payload to disk. A missing content-type header is treated as
+/// valid to preserve existing behavior for CDNs that omit it.
+fn is_media_content_type(ct: Option<&reqwest::header::HeaderValue>) -> bool {
+    let Some(ct) = ct.and_then(|v| v.to_str().ok()) else {
+        return true;
+    };
+    let lower = ct.to_ascii_lowercase();
+    !(lower.contains("application/json") || lower.starts_with("text/"))
 }
