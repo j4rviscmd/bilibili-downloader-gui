@@ -24,6 +24,7 @@ pub mod ffmpeg;
 pub mod github;
 pub mod qr_login;
 pub mod resolution;
+pub mod rotation;
 pub mod settings;
 pub mod trim;
 pub mod updater;

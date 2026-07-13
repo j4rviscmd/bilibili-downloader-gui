@@ -152,6 +152,22 @@ pub struct Settings {
         skip_serializing_if = "Option::is_none"
     )]
     pub audio_format: Option<AudioFormat>,
+    /// Default rotation angle (clockwise degrees: 90/180/270) for the MP4
+    /// rotation feature. Defaults to 90 if not specified.
+    #[serde(
+        rename = "rotationAngle",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub rotation_angle: Option<u16>,
+    /// Default rotation mode for the MP4 rotation feature.
+    /// Defaults to "copy" (metadata-only) if not specified.
+    #[serde(
+        rename = "rotationMode",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub rotation_mode: Option<RotationMode>,
     /// UI theme preference. Defaults to system preference if not set.
     #[serde(rename = "theme", default, skip_serializing_if = "Option::is_none")]
     pub theme: Option<UiTheme>,
@@ -177,6 +193,19 @@ pub enum AudioFormat {
     Mp3,
     /// AAC in MP4 container, `.m4a`.
     M4a,
+}
+
+/// Rotation mode for the MP4 rotation feature.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum RotationMode {
+    /// Metadata-only rotation (`-display_rotation` + `-c copy`). Fast and
+    /// lossless, but some players ignore the display matrix.
+    #[default]
+    Copy,
+    /// Re-encode with `transpose` filter. Works in all players but slower
+    /// and lossy.
+    Reencode,
 }
 
 /// UI theme preference for light/dark mode.

@@ -30,10 +30,12 @@
       "openSidebar": "Open sidebar",
       "closeSidebar": "Close sidebar",
       "audio": "Navigate to audio page",
-      "resolution": "Navigate to resolution page"
+      "resolution": "Navigate to resolution page",
+      "rotation": "Navigate to rotation page"
     },
     "audio": "Audio",
-    "resolution": "Resolution"
+    "resolution": "Resolution",
+    "rotation": "Rotation"
   },
   "trim": {
     "title": "Trim Video",
@@ -113,6 +115,51 @@
       "output_collision": "Output path conflicts with an input file",
       "ffmpeg_failed": "ffmpeg execution failed",
       "reencode_failed": "Re-encoding failed"
+    }
+  },
+  "rotation": {
+    "title": "Rotate Video",
+    "description": "Rotate an MP4 file by 90°, 180°, or 270°.",
+    "inputFile": "Input file",
+    "browse": "Browse",
+    "noFileSelected": "No file selected",
+    "angle": {
+      "label": "Rotation angle",
+      "right90": "Right 90°",
+      "right90Hint": "Rotate clockwise 90°",
+      "180": "180°",
+      "180Hint": "Rotate 180° (upside-down)",
+      "left90": "Left 90°",
+      "left90Hint": "Rotate counter-clockwise 90°"
+    },
+    "mode": {
+      "label": "Rotation mode",
+      "fast": "Fast (Copy)",
+      "fastHint": "Metadata-only rotation, some players may ignore it",
+      "fastBadge": "Recommended",
+      "accurate": "Accurate (Re-encode)",
+      "accurateHint": "Re-encode with transpose filter"
+    },
+    "warningMetadata": "Rotation uses metadata flags only. Some players respect these flags, others don't. The video file itself is not re-encoded.",
+    "warningReencode": "Re-encoding is used for frame-accurate rotation, which causes slight quality loss due to recompression.",
+    "outputFile": "Output file",
+    "chooseOutput": "Choose output",
+    "noOutputSelected": "No output path selected",
+    "rotate": "Rotate",
+    "rotating": "Rotating...",
+    "clear": "Clear",
+    "success": "Rotation completed",
+    "failed": "Rotation failed",
+    "openFolder": "Open folder",
+    "elapsed": "Elapsed",
+    "remaining": "Remaining",
+    "error": {
+      "input_not_found": "Input file not found",
+      "unsupported_format": "Unsupported file format (MP4 only)",
+      "unsupported_output_format": "Output file must be MP4 format",
+      "same_path": "Input and output paths must be different",
+      "invalid_angle": "Invalid rotation angle (must be 90, 180, or 270)",
+      "ffmpeg_failed": "ffmpeg execution failed"
     }
   },
   "actions": {
@@ -390,7 +437,13 @@
     "audio_format_label": "Audio Output Format",
     "audio_format_description": "Default output format used when extracting audio",
     "audio_format_mp3": "MP3",
-    "audio_format_m4a": "M4A (AAC)"
+    "audio_format_m4a": "M4A (AAC)",
+    "rotation_mode_label": "Default rotation mode",
+    "rotation_mode_description": "Choose how videos are rotated by default",
+    "rotation_mode_copy": "Fast (Copy)",
+    "rotation_mode_reencode": "Accurate (Re-encode)",
+    "rotation_angle_label": "Default rotation angle",
+    "rotation_angle_description": "Choose the default rotation direction"
   },
   "validation": {
     "path": {
