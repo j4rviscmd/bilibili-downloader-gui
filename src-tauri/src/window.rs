@@ -64,6 +64,12 @@ impl WindowGeometry {
 /// (false)` removes the title bar/borders; the frontend makes the whole
 /// window draggable via `data-tauri-drag-region`. Resizable/maximizable are
 /// disabled because the splash has a fixed size.
+///
+/// `transparent(true)` makes the OS window background transparent so the
+/// frontend can render rounded corners (via CSS `border-radius`): without it
+/// the area outside the rounded corners would be filled by the opaque window
+/// background and the rounded shape wouldn't be visible. The native window
+/// shadow still follows the rounded outline via the default `shadow(true)`.
 pub fn create_splash_window(
     app: &AppHandle,
     theme: Option<Theme>,
@@ -82,6 +88,7 @@ pub fn create_splash_window(
         .min_inner_size(SPLASH_WIDTH, SPLASH_HEIGHT)
         .max_inner_size(SPLASH_WIDTH, SPLASH_HEIGHT)
         .decorations(false)
+        .transparent(true)
         .center()
         .resizable(false)
         // Why visible(false): the webview needs a frame to load the splash

@@ -23,6 +23,13 @@ if (window.location.pathname.startsWith('/splashscreen')) {
   if (lang) {
     changeLanguage(lang as SupportedLang).catch(() => {})
   }
+  // Why clear html/body background: the splash window is transparent (rounded
+  // corners rendered via CSS). index.html's inline theme script and index.css
+  // set an opaque html/body background, which would fill the area outside the
+  // rounded corners with a solid color (near-black in dark mode). Clearing it
+  // here lets the desktop show through the corner regions.
+  document.documentElement.style.backgroundColor = 'transparent'
+  document.body.style.backgroundColor = 'transparent'
 }
 
 // Setup global error handler for unhandled promise rejections
