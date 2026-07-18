@@ -241,19 +241,29 @@ impl Emits {
 
     /// Stops the background update task without emitting a complete event.
     ///
-    /// This is used when the download is complete but we don't want to emit
-    /// a "complete" stage (e.g., for audio/video downloads that will be merged).
-    /// Sets percentage to 100% and emits a final progress event.
+    /// Emits a final progress event reflecting the actual bytes downloaded.
+    /// Called on both success paths (where bytes equal filesize, so the
+    /// percentage naturally reaches 100%) and error/cancel paths (where the
+    /// real progress is preserved instead of being forced to 100%).
+    ///
+    /// CAUTION: Do NOT force `percentage = 100` here. `stop()` is also used
+    /// on error paths (segment failures, size mismatch, cancellation), and
+    /// forcing 100% would mislead the frontend — combined with the frontend's
+    /// monotonic clamp, the progress bar would lock at 100% even while
+    /// `retry_download` keeps retrying in the background. On success paths
+    /// the bytes already equal filesize, so recalculating yields 100%.
+    ///
+    /// NOTE: This does NOT set `progress.is_complete = true`; only the
+    /// internal timer-stop flag is set. Use [`complete()`] for the final
+    /// completion signal that switches the frontend stage to "complete".
     pub async fn stop(&self) {
         let mut guard = self.inner.lock().await;
         guard.is_complete = true; // Stop background timer
 
-        // Set percentage to 100% and emit final progress event
-        if let Some(fs_mb) = guard.progress.filesize {
-            guard.progress.downloaded = Some(fs_mb);
-        }
-        guard.progress.percentage = 100.0;
-        let _ = self.app.emit("progress", guard.progress.clone());
+        // Recalculate from actual bytes so error paths preserve real progress
+        // instead of locking the frontend's monotonic clamp at 100%.
+        let bytes = *self.progress_tx.subscribe().borrow();
+        Self::send_progress_locked(&self.app, &mut guard, bytes);
     }
 
     /// Marks the download as complete and stops the update task.
