@@ -87,12 +87,17 @@ pub struct TrimProgressPayload {
 /// Mode behavior:
 /// - `Copy`: input-side seeking (`-ss` before `-i`) skips decoded frames
 ///   for speed. Combined with `-c copy`, completes in seconds. Cut points
-///   snap to the nearest keyframe. Uses `-to` (input-absolute end time).
+///   snap to the nearest keyframe.
 /// - `Reencode`: output-side seeking (`-ss` after `-i`) decodes from the
-///   beginning so the cut is frame-accurate. Uses `-t` (duration =
-///   `end - start`) instead of `-to` because output-side `-ss` makes
-///   `-to` relative to the output timeline, which would over-trim.
-///   Re-encodes with `libx264` (CRF 23) and `aac` (192k).
+///   beginning so the cut is frame-accurate. Re-encodes with `libx264`
+///   (CRF 23) and `aac` (192k).
+///
+/// Both modes use `-t` (duration = `end - start`) for the end time.
+/// CAUTION: Copy mode places `-ss` before `-i` (input-side seeking),
+/// which resets output timestamps to zero. Using `-to` there would make
+/// the end time relative to the `-ss` offset and over-trim to the file's
+/// end (see issue #474). `-t` (duration) is unaffected by the timestamp
+/// reset, so it works consistently for both seeking styles.
 ///
 /// `-ss 0` is omitted because it has no effect. In copy mode,
 /// `-avoid_negative_ts make_zero` prevents timestamp drift that can break
@@ -109,20 +114,15 @@ pub fn build_ffmpeg_args(
     // 1-second cadence; the frontend's CSS transition (1s ease-linear)
     // interpolates between updates so the bar moves continuously instead
     // of jumping per emit.
-    let mut args: Vec<String> = vec![
-        "-nostats".to_string(),
-        "-stats_period".to_string(),
-        "1".to_string(),
-        "-progress".to_string(),
-        "pipe:2".to_string(),
-    ];
+    let mut args: Vec<String> = ["-nostats", "-stats_period", "1", "-progress", "pipe:2"]
+        .into_iter()
+        .map(String::from)
+        .collect();
 
     if mode == TrimMode::Copy {
-        if let Some(s) = start {
-            if s > 0.0 {
-                args.push("-ss".to_string());
-                args.push(format_seconds(s));
-            }
+        if let Some(s) = start.filter(|&s| s > 0.0) {
+            args.push("-ss".to_string());
+            args.push(format_seconds(s));
         }
     }
 
@@ -130,56 +130,43 @@ pub fn build_ffmpeg_args(
     args.push(input_path.to_string());
 
     if mode == TrimMode::Reencode {
-        if let Some(s) = start {
-            if s > 0.0 {
-                args.push("-ss".to_string());
-                args.push(format_seconds(s));
-            }
+        if let Some(s) = start.filter(|&s| s > 0.0) {
+            args.push("-ss".to_string());
+            args.push(format_seconds(s));
         }
     }
 
-    // End-time handling differs by mode:
-    // - Copy: input-side `-ss` makes `-to` an input-absolute time.
-    // - Reencode: output-side `-ss` makes `-to` relative to the OUTPUT
-    //   timeline, so we use `-t` (duration = end - start) to avoid
-    //   trimming more than intended.
-    match mode {
-        TrimMode::Copy => {
-            if let Some(e) = end {
-                args.push("-to".to_string());
-                args.push(format_seconds(e));
-            }
-        }
-        TrimMode::Reencode => {
-            if let Some(e) = end {
-                let s = start.unwrap_or(0.0);
-                let duration = (e - s).max(0.0);
-                if duration > 0.0 {
-                    args.push("-t".to_string());
-                    args.push(format_seconds(duration));
-                }
-            }
+    // End-time handling: both modes use `-t` (duration) to avoid ambiguity.
+    // When `-ss` is placed before `-i` (Copy mode, input-side seeking), `-to`
+    // becomes relative to the `-ss` offset, not input-absolute. This causes
+    // over-trimming. Using `-t` (duration = end - start) works consistently
+    // for both input-side and output-side seeking.
+    if let Some(e) = end {
+        let s = start.unwrap_or(0.0);
+        let duration = (e - s).max(0.0);
+        if duration > 0.0 {
+            args.push("-t".to_string());
+            args.push(format_seconds(duration));
         }
     }
 
     match mode {
         TrimMode::Copy => {
-            args.push("-c".to_string());
-            args.push("copy".to_string());
-            args.push("-avoid_negative_ts".to_string());
-            args.push("make_zero".to_string());
+            args.extend(
+                ["-c", "copy", "-avoid_negative_ts", "make_zero"]
+                    .into_iter()
+                    .map(String::from),
+            );
         }
         TrimMode::Reencode => {
-            args.push("-c:v".to_string());
-            args.push("libx264".to_string());
-            args.push("-preset".to_string());
-            args.push("medium".to_string());
-            args.push("-crf".to_string());
-            args.push("23".to_string());
-            args.push("-c:a".to_string());
-            args.push("aac".to_string());
-            args.push("-b:a".to_string());
-            args.push("192k".to_string());
+            args.extend(
+                [
+                    "-c:v", "libx264", "-preset", "medium", "-crf", "23", "-c:a", "aac", "-b:a",
+                    "192k",
+                ]
+                .into_iter()
+                .map(String::from),
+            );
         }
     }
 
@@ -267,15 +254,8 @@ pub async fn trim_video(app: &AppHandle, options: &TrimOptions) -> Result<TrimRe
     if options.start_time.is_none() && options.end_time.is_none() {
         return Err("ERR::TRIM_NO_RANGE".to_string());
     }
-    if let Some(s) = options.start_time {
-        if s < 0.0 {
-            return Err("ERR::TRIM_INVALID_RANGE".to_string());
-        }
-    }
-    if let Some(e) = options.end_time {
-        if e < 0.0 {
-            return Err("ERR::TRIM_INVALID_RANGE".to_string());
-        }
+    if options.start_time.is_some_and(|s| s < 0.0) || options.end_time.is_some_and(|e| e < 0.0) {
+        return Err("ERR::TRIM_INVALID_RANGE".to_string());
     }
     if let (Some(s), Some(e)) = (options.start_time, options.end_time) {
         if s >= e {
@@ -396,9 +376,9 @@ mod tests {
         assert!(ss_pos < i_pos);
         assert!(args.contains(&"-c".to_string()));
         assert!(args.contains(&"copy".to_string()));
-        assert!(args.contains(&"-to".to_string()));
+        assert!(args.contains(&"-t".to_string()));
         assert!(args.contains(&"60.000".to_string()));
-        assert!(args.contains(&"180.000".to_string()));
+        assert!(args.contains(&"120.000".to_string())); // duration = 180 - 60
         assert!(args.contains(&"-avoid_negative_ts".to_string()));
         assert!(args.contains(&"make_zero".to_string()));
         assert!(args.last().is_some_and(|a| a == "out.mp4"));
@@ -415,20 +395,16 @@ mod tests {
     fn build_args_copy_with_end_only_omits_ss() {
         let args = build_ffmpeg_args("input.mp4", None, Some(120.0), "out.mp4", TrimMode::Copy);
         assert!(!args.iter().any(|a| a == "-ss"));
-        assert!(args.iter().any(|a| a == "-to"));
+        assert!(args.iter().any(|a| a == "-t"));
+        assert!(args.contains(&"120.000".to_string()));
     }
 
     #[test]
     fn build_args_copy_with_zero_start_omits_ss() {
-        let args = build_ffmpeg_args(
-            "input.mp4",
-            Some(0.0),
-            Some(60.0),
-            "out.mp4",
-            TrimMode::Copy,
-        );
+        let args = build_ffmpeg_args("input.mp4", Some(0.0), Some(60.), "out.mp4", TrimMode::Copy);
         assert!(!args.iter().any(|a| a == "-ss"));
-        assert!(args.iter().any(|a| a == "-to"));
+        assert!(args.iter().any(|a| a == "-t"));
+        assert!(args.contains(&"60.000".to_string()));
     }
 
     #[test]
@@ -473,7 +449,7 @@ mod tests {
     }
 
     #[test]
-    fn build_args_copy_uses_to_not_t() {
+    fn build_args_copy_uses_t_not_to() {
         let args = build_ffmpeg_args(
             "input.mp4",
             Some(60.0),
@@ -481,9 +457,9 @@ mod tests {
             "out.mp4",
             TrimMode::Copy,
         );
-        assert!(args.contains(&"-to".to_string()));
-        assert!(!args.contains(&"-t".to_string()));
-        assert!(args.contains(&"180.000".to_string()));
+        assert!(args.contains(&"-t".to_string()));
+        assert!(!args.contains(&"-to".to_string()));
+        assert!(args.contains(&"120.000".to_string())); // duration = 180 - 60
     }
 
     #[test]
