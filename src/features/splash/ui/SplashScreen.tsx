@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
-import { useEffect, useRef, useState } from 'react'
 import { listen } from '@tauri-apps/api/event'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { cn } from '@/shared/lib/utils'
@@ -131,7 +131,7 @@ export function SplashScreen() {
         <span style={{ color: '#00A1D6' }}>Bilibili</span> Downloader
       </h1>
       {showFfmpegBar && (
-        <div className="absolute bottom-14 left-6 right-6 z-10 h-1 overflow-hidden rounded-full bg-black/10">
+        <div className="absolute right-6 bottom-14 left-6 z-10 h-1 overflow-hidden rounded-full bg-black/10">
           <div
             className="h-full rounded-full bg-[#00A1D6] transition-all duration-300"
             style={{ width: `${ffmpegProgress}%` }}
@@ -139,7 +139,7 @@ export function SplashScreen() {
         </div>
       )}
       {stepLabel && (
-        <p className="absolute bottom-6 left-6 right-6 z-10 truncate text-center text-[16px] font-medium text-[#6B7280] select-none">
+        <p className="absolute right-6 bottom-6 left-6 z-10 truncate text-center text-[16px] font-medium text-[#6B7280] select-none">
           {t(stepLabel)}
         </p>
       )}

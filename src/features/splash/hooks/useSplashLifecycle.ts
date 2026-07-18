@@ -44,11 +44,15 @@ export function useSplashLifecycle(): SplashLifecycle {
 
     const run = async () => {
       // Lock the splash window theme to light to match the splash background.
-      getCurrentWindow().setTheme('light').catch(() => {})
+      getCurrentWindow()
+        .setTheme('light')
+        .catch(() => {})
 
       let skip = false
       try {
-        const s = await invoke<{ skipSplashAnimation?: boolean }>('get_settings')
+        const s = await invoke<{ skipSplashAnimation?: boolean }>(
+          'get_settings',
+        )
         skip = s.skipSplashAnimation ?? false
       } catch {
         // default to normal splash on error

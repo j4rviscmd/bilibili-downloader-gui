@@ -5,8 +5,8 @@ import { applyFontSize, parseFontSize } from '@/features/settings'
 import { setSettings } from '@/features/settings/settingsSlice'
 import type { Settings } from '@/features/settings/type'
 import { setSidebarOpen } from '@/features/sidebar'
-import { setUser } from '@/features/user/userSlice'
 import type { User } from '@/features/user/types'
+import { setUser } from '@/features/user/userSlice'
 import { changeLanguage, type SupportedLang } from '@/shared/i18n'
 import { logger } from '@/shared/lib/logger'
 import { getOs } from '@/shared/os/api/getOs'
@@ -65,7 +65,9 @@ export const useInit = () => {
   const isSupportedLang = (lang: string): lang is SupportedLang =>
     (SUPPORTED_LANGS as readonly string[]).includes(lang)
 
-  const applyLanguageSetting = async (language: string | undefined): Promise<void> => {
+  const applyLanguageSetting = async (
+    language: string | undefined,
+  ): Promise<void> => {
     if (!language) return
     try {
       const i18n = (await import('@/i18n')).default
