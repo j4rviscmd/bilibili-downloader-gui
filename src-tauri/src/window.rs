@@ -257,7 +257,7 @@ fn register_main_window_events(app: &AppHandle) {
             };
             if should_open {
                 if let Some(win) = app.get_webview_window("main") {
-                    let _ = win.open_devtools();
+                    win.open_devtools();
                 }
             }
         }
