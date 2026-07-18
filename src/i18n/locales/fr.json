@@ -308,6 +308,8 @@
   "init": {
     "initializing": "Initialisation...",
     "fetch_settings": "Récupération des paramètres...",
+    "reading_cookies": "Lecture des cookies...",
+    "fetching_user": "Récupération des informations utilisateur...",
     "applying_language": "Application de la langue ({{lang}})...",
     "applied_language": "Langue changée en {{lang}}",
     "checking_ffmpeg": "Vérification de ffmpeg...",

@@ -167,9 +167,11 @@ pub async fn install_ffmpeg(app: &AppHandle) -> Result<bool> {
         archive_path.clone(),
         None,
         true,
+        // Why: a fixed download_id lets the splash window filter the "progress"
+        // event and render a download progress bar during ffmpeg install.
+        Some("ffmpeg-install".to_string()),
         None,
-        None,
-        false, // emit_complete: ffmpeg download has no progress UI
+        true, // emit progress so the splash can show a download progress bar
     )
     .await
     .is_err()

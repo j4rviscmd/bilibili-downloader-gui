@@ -308,6 +308,8 @@
   "init": {
     "initializing": "Inicializando...",
     "fetch_settings": "Obteniendo configuración de la app...",
+    "reading_cookies": "Leyendo cookies...",
+    "fetching_user": "Obteniendo información del usuario...",
     "applying_language": "Aplicando idioma ({{lang}})...",
     "applied_language": "Idioma cambiado a {{lang}}",
     "checking_ffmpeg": "Verificando ffmpeg...",

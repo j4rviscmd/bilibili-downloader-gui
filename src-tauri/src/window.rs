@@ -1,9 +1,22 @@
 //! Window creation and geometry persistence.
 //!
-//! Creates the main application window programmatically with saved geometry
-//! to prevent the startup size flash that occurs when using tauri.conf.json
-//! defaults followed by async resize via tao's dispatch_async.
+//! Two-window model (Discord-style splash):
+//! - "splash": borderless, fixed-size, centered splash window shown on launch
+//!   while initialization runs behind it. The whole window is draggable via
+//!   `data-tauri-drag-region` on the frontend.
+//! - "main": the application window, created after the splash finishes, with
+//!   saved geometry / maximized restore.
+//!
+//! Why no splash-time geometry lock: the previous design locked the main
+//! window with resizable(false)+maximizable(false) during the splash and
+//! restored maximized via builder.maximized(true). On Windows, a maximized
+//! window is only clamped to the work area (excluding the taskbar) while
+//! WS_THICKFRAME (resizable) is present, so the locked+maximized restore
+//! covered the taskbar until enable_window_resize flipped resizable back on.
+//! Splitting the splash into its own window removes that conflict entirely —
+//! the main window is built resizable and maximizes correctly from the start.
 
+use crate::models::settings::{Settings, UiTheme};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, Theme, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_store::StoreExt;
@@ -14,6 +27,11 @@ const MIN_WIDTH: f64 = 980.0;
 const MIN_HEIGHT: f64 = 609.0;
 const WINDOW_TITLE: &str = "Bilibili Downloader";
 const GEOMETRY_STORE_KEY: &str = "windowGeometry";
+
+// Splash window dimensions (logical). Square on all platforms for a consistent
+// Discord-style splash. Tunable; the frontend splash route fills this area.
+const SPLASH_WIDTH: f64 = 480.0;
+const SPLASH_HEIGHT: f64 = 480.0;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -29,7 +47,69 @@ struct WindowGeometry {
     maximized: bool,
 }
 
+impl WindowGeometry {
+    /// Fallback used when `read_raw_geometry` returns None.
+    const DEFAULT: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        width: DEFAULT_WIDTH,
+        height: DEFAULT_HEIGHT,
+        maximized: false,
+    };
+}
+
+/// Creates the borderless, fixed-size, centered splash window.
+///
+/// Content is served from the frontend "/splashscreen" route. `decorations
+/// (false)` removes the title bar/borders; the frontend makes the whole
+/// window draggable via `data-tauri-drag-region`. Resizable/maximizable are
+/// disabled because the splash has a fixed size.
+pub fn create_splash_window(
+    app: &AppHandle,
+    theme: Option<Theme>,
+    language: Option<String>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // Pass the language as a query param so the splash can apply i18n before
+    // first paint (labels render in the user's language).
+    let url = match &language {
+        Some(lang) => format!("splashscreen?lang={}", lang),
+        None => "splashscreen".to_string(),
+    };
+    let _splash = WebviewWindowBuilder::new(app, "splash", WebviewUrl::App(url.into()))
+        .title(WINDOW_TITLE)
+        .theme(theme.or(Some(Theme::Light)))
+        .inner_size(SPLASH_WIDTH, SPLASH_HEIGHT)
+        .min_inner_size(SPLASH_WIDTH, SPLASH_HEIGHT)
+        .max_inner_size(SPLASH_WIDTH, SPLASH_HEIGHT)
+        .decorations(false)
+        .center()
+        .resizable(false)
+        // Why visible(false): the webview needs a frame to load the splash
+        // route before first paint. The frontend invokes show_splash once
+        // React has mounted, so the user never sees the blank/black loading
+        // frame.
+        .visible(false)
+        .build()?;
+    Ok(())
+}
+
+/// Shows the splash window after the frontend has mounted. Called via
+/// `show_splash` from SplashScreen's first effect to avoid a black frame
+/// while the webview loads the splash route.
+#[tauri::command]
+pub fn show_splash(app: AppHandle) -> Result<(), String> {
+    if let Some(splash) = app.get_webview_window("splash") {
+        splash.show().map_err(|e| format!("{e}"))?;
+        splash.set_focus().map_err(|e| format!("{e}"))?;
+    }
+    Ok(())
+}
+
 /// Creates the main application window with saved or default geometry.
+///
+/// Built resizable (no splash-time lock) so the OS-native maximize clamps to
+/// the work area on Windows. Call this from `finish_splash` after the splash
+/// window is done.
 pub fn create_main_window(
     app: &AppHandle,
     theme: Option<Theme>,
@@ -40,12 +120,6 @@ pub fn create_main_window(
     let mut builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
         .title(WINDOW_TITLE)
         .theme(theme.or(Some(Theme::Light)))
-        .resizable(false)
-        // Why: resizable(false) should auto-disable the maximize button per
-        // Tauri docs, but the Windows/tao backend ignores this — without an
-        // explicit maximizable(false) the button stays clickable during splash,
-        // letting users maximize and distort geometry (commit c4343ac).
-        .maximizable(false)
         .min_inner_size(MIN_WIDTH, MIN_HEIGHT);
 
     // Maximized restoration branches by platform because the correct approach
@@ -64,20 +138,18 @@ pub fn create_main_window(
     //   animate and cannot be suppressed through Tauri's public API, so the
     //   "normal-size -> maximized" resize is always visible, even with
     //   visible(false)+show() (show() flushes the pending animated frame
-    //   change). This was confirmed against tao's
-    //   platform_impl/macos/util/async.rs. So on macOS we instead size the
-    //   window to the primary monitor's work area at construction time. No
-    //   post-create resize ever happens, so there is no animation. Trade-off:
-    //   this yields a "maximized-sized normal window" rather than a true
-    //   isZoomed state, so un-maximizing does not restore the previous size
-    //   automatically.
+    //   change). So on macOS we instead size the window to the primary
+    //   monitor's work area at construction time. No post-create resize ever
+    //   happens, so there is no animation. Trade-off: this yields a
+    //   "maximized-sized normal window" rather than a true isZoomed state, so
+    //   un-maximizing does not restore the previous size automatically.
     if should_maximize {
         #[cfg(target_os = "windows")]
         {
             // Why: set the saved (pre-maximize normal) geometry as inner_size
-            // so un-maximizing auto-restores the previous size (resolves the
-            // macOS work-area trade-off). Build invisible, then maximize, then
-            // show so the normal-size frame never flashes on screen.
+            // so un-maximizing auto-restores the previous size. Build
+            // invisible, then maximize, then show so the normal-size frame
+            // never flashes on screen.
             if let Some(geo) = &geometry {
                 builder = builder
                     .inner_size(geo.width, geo.height)
@@ -115,20 +187,99 @@ pub fn create_main_window(
     Ok(())
 }
 
-/// Re-enables window resizing and maximizing after the splash screen completes.
+/// Closes the splash window and creates the main window with restored geometry.
 ///
-/// The window is created with `resizable(false)` and `maximizable(false)` to
-/// lock its geometry during the splash screen. This restores both so the user
-/// can resize and maximize the main window once initialization is done.
+/// Called from the frontend after initialization completes. The main window is
+/// built resizable so the OS-native maximize clamps to the work area (no
+/// taskbar occlusion during restore).
 #[tauri::command]
-pub fn enable_window_resize(app: AppHandle) -> Result<(), String> {
-    let window = app.get_webview_window("main").ok_or("Window not found")?;
-    // Constraint: set_resizable MUST run before set_maximizable. When the window
-    // is still non-resizable, Tauri/tao silently ignores set_maximizable on
-    // Windows, so reversing the order would leave the maximize button disabled.
-    window.set_resizable(true).map_err(|e| format!("{e}"))?;
-    window.set_maximizable(true).map_err(|e| format!("{e}"))?;
+pub async fn finish_splash(app: AppHandle) -> Result<(), String> {
+    log::info!("[BE] finish_splash: called");
+    let theme = read_window_theme(&app);
+    // Why async: WebviewWindowBuilder::build() must run on the main thread's
+    // event loop. A synchronous command occupies the main thread and deadlocks
+    // the window creation. An async command runs on a worker thread, freeing
+    // the main thread so build() can proceed.
+    create_main_window(&app, theme).map_err(|e| {
+        log::error!("[BE] finish_splash: create_main_window error: {e}");
+        format!("{e}")
+    })?;
+    log::info!("[BE] finish_splash: main window created");
+    register_main_window_events(&app);
+    // Close the splash AFTER the main window is up. Closing it first can leave
+    // zero windows momentarily and trigger process exit before main is shown.
+    if let Some(splash) = app.get_webview_window("splash") {
+        let _ = splash.close();
+    }
+    log::info!("[BE] finish_splash: done");
     Ok(())
+}
+
+/// Registers close/resize/move handlers (and opens devtools in debug) on the
+/// main window. Must run AFTER the main window is created (in finish_splash),
+/// since it doesn't exist at setup time anymore (only the splash does).
+fn register_main_window_events(app: &AppHandle) {
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    let app_handle = app.clone();
+    window.on_window_event(move |event| match event {
+        tauri::WindowEvent::CloseRequested { .. } => {
+            save_window_geometry(&app_handle);
+            log::info!("[BE] Application exiting - main window closed");
+        }
+        // CAUTION: Cmd+Q (macOS) and programmatic exit() bypass CloseRequested,
+        // so persisting here keeps the latest normal geometry available even
+        // when the app exits without closing the window normally.
+        // save_window_geometry internally skips fullscreen and maximized-only
+        // states, so only real changes to the normal geometry land on disk.
+        tauri::WindowEvent::Resized { .. } | tauri::WindowEvent::Moved { .. } => {
+            save_window_geometry(&app_handle);
+        }
+        _ => {}
+    });
+
+    // Devtools in debug builds (respects openDevtoolsOnStartup, skipped during
+    // E2E tests). Moved here from setup because the main window no longer
+    // exists at setup time.
+    #[cfg(debug_assertions)]
+    {
+        if !crate::handlers::qr_login::is_e2e_testing() {
+            let settings_path = crate::utils::paths::get_settings_path(app);
+            let should_open = if settings_path.exists() {
+                std::fs::read_to_string(&settings_path)
+                    .ok()
+                    .and_then(|content| serde_json::from_str::<Settings>(&content).ok())
+                    .and_then(|s| s.open_devtools_on_startup)
+                    .unwrap_or(true)
+            } else {
+                true
+            };
+            if should_open {
+                if let Some(win) = app.get_webview_window("main") {
+                    win.open_devtools();
+                }
+            }
+        }
+    }
+}
+
+/// Reads the saved UI theme (if any) to apply to windows. Shared by lib::setup
+/// (splash) and finish_splash (main) so both windows match the user theme.
+pub fn read_window_theme(app: &AppHandle) -> Option<Theme> {
+    crate::utils::paths::get_settings_path(app)
+        .exists()
+        .then(|| {
+            std::fs::read_to_string(crate::utils::paths::get_settings_path(app))
+                .ok()
+                .and_then(|content| serde_json::from_str::<Settings>(&content).ok())
+                .and_then(|s| s.theme)
+        })
+        .flatten()
+        .map(|t| match t {
+            UiTheme::Dark => Theme::Dark,
+            UiTheme::Light => Theme::Light,
+        })
 }
 
 /// Saves the current window geometry to the store.
@@ -162,41 +313,45 @@ pub fn save_window_geometry(app: &AppHandle) {
     let Ok(is_maximized) = window.is_maximized() else {
         return;
     };
+    let Ok(scale) = window.scale_factor() else {
+        return;
+    };
+    let Ok(size) = window.inner_size() else {
+        return;
+    };
+    let logical_w = size.width as f64 / scale;
+    let logical_h = size.height as f64 / scale;
+
+    // Why: maximize() can dispatch its Resized event before is_maximized()
+    // flips to true. Without the size check, a maximized window would be
+    // persisted with work-area-sized bounds as the "normal" geometry,
+    // corrupting the real normal size (so the next launch restores an
+    // oversized normal window). Treat any window covering the work area as
+    // maximized regardless of is_maximized() to prevent that.
+    let effective_maximized = is_maximized || is_maximize_sized(app, logical_w, logical_h);
 
     // NOTE: Known trade-off of "Approach A" (maximized → work-area-sized
     // normal window at launch): the construction-time sizing emits a Resized
     // event, which can overwrite the user's real normal geometry with the
     // transient work-area bounds if they resize before the next persist.
     // This data loss is accepted as the cost of avoiding the startup flash.
-    let geo = if is_maximized {
+    let geo = if effective_maximized {
         // Persist only the flag; reuse the last normal geometry so un-maximizing
         // on next launch restores the real size instead of full-screen bounds.
-        let prev = read_raw_geometry(app).unwrap_or(WindowGeometry {
-            x: 0.0,
-            y: 0.0,
-            width: DEFAULT_WIDTH,
-            height: DEFAULT_HEIGHT,
-            maximized: false,
-        });
+        let prev = read_raw_geometry(app).unwrap_or(WindowGeometry::DEFAULT);
         WindowGeometry {
             maximized: true,
             ..prev
         }
     } else {
-        let Ok(scale) = window.scale_factor() else {
-            return;
-        };
         let Ok(pos) = window.outer_position() else {
-            return;
-        };
-        let Ok(size) = window.inner_size() else {
             return;
         };
         WindowGeometry {
             x: pos.x as f64 / scale,
             y: pos.y as f64 / scale,
-            width: size.width as f64 / scale,
-            height: size.height as f64 / scale,
+            width: logical_w,
+            height: logical_h,
             maximized: false,
         }
     };
@@ -217,14 +372,8 @@ pub fn save_window_geometry(app: &AppHandle) {
 /// Returns the primary monitor's work area in logical coordinates as
 /// (width, height, x, y).
 ///
-/// The work area excludes the taskbar/Dock and menu bar, so sizing the window
-/// to it reproduces the "maximized" look at construction time without going
-/// through tao's animated maximized API (see create_main_window). Returns None
-/// if the primary monitor can't be queried.
-///
-/// Note: only used on macOS/Linux for the pseudo-maximize restore; Windows
-/// uses `builder.maximized(true)` instead (see create_main_window).
-#[cfg(not(target_os = "windows"))]
+/// Used by the macOS/Linux pseudo-maximize restore in create_main_window and
+/// by the maximize-size self-heal in read_saved_geometry.
 fn primary_monitor_work_area_logical(app: &AppHandle) -> Option<(f64, f64, f64, f64)> {
     let monitor = app.primary_monitor().ok().flatten()?;
     let scale = monitor.scale_factor();
@@ -265,6 +414,24 @@ fn read_saved_geometry(app: &AppHandle) -> Option<WindowGeometry> {
     geo.width = geo.width.max(MIN_WIDTH);
     geo.height = geo.height.max(MIN_HEIGHT);
 
+    // Self-heal: older versions could persist work-area-sized bounds alongside
+    // maximized: true (maximize()'s Resized raced ahead of is_maximized()).
+    // Restoring that as a normal window would cover the taskbar / sit off-
+    // screen during the splash. Since the window is re-maximized on launch
+    // anyway, fall back to a centered default normal geometry as the
+    // un-maximize restore target.
+    if geo.maximized && is_maximize_sized(app, geo.width, geo.height) {
+        geo.width = DEFAULT_WIDTH;
+        geo.height = DEFAULT_HEIGHT;
+        if let Some((mw, mh, _, _)) = primary_monitor_work_area_logical(app) {
+            geo.x = ((mw - DEFAULT_WIDTH) / 2.0).max(0.0);
+            geo.y = ((mh - DEFAULT_HEIGHT) / 2.0).max(0.0);
+        } else {
+            geo.x = 0.0;
+            geo.y = 0.0;
+        }
+    }
+
     if is_position_on_screen(app, geo.x, geo.y) && fits_on_any_monitor(app, geo.width, geo.height) {
         Some(geo)
     } else {
@@ -278,6 +445,24 @@ fn read_saved_geometry(app: &AppHandle) -> Option<WindowGeometry> {
 /// which causes position/size validation checks to fail safely.
 fn available_monitors(app: &AppHandle) -> Vec<tauri::Monitor> {
     app.available_monitors().unwrap_or_default()
+}
+
+/// Returns true if the given logical dimensions are at least as large as some
+/// monitor's work area — i.e. the size corresponds to a maximized window, not
+/// a normal user-chosen size.
+///
+/// Why: maximize() can dispatch its Resized event before is_maximized() flips
+/// to true, so without this guard a maximized window would be persisted with
+/// work-area-sized bounds as the "normal" geometry, corrupting the real normal
+/// size. It also self-heals store entries written that way by older versions.
+fn is_maximize_sized(app: &AppHandle, width: f64, height: f64) -> bool {
+    available_monitors(app).iter().any(|m| {
+        let work = m.work_area();
+        let scale = m.scale_factor();
+        let work_w = work.size.width as f64 / scale;
+        let work_h = work.size.height as f64 / scale;
+        width >= work_w && height >= work_h
+    })
 }
 
 /// Checks whether the given logical coordinates fall within any monitor's bounds.

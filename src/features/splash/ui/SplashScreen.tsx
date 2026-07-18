@@ -1,6 +1,8 @@
-import { useRef } from 'react'
+import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
+import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
-import { useSelector } from '@/app/store'
 import { cn } from '@/shared/lib/utils'
 
 import { useSplashLifecycle } from '../hooks/useSplashLifecycle'
@@ -8,67 +10,95 @@ import { useThreeScene } from '../hooks/useThreeScene'
 import { FADE_DURATION_MS } from '../lib/constants'
 
 /**
- * Full-screen splash overlay displayed while the application initializes.
+ * Standalone splash window content (Discord-style).
  *
- * In normal mode, renders a Three.js particle-and-TV animation, a title
- * heading, the current initialization step label, and an optional progress
- * bar. Once initialization completes (and the minimum display time elapses)
- * the component fades out and unmounts itself.
+ * Renders inside the borderless, fixed-size, centered window created by the
+ * Rust `create_splash_window`. The whole surface (including the Three.js
+ * canvas) is draggable via `data-tauri-drag-region`. Shows the Three.js
+ * animation + title, and at the bottom:
+ * - a small "what's happening now" label (driven by `init_step` events)
+ * - a determinate progress bar that appears only during ffmpeg download
+ *   (driven by `progress` events whose downloadId === "ffmpeg-install")
  *
- * When `skipSplashAnimation` is enabled, renders only a minimal CSS spinner
- * and the initialization step label for fastest possible startup.
+ * On fade completion `useSplashLifecycle` invokes `finish_splash`, which
+ * closes this window and creates the main window.
  */
 export function SplashScreen() {
   const { phase, onFadeComplete, skipMode } = useSplashLifecycle()
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const processingFnc = useSelector((state) => state.init.processingFnc)
-  const progress = useSelector((state) => state.progress)
+  const [stepLabel, setStepLabel] = useState<string>('')
+  const [ffmpegProgress, setFfmpegProgress] = useState<number | null>(null)
+  const { t } = useTranslation()
 
   useThreeScene(canvasRef, skipMode === false && phase !== 'done')
 
+  // Show the splash window once React has mounted. The window is created
+  // hidden (visible(false)) to avoid a black frame during webview load; this
+  // reveals it after first paint.
+  useEffect(() => {
+    invoke('show_splash').catch(() => {})
+  }, [])
+
+  // init_step: latest backend step label. progress: ffmpeg download %.
+  useEffect(() => {
+    const unlistenStep = listen<{ labelKey: string }>('init_step', (event) => {
+      setStepLabel(event.payload.labelKey)
+    })
+    const unlistenProgress = listen<{ downloadId: string; percentage: number }>(
+      'progress',
+      (event) => {
+        if (event.payload.downloadId === 'ffmpeg-install') {
+          setFfmpegProgress(event.payload.percentage)
+        }
+      },
+    )
+    return () => {
+      unlistenStep.then((fn) => fn())
+      unlistenProgress.then((fn) => fn())
+    }
+  }, [])
+
   if (phase === 'done') return null
 
-  // Rendering branch 1 of 3: settings still loading.
-  // Renders a blank splash background while settings are loading to prevent
-  // the circle-indicator flash that would otherwise appear before the 3D
-  // animation is ready to mount.
+  // Settings still loading: blank splash background to prevent a flash before
+  // the 3D animation is ready to mount.
   if (skipMode === null) {
     return (
       <div
         data-testid="splash-screen"
+        data-tauri-drag-region
         className="fixed inset-0 z-50 bg-[#f5f7fa]"
       />
     )
   }
 
-  // Rendering branch 2 of 3: skip mode active.
-  // Renders a minimal CSS spinner instead of the full 3D animation to
-  // minimize startup time when the user has opted out of the animation.
+  // Skip mode: minimal CSS spinner + step label instead of the full animation.
   if (skipMode === true) {
     return (
       <div
         data-testid="splash-screen"
+        data-tauri-drag-region
         className="bg-background fixed inset-0 z-50 flex flex-col items-center justify-center"
       >
         <div className="border-foreground/20 border-t-foreground h-8 w-8 animate-spin rounded-full border-2" />
-        {processingFnc && (
+        {stepLabel && (
           <p className="text-muted-foreground mt-4 text-sm select-none">
-            {processingFnc}
+            {t(stepLabel)}
           </p>
         )}
       </div>
     )
   }
 
-  // Rendering branch 3 of 3: full animation mode.
-  // Renders the complete splash experience: Three.js canvas, title heading,
-  // current initialization step label, and an optional progress bar.
-  const activeProgress = progress.find((p) => !p.isComplete)
-  const pct = activeProgress?.percentage ?? 0
+  // Full animation mode: Three.js particle animation + title + bottom label
+  // and, only while ffmpeg is installing, a determinate progress bar.
+  const showFfmpegBar =
+    stepLabel === 'init.installing_ffmpeg' && ffmpegProgress !== null
 
   return (
     <div
       data-testid="splash-screen"
+      data-tauri-drag-region
       className={cn(
         'fixed inset-0 z-50 flex flex-col items-center justify-center',
         'bg-[#f5f7fa]',
@@ -77,15 +107,16 @@ export function SplashScreen() {
       )}
       style={{ transitionDuration: `${FADE_DURATION_MS}ms` }}
       onTransitionEnd={function handleTransitionEnd(e) {
-        // Only react to the opacity transition bubbling up from the root
-        // container itself (not from child elements) to signal that the
-        // fade-out animation has completed and the splash can unmount.
         if (e.target === e.currentTarget && e.propertyName === 'opacity') {
           onFadeComplete()
         }
       }}
     >
-      <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+      <canvas
+        ref={canvasRef}
+        data-tauri-drag-region
+        className="absolute inset-0 h-full w-full"
+      />
       <h1
         className={cn(
           'relative z-10 select-none',
@@ -99,18 +130,18 @@ export function SplashScreen() {
       >
         <span style={{ color: '#00A1D6' }}>Bilibili</span> Downloader
       </h1>
-      {processingFnc && (
-        <p className="relative z-10 mt-4 text-sm text-[#00A1D6]/60 select-none">
-          {processingFnc}
-        </p>
-      )}
-      {activeProgress && pct > 0 && (
-        <div className="relative z-10 mt-3 h-1 w-48 overflow-hidden rounded-full bg-black/10">
+      {showFfmpegBar && (
+        <div className="absolute right-6 bottom-14 left-6 z-10 h-1 overflow-hidden rounded-full bg-black/10">
           <div
-            className="h-full rounded-full bg-[#00A1D6]/70 transition-all duration-300"
-            style={{ width: `${pct}%` }}
+            className="h-full rounded-full bg-[#00A1D6] transition-all duration-300"
+            style={{ width: `${ffmpegProgress}%` }}
           />
         </div>
+      )}
+      {stepLabel && (
+        <p className="absolute right-6 bottom-6 left-6 z-10 truncate text-center text-[16px] font-medium text-[#6B7280] select-none">
+          {t(stepLabel)}
+        </p>
       )}
     </div>
   )
