@@ -337,7 +337,15 @@ pub async fn download_url(
                 }
             }
 
-            let mut attempt: u8 = 0;
+            // `http_retries` counts HTTP-layer failures (invalid status,
+            // request error) bounded by MAX_SEG_RETRIES. CDN-rotation
+            // failures (size mismatch, slow speed) use `cdn_rotation_count`.
+            // Keeping these budgets independent prevents CDN rotations from
+            // inflating the HTTP retry counter — which previously disabled
+            // the in-segment chunk-retry budget inside
+            // download_segment_with_speed_check and produced misleading
+            // `attempt 8/3` log lines.
+            let mut http_retries: u8 = 0;
             const MAX_SEG_RETRIES: u8 = 3;
             let size = e - s + 1;
             let mut cdn_rotation_count: u8 = 0;
@@ -351,9 +359,7 @@ pub async fn download_url(
             let seg_is_retrying = Arc::new(AtomicBool::new(false));
 
             loop {
-                attempt += 1;
-
-                // Check cancellation on each retry
+                // Check cancellation on each iteration
                 if let Some(ref t) = cancel_token_c {
                     if t.is_cancelled() {
                         let _ = emits_c.stop().await;
@@ -396,16 +402,17 @@ pub async fn download_url(
                                 && size == resp.content_length().unwrap_or(size));
 
                         if !is_valid_response {
+                            http_retries += 1;
                             log::warn!(
-                                "[BE] download_url: segment {} invalid status {} (attempt {}/{}, cdn_idx={})",
+                                "[BE] download_url: segment {} invalid status {} (http retry {}/{}, cdn_idx={})",
                                 idx,
                                 resp.status(),
-                                attempt + 1,
+                                http_retries,
                                 MAX_SEG_RETRIES,
                                 cdn_idx
                             );
-                            if attempt < MAX_SEG_RETRIES {
-                                backoff_sleep(attempt).await;
+                            if http_retries < MAX_SEG_RETRIES {
+                                backoff_sleep(http_retries).await;
                                 continue;
                             }
                             return Err(anyhow::anyhow!(
@@ -438,7 +445,7 @@ pub async fn download_url(
                             &mut resp,
                             idx,
                             size,
-                            attempt,
+                            http_retries,
                             MAX_SEG_RETRIES,
                             cdn_rotation_count,
                             cdn_urls_c.len(),
@@ -479,11 +486,15 @@ pub async fn download_url(
                                 continue;
                             }
                             Err(_) => {
+                                // Non-recoverable chunk error: the in-segment
+                                // chunk-retry budget inside
+                                // download_segment_with_speed_check is already
+                                // exhausted. Bail out immediately; the outer
+                                // retry_download handles retries, so no
+                                // attempt counter is shown here.
                                 log::warn!(
-                                    "[BE] download_url: segment {} download failed (attempt {}/{}, cdn_idx={})",
+                                    "[BE] download_url: segment {} download failed (cdn_idx={})",
                                     idx,
-                                    attempt + 1,
-                                    MAX_SEG_RETRIES,
                                     cdn_idx
                                 );
                                 return Err(anyhow::anyhow!("segment {} download failed", idx))
@@ -493,12 +504,12 @@ pub async fn download_url(
                         // Verify size
                         if received != size {
                             log::warn!(
-                                "[BE] download_url: segment {} size mismatch: expected {}, got {} (attempt {}/{}, cdn_idx={})",
+                                "[BE] download_url: segment {} size mismatch: expected {}, got {} (cdn rotation {}/{}, cdn_idx={})",
                                 idx,
                                 size,
                                 received,
-                                attempt + 1,
-                                MAX_SEG_RETRIES,
+                                cdn_rotation_count + 1,
+                                max_cdn_rotations,
                                 cdn_idx
                             );
                             // Size mismatch typically indicates CDN edge cache
@@ -534,15 +545,16 @@ pub async fn download_url(
                         return Ok(());
                     }
                     Err(e) => {
+                        http_retries += 1;
                         log::warn!(
-                            "[BE] download_url: segment {} request error: {e} (attempt {}/{}, cdn_idx={})",
+                            "[BE] download_url: segment {} request error: {e} (http retry {}/{}, cdn_idx={})",
                             idx,
-                            attempt + 1,
+                            http_retries,
                             MAX_SEG_RETRIES,
                             cdn_idx
                         );
-                        if attempt < MAX_SEG_RETRIES {
-                            backoff_sleep(attempt).await;
+                        if http_retries < MAX_SEG_RETRIES {
+                            backoff_sleep(http_retries).await;
                             continue;
                         }
                         return Err(anyhow::anyhow!("segment {} request error: {e}", idx));
