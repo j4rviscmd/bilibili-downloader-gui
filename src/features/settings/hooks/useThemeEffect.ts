@@ -3,16 +3,8 @@ import type { Theme } from '@/features/settings/type'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useEffect } from 'react'
 
-let tauriThemeReady = false
-
-export function markTauriThemeReady() {
-  tauriThemeReady = true
-}
-
 export function useThemeEffect() {
-  const theme = useSelector((state) => state.settings.theme) as
-    | Theme
-    | undefined
+  const theme = useSelector((state) => state.settings.theme) as Theme | undefined
 
   useEffect(() => {
     const effective = theme ?? 'light'
@@ -24,10 +16,8 @@ export function useThemeEffect() {
 
     localStorage.setItem('ui-theme', effective)
 
-    if (tauriThemeReady) {
-      getCurrentWindow()
-        .setTheme(effective)
-        .catch(() => {})
-    }
+    // The splash now lives in its own window with its own light theme lock,
+    // so the main window can apply the saved theme immediately on mount.
+    getCurrentWindow().setTheme(effective).catch(() => {})
   }, [theme])
 }

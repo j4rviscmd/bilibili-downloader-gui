@@ -1,18 +1,10 @@
-import { store } from '@/app/store'
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { sleep } from '@/shared/lib/utils'
 
-import { markTauriThemeReady } from '@/features/settings/hooks/useThemeEffect'
-
 import { MIN_DISPLAY_MS } from '../lib/constants'
-import {
-  initCompletePromise,
-  notifySplashDone,
-  notifySplashFading,
-} from '../lib/splash-state'
 
 /** Represents the current visual state of the splash screen. */
 type SplashPhase = 'active' | 'fading' | 'done'
@@ -28,78 +20,52 @@ interface SplashLifecycle {
 }
 
 /**
- * Manages the full lifecycle of the splash screen.
+ * Drives the standalone splash window lifecycle.
  *
- * Orchestrates three phases:
- * 1. **active**  -- splash is visible; the native title bar is locked to the
- *    light theme to match the splash background; waits for both backend
- *    initialization and a minimum display duration before advancing (unless
- *    skip mode).
- * 2. **fading**  -- CSS opacity transition is running; the saved theme is
- *    applied just before the fade so the title bar switches in step with the
- *    fade-out (no post-splash theme lag). The caller is expected to call
- *    `onFadeComplete` when the transition ends.
- * 3. **done**    -- splash is removed from the DOM and resizing is enabled.
+ * The splash is its own borderless window (a separate webview from main), so
+ * it cannot share Redux state with the main window. Instead it:
+ * 1. locks its own native theme to light to match the splash background,
+ * 2. invokes the backend `initialize` command (the real step sequence lands
+ *    in Phase B-2; currently a skeleton that returns immediately),
+ * 3. waits for the minimum display time (unless skip mode),
+ * 4. fades out, then on fade completion invokes `finish_splash`, which closes
+ *    the splash and creates the main window.
  *
  * When `skipSplashAnimation` is enabled in settings, the minimum display time
  * and fade animation are skipped for fastest possible startup.
- *
- * @returns The current phase, a fade-completion callback, and skip mode flag.
  */
 export function useSplashLifecycle(): SplashLifecycle {
   const [phase, setPhase] = useState<SplashPhase>('active')
   const [skipMode, setSkipMode] = useState<boolean | null>(null)
   const disposedRef = useRef(false)
 
-  // Lock the native title bar to the light theme while the splash is visible
-  // so it matches the light splash background.
-  useEffect(() => {
-    getCurrentWindow()
-      .setTheme('light')
-      .catch(() => {})
-  }, [])
-
   useEffect(() => {
     disposedRef.current = false
 
     const run = async () => {
+      // Lock the splash window theme to light to match the splash background.
+      getCurrentWindow().setTheme('light').catch(() => {})
+
       let skip = false
       try {
-        const s = await invoke<{ skipSplashAnimation?: boolean }>(
-          'get_settings',
-        )
+        const s = await invoke<{ skipSplashAnimation?: boolean }>('get_settings')
         skip = s.skipSplashAnimation ?? false
       } catch {
-        // Default to normal splash on error
+        // default to normal splash on error
       }
-
       if (disposedRef.current) return
       setSkipMode(skip)
 
-      // Skip mode bypasses the minimum display time and fade phase entirely
-      if (skip) {
-        await initCompletePromise
-      } else {
-        await Promise.all([initCompletePromise, sleep(MIN_DISPLAY_MS)])
-      }
+      // Run backend initialization. Phase B-1: skeleton returns immediately.
+      // Phase B-2 will port the ffmpeg/cookie/user steps here and emit
+      // init_step / init_progress events that the splash UI renders.
+      await invoke('initialize').catch(() => {})
 
+      if (!skip) {
+        await sleep(MIN_DISPLAY_MS)
+      }
       if (disposedRef.current) return
 
-      // Apply the saved theme as the splash begins to fade (or, in skip mode,
-      // just before removal). Running this here rather than after the fade
-      // lets the title bar switch in step with the fade-out, so there is no
-      // visible theme lag once the splash is gone.
-      const theme = store.getState().settings.theme ?? 'light'
-      getCurrentWindow()
-        .setTheme(theme)
-        .catch(() => {})
-      // Caution: This arms useThemeEffect (useThemeEffect.ts), which gates its own
-      // setTheme behind the tauriThemeReady flag to avoid overriding the light lock
-      // while the splash is visible. Must stay after the splash-visible phase or the
-      // user's saved theme will clobber the intentional light lock prematurely.
-      markTauriThemeReady()
-
-      notifySplashFading()
       setPhase(skip ? 'done' : 'fading')
     }
 
@@ -110,16 +76,15 @@ export function useSplashLifecycle(): SplashLifecycle {
     }
   }, [])
 
-  // Enable resize after the splash is fully gone
-  useEffect(() => {
-    if (phase !== 'done') return
-    notifySplashDone()
-    invoke('enable_window_resize').catch(() => {})
-  }, [phase])
-
   const onFadeComplete = useCallback(() => {
     setPhase('done')
   }, [])
+
+  // Close the splash and create the main window once the splash is done.
+  useEffect(() => {
+    if (phase !== 'done') return
+    invoke('finish_splash').catch(() => {})
+  }, [phase])
 
   return { phase, onFadeComplete, skipMode }
 }

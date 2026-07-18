@@ -308,6 +308,8 @@
   "init": {
     "initializing": "初始化中...",
     "fetch_settings": "正在获取应用设置...",
+    "reading_cookies": "正在读取 Cookie...",
+    "fetching_user": "正在获取用户信息...",
     "applying_language": "正在应用语言 ({{lang}})...",
     "applied_language": "语言已切换为 {{lang}}",
     "checking_ffmpeg": "正在检查 ffmpeg...",

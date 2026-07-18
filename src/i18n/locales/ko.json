@@ -308,6 +308,8 @@
   "init": {
     "initializing": "초기화 중...",
     "fetch_settings": "앱 설정을 불러오는 중...",
+    "reading_cookies": "쿠키를 읽는 중...",
+    "fetching_user": "사용자 정보를 불러오는 중...",
     "applying_language": "언어 적용 중 ({{lang}})...",
     "applied_language": "언어가 {{lang}}(으)로 변경되었습니다",
     "checking_ffmpeg": "ffmpeg 확인 중...",

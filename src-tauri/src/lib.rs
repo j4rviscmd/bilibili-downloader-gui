@@ -17,6 +17,7 @@ use crate::handlers::cookie;
 use crate::handlers::favorites;
 use crate::handlers::ffmpeg;
 use crate::handlers::github;
+use crate::handlers::init;
 use crate::handlers::qr_login;
 use crate::handlers::resolution;
 use crate::handlers::rotation;
@@ -40,6 +41,7 @@ use crate::models::qr_login::LoginState;
 use crate::models::qr_login::QrCodeResult;
 use crate::models::qr_login::QrPollResult;
 use crate::models::qr_login::Session;
+use crate::models::settings::Language;
 use crate::models::settings::Settings;
 use crate::models::settings::UiTheme;
 use crate::store::HistoryStore;
@@ -203,7 +205,10 @@ pub fn run() {
             load_qr_session,
             check_cookie_refresh,
             refresh_cookie,
-            window::enable_window_resize,
+            window::show_splash,
+            window::finish_splash,
+            init::initialize,
+            init::get_init_result,
             // record_download_click  // NOTE: GA4 Analytics is currently disabled
             #[cfg(debug_assertions)]
             set_simulate_logout,
@@ -221,23 +226,54 @@ pub fn run() {
                     .expect("Failed to register mcp-bridge plugin");
             }
 
-            // Read settings for window theme before creating the window
-            let window_theme = crate::utils::paths::get_settings_path(app.handle())
-                .exists()
-                .then(|| {
-                    std::fs::read_to_string(crate::utils::paths::get_settings_path(app.handle()))
-                        .ok()
-                        .and_then(|content| serde_json::from_str::<Settings>(&content).ok())
-                        .and_then(|s| s.theme)
-                })
-                .flatten()
+            // Initialize init result store early so setup can populate settings
+            // into it right below (read by the main window via get_init_result).
+            app.manage(std::sync::Mutex::new(init::InitResult::default()));
+
+            // Read settings before creating the splash window so the splash can
+            // render labels in the user's language from the first frame (the
+            // language is passed via the splash URL). Why block_on: setup is
+            // synchronous but get_settings is async; this adds only a few ms
+            // (reading the settings store) and runs before the splash appears.
+            let settings = tauri::async_runtime::block_on(async {
+                crate::handlers::settings::get_settings(app.handle())
+                    .await
+                    .ok()
+            });
+            let window_theme = settings
+                .as_ref()
+                .and_then(|s| s.theme.clone())
                 .map(|t| match t {
                     UiTheme::Dark => tauri::Theme::Dark,
                     UiTheme::Light => tauri::Theme::Light,
                 });
+            let language = settings.as_ref().map(|s| {
+                match s.language {
+                    Language::En => "en",
+                    Language::Ja => "ja",
+                    Language::Fr => "fr",
+                    Language::Es => "es",
+                    Language::Zh => "zh",
+                    Language::Ko => "ko",
+                }
+                .to_string()
+            });
 
-            // Create main window with saved geometry (prevents startup flash)
-            window::create_main_window(app.handle(), window_theme)?;
+            // Store settings into InitResult so initialize doesn't reload them
+            // (settings are already read here; initialize focuses on ffmpeg /
+            // session / user which actually take time).
+            if let Some(ref s) = settings {
+                if let Some(state) = app.try_state::<std::sync::Mutex<init::InitResult>>() {
+                    if let Ok(mut guard) = state.lock() {
+                        guard.settings = Some(s.clone());
+                    }
+                }
+            }
+
+            // Create the splash window first. The main window is created by
+            // finish_splash once initialization completes, so the maximized
+            // restore never races a splash-time geometry lock.
+            window::create_splash_window(app.handle(), window_theme, language)?;
 
             // Initialize logging plugin with app_data_dir/logs path
             let log_dir = app
@@ -287,26 +323,9 @@ pub fn run() {
                 std::env::consts::OS
             );
 
-            // Log application exit and save window geometry on close
-            if let Some(window) = app.get_webview_window("main") {
-                let app_handle = app.handle().clone();
-                window.on_window_event(move |event| match event {
-                    tauri::WindowEvent::CloseRequested { .. } => {
-                        window::save_window_geometry(&app_handle);
-                        log::info!("[BE] Application exiting - main window closed");
-                    }
-                    // CAUTION: Cmd+Q (macOS) and programmatic exit() bypass
-                    // CloseRequested, so persisting here keeps the latest normal
-                    // geometry available even when the app exits without closing
-                    // the window normally. save_window_geometry internally skips
-                    // fullscreen and maximized states, so only real changes to
-                    // the normal geometry land on disk.
-                    tauri::WindowEvent::Resized { .. } | tauri::WindowEvent::Moved { .. } => {
-                        window::save_window_geometry(&app_handle);
-                    }
-                    _ => {}
-                });
-            }
+            // Main window event handlers (close/resize/move → save geometry) and
+            // devtools are registered in finish_splash after the main window is
+            // created, since it doesn't exist at setup time (only the splash).
 
             // Initialize cookie cache
             app.manage(CookieCache::default());
@@ -323,29 +342,8 @@ pub fn run() {
             // tauri::async_runtime::spawn(async move {
             //     crate::utils::analytics::init_analytics(&handle).await;
             // });
-            // Enable dev console in development environment
-            // Don't open console during E2E tests
-            // Respects the openDevtoolsOnStartup setting (defaults to true)
-            #[cfg(debug_assertions)]
-            {
-                if !crate::handlers::qr_login::is_e2e_testing() {
-                    let settings_path = crate::utils::paths::get_settings_path(app.handle());
-                    let should_open = if settings_path.exists() {
-                        std::fs::read_to_string(&settings_path)
-                            .ok()
-                            .and_then(|content| serde_json::from_str::<Settings>(&content).ok())
-                            .and_then(|s| s.open_devtools_on_startup)
-                            .unwrap_or(true)
-                    } else {
-                        true
-                    };
-
-                    if should_open {
-                        let window = app.get_webview_window("main").unwrap();
-                        window.open_devtools();
-                    }
-                }
-            }
+            // Devtools (debug) now opens from register_main_window_events after
+            // the main window is created.
             Ok(())
         });
 
