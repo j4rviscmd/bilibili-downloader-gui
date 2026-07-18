@@ -67,8 +67,12 @@ export function SplashScreen() {
       <div
         data-testid="splash-screen"
         data-tauri-drag-region
-        className="fixed inset-0 z-50 bg-[#f5f7fa]"
-      />
+        className="fixed inset-0 z-50"
+      >
+        {/* Inner container carries the rounded background; the outer wrapper
+            stays transparent so the area outside the corners shows through. */}
+        <div className="h-full w-full rounded-2xl bg-[#f5f7fa]" />
+      </div>
     )
   }
 
@@ -78,14 +82,16 @@ export function SplashScreen() {
       <div
         data-testid="splash-screen"
         data-tauri-drag-region
-        className="bg-background fixed inset-0 z-50 flex flex-col items-center justify-center"
+        className="fixed inset-0 z-50"
       >
-        <div className="border-foreground/20 border-t-foreground h-8 w-8 animate-spin rounded-full border-2" />
-        {stepLabel && (
-          <p className="text-muted-foreground mt-4 text-sm select-none">
-            {t(stepLabel)}
-          </p>
-        )}
+        <div className="flex h-full w-full flex-col items-center justify-center rounded-2xl bg-[#f5f7fa]">
+          <div className="border-foreground/20 border-t-foreground h-8 w-8 animate-spin rounded-full border-2" />
+          {stepLabel && (
+            <p className="text-muted-foreground mt-4 text-sm select-none">
+              {t(stepLabel)}
+            </p>
+          )}
+        </div>
       </div>
     )
   }
@@ -100,8 +106,7 @@ export function SplashScreen() {
       data-testid="splash-screen"
       data-tauri-drag-region
       className={cn(
-        'fixed inset-0 z-50 flex flex-col items-center justify-center',
-        'bg-[#f5f7fa]',
+        'fixed inset-0 z-50',
         'transition-opacity ease-out',
         phase === 'fading' ? 'opacity-0' : 'opacity-100',
       )}
@@ -112,37 +117,42 @@ export function SplashScreen() {
         }
       }}
     >
-      <canvas
-        ref={canvasRef}
-        data-tauri-drag-region
-        className="absolute inset-0 h-full w-full"
-      />
-      <h1
-        className={cn(
-          'relative z-10 select-none',
-          'font-sans text-4xl font-extralight tracking-[0.3em]',
-          'fade-in animate-in duration-1000',
+      {/* Inner container: rounded background + overflow-hidden clips the
+          Three.js canvas to the rounded corners. The outer wrapper stays
+          transparent so the native window shadow follows the rounded shape. */}
+      <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-2xl bg-[#f5f7fa]">
+        <canvas
+          ref={canvasRef}
+          data-tauri-drag-region
+          className="absolute inset-0 h-full w-full"
+        />
+        <h1
+          className={cn(
+            'relative z-10 select-none',
+            'font-sans text-4xl font-extralight tracking-[0.3em]',
+            'fade-in animate-in duration-1000',
+          )}
+          style={{
+            color: '#333333ee',
+            textShadow: '0 0 40px rgba(0,161,214,0.2)',
+          }}
+        >
+          <span style={{ color: '#00A1D6' }}>Bilibili</span> Downloader
+        </h1>
+        {showFfmpegBar && (
+          <div className="absolute right-6 bottom-14 left-6 z-10 h-1 overflow-hidden rounded-full bg-black/10">
+            <div
+              className="h-full rounded-full bg-[#00A1D6] transition-all duration-300"
+              style={{ width: `${ffmpegProgress}%` }}
+            />
+          </div>
         )}
-        style={{
-          color: '#333333ee',
-          textShadow: '0 0 40px rgba(0,161,214,0.2)',
-        }}
-      >
-        <span style={{ color: '#00A1D6' }}>Bilibili</span> Downloader
-      </h1>
-      {showFfmpegBar && (
-        <div className="absolute right-6 bottom-14 left-6 z-10 h-1 overflow-hidden rounded-full bg-black/10">
-          <div
-            className="h-full rounded-full bg-[#00A1D6] transition-all duration-300"
-            style={{ width: `${ffmpegProgress}%` }}
-          />
-        </div>
-      )}
-      {stepLabel && (
-        <p className="absolute right-6 bottom-6 left-6 z-10 truncate text-center text-[16px] font-medium text-[#6B7280] select-none">
-          {t(stepLabel)}
-        </p>
-      )}
+        {stepLabel && (
+          <p className="absolute right-6 bottom-6 left-6 z-10 truncate text-center text-[16px] font-medium text-[#6B7280] select-none">
+            {t(stepLabel)}
+          </p>
+        )}
+      </div>
     </div>
   )
 }
