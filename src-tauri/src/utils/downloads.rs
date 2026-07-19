@@ -445,8 +445,6 @@ pub async fn download_url(
                             &mut resp,
                             idx,
                             size,
-                            http_retries,
-                            MAX_SEG_RETRIES,
                             cdn_rotation_count,
                             cdn_urls_c.len(),
                             |chunk_len| {
@@ -486,12 +484,12 @@ pub async fn download_url(
                                 continue;
                             }
                             Err(_) => {
-                                // Non-recoverable chunk error: the in-segment
-                                // chunk-retry budget inside
-                                // download_segment_with_speed_check is already
-                                // exhausted. Bail out immediately; the outer
-                                // retry_download handles retries, so no
-                                // attempt counter is shown here.
+                                // Chunk-stream error (e.g. connection reset).
+                                // download_segment_with_speed_check returns
+                                // Err(false) immediately because the stream is
+                                // broken. Bail out; the outer retry_download
+                                // issues a fresh request, so no attempt counter
+                                // is shown here.
                                 log::warn!(
                                     "[BE] download_url: segment {} download failed (cdn_idx={})",
                                     idx,
@@ -652,8 +650,6 @@ pub async fn download_url(
 /// * `resp` - Mutable reference to the HTTP response to read from
 /// * `_idx` - Segment index (reserved for future error reporting)
 /// * `size` - Expected segment size in bytes
-/// * `attempt` - Current retry attempt number
-/// * `max_seg_retries` - Maximum number of retries allowed
 /// * `cdn_rotation_count` - Current CDN rotation count
 /// * `cdn_urls_len` - Total number of available CDN URLs
 /// * `on_chunk_received` - Callback invoked when each chunk is received
@@ -665,14 +661,11 @@ pub async fn download_url(
 ///   - `received` is the total bytes received
 ///   - `false` indicates no reconnect needed
 /// - `Err(true)`: Speed too slow, reconnect needed
-/// - `Err(false)`: Download failed (non-recoverable, max retries exceeded)
-#[allow(clippy::too_many_arguments)]
+/// - `Err(false)`: Chunk-stream error (non-recoverable; caller issues a fresh request)
 async fn download_segment_with_speed_check(
     resp: &mut reqwest::Response,
     _idx: usize,
     size: u64,
-    attempt: u8,
-    max_seg_retries: u8,
     cdn_rotation_count: u8,
     cdn_urls_len: usize,
     on_chunk_received: impl Fn(u64),
@@ -713,10 +706,10 @@ async fn download_segment_with_speed_check(
             }
             Ok(None) => break,
             Err(_) => {
-                if attempt < max_seg_retries {
-                    backoff_sleep(attempt).await;
-                    continue;
-                }
+                // Chunk-stream error (e.g. connection reset). The stream is
+                // broken, so retrying chunk() on the same response cannot
+                // recover — bail out and let the caller's download_url loop
+                // issue a fresh request (HTTP retry / CDN rotation).
                 return Err(false);
             }
         }
