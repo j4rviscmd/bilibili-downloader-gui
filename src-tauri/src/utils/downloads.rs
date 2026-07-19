@@ -503,21 +503,21 @@ pub async fn download_url(
 
                         // Verify size
                         if received != size {
-                            log::warn!(
-                                "[BE] download_url: segment {} size mismatch: expected {}, got {} (cdn rotation {}/{}, cdn_idx={})",
-                                idx,
-                                size,
-                                received,
-                                cdn_rotation_count + 1,
-                                max_cdn_rotations,
-                                cdn_idx
-                            );
                             // Size mismatch typically indicates CDN edge cache
                             // corruption or rate-limit cutoff. Rotate to a
                             // different CDN immediately instead of retrying
                             // the same node, which tends to reproduce the
                             // same truncated response.
                             if cdn_rotation_count < max_cdn_rotations {
+                                log::warn!(
+                                    "[BE] download_url: segment {} size mismatch: expected {}, got {} (cdn rotation {}/{}, cdn_idx={})",
+                                    idx,
+                                    size,
+                                    received,
+                                    cdn_rotation_count + 1,
+                                    max_cdn_rotations,
+                                    cdn_idx
+                                );
                                 let next_cdn_idx =
                                     (cdn_rotation_count as usize + 1) % cdn_urls_c.len();
                                 log::info!(
@@ -532,9 +532,17 @@ pub async fn download_url(
                                 backoff_sleep(cdn_rotation_count).await;
                                 continue;
                             }
+                            // Rotation budget exhausted. Log cdn_rotation_count
+                            // (== max_cdn_rotations) rather than +1 so the
+                            // displayed attempt never exceeds the denominator.
                             log::warn!(
-                                "[BE] download_url: segment {} CDN rotation exhausted, giving up",
-                                idx
+                                "[BE] download_url: segment {} size mismatch: expected {}, got {} (cdn rotation exhausted {}/{}, cdn_idx={})",
+                                idx,
+                                size,
+                                received,
+                                cdn_rotation_count,
+                                max_cdn_rotations,
+                                cdn_idx
                             );
                             return Err(anyhow::anyhow!("segment {} size mismatch", idx));
                         }
