@@ -445,7 +445,13 @@
     "rotation_mode_copy": "빠름 (복사)",
     "rotation_mode_reencode": "정확 (재인코딩)",
     "rotation_angle_label": "기본 회전 각도",
-    "rotation_angle_description": "기본 회전 방향을 선택합니다"
+    "rotation_angle_description": "기본 회전 방향을 선택합니다",
+    "notifications_section_label": "알림",
+    "notifications_section_description": "다운로드 완료 시 피드백을 사용자 지정합니다.",
+    "taskbar_progress_label": "작업 표시줄 진행률",
+    "taskbar_progress_description": "작업 표시줄에 다운로드 진행률을 표시합니다.",
+    "flash_taskbar_on_complete_label": "완료 시 작업 표시줄 깜빡임",
+    "flash_taskbar_on_complete_description": "다운로드 완료 시 작업 표시줄 버튼을 깜빡입니다."
   },
   "validation": {
     "path": {

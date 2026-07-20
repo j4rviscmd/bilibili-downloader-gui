@@ -1,4 +1,8 @@
 import { useSelector } from '@/app/store'
+import {
+  useDownloadCompletionNotifications,
+  useTaskbarProgress,
+} from '@/features/notifications'
 import { useFontSizeShortcuts } from '@/features/settings/hooks/useFontSizeShortcuts'
 import { useThemeEffect } from '@/features/settings/hooks/useThemeEffect'
 import { UpdateNotification } from '@/features/updater'
@@ -15,6 +19,8 @@ function App() {
   const theme = useSelector((state) => state.settings.theme) ?? 'light'
   useThemeEffect()
   useFontSizeShortcuts()
+  useTaskbarProgress()
+  useDownloadCompletionNotifications()
 
   useEffect(() => {
     if (import.meta.env.DEV) return

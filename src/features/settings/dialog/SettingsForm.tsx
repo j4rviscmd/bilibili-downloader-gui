@@ -588,6 +588,44 @@ function SettingsForm() {
           />
         </div>
         <Separator />
+        {/* Notifications Section */}
+        <div className="space-y-4">
+          <div className="space-y-0.5">
+            <Label>{t('settings.notifications_section_label')}</Label>
+            <p className="text-muted-foreground text-sm">
+              {t('settings.notifications_section_description')}
+            </p>
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>{t('settings.taskbar_progress_label')}</Label>
+              <p className="text-muted-foreground text-sm">
+                {t('settings.taskbar_progress_description')}
+              </p>
+            </div>
+            <Switch
+              checked={settings.showTaskbarProgress ?? true}
+              onCheckedChange={(checked) => {
+                saveByForm({ ...settings, showTaskbarProgress: checked })
+              }}
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>{t('settings.flash_taskbar_on_complete_label')}</Label>
+              <p className="text-muted-foreground text-sm">
+                {t('settings.flash_taskbar_on_complete_description')}
+              </p>
+            </div>
+            <Switch
+              checked={settings.flashTaskbarOnComplete ?? true}
+              onCheckedChange={(checked) => {
+                saveByForm({ ...settings, flashTaskbarOnComplete: checked })
+              }}
+            />
+          </div>
+        </div>
+        <Separator />
         <div className="space-y-2">
           <div className="space-y-0.5">
             <Label>{t('settings.trim_mode_label')}</Label>

@@ -6,6 +6,8 @@
   "permissions": [
     "core:default",
     "core:window:allow-set-theme",
+    "core:window:allow-set-progress-bar",
+    "core:window:allow-request-user-attention",
     "core:window:allow-start-dragging",
     "process:default",
     "opener:default",

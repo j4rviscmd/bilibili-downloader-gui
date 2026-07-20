@@ -105,6 +105,16 @@ export interface Settings {
    * Defaults to 'light' if not set.
    */
   theme?: Theme
+  /**
+   * Whether to show download progress on the taskbar.
+   * Defaults to true if not specified.
+   */
+  showTaskbarProgress?: boolean
+  /**
+   * Whether to flash the taskbar button when downloads complete.
+   * Defaults to true if not specified.
+   */
+  flashTaskbarOnComplete?: boolean
 }
 
 /**

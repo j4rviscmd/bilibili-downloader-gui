@@ -445,7 +445,13 @@
     "rotation_mode_copy": "Rápido (Copiar)",
     "rotation_mode_reencode": "Preciso (Recodificar)",
     "rotation_angle_label": "Ángulo de rotación predeterminado",
-    "rotation_angle_description": "Elige la dirección de rotación predeterminada"
+    "rotation_angle_description": "Elige la dirección de rotación predeterminada",
+    "notifications_section_label": "Notificaciones",
+    "notifications_section_description": "Personaliza la retroalimentación al completar descargas.",
+    "taskbar_progress_label": "Progreso en la barra de tareas",
+    "taskbar_progress_description": "Muestra el progreso de descarga en la barra de tareas.",
+    "flash_taskbar_on_complete_label": "Parpadear barra al completar",
+    "flash_taskbar_on_complete_description": "Hace parpadear el botón de la barra de tareas al terminar."
   },
   "validation": {
     "path": {

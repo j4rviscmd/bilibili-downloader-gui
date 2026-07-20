@@ -445,7 +445,13 @@
     "rotation_mode_copy": "高速（コピー）",
     "rotation_mode_reencode": "正確（再エンコード）",
     "rotation_angle_label": "デフォルトの回転角度",
-    "rotation_angle_description": "既定の回転方向を選びます"
+    "rotation_angle_description": "既定の回転方向を選びます",
+    "notifications_section_label": "通知",
+    "notifications_section_description": "ダウンロード完了時のフィードバックをカスタマイズします。",
+    "taskbar_progress_label": "タスクバー進捗",
+    "taskbar_progress_description": "タスクバーにダウンロード進捗を表示します。",
+    "flash_taskbar_on_complete_label": "完了時にタスクバーを点滅",
+    "flash_taskbar_on_complete_description": "ダウンロード完了時にタスクバーボタンを点滅させます。"
   },
   "validation": {
     "path": {
