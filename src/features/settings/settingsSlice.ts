@@ -21,6 +21,8 @@ const initialState: SettingsState = {
   trimMode: 'copy',
   audioFormat: 'mp3',
   theme: 'light',
+  showTaskbarProgress: true,
+  flashTaskbarOnComplete: true,
 }
 
 /**

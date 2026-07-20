@@ -445,7 +445,13 @@
     "rotation_mode_copy": "快速（复制）",
     "rotation_mode_reencode": "精确（重编码）",
     "rotation_angle_label": "默认旋转角度",
-    "rotation_angle_description": "选择默认旋转方向"
+    "rotation_angle_description": "选择默认旋转方向",
+    "notifications_section_label": "通知",
+    "notifications_section_description": "自定义下载完成时的反馈。",
+    "taskbar_progress_label": "任务栏进度",
+    "taskbar_progress_description": "在任务栏显示下载进度。",
+    "flash_taskbar_on_complete_label": "完成时闪烁任务栏",
+    "flash_taskbar_on_complete_description": "下载完成时闪烁任务栏按钮。"
   },
   "validation": {
     "path": {

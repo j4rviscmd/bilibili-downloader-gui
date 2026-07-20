@@ -168,6 +168,21 @@ pub struct Settings {
         skip_serializing_if = "Option::is_none"
     )]
     pub rotation_mode: Option<RotationMode>,
+    /// Whether to show download progress on the taskbar. Defaults to true.
+    #[serde(
+        rename = "showTaskbarProgress",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub show_taskbar_progress: Option<bool>,
+    /// Whether to flash the taskbar button when downloads complete.
+    /// Defaults to true.
+    #[serde(
+        rename = "flashTaskbarOnComplete",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub flash_taskbar_on_complete: Option<bool>,
     /// UI theme preference. Defaults to system preference if not set.
     #[serde(rename = "theme", default, skip_serializing_if = "Option::is_none")]
     pub theme: Option<UiTheme>,

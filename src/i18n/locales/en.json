@@ -445,7 +445,13 @@
     "rotation_mode_copy": "Fast (Copy)",
     "rotation_mode_reencode": "Accurate (Re-encode)",
     "rotation_angle_label": "Default rotation angle",
-    "rotation_angle_description": "Choose the default rotation direction"
+    "rotation_angle_description": "Choose the default rotation direction",
+    "notifications_section_label": "Notifications",
+    "notifications_section_description": "Customize feedback when downloads finish.",
+    "taskbar_progress_label": "Taskbar Progress",
+    "taskbar_progress_description": "Show download progress on the taskbar.",
+    "flash_taskbar_on_complete_label": "Flash Taskbar on Completion",
+    "flash_taskbar_on_complete_description": "Flash the taskbar button when downloads finish."
   },
   "validation": {
     "path": {
