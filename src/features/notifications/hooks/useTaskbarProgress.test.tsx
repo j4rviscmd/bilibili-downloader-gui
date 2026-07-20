@@ -7,7 +7,7 @@ import { getCurrentWindow, ProgressBarStatus } from '@tauri-apps/api/window'
 import { renderHook } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { Provider } from 'react-redux'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // setup.ts returns a single shared window instance, so this is the same
 // vi.fn the hook invokes.
