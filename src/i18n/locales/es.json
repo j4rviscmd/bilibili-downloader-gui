@@ -233,8 +233,6 @@
     "download_complete": "Completo",
     "open_file": "Abrir archivo",
     "open_folder": "Abrir carpeta",
-    "redownload": "Descargar de nuevo",
-    "retry": "Reintentar",
     "download_failed_part": "Descarga fallida",
     "download_failed_part_description": "p{{page}} - {{title}}: {{description}}",
     "time_remaining": "{{time}} restante",

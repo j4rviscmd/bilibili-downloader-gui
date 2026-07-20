@@ -233,8 +233,6 @@
     "download_complete": "完成",
     "open_file": "打开文件",
     "open_folder": "打开文件夹",
-    "redownload": "重新下载",
-    "retry": "重试",
     "download_failed_part": "下载失败",
     "download_failed_part_description": "p{{page}} - {{title}}: {{description}}",
     "time_remaining": "剩余 {{time}}",
