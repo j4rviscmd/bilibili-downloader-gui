@@ -469,13 +469,6 @@ const VideoPartCard = memo(function VideoPartCard({
   )
 
   /**
-   * Handles retry action by re-selecting the part for download.
-   */
-  const handleRetry = useCallback(() => {
-    store.dispatch(updatePartSelected({ index: page - 1, selected: true }))
-  }, [page])
-
-  /**
    * Handles cancel action by stopping the current download and deselecting the part.
    */
   const handleCancel = useCallback(() => {
@@ -962,7 +955,6 @@ const VideoPartCard = memo(function VideoPartCard({
           <PartDownloadProgress
             status={downloadStatus}
             isWaitingForTurn={isWaitingForTurn}
-            onRetry={handleRetry}
             onCancel={handleCancel}
             hasEmbeddedAudio={
               resolvedQuality

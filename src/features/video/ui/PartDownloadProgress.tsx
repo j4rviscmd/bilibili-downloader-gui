@@ -9,7 +9,7 @@ import { logger } from '@/shared/lib/logger'
 import type { Progress } from '@/shared/ui/Progress'
 import { Button } from '@/shared/ui/button'
 import { invoke } from '@tauri-apps/api/core'
-import { CheckCircle2, FolderOpen, RotateCcw } from 'lucide-react'
+import { CheckCircle2, FolderOpen } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { PartDownloadStatus } from '../hooks/usePartDownloadStatus'
@@ -175,7 +175,6 @@ function MergeStageProgress({ progressEntries, t }: MergeStageProgressProps) {
 type Props = {
   status: PartDownloadStatus
   isWaitingForTurn?: boolean
-  onRetry: () => void
   onCancel?: () => void
   /** True if audio is embedded (durl format), so only video stage is shown */
   hasEmbeddedAudio?: boolean
@@ -188,7 +187,6 @@ type Props = {
 export function PartDownloadProgress({
   status,
   isWaitingForTurn = false,
-  onRetry,
   onCancel,
   hasEmbeddedAudio = false,
 }: Props) {
@@ -291,19 +289,10 @@ export function PartDownloadProgress({
       )}
 
       {hasError && (
-        <div className={`flex ${MIN_HEIGHT} items-center justify-between`}>
+        <div className={`flex ${MIN_HEIGHT} items-center`}>
           <div className="text-destructive flex items-center gap-2 text-sm">
             <span>{errorMessage || t('video.download_failed_part')}</span>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onRetry}
-            className="h-8 px-2 text-xs"
-          >
-            <RotateCcw className="mr-1 h-3 w-3" />
-            {t('video.retry')}
-          </Button>
         </div>
       )}
 

@@ -233,8 +233,6 @@
     "download_complete": "完了",
     "open_file": "ファイルを開く",
     "open_folder": "フォルダを開く",
-    "redownload": "再ダウンロード",
-    "retry": "再試行",
     "download_failed_part": "ダウンロードに失敗しました",
     "download_failed_part_description": "p{{page}} - {{title}}: {{description}}",
     "time_remaining": "残{{time}}",
