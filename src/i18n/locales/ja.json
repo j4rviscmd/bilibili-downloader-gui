@@ -235,6 +235,8 @@
     "open_folder": "フォルダを開く",
     "download_failed_part": "ダウンロードに失敗しました",
     "download_failed_part_description": "p{{page}} - {{title}}: {{description}}",
+    "copy_error": "エラーメッセージをコピー",
+    "retry_hint": "Bilibili側の一時的な問題が原因である可能性が高いです。1時間ほど時間をおいてから再試行してください。",
     "time_remaining": "残{{time}}",
     "quality_limited_title": "画質制限あり",
     "quality_limited_description": "未ログイン（Cookieがない）の場合は480p以下の画質のみになります。",

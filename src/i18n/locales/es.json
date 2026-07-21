@@ -235,6 +235,8 @@
     "open_folder": "Abrir carpeta",
     "download_failed_part": "Descarga fallida",
     "download_failed_part_description": "p{{page}} - {{title}}: {{description}}",
+    "copy_error": "Copiar mensaje de error",
+    "retry_hint": "Es probable que sea un problema temporal de Bilibili. Inténtalo de nuevo en aproximadamente una hora.",
     "time_remaining": "{{time}} restante",
     "quality_limited_title": "Calidad Limitada",
     "quality_limited_description": "Si no ha iniciado sesión (sin cookies), solo 480p o inferior está disponible.",

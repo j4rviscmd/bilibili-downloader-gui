@@ -16,6 +16,15 @@ use crate::{
     emits::Emits,
     handlers::concurrency::DOWNLOAD_CANCEL_REGISTRY,
 };
+
+/// Error type for segment download failures.
+#[derive(Debug)]
+enum SegmentError {
+    /// Reconnect required (slow speed)
+    Reconnect,
+    /// Download failed with error details
+    Failed(String),
+}
 use anyhow::Result;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
@@ -467,7 +476,7 @@ pub async fn download_url(
 
                         let (buf, received, _) = match download_result {
                             Ok(result) => result,
-                            Err(reconnect) if reconnect => {
+                            Err(SegmentError::Reconnect) => {
                                 // Switch to next CDN URL on reconnect (loops back to start)
                                 let next_cdn_idx =
                                     (cdn_rotation_count as usize + 1) % cdn_urls_c.len();
@@ -483,19 +492,20 @@ pub async fn download_url(
                                 backoff_sleep(cdn_rotation_count).await;
                                 continue;
                             }
-                            Err(_) => {
+                            Err(SegmentError::Failed(detail)) => {
                                 // Chunk-stream error (e.g. connection reset).
                                 // download_segment_with_speed_check returns
-                                // Err(false) immediately because the stream is
-                                // broken. Bail out; the outer retry_download
+                                // SegmentError::Failed with error details.
+                                // Bail out; the outer retry_download
                                 // issues a fresh request, so no attempt counter
                                 // is shown here.
                                 log::warn!(
-                                    "[BE] download_url: segment {} download failed (cdn_idx={})",
+                                    "[BE] download_url: segment {} download failed (cdn_idx={}): {}",
                                     idx,
-                                    cdn_idx
+                                    cdn_idx,
+                                    detail
                                 );
-                                return Err(anyhow::anyhow!("segment {} download failed", idx))
+                                return Err(anyhow::anyhow!("segment {} download failed: {}", idx, detail))
                             }
                         };
 
@@ -669,7 +679,7 @@ async fn download_segment_with_speed_check(
     cdn_rotation_count: u8,
     cdn_urls_len: usize,
     on_chunk_received: impl Fn(u64),
-) -> Result<(Vec<u8>, u64, bool), bool> {
+) -> Result<(Vec<u8>, u64, bool), SegmentError> {
     let mut buf = Vec::with_capacity(size.min(8 * 1024 * 1024) as usize);
     let mut received: u64 = 0;
 
@@ -695,7 +705,7 @@ async fn download_segment_with_speed_check(
                     cdn_rotation_count,
                     cdn_urls_len,
                 ) {
-                    SpeedCheckResult::Slow => return Err(true), // Reconnect needed
+                    SpeedCheckResult::Slow => return Err(SegmentError::Reconnect), // Reconnect needed
                     SpeedCheckResult::Acceptable => {
                         // Reset check counters for next interval
                         last_check_time = Instant::now();
@@ -705,12 +715,13 @@ async fn download_segment_with_speed_check(
                 }
             }
             Ok(None) => break,
-            Err(_) => {
+            Err(e) => {
                 // Chunk-stream error (e.g. connection reset). The stream is
                 // broken, so retrying chunk() on the same response cannot
                 // recover — bail out and let the caller's download_url loop
                 // issue a fresh request (HTTP retry / CDN rotation).
-                return Err(false);
+                let detail = e.to_string();
+                return Err(SegmentError::Failed(detail));
             }
         }
     }

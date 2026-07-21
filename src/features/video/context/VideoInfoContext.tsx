@@ -23,8 +23,10 @@ import { selectDuplicateIndices } from '@/features/video/model/selectors'
 import { setVideo } from '@/features/video/model/videoSlice'
 import { setError } from '@/shared/downloadStatus/downloadStatusSlice'
 import { logger } from '@/shared/lib/logger'
+import { mapBackendError } from '@/shared/lib/mapBackendError'
 import { clearProgressByDownloadId } from '@/shared/progress/progressSlice'
 import { clearQueue, clearQueueItem, enqueue } from '@/shared/queue/queueSlice'
+import { Check, Copy } from 'lucide-react'
 import {
   createContext,
   useCallback,
@@ -32,67 +34,11 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import type { Input, Video } from '../types'
-
-/**
- * Maps backend error codes to i18n translation keys.
- *
- * Backend returns error strings containing error codes like "ERR::VIDEO_NOT_FOUND".
- * This constant maps those codes to translation keys for localized user-facing messages.
- */
-const ERROR_MAP: Record<string, string> = {
-  'ERR::VIDEO_NOT_FOUND': 'video.video_not_found',
-  'ERR::COOKIE_MISSING': 'video.cookie_missing',
-  'ERR::API_ERROR': 'video.api_error',
-  'ERR::FILE_EXISTS': 'video.file_exists',
-  'ERR::DISK_FULL': 'video.disk_full',
-  'ERR::MERGE_FAILED': 'video.merge_failed',
-  'ERR::QUALITY_NOT_FOUND': 'video.quality_not_found',
-  'ERR::RATE_LIMITED': 'video.rate_limited',
-  // Bangumi error codes
-  'ERR::BANGUMI_NOT_FOUND': 'video.bangumi_not_found',
-  'ERR::BANGUMI_VIP_ONLY': 'video.bangumi_vip_only',
-  'ERR::BANGUMI_REGION_RESTRICTED': 'video.bangumi_region_restricted',
-  'ERR::BANGUMI_COPYRIGHT_RESTRICTED': 'video.bangumi_copyright_restricted',
-  'ERR::BANGUMI_ACCESS_DENIED': 'video.bangumi_access_denied',
-  'ERR::BANGUMI_NO_DASH': 'video.bangumi_no_dash',
-  'ERR::BANGUMI_DURL_NOT_SUPPORTED': 'video.bangumi_durl_not_supported',
-  // Audio download error codes
-  'ERR::INVALID_MEDIA_RESPONSE': 'video.invalid_media_response',
-  'ERR::AUDIO_DOWNLOAD_FAILED': 'video.audio_download_failed',
-}
-
-/**
- * Extracts localized error message from error string.
- *
- * Maps backend error codes to user-facing translation keys. Returns the original
- * error message if no known error code is found. Handles network errors specifically.
- *
- * @param error - The raw error string from the backend
- * @param t - Translation function for localized error messages
- * @returns Localized error message string, or null if already handled
- *
- * @example
- * ```typescript
- * const msg = getErrorMessage('ERR::VIDEO_NOT_FOUND', t);
- * // Returns localized "Video not found" message
- * ```
- */
-function getErrorMessage(
-  error: string,
-  t: (key: string) => string,
-): string | null {
-  // ERR::UNAUTHORIZED is handled by tauriBaseQuery/interceptInvokeError
-  if (isUnauthorizedError(error)) return null
-
-  for (const [code, key] of Object.entries(ERROR_MAP)) {
-    if (error.includes(code)) return t(key)
-  }
-  return error.includes('ERR::NETWORK::') ? t('video.network_error') : error
-}
 
 /**
  * Extracts the 'p' query parameter from a URL.
@@ -118,6 +64,70 @@ function extractPageFromUrl(url: string): number | null {
   } catch {
     return null
   }
+}
+
+/**
+ * Toast description body for a failed download.
+ *
+ * Wraps the localized error text so it is selectable (`select-text`) and adds
+ * a copy icon button that copies the displayed text (error message + retry
+ * hint) to the clipboard. The icon swaps to a check for 2s to confirm the
+ * copy, matching the existing Copy/Check pattern in VideoPartCard.
+ *
+ * Why a custom wrapper instead of sonner's `action`: sonner's action button
+ * only accepts a string label, so an icon button must live inside the
+ * description body.
+ *
+ * NOTE: the raw backend error string (ERR::...) is intentionally NOT copied
+ * here — it is already captured in the app log file for debugging.
+ */
+function DownloadErrorDescription({
+  text,
+  retryHint,
+}: {
+  text: string
+  retryHint?: string
+}) {
+  const { t } = useTranslation()
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = async () => {
+    const copyText = retryHint ? `${text}\n${retryHint}` : text
+    try {
+      await navigator.clipboard.writeText(copyText)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // Clipboard write can fail in some webview contexts; ignore silently
+      // rather than masking the original download error with a new toast.
+    }
+  }
+
+  return (
+    <span className="flex items-start gap-2">
+      <span className="select-text">
+        {text}
+        {retryHint && (
+          <>
+            <br />
+            {retryHint}
+          </>
+        )}
+      </span>
+      <button
+        type="button"
+        onClick={handleCopy}
+        className="text-muted-foreground hover:text-foreground mt-0.5 shrink-0"
+        aria-label={t('video.copy_error')}
+      >
+        {copied ? (
+          <Check className="size-3.5" />
+        ) : (
+          <Copy className="size-3.5" />
+        )}
+      </button>
+    </span>
+  )
 }
 
 /**
@@ -316,7 +326,8 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
         initInputsForVideo(v)
       } else if (fetchResult.error) {
         const raw = String(fetchResult.error)
-        const description = getErrorMessage(raw, t)
+        const key = mapBackendError(raw)
+        const description = key ? t(key) : isUnauthorizedError(raw) ? null : raw
         if (description) {
           toast.error(t('video.fetch_info'), {
             duration: 5000,
@@ -551,18 +562,41 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
           continue
         }
 
-        const description = getErrorMessage(raw, t)
+        const key = mapBackendError(raw)
+        // Constraint: when mapBackendError has no mapping AND the raw error is
+        // ERR::UNAUTHORIZED, return null so no toast is shown here. Session
+        // expiry is handled centrally by interceptInvokeError/handleSessionExpiry
+        // (src/app/lib/invokeErrorHandler.ts), which emits its own dedicated
+        // session-expiry toast — showing another one here would duplicate it.
+        const description = key ? t(key) : isUnauthorizedError(raw) ? null : raw
         if (description) {
+          // Bilibili-side transient errors: append a retry hint so the user
+          // knows the failure is likely temporary and a later retry may
+          // succeed. Confirmed by logs — when the built-in retry exhausts,
+          // a later manual retry typically succeeds (CDN-side instability).
+          const isTransientError =
+            raw.includes('ERR::NETWORK') ||
+            raw.includes('ERR::INVALID_MEDIA_RESPONSE') ||
+            raw.includes('ERR::AUDIO_DOWNLOAD_FAILED') ||
+            raw.includes('ERR::RATE_LIMITED')
+          const retryHint = isTransientError ? t('video.retry_hint') : undefined
           toast.error(t('video.download_failed'), {
             duration: Infinity,
-            description: t('video.download_failed_part_description', {
-              page: pi.page,
-              title: pi.title,
-              description,
-            }),
+            description: (
+              <DownloadErrorDescription
+                text={t('video.download_failed_part_description', {
+                  page: pi.page,
+                  title: pi.title,
+                  description,
+                })}
+                retryHint={retryHint}
+              />
+            ),
             closeButton: true,
           })
-          store.dispatch(setError(description))
+          store.dispatch(
+            setError(retryHint ? `${description}\n${retryHint}` : description),
+          )
         }
         logger.error('Download failed', raw)
 
