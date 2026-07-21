@@ -54,6 +54,16 @@ pub struct InitResult {
 /// preserved (login-method branching, ffmpeg install, user fetch).
 #[tauri::command]
 pub async fn initialize(app: AppHandle) -> Result<(), String> {
+    // Idempotency guard: `initialize` may be invoked from both the splash
+    // window (useSplashLifecycle) and the main window (useInit.initApp, used
+    // in E2E mode where there is no splash). The AtomicBool guarantees the
+    // heavy init (cleanup, ffmpeg, session restore, user fetch) runs at most
+    // once per process; the second caller returns immediately.
+    let init_guard = app.state::<std::sync::atomic::AtomicBool>();
+    if init_guard.swap(true, std::sync::atomic::Ordering::SeqCst) {
+        return Ok(());
+    }
+
     // 1. Clean up orphaned temp files from previous sessions.
     emit_step(&app, "init.cleanup_in_progress");
     let _ = cleanup::cleanup_temp_files(&app, None);
