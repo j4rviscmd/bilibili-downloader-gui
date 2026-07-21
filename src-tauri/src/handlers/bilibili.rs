@@ -1340,6 +1340,7 @@ fn url_host(url: &str) -> String {
 /// # Errors
 ///
 /// Returns `ERR::AUDIO_DOWNLOAD_FAILED` if all attempts fail.
+#[allow(clippy::too_many_arguments)]
 async fn download_audio_with_fallback(
     app: &AppHandle,
     download_id: &str,
