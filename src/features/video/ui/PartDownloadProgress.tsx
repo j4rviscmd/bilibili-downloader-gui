@@ -6,6 +6,7 @@ import {
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
 import { logger } from '@/shared/lib/logger'
+import { mapBackendError } from '@/shared/lib/mapBackendError'
 import type { Progress } from '@/shared/ui/Progress'
 import { Button } from '@/shared/ui/button'
 import { invoke } from '@tauri-apps/api/core'
@@ -229,6 +230,9 @@ export function PartDownloadProgress({
     (p) => p.stage === 'merge' && !p.isComplete,
   )
 
+  // Why: merge-stage cancellation is disabled because killing ffmpeg mid-merge
+  // races with the final write and produces a contradictory (cancelled-but-
+  // complete) display. Mirrors the canCancel guard in PartStatusRow.tsx.
   const canCancel = (isPending || isDownloading) && !isInMergeStage && onCancel
 
   const handleOpenFile = useCallback(async () => {
@@ -254,6 +258,13 @@ export function PartDownloadProgress({
   ) {
     return null
   }
+
+  // Why: prefer the translated message for known backend codes; otherwise show
+  // the raw error string. When no error is recorded, use the generic label.
+  const mappedErrorKey = errorMessage ? mapBackendError(errorMessage) : null
+  const errorText = mappedErrorKey
+    ? t(mappedErrorKey)
+    : (errorMessage ?? t('video.download_failed_part'))
 
   return (
     <div className="bg-muted/50 mt-2 space-y-2 rounded-md p-2">
@@ -291,7 +302,7 @@ export function PartDownloadProgress({
       {hasError && (
         <div className={`flex ${MIN_HEIGHT} items-center`}>
           <div className="text-destructive flex items-center gap-2 text-sm">
-            <span>{errorMessage || t('video.download_failed_part')}</span>
+            <span>{errorText}</span>
           </div>
         </div>
       )}

@@ -351,6 +351,7 @@ async fn download_bangumi_durl(
     options: &DownloadOptions,
     output_path: &Path,
     cookie_header: &str,
+    cookies: &[CookieEntry],
     player_result: BangumiPlayerResult,
 ) -> Result<String, String> {
     use crate::handlers::concurrency::DOWNLOAD_CANCEL_REGISTRY;
@@ -416,21 +417,66 @@ async fn download_bangumi_durl(
         ensure_free_space(output_path, total_needed)?;
     }
 
+    // Refetch inputs for attempt > 1 (bilibili signed URLs expire after 120 min).
+    let bd_refetch_cookies = cookies.to_vec();
+    let bd_refetch_bvid = options.bvid.clone();
+    let bd_cid = options.cid;
+    let bd_ep_id = options.ep_id;
+    let bd_video_url = video_url.clone();
+    let bd_backup_urls = backup_urls.clone();
+    let bd_output_path = output_path.to_path_buf();
+    let bd_cookie_header = cookie_header.to_string();
+    let bd_download_id = options.download_id.clone();
     // Download directly. Capture the result so we always remove the token
     // (success or error) to avoid a registry leak on the early-return path.
-    let result = retry_download(app, &options.download_id, Some("video"), || {
-        download_url(
-            app,
-            video_url.clone(),
-            backup_urls.clone(),
-            output_path.to_path_buf(),
-            Some(cookie_header.to_string()),
-            true,
-            Some(options.download_id.clone()),
-            Some("video"),
-            true,
-        )
-    })
+    let result = retry_download(
+        app,
+        &options.download_id,
+        Some("video"),
+        move |attempt: u8| {
+            // Re-clone per call: async move consumes captured values, but
+            // FnMut may invoke the closure up to MAX_ATTEMPTS times.
+            let cookies = bd_refetch_cookies.clone();
+            let bvid = bd_refetch_bvid.clone();
+            let video_url = bd_video_url.clone();
+            let backup_urls = bd_backup_urls.clone();
+            let output_path = bd_output_path.clone();
+            let cookie_header = bd_cookie_header.clone();
+            let download_id = bd_download_id.clone();
+            async move {
+                let (url, backups) = if attempt == 1 {
+                    (video_url.clone(), backup_urls.clone())
+                } else {
+                    log::info!(
+                        "[BE] download_bangumi_durl: playurl refetch attempt={} for bangumi durl",
+                        attempt
+                    );
+                    match refetch_durl_url(&cookies, &bvid, bd_cid, bd_ep_id).await {
+                        Ok(fresh) => fresh,
+                        Err(e) => {
+                            log::warn!(
+                                "[BE] bangumi durl refetch failed, retrying with stale URL: {}",
+                                e
+                            );
+                            (video_url.clone(), backup_urls.clone())
+                        }
+                    }
+                };
+                download_url(
+                    app,
+                    url,
+                    backups,
+                    output_path,
+                    Some(cookie_header),
+                    true,
+                    Some(download_id),
+                    Some("video"),
+                    true,
+                )
+                .await
+            }
+        },
+    )
     .await;
 
     // Always remove the cancellation token (success or error).
@@ -529,6 +575,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
                 options,
                 &output_path,
                 &cookie_header,
+                &cookies,
                 player_result,
             )
             .await;
@@ -591,19 +638,59 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
                 ensure_free_space(&output_path, vs + 5 * 1024 * 1024)?;
             }
 
-            retry_download(app, &options.download_id, Some("video"), || {
-                download_url(
-                    app,
-                    video_url.clone(),
-                    backup_urls.clone(),
-                    output_path.to_path_buf(),
-                    Some(cookie_header.to_string()),
-                    true,
-                    Some(options.download_id.clone()),
-                    Some("video"),
-                    true,
-                )
-            })
+            let d_refetch_cookies = cookies.clone();
+            let d_refetch_bvid = options.bvid.clone();
+            let d_cid = options.cid;
+            let d_ep_id = options.ep_id;
+            let d_output_path = output_path.clone();
+            retry_download(
+                app,
+                &options.download_id,
+                Some("video"),
+                move |attempt: u8| {
+                    // Re-clone per call: async move consumes captured values, but
+                    // FnMut may invoke the closure up to MAX_ATTEMPTS times.
+                    let cookies = d_refetch_cookies.clone();
+                    let bvid = d_refetch_bvid.clone();
+                    let video_url = video_url.clone();
+                    let backup_urls = backup_urls.clone();
+                    let output_path = d_output_path.to_path_buf();
+                    let cookie_header = cookie_header.to_string();
+                    let download_id = options.download_id.clone();
+                    async move {
+                        let (url, backups) = if attempt == 1 {
+                            (video_url.clone(), backup_urls.clone())
+                        } else {
+                            log::info!(
+                                "[BE] download_video: playurl refetch attempt={} for durl video",
+                                attempt
+                            );
+                            match refetch_durl_url(&cookies, &bvid, d_cid, d_ep_id).await {
+                                Ok(fresh) => fresh,
+                                Err(e) => {
+                                    log::warn!(
+                                        "[BE] durl refetch failed, retrying with stale URL: {}",
+                                        e
+                                    );
+                                    (video_url.clone(), backup_urls.clone())
+                                }
+                            }
+                        };
+                        download_url(
+                            app,
+                            url,
+                            backups,
+                            output_path,
+                            Some(cookie_header),
+                            true,
+                            Some(download_id),
+                            Some("video"),
+                            true,
+                        )
+                        .await
+                    }
+                },
+            )
             .await?;
 
             let output_path_str = output_path.to_string_lossy().to_string();
@@ -720,6 +807,13 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
 
         // Download audio with fallback and video in parallel (cancel immediately if either fails)
         // Audio uses fallback to handle invalid media responses from VIP-specific CDN edges
+        let audio_refetch_ctx = AudioRefetchCtx {
+            cookies: cookies.clone(),
+            bvid: options.bvid.clone(),
+            cid: options.cid,
+            ep_id: options.ep_id,
+            audio_quality: resolved_audio_quality,
+        };
         let audio_download = download_audio_with_fallback(
             app,
             &options.download_id,
@@ -728,20 +822,71 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
             temp_audio_path.clone(),
             cookie.clone(),
             &dash_data.audio,
+            &audio_refetch_ctx,
         );
-        let video_download = retry_download(app, &options.download_id, Some("video"), || {
-            download_url(
-                app,
-                video_url.clone(),
-                video_backup_urls.clone(),
-                temp_video_path.clone(),
-                cookie.clone(),
-                true,
-                Some(options.download_id.clone()),
-                None,
-                false, // emit_complete: will be emitted after merge
-            )
-        });
+        // Refetch inputs for attempt > 1 (bilibili signed URLs expire after
+        // 120 min). Cloned here because the move closure must own them, while
+        // `cookie` is shared with audio_download and `cookies` with subtitle prep.
+        let v_refetch_cookies = cookies.clone();
+        let v_refetch_bvid = options.bvid.clone();
+        let v_cid = options.cid;
+        let v_ep_id = options.ep_id;
+        let v_quality = resolved_video_quality;
+        let v_download_id = options.download_id.clone();
+        let v_video_url = video_url.clone();
+        let v_video_backups = video_backup_urls.clone();
+        let v_temp_video_path = temp_video_path.clone();
+        let v_cookie = cookie.clone();
+        let video_download = retry_download(
+            app,
+            &options.download_id,
+            Some("video"),
+            move |attempt: u8| {
+                // Re-clone per call: async move consumes captured values, but
+                // FnMut may invoke the closure up to MAX_ATTEMPTS times.
+                let cookies = v_refetch_cookies.clone();
+                let bvid = v_refetch_bvid.clone();
+                let video_url = v_video_url.clone();
+                let video_backup_urls = v_video_backups.clone();
+                let temp_video_path = v_temp_video_path.clone();
+                let cookie = v_cookie.clone();
+                let download_id = v_download_id.clone();
+                async move {
+                    let (url, backups) = if attempt == 1 {
+                        (video_url.clone(), video_backup_urls.clone())
+                    } else {
+                        log::info!(
+                            "[BE] download_video: playurl refetch attempt={} for video",
+                            attempt
+                        );
+                        match refetch_dash_urls(&cookies, &bvid, v_cid, v_ep_id, v_quality, None)
+                            .await
+                        {
+                            Ok(fresh) => (fresh.video_url, fresh.video_backup_urls),
+                            Err(e) => {
+                                log::warn!(
+                                    "[BE] video refetch failed, retrying with stale URL: {}",
+                                    e
+                                );
+                                (video_url.clone(), video_backup_urls.clone())
+                            }
+                        }
+                    };
+                    download_url(
+                        app,
+                        url,
+                        backups,
+                        temp_video_path,
+                        cookie,
+                        true,
+                        Some(download_id),
+                        None,
+                        false, // emit_complete: will be emitted after merge
+                    )
+                    .await
+                }
+            },
+        );
 
         tokio::try_join!(audio_download, video_download)?;
 
@@ -1203,6 +1348,7 @@ async fn download_audio_with_fallback(
     output_path: PathBuf,
     cookie: Option<String>,
     all_audio_streams: &[crate::models::bilibili_api::XPlayerApiResponseVideo],
+    refetch_ctx: &AudioRefetchCtx,
 ) -> Result<(), String> {
     // Resolve the requested (primary) audio quality id from the stream
     // list so any fallback can be logged as an explicit
@@ -1219,19 +1365,61 @@ async fn download_audio_with_fallback(
         url_host(&primary_url)
     );
 
+    // Refetch inputs for attempt > 1 (bilibili signed URLs expire after 120 min).
+    let a_refetch_cookies = refetch_ctx.cookies.clone();
+    let a_refetch_bvid = refetch_ctx.bvid.clone();
+    let a_cid = refetch_ctx.cid;
+    let a_ep_id = refetch_ctx.ep_id;
+    let a_quality = refetch_ctx.audio_quality;
+    let a_download_id = download_id.to_string();
+    // Clone the download args so the primary closure can own them without
+    // moving the originals (the fallback loop below still needs them).
+    let a_primary_url = primary_url.clone();
+    let a_backup_urls = backup_urls.clone();
+    let a_output_path = output_path.clone();
+    let a_cookie = cookie.clone();
+
     // Try primary URL first
-    let primary_result = retry_download(app, download_id, Some("audio"), || {
-        download_url(
-            app,
-            primary_url.clone(),
-            backup_urls.clone(),
-            output_path.clone(),
-            cookie.clone(),
-            true,
-            Some(download_id.to_string()),
-            None,
-            false,
-        )
+    let primary_result = retry_download(app, download_id, Some("audio"), move |attempt: u8| {
+        // Re-clone per call: async move consumes captured values, but FnMut may
+        // invoke the closure up to MAX_ATTEMPTS times.
+        let cookies = a_refetch_cookies.clone();
+        let bvid = a_refetch_bvid.clone();
+        let primary_url = a_primary_url.clone();
+        let backup_urls = a_backup_urls.clone();
+        let output_path = a_output_path.clone();
+        let cookie = a_cookie.clone();
+        let download_id = a_download_id.clone();
+        async move {
+            let (url, backups) = if attempt == 1 {
+                (primary_url.clone(), backup_urls.clone())
+            } else {
+                log::info!(
+                    "[BE] download_audio: playurl refetch attempt={} for primary audio",
+                    attempt
+                );
+                // video_quality = -1 (best) is unused; only the audio slot matters.
+                match refetch_dash_urls(&cookies, &bvid, a_cid, a_ep_id, -1, a_quality).await {
+                    Ok(fresh) => (fresh.audio_url, fresh.audio_backup_urls),
+                    Err(e) => {
+                        log::warn!("[BE] audio refetch failed, retrying with stale URL: {}", e);
+                        (primary_url.clone(), backup_urls.clone())
+                    }
+                }
+            };
+            download_url(
+                app,
+                url,
+                backups,
+                output_path,
+                cookie,
+                true,
+                Some(download_id),
+                None,
+                false,
+            )
+            .await
+        }
     })
     .await;
 
@@ -1276,20 +1464,26 @@ async fn download_audio_with_fallback(
                         url_host(&stream.base_url)
                     );
 
-                    let fallback_result = retry_download(app, download_id, Some("audio"), || {
-                        download_url(
-                            app,
-                            stream.base_url.clone(),
-                            stream.backup_urls.clone(),
-                            output_path.clone(),
-                            cookie.clone(),
-                            true,
-                            Some(download_id.to_string()),
-                            None,
-                            false,
-                        )
-                    })
-                    .await;
+                    // CONSTRAINT: fallback loop intentionally does NOT refetch playurl on
+                    // retry (issue #482 design decision). Each iteration already switches
+                    // to a different audio stream (different CDN edge), which is the
+                    // recovery mechanism here; refetching the same quality's signature
+                    // would add complexity (stream-id remapping) for little gain.
+                    let fallback_result =
+                        retry_download(app, download_id, Some("audio"), |_attempt: u8| {
+                            download_url(
+                                app,
+                                stream.base_url.clone(),
+                                stream.backup_urls.clone(),
+                                output_path.clone(),
+                                cookie.clone(),
+                                true,
+                                Some(download_id.to_string()),
+                                None,
+                                false,
+                            )
+                        })
+                        .await;
 
                     match fallback_result {
                         Ok(()) => {
@@ -1982,7 +2176,7 @@ async fn retry_download<F, Fut>(
     mut f: F,
 ) -> Result<(), String>
 where
-    F: FnMut() -> Fut,
+    F: FnMut(u8) -> Fut,
     Fut: std::future::Future<Output = Result<(), anyhow::Error>>,
 {
     const MAX_ATTEMPTS: u8 = 3;
@@ -2004,7 +2198,7 @@ where
             // Notify frontend to hide transfer rate display during retry.
             emit_retrying(true);
         }
-        match f().await {
+        match f(attempt).await {
             Ok(_) => {
                 if attempt > 1 {
                     emit_retrying(false);
@@ -3149,6 +3343,140 @@ async fn fetch_bangumi_details_for_download(
             // This will be handled by download_video with durl support
             Err("ERR::BANGUMI_DURL_NOT_SUPPORTED".into())
         }
+    }
+}
+
+/// Fresh signed stream URLs obtained by re-calling the playurl API on retry.
+///
+/// Bilibili CDN URLs carry a signature that expires after 120 minutes. When a
+/// segment download fails on retry (attempt > 1), the originally captured URL
+/// may have expired. This struct holds the re-fetched URLs so the retry uses a
+/// fresh signature instead of replaying the same stale URL.
+struct FreshDashUrls {
+    video_url: String,
+    video_backup_urls: Option<Vec<String>>,
+    audio_url: String,
+    audio_backup_urls: Option<Vec<String>>,
+}
+
+/// Refetch context passed into `download_audio_with_fallback` so the primary
+/// audio closure can re-fetch fresh signed URLs on retry (attempt > 1).
+///
+/// `audio_quality` is the resolved quality id of the primary stream (None when
+/// the user did not pick one and best-available was used). `video_quality` is
+/// not needed for an audio-only refetch, so it is omitted; `refetch_dash_urls`
+/// is called with -1 (best) for the video slot, whose result is discarded.
+struct AudioRefetchCtx {
+    cookies: Vec<CookieEntry>,
+    bvid: String,
+    cid: i64,
+    ep_id: Option<i64>,
+    audio_quality: Option<i32>,
+}
+
+/// Re-fetches fresh signed DASH stream URLs from the playurl API.
+///
+/// Dispatches by `ep_id.is_some()`: bangumi uses
+/// `fetch_bangumi_details_for_download`, regular videos use
+/// `fetch_video_details`. Both normalize to `XPlayerApiResponse` with a `dash`
+/// field, so the same selection logic applies. The caller resolves the same
+/// quality pair it originally selected (requested video quality + resolved
+/// audio quality). On error, callers fall back to the stale captured URL
+/// (see the retry closures) rather than aborting the retry loop.
+async fn refetch_dash_urls(
+    cookies: &[CookieEntry],
+    bvid: &str,
+    cid: i64,
+    ep_id: Option<i64>,
+    video_quality: i32,
+    audio_quality: Option<i32>,
+) -> Result<FreshDashUrls, String> {
+    log::info!(
+        "[BE] refetch_dash_urls: refreshing signed DASH URLs (ep_id={:?}, cid={}, vq={}, aq={:?})",
+        ep_id,
+        cid,
+        video_quality,
+        audio_quality
+    );
+    let details = if let Some(ep) = ep_id {
+        fetch_bangumi_details_for_download(cookies, ep, cid).await?
+    } else {
+        fetch_video_details(cookies, bvid, cid).await?
+    };
+    let data = details
+        .data
+        .ok_or_else(|| "refetch_dash_urls: playurl response has no data".to_string())?;
+    let dash = data
+        .dash
+        .ok_or_else(|| "refetch_dash_urls: playurl response has no dash".to_string())?;
+    let (video_url, video_backup_urls, _) = select_stream_url(&dash.video, video_quality)?;
+    let resolved_audio_quality =
+        audio_quality.unwrap_or_else(|| dash.audio.first().map(|a| a.id).unwrap_or(30280));
+    let (audio_url, audio_backup_urls, _) = select_stream_url(&dash.audio, resolved_audio_quality)?;
+    Ok(FreshDashUrls {
+        video_url,
+        video_backup_urls,
+        audio_url,
+        audio_backup_urls,
+    })
+}
+
+/// Re-fetches a fresh signed durl URL (MP4 / single-stream format) from the playurl API.
+///
+/// durl takes two structurally different shapes that must be handled separately:
+/// - Regular videos: `data.durl` (flat list of `DurlSegment`).
+/// - Bangumi: `result.durls` (per-quality nested entries; `fetch_bangumi_details_for_download`
+///   rejects durl, so we read `fetch_bangumi_player_result` directly here).
+///
+/// Re-selects the first segment (durl format has a single combined stream).
+async fn refetch_durl_url(
+    cookies: &[CookieEntry],
+    bvid: &str,
+    cid: i64,
+    ep_id: Option<i64>,
+) -> Result<(String, Option<Vec<String>>), String> {
+    log::info!(
+        "[BE] refetch_durl_url: refreshing signed durl URL (ep_id={:?}, cid={})",
+        ep_id,
+        cid
+    );
+    if let Some(ep) = ep_id {
+        let result = fetch_bangumi_player_result(cookies, ep, cid).await?;
+        let durls = result
+            .durls
+            .as_ref()
+            .filter(|d| !d.is_empty())
+            .ok_or_else(|| "refetch_durl_url: bangumi has no durls".to_string())?;
+        let entry = durls
+            .first()
+            .ok_or_else(|| "refetch_durl_url: empty durls".to_string())?;
+        let seg = entry
+            .durl
+            .first()
+            .ok_or_else(|| "refetch_durl_url: empty durl".to_string())?;
+        let backup = seg
+            .backup_url
+            .as_ref()
+            .map(|u| u.iter().map(|s| s.to_string()).collect());
+        Ok((seg.url.clone(), backup))
+    } else {
+        let details = fetch_video_details(cookies, bvid, cid).await?;
+        let data = details
+            .data
+            .ok_or_else(|| "refetch_durl_url: no data".to_string())?;
+        let durl = data
+            .durl
+            .as_ref()
+            .filter(|d| !d.is_empty())
+            .ok_or_else(|| "refetch_durl_url: no durl".to_string())?;
+        let seg = durl
+            .first()
+            .ok_or_else(|| "refetch_durl_url: empty durl".to_string())?;
+        let backup = seg
+            .backup_url
+            .as_ref()
+            .map(|u| u.iter().map(|s| s.to_string()).collect());
+        Ok((seg.url.clone(), backup))
     }
 }
 

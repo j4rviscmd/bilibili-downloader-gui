@@ -235,6 +235,8 @@
     "open_folder": "打开文件夹",
     "download_failed_part": "下载失败",
     "download_failed_part_description": "p{{page}} - {{title}}: {{description}}",
+    "copy_error": "复制错误消息",
+    "retry_hint": "这很可能是Bilibili侧的临时问题。请大约一小时后重试。",
     "time_remaining": "剩余 {{time}}",
     "quality_limited_title": "画质受限",
     "quality_limited_description": "未登录（没有Cookie）的情况下，仅可用480p或以下画质。",

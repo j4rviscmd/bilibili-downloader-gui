@@ -6,6 +6,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
+import { mapBackendError } from '@/shared/lib/mapBackendError'
 import { cn } from '@/shared/lib/utils'
 import { GitMerge } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -87,10 +88,13 @@ export function PartStatusRow({
     (part.status === 'pending' || part.status === 'running') &&
     part.stage !== 'merge' &&
     !part.isComplete
-  const rawName =
+  // Why: when an error has a known backend code, show the translated message
+  // instead of the raw ERR:: string; otherwise fall back to the part title.
+  const mappedErrorKey =
     part.status === 'error' && part.errorMessage
-      ? part.errorMessage
-      : part.title
+      ? mapBackendError(part.errorMessage)
+      : null
+  const rawName = mappedErrorKey ? t(mappedErrorKey) : part.title
   const MAX_TOOLTIP_CHARS = 100
   const tooltipName =
     rawName.length > MAX_TOOLTIP_CHARS
