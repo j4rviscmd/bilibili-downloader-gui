@@ -57,7 +57,12 @@ describe('bilibili-downloader-gui E2E', () => {
 
   // -- Phase 0: App Launch & Initialization --
 
-  it('should show splash screen on launch', async () => {
+  // NOTE: Skipped because in E2E mode (E2E_TESTING) the app launches directly
+  // into the main window without a standalone splash window. This works around
+  // tauri-plugin-webdriver v0.2 not switching the WebDriver session when the
+  // splash window is closed. The splash UI itself is covered by manual
+  // verification and component-level checks.
+  it.skip('should show splash screen on launch', async () => {
     const container = await browser.$(S.INIT_CONTAINER)
     await container.waitForExist({ timeout: 15_000 })
 

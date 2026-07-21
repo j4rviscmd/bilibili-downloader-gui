@@ -270,10 +270,30 @@ pub fn run() {
                 }
             }
 
-            // Create the splash window first. The main window is created by
-            // finish_splash once initialization completes, so the maximized
-            // restore never races a splash-time geometry lock.
-            window::create_splash_window(app.handle(), window_theme, language)?;
+            // Idempotency flag for the `initialize` command. It can be called
+            // from both the splash window and the main window (E2E mode), so
+            // this guarantees the heavy init runs at most once per process.
+            app.manage(std::sync::atomic::AtomicBool::new(false));
+
+            if crate::handlers::qr_login::is_e2e_testing() {
+                // E2E mode: skip the standalone splash window. tauri-plugin-
+                // webdriver v0.2 pins the WebDriver session to whichever window
+                // exists at session creation and never switches when that
+                // window is later closed, so the 2-window splash→main handoff
+                // (finish_splash closing the splash) leaves the session pointing
+                // at a closed window → "No window could be found" for every
+                // subsequent command. Creating only the main window keeps the
+                // session valid for the whole test suite. Backend init then
+                // runs from the main window via useInit.initApp
+                // (→ invoke('initialize')) instead of from the splash.
+                window::create_main_window(app.handle(), window_theme)?;
+                window::register_main_window_events(app.handle());
+            } else {
+                // Create the splash window first. The main window is created by
+                // finish_splash once initialization completes, so the maximized
+                // restore never races a splash-time geometry lock.
+                window::create_splash_window(app.handle(), window_theme, language)?;
+            }
 
             // Initialize logging plugin with app_data_dir/logs path
             let log_dir = app

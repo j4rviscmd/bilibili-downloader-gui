@@ -85,6 +85,14 @@ export const useInit = () => {
     // OS detection is fire-and-forget (frontend-only, cheap).
     getOs()
 
+    // Run backend initialization before reading the result. In normal mode the
+    // splash window already ran `initialize`; it is idempotent (AtomicBool
+    // guard in the backend), so this is a no-op then. In E2E mode there is no
+    // splash window, so this is where init actually runs.
+    await invoke('initialize').catch((e) => {
+      logger.error('initApp: initialize failed', e)
+    })
+
     let result: InitResult
     try {
       result = await invoke<InitResult>('get_init_result')

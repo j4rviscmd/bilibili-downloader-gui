@@ -223,9 +223,11 @@ pub async fn finish_splash(app: AppHandle) -> Result<(), String> {
 }
 
 /// Registers close/resize/move handlers (and opens devtools in debug) on the
-/// main window. Must run AFTER the main window is created (in finish_splash),
-/// since it doesn't exist at setup time anymore (only the splash does).
-fn register_main_window_events(app: &AppHandle) {
+/// main window. Must run AFTER the main window is created. In normal mode this
+/// is called from `finish_splash` (after the splash creates the main window);
+/// in E2E mode it is called directly from `setup` because the splash window is
+/// skipped.
+pub(crate) fn register_main_window_events(app: &AppHandle) {
     let Some(window) = app.get_webview_window("main") else {
         return;
     };
