@@ -32,7 +32,7 @@ function SettingsDialog() {
       open={settings.dialogOpen}
       onOpenChange={(open) => updateOpenDialog(open)}
     >
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-5xl">
         <DialogHeader>
           <DialogTitle>{t('settings.dialog_title')}</DialogTitle>
           <DialogDescription hidden></DialogDescription>
