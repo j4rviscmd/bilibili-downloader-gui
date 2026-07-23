@@ -451,7 +451,18 @@
     "taskbar_progress_label": "작업 표시줄 진행률",
     "taskbar_progress_description": "작업 표시줄에 다운로드 진행률을 표시합니다.",
     "flash_taskbar_on_complete_label": "완료 시 작업 표시줄 깜빡임",
-    "flash_taskbar_on_complete_description": "다운로드 완료 시 작업 표시줄 버튼을 깜빡입니다."
+    "flash_taskbar_on_complete_description": "다운로드 완료 시 작업 표시줄 버튼을 깜빡입니다.",
+    "video_codec_priority_label": "비디오 코덱 우선순위",
+    "video_codec_priority_description": "다운로드 시 선호하는 비디오 코덱을 선택합니다. 우선순위가 높은 코덱은 더 나은 압축을 제공하지만 모든 비디오에서 사용 가능하지는 않습니다.",
+    "video_codec_av1_first": "AV1 우선 (고압축)",
+    "video_codec_av1_first_chain": "AV1 → H.265 → H.264",
+    "video_codec_av1_first_description": "AV1을 우선하여 최소 파일 크기 실현, 사용 불가능 시 H.265, H.264 순으로 폴백.",
+    "video_codec_hevc_first": "H.265 우선 (균형)",
+    "video_codec_hevc_first_chain": "H.265 → H.264",
+    "video_codec_hevc_first_description": "H.265(HEVC)를 우선하여 높은 압축률과 광범위한 호환성 균형, 사용 불가능 시 H.264로 폴백.",
+    "video_codec_avc_only": "H.264만 (호환성)",
+    "video_codec_avc_only_chain": "H.264",
+    "video_codec_avc_only_description": "항상 H.264(AVC)를 사용하여 최대한의 장치/재생기 호환성 보장."
   },
   "validation": {
     "path": {

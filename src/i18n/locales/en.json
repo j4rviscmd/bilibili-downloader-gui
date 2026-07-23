@@ -451,7 +451,18 @@
     "taskbar_progress_label": "Taskbar Progress",
     "taskbar_progress_description": "Show download progress on the taskbar.",
     "flash_taskbar_on_complete_label": "Flash Taskbar on Completion",
-    "flash_taskbar_on_complete_description": "Flash the taskbar button when downloads finish."
+    "flash_taskbar_on_complete_description": "Flash the taskbar button when downloads finish.",
+    "video_codec_priority_label": "Video Codec Priority",
+    "video_codec_priority_description": "Choose the preferred video codec for downloads. Higher-priority codecs offer better compression but may not be available for all videos.",
+    "video_codec_av1_first": "AV1 First (High Compression)",
+    "video_codec_av1_first_chain": "AV1 → H.265 → H.264",
+    "video_codec_av1_first_description": "Prefer AV1 for smallest file sizes, fallback to H.265, then H.264 if unavailable.",
+    "video_codec_hevc_first": "H.265 First (Balance)",
+    "video_codec_hevc_first_chain": "H.265 → H.264",
+    "video_codec_hevc_first_description": "Prefer H.265 (HEVC) for good compression with broad availability, fallback to H.264 if unavailable.",
+    "video_codec_avc_only": "H.264 Only (Compatibility)",
+    "video_codec_avc_only_chain": "H.264",
+    "video_codec_avc_only_description": "Always use H.264 (AVC) for maximum device and player compatibility."
   },
   "validation": {
     "path": {

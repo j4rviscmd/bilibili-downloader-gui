@@ -17,6 +17,7 @@ import { usePartDownloadStatus } from '@/features/video/hooks/usePartDownloadSta
 import {
   AUDIO_QUALITIES_MAP,
   AUDIO_QUALITIES_ORDER,
+  VIDEO_CODEC_MAP,
   VIDEO_QUALITIES_MAP,
 } from '@/features/video/lib/constants'
 import { buildVideoFormSchema2 } from '@/features/video/lib/formSchema'
@@ -234,7 +235,12 @@ const VideoPartCard = memo(function VideoPartCard({
       const videoLabel =
         VIDEO_QUALITIES_MAP[resolvedQuality.videoQuality] ||
         String(resolvedQuality.videoQuality)
-      parts.push(videoLabel)
+      // Append codec in parentheses so the video attributes (quality + codec)
+      // read as a single unit, visually separate from the audio quality.
+      const codecLabel =
+        VIDEO_CODEC_MAP[resolvedQuality.videoCodecid] ||
+        String(resolvedQuality.videoCodecid)
+      parts.push(`${videoLabel}(${codecLabel})`)
 
       if (resolvedQuality.audioQuality !== null) {
         const audioLabel =
@@ -269,6 +275,7 @@ const VideoPartCard = memo(function VideoPartCard({
     if (!resolvedQuality) return false
     return (
       resolvedQuality.videoQualityFallback ||
+      resolvedQuality.videoCodecFallback ||
       resolvedQuality.audioQualityFallback
     )
   }, [resolvedQuality])

@@ -1,5 +1,6 @@
 //! Application settings persisted to settings.json
 
+use crate::utils::codec::VideoCodecPriority;
 use serde::{Deserialize, Serialize};
 
 /// Title replacement rule for filename sanitization.
@@ -186,6 +187,13 @@ pub struct Settings {
     /// UI theme preference. Defaults to system preference if not set.
     #[serde(rename = "theme", default, skip_serializing_if = "Option::is_none")]
     pub theme: Option<UiTheme>,
+    /// Video codec priority preference. Defaults to AV1-first if not set.
+    #[serde(
+        rename = "videoCodecPriority",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub video_codec_priority: Option<VideoCodecPriority>,
 }
 
 /// Trim mode for the MP4 trimming feature.

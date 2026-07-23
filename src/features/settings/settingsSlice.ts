@@ -23,6 +23,7 @@ const initialState: SettingsState = {
   theme: 'light',
   showTaskbarProgress: true,
   flashTaskbarOnComplete: true,
+  videoCodecPriority: 'av1First',
 }
 
 /**

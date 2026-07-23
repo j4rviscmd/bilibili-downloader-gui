@@ -39,3 +39,24 @@ export const AUDIO_QUALITIES_MAP: Record<number, string> = {
 export const AUDIO_QUALITIES_ORDER: number[] = [
   30251, 30250, 30280, 30232, 30216,
 ]
+
+/**
+ * Video codec IDs as defined by Bilibili DASH API.
+ *
+ * References:
+ * - AVC: https://en.wikipedia.org/wiki/Advanced_Video_Coding
+ * - HEVC: https://en.wikipedia.org/wiki/High_Efficiency_Video_Coding
+ * - AV1: https://en.wikipedia.org/wiki/AV1
+ */
+export const CODECID_AVC: number = 7
+export const CODECID_HEVC: number = 12
+export const CODECID_AV1: number = 13
+
+/**
+ * Mapping of video codec IDs to display labels.
+ */
+export const VIDEO_CODEC_MAP: Record<number, string> = {
+  [CODECID_AVC]: 'AVC',
+  [CODECID_HEVC]: 'HEVC',
+  [CODECID_AV1]: 'AV1',
+}
