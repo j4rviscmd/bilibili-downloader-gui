@@ -196,6 +196,10 @@ export type ResolvedQuality = {
   videoQuality: number
   /** Whether video quality was fallen back from user selection */
   videoQualityFallback: boolean
+  /** Resolved video codec ID */
+  videoCodecid: number
+  /** Whether video codec was fallen back from user selection */
+  videoCodecFallback: boolean
   /** Resolved audio quality ID (null for durl format) */
   audioQuality: number | null
   /** Whether audio quality was fallen back from user selection */

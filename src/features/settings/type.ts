@@ -115,6 +115,11 @@ export interface Settings {
    * Defaults to true if not specified.
    */
   flashTaskbarOnComplete?: boolean
+  /**
+   * Video codec priority preference.
+   * Defaults to 'av1First' if not specified.
+   */
+  videoCodecPriority?: VideoCodecPriority
 }
 
 /**
@@ -158,6 +163,14 @@ export type RotationAngle = 90 | 180 | 270
  * - reencode: Re-encode with transpose filter, works in all players
  */
 export type RotationMode = 'copy' | 'reencode'
+
+/**
+ * Video codec priority preference.
+ * - av1First: Prefer AV1, fallback to HEVC, then AVC (default - best compression)
+ * - hevcFirst: Prefer HEVC, fallback to AVC (balance)
+ * - avcOnly: Prefer AVC only (best compatibility)
+ */
+export type VideoCodecPriority = 'av1First' | 'hevcFirst' | 'avcOnly'
 
 /**
  * Supported language codes for the application.

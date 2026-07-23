@@ -730,6 +730,130 @@ function SettingsForm() {
         <Separator />
         <div className="space-y-2">
           <div className="space-y-0.5">
+            <Label>{t('settings.video_codec_priority_label')}</Label>
+            <p className="text-muted-foreground text-sm">
+              {t('settings.video_codec_priority_description')}
+            </p>
+          </div>
+          <TooltipProvider>
+            <RadioGroup
+              value={settings.videoCodecPriority ?? 'av1First'}
+              onValueChange={(value) => {
+                saveByForm({
+                  ...settings,
+                  videoCodecPriority: value as
+                    | 'av1First'
+                    | 'hevcFirst'
+                    | 'avcOnly',
+                })
+              }}
+              className="grid grid-cols-3 gap-4"
+            >
+              <div className="flex items-start space-x-3">
+                <RadioGroupItem value="av1First" id="codec-av1" />
+                <div className="flex-1">
+                  <Label
+                    htmlFor="codec-av1"
+                    className="flex items-center gap-1 whitespace-nowrap"
+                  >
+                    {t('settings.video_codec_av1_first')}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={(e) => e.preventDefault()}
+                          className="text-muted-foreground hover:text-foreground"
+                          aria-label={t(
+                            'settings.video_codec_av1_first_description',
+                          )}
+                        >
+                          <Info className="size-3.5" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="max-w-xs">
+                          {t('settings.video_codec_av1_first_description')}
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </Label>
+                  <p className="text-muted-foreground mt-1 text-xs">
+                    {t('settings.video_codec_av1_first_chain')}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start space-x-3">
+                <RadioGroupItem value="hevcFirst" id="codec-hevc" />
+                <div className="flex-1">
+                  <Label
+                    htmlFor="codec-hevc"
+                    className="flex items-center gap-1 whitespace-nowrap"
+                  >
+                    {t('settings.video_codec_hevc_first')}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={(e) => e.preventDefault()}
+                          className="text-muted-foreground hover:text-foreground"
+                          aria-label={t(
+                            'settings.video_codec_hevc_first_description',
+                          )}
+                        >
+                          <Info className="size-3.5" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="max-w-xs">
+                          {t('settings.video_codec_hevc_first_description')}
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </Label>
+                  <p className="text-muted-foreground mt-1 text-xs">
+                    {t('settings.video_codec_hevc_first_chain')}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start space-x-3">
+                <RadioGroupItem value="avcOnly" id="codec-avc" />
+                <div className="flex-1">
+                  <Label
+                    htmlFor="codec-avc"
+                    className="flex items-center gap-1 whitespace-nowrap"
+                  >
+                    {t('settings.video_codec_avc_only')}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={(e) => e.preventDefault()}
+                          className="text-muted-foreground hover:text-foreground"
+                          aria-label={t(
+                            'settings.video_codec_avc_only_description',
+                          )}
+                        >
+                          <Info className="size-3.5" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="max-w-xs">
+                          {t('settings.video_codec_avc_only_description')}
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </Label>
+                  <p className="text-muted-foreground mt-1 text-xs">
+                    {t('settings.video_codec_avc_only_chain')}
+                  </p>
+                </div>
+              </div>
+            </RadioGroup>
+          </TooltipProvider>
+        </div>
+        <Separator />
+        <div className="space-y-2">
+          <div className="space-y-0.5">
             <Label>{t('settings.rotation_mode_label')}</Label>
             <p className="text-muted-foreground text-sm">
               {t('settings.rotation_mode_description')}

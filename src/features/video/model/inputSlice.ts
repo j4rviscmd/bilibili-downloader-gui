@@ -340,6 +340,8 @@ export const inputSlice = createSlice({
         page: number
         videoQuality: number
         videoQualityFallback: boolean
+        videoCodecid: number
+        videoCodecFallback: boolean
         audioQuality: number | null
         audioQualityFallback: boolean
         isPreview: boolean | null

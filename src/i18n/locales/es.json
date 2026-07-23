@@ -451,7 +451,18 @@
     "taskbar_progress_label": "Progreso en la barra de tareas",
     "taskbar_progress_description": "Muestra el progreso de descarga en la barra de tareas.",
     "flash_taskbar_on_complete_label": "Parpadear barra al completar",
-    "flash_taskbar_on_complete_description": "Hace parpadear el botón de la barra de tareas al terminar."
+    "flash_taskbar_on_complete_description": "Hace parpadear el botón de la barra de tareas al terminar.",
+    "video_codec_priority_label": "Prioridad de códec de video",
+    "video_codec_priority_description": "Elige el códec de video preferido para descargas. Códecs con mayor prioridad ofrecen mejor compresión pero pueden no estar disponibles en todos los videos.",
+    "video_codec_av1_first": "AV1 Primero (Alta Compresión)",
+    "video_codec_av1_first_chain": "AV1 → H.265 → H.264",
+    "video_codec_av1_first_description": "Prefiere AV1 para los tamaños de archivo más pequeños, retrocede a H.265, luego H.264 si no está disponible.",
+    "video_codec_hevc_first": "H.265 Primero (Equilibrio)",
+    "video_codec_hevc_first_chain": "H.265 → H.264",
+    "video_codec_hevc_first_description": "Prefiere H.265 (HEVC) para buena compresión con amplia disponibilidad, retrocede a H.264 si no está disponible.",
+    "video_codec_avc_only": "H.264 Solo (Compatibilidad)",
+    "video_codec_avc_only_chain": "H.264",
+    "video_codec_avc_only_description": "Siempre usa H.264 (AVC) para máxima compatibilidad de dispositivos y reproductores."
   },
   "validation": {
     "path": {

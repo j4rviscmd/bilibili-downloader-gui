@@ -451,7 +451,18 @@
     "taskbar_progress_label": "任务栏进度",
     "taskbar_progress_description": "在任务栏显示下载进度。",
     "flash_taskbar_on_complete_label": "完成时闪烁任务栏",
-    "flash_taskbar_on_complete_description": "下载完成时闪烁任务栏按钮。"
+    "flash_taskbar_on_complete_description": "下载完成时闪烁任务栏按钮。",
+    "video_codec_priority_label": "视频编解码器优先级",
+    "video_codec_priority_description": "选择下载时首选的视频编解码器。优先级更高的编解码器提供更好的压缩效果，但并非所有视频都可用。",
+    "video_codec_av1_first": "AV1优先（高压缩）",
+    "video_codec_av1_first_chain": "AV1 → H.265 → H.264",
+    "video_codec_av1_first_description": "优先使用AV1获得最小文件大小，若不可用则降级至H.265，再降级至H.264。",
+    "video_codec_hevc_first": "H.265优先（平衡）",
+    "video_codec_hevc_first_chain": "H.265 → H.264",
+    "video_codec_hevc_first_description": "优先使用H.265（HEVC）在压缩率和可用性间取得平衡，若不可用则降级至H.264。",
+    "video_codec_avc_only": "H.264优先（兼容）",
+    "video_codec_avc_only_chain": "H.264",
+    "video_codec_avc_only_description": "始终使用H.264（AVC）以确保最大的设备和播放器兼容性。"
   },
   "validation": {
     "path": {

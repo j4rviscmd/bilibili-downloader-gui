@@ -5,6 +5,7 @@
 //! filename sanitization, error handling, and log cleanup.
 
 pub mod analytics;
+pub mod codec;
 pub mod downloads;
 pub mod error_handler;
 pub mod ffmpeg_probe;

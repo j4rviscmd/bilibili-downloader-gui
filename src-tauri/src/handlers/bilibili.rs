@@ -34,6 +34,7 @@
 //! - `ERR::API_ERROR` - Generic API request failure
 //! - `ERR::BANGUMI_*` - Bangumi-specific errors (VIP only, region restricted, etc.)
 
+use crate::utils::codec::{select_video_stream, VideoStreamSelection, CODECID_AVC};
 use serde::{Deserialize, Serialize};
 use tauri::Emitter;
 
@@ -85,6 +86,10 @@ pub struct QualityResolvedPayload {
     pub video_quality: i32,
     /// Whether video quality was fallen back from user selection
     pub video_quality_fallback: bool,
+    /// Resolved video codec ID
+    pub video_codecid: i16,
+    /// Whether video codec was fallen back from user selection
+    pub video_codec_fallback: bool,
     /// Resolved audio quality ID (null for durl format)
     pub audio_quality: Option<i32>,
     /// Whether audio quality was fallen back from user selection
@@ -404,6 +409,11 @@ async fn download_bangumi_durl(
             video_quality: resolved_quality,
             video_quality_fallback: options.quality.is_some()
                 && options.quality != Some(resolved_quality),
+            // Constraint: durl format delivers a single muxed stream — Bilibili
+            // fixes the codec (AVC in practice) and exposes no codec choice, so
+            // priority is irrelevant and fallback is always false (issue #460).
+            video_codecid: CODECID_AVC,
+            video_codec_fallback: false,
             audio_quality: None, // durl format has no separate audio
             audio_quality_fallback: false,
             is_preview,
@@ -627,6 +637,12 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
                     page,
                     video_quality: resolved_video_quality,
                     video_quality_fallback,
+                    // Constraint: durl format delivers a single muxed stream —
+                    // Bilibili fixes the codec (AVC in practice) and exposes no
+                    // codec choice, so priority is irrelevant and fallback is
+                    // always false (issue #460).
+                    video_codecid: CODECID_AVC,
+                    video_codec_fallback: false,
                     audio_quality: None, // durl format has no separate audio
                     audio_quality_fallback: false,
                     is_preview: None,
@@ -726,22 +742,37 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
         dash_data.extra.keys().collect::<Vec<_>>(),
     );
 
+    // Resolve codec priority and filter streams. Falls back to all streams
+    // when the preferred codec is unavailable so the download never fails.
+    let (streams_for_selection, codec_selection) =
+        select_streams_by_codec_priority(app, &dash_data.video).await;
+
     // Fallback if selected quality is unavailable (first = highest quality)
     // None means best available → -1 won't match any real quality ID.
     let requested_quality = options.quality.unwrap_or(-1);
+
     let (video_url, video_backup_urls, raw_video_fallback) =
-        select_stream_url(&dash_data.video, requested_quality)?;
+        select_stream_url(&streams_for_selection, requested_quality)?;
     // Only treat as fallback when the user explicitly selected a quality.
     // When quality is None (accordion never opened), the best-available
     // selection is intentional and should not trigger the warning icon.
     let video_quality_fallback = options.quality.is_some() && raw_video_fallback;
-    // Get the actual resolved video quality ID
-    let resolved_video_quality = dash_data
+    // Get the actual resolved video quality ID and codec ID
+    let (resolved_video_quality, resolved_video_codecid) = dash_data
         .video
         .iter()
         .find(|v| v.base_url == video_url)
-        .map(|v| v.id)
-        .unwrap_or(requested_quality);
+        .map(|v| (v.id, v.codecid))
+        .unwrap_or((requested_quality, CODECID_AVC));
+
+    // True when the preferred codec was unavailable: either a lower-priority
+    // codec was selected (fallback flag), or no priority codec existed at all
+    // (None → fell back to all streams). The latter must also warn so users
+    // notice when e.g. an H.264-only preference silently gets HEVC/AV1.
+    let video_codec_fallback = codec_selection
+        .as_ref()
+        .map(|sel| sel.fallback)
+        .unwrap_or(true);
 
     let audio_quality = options
         .audio_quality
@@ -773,6 +804,8 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
             page,
             video_quality: resolved_video_quality,
             video_quality_fallback,
+            video_codecid: resolved_video_codecid,
+            video_codec_fallback,
             audio_quality: resolved_audio_quality,
             audio_quality_fallback,
             is_preview: bangumi_preview_info,
@@ -859,8 +892,10 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
                             "[BE] download_video: playurl refetch attempt={} for video",
                             attempt
                         );
-                        match refetch_dash_urls(&cookies, &bvid, v_cid, v_ep_id, v_quality, None)
-                            .await
+                        match refetch_dash_urls(
+                            app, &cookies, &bvid, v_cid, v_ep_id, v_quality, None,
+                        )
+                        .await
                         {
                             Ok(fresh) => (fresh.video_url, fresh.video_backup_urls),
                             Err(e) => {
@@ -1400,7 +1435,7 @@ async fn download_audio_with_fallback(
                     attempt
                 );
                 // video_quality = -1 (best) is unused; only the audio slot matters.
-                match refetch_dash_urls(&cookies, &bvid, a_cid, a_ep_id, -1, a_quality).await {
+                match refetch_dash_urls(app, &cookies, &bvid, a_cid, a_ep_id, -1, a_quality).await {
                     Ok(fresh) => (fresh.audio_url, fresh.audio_backup_urls),
                     Err(e) => {
                         log::warn!("[BE] audio refetch failed, retrying with stale URL: {}", e);
@@ -2278,6 +2313,50 @@ fn select_stream_url(
                 .map(|v| (v.base_url.clone(), v.backup_urls.clone(), true))
         })
         .ok_or_else(|| "ERR::QUALITY_NOT_FOUND".into())
+}
+
+/// Resolves the user's codec priority and filters video streams accordingly.
+///
+/// Reads the codec priority setting once and returns:
+/// - The streams to use for quality selection: filtered by the preferred
+///   codec, or all streams when the preferred codec is unavailable for any
+///   quality (so the download never fails).
+/// - The codec selection result, used by callers to detect codec fallback.
+///   `None` means no priority codec was available at all (caller treats this
+///   as a codec fallback for warning purposes).
+///
+/// Shared by `download_video` and `refetch_dash_urls` to keep the codec
+/// selection logic in a single place.
+async fn select_streams_by_codec_priority(
+    app: &AppHandle,
+    video_streams: &[XPlayerApiResponseVideo],
+) -> (Vec<XPlayerApiResponseVideo>, Option<VideoStreamSelection>) {
+    let codec_priority = settings::get_settings(app)
+        .await
+        .ok()
+        .and_then(|s| s.video_codec_priority)
+        .unwrap_or_default();
+
+    let available_codecs: Vec<i16> = video_streams.iter().map(|v| v.codecid).collect();
+    let codec_selection = select_video_stream(&codec_priority, &available_codecs);
+
+    let filtered: Vec<_> = video_streams
+        .iter()
+        .filter(|v| {
+            codec_selection
+                .as_ref()
+                .map(|sel| v.codecid == sel.codecid)
+                .unwrap_or(true)
+        })
+        .cloned()
+        .collect();
+
+    if filtered.is_empty() {
+        log::info!("[BE] no streams with preferred codec, using all streams");
+        (video_streams.to_vec(), codec_selection)
+    } else {
+        (filtered, codec_selection)
+    }
 }
 
 /// Response from Bilibili watch history API.
@@ -3385,6 +3464,7 @@ struct AudioRefetchCtx {
 /// audio quality). On error, callers fall back to the stale captured URL
 /// (see the retry closures) rather than aborting the retry loop.
 async fn refetch_dash_urls(
+    app: &AppHandle,
     cookies: &[CookieEntry],
     bvid: &str,
     cid: i64,
@@ -3410,7 +3490,12 @@ async fn refetch_dash_urls(
     let dash = data
         .dash
         .ok_or_else(|| "refetch_dash_urls: playurl response has no dash".to_string())?;
-    let (video_url, video_backup_urls, _) = select_stream_url(&dash.video, video_quality)?;
+
+    // Reuse the same codec-aware stream selection as the initial download so
+    // a retry picks the same codec (keeps the merged output consistent).
+    let (streams_for_selection, _) = select_streams_by_codec_priority(app, &dash.video).await;
+    let (video_url, video_backup_urls, _) =
+        select_stream_url(&streams_for_selection, video_quality)?;
     let resolved_audio_quality =
         audio_quality.unwrap_or_else(|| dash.audio.first().map(|a| a.id).unwrap_or(30280));
     let (audio_url, audio_backup_urls, _) = select_stream_url(&dash.audio, resolved_audio_quality)?;

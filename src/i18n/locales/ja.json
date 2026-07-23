@@ -451,7 +451,18 @@
     "taskbar_progress_label": "タスクバー進捗",
     "taskbar_progress_description": "タスクバーにダウンロード進捗を表示します。",
     "flash_taskbar_on_complete_label": "完了時にタスクバーを点滅",
-    "flash_taskbar_on_complete_description": "ダウンロード完了時にタスクバーボタンを点滅させます。"
+    "flash_taskbar_on_complete_description": "ダウンロード完了時にタスクバーボタンを点滅させます。",
+    "video_codec_priority_label": "ビデオコーデックの優先順位",
+    "video_codec_priority_description": "ダウンロード時に優先するビデオコーデックを選択します。上位のコーデックほど圧縮効率が高いですが、すべての動画で利用できるとは限りません。",
+    "video_codec_av1_first": "AV1優先（高圧縮）",
+    "video_codec_av1_first_chain": "AV1 → H.265 → H.264",
+    "video_codec_av1_first_description": "AV1を優先して最小ファイルサイズを実現、利用不可の場合はH.265、H.264の順にフォールバック。",
+    "video_codec_hevc_first": "H.265優先（バランス）",
+    "video_codec_hevc_first_chain": "H.265 → H.264",
+    "video_codec_hevc_first_description": "H.265（HEVC）を優先して高い圧縮率と広い互換性を両立、利用不可の場合はH.264にフォールバック。",
+    "video_codec_avc_only": "H.264のみ（高互換）",
+    "video_codec_avc_only_chain": "H.264",
+    "video_codec_avc_only_description": "常にH.264（AVC）を使用して最大限のデバイス/プレイヤー互換性を確保。"
   },
   "validation": {
     "path": {

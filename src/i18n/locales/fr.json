@@ -451,7 +451,18 @@
     "taskbar_progress_label": "Progression dans la barre des tâches",
     "taskbar_progress_description": "Affiche la progression du téléchargement dans la barre des tâches.",
     "flash_taskbar_on_complete_label": "Faire clignoter la barre à la fin",
-    "flash_taskbar_on_complete_description": "Fait clignoter le bouton de la barre des tâches à la fin des téléchargements."
+    "flash_taskbar_on_complete_description": "Fait clignoter le bouton de la barre des tâches à la fin des téléchargements.",
+    "video_codec_priority_label": "Priorité du codec vidéo",
+    "video_codec_priority_description": "Choisissez le codec vidéo préféré pour les téléchargements. Les codecs avec une priorité plus élevée offrent une meilleure compression mais peuvent ne pas être disponibles pour toutes les vidéos.",
+    "video_codec_av1_first": "AV1 d'abord (Haute Compression)",
+    "video_codec_av1_first_chain": "AV1 → H.265 → H.264",
+    "video_codec_av1_first_description": "Préfère AV1 pour les plus petites tailles de fichier, retourne à H.265, puis H.264 si indisponible.",
+    "video_codec_hevc_first": "H.265 d'abord (Équilibre)",
+    "video_codec_hevc_first_chain": "H.265 → H.264",
+    "video_codec_hevc_first_description": "Préfère H.265 (HEVC) pour une bonne compression avec une large disponibilité, retourne à H.264 si indisponible.",
+    "video_codec_avc_only": "H.264 uniquement (Compatibilité)",
+    "video_codec_avc_only_chain": "H.264",
+    "video_codec_avc_only_description": "Utilise toujours H.264 (AVC) pour une compatibilité maximale des appareils et lecteurs."
   },
   "validation": {
     "path": {
