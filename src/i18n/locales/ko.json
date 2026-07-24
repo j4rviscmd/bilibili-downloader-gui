@@ -206,6 +206,7 @@
     "rate_limited": "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.",
     "video_quality_fallback": "선택한 화질 ({{from}}) 을(를) 사용할 수 없어 {{to}} 로 대체했습니다.",
     "audio_quality_fallback": "선택한 음질 ({{from}}) 을(를) 사용할 수 없어 {{to}} 로 대체했습니다.",
+    "audio_merge_fallback": "오디오 스트림 복사에 실패했습니다. AAC 재인코딩을 사용합니다.",
     "invalid_media_response": "서버에서 잘못된 미디어 응답을 받았습니다(오류 페이지 수신).",
     "audio_download_failed": "사용 가능한 모든 스트림을 시도했으나 오디오 다운로드에 실패했습니다.",
     "queue_waiting_prefix": "대기 중:",

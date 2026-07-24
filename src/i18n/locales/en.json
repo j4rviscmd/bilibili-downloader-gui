@@ -206,6 +206,7 @@
     "rate_limited": "Too many requests. Please wait a moment and try again.",
     "video_quality_fallback": "Selected video quality ({{from}}) unavailable. Using {{to}}.",
     "audio_quality_fallback": "Selected audio quality ({{from}}) unavailable. Using {{to}}.",
+    "audio_merge_fallback": "Audio stream copy failed. Using AAC re-encoding instead.",
     "invalid_media_response": "Invalid media response from server (received error page instead of media).",
     "audio_download_failed": "Failed to download audio after trying all available streams.",
     "queue_waiting_prefix": "Queued:",
