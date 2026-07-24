@@ -462,7 +462,10 @@
     "video_codec_hevc_first_description": "H.265（HEVC）を優先して高い圧縮率と広い互換性を両立、利用不可の場合はH.264にフォールバック。",
     "video_codec_avc_only": "H.264のみ（高互換）",
     "video_codec_avc_only_chain": "H.264",
-    "video_codec_avc_only_description": "常にH.264（AVC）を使用して最大限のデバイス/プレイヤー互換性を確保。"
+    "video_codec_avc_only_description": "常にH.264（AVC）を使用して最大限のデバイス/プレイヤー互換性を確保。",
+    "download_parallelism_label": "セグメント並列ダウンロード数",
+    "download_parallelism_description": "セグメントの並列ダウンロード数。高い値（8, 6）は高速ですがbilibili CDNのスロットリングを引き起こす可能性があります。低い値（2, 1）は安定していますが低速です。デフォルトは8で、ほとんどの接続で推奨されます。",
+    "download_parallelism_cdn_warning": "bilibili CDNが並列ダウンロードを制限する可能性があります。ダウンロードが不安定な場合は、4または2に減らしてみてください。"
   },
   "validation": {
     "path": {
@@ -481,6 +484,11 @@
     },
     "language": {
       "required": "言語を選択してください。"
+    },
+    "download_parallelism": {
+      "min": "並列度は1以上である必要があります。",
+      "max": "並列度は8以下である必要があります。",
+      "invalid": "並列度は1, 2, 4, 6, 8のいずれかである必要があります。"
     },
     "video": {
       "url": {

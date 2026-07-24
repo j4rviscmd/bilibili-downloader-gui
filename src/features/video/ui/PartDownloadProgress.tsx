@@ -98,9 +98,7 @@ function StageProgress({
       <StageIcon icon={icon} label={stageLabel} fontWeight="medium" />
       <span>{progress.percentage.toFixed(0)}%</span>
       <span>
-        {progress.isRetrying
-          ? '--MB/s'
-          : formatTransferRate(progress.transferRate || 0)}
+        {formatTransferRate(progress.transferRate || 0)}
       </span>
       {progress.filesize != null && (
         <span>

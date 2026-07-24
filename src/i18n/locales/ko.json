@@ -462,7 +462,10 @@
     "video_codec_hevc_first_description": "H.265(HEVC)를 우선하여 높은 압축률과 광범위한 호환성 균형, 사용 불가능 시 H.264로 폴백.",
     "video_codec_avc_only": "H.264만 (호환성)",
     "video_codec_avc_only_chain": "H.264",
-    "video_codec_avc_only_description": "항상 H.264(AVC)를 사용하여 최대한의 장치/재생기 호환성 보장."
+    "video_codec_avc_only_description": "항상 H.264(AVC)를 사용하여 최대한의 장치/재생기 호환성 보장.",
+    "download_parallelism_label": "세그먼트 병렬 다운로드 수",
+    "download_parallelism_description": "세그먼트 병렬 다운로드 수량. 높은 값(8, 6)은 빠를 수 있지만 Bilibili CDN 스로틀링을 유발할 수 있습니다. 낮은 값(2, 1)은 안정적이지만 느립니다. 기본값은 8이며 대부분의 연결에 권장됩니다.",
+    "download_parallelism_cdn_warning": "Bilibili CDN이 병렬 다운로드를 제한할 수 있습니다. 다운로드가 불안정하면 4 또는 2로 줄여보세요."
   },
   "validation": {
     "path": {
@@ -481,6 +484,11 @@
     },
     "language": {
       "required": "언어를 선택하세요."
+    },
+    "download_parallelism": {
+      "min": "병렬도는 최소 1이어야 합니다.",
+      "max": "병렬도는 최대 8입니다.",
+      "invalid": "병렬도는 다음 중 하나여야 합니다: 1, 2, 4, 6, 8."
     },
     "video": {
       "url": {

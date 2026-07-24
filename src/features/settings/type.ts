@@ -120,6 +120,11 @@ export interface Settings {
    * Defaults to 'av1First' if not specified.
    */
   videoCodecPriority?: VideoCodecPriority
+  /**
+   * Number of parallel segment downloads (1, 2, 4, 6, or 8).
+   * Defaults to 8 if not specified.
+   */
+  downloadParallelism?: number
 }
 
 /**

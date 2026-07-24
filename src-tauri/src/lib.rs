@@ -5,6 +5,8 @@
 //! downloads, cookie management, ffmpeg integration, and user settings.
 
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::Duration;
 
 use tauri::AppHandle;
 use tauri::Manager;
@@ -349,6 +351,29 @@ pub fn run() {
 
             // Initialize cookie cache
             app.manage(CookieCache::default());
+
+            // Initialize shared HTTP client for parallel segment downloads
+            // Why: a single reqwest::Client is shared across all downloads so
+            //   keep-alive connection pooling works across parallel segments,
+            //   instead of building (and tearing down) a new client per
+            //   download as before (issue #491).
+            // Constraint: pool_max_idle_per_host is sized once at startup from
+            //   the current setting. Runtime changes to downloadParallelism
+            //   only resize the per-download Semaphore (read fresh in
+            //   download_url); the connection pool is NOT re-tuned until the
+            //   app is restarted.
+            let concurrency = Settings::resolve_segment_concurrency(&settings);
+            let client = reqwest::Client::builder()
+                .user_agent(crate::constants::USER_AGENT)
+                .timeout(Duration::from_secs(120))
+                .pool_max_idle_per_host(concurrency)
+                .build()
+                .expect("Failed to build HTTP client");
+            app.manage(Arc::new(client));
+            log::info!(
+                "[BE] Shared HTTP client initialized with concurrency: {}",
+                concurrency
+            );
 
             // Development mode: Initialize simulate logout flag
             #[cfg(debug_assertions)]

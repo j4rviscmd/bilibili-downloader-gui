@@ -67,7 +67,7 @@ struct EmitsInner {
     is_complete: bool,
     last_speed_calc_instant: Instant,
     last_speed_calc_bytes: u64,
-    smoothed_speed_kbps: f64,
+    last_speed_kbps: f64,
 }
 
 impl Default for EmitsInner {
@@ -81,7 +81,7 @@ impl Default for EmitsInner {
             last_downloaded_bytes: 0,
             last_speed_calc_bytes: 0,
             is_complete: false,
-            smoothed_speed_kbps: 0.0,
+            last_speed_kbps: 0.0,
         }
     }
 }
@@ -204,41 +204,6 @@ impl Emits {
         Self::send_progress_locked(&self.app, &mut guard, bytes);
     }
 
-    /// Resets speed tracking state after CDN rotation or retry.
-    ///
-    /// Clears the EMA-smoothed speed and recalibrates the speed measurement
-    /// baseline to the current byte count. This prevents the previous CDN's
-    /// low speed from being carried over to the new CDN via EMA smoothing,
-    /// which would otherwise cause speed display flicker.
-    ///
-    /// Note: `last_downloaded_bytes` is intentionally not reset because the
-    /// frontend clamps `downloaded`/`percentage` monotonically; resetting it
-    /// here would cause the next tick to treat rolled-back bytes as new data.
-    pub async fn reset_speed_tracking(&self) {
-        let mut guard = self.inner.lock().await;
-        let current_bytes = *self.progress_tx.subscribe().borrow();
-        guard.smoothed_speed_kbps = 0.0;
-        guard.last_speed_calc_instant = Instant::now();
-        guard.last_speed_calc_bytes = current_bytes;
-    }
-
-    /// Sets the retrying flag and emits an immediate update.
-    ///
-    /// When `retrying` is true, the frontend hides the transfer rate display
-    /// to avoid flicker between pre-retry and post-retry speed values. When
-    /// set back to false (e.g., on first chunk from the new CDN), normal
-    /// speed display resumes.
-    ///
-    /// # Arguments
-    ///
-    /// * `retrying` - Whether the download is currently retrying
-    pub async fn set_retrying(&self, retrying: bool) {
-        let mut guard = self.inner.lock().await;
-        guard.progress.is_retrying = Some(retrying);
-        let bytes = *self.progress_tx.subscribe().borrow();
-        Self::send_progress_locked(&self.app, &mut guard, bytes);
-    }
-
     /// Stops the background update task without emitting a complete event.
     ///
     /// Emits a final progress event reflecting the actual bytes downloaded.
@@ -333,23 +298,26 @@ impl Emits {
             inner.progress.percentage =
                 Self::calculate_percentage(current_bytes, inner.progress.filesize);
 
-            // Calculate smoothed transfer rate (EMA)
-            inner.progress.transfer_rate = Self::calculate_smoothed_speed(
-                now,
-                current_bytes,
-                inner.smoothed_speed_kbps,
-                inner.last_speed_calc_instant,
-                inner.last_speed_calc_bytes,
-            );
-
-            // Update speed calculation state
+            // Transfer rate: recompute every ~1s from the byte delta and
+            // reuse the last value in between ticks.
+            // Note: EMA smoothing and the paired per-segment retry-hiding
+            //   helpers (reset_speed_tracking / set_retrying) were removed in
+            //   #491. Because each recompute derives from the current byte
+            //   baseline, a stalled CDN no longer bleeds its low speed across
+            //   CDN rotation, so the hide-on-retry display mask is no longer
+            //   needed.
             let time_since_last_calc = now
                 .duration_since(inner.last_speed_calc_instant)
                 .as_secs_f64();
             if time_since_last_calc >= 1.0 {
-                inner.smoothed_speed_kbps = inner.progress.transfer_rate;
+                let bytes_delta = current_bytes.saturating_sub(inner.last_speed_calc_bytes);
+                let speed_kbps = (bytes_delta as f64 / 1024.0) / time_since_last_calc;
+                inner.progress.transfer_rate = speed_kbps;
+                inner.last_speed_kbps = speed_kbps;
                 inner.last_speed_calc_instant = now;
                 inner.last_speed_calc_bytes = current_bytes;
+            } else if inner.last_speed_kbps > 0.0 {
+                inner.progress.transfer_rate = inner.last_speed_kbps;
             }
 
             // Round values for display
@@ -379,36 +347,6 @@ impl Emits {
         }
         let downloaded_mb = downloaded_bytes as f64 / (1024.0 * 1024.0);
         (downloaded_mb / fs) * 100.0
-    }
-
-    /// Calculates EMA-smoothed transfer rate in KB/s.
-    ///
-    /// Returns the smoothed speed, using the previous smoothed value as base
-    /// and incorporating the instant speed measured since the last calculation.
-    fn calculate_smoothed_speed(
-        now: Instant,
-        current_bytes: u64,
-        prev_smoothed_kbps: f64,
-        last_calc_instant: Instant,
-        last_calc_bytes: u64,
-    ) -> f64 {
-        const SPEED_CALC_INTERVAL_SECS: f64 = 1.0;
-        const EMA_ALPHA: f64 = 0.3; // Weight for new value (0.3), old value gets 0.7
-
-        let time_since_last_calc = now.duration_since(last_calc_instant).as_secs_f64();
-
-        if time_since_last_calc < SPEED_CALC_INTERVAL_SECS {
-            return prev_smoothed_kbps;
-        }
-
-        let delta_bytes = current_bytes.saturating_sub(last_calc_bytes);
-        let instant_speed_kbps = (delta_bytes as f64 / time_since_last_calc) / 1024.0;
-
-        if prev_smoothed_kbps == 0.0 {
-            instant_speed_kbps
-        } else {
-            prev_smoothed_kbps * (1.0 - EMA_ALPHA) + instant_speed_kbps * EMA_ALPHA
-        }
     }
 }
 

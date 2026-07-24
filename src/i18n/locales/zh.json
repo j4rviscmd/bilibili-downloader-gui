@@ -462,7 +462,10 @@
     "video_codec_hevc_first_description": "优先使用H.265（HEVC）在压缩率和可用性间取得平衡，若不可用则降级至H.264。",
     "video_codec_avc_only": "H.264优先（兼容）",
     "video_codec_avc_only_chain": "H.264",
-    "video_codec_avc_only_description": "始终使用H.264（AVC）以确保最大的设备和播放器兼容性。"
+    "video_codec_avc_only_description": "始终使用H.264（AVC）以确保最大的设备和播放器兼容性。",
+    "download_parallelism_label": "分段并行下载数",
+    "download_parallelism_description": "分段并行下载数量。较高值（8、6）可能更快，但可能触发Bilibili CDN限速。较低值（2、1）更稳定但较慢。默认为8，适用于大多数连接。",
+    "download_parallelism_cdn_warning": "Bilibili CDN可能会限制并行下载。如果下载不稳定，请尝试降低至4或2。"
   },
   "validation": {
     "path": {
@@ -481,6 +484,11 @@
     },
     "language": {
       "required": "请选择语言。"
+    },
+    "download_parallelism": {
+      "min": "并行度必须至少为1。",
+      "max": "并行度不能超过8。",
+      "invalid": "并行度必须是以下值之一：1、2、4、6、8。"
     },
     "video": {
       "url": {

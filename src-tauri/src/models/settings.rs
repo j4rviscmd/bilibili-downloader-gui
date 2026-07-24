@@ -194,6 +194,13 @@ pub struct Settings {
         skip_serializing_if = "Option::is_none"
     )]
     pub video_codec_priority: Option<VideoCodecPriority>,
+    /// Number of parallel segment downloads (1, 2, 4, 6, or 8). Defaults to 8.
+    #[serde(
+        rename = "downloadParallelism",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub download_parallelism: Option<u8>,
 }
 
 /// Trim mode for the MP4 trimming feature.
@@ -261,4 +268,158 @@ pub enum Language {
     Zh,
     /// Korean.
     Ko,
+}
+
+impl Settings {
+    /// Resolves the segment download concurrency from settings.
+    ///
+    /// Returns the number of parallel segment downloads, ensuring:
+    /// - Values are clamped to 1-8 range
+    /// - Only even values are allowed (2, 4, 6, 8), except for 1 (single-threaded fallback)
+    /// - Defaults to 8 if not specified
+    ///
+    /// # Arguments
+    ///
+    /// * `settings` - The application settings (optional)
+    ///
+    /// # Returns
+    ///
+    /// The resolved concurrency value (1, 2, 4, 6, or 8).
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// // Unit tests in `mod tests` below cover all clamping/rounding cases
+    /// // (0→1, 1→1, 2→2, 3→4, 5→6, 7→8, 8→8, 9→8, None→8). This doctest
+    /// // is intentionally ignored because `Settings::resolve_segment_concurrency`
+    /// // is an associated function that cannot be invoked as a free function.
+    /// assert_eq!(Settings::resolve_segment_concurrency(&None), 8);
+    /// ```
+    pub fn resolve_segment_concurrency(settings: &Option<Settings>) -> usize {
+        // Why: default is 8 (raised above issue #491's originally proposed
+        //   default of 1) because CDN pre-selection (#490) mitigates the
+        //   instability that previously forced concurrency=1, making higher
+        //   parallelism safe for most connections (issue #491).
+        // Constraint: the allowed steps (1/2/4/6/8) must match the RadioGroup
+        //   options in SettingsForm.tsx; any out-of-range or odd value is
+        //   snapped to the nearest valid step in the match below.
+        // Caution: high values (8/6) can trigger bilibili CDN throttling; on
+        //   unstable links users should reduce to 4 or 2 (issue #491 risks).
+        let val = settings
+            .as_ref()
+            .and_then(|s| s.download_parallelism)
+            .unwrap_or(8);
+        // Clamp to [1, 8] and snap to the nearest allowed step (1/2/4/6/8).
+        match val {
+            n if n <= 1 => 1,
+            n if n <= 2 => 2,
+            n if n <= 4 => 4,
+            n if n <= 6 => 6,
+            _ => 8,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_resolve_segment_concurrency_default() {
+        // None → 8
+        assert_eq!(Settings::resolve_segment_concurrency(&None), 8);
+    }
+
+    #[test]
+    fn test_resolve_segment_concurrency_explicit_values() {
+        // Test explicit even values
+        let settings = Settings {
+            download_parallelism: Some(2),
+            ..Default::default()
+        };
+        assert_eq!(Settings::resolve_segment_concurrency(&Some(settings)), 2);
+
+        let settings = Settings {
+            download_parallelism: Some(4),
+            ..Default::default()
+        };
+        assert_eq!(Settings::resolve_segment_concurrency(&Some(settings)), 4);
+
+        let settings = Settings {
+            download_parallelism: Some(6),
+            ..Default::default()
+        };
+        assert_eq!(Settings::resolve_segment_concurrency(&Some(settings)), 6);
+
+        let settings = Settings {
+            download_parallelism: Some(8),
+            ..Default::default()
+        };
+        assert_eq!(Settings::resolve_segment_concurrency(&Some(settings)), 8);
+    }
+
+    #[test]
+    fn test_resolve_segment_concurrency_single_threaded() {
+        // 1 is allowed (single-threaded fallback)
+        let settings = Settings {
+            download_parallelism: Some(1),
+            ..Default::default()
+        };
+        assert_eq!(Settings::resolve_segment_concurrency(&Some(settings)), 1);
+    }
+
+    #[test]
+    fn test_resolve_segment_concurrency_odd_values_round_up() {
+        // Odd values should round up to next even
+        let settings = Settings {
+            download_parallelism: Some(3),
+            ..Default::default()
+        };
+        assert_eq!(Settings::resolve_segment_concurrency(&Some(settings)), 4);
+
+        let settings = Settings {
+            download_parallelism: Some(5),
+            ..Default::default()
+        };
+        assert_eq!(Settings::resolve_segment_concurrency(&Some(settings)), 6);
+
+        let settings = Settings {
+            download_parallelism: Some(7),
+            ..Default::default()
+        };
+        assert_eq!(Settings::resolve_segment_concurrency(&Some(settings)), 8);
+    }
+
+    #[test]
+    fn test_resolve_segment_concurrency_clamp_range() {
+        // Values below 1 should clamp to 1
+        let settings = Settings {
+            download_parallelism: Some(0),
+            ..Default::default()
+        };
+        assert_eq!(Settings::resolve_segment_concurrency(&Some(settings)), 1);
+
+        // Values above 8 should clamp to 8
+        let settings = Settings {
+            download_parallelism: Some(10),
+            ..Default::default()
+        };
+        assert_eq!(Settings::resolve_segment_concurrency(&Some(settings)), 8);
+
+        let settings = Settings {
+            download_parallelism: Some(100),
+            ..Default::default()
+        };
+        assert_eq!(Settings::resolve_segment_concurrency(&Some(settings)), 8);
+    }
+
+    #[test]
+    fn test_resolve_segment_concurrency_none_value() {
+        // None in settings → 8
+        let settings = Settings {
+            download_parallelism: None,
+            ..Default::default()
+        };
+        assert_eq!(Settings::resolve_segment_concurrency(&Some(settings)), 8);
+    }
 }
