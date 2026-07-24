@@ -15,6 +15,7 @@ use crate::{
     },
     emits::Emits,
     handlers::concurrency::DOWNLOAD_CANCEL_REGISTRY,
+    utils::cdn_selector,
 };
 
 /// Error type for segment download failures.
@@ -100,10 +101,8 @@ fn apply_cookie(mut req: RequestBuilder, cookie: &Option<String>) -> RequestBuil
 /// - `Ok(())` if no token is registered or the token is not cancelled.
 /// - `Err` containing `ERR::CANCELLED` when cancellation has been requested.
 fn check_cancelled(token: &Option<CancellationToken>) -> Result<()> {
-    if let Some(t) = token {
-        if t.is_cancelled() {
-            return Err(anyhow::anyhow!("ERR::CANCELLED"));
-        }
+    if token.as_ref().is_some_and(|t| t.is_cancelled()) {
+        return Err(anyhow::anyhow!("ERR::CANCELLED"));
     }
     Ok(())
 }
@@ -180,8 +179,10 @@ fn check_download_speed(
 ///
 /// 1. Resolves and registers a cancellation token via
 ///    `DOWNLOAD_CANCEL_REGISTRY`.
-/// 2. Handles existing file (override or error) and probes total size
-///    using [`fetch_total_size`].
+/// 2. Handles existing file (override or error), then runs CDN
+///    pre-selection via [`crate::utils::cdn_selector::select_best_cdns`]
+///    (static P2P demotion + latency probe) which also recovers the total
+///    size.
 /// 3. Falls back to [`single_stream_fallback`] when the server does not
 ///    advertise `Accept-Ranges`/Content-Length.
 /// 4. Splits the payload into 8 MB segments (concurrency pinned to 1
@@ -280,16 +281,27 @@ pub async fn download_url(
         cdn_urls.extend(backups.clone());
     }
 
-    // ---- 1. Determine total file size ----
-    let total_size = fetch_total_size(&client, &url, &cookie).await;
+    // ---- 1. CDN Pre-selection ----
+    // Use CDN selector to probe and order CDNs by performance
+    // Why: avoid landing the primary request on a slow P2P/MCDN edge (e.g.
+    //   *.mcdn.bilivideo.cn) by excluding/demoting it up front and probing the
+    //   candidate CDNs in parallel for latency instead of reacting to slowness
+    //   mid-download (issue #490).
+    let cdn_outcome = cdn_selector::select_best_cdns(cdn_urls.clone(), cookie.clone()).await;
 
-    let total = match total_size {
+    let ordered_urls = cdn_outcome.ordered_urls;
+    let total = match cdn_outcome.total_size {
         Some(size) => size,
         None => {
-            // Range not supported or size unknown → fallback to single stream
+            // Range not supported or size unknown → fallback to single stream.
+            // Prefer the best-ranked CDN over the original (possibly P2P) URL.
+            // Why: the original `url` may itself be the P2P node that
+            //   pre-selection filtered out, so reusing it here would defeat
+            //   pre-selection even in the single-stream path (issue #490).
+            let best_url = ordered_urls.first().cloned().unwrap_or_else(|| url.clone());
             return single_stream_fallback(
                 app,
-                url,
+                best_url,
                 backup_urls,
                 output_path,
                 cookie,
@@ -301,6 +313,9 @@ pub async fn download_url(
             .await;
         }
     };
+
+    // Update cdn_urls to use the ordered list from pre-selection
+    cdn_urls = ordered_urls;
 
     // ---- 2. Plan segments ----
     const DEFAULT_SEGMENT_MB: u64 = 8;
@@ -761,7 +776,8 @@ async fn write_segment(path: &PathBuf, pos: u64, buf: &[u8]) -> Result<(), anyho
 
 /// Fallback single-stream download for when Range requests are not supported.
 ///
-/// Used when [`fetch_total_size`] returns `None`, which typically means the
+/// Used when [`crate::utils::cdn_selector::select_best_cdns`] returns
+/// `total_size: None`, which typically means the
 /// server did not return `Content-Length` or `Content-Range` headers. The
 /// entire response is streamed sequentially into a single file with
 /// per-chunk cancellation checks and progress emission.
@@ -900,62 +916,6 @@ async fn backoff_sleep(attempt: u8) {
     tokio::time::sleep(Duration::from_millis(ms)).await;
 }
 
-/// Attempts to fetch total file size via HEAD request or Range probe.
-///
-/// Probes the remote resource to determine its full Content-Length. Tries
-/// a HEAD request first and falls back to a single-byte Range request
-/// (`bytes=0-0`) when the HEAD response lacks a usable header. The
-/// fallback parses the `Content-Range` header of the form
-/// `bytes START-END/TOTAL` to recover the total size.
-///
-/// A `None` return signals to the caller that segmented download is not
-/// possible and that [`single_stream_fallback`] should be used instead.
-///
-/// # Arguments
-///
-/// * `client` - HTTP client used for the probe
-/// * `url` - Resource URL
-/// * `cookie` - Optional Cookie header value for authenticated requests
-///
-/// # Returns
-///
-/// Returns `Some(total_bytes)` when a valid Content-Length or
-/// Content-Range header was observed, otherwise `None`.
-async fn fetch_total_size(
-    client: &reqwest::Client,
-    url: &str,
-    cookie: &Option<String>,
-) -> Option<u64> {
-    // Try HEAD request first
-    let head_req = apply_cookie(client.head(url).header(header::REFERER, REFERER), cookie);
-    if let Ok(resp) = head_req.send().await {
-        if let Some(len) = resp.headers().get(header::CONTENT_LENGTH) {
-            if let Ok(val) = len.to_str().ok()?.parse::<u64>() {
-                return Some(val);
-            }
-        }
-    }
-
-    // Fallback to Range probe: bytes=0-0
-    let probe_req = apply_cookie(
-        client
-            .get(url)
-            .header(header::RANGE, "bytes=0-0")
-            .header(header::REFERER, REFERER),
-        cookie,
-    );
-    let Ok(resp) = probe_req.send().await else {
-        return None;
-    };
-
-    // Format: "bytes START-END/TOTAL"
-    resp.headers()
-        .get(header::CONTENT_RANGE)
-        .and_then(|cr| cr.to_str().ok())
-        .and_then(|s| s.rsplit('/').next())
-        .and_then(|v| v.parse::<u64>().ok())
-}
-
 /// Calculates segment byte ranges for segmented download.
 ///
 /// Divides the total file size into segments of the specified size,
@@ -1014,6 +974,9 @@ async fn preallocate_file(path: &PathBuf, size: u64) -> Result<()> {
     Ok(())
 }
 
+// Why: `pub(crate)` (previously private) so cdn_selector can reuse this guard
+//   during CDN probing and reject JSON/text error bodies before they are
+//   mistaken for valid probe responses — the same issue #467 error-body class.
 /// Returns true when the response content-type looks like real media.
 ///
 /// Bilibili's CDN serves m4s segments as `application/octet-stream` or
@@ -1022,7 +985,7 @@ async fn preallocate_file(path: &PathBuf, size: u64) -> Result<()> {
 /// download fail fast as `ERR::INVALID_MEDIA_RESPONSE` instead of writing
 /// the error payload to disk. A missing content-type header is treated as
 /// valid to preserve existing behavior for CDNs that omit it.
-fn is_media_content_type(ct: Option<&reqwest::header::HeaderValue>) -> bool {
+pub(crate) fn is_media_content_type(ct: Option<&reqwest::header::HeaderValue>) -> bool {
     let Some(ct) = ct.and_then(|v| v.to_str().ok()) else {
         return true;
     };

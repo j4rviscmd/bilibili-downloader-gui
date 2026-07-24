@@ -55,3 +55,23 @@ pub const FFMPEG_VALIDATION_TIMEOUT_SECS: u64 = 60;
 /// This threshold catches cases where CDN/URL issues cause downloads
 /// to return HTML/XML error pages masquerading as media files.
 pub const MIN_MEDIA_BYTES: u64 = 1024; // 1 KiB
+
+/// Timeout in seconds for CDN probe requests.
+///
+/// Each CDN probe HEAD/Range request must complete within this window.
+/// Generous enough for slow international routes to a single CDN node.
+pub const CDN_PROBE_TIMEOUT_SECS: u64 = 5;
+
+// Caution: Do not raise above 2 without re-validating empirically. Parallel
+//   Range requests have been observed to destabilize Bilibili's CDN — the same
+//   root cause that pins segment concurrency to 1 in downloads.rs.
+// Note: Tuned as part of CDN pre-selection (issue #490) to halve probe wall-time
+//   for multi-CDN lists while staying within the CDN's parallel-request budget.
+/// Maximum concurrent CDN probes.
+///
+/// Bounds parallelism during CDN selection. Bilibili's CDN is known to
+/// be unstable with aggressive parallel Range requests (see
+/// `downloads.rs` segment concurrency fixed to 1), so this stays low (2)
+/// — enough to halve probe wall-time for multi-CDN lists without risking
+/// rate-limiting or instability.
+pub const CDN_PROBE_CONCURRENCY: usize = 2;
