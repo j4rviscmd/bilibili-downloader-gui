@@ -160,7 +160,7 @@ use crate::handlers::settings;
 use crate::models::bilibili_api::{
     BangumiPlayerApiResponse, BangumiPlayerResult, BangumiSeasonApiResponse, PlayerV2ApiResponse,
     UserApiResponse, WatchHistoryApiResponse, WebInterfaceApiResponse, XPlayerApiResponse,
-    XPlayerApiResponseVideo,
+    XPlayerApiResponseData, XPlayerApiResponseVideo,
 };
 use crate::models::cookie::CookieEntry;
 use crate::models::frontend_dto::{
@@ -583,12 +583,15 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
     let cookies = read_cookie(app)?.unwrap_or_default();
     let cookie_header = build_cookie_header(&cookies);
 
-    // 3. For bangumi, fetch player result to check is_preview and durl format
-    let bangumi_preview_info: Option<bool> = if let Some(ep_id) = options.ep_id {
+    // 3. For bangumi, fetch player result to check is_preview and durl format.
+    //    The DASH result is reused in step 4 to avoid a duplicate playurl request.
+    //    CAUTION: the durl branch moves `player_result` into `download_bangumi_durl`
+    //    and returns early, so only the DASH path reaches step 4. See issue #485.
+    let (bangumi_preview_info, cached_bangumi_details) = if let Some(ep_id) = options.ep_id {
         let player_result = fetch_bangumi_player_result(&cookies, ep_id, options.cid).await?;
         let is_preview = player_result.is_preview.map(|v| v == 1);
 
-        // durl format (direct MP4 URL)
+        // durl format (direct MP4 URL): consume player_result and return early.
         if player_result.dash.is_none() {
             return download_bangumi_durl(
                 app,
@@ -600,14 +603,20 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
             )
             .await;
         }
-        is_preview
+        // DASH format: convert the already-fetched result instead of re-fetching.
+        (
+            is_preview,
+            Some(bangumi_player_result_to_xplayer(player_result)?),
+        )
     } else {
-        None
+        (None, None)
     };
 
-    // 4. Fetch video details (extract URL for selected quality) - DASH format
-    let details = if let Some(ep_id) = options.ep_id {
-        fetch_bangumi_details_for_download(&cookies, ep_id, options.cid).await?
+    // 4. Fetch video details (extract URL for selected quality) - DASH format.
+    //    Bangumi DASH details were produced in step 3; this branch only fires
+    //    for regular (non-bangumi) videos.
+    let details = if let Some(cached) = cached_bangumi_details {
+        cached
     } else {
         fetch_video_details(&cookies, &options.bvid, options.cid).await?
     };
@@ -1151,6 +1160,61 @@ mod tests {
                 q
             );
         }
+    }
+
+    /// Tests DASH-format bangumi result conversion.
+    ///
+    /// Verifies that a `BangumiPlayerResult` with DASH data is converted into a
+    /// success `XPlayerApiResponse` that preserves the `dash` field and leaves
+    /// the durl-only fields as `None`.
+    #[test]
+    fn test_bangumi_player_result_to_xplayer_with_dash() {
+        use crate::models::bilibili_api::XPlayerApiResponseDash;
+        use std::collections::HashMap;
+
+        let result = BangumiPlayerResult {
+            dash: Some(XPlayerApiResponseDash {
+                video: vec![],
+                audio: vec![],
+                extra: HashMap::new(),
+            }),
+            durl: None,
+            durls: None,
+            support_formats: None,
+            quality: None,
+            is_preview: None,
+            timelength: None,
+        };
+
+        let xplayer = bangumi_player_result_to_xplayer(result).unwrap();
+        assert_eq!(xplayer.code, 0);
+        assert_eq!(xplayer.message, "success");
+        let data = xplayer.data.expect("data should be present");
+        assert!(data.dash.is_some(), "dash should be preserved");
+        assert!(data.durl.is_none());
+        assert!(data.support_formats.is_none());
+        assert!(data.quality.is_none());
+    }
+
+    /// Tests durl-only bangumi result rejection.
+    ///
+    /// Verifies that a `BangumiPlayerResult` without DASH data returns
+    /// `ERR::BANGUMI_DURL_NOT_SUPPORTED`. Callers must route durl format to
+    /// `download_bangumi_durl` before calling this function.
+    #[test]
+    fn test_bangumi_player_result_to_xplayer_durl_only() {
+        let result = BangumiPlayerResult {
+            dash: None,
+            durl: None,
+            durls: Some(vec![]),
+            support_formats: None,
+            quality: None,
+            is_preview: None,
+            timelength: None,
+        };
+
+        let err = bangumi_player_result_to_xplayer(result).unwrap_err();
+        assert_eq!(err, "ERR::BANGUMI_DURL_NOT_SUPPORTED");
     }
 }
 
@@ -3401,6 +3465,38 @@ async fn fetch_bangumi_player_result(
     Ok(result)
 }
 
+/// Converts a [`BangumiPlayerResult`] into the [`XPlayerApiResponse`] shape
+/// used by the DASH download flow.
+///
+/// Pure transformation with no HTTP, so it is directly unit-testable and is
+/// shared by both the initial fetch in [`download_video`] (see issue #485) and
+/// the refetch path in [`fetch_bangumi_details_for_download`]. Reusing the
+/// already-fetched result on the initial bangumi DASH path eliminates the
+/// duplicate playurl request.
+///
+/// # Errors
+///
+/// Returns `ERR::BANGUMI_DURL_NOT_SUPPORTED` when `result.dash` is `None`.
+/// Callers must route durl-format results to `download_bangumi_durl` before
+/// reaching this function.
+fn bangumi_player_result_to_xplayer(
+    result: BangumiPlayerResult,
+) -> Result<XPlayerApiResponse, String> {
+    match result.dash {
+        Some(dash) => Ok(XPlayerApiResponse {
+            code: 0,
+            message: "success".to_string(),
+            data: Some(XPlayerApiResponseData {
+                dash: Some(dash),
+                durl: None,
+                support_formats: None,
+                quality: None,
+            }),
+        }),
+        None => Err("ERR::BANGUMI_DURL_NOT_SUPPORTED".into()),
+    }
+}
+
 /// Fetches bangumi stream URLs for download (DASH format only).
 ///
 /// Returns `XPlayerApiResponse` for compatibility with existing download flow.
@@ -3428,24 +3524,7 @@ async fn fetch_bangumi_details_for_download(
     cid: i64,
 ) -> Result<XPlayerApiResponse, String> {
     let result = fetch_bangumi_player_result(cookies, ep_id, cid).await?;
-
-    match result.dash {
-        Some(dash) => Ok(XPlayerApiResponse {
-            code: 0,
-            message: "success".to_string(),
-            data: Some(crate::models::bilibili_api::XPlayerApiResponseData {
-                dash: Some(dash),
-                durl: None,
-                support_formats: None,
-                quality: None,
-            }),
-        }),
-        None => {
-            // durl format - not supported in current download flow
-            // This will be handled by download_video with durl support
-            Err("ERR::BANGUMI_DURL_NOT_SUPPORTED".into())
-        }
-    }
+    bangumi_player_result_to_xplayer(result)
 }
 
 /// Fresh signed stream URLs obtained by re-calling the playurl API on retry.
