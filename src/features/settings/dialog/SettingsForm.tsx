@@ -535,10 +535,12 @@ function SettingsForm() {
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Info className="h-4 w-4 text-muted-foreground" />
+                  <Info className="text-muted-foreground h-4 w-4" />
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p className="max-w-xs">{t('settings.download_parallelism_cdn_warning')}</p>
+                  <p className="max-w-xs">
+                    {t('settings.download_parallelism_cdn_warning')}
+                  </p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -559,7 +561,10 @@ function SettingsForm() {
                 (issue #491). */}
             {[1, 2, 4, 6, 8].map((value) => (
               <div key={value} className="flex items-center space-x-2">
-                <RadioGroupItem value={String(value)} id={`parallel-${value}`} />
+                <RadioGroupItem
+                  value={String(value)}
+                  id={`parallel-${value}`}
+                />
                 <Label htmlFor={`parallel-${value}`} className="cursor-pointer">
                   {value}
                 </Label>
