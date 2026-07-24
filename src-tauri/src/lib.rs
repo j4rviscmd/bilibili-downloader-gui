@@ -6,7 +6,6 @@
 
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
 
 use tauri::AppHandle;
 use tauri::Manager;
@@ -357,23 +356,11 @@ pub fn run() {
             //   keep-alive connection pooling works across parallel segments,
             //   instead of building (and tearing down) a new client per
             //   download as before (issue #491).
-            // Constraint: pool_max_idle_per_host is sized once at startup from
-            //   the current setting. Runtime changes to downloadParallelism
-            //   only resize the per-download Semaphore (read fresh in
-            //   download_url); the connection pool is NOT re-tuned until the
-            //   app is restarted.
-            let concurrency = Settings::resolve_segment_concurrency(&settings);
-            let client = reqwest::Client::builder()
-                .user_agent(crate::constants::USER_AGENT)
-                .timeout(Duration::from_secs(120))
-                .pool_max_idle_per_host(concurrency)
-                .build()
-                .expect("Failed to build HTTP client");
+            // Connection pool is tuned in build_download_client() (fixed at max
+            //   segment concurrency, see WHY docs there).
+            let client = crate::utils::downloads::build_download_client();
             app.manage(Arc::new(client));
-            log::info!(
-                "[BE] Shared HTTP client initialized with concurrency: {}",
-                concurrency
-            );
+            log::info!("[BE] Shared HTTP client initialized");
 
             // Development mode: Initialize simulate logout flag
             #[cfg(debug_assertions)]
