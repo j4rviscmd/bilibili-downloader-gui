@@ -21,10 +21,9 @@ use crate::{
 /// Error type for segment download failures.
 #[derive(Debug)]
 enum SegmentError {
-    /// Reconnect required (slow speed)
+    /// Reconnect required due to slow speed detection or stream error
+    /// (triggers CDN rotation via caller's loop)
     Reconnect,
-    /// Download failed with error details
-    Failed(String),
 }
 use anyhow::Result;
 use futures::stream::FuturesUnordered;
@@ -489,9 +488,34 @@ pub async fn download_url(
                         )
                         .await;
 
-                        let (buf, received, _) = match download_result {
+                        let (buf, received) = match download_result {
                             Ok(result) => result,
                             Err(SegmentError::Reconnect) => {
+                                // Belt-and-suspenders: chunk-stream errors now
+                                // reach this arm (issue #494) without the
+                                // producer-side budget check that slow-speed
+                                // detection has, so guard the rotation budget
+                                // here to avoid an unbounded loop when every
+                                // CDN returns a broken body stream.
+                                // Note: rotation is data-safe — the segment
+                                //   buffer lives in memory and reaches disk
+                                //   once via write_segment only on the Ok path,
+                                //   so `continue` here discards the partial
+                                //   buffer and leaves no half-written segment
+                                //   (issue #494).
+                                if cdn_rotation_count >= max_cdn_rotations {
+                                    log::warn!(
+                                        "[BE] download_url: segment {} CDN rotation budget exhausted ({}/{}, cdn_idx={})",
+                                        idx,
+                                        cdn_rotation_count,
+                                        max_cdn_rotations,
+                                        cdn_idx
+                                    );
+                                    return Err(anyhow::anyhow!(
+                                        "segment {} stream error after CDN rotation budget exhausted",
+                                        idx
+                                    ));
+                                }
                                 // Switch to next CDN URL on reconnect (loops back to start)
                                 let next_cdn_idx =
                                     (cdn_rotation_count as usize + 1) % cdn_urls_c.len();
@@ -506,21 +530,6 @@ pub async fn download_url(
                                 cdn_rotation_count += 1;
                                 backoff_sleep(cdn_rotation_count).await;
                                 continue;
-                            }
-                            Err(SegmentError::Failed(detail)) => {
-                                // Chunk-stream error (e.g. connection reset).
-                                // download_segment_with_speed_check returns
-                                // SegmentError::Failed with error details.
-                                // Bail out; the outer retry_download
-                                // issues a fresh request, so no attempt counter
-                                // is shown here.
-                                log::warn!(
-                                    "[BE] download_url: segment {} download failed (cdn_idx={}): {}",
-                                    idx,
-                                    cdn_idx,
-                                    detail
-                                );
-                                return Err(anyhow::anyhow!("segment {} download failed: {}", idx, detail))
                             }
                         };
 
@@ -681,12 +690,12 @@ pub async fn download_url(
 ///
 /// # Returns
 ///
-/// - `Ok((buf, received, false))`: Download complete successfully.
-///   - `buf` contains the downloaded data
-///   - `received` is the total bytes received
-///   - `false` indicates no reconnect needed
-/// - `Err(true)`: Speed too slow, reconnect needed
-/// - `Err(false)`: Chunk-stream error (non-recoverable; caller issues a fresh request)
+/// - `Ok((buf, received))`: Download complete successfully. `buf` holds
+///   the downloaded data, `received` is the total bytes received.
+/// - `Err(SegmentError::Reconnect)`: Recoverable — either slow speed was
+///   detected or the body stream broke mid-transfer (e.g. connection reset,
+///   decoding error). The caller rotates to the next CDN URL and retries
+///   this segment.
 async fn download_segment_with_speed_check(
     resp: &mut reqwest::Response,
     _idx: usize,
@@ -694,7 +703,7 @@ async fn download_segment_with_speed_check(
     cdn_rotation_count: u8,
     cdn_urls_len: usize,
     on_chunk_received: impl Fn(u64),
-) -> Result<(Vec<u8>, u64, bool), SegmentError> {
+) -> Result<(Vec<u8>, u64), SegmentError> {
     let mut buf = Vec::with_capacity(size.min(8 * 1024 * 1024) as usize);
     let mut received: u64 = 0;
 
@@ -731,17 +740,26 @@ async fn download_segment_with_speed_check(
             }
             Ok(None) => break,
             Err(e) => {
-                // Chunk-stream error (e.g. connection reset). The stream is
-                // broken, so retrying chunk() on the same response cannot
-                // recover — bail out and let the caller's download_url loop
-                // issue a fresh request (HTTP retry / CDN rotation).
-                let detail = e.to_string();
-                return Err(SegmentError::Failed(detail));
+                // Chunk-stream error (e.g. connection reset, decoding error).
+                // The stream is broken, so retrying chunk() on the same
+                // response cannot recover — trigger CDN rotation in the
+                // caller's download_url loop, which retries this segment on
+                // the next CDN URL.
+                // Why: all chunk() errors map to Reconnect rather than only
+                //   "decoding" ones, because classifying via reqwest's error
+                //   message string is fragile across versions. The deliberate
+                //   trade-off is losing a same-CDN reconnect chance for a
+                //   transient connection reset (issue #494).
+                log::warn!(
+                    "[BE] download_segment: stream error, triggering CDN rotation: {}",
+                    e
+                );
+                return Err(SegmentError::Reconnect);
             }
         }
     }
 
-    Ok((buf, received, false))
+    Ok((buf, received))
 }
 
 /// Writes a downloaded segment buffer at the specified byte offset.
