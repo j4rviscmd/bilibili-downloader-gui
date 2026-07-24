@@ -25,6 +25,7 @@ enum SegmentError {
     /// (triggers CDN rotation via caller's loop)
     Reconnect,
 }
+
 use anyhow::Result;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
@@ -38,6 +39,41 @@ use tauri::{AppHandle, Manager};
 use tokio::sync::Semaphore;
 use tokio::{fs, io::AsyncSeekExt, io::AsyncWriteExt};
 use tokio_util::sync::CancellationToken;
+
+/// Builds the shared reqwest::Client for downloads with connection pooling
+/// tuned for parallel segment fetches (see inline comments for each option).
+/// Centralized here so the shared client (lib.rs) and the fallback client
+/// (download_url) stay identical without manual mirroring.
+pub fn build_download_client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .user_agent(USER_AGENT)
+        // Overall request timeout. CDN rotation handles truly stuck
+        // transfers.
+        .timeout(Duration::from_secs(120))
+        // Separate handshake timeout so a hung connect fails fast (10s) and
+        // rotates to the next CDN, instead of burning the full 120s budget.
+        .connect_timeout(Duration::from_secs(10))
+        // Fixed at the max segment concurrency (8). The pool is just a
+        // cache; sizing to the max means runtime changes to
+        // downloadParallelism take effect immediately without rebuilding
+        // the client or restarting the app.
+        // Constraint: the literal 8 is maintenance-coupled to the max clamp
+        //   in Settings::resolve_segment_concurrency
+        //   (src/models/settings.rs: both the `unwrap_or(8)` default and the
+        //   `_ => 8` match arm). There is no shared named constant, so if the
+        //   allowed max step ever changes, bump this in lockstep or the pool
+        //   will under-provision at peak parallelism.
+        .pool_max_idle_per_host(8)
+        // Keep idle connections alive longer than reqwest's 90s default so
+        // they're reused across gaps between segment fetches. Safe to
+        // extend because tcp_keepalive evicts dead peers.
+        .pool_idle_timeout(Duration::from_secs(120))
+        // Probe idle connections so half-open/dead CDN sockets are
+        // detected and reused connections don't fail mid-request.
+        .tcp_keepalive(Duration::from_secs(60))
+        .build()
+        .expect("Failed to build HTTP client")
+}
 
 /// Sets the download stage based on filename pattern.
 ///
@@ -278,14 +314,7 @@ pub async fn download_url(
         Some(state) => state.inner().clone(),
         None => {
             log::warn!("[BE] Shared client not found in app state, using local client");
-            Arc::new(
-                reqwest::Client::builder()
-                    .user_agent(USER_AGENT)
-                    .timeout(Duration::from_secs(120))
-                    .pool_max_idle_per_host(concurrency)
-                    .build()
-                    .expect("Failed to build fallback HTTP client"),
-            )
+            Arc::new(build_download_client())
         }
     };
 
