@@ -31,10 +31,10 @@ use futures::StreamExt;
 use reqwest::header;
 use reqwest::RequestBuilder;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tokio::sync::Semaphore;
 use tokio::{fs, io::AsyncSeekExt, io::AsyncWriteExt};
 use tokio_util::sync::CancellationToken;
@@ -238,6 +238,7 @@ pub async fn download_url(
     download_id: Option<String>,
     override_stage: Option<&str>,
     emit_complete: bool,
+    concurrency: usize,
 ) -> Result<()> {
     log::info!(
         "[BE] download_url: starting download to {:?}, cdn_count={}",
@@ -269,10 +270,24 @@ pub async fn download_url(
         .and_then(|s| s.to_str())
         .unwrap_or("download");
 
-    let client = reqwest::Client::builder()
-        .user_agent(USER_AGENT)
-        .timeout(Duration::from_secs(120))
-        .build()?;
+    // Try to get shared client from app state, fallback to local client
+    // Note: the fallback is a safety net for call paths where the managed
+    //   shared client is unavailable (e.g. non-app contexts); it mirrors the
+    //   shared client's timeout and pool sizing (issue #491).
+    let client: Arc<reqwest::Client> = match app.try_state::<Arc<reqwest::Client>>() {
+        Some(state) => state.inner().clone(),
+        None => {
+            log::warn!("[BE] Shared client not found in app state, using local client");
+            Arc::new(
+                reqwest::Client::builder()
+                    .user_agent(USER_AGENT)
+                    .timeout(Duration::from_secs(120))
+                    .pool_max_idle_per_host(concurrency)
+                    .build()
+                    .expect("Failed to build fallback HTTP client"),
+            )
+        }
+    };
 
     // Build list of all CDN URLs (primary + backups)
     let mut cdn_urls = vec![url.clone()];
@@ -308,6 +323,7 @@ pub async fn download_url(
                 download_id.clone(),
                 override_stage,
                 emit_complete,
+                client.clone(),
             )
             .await;
         }
@@ -321,8 +337,11 @@ pub async fn download_url(
     let segment_size = DEFAULT_SEGMENT_MB * 1024 * 1024;
     let segments: Vec<(u64, u64)> = calculate_segments(total, segment_size);
 
-    // NOTE: Bilibili CDN is unstable with parallel requests, so fixed to 1
-    let concurrency: usize = 1;
+    // Why: segment parallelism is now configurable instead of the previous
+    //   hardcoded concurrency=1. The "Bilibili CDN is unstable with parallel
+    //   requests" caveat that forced 1 is mitigated by CDN pre-selection
+    //   (#490), so users may raise parallelism safely (issue #491).
+    log::info!("[BE] download_url: using concurrency: {}", concurrency);
 
     // ---- 3. Pre-allocate file ----
     preallocate_file(&output_path, total).await?;
@@ -377,9 +396,6 @@ pub async fn download_url(
             // Track bytes this segment has added to dl_total_c
             // for rollback on retry
             let seg_bytes_added = Arc::new(AtomicU64::new(0));
-            // Track retry state for this segment to clear isRetrying flag
-            // exactly once on the first chunk from the new CDN.
-            let seg_is_retrying = Arc::new(AtomicBool::new(false));
 
             loop {
                 // Check cancellation on each iteration
@@ -396,13 +412,6 @@ pub async fn download_url(
                     dl_total_c.fetch_sub(prev, Ordering::Relaxed);
                     // Reset progress display after rollback
                     emits_c.update_progress(dl_total_c.load(Ordering::Relaxed));
-                    // Reset speed tracking so the previous CDN's low speed
-                    // doesn't bleed into the new CDN via EMA smoothing,
-                    // and notify the frontend to hide transfer rate display
-                    // until the new CDN's first chunk arrives.
-                    emits_c.reset_speed_tracking().await;
-                    emits_c.set_retrying(true).await;
-                    seg_is_retrying.store(true, Ordering::Relaxed);
                 }
 
                 // Select CDN URL based on rotation count (CDN rotation with loop)
@@ -463,7 +472,6 @@ pub async fn download_url(
                         let emits_cb = emits_c.clone();
                         let dl_total_cb = dl_total_c.clone();
                         let seg_bytes_cb = seg_bytes_added.clone();
-                        let seg_is_retrying_cb = seg_is_retrying.clone();
                         let download_result = download_segment_with_speed_check(
                             &mut resp,
                             idx,
@@ -471,15 +479,6 @@ pub async fn download_url(
                             cdn_rotation_count,
                             cdn_urls_c.len(),
                             |chunk_len| {
-                                // On first chunk after retry, clear isRetrying flag.
-                                // swap returns the previous value and sets to false atomically,
-                                // so this only fires once per retry cycle.
-                                if seg_is_retrying_cb.swap(false, Ordering::Relaxed) {
-                                    let emits_for_retry = emits_cb.clone();
-                                    tokio::spawn(async move {
-                                        emits_for_retry.set_retrying(false).await;
-                                    });
-                                }
                                 seg_bytes_cb.fetch_add(chunk_len, Ordering::Relaxed);
                                 let new_total =
                                     dl_total_cb.fetch_add(chunk_len, Ordering::Relaxed) + chunk_len;
@@ -836,6 +835,7 @@ async fn single_stream_fallback(
     download_id: Option<String>,
     override_stage: Option<&str>,
     emit_complete: bool,
+    client: Arc<reqwest::Client>,
 ) -> Result<()> {
     // Get cancellation token from registry if download_id is provided
     let cancel_token: Option<CancellationToken> = if let Some(ref id) = download_id {
@@ -856,8 +856,7 @@ async fn single_stream_fallback(
         }
     }
 
-    // Build and send request
-    let client = reqwest::Client::builder().user_agent(USER_AGENT).build()?;
+    // Build and send request using the shared client
     let req = apply_cookie(client.get(&url).header(header::REFERER, REFERER), &cookie);
     let mut resp = req.send().await?;
     // Reject non-media error responses before streaming to disk (see

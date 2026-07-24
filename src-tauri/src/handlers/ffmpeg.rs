@@ -131,6 +131,12 @@ fn cleanup_ffmpeg_dir(ffmpeg_root: &Path) {
 /// - Permission setting fails (macOS)
 pub async fn install_ffmpeg(app: &AppHandle) -> Result<bool> {
     log::info!("[BE] install_ffmpeg: starting ffmpeg installation");
+
+    // Get segment concurrency from settings
+    let settings = crate::handlers::settings::get_settings(app).await.ok();
+    let segment_concurrency =
+        crate::models::settings::Settings::resolve_segment_concurrency(&settings);
+
     // Download ffmpeg binary
     // let ffmpeg_path = get_ffmpeg_path(app);
     let ffmpeg_root = get_ffmpeg_root_path(app);
@@ -172,6 +178,7 @@ pub async fn install_ffmpeg(app: &AppHandle) -> Result<bool> {
         Some("ffmpeg-install".to_string()),
         None,
         true, // emit progress so the splash can show a download progress bar
+        segment_concurrency,
     )
     .await
     .is_err()

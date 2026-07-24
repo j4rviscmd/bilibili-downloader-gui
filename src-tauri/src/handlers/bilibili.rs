@@ -167,6 +167,7 @@ use crate::models::frontend_dto::{
     DownloadRetrying, Quality, SubtitleDto, Thumbnail, UserData, Video, VideoPart,
     WatchHistoryCursor, WatchHistoryEntry,
 };
+use crate::models::settings::Settings;
 use crate::utils::downloads::download_url;
 use crate::utils::paths::get_lib_path;
 use crate::{constants::USER_AGENT, models::frontend_dto::User};
@@ -421,6 +422,10 @@ async fn download_bangumi_durl(
     )
     .ok();
 
+    // Get segment concurrency from settings
+    let settings = settings::get_settings(app).await.ok();
+    let segment_concurrency = Settings::resolve_segment_concurrency(&settings);
+
     // Capacity check
     if let Some(vs) = head_content_length(video_url, Some(cookie_header)).await {
         let total_needed = vs + (5 * 1024 * 1024); // 5MB buffer
@@ -482,6 +487,7 @@ async fn download_bangumi_durl(
                     Some(download_id),
                     Some("video"),
                     true,
+                    segment_concurrency,
                 )
                 .await
             }
@@ -548,6 +554,10 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
         options.bvid,
         options.cid
     );
+
+    // Get segment concurrency from settings
+    let settings = settings::get_settings(app).await.ok();
+    let segment_concurrency = Settings::resolve_segment_concurrency(&settings);
 
     // If this part was cancelled (via cancel_all_downloads) before
     // download_video started, reject immediately so it never runs.
@@ -702,6 +712,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
                             Some(download_id),
                             Some("video"),
                             true,
+                            segment_concurrency,
                         )
                         .await
                     }
@@ -917,6 +928,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
                         Some(download_id),
                         None,
                         false, // emit_complete: will be emitted after merge
+                        segment_concurrency,
                     )
                     .await
                 }
@@ -1401,6 +1413,10 @@ async fn download_audio_with_fallback(
         url_host(&primary_url)
     );
 
+    // Get segment concurrency from settings
+    let settings = settings::get_settings(app).await.ok();
+    let segment_concurrency = Settings::resolve_segment_concurrency(&settings);
+
     // Refetch inputs for attempt > 1 (bilibili signed URLs expire after 120 min).
     let a_refetch_cookies = refetch_ctx.cookies.clone();
     let a_refetch_bvid = refetch_ctx.bvid.clone();
@@ -1453,6 +1469,7 @@ async fn download_audio_with_fallback(
                 Some(download_id),
                 None,
                 false,
+                segment_concurrency,
             )
             .await
         }
@@ -1500,23 +1517,28 @@ async fn download_audio_with_fallback(
                         url_host(&stream.base_url)
                     );
 
+                    // Clone variables for the fallback closure to avoid move errors
+                    let output_path_clone = output_path.clone();
+                    let cookie_clone = cookie.clone();
+
                     // CONSTRAINT: fallback loop intentionally does NOT refetch playurl on
                     // retry (issue #482 design decision). Each iteration already switches
                     // to a different audio stream (different CDN edge), which is the
                     // recovery mechanism here; refetching the same quality's signature
                     // would add complexity (stream-id remapping) for little gain.
                     let fallback_result =
-                        retry_download(app, download_id, Some("audio"), |_attempt: u8| {
+                        retry_download(app, download_id, Some("audio"), move |_attempt: u8| {
                             download_url(
                                 app,
                                 stream.base_url.clone(),
                                 stream.backup_urls.clone(),
-                                output_path.clone(),
-                                cookie.clone(),
+                                output_path_clone.clone(),
+                                cookie_clone.clone(),
                                 true,
                                 Some(download_id.to_string()),
                                 None,
                                 false,
+                                segment_concurrency,
                             )
                         })
                         .await;

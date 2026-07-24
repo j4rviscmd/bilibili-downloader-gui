@@ -462,7 +462,10 @@
     "video_codec_hevc_first_description": "Prefiere H.265 (HEVC) para buena compresión con amplia disponibilidad, retrocede a H.264 si no está disponible.",
     "video_codec_avc_only": "H.264 Solo (Compatibilidad)",
     "video_codec_avc_only_chain": "H.264",
-    "video_codec_avc_only_description": "Siempre usa H.264 (AVC) para máxima compatibilidad de dispositivos y reproductores."
+    "video_codec_avc_only_description": "Siempre usa H.264 (AVC) para máxima compatibilidad de dispositivos y reproductores.",
+    "download_parallelism_label": "Paralelismo de Descarga de Segmentos",
+    "download_parallelism_description": "Número de descargas paralelas de segmentos. Valores más altos (8, 6) pueden ser más rápidos pero pueden activar la limitación de CDN de Bilibili. Valores más bajos (2, 1) son más estables pero más lentos. El valor predeterminado es 8, recomendado para la mayoría de conexiones.",
+    "download_parallelism_cdn_warning": "El CDN de Bilibili puede limitar las descargas paralelas. Si las descargas son inestables, prueba reducir a 4 o 2."
   },
   "validation": {
     "path": {
@@ -481,6 +484,11 @@
     },
     "language": {
       "required": "Selecciona un idioma."
+    },
+    "download_parallelism": {
+      "min": "El paralelismo debe ser al menos 1.",
+      "max": "El paralelismo no puede exceder 8.",
+      "invalid": "El paralelismo debe ser uno de: 1, 2, 4, 6 u 8."
     },
     "video": {
       "url": {

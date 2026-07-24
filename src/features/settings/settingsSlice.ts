@@ -24,6 +24,10 @@ const initialState: SettingsState = {
   showTaskbarProgress: true,
   flashTaskbarOnComplete: true,
   videoCodecPriority: 'av1First',
+  // Note: must match the backend default in Settings::resolve_segment_concurrency
+  //   (8) so the initial UI selection agrees with the resolved concurrency
+  //   before the persisted setting is loaded (issue #491).
+  downloadParallelism: 8,
 }
 
 /**

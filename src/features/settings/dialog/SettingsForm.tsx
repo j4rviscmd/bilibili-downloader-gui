@@ -529,6 +529,50 @@ function SettingsForm() {
           />
         </div>
         <Separator />
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Label>{t('settings.download_parallelism_label')}</Label>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="text-muted-foreground h-4 w-4" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="max-w-xs">
+                    {t('settings.download_parallelism_cdn_warning')}
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+          <RadioGroup
+            value={String(settings.downloadParallelism ?? 8)}
+            onValueChange={(value) => {
+              saveByForm({
+                ...settings,
+                downloadParallelism: Number(value),
+              })
+            }}
+            className="grid grid-cols-5 gap-2"
+          >
+            {/* Constraint: values must stay in sync with the allowed steps in
+                Settings::resolve_segment_concurrency (1/2/4/6/8). Adding or
+                removing a value here requires updating the backend matcher
+                (issue #491). */}
+            {[1, 2, 4, 6, 8].map((value) => (
+              <div key={value} className="flex items-center space-x-2">
+                <RadioGroupItem
+                  value={String(value)}
+                  id={`parallel-${value}`}
+                />
+                <Label htmlFor={`parallel-${value}`} className="cursor-pointer">
+                  {value}
+                </Label>
+              </div>
+            ))}
+          </RadioGroup>
+        </div>
+        <Separator />
         <TitleReplacementSettings />
         <Separator />
         <div className="space-y-2">
