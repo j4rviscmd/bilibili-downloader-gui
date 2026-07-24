@@ -206,6 +206,7 @@
     "rate_limited": "リクエストが多すぎます。しばらく待ってから再試行してください。",
     "video_quality_fallback": "選択した画質 ({{from}}) が利用できないため {{to}} にフォールバックしました。",
     "audio_quality_fallback": "選択した音質 ({{from}}) が利用できないため {{to}} にフォールバックしました。",
+    "audio_merge_fallback": "音声ストリームコピーに失敗しました。AAC再エンコードを使用します。",
     "invalid_media_response": "サーバーから無効なメディア応答がありました（エラーページを受信）。",
     "audio_download_failed": "すべての利用可能なストリームを試しましたが、音声のダウンロードに失敗しました。",
     "queue_waiting_prefix": "キュー待ち:",

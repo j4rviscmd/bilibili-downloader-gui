@@ -206,6 +206,7 @@
     "rate_limited": "Demasiadas solicitudes. Por favor, espere un momento e inténtelo de nuevo.",
     "video_quality_fallback": "La calidad de video seleccionada ({{from}}) no está disponible. Usando {{to}}.",
     "audio_quality_fallback": "La calidad de audio seleccionada ({{from}}) no está disponible. Usando {{to}}.",
+    "audio_merge_fallback": "La copia del flujo de audio falló. Usando recodificación AAC en su lugar.",
     "invalid_media_response": "Respuesta de medios no válida del servidor (se recibió página de error).",
     "audio_download_failed": "Error al descargar audio después de intentar todas las transmisiones disponibles.",
     "queue_waiting_prefix": "En cola:",

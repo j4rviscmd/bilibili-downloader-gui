@@ -114,6 +114,23 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
           store.dispatch(updateQueueStatus({ downloadId, status: 'running' }))
         }
 
+        // Why: the backend emits the `merge-fallback` stage (Emits::set_stage
+        //   in merge_avs, src-tauri/src/handlers/ffmpeg.rs) only when the
+        //   fast/lossless `-c:a copy` path fails and it falls back to AAC
+        //   re-encoding. Surfacing it as a toast keeps the user informed that
+        //   this merge will run slower than the usual stream-copy fast path
+        //   (Issue #492).
+        // Note: this is the merge *codec* fallback, distinct from the *quality*
+        //   fallback handled below (warn-*-quality-fallback), which is about
+        //   the CDN serving a lower-than-requested quality. Keep this stage
+        //   string in sync with the Rust emitter if it is renamed.
+        // Show toast for audio fallback during merge
+        if (stage === 'merge-fallback') {
+          toast.info(i18n.t('video.audio_merge_fallback'), {
+            duration: 6000,
+          })
+        }
+
         // Show toast for quality fallback warnings
         const isFallbackWarning =
           stage === 'warn-video-quality-fallback' ||

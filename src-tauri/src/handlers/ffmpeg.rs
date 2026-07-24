@@ -548,17 +548,171 @@ pub async fn merge_av(
     .await
 }
 
+/// Audio codec strategy used when merging.
+///
+/// `Copy` is tried first (`-c:a copy`) for a fast, lossless mux; `Aac`
+/// (`-c:a aac`) is the fallback re-encode used only when stream copy fails —
+/// e.g. a future non-AAC source that cannot live in an MP4 container. bilibili's
+/// standard DASH audio is always AAC today, so copy succeeds in practice.
+enum AudioCodec {
+    Copy,
+    Aac,
+}
+
+impl AudioCodec {
+    /// Returns the ffmpeg codec name passed after `-c:a`.
+    fn as_str(&self) -> &'static str {
+        match self {
+            AudioCodec::Copy => "copy",
+            AudioCodec::Aac => "aac",
+        }
+    }
+}
+
+/// Builds ffmpeg merge arguments for the given subtitle mode and audio codec.
+///
+/// The audio codec is parameterized so a single builder serves both the
+/// stream-copy attempt and the AAC re-encode fallback — only the `-c:a` value
+/// differs; everything else (inputs, mappings, metadata, video codec) is
+/// identical for a given [`MergeMode`].
+fn build_merge_args(
+    video_path: &str,
+    audio_path: &str,
+    output_path: &str,
+    subtitle_mode: &MergeMode,
+    audio_codec: AudioCodec,
+) -> Result<Vec<String>, String> {
+    let to_str_err = || "Invalid path".to_string();
+    let audio = audio_codec.as_str();
+
+    let mut args = Vec::new();
+
+    match subtitle_mode {
+        MergeMode::None => {
+            args.extend(
+                [
+                    "-i",
+                    video_path,
+                    "-i",
+                    audio_path,
+                    "-c:v",
+                    "copy",
+                    "-c:a",
+                    audio,
+                    "-progress",
+                    "pipe:1",
+                    "-y",
+                    output_path,
+                ]
+                .iter()
+                .map(|s| s.to_string()),
+            );
+        }
+        MergeMode::SoftSub(subtitles) => {
+            let mut input_args: Vec<String> = vec![
+                "-i".to_string(),
+                video_path.to_string(),
+                "-i".to_string(),
+                audio_path.to_string(),
+            ];
+
+            for sub in subtitles {
+                let sub_str = sub.path.to_str().ok_or_else(to_str_err)?;
+                input_args.push("-i".to_string());
+                input_args.push(sub_str.to_string());
+            }
+
+            let mut map_args: Vec<String> = vec![
+                "-map".to_string(),
+                "0:v".to_string(),
+                "-map".to_string(),
+                "1:a".to_string(),
+            ];
+
+            for i in 0..subtitles.len() {
+                map_args.push("-map".to_string());
+                map_args.push(format!("{}:0", i + 2));
+            }
+
+            let mut metadata_args: Vec<String> = Vec::new();
+            for (i, sub) in subtitles.iter().enumerate() {
+                metadata_args.push(format!("-metadata:s:s:{}", i));
+                metadata_args.push(format!("language={}", sub.language));
+                metadata_args.push(format!("-metadata:s:s:{}", i));
+                metadata_args.push(format!("title={}", sub.title));
+            }
+
+            let codec_args: Vec<String> = vec![
+                "-c:v".to_string(),
+                "copy".to_string(),
+                "-c:a".to_string(),
+                audio.to_string(),
+                "-c:s".to_string(),
+                "mov_text".to_string(),
+            ];
+
+            args.extend(input_args);
+            args.extend(map_args);
+            args.extend(metadata_args);
+            args.extend(codec_args);
+            args.extend(
+                ["-progress", "pipe:1", "-y", output_path]
+                    .iter()
+                    .map(|s| s.to_string()),
+            );
+        }
+        MergeMode::HardSub(subtitle) => {
+            let sub_str = subtitle.path.to_str().ok_or_else(to_str_err)?;
+
+            let escaped_sub = sub_str
+                .replace('\\', "\\\\")
+                .replace(':', "\\:")
+                .replace('\'', "'\\''");
+
+            let filter = format!("subtitles='{}'", escaped_sub);
+
+            args.extend(
+                [
+                    "-i",
+                    video_path,
+                    "-i",
+                    audio_path,
+                    "-vf",
+                    &filter,
+                    "-c:v",
+                    "libx264",
+                    "-preset",
+                    "fast",
+                    "-c:a",
+                    audio,
+                    "-progress",
+                    "pipe:1",
+                    "-y",
+                    output_path,
+                ]
+                .iter()
+                .map(|s| s.to_string()),
+            );
+        }
+    }
+
+    Ok(args)
+}
+
 /// Merges video, audio, and optional subtitles into a single MP4 file.
 ///
 /// This is an extended version of [`merge_av`] that supports subtitle handling
 /// based on the specified [`MergeMode`]:
 ///
 /// - **None**: Merges video and audio only (identical to [`merge_av`]).
-///   Video stream is copied without re-encoding; audio is re-encoded to AAC.
+///   Video stream is copied without re-encoding; audio is first tried with
+///   stream copy, falling back to AAC re-encoding if needed.
 /// - **SoftSub**: Embeds subtitle tracks into the container (`mov_text` codec).
 ///   Viewers can toggle subtitles on/off during playback. Supports multiple tracks.
+///   Audio uses copy-first with AAC fallback.
 /// - **HardSub**: Burns subtitles into the video frame using the `subtitles` filter.
-///   Requires re-encoding via `libx264` with `fast` preset.
+///   Requires re-encoding via `libx264` with `fast` preset. Audio uses copy-first
+///   with AAC fallback.
 ///
 /// Progress events are emitted to the frontend during the merge process.
 ///
@@ -582,7 +736,7 @@ pub async fn merge_av(
 /// - File paths contain invalid UTF-8
 /// - Subtitle file paths are invalid (when using SoftSub or HardSub mode)
 /// - ffmpeg execution fails
-/// - ffmpeg returns a non-zero exit code
+/// - ffmpeg returns a non-zero exit code for both copy and re-encode attempts
 #[allow(clippy::too_many_arguments)]
 pub async fn merge_avs(
     app: &AppHandle,
@@ -607,7 +761,7 @@ pub async fn merge_avs(
 
     let emits = Emits::new(
         app.clone(),
-        download_id.unwrap_or(filename.to_string()),
+        download_id.clone().unwrap_or(filename.to_string()),
         Some(100 * 1024 * 1024),
     );
     let _ = emits.set_stage("merge").await;
@@ -619,106 +773,87 @@ pub async fn merge_avs(
     let audio_str = audio_path.to_str().ok_or_else(to_str_err)?;
     let output_str = output_path.to_str().ok_or_else(to_str_err)?;
 
-    let mut cmd = AsyncCommand::new(&ffmpeg_path);
+    // Try audio stream copy first; fall back to AAC re-encoding on failure.
+    let copy_args = build_merge_args(
+        video_str,
+        audio_str,
+        output_str,
+        &subtitle_mode,
+        AudioCodec::Copy,
+    )?;
+    let copy_result = run_merge_ffmpeg(
+        &ffmpeg_path,
+        &copy_args,
+        output_path,
+        duration_ms,
+        &emits,
+        &cancel_token,
+    )
+    .await;
 
-    match &subtitle_mode {
-        MergeMode::None => {
-            cmd.args([
-                "-i",
-                video_str,
-                "-i",
-                audio_str,
-                "-c:v",
-                "copy",
-                "-c:a",
-                "aac",
-                "-progress",
-                "pipe:1",
-                "-y",
-                output_str,
-            ]);
-        }
-        MergeMode::SoftSub(subtitles) => {
-            let mut input_args: Vec<String> = vec![
-                "-i".to_string(),
-                video_str.to_string(),
-                "-i".to_string(),
-                audio_str.to_string(),
-            ];
-
-            for sub in subtitles {
-                let sub_str = sub.path.to_str().ok_or_else(to_str_err)?;
-                input_args.push("-i".to_string());
-                input_args.push(sub_str.to_string());
-            }
-
-            let sub_count = subtitles.len();
-
-            let mut map_args: Vec<String> = vec![
-                "-map".to_string(),
-                "0:v".to_string(),
-                "-map".to_string(),
-                "1:a".to_string(),
-            ];
-
-            for i in 0..sub_count {
-                map_args.push("-map".to_string());
-                map_args.push(format!("{}:0", i + 2));
-            }
-
-            let mut metadata_args: Vec<String> = Vec::new();
-            for (i, sub) in subtitles.iter().enumerate() {
-                metadata_args.push(format!("-metadata:s:s:{}", i));
-                metadata_args.push(format!("language={}", sub.language));
-                metadata_args.push(format!("-metadata:s:s:{}", i));
-                metadata_args.push(format!("title={}", sub.title));
-            }
-
-            let codec_args: Vec<String> = vec![
-                "-c:v".to_string(),
-                "copy".to_string(),
-                "-c:a".to_string(),
-                "aac".to_string(),
-                "-c:s".to_string(),
-                "mov_text".to_string(),
-            ];
-
-            cmd.args(&input_args)
-                .args(&map_args)
-                .args(&metadata_args)
-                .args(&codec_args)
-                .args(["-progress", "pipe:1", "-y", output_str]);
-        }
-        MergeMode::HardSub(subtitle) => {
-            let sub_str = subtitle.path.to_str().ok_or_else(to_str_err)?;
-
-            let escaped_sub = sub_str
-                .replace('\\', "\\\\")
-                .replace(':', "\\:")
-                .replace('\'', "'\\''");
-
-            let filter = format!("subtitles='{}'", escaped_sub);
-
-            cmd.args([
-                "-i",
-                video_str,
-                "-i",
-                audio_str,
-                "-vf",
-                &filter,
-                "-c:v",
-                "libx264",
-                "-preset",
-                "fast",
-                "-c:a",
-                "aac",
-                "-progress",
-                "pipe:1",
-                "-y",
-                output_str,
-            ]);
-        }
+    if copy_result.is_ok() {
+        log::info!("[BE] merge_avs: audio copy succeeded");
+        let _ = emits.set_stage("complete").await;
+        emits.complete().await;
+        return Ok(());
     }
+
+    // Cancellation must propagate immediately — it is a user action, not a
+    // transcode failure, and must NOT trigger the AAC re-encode fallback.
+    if matches!(
+        copy_result.as_ref().err().map(String::as_str),
+        Some("ERR::CANCELLED")
+    ) {
+        return Err(copy_result.unwrap_err());
+    }
+
+    // Audio copy failed (non-cancel): reset the progress baseline so the
+    // frontend's monotonic clamp tracks the re-encode from 0% instead of
+    // sitting at the copy attempt's peak, then fall back to AAC re-encoding.
+    log::info!("[BE] merge_avs: audio copy failed, falling back to AAC re-encoding");
+    emits.update_progress(0);
+    let _ = emits.set_stage("merge-fallback").await;
+
+    let reencode_args = build_merge_args(
+        video_str,
+        audio_str,
+        output_str,
+        &subtitle_mode,
+        AudioCodec::Aac,
+    )?;
+    match run_merge_ffmpeg(
+        &ffmpeg_path,
+        &reencode_args,
+        output_path,
+        duration_ms,
+        &emits,
+        &cancel_token,
+    )
+    .await
+    {
+        Ok(()) => {
+            log::info!("[BE] merge_avs: AAC re-encoding succeeded");
+            let _ = emits.set_stage("complete").await;
+            emits.complete().await;
+            Ok(())
+        }
+        Err(e) => Err(e),
+    }
+}
+
+/// Runs ffmpeg with the given args for merge operations.
+///
+/// Handles progress parsing, cancellation, and stderr collection.
+async fn run_merge_ffmpeg(
+    ffmpeg_path: &Path,
+    args: &[String],
+    output_path: &Path,
+    duration_ms: Option<u64>,
+    emits: &Emits,
+    cancel_token: &Option<CancellationToken>,
+) -> Result<(), String> {
+    let mut cmd = AsyncCommand::new(ffmpeg_path);
+    cmd.args(args);
 
     #[cfg(target_os = "windows")]
     {
@@ -754,7 +889,7 @@ pub async fn merge_avs(
         // Cancel check (inline; check_cancelled is private + anyhow-typed).
         // On cancel: kill ffmpeg, remove partial output, stop the progress
         // emitter (prevents progress ghost), reap stderr task, then return.
-        if let Some(t) = &cancel_token {
+        if let Some(t) = cancel_token {
             if t.is_cancelled() {
                 // Kill ffmpeg; its stderr closes and the stderr_task winds down
                 // on its own (avoid moving stderr_task so the post-loop await
@@ -798,7 +933,7 @@ pub async fn merge_avs(
     if !status.success() {
         // ffmpeg didn't finish cleanly. If a cancel was requested, report it
         // as cancelled and remove the partial output.
-        if let Some(t) = &cancel_token {
+        if let Some(t) = cancel_token {
             if t.is_cancelled() {
                 let _ = tokio::fs::remove_file(output_path).await;
                 let _ = emits.stop().await;
@@ -812,11 +947,130 @@ pub async fn merge_avs(
         ));
     }
 
-    // ffmpeg finished successfully. Treat as complete even if a cancel
-    // arrived in the brief window after progress=end; don't discard a
-    // finished file.
-    let _ = emits.set_stage("complete").await;
-    emits.complete().await;
-
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Asserts the arg list contains `-c:a <expected>` as an adjacent pair.
+    ///
+    /// A plain `.contains("copy")` check would also pass for `-c:v copy`, so we
+    /// verify positional pairing to catch a real codec swap regression.
+    fn assert_audio_codec_pair(args: &[String], expected: &str) {
+        let i = args
+            .iter()
+            .position(|a| a == "-c:a")
+            .expect("-c:a flag must be present in merge args");
+        assert_eq!(
+            args.get(i + 1).map(String::as_str),
+            Some(expected),
+            "audio codec after -c:a"
+        );
+    }
+
+    #[test]
+    fn none_mode_copy_uses_audio_copy() {
+        let args = build_merge_args(
+            "v.m4s",
+            "a.m4s",
+            "out.mp4",
+            &MergeMode::None,
+            AudioCodec::Copy,
+        )
+        .unwrap();
+        assert_audio_codec_pair(&args, "copy");
+    }
+
+    #[test]
+    fn none_mode_aac_uses_audio_aac() {
+        let args = build_merge_args(
+            "v.m4s",
+            "a.m4s",
+            "out.mp4",
+            &MergeMode::None,
+            AudioCodec::Aac,
+        )
+        .unwrap();
+        assert_audio_codec_pair(&args, "aac");
+    }
+
+    #[test]
+    fn softsub_mode_copy_uses_audio_copy() {
+        let subtitles = vec![SubtitleMergeOptions {
+            path: std::path::PathBuf::from("subtitle1.srt"),
+            language: "eng".to_string(),
+            title: "English".to_string(),
+        }];
+        let args = build_merge_args(
+            "v.m4s",
+            "a.m4s",
+            "out.mp4",
+            &MergeMode::SoftSub(subtitles),
+            AudioCodec::Copy,
+        )
+        .unwrap();
+        assert_audio_codec_pair(&args, "copy");
+        // Subtitle-specific flags must still be emitted alongside the audio codec.
+        assert!(args.contains(&"-c:s".to_string()));
+        assert!(args.contains(&"mov_text".to_string()));
+    }
+
+    #[test]
+    fn softsub_mode_aac_uses_audio_aac() {
+        let subtitles = vec![SubtitleMergeOptions {
+            path: std::path::PathBuf::from("subtitle1.srt"),
+            language: "eng".to_string(),
+            title: "English".to_string(),
+        }];
+        let args = build_merge_args(
+            "v.m4s",
+            "a.m4s",
+            "out.mp4",
+            &MergeMode::SoftSub(subtitles),
+            AudioCodec::Aac,
+        )
+        .unwrap();
+        assert_audio_codec_pair(&args, "aac");
+    }
+
+    #[test]
+    fn hardsub_mode_copy_uses_audio_copy() {
+        let subtitle = SubtitleMergeOptions {
+            path: std::path::PathBuf::from("subtitle.srt"),
+            language: "eng".to_string(),
+            title: "English".to_string(),
+        };
+        let args = build_merge_args(
+            "v.m4s",
+            "a.m4s",
+            "out.mp4",
+            &MergeMode::HardSub(subtitle),
+            AudioCodec::Copy,
+        )
+        .unwrap();
+        assert_audio_codec_pair(&args, "copy");
+        // HardSub always re-encodes video to burn subtitles in; that is unaffected.
+        assert!(args.contains(&"-vf".to_string()));
+        assert!(args.contains(&"libx264".to_string()));
+    }
+
+    #[test]
+    fn hardsub_mode_aac_uses_audio_aac() {
+        let subtitle = SubtitleMergeOptions {
+            path: std::path::PathBuf::from("subtitle.srt"),
+            language: "eng".to_string(),
+            title: "English".to_string(),
+        };
+        let args = build_merge_args(
+            "v.m4s",
+            "a.m4s",
+            "out.mp4",
+            &MergeMode::HardSub(subtitle),
+            AudioCodec::Aac,
+        )
+        .unwrap();
+        assert_audio_codec_pair(&args, "aac");
+    }
 }
