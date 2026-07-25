@@ -65,6 +65,30 @@ function StageMini({
   )
 }
 
+/** Compact inline subtitle stage: icon + indeterminate bar (no %, no speed).
+ *
+ * Subtitle download has no byte-level progress (small JSON payload, parallel
+ * per-language fetch), so we show a pulsing bar to signal "working" rather
+ * than a misleading percentage. Keeps the same h-1.5 w-16 bar shape as
+ * StageMini so the row stays visually aligned. */
+function SubtitleStageMini({ tooltipLabel }: { tooltipLabel: string }) {
+  return (
+    <div className="flex shrink-0 items-center gap-1">
+      <TooltipProvider delayDuration={300}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="cursor-default text-xs">💬</span>
+          </TooltipTrigger>
+          <TooltipContent side="top">{tooltipLabel}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+      <div className="bg-primary/20 relative h-1.5 w-16 overflow-hidden rounded-full">
+        <div className="bg-primary h-full w-full animate-pulse rounded-full" />
+      </div>
+    </div>
+  )
+}
+
 /**
  * ダイアログ内の1パート分の行（1行、横並び）。
  *
@@ -150,7 +174,9 @@ export function PartStatusRow({
           {tooltipName}
         </TooltipContent>
       </Tooltip>
-      {/* DL中: audio + video inline */}
+      {/* DL中: audio + video inline (download + subtitle stages).
+          During the subtitle stage audio/video are already at 100%, so we keep
+          them visible and append an indeterminate subtitle indicator. */}
       {isDownloading && part.stage !== 'merge' && (
         <>
           <StageMini
@@ -165,6 +191,11 @@ export function PartStatusRow({
             stage={part.video}
             showSpeed
           />
+          {part.stage === 'subtitle' && (
+            <SubtitleStageMini
+              tooltipLabel={t('downloadStatus.stage_subtitle')}
+            />
+          )}
         </>
       )}
       {/* マージ中: merge bar only */}

@@ -246,6 +246,8 @@
     "stage_merge": "Fusion",
     "stage_waiting": "En attente...",
     "stage_merging": "Traitement...",
+    "stage_subtitle": "Sous-titres",
+    "stage_subtitle_downloading": "Téléchargement des sous-titres...",
     "merging": "Fusion...",
     "download_complete": "Terminé",
     "open_file": "Ouvrir le fichier",
@@ -689,7 +691,8 @@
     "status_merging": "Fusion",
     "stage_audio": "Audio",
     "stage_video": "Vidéo",
-    "stage_merge": "Fusion"
+    "stage_merge": "Fusion",
+    "stage_subtitle": "Sous-titres"
   },
   "audio": {
     "title": "Extraction audio",

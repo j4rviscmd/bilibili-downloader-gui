@@ -246,6 +246,8 @@
     "stage_merge": "合并",
     "stage_waiting": "等待中...",
     "stage_merging": "处理中...",
+    "stage_subtitle": "字幕",
+    "stage_subtitle_downloading": "正在下载字幕...",
     "merging": "合并中...",
     "download_complete": "完成",
     "open_file": "打开文件",
@@ -689,7 +691,8 @@
     "status_merging": "合并中",
     "stage_audio": "音频",
     "stage_video": "视频",
-    "stage_merge": "合并"
+    "stage_merge": "合并",
+    "stage_subtitle": "字幕"
   },
   "audio": {
     "title": "音频提取",
