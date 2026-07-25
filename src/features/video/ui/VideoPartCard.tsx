@@ -293,6 +293,31 @@ const VideoPartCard = memo(function VideoPartCard({
   useEffect(() => {
     mountedRef.current = true
   }, [])
+
+  // Debounce timer for deferred title validation. Holds the pending
+  // timeout so it can be cancelled on blur or unmount.
+  const titleDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Cancel any pending debounced validation. Used on blur (so the
+  // form-level onBlur flushes the save once) and on unmount (to avoid
+  // updating form state after the component is gone). The null guard
+  // also narrows the ref type for clearTimeout.
+  const cancelPendingTitleValidation = useCallback(() => {
+    if (titleDebounceRef.current) {
+      clearTimeout(titleDebounceRef.current)
+      titleDebounceRef.current = null
+    }
+  }, [])
+
+  // Constraint: Relies on `cancelPendingTitleValidation` staying referentially
+  // stable (its useCallback above uses `[]` deps) so cleanup fires only on
+  // unmount. Adding deps to that useCallback would re-run this effect on every
+  // render, clearing the in-flight timer each keystroke and silently disabling
+  // the debounced validation.
+  useEffect(() => {
+    return cancelPendingTitleValidation
+  }, [cancelPendingTitleValidation])
+
   /**
    * Transition override applied only on initial mount when the accordion is
    * already open (e.g. restored from Redux state). Prevents the animated
@@ -661,7 +686,32 @@ const VideoPartCard = memo(function VideoPartCard({
                             placeholder={t('video.title_placeholder')}
                             className="min-h-[52px] resize-none"
                             rows={3}
-                            {...field}
+                            value={field.value}
+                            onChange={(e) => {
+                              field.onChange(e.target.value)
+
+                              // Debounce validation so it only fires after
+                              // the user pauses typing, avoiding noisy
+                              // per-keystroke error flashes. When valid, also
+                              // flush the auto-save so the download-ready
+                              // state updates without requiring blur.
+                              cancelPendingTitleValidation()
+                              titleDebounceRef.current = setTimeout(() => {
+                                void form.trigger('title').then((isValid) => {
+                                  if (isValid) {
+                                    void form.handleSubmit(onSubmit)()
+                                  }
+                                })
+                              }, 500)
+                            }}
+                            onBlur={() => {
+                              // Cancel any not-yet-fired debounce timer so the
+                              // form-level onBlur flushes the save once. If the
+                              // timer already fired, the extra dispatch is
+                              // idempotent (same title value).
+                              cancelPendingTitleValidation()
+                              field.onBlur()
+                            }}
                           />
                         </FormControl>
                         {selected && <FormMessage />}
