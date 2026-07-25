@@ -136,7 +136,17 @@ export function PartStatusRow({
             {rawName}
           </span>
         </TooltipTrigger>
-        <TooltipContent side="top" className="max-w-lg break-all">
+        <TooltipContent
+          side="top"
+          align="start"
+          // CAUTION: align="start" moves the tooltip to the trigger's left edge,
+          // but Radix keeps the arrow pointing at the trigger center (see the
+          // inline `left` on its arrow-wrapper span). Pin the arrow to the
+          // content's left edge so it points at the title's start, not its
+          // middle. `[&>span]` targets that Radix arrow wrapper; the `!` is
+          // required to override the inline `left`.
+          className="max-w-lg break-all [&>span]:!left-3"
+        >
           {tooltipName}
         </TooltipContent>
       </Tooltip>
