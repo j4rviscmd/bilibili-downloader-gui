@@ -246,6 +246,8 @@
     "stage_merge": "Fusionar",
     "stage_waiting": "Esperando...",
     "stage_merging": "Procesando...",
+    "stage_subtitle": "Subtítulos",
+    "stage_subtitle_downloading": "Descargando subtítulos...",
     "merging": "Fusionando...",
     "download_complete": "Completo",
     "open_file": "Abrir archivo",
@@ -689,7 +691,8 @@
     "status_merging": "Combinando",
     "stage_audio": "Audio",
     "stage_video": "Video",
-    "stage_merge": "Combinar"
+    "stage_merge": "Combinar",
+    "stage_subtitle": "Subtítulos"
   },
   "audio": {
     "title": "Extracción de audio",

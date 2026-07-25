@@ -246,6 +246,8 @@
     "stage_merge": "マージ",
     "stage_waiting": "待機中...",
     "stage_merging": "実行中...",
+    "stage_subtitle": "字幕",
+    "stage_subtitle_downloading": "字幕をダウンロード中...",
     "merging": "マージ中...",
     "download_complete": "完了",
     "open_file": "ファイルを開く",
@@ -689,7 +691,8 @@
     "status_merging": "マージ中",
     "stage_audio": "音声",
     "stage_video": "動画",
-    "stage_merge": "マージ"
+    "stage_merge": "マージ",
+    "stage_subtitle": "字幕"
   },
   "audio": {
     "title": "音声抽出",
