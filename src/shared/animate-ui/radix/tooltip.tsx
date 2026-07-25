@@ -106,6 +106,12 @@ function TooltipContent({
         <TooltipPrimitive.Portal forceMount data-slot="tooltip-portal">
           <TooltipPrimitive.Content
             forceMount
+            // Why: forward `side` to Radix so placement matches the motion direction.
+            //      `side` is destructured above and consumed only by getInitialPosition
+            //      for the enter/exit offset, so it never reaches Content via {...props}.
+            // Caution: Radix may flip the side on collision; the motion offset is fixed
+            //          from the requested `side` and won't track that flip.
+            side={side}
             sideOffset={sideOffset}
             className="z-50"
             {...props}
