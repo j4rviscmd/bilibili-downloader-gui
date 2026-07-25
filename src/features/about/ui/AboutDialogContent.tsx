@@ -13,7 +13,7 @@ import { openUrl } from '@tauri-apps/plugin-opener'
 import { Check, Copy } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
+import { toast } from '@/shared/ui/toast'
 import { getAppInfo } from '../api/aboutApi'
 import type { AppInfo } from '../types'
 
