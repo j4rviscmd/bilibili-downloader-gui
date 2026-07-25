@@ -88,7 +88,9 @@ export function AboutDialogContent({
     if (!open || info) return
     getAppInfo()
       .then(setInfo)
-      .catch((e) => logger.error('AboutDialogContent: failed to load app info', e))
+      .catch((e) =>
+        logger.error('AboutDialogContent: failed to load app info', e),
+      )
   }, [open, info])
 
   // Reset the copied flag when the dialog closes so it always starts fresh.

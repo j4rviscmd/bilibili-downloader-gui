@@ -32,7 +32,10 @@ export function MenuAboutDialog() {
         unlisten = fn
       })
       .catch((e) =>
-        logger.error('MenuAboutDialog: failed to register menu:about listener', e),
+        logger.error(
+          'MenuAboutDialog: failed to register menu:about listener',
+          e,
+        ),
       )
     return () => unlisten?.()
   }, [])
