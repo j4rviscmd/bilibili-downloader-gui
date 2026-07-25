@@ -32,6 +32,17 @@ import { PartStatusRow } from './PartStatusRow'
  * スクロール領域は ScrollArea ではなく overflow-y-auto の div を使い、
  * 内容の max-content に水平に広がらないようにする。
  * TooltipProvider は PartStatusRow の Tooltip 表示に必要。
+ *
+ * @why overflow-x-clip + px-1: `overflow-y-auto` promotes the computed
+ *   `overflow-x` from `visible` to `auto` (CSS Overflow spec: a `visible`
+ *   axis is forced to `auto` when the other axis is non-`visible`), which
+ *   clips a child's box-shadow at the container edge. Each PartStatusRow's
+ *   `ring-1` sits 1px outside its border box flush against this container's
+ *   left edge, so without `px-1` the left ring — and the row's left rounded
+ *   corner — gets clipped (visible as the "left edge cut off"). `px-1`
+ *   reserves a gutter so the ring renders; `overflow-x-clip` also suppresses
+ *   any implicit horizontal scrollbar, honoring the "don't expand
+ *   horizontally" intent above.
  */
 export function DownloadStatusDialog() {
   const { t } = useTranslation()
@@ -56,7 +67,7 @@ export function DownloadStatusDialog() {
           {rows.length > 0 && <OverallProgressBar />}
           <div
             className={cn(
-              'max-h-[80vh] min-h-[22rem] overflow-y-auto pr-1',
+              'max-h-[80vh] min-h-[22rem] overflow-x-clip overflow-y-auto px-1',
               rows.length === 0 && 'flex items-center justify-center',
             )}
           >
