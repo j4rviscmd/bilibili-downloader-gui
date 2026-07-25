@@ -5,6 +5,18 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Bilibili Downloader</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <!-- Caution: crossorigin is required on THIS preconnect only. Font files
+         from fonts.gstatic.com are fetched via an anonymous CORS request, so
+         without crossorigin the preopened connection is not reused and the
+         browser opens a second one, defeating the preconnect. The
+         googleapis.com preconnect above intentionally omits it because the
+         stylesheet response is not a CORS request. (web.dev/preconnect) -->
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@100..900&display=swap"
+      rel="stylesheet"
+    />
     <script>
       ;(function () {
         var t = localStorage.getItem('ui-theme') || 'system'
