@@ -20,6 +20,9 @@
       "allow": [
         {
           "url": "https://www.bilibili.com"
+        },
+        {
+          "url": "https://github.com/j4rviscmd/bilibili-downloader-gui"
         }
       ]
     }

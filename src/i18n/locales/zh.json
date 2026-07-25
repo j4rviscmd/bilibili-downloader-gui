@@ -4,6 +4,19 @@
     "subtitle": "轻量级桌面应用，辅助下载",
     "logged_in_user": "登录用户"
   },
+  "about": {
+    "button": "关于",
+    "app_name": "Bilibili Downloader GUI",
+    "description": "一个下载 Bilibili 视频的 GUI 工具",
+    "version": "版本",
+    "os": "操作系统",
+    "architecture": "架构",
+    "tauri_version": "Tauri 版本",
+    "repository": "代码仓库",
+    "copy": "复制信息",
+    "copied": "已复制",
+    "copy_failed": "复制失败"
+  },
   "nav": {
     "home": "主页",
     "downloadHistory": "下载历史",

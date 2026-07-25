@@ -4,6 +4,19 @@
     "subtitle": "가벼운 데스크톱 앱으로 다운로드 지원",
     "logged_in_user": "로그인 사용자"
   },
+  "about": {
+    "button": "정보",
+    "app_name": "Bilibili Downloader GUI",
+    "description": "Bilibili 동영상을 다운로드하는 GUI 도구",
+    "version": "버전",
+    "os": "운영체제",
+    "architecture": "아키텍처",
+    "tauri_version": "Tauri 버전",
+    "repository": "저장소",
+    "copy": "정보 복사",
+    "copied": "복사됨",
+    "copy_failed": "복사 실패"
+  },
   "nav": {
     "home": "홈",
     "downloadHistory": "다운로드 기록",

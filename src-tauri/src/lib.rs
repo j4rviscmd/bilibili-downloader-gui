@@ -50,6 +50,7 @@ use crate::store::HistoryStore;
 pub mod constants;
 pub mod emits;
 pub mod handlers;
+pub mod menu;
 pub mod models;
 pub mod store;
 pub mod utils;
@@ -155,6 +156,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             validate_ffmpeg,
@@ -174,6 +176,7 @@ pub fn run() {
             update_lib_path,
             get_current_lib_path,
             get_os,
+            get_app_info,
             get_history,
             add_history_entry,
             remove_history_entry,
@@ -343,6 +346,27 @@ pub fn run() {
                 package_info.version,
                 std::env::consts::OS
             );
+
+            // Install the macOS app menu (About/Edit/Window). No-op on other
+            // platforms; errors are logged but never fatal so the app still
+            // boots even if the menu fails to register.
+            #[cfg(target_os = "macos")]
+            {
+                if let Err(e) = menu::install_app_menu(app.handle()) {
+                    log::error!("[BE] Failed to install macOS app menu: {}", e);
+                }
+                // The "About <App>" menu item (id "about"; see menu.rs)
+                // opens the in-app About dialog rather than the native
+                // sheet, so the user sees the same environment info as
+                // Settings → About. Forward the click to the frontend via
+                // the `menu:about` event.
+                use tauri::Emitter;
+                app.on_menu_event(|handle, event| {
+                    if event.id().as_ref() == "about" {
+                        let _ = handle.emit("menu:about", ());
+                    }
+                });
+            }
 
             // Main window event handlers (close/resize/move → save geometry) and
             // devtools are registered in finish_splash after the main window is
@@ -844,6 +868,39 @@ async fn get_os() -> String {
     // Returns a normalized OS string used by frontend validation logic
     // std::env::consts::OS already returns one of: "windows", "macos", "linux", etc.
     std::env::consts::OS.to_string()
+}
+
+/// Aggregated application and environment information.
+///
+/// WHY: The About dialog renders this, and the future bug-report flow
+/// (separate feature) reuses the same command to prefill GitHub issue
+/// bodies — so the shape is intentionally flat and stable.
+#[derive(serde::Serialize)]
+struct AppInfo {
+    app_name: String,
+    app_version: String,
+    tauri_version: String,
+    os_name: String,
+    os_version: String,
+    arch: String,
+}
+
+/// Returns aggregated application and environment information.
+///
+/// `app_version` comes from `tauri.conf.json`'s `version` field (the same
+/// value `@tauri-apps/api/app`'s `getVersion()` returns). `os_*` and
+/// `arch` come from `tauri-plugin-os`.
+#[tauri::command]
+async fn get_app_info(app: AppHandle) -> AppInfo {
+    let package_info = app.package_info();
+    AppInfo {
+        app_name: package_info.name.to_string(),
+        app_version: package_info.version.to_string(),
+        tauri_version: tauri::VERSION.to_string(),
+        os_name: tauri_plugin_os::platform().to_string(),
+        os_version: tauri_plugin_os::version().to_string(),
+        arch: tauri_plugin_os::arch().to_string(),
+    }
 }
 
 /// Retrieves all download history entries.

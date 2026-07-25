@@ -1,4 +1,5 @@
 import { useSelector } from '@/app/store'
+import { MenuAboutDialog } from '@/features/about'
 import {
   useDownloadCompletionNotifications,
   useTaskbarProgress,
@@ -40,6 +41,7 @@ function App() {
         <Route path="/error" element={<ErrorPage />} />
         <Route path="/*" element={<PersistentPageLayout />} />
       </Routes>
+      <MenuAboutDialog />
       <UpdateNotification />
       <Toaster richColors theme={theme} />
     </>
