@@ -18,9 +18,9 @@ import {
   setRetrying,
 } from '@/shared/progress/progressSlice'
 import { updateQueueStatus } from '@/shared/queue/queueSlice'
+import { toast } from '@/shared/ui/toast'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { createContext, useEffect, type FC, type ReactNode } from 'react'
-import { toast } from 'sonner'
 
 interface DownloadCancelledPayload {
   downloadId: string

@@ -17,6 +17,9 @@
     "copied": "복사됨",
     "copy_failed": "복사 실패"
   },
+  "common": {
+    "copy": "복사"
+  },
   "nav": {
     "home": "홈",
     "downloadHistory": "다운로드 기록",
@@ -249,7 +252,6 @@
     "open_folder": "폴더 열기",
     "download_failed_part": "다운로드 실패",
     "download_failed_part_description": "p{{page}} - {{title}}: {{description}}",
-    "copy_error": "오류 메시지 복사",
     "retry_hint": "Bilibili 측의 일시적인 문제일 가능성이 높습니다. 약 1시간 후에 다시 시도해 주세요.",
     "time_remaining": "{{time}} 남음",
     "quality_limited_title": "화질 제한됨",

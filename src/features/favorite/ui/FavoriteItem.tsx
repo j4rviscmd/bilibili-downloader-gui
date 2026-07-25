@@ -7,10 +7,10 @@ import {
 } from '@/shared/animate-ui/radix/tooltip'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
+import { toast } from '@/shared/ui/toast'
 import { Check, Copy, Download, ImageOff, StarOff } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 import { formatDuration, formatPlayCount } from '../hooks/useFavorite'
 import type { FavoriteVideo } from '../types'
 

@@ -12,12 +12,12 @@ import type { User } from '@/features/user/types'
 import { setUser } from '@/features/user/userSlice'
 import { videoApi } from '@/features/video'
 import { logger } from '@/shared/lib/logger'
+import { toast } from '@/shared/ui/toast'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useCallback, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 import type { z } from 'zod'
 
 import {

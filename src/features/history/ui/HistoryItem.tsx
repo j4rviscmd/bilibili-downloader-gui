@@ -9,10 +9,10 @@ import {
 } from '@/shared/animate-ui/radix/tooltip'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
+import { toast } from '@/shared/ui/toast'
 import { Check, Copy, Download, ImageOff, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 /**
  * Pads a number with leading zeros to ensure 2-digit format.

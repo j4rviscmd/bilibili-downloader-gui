@@ -10,8 +10,8 @@ import type { Settings } from '@/features/settings/type'
 import type { SupportedLang } from '@/i18n'
 import { changeLanguage } from '@/shared/i18n'
 import { logger } from '@/shared/lib/logger'
+import { toast } from '@/shared/ui/toast'
 import { t as staticT, t } from 'i18next'
-import { toast } from 'sonner'
 
 /**
  * Hook for managing application settings.
@@ -84,7 +84,6 @@ export const useSettings = () => {
         toast.error(t('settings.save_failed_generic'), {
           duration: 10000,
           description,
-          closeButton: true,
         })
       }
     }
@@ -158,7 +157,6 @@ export const useSettings = () => {
       toast.error(staticT('settings.lib_path_change_error'), {
         duration: 10000,
         description: raw,
-        closeButton: true,
       })
     }
   }

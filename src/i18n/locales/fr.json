@@ -17,6 +17,9 @@
     "copied": "Copié",
     "copy_failed": "Échec de la copie"
   },
+  "common": {
+    "copy": "Copier"
+  },
   "nav": {
     "home": "Accueil",
     "downloadHistory": "Historique de téléchargement",
@@ -249,7 +252,6 @@
     "open_folder": "Ouvrir le dossier",
     "download_failed_part": "Échec du téléchargement",
     "download_failed_part_description": "p{{page}} - {{title}}: {{description}}",
-    "copy_error": "Copier le message d'erreur",
     "retry_hint": "Il s'agit probablement d'un problème temporaire côté Bilibili. Veuillez réessayer dans environ une heure.",
     "time_remaining": "{{time}} restante",
     "quality_limited_title": "Qualité Limitée",

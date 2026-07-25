@@ -26,7 +26,7 @@ import { logger } from '@/shared/lib/logger'
 import { mapBackendError } from '@/shared/lib/mapBackendError'
 import { clearProgressByDownloadId } from '@/shared/progress/progressSlice'
 import { clearQueue, clearQueueItem, enqueue } from '@/shared/queue/queueSlice'
-import { Check, Copy } from 'lucide-react'
+import { toast } from '@/shared/ui/toast'
 import {
   createContext,
   useCallback,
@@ -34,10 +34,8 @@ import {
   useEffect,
   useMemo,
   useRef,
-  useState,
 } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 import type { Input, Video } from '../types'
 
 /**
@@ -64,70 +62,6 @@ function extractPageFromUrl(url: string): number | null {
   } catch {
     return null
   }
-}
-
-/**
- * Toast description body for a failed download.
- *
- * Wraps the localized error text so it is selectable (`select-text`) and adds
- * a copy icon button that copies the displayed text (error message + retry
- * hint) to the clipboard. The icon swaps to a check for 2s to confirm the
- * copy, matching the existing Copy/Check pattern in VideoPartCard.
- *
- * Why a custom wrapper instead of sonner's `action`: sonner's action button
- * only accepts a string label, so an icon button must live inside the
- * description body.
- *
- * NOTE: the raw backend error string (ERR::...) is intentionally NOT copied
- * here — it is already captured in the app log file for debugging.
- */
-function DownloadErrorDescription({
-  text,
-  retryHint,
-}: {
-  text: string
-  retryHint?: string
-}) {
-  const { t } = useTranslation()
-  const [copied, setCopied] = useState(false)
-
-  const handleCopy = async () => {
-    const copyText = retryHint ? `${text}\n${retryHint}` : text
-    try {
-      await navigator.clipboard.writeText(copyText)
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 2000)
-    } catch {
-      // Clipboard write can fail in some webview contexts; ignore silently
-      // rather than masking the original download error with a new toast.
-    }
-  }
-
-  return (
-    <span className="flex items-start gap-2">
-      <span className="select-text">
-        {text}
-        {retryHint && (
-          <>
-            <br />
-            {retryHint}
-          </>
-        )}
-      </span>
-      <button
-        type="button"
-        onClick={handleCopy}
-        className="text-muted-foreground hover:text-foreground mt-0.5 shrink-0"
-        aria-label={t('video.copy_error')}
-      >
-        {copied ? (
-          <Check className="size-3.5" />
-        ) : (
-          <Copy className="size-3.5" />
-        )}
-      </button>
-    </span>
-  )
 }
 
 /**
@@ -580,19 +514,19 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
             raw.includes('ERR::AUDIO_DOWNLOAD_FAILED') ||
             raw.includes('ERR::RATE_LIMITED')
           const retryHint = isTransientError ? t('video.retry_hint') : undefined
+          const partDescription = t('video.download_failed_part_description', {
+            page: pi.page,
+            title: pi.title,
+            description,
+          })
+          // The wrapper (`@/shared/ui/toast`) injects the Copy button and
+          // disables the close button app-wide, so we only pass the localized
+          // text (with optional retry hint) as a plain string description.
           toast.error(t('video.download_failed'), {
             duration: Infinity,
-            description: (
-              <DownloadErrorDescription
-                text={t('video.download_failed_part_description', {
-                  page: pi.page,
-                  title: pi.title,
-                  description,
-                })}
-                retryHint={retryHint}
-              />
-            ),
-            closeButton: true,
+            description: retryHint
+              ? `${partDescription}\n${retryHint}`
+              : partDescription,
           })
           store.dispatch(
             setError(retryHint ? `${description}\n${retryHint}` : description),

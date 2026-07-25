@@ -9,12 +9,12 @@ import { usePendingDownload } from '@/shared/hooks/usePendingDownload'
 import { PageTemplate } from '@/shared/layout'
 import { selectHasActiveDownloads } from '@/shared/queue'
 import { Button } from '@/shared/ui/button'
+import { toast } from '@/shared/ui/toast'
 import { confirm, save } from '@tauri-apps/plugin-dialog'
 import { writeTextFile } from '@tauri-apps/plugin-fs'
 import { FileText, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { logger } from '@/shared/lib/logger'
 

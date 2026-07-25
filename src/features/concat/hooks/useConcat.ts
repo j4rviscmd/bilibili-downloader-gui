@@ -5,6 +5,7 @@ import {
 } from '../lib/validation'
 import type { ConcatProgress } from '../types'
 
+import { toast } from '@/shared/ui/toast'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { open, save } from '@tauri-apps/plugin-dialog'
@@ -12,7 +13,6 @@ import { error as logError } from '@tauri-apps/plugin-log'
 import type { TFunction } from 'i18next'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 /** Status of the concatenation operation. */
 export type ConcatStatus = 'idle' | 'concatting' | 'success' | 'error'

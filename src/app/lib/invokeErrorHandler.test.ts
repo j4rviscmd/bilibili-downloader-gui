@@ -4,8 +4,8 @@ const { mockRefreshCookie } = vi.hoisted(() => ({
   mockRefreshCookie: vi.fn(),
 }))
 
-// Mock sonner
-vi.mock('sonner', () => ({
+// Mock toast wrapper (@/shared/ui/toast)
+vi.mock('@/shared/ui/toast', () => ({
   toast: {
     warning: vi.fn(),
     error: vi.fn(),
@@ -45,7 +45,7 @@ vi.mock('@/features/login', async (importOriginal) => {
   }
 })
 
-import { toast } from 'sonner'
+import { toast } from '@/shared/ui/toast'
 import {
   handleSessionExpiry,
   interceptInvokeError,

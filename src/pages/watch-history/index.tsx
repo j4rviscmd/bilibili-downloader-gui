@@ -11,10 +11,10 @@ import { PageTemplate } from '@/shared/layout'
 import { selectHasActiveDownloads } from '@/shared/queue'
 import { Alert, AlertDescription } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
+import { toast } from '@/shared/ui/toast'
 import { AlertCircle, RefreshCw } from 'lucide-react'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 /**
  * Watch history page content component.

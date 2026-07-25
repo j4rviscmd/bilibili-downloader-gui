@@ -17,6 +17,9 @@
     "copied": "Copied",
     "copy_failed": "Failed to copy"
   },
+  "common": {
+    "copy": "Copy"
+  },
   "nav": {
     "home": "Home",
     "downloadHistory": "Download History",
@@ -249,7 +252,6 @@
     "open_folder": "Open Folder",
     "download_failed_part": "Download failed",
     "download_failed_part_description": "p{{page}} - {{title}}: {{description}}",
-    "copy_error": "Copy error message",
     "retry_hint": "This is likely a temporary issue on Bilibili's side. Please try again in about an hour.",
     "time_remaining": "{{time}} remaining",
     "quality_limited_title": "Quality Limited",
