@@ -4,7 +4,7 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: 'Noto Sans JP', system-ui, Avenir, Helvetica, Arial, sans-serif;
   font-size: 14px;
   line-height: 1.5;
   font-weight: 400;
@@ -52,6 +52,11 @@
 }
 
 @theme inline {
+  /* Caution: In Tailwind v4 this token drives the `font-sans` utility and
+     theme font defaults. It must stay in sync with the :root font-family
+     above so utility-driven elements pick up Noto Sans JP too; updating only
+     one leaves Tailwind-styled components on the fallback stack. */
+  --font-sans: 'Noto Sans JP', system-ui, Avenir, Helvetica, Arial, sans-serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
