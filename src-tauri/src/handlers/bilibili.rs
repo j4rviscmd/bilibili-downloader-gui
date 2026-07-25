@@ -956,7 +956,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
         // Subtitle processing
         let (subtitle_mode, subtitle_language_labels, subtitle_failed_labels) =
             prepare_subtitle_mode(
-                &app,
+                app,
                 &options.subtitle,
                 &cookies,
                 &options.bvid,
