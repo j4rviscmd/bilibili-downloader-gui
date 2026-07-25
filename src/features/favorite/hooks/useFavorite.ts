@@ -13,9 +13,9 @@ import {
 } from '@/features/favorite/api/favoriteApi'
 import type { FavoriteVideoListResponse } from '@/features/favorite/types'
 import { logger } from '@/shared/lib/logger'
+import { toast } from '@/shared/ui/toast'
 import { useCallback, useEffect } from 'react'
 import { useSelector } from 'react-redux'
-import { toast } from 'sonner'
 import {
   appendVideos,
   reset,

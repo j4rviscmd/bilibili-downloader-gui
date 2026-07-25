@@ -2,7 +2,7 @@ import { refreshCookie, setSession } from '@/features/login'
 import type { User } from '@/features/user'
 import { setUser } from '@/features/user'
 import i18n from '@/i18n'
-import { toast } from 'sonner'
+import { toast } from '@/shared/ui/toast'
 
 /**
  * Error code prefix returned by Rust backend for unauthorized

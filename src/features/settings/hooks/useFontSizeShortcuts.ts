@@ -5,9 +5,9 @@ import {
   parseFontSize,
 } from '@/features/settings/lib/fontSize'
 import { useSettings } from '@/features/settings/useSettings'
+import { toast } from '@/shared/ui/toast'
 import { t } from 'i18next'
 import { useEffect, useRef } from 'react'
-import { toast } from 'sonner'
 
 // Shared toast id so rapid presses replace the previous toast instead of
 // stacking, keeping the feedback unobtrusive while adjusting repeatedly.

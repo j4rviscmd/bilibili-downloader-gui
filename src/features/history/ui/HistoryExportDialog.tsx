@@ -12,9 +12,9 @@ import {
 } from '@/shared/animate-ui/radix/radio-group'
 import { Button } from '@/shared/ui/button'
 import { Label } from '@/shared/ui/label'
+import { toast } from '@/shared/ui/toast'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 /**
  * Props for HistoryExportDialog component.

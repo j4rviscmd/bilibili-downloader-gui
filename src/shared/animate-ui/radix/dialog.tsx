@@ -139,13 +139,13 @@ function DialogContent({
                 e.preventDefault()
                 return
               }
-              // @why: Sonner toasts live in their own portal outside the dialog.
-              //   Without this guard, interacting with a toast (close button /
-              //   swipe) is detected as an outside interaction and dismisses the
-              //   dialog beneath it.
+              // @why: react-toastify toasts live in their own portal outside
+              //   the dialog. Without this guard, interacting with a toast
+              //   (Copy button / swipe) is detected as an outside interaction
+              //   and dismisses the dialog beneath it.
               if (
                 (e.target as HTMLElement | null)?.closest(
-                  '[data-sonner-toaster]',
+                  '.Toastify__toast-container',
                 )
               ) {
                 e.preventDefault()

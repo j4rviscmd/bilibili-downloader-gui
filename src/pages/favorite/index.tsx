@@ -7,10 +7,10 @@ import { usePendingDownload } from '@/shared/hooks/usePendingDownload'
 import { PageTemplate } from '@/shared/layout'
 import { selectHasActiveDownloads } from '@/shared/queue'
 import { Button } from '@/shared/ui/button'
+import { toast } from '@/shared/ui/toast'
 import { RefreshCw } from 'lucide-react'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 /**
  * Favorite page content component.

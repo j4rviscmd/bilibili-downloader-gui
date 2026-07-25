@@ -4,6 +4,9 @@
     "subtitle": "軽量なデスクトップアプリでダウンロードを支援",
     "logged_in_user": "ログインユーザ"
   },
+  "common": {
+    "copy": "コピー"
+  },
   "nav": {
     "home": "ホーム",
     "downloadHistory": "ダウンロード履歴",
@@ -236,7 +239,6 @@
     "open_folder": "フォルダを開く",
     "download_failed_part": "ダウンロードに失敗しました",
     "download_failed_part_description": "p{{page}} - {{title}}: {{description}}",
-    "copy_error": "エラーメッセージをコピー",
     "retry_hint": "Bilibili側の一時的な問題が原因である可能性が高いです。1時間ほど時間をおいてから再試行してください。",
     "time_remaining": "残{{time}}",
     "quality_limited_title": "画質制限あり",

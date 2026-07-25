@@ -59,6 +59,7 @@ import {
 } from '@/shared/ui/form'
 import { Skeleton } from '@/shared/ui/skeleton'
 import { Textarea } from '@/shared/ui/textarea'
+import { toast } from '@/shared/ui/toast'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { Check, Copy, ImageOff, Info } from 'lucide-react'
@@ -66,7 +67,6 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { useDispatch, useSelector } from 'react-redux'
-import { toast } from 'sonner'
 import { z } from 'zod'
 
 /**

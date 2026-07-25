@@ -22,10 +22,10 @@ import {
   setSearchQuery,
 } from '@/features/history/model/historySlice'
 import { logger } from '@/shared/lib/logger'
+import { toast } from '@/shared/ui/toast'
 import { useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
-import { toast } from 'sonner'
 
 /**
  * Wraps an async operation with loading state and error handling.

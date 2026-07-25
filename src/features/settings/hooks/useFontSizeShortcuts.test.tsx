@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // Capture toast.info calls so we can assert the feedback payload.
 const { toastInfo } = vi.hoisted(() => ({ toastInfo: vi.fn() }))
 
-vi.mock('sonner', () => ({
+vi.mock('@/shared/ui/toast', () => ({
   toast: { info: (...args: unknown[]) => toastInfo(...args) },
 }))
 

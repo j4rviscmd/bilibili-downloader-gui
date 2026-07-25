@@ -8,13 +8,13 @@
  * resolution (up-scaling is disabled).
  */
 
+import { toast } from '@/shared/ui/toast'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { open, save } from '@tauri-apps/plugin-dialog'
 import { error as logError } from '@tauri-apps/plugin-log'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { extractResolution, probeVideoResolution } from '../api/resolutionApi'
 import {

@@ -5,10 +5,10 @@ import {
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
 import { Button } from '@/shared/ui/button'
+import { toast } from '@/shared/ui/toast'
 import { Check, Copy, Download } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 import {
   calculateProgress,
   formatDurationShort,

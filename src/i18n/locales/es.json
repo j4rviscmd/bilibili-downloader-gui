@@ -4,6 +4,9 @@
     "subtitle": "Aplicación de escritorio ligera para ayudar con descargas",
     "logged_in_user": "Usuario conectado"
   },
+  "common": {
+    "copy": "Copiar"
+  },
   "nav": {
     "home": "Inicio",
     "downloadHistory": "Historial de descargas",
@@ -236,7 +239,6 @@
     "open_folder": "Abrir carpeta",
     "download_failed_part": "Descarga fallida",
     "download_failed_part_description": "p{{page}} - {{title}}: {{description}}",
-    "copy_error": "Copiar mensaje de error",
     "retry_hint": "Es probable que sea un problema temporal de Bilibili. Inténtalo de nuevo en aproximadamente una hora.",
     "time_remaining": "{{time}} restante",
     "quality_limited_title": "Calidad Limitada",

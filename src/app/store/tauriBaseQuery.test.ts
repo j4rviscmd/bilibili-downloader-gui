@@ -5,8 +5,8 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
 }))
 
-// Mock sonner
-vi.mock('sonner', () => ({
+// Mock toast wrapper (@/shared/ui/toast)
+vi.mock('@/shared/ui/toast', () => ({
   toast: {
     warning: vi.fn(),
     error: vi.fn(),
@@ -25,8 +25,8 @@ vi.mock('@/i18n', () => ({
 import { store } from '@/app/store'
 import type { User } from '@/features/user/types'
 import { setUser } from '@/features/user/userSlice'
+import { toast } from '@/shared/ui/toast'
 import { invoke } from '@tauri-apps/api/core'
-import { toast } from 'sonner'
 import { tauriBaseQuery } from './tauriBaseQuery'
 
 const mockInvoke = invoke as unknown as ReturnType<typeof vi.fn>
