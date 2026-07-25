@@ -351,8 +351,21 @@ pub fn run() {
             // platforms; errors are logged but never fatal so the app still
             // boots even if the menu fails to register.
             #[cfg(target_os = "macos")]
-            if let Err(e) = menu::install_app_menu(app.handle()) {
-                log::error!("[BE] Failed to install macOS app menu: {}", e);
+            {
+                if let Err(e) = menu::install_app_menu(app.handle()) {
+                    log::error!("[BE] Failed to install macOS app menu: {}", e);
+                }
+                // The "About <App>" menu item (id "about"; see menu.rs)
+                // opens the in-app About dialog rather than the native
+                // sheet, so the user sees the same environment info as
+                // Settings → About. Forward the click to the frontend via
+                // the `menu:about` event.
+                use tauri::Emitter;
+                app.on_menu_event(|handle, event| {
+                    if event.id().as_ref() == "about" {
+                        let _ = handle.emit("menu:about", ());
+                    }
+                });
             }
 
             // Main window event handlers (close/resize/move → save geometry) and

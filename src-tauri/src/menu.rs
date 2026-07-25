@@ -12,9 +12,9 @@
 //! Windows/Linux would add an unwanted bar across the window.
 
 #[cfg(target_os = "macos")]
-use tauri::menu::{AboutMetadata, MenuBuilder, SubmenuBuilder};
+use tauri::menu::{MenuBuilder, PredefinedMenuItem, SubmenuBuilder};
 #[cfg(target_os = "macos")]
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
 /// Display name shown in the macOS app menu and About sheet. Hardcoded
 /// because `package_info().name` mirrors `tauri.conf.json`'s kebab-case
@@ -30,16 +30,17 @@ const DISPLAY_NAME: &str = "Bilibili Downloader GUI";
 /// `AboutMetadata` (name + version).
 #[cfg(target_os = "macos")]
 pub fn install_app_menu(app: &AppHandle) -> tauri::Result<()> {
-    let version = app.package_info().version.to_string();
-
     // Application menu. Order matters on macOS (About, Services, Hide,
     // Quit) so the OS can wire the expected accelerators (Cmd+H, Cmd+Q).
+    //
+    // The About entry is a custom MenuItem (id "about") instead of the
+    // native `.about()` helper, so a click emits the `menu:about` event
+    // (handled in lib.rs) and opens the in-app About dialog. The native
+    // About sheet can only render name/version/copyright/icon, whereas the
+    // in-app dialog shows the full environment info (OS/arch/Tauri/repo)
+    // — matching Settings → About.
     let app_menu = SubmenuBuilder::new(app, DISPLAY_NAME)
-        .about(Some(AboutMetadata {
-            name: Some(DISPLAY_NAME.to_string()),
-            version: Some(version),
-            ..Default::default()
-        }))
+        .text("about", format!("About {}", DISPLAY_NAME))
         .separator()
         .services()
         .separator()
@@ -64,9 +65,16 @@ pub fn install_app_menu(app: &AppHandle) -> tauri::Result<()> {
         .build()?;
 
     // Window menu: Minimize/Zoom/Close (Cmd+M, Cmd+W).
+    //
+    // SubmenuBuilder exposes no zoom() helper, so build the Maximize
+    // predefined item directly. On macOS, muda maps the Maximize
+    // predefined type to the native window Zoom behavior (same as the
+    // green title-bar button), keeping the standard Window menu intact.
+    let zoom_item = PredefinedMenuItem::maximize(app, None)?;
+
     let window_menu = SubmenuBuilder::new(app, "Window")
         .minimize()
-        .zoom()
+        .item(&zoom_item)
         .separator()
         .close_window()
         .build()?;
