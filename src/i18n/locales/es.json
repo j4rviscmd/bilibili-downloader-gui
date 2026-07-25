@@ -4,6 +4,19 @@
     "subtitle": "Aplicación de escritorio ligera para ayudar con descargas",
     "logged_in_user": "Usuario conectado"
   },
+  "about": {
+    "button": "Acerca de",
+    "app_name": "Bilibili Downloader GUI",
+    "description": "Una herramienta GUI para descargar vídeos de Bilibili.",
+    "version": "Versión",
+    "os": "Sistema operativo",
+    "architecture": "Arquitectura",
+    "tauri_version": "Versión de Tauri",
+    "repository": "Repositorio",
+    "copy": "Copiar información",
+    "copied": "Copiado",
+    "copy_failed": "Error al copiar"
+  },
   "common": {
     "copy": "Copiar"
   },

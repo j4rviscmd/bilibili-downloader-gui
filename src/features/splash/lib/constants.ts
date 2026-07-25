@@ -2,6 +2,12 @@
 export const MIN_DISPLAY_MS = 2_000
 /** Duration (ms) of the CSS opacity fade-out transition. */
 export const FADE_DURATION_MS = 700
+/**
+ * Maximum time (ms) to wait for the web font to finish loading during the
+ * splash phase before proceeding. Guards against slow networks stalling
+ * startup; the font-family fallback chain still applies on timeout.
+ */
+export const FONT_LOAD_TIMEOUT_MS = 4_000
 
 /** Number of floating particles in the 3D scene. */
 export const PARTICLE_COUNT = 150

@@ -4,6 +4,19 @@
     "subtitle": "Lightweight desktop app to assist downloads",
     "logged_in_user": "Logged-in user"
   },
+  "about": {
+    "button": "About",
+    "app_name": "Bilibili Downloader GUI",
+    "description": "A GUI tool to download videos from Bilibili.",
+    "version": "Version",
+    "os": "OS",
+    "architecture": "Architecture",
+    "tauri_version": "Tauri Version",
+    "repository": "Repository",
+    "copy": "Copy info",
+    "copied": "Copied",
+    "copy_failed": "Failed to copy"
+  },
   "common": {
     "copy": "Copy"
   },

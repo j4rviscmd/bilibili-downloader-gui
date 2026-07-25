@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { sleep } from '@/shared/lib/utils'
 
-import { MIN_DISPLAY_MS } from '../lib/constants'
+import { FONT_LOAD_TIMEOUT_MS, MIN_DISPLAY_MS } from '../lib/constants'
 
 /** Represents the current visual state of the splash screen. */
 type SplashPhase = 'active' | 'fading' | 'done'
@@ -60,10 +60,20 @@ export function useSplashLifecycle(): SplashLifecycle {
       if (disposedRef.current) return
       setSkipMode(skip)
 
-      // Run backend initialization. Phase B-1: skeleton returns immediately.
-      // Phase B-2 will port the ffmpeg/cookie/user steps here and emit
-      // init_step / init_progress events that the splash UI renders.
-      await invoke('initialize').catch(() => {})
+      // Run backend initialization in parallel with the web font preload.
+      // Loading Noto Sans JP during splash lets the main window (a separate
+      // webview sharing this Tauri process's HTTP cache) render the same font
+      // without FOUT. Skip mode bypasses the font wait for fastest startup,
+      // symmetric with the MIN_DISPLAY_MS skip below. The timeout guards
+      // against slow networks; on expiry the font-family fallback still applies.
+      const fontReady = skip
+        ? Promise.resolve()
+        : Promise.race([
+            document.fonts.load('400 16px "Noto Sans JP"'),
+            sleep(FONT_LOAD_TIMEOUT_MS),
+          ]).catch(() => {})
+
+      await Promise.all([invoke('initialize').catch(() => {}), fontReady])
 
       if (!skip) {
         await sleep(MIN_DISPLAY_MS)

@@ -28,6 +28,18 @@ function formatTransferRate(kb: number): string {
   return `${(kb / 1024).toFixed(1)}MB/s`
 }
 
+/**
+ * Formats a megabyte value, trimming the decimal when it is .0.
+ * Example: 123.0 → 123, 123.4 → 123.4
+ *
+ * NOTE: input is already rounded to 1 decimal place by the backend
+ * (round_to(..., 1)); this only controls display of the trailing .0.
+ */
+function formatMb(mb: number): string {
+  const formatted = mb.toFixed(1)
+  return formatted.endsWith('.0') ? formatted.slice(0, -2) : formatted
+}
+
 type StageProgressProps = {
   icon: string
   labelKey: string
@@ -93,15 +105,34 @@ function StageProgress({
     )
   }
 
+  // Why: each numeric span is pinned to a min-width and rendered with
+  // tabular-nums so digit transitions during a download (9% → 10% → 99%,
+  // 1.2MB/s → 99.9MB/s, 9.9mb → 123.4mb) don't shift the surrounding text
+  // column. Mirrors the w-7 / w-14 + text-end + tabular-nums layout already
+  // used by PartStatusRow.tsx in the download-status dialog, so the inline
+  // per-part progress stays visually aligned with the dialog rows.
   return (
     <div className={`flex ${MIN_HEIGHT} items-center gap-1`}>
       <StageIcon icon={icon} label={stageLabel} fontWeight="medium" />
-      <span>{progress.percentage.toFixed(0)}%</span>
-      <span>{formatTransferRate(progress.transferRate || 0)}</span>
+      <span className="tabular-nums">
+        <span className="inline-block min-w-[3ch] text-right">
+          {progress.percentage.toFixed(0)}
+        </span>
+        %
+      </span>
+      <span className="inline-block min-w-[7ch] text-right tabular-nums">
+        {formatTransferRate(progress.transferRate || 0)}
+      </span>
       {progress.filesize != null && (
-        <span>
-          {progress.downloaded?.toFixed(1) ?? '0'}mb/
-          {progress.filesize.toFixed(1)}mb
+        <span className="tabular-nums">
+          <span className="inline-block min-w-[4.5ch] text-right">
+            {formatMb(progress.downloaded ?? 0)}
+          </span>
+          mb/
+          <span className="inline-block min-w-[4.5ch] text-right">
+            {formatMb(progress.filesize)}
+          </span>
+          mb
         </span>
       )}
     </div>

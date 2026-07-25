@@ -1,4 +1,5 @@
 import { store } from '@/app/store'
+import { AboutDialog } from '@/features/about'
 import {
   getLoginState,
   qrLogout,
@@ -1013,6 +1014,7 @@ function SettingsForm() {
           <div className="flex w-full items-end gap-2">
             <UpdateCheckButton />
             <ReleaseNotesSection />
+            <AboutDialog />
           </div>
         </div>
         <Separator />
