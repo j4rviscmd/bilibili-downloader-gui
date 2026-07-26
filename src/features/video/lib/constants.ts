@@ -60,3 +60,12 @@ export const VIDEO_CODEC_MAP: Record<number, string> = {
   [CODECID_HEVC]: 'HEVC',
   [CODECID_AV1]: 'AV1',
 }
+
+/**
+ * Number of parts displayed per page in the paginated part list.
+ *
+ * Also bounds the default selection when a URL does not identify a
+ * specific part/episode: only the first page is selected by default
+ * to avoid silently queuing every part of a large series.
+ */
+export const PARTS_PER_PAGE: number = 10

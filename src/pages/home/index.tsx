@@ -8,6 +8,7 @@ import {
   deselectAll,
   deselectPageAll,
   DownloadButton,
+  PARTS_PER_PAGE,
   selectHasSelectedParts,
   selectPageAll,
   setHomePage,
@@ -107,9 +108,6 @@ function TooltipButton({
     </TooltipProvider>
   )
 }
-
-/** Number of parts per page in pagination. */
-const PARTS_PER_PAGE = 10
 
 /** Props for the PaginatedPartList component. */
 type PaginatedPartListProps = {
@@ -417,6 +415,15 @@ function HomeContentInner() {
       page = parseInt(browserPage, 10)
     } else if (browserP) {
       page = Math.ceil(parseInt(browserP, 10) / PARTS_PER_PAGE)
+      // Why: A bangumi season spans many pages, so a deep-link to one episode
+      // (Video.epId, populated by the backend from the ep-id URL) must open on
+      // that episode's page. Otherwise the user lands on page 1 and the single
+      // auto-selected episode stays off-screen (selection logic lives in
+      // lib/partSelection shouldSelectPart).
+    } else if (video.contentType === 'bangumi' && video.epId !== undefined) {
+      // Bangumi URL: jump to the page containing the requested episode
+      const idx = video.parts.findIndex((p) => p.epId === video.epId)
+      if (idx >= 0) page = Math.floor(idx / PARTS_PER_PAGE) + 1
     } else if (input.pendingDownload) {
       page = Math.ceil(input.pendingDownload.page / PARTS_PER_PAGE)
     } else if (input.url) {
@@ -431,7 +438,16 @@ function HomeContentInner() {
     }
 
     return Math.max(1, Math.min(page, totalPages || 1))
-  }, [browserPage, browserP, input.pendingDownload, input.url, totalPages])
+  }, [
+    browserPage,
+    browserP,
+    video.contentType,
+    video.epId,
+    video.parts,
+    input.pendingDownload,
+    input.url,
+    totalPages,
+  ])
 
   // Track scroll request timestamp to ensure each navigation triggers scroll
   const [scrollRequestId, setScrollRequestId] = useState(0)
@@ -455,6 +471,13 @@ function HomeContentInner() {
 
     if (browserP) {
       targetIndex = parseInt(browserP, 10) - 1
+      // Why: Scrolls the targeted episode (Video.epId) into view to match the
+      // page-jump and single-episode selection above, so the user immediately
+      // sees the one part that was auto-selected.
+    } else if (video.contentType === 'bangumi' && video.epId !== undefined) {
+      // Bangumi URL: scroll to the requested episode
+      const idx = video.parts.findIndex((p) => p.epId === video.epId)
+      targetIndex = idx >= 0 ? idx : null
     } else if (input.url) {
       try {
         const pParam = new URL(input.url).searchParams.get('p')
@@ -470,7 +493,14 @@ function HomeContentInner() {
     if (targetIndex !== null) {
       setScrollRequestId((prev) => prev + 1)
     }
-  }, [browserP, input.url, video.parts.length, isFetching])
+  }, [
+    browserP,
+    video.contentType,
+    video.epId,
+    video.parts,
+    input.url,
+    isFetching,
+  ])
 
   // Trigger scroll after pendingDownload is cleared (video info fetch complete)
   useEffect(() => {

@@ -10,6 +10,7 @@ import {
   buildVideoFormSchema1,
   buildVideoFormSchema2,
 } from '@/features/video/lib/formSchema'
+import { shouldSelectPart } from '@/features/video/lib/partSelection'
 import { extractContentId } from '@/features/video/lib/utils'
 import {
   clearPendingDownload,
@@ -156,21 +157,17 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
   /**
    * Initializes part input fields based on video metadata.
    *
-   * When a pending download exists (from history/favorites), only the
-   * target part is marked as selected. This prevents a race condition
-   * where all parts would briefly be selected, triggering duplicate
-   * title detection before the selection effect could run.
+   * Selection of each part is delegated to {@link shouldSelectPart},
+   * which selects only the targeted episode for a bangumi URL, only the
+   * requested part for a `?p=N` URL or history/favorites navigation,
+   * and otherwise only the first page.
    *
    * @param v - Video object
    */
   const initInputsForVideo = useCallback((v: Video) => {
     const pending = processingPendingRef.current
 
-    const isSelected = (p: (typeof v.parts)[0]) =>
-      !pending ||
-      (pending.cid !== null ? p.cid === pending.cid : p.page === pending.page)
-
-    const partInputs = v.parts.map((p) => ({
+    const partInputs = v.parts.map((p, index) => ({
       cid: p.cid,
       page: p.page,
       title:
@@ -179,7 +176,11 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
           : `${v.title} ${p.sanitizedPart ?? p.part}`,
       videoQuality: '',
       audioQuality: '',
-      selected: isSelected(p),
+      selected: shouldSelectPart(p, index, {
+        contentType: v.contentType,
+        videoEpId: v.epId,
+        pending,
+      }),
       duration: p.duration,
       thumbnailUrl: p.thumbnail.url,
       qualitiesLoading: false,
