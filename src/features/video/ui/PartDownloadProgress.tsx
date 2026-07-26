@@ -200,6 +200,34 @@ function MergeStageProgress({ progressEntries, t }: MergeStageProgressProps) {
   return null
 }
 
+type SubtitleStageProgressProps = {
+  t: (key: string) => string
+}
+
+/**
+ * Renders the subtitle download stage in the merge column.
+ *
+ * Shown while subtitles are fetching (after audio/video reach 100%, before
+ * merge starts) so the card doesn't appear frozen. Indeterminate — no
+ * percentage — because subtitle payloads are small and fetched in parallel
+ * per language, so there is no meaningful byte-level progress to show.
+ */
+function SubtitleStageProgress({ t }: SubtitleStageProgressProps) {
+  const label = t('video.stage_subtitle')
+  return (
+    <div
+      className={`flex ${MIN_HEIGHT} items-center gap-1`}
+      aria-label={`${label}: ${t('video.stage_subtitle_downloading')}`}
+    >
+      <StageIcon icon="💬" label={label} fontWeight="medium" />
+      <span className="font-medium">
+        {' '}
+        {t('video.stage_subtitle_downloading')}
+      </span>
+    </div>
+  )
+}
+
 type Props = {
   status: PartDownloadStatus
   isWaitingForTurn?: boolean
@@ -256,6 +284,11 @@ export function PartDownloadProgress({
   const isInMergeStage = progressEntries.some(
     (p) => p.stage === 'merge' && !p.isComplete,
   )
+
+  // @why: subtitle stage runs after audio/video reach 100% and before merge.
+  //   Detected separately so the merge column can swap to an indeterminate
+  //   "subtitle downloading" state instead of freezing at 100%.
+  const hasSubtitleStage = progressEntries.some((p) => p.stage === 'subtitle')
 
   // Why: merge-stage cancellation is disabled because killing ffmpeg mid-merge
   // races with the final write and produces a contradictory (cancelled-but-
@@ -364,7 +397,11 @@ export function PartDownloadProgress({
               />
             </div>
             <div className="flex-1">
-              <MergeStageProgress progressEntries={progressEntries} t={t} />
+              {hasSubtitleStage ? (
+                <SubtitleStageProgress t={t} />
+              ) : (
+                <MergeStageProgress progressEntries={progressEntries} t={t} />
+              )}
             </div>
           </div>
           {/* Video-only stage: visible when hasEmbeddedAudio and not fading */}
@@ -380,7 +417,9 @@ export function PartDownloadProgress({
                 />
               </div>
               <div className="flex-1" />
-              <div className="flex-1" />
+              <div className="flex-1">
+                {hasSubtitleStage && <SubtitleStageProgress t={t} />}
+              </div>
             </>
           )}
 

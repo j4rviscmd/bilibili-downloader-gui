@@ -105,7 +105,7 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
         // Update queue status based on progress stage
         const isDownloadStage =
-          stage && ['audio', 'video', 'merge'].includes(stage)
+          stage && ['audio', 'video', 'merge', 'subtitle'].includes(stage)
         if (stage === 'complete') {
           // Mark as done - keep in queue so completion actions remain visible
           store.dispatch(updateQueueStatus({ downloadId, status: 'done' }))

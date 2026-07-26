@@ -88,6 +88,7 @@ function pickStageData(entries: Progress[]): {
   const audio = byStage('audio')
   const video = byStage('video')
   const merge = byStage('merge')
+  const subtitle = byStage('subtitle')
   const audioPct = audio?.percentage ?? (merge ? 100 : 0)
   const videoPct = video?.percentage ?? (merge ? 100 : 0)
   const mergePct = merge?.percentage ?? 0
@@ -106,7 +107,12 @@ function pickStageData(entries: Progress[]): {
       (audio?.isRetrying ?? false) ||
       (video?.isRetrying ?? false) ||
       (merge?.isRetrying ?? false),
-    stage: merge ? 'merge' : 'download',
+    // @why: merge takes precedence over subtitle. The subtitle entry lingers
+    //   in state after the subtitle download finishes (it is never re-emitted
+    //   or cleared), so if subtitle won, the merge stage would be skipped and
+    //   the row would jump straight from "subtitle downloading" to "complete".
+    //   Prioritizing merge lets the merge stage render once ffmpeg starts.
+    stage: merge ? 'merge' : subtitle ? 'subtitle' : 'download',
     isComplete: false,
   }
 }

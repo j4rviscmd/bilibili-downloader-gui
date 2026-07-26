@@ -956,6 +956,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
         // Subtitle processing
         let (subtitle_mode, subtitle_language_labels, subtitle_failed_labels) =
             prepare_subtitle_mode(
+                app,
                 &options.subtitle,
                 &cookies,
                 &options.bvid,
@@ -2912,6 +2913,14 @@ pub async fn fetch_part_qualities(
     Err("ERR::NO_STREAM".to_string())
 }
 
+/// Timeout (seconds) for a single subtitle download request.
+///
+/// Subtitle payloads are small, but Bilibili's CDN occasionally stalls and
+/// holds the connection open. Without a cap the request hangs indefinitely,
+/// which surfaces to the user as a frozen download. The retry layer
+/// (`download_subtitle_with_retry`) still handles transient failures.
+const SUBTITLE_DOWNLOAD_TIMEOUT_SECS: u64 = 30;
+
 /// Downloads a subtitle and saves it in SRT format.
 ///
 /// Fetches BCC format JSON subtitle from Bilibili, converts to SRT format,
@@ -2951,6 +2960,7 @@ pub async fn download_subtitle(
 
     let response = client
         .get(&url)
+        .timeout(Duration::from_secs(SUBTITLE_DOWNLOAD_TIMEOUT_SECS))
         .send()
         .await
         .map_err(|e| format!("Failed to download subtitle: {}", e))?;
@@ -3079,6 +3089,7 @@ async fn download_subtitle_with_retry(
 ///
 /// Returns an error if the HTTP client cannot be constructed.
 async fn prepare_subtitle_mode(
+    app: &AppHandle,
     subtitle_opts: &Option<SubtitleOptions>,
     cookies: &[CookieEntry],
     bvid: &str,
@@ -3095,6 +3106,25 @@ async fn prepare_subtitle_mode(
     };
 
     let client = build_client()?;
+
+    // Emit a "subtitle" progress stage so the frontend can surface that the
+    // subtitle download is running. Without this, the UI stays frozen at
+    // audio/video 100% for the whole fetch + retry loop and looks hung.
+    // Why a single emit with no periodic updates: subtitle payloads are small
+    // and fetched in parallel per language, so there is no meaningful
+    // byte-level progress to stream — the frontend renders this as an
+    // indeterminate "downloading..." state.
+    // Why after build_client: on client construction failure we return early
+    // without emitting, so no orphan "subtitle" entry is left in the
+    // frontend's progress slice bound to this download_id.
+    let _ = app.emit(
+        "progress",
+        crate::emits::Progress {
+            stage: Some("subtitle".to_string()),
+            download_id: download_id.to_string(),
+            ..Default::default()
+        },
+    );
 
     // Initial subtitles from frontend or API
     let initial_subs: Vec<SubtitleDto> = if !sub_opts.subtitles.is_empty() {
