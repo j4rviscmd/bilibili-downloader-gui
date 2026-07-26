@@ -10,17 +10,48 @@ use crate::models::bilibili_api::BccSubtitle;
 /// BCC format uses `from`/`to` fields in seconds, while SRT uses
 /// `HH:MM:SS,mmm --> HH:MM:SS,mmm` timestamp format.
 ///
+/// When `max_duration_secs` is `Some(d)` with `d > 0.0`, out-of-range
+/// timestamps are clamped to the video duration: cues that start at or
+/// after `d` are dropped, and cues that end after `d` are truncated to
+/// `d`. Pass `None` to preserve timestamps as-is (e.g. for standalone
+/// SRT export without a known video duration).
+///
 /// The output includes a UTF-8 BOM prefix to ensure correct encoding
 /// detection by ffmpeg on Windows.
-pub fn bcc_to_srt(bcc: &BccSubtitle) -> String {
+pub fn bcc_to_srt(bcc: &BccSubtitle, max_duration_secs: Option<f64>) -> String {
     let srt_content = bcc
         .body
         .iter()
+        // Clamp out-of-range timestamps. Bilibili AI subtitles may carry
+        // cues whose `to` far exceeds the video duration (observed 35x
+        // overshoot). Without clamping, these cues inflate the muxed
+        // subtitle stream duration and stretch the container runtime.
+        .filter_map(|entry| {
+            let (from, mut to) = (entry.from, entry.to);
+            // Note: The `m > 0.0` guard treats 0.0 as "unknown duration" and
+            // disables clamping. `duration_seconds` is an i64 on DownloadOptions
+            // cast to f64 at the download_video call site (handlers/bilibili.rs);
+            // when it is unset (0), Some(0.0) would otherwise make `from >= max`
+            // true for every cue (including from == 0.0) and drop all subtitles.
+            if let Some(max) = max_duration_secs.filter(|&m| m > 0.0) {
+                if from >= max {
+                    // Cue starts after the video ends; drop entirely.
+                    return None;
+                }
+                if to > max {
+                    // Cue ends after the video ends; clamp to the end.
+                    to = max;
+                }
+            }
+            Some((
+                format_srt_time(from),
+                format_srt_time(to),
+                entry.content.as_str(),
+            ))
+        })
         .enumerate()
-        .map(|(i, entry)| {
-            let start = format_srt_time(entry.from);
-            let end = format_srt_time(entry.to);
-            format!("{}\n{} --> {}\n{}\n", i + 1, start, end, entry.content)
+        .map(|(i, (start, end, content))| {
+            format!("{}\n{} --> {}\n{}\n", i + 1, start, end, content)
         })
         .collect::<Vec<_>>()
         .join("\n");
@@ -152,7 +183,7 @@ mod tests {
             }],
         };
 
-        let srt = bcc_to_srt(&bcc);
+        let srt = bcc_to_srt(&bcc, None);
         let expected = "\u{FEFF}1\n00:00:00,000 --> 00:00:02,500\nHello world\n";
         assert_eq!(srt, expected);
     }
@@ -181,7 +212,7 @@ mod tests {
             ],
         };
 
-        let srt = bcc_to_srt(&bcc);
+        let srt = bcc_to_srt(&bcc, None);
         assert!(srt.contains("1\n00:00:00,000 --> 00:00:02,500\nFirst line"));
         assert!(srt.contains("2\n00:00:03,000 --> 00:00:05,500\nSecond line"));
     }
@@ -197,7 +228,66 @@ mod tests {
             body: vec![],
         };
 
-        let srt = bcc_to_srt(&bcc);
+        let srt = bcc_to_srt(&bcc, None);
         assert_eq!(srt, "\u{FEFF}");
+    }
+
+    #[test]
+    fn test_bcc_to_srt_clamps_to_max_duration() {
+        let bcc = BccSubtitle {
+            font_size: 0.4,
+            font_color: "0xFFFFFF".to_string(),
+            background_alpha: 0.5,
+            background_color: "0x000000".to_string(),
+            stroke: "none".to_string(),
+            body: vec![
+                BccSubtitleBody {
+                    from: 0.0,
+                    to: 2.5,
+                    location: 0,
+                    content: "inside".to_string(),
+                },
+                BccSubtitleBody {
+                    from: 8.0,
+                    to: 100.0, // overshoots the 10s cap -> clamped
+                    location: 0,
+                    content: "straddles end".to_string(),
+                },
+                BccSubtitleBody {
+                    from: 12.0, // starts after the 10s cap -> dropped
+                    to: 15.0,
+                    location: 0,
+                    content: "after end".to_string(),
+                },
+            ],
+        };
+
+        let srt = bcc_to_srt(&bcc, Some(10.0));
+        // First cue untouched, second clamped to 10s, third dropped.
+        assert!(srt.contains("1\n00:00:00,000 --> 00:00:02,500\ninside"));
+        assert!(srt.contains("2\n00:00:08,000 --> 00:00:10,000\nstraddles end"));
+        assert!(!srt.contains("after end"));
+    }
+
+    #[test]
+    fn test_bcc_to_srt_none_disables_clamp() {
+        let bcc = BccSubtitle {
+            font_size: 0.4,
+            font_color: "0xFFFFFF".to_string(),
+            background_alpha: 0.5,
+            background_color: "0x000000".to_string(),
+            stroke: "none".to_string(),
+            body: vec![BccSubtitleBody {
+                from: 0.0,
+                to: 10000.0, // would be dropped if clamped
+                location: 0,
+                content: "far".to_string(),
+            }],
+        };
+
+        // None preserves the original (oversized) timestamp.
+        let srt = bcc_to_srt(&bcc, None);
+        assert!(srt.contains("00:00:00,000 --> 02:46:40,000"));
+        assert!(srt.contains("\nfar"));
     }
 }

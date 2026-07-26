@@ -173,7 +173,7 @@ use crate::utils::paths::get_lib_path;
 use crate::{constants::USER_AGENT, models::frontend_dto::User};
 use reqwest::header;
 use reqwest::Client;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::AppHandle;
@@ -963,6 +963,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
                 options.cid,
                 &options.download_id,
                 &lib_path,
+                Some(options.duration_seconds as f64),
             )
             .await?;
 
@@ -2625,7 +2626,10 @@ pub async fn fetch_watch_history(
 ///
 /// # Notes
 ///
-/// - Uses `/x/player/v2` with Cookie authentication (per API docs, WBI signature is optional)
+/// - Uses `/x/player/wbi/v2` with WBI signature + Cookie authentication.
+///   The unsigned `/x/player/v2` endpoint returns stale CDN cache with a
+///   partial AI subtitle set; the signed endpoint returns the full set
+///   in one request.
 /// - Requires login (SESSDATA cookie) to retrieve subtitle data
 /// - Determines if subtitle is AI-generated via the URL path containing `/ai_subtitle/`
 pub async fn fetch_subtitles(
@@ -2649,11 +2653,36 @@ pub async fn fetch_subtitles(
         return Vec::new();
     }
 
+    // WBI-signed access. The unsigned `/x/player/v2` endpoint is
+    // unreliable: Bilibili's CDN returns stale cached responses that
+    // contain only a partial AI subtitle set. The signed `/wbi/v2`
+    // endpoint returns the full set in a single request.
+    let mixin_key = match crate::utils::wbi::fetch_mixin_key(client, Some(&cookie_header)).await {
+        Ok(k) => k,
+        Err(e) => {
+            log::error!("[BE] fetch_subtitles: failed to fetch WBI mixin key: {}", e);
+            return Vec::new();
+        }
+    };
+
+    let mut params = BTreeMap::from([
+        ("bvid".to_string(), bvid.to_string()),
+        ("cid".to_string(), cid.to_string()),
+    ]);
+    let signature = crate::utils::wbi::generate_wbi_signature(&mut params, &mixin_key);
+
+    let mut query: Vec<(&str, String)> = params
+        .iter()
+        .map(|(k, v)| (k.as_str(), v.clone()))
+        .collect();
+    query.push(("w_rid", signature.w_rid));
+    query.push(("wts", signature.wts));
+
     let response = match client
-        .get("https://api.bilibili.com/x/player/v2")
+        .get("https://api.bilibili.com/x/player/wbi/v2")
         .header(header::COOKIE, &cookie_header)
         .header(header::REFERER, "https://www.bilibili.com")
-        .query(&[("bvid", bvid), ("cid", &cid.to_string())])
+        .query(&query)
         .send()
         .await
     {
@@ -2736,7 +2765,8 @@ pub async fn fetch_subtitles(
 /// Returns a list of available subtitles with language info and URLs.
 /// Returns an empty vector if no subtitles are available or on error.
 ///
-/// Stale CDN mitigation is handled by [`fetch_subtitles_parallel`].
+/// Uses the WBI-signed [`fetch_subtitles`], which returns the full
+/// subtitle set in a single request.
 pub async fn fetch_subtitles_for_part(
     app: &AppHandle,
     bvid: &str,
@@ -2750,101 +2780,13 @@ pub async fn fetch_subtitles_for_part(
     );
     let cookies = read_cookie(app)?.unwrap_or_default();
     let client = build_client()?;
-    let subtitles = fetch_subtitles_parallel(&client, &cookies, bvid, cid).await;
+    let subtitles = fetch_subtitles(&client, &cookies, bvid, cid).await;
 
     log::info!(
         "[BE] fetch_subtitles_for_part: received {} subtitles",
         subtitles.len()
     );
     Ok(subtitles)
-}
-
-/// Merges multiple subtitle lists, deduplicating by `lan` (language code).
-///
-/// When the same `lan` appears in multiple results, the first occurrence
-/// is kept. This ensures each language appears at most once, which is
-/// required because the downstream download pipeline selects subtitles
-/// by `lan` alone and cannot handle duplicates.
-fn merge_subtitles(results: Vec<Vec<SubtitleDto>>) -> Vec<SubtitleDto> {
-    let mut seen: HashSet<String> = HashSet::new();
-    let mut merged: Vec<SubtitleDto> = Vec::new();
-
-    for subtitles in results {
-        for sub in subtitles {
-            if seen.insert(sub.lan.clone()) {
-                merged.push(sub);
-            }
-        }
-    }
-
-    merged
-}
-
-/// Fetches subtitles via parallel requests to mitigate stale CDN cache.
-///
-/// Bilibili's CDN may return stale cached responses that contain only a single
-/// AI subtitle (`ai_type: 0`) instead of the full set of AI-translated
-/// subtitles (`ai_type: 1`). Rather than retrying sequentially, this function
-/// issues [`PARALLEL_COUNT`] concurrent requests with small inter-request
-/// jitter, increasing the probability of hitting a fresh CDN node.
-/// All results are merged and deduplicated via [`merge_subtitles`].
-///
-/// # Arguments
-///
-/// * `client` - HTTP client used for API requests
-/// * `cookies` - Cookie entries for authentication
-/// * `bvid` - Bilibili video ID (BV identifier)
-/// * `cid` - Content ID for the specific video part
-///
-/// # Returns
-///
-/// Returns the merged and deduplicated subtitle list from all parallel
-/// attempts. Returns an empty vector if all requests fail.
-async fn fetch_subtitles_parallel(
-    client: &Client,
-    cookies: &[CookieEntry],
-    bvid: &str,
-    cid: i64,
-) -> Vec<SubtitleDto> {
-    const PARALLEL_COUNT: usize = 3;
-    const JITTER_STEP_MS: u64 = 1000;
-
-    let futures: Vec<_> = (0..PARALLEL_COUNT)
-        .map(|i| {
-            let jitter_ms = (i as u64) * JITTER_STEP_MS;
-            async move {
-                if jitter_ms > 0 {
-                    tokio::time::sleep(Duration::from_millis(jitter_ms)).await;
-                }
-                fetch_subtitles(client, cookies, bvid, cid).await
-            }
-        })
-        .collect();
-
-    let results = futures::future::join_all(futures).await;
-
-    for (i, subs) in results.iter().enumerate() {
-        log::info!(
-            "[BE] fetch_subtitles_parallel: request {} returned \
-             {} subtitles for bvid={}, cid={}",
-            i,
-            subs.len(),
-            bvid,
-            cid,
-        );
-    }
-
-    let merged = merge_subtitles(results);
-
-    log::info!(
-        "[BE] fetch_subtitles_parallel: merged into {} unique \
-         subtitles for bvid={}, cid={}",
-        merged.len(),
-        bvid,
-        cid,
-    );
-
-    merged
 }
 
 /// Fetches available video and audio qualities for a specific part.
@@ -2939,10 +2881,13 @@ const SUBTITLE_DOWNLOAD_TIMEOUT_SECS: u64 = 30;
 /// * `client` - HTTP client for requests
 /// * `subtitle_url` - BCC subtitle JSON URL (may start with "//")
 /// * `output_path` - Path to save the SRT file
+/// * `max_duration_secs` - Optional video duration cap (seconds). Cues whose
+///   `to` exceeds this are clamped during SRT conversion (see [`bcc_to_srt`]).
 ///
 /// # Errors
 ///
 /// Returns errors in the following cases:
+/// - URL parse failure (malformed subtitle URL)
 /// - Download failure
 /// - Non-success HTTP response
 /// - JSON parse failure
@@ -2951,6 +2896,7 @@ pub async fn download_subtitle(
     client: &Client,
     subtitle_url: &str,
     output_path: &std::path::Path,
+    max_duration_secs: Option<f64>,
 ) -> Result<(), String> {
     let url = if subtitle_url.starts_with("//") {
         format!("https:{}", subtitle_url)
@@ -2958,15 +2904,28 @@ pub async fn download_subtitle(
         subtitle_url.to_string()
     };
 
+    // Pre-parse with the url crate so a malformed subtitle URL fails here
+    // with a precise error (raw URL + parser reason) instead of an opaque
+    // reqwest "builder error" at send() time. Passing the parsed `Url`
+    // also skips reqwest's own equivalent parse step.
+    let parsed_url = url::Url::parse(&url).map_err(|e| {
+        log::warn!(
+            "[BE] download_subtitle: URL parse failed for '{}': {}",
+            url,
+            e
+        );
+        format!("Failed to parse subtitle URL '{}': {}", url, e)
+    })?;
+
     let response = client
-        .get(&url)
+        .get(parsed_url)
         .timeout(Duration::from_secs(SUBTITLE_DOWNLOAD_TIMEOUT_SECS))
         .send()
         .await
-        .map_err(|e| format!("Failed to download subtitle: {}", e))?;
+        .map_err(|e| format!("Failed to download subtitle '{}': {}", url, e))?;
 
     if !response.status().is_success() {
-        return Err(format!("HTTP error: {}", response.status()));
+        return Err(format!("HTTP error {} for '{}'", response.status(), url));
     }
 
     let bcc: crate::models::bilibili_api::BccSubtitle = response
@@ -2974,7 +2933,7 @@ pub async fn download_subtitle(
         .await
         .map_err(|e| format!("Failed to parse subtitle JSON: {}", e))?;
 
-    let srt_content = crate::utils::subtitle::bcc_to_srt(&bcc);
+    let srt_content = crate::utils::subtitle::bcc_to_srt(&bcc, max_duration_secs);
 
     tokio::fs::write(output_path, srt_content)
         .await
@@ -2995,6 +2954,8 @@ pub async fn download_subtitle(
 /// * `client` - HTTP client used for the request
 /// * `subtitle_url` - BCC subtitle JSON URL (may start with `//`)
 /// * `output_path` - Output path for the converted SRT file
+/// * `max_duration_secs` - Optional video duration cap forwarded to
+///   [`download_subtitle`] for SRT clamping.
 ///
 /// # Returns
 ///
@@ -3008,12 +2969,13 @@ async fn download_subtitle_with_retry(
     client: &Client,
     subtitle_url: &str,
     output_path: &std::path::Path,
+    max_duration_secs: Option<f64>,
 ) -> Result<(), String> {
     const MAX_RETRIES: usize = 3;
     const BASE_DELAY_SECS: u64 = 2;
 
     for attempt in 0..MAX_RETRIES {
-        match download_subtitle(client, subtitle_url, output_path).await {
+        match download_subtitle(client, subtitle_url, output_path, max_duration_secs).await {
             Ok(()) => return Ok(()),
             Err(e) => {
                 let _ = tokio::fs::remove_file(output_path).await;
@@ -3075,6 +3037,8 @@ async fn download_subtitle_with_retry(
 /// * `cid` - Content ID
 /// * `download_id` - Unique identifier used for temporary file names
 /// * `lib_path` - Output directory for temporary subtitle files
+/// * `duration_secs` - Optional video duration (seconds) used to clamp
+///   out-of-range subtitle timestamps during SRT conversion.
 ///
 /// # Returns
 ///
@@ -3088,6 +3052,7 @@ async fn download_subtitle_with_retry(
 /// # Errors
 ///
 /// Returns an error if the HTTP client cannot be constructed.
+#[allow(clippy::too_many_arguments)]
 async fn prepare_subtitle_mode(
     app: &AppHandle,
     subtitle_opts: &Option<SubtitleOptions>,
@@ -3096,6 +3061,7 @@ async fn prepare_subtitle_mode(
     cid: i64,
     download_id: &str,
     lib_path: &Path,
+    duration_secs: Option<f64>,
 ) -> Result<(crate::handlers::ffmpeg::MergeMode, Vec<String>, Vec<String>), String> {
     use crate::handlers::ffmpeg::{MergeMode, SubtitleMergeOptions};
     use crate::utils::subtitle::lan_to_iso639;
@@ -3144,7 +3110,7 @@ async fn prepare_subtitle_mode(
             })
             .collect()
     } else {
-        let subs = fetch_subtitles_parallel(&client, cookies, bvid, cid).await;
+        let subs = fetch_subtitles(&client, cookies, bvid, cid).await;
         log::info!(
             "[BE] prepare_subtitle_mode: fetched {} subtitles from API",
             subs.len()
@@ -3177,7 +3143,7 @@ async fn prepare_subtitle_mode(
                 MAX_OUTER_ATTEMPTS,
                 remaining_lans.len(),
             );
-            let fresh = fetch_subtitles_parallel(&client, cookies, bvid, cid).await;
+            let fresh = fetch_subtitles(&client, cookies, bvid, cid).await;
             fresh
                 .into_iter()
                 .filter(|s| remaining_lans.contains(&s.lan))
@@ -3199,8 +3165,13 @@ async fn prepare_subtitle_mode(
                 let srt_path = lib_path.join(format!("temp_sub_{download_id}_{}.srt", sub.lan));
                 let client = client.clone();
                 async move {
-                    let result =
-                        download_subtitle_with_retry(&client, &sub.subtitle_url, &srt_path).await;
+                    let result = download_subtitle_with_retry(
+                        &client,
+                        &sub.subtitle_url,
+                        &srt_path,
+                        duration_secs,
+                    )
+                    .await;
                     (sub.lan, sub.lan_doc, srt_path, result)
                 }
             })
