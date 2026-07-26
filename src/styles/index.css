@@ -136,3 +136,16 @@
     @apply bg-background text-foreground;
   }
 }
+
+/*
+ * react-toastify hardcodes the status icon at width: 22px with a 10px
+ * trailing margin, neither of which scales with the user's fontSize
+ * setting. Re-declare both in rem so the icon tracks <html> font-size
+ * the same way the toast text and padding do. The doubled-class selector
+ * raises specificity above the library's `.Toastify__toast-icon` rule so
+ * the override wins regardless of CSS bundle order.
+ */
+.Toastify__toast .Toastify__toast-icon {
+  width: 1.125rem;
+  margin-inline-end: 0.625rem;
+}

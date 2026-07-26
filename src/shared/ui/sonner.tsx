@@ -29,6 +29,14 @@ type ToasterProps = {
  *   max-w-[480px] on toastClassName caps long errors from stretching
  *   too wide.
  *
+ * @why: --toastify-toast-padding (rem) and --toastify-toast-min-height
+ *   (auto) override react-toastify's defaults (14px / 64px) so the toast
+ *   hugs its content instead of leaving a large fixed margin around
+ *   single-line messages. The padding is rem-based to scale with the
+ *   user's fontSize setting (applied on <html>), keeping the toast
+ *   visually consistent across font sizes; min-height: auto drops the
+ *   64px floor so the content height alone decides the toast height.
+ *
  * @why: Radix Dialog (modal) sets pointer-events: none on body siblings
  *   while open, which would disable react-toastify's portal. Force auto
  *   so drag/swipe-to-dismiss and the Copy button stay clickable above
@@ -55,6 +63,8 @@ const Toaster = ({ theme, richColors }: ToasterProps) => {
       style={
         {
           '--toastify-toast-width': 'fit-content',
+          '--toastify-toast-padding': '0.5rem',
+          '--toastify-toast-min-height': 'auto',
           zIndex: 9999,
           pointerEvents: 'auto',
         } as CSSProperties
