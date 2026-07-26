@@ -590,6 +590,7 @@ dependencies = [
  "tauri-plugin-webdriver",
  "tokio",
  "tokio-util",
+ "url",
  "xz2",
  "zip 2.4.2",
 ]

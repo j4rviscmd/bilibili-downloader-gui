@@ -32,6 +32,10 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 anyhow = "1.0.98"
 reqwest = { version = "0.12.24", features = ["json", "stream", "blocking", "gzip", "brotli"] }
+# Direct dependency for pre-parsing subtitle URLs so a malformed URL fails
+# with a precise error instead of an opaque reqwest "builder error". Already
+# present transitively via reqwest; pinning here makes the usage explicit.
+url = "2"
 tokio = { version = "1.47.1", features = ["full"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 octocrab = "0.42"
