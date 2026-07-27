@@ -645,7 +645,8 @@ async fn download_video(
 /// # Returns
 ///
 /// Returns `Ok(true)` if the download was found and cancelled,
-/// `Ok(false)` if the download was not found (may have already completed).
+/// `Ok(false)` if the download was not found (may have already completed
+/// or already been cancelled by a previous call).
 ///
 /// # Example
 ///
@@ -667,13 +668,17 @@ async fn cancel_download(app: AppHandle, download_id: String) -> Result<bool, St
             serde_json::json!({ "downloadId": download_id }),
         );
     } else {
-        // No token: either a pre-enqueued pending child (download_video not
-        // started yet) or a finished download whose token was already
-        // removed. Mark it pre-cancelled so download_video rejects it on
-        // start, mirroring cancel_all_downloads. We deliberately do NOT emit
-        // download_cancelled here: that event triggers clearQueueItem on the
-        // frontend, which would drop the row. A cancelled pending part must
-        // stay visible (greyed dot + strikethrough) instead of vanishing.
+        // No token: a pre-enqueued pending child (download_video not started
+        // yet), a finished download whose token was already removed, or a
+        // running download already cancelled by a previous cancel_download
+        // call (cancel() removes the token to stay idempotent). Mark it
+        // pre-cancelled so download_video rejects it on start, mirroring
+        // cancel_all_downloads. We deliberately do NOT emit
+        // download_cancelled here: for an already-cancelled running download
+        // the first cancel already emitted it (a duplicate would show a
+        // second toast), and for a pending child the frontend's pending
+        // reducer has already finalized the row to 'cancelled' — so an emit
+        // here is redundant in every case.
         DOWNLOAD_CANCEL_REGISTRY.mark_cancelled(&download_id).await;
     }
 

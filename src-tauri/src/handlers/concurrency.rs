@@ -107,9 +107,16 @@ impl DownloadCancelRegistry {
         token
     }
 
-    /// Signals cancellation for a specific download.
+    /// Signals cancellation for a specific download and removes its token
+    /// from the registry.
     ///
-    /// Returns `true` if the download was found and cancelled, `false` otherwise.
+    /// Removing the token makes `cancel()` idempotent: a second call for the
+    /// same id (e.g. a double-clicked cancel button) returns `false`, so
+    /// `cancel_download` does not emit a duplicate `download_cancelled`
+    /// event (which would surface a second "cancelled" toast). The id is
+    /// also recorded in `cancelled_ids` so paths that re-fetch the token via
+    /// `get_token` (retry backoff, playurl fetch, bangumi-durl) can still
+    /// detect the cancel via `is_cancelled` instead of running to completion.
     ///
     /// # Arguments
     ///
@@ -117,12 +124,24 @@ impl DownloadCancelRegistry {
     ///
     /// # Returns
     ///
-    /// `true` if cancellation was signaled, `false` if download not found
+    /// `true` if the token existed and was cancelled (and removed), `false`
+    /// if the download was not found (never started, already completed, or
+    /// already cancelled by a previous call)
     pub async fn cancel(&self, download_id: &str) -> bool {
-        let tokens = self.tokens.lock().await;
-        if let Some(token) = tokens.get(download_id) {
+        // Remove the token (not just flag it) so a duplicate cancel_download
+        // returns false. Hold the tokens lock only for the Map mutation and
+        // release it before locking cancelled_ids. Holding two mutexes at
+        // once is a deadlock hazard in general, so we keep each guard in its
+        // own scope even though no current caller nests them.
+        let token_opt = {
+            let mut tokens = self.tokens.lock().await;
+            tokens.remove(download_id)
+        };
+        if let Some(token) = token_opt {
             token.cancel();
             log::info!("[BE] download cancelled: id={}", download_id);
+            let mut ids = self.cancelled_ids.lock().await;
+            ids.insert(download_id.to_string());
             true
         } else {
             log::warn!(
@@ -133,19 +152,35 @@ impl DownloadCancelRegistry {
         }
     }
 
-    /// Signals cancellation for all registered downloads.
+    /// Signals cancellation for all registered downloads and clears the
+    /// registry.
     ///
-    /// Returns the number of downloads that were cancelled.
+    /// Clearing mirrors `cancel()`'s removal semantics: subsequent per-id
+    /// `cancel_download` calls for these ids return `false`, avoiding
+    /// duplicate `download_cancelled` events when cancel-all and per-part
+    /// cancel race on the same id.
     ///
     /// # Returns
     ///
-    /// Number of downloads cancelled
+    /// Number of downloads cancelled (the count captured before clearing)
     pub async fn cancel_all(&self) -> usize {
-        let tokens = self.tokens.lock().await;
+        let mut tokens = self.tokens.lock().await;
         let count = tokens.len();
         for token in tokens.values() {
             token.cancel();
         }
+        // Constraint: unlike cancel(), this path does NOT record ids in
+        // cancelled_ids — clearing tokens alone satisfies the idempotency
+        // goal (a later per-id cancel returns false). The get_token-None
+        // fallback in download_url/single_stream_fallback reads
+        // cancelled_ids, so mid-retry cancel detection here depends on the
+        // caller having pre-marked the ids. The sole production caller
+        // (cancel_all_downloads in lib.rs) does this via mark_cancelled_many
+        // before invoking cancel_all.
+        // Caution: any future direct caller of cancel_all() must pre-mark the
+        // ids, otherwise a download sitting in retry backoff would lose its
+        // token here yet read is_cancelled=false and run to completion.
+        tokens.clear();
         count
     }
 
@@ -228,5 +263,79 @@ impl DownloadCancelRegistry {
     pub async fn clear_cancelled(&self, download_id: &str) {
         let mut ids = self.cancelled_ids.lock().await;
         ids.remove(download_id);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The core fix: a second cancel for the same id must return false so
+    /// cancel_download does not emit a duplicate `download_cancelled` event
+    /// (the "cancelled" toast showing twice on double-click).
+    #[tokio::test]
+    async fn cancel_is_idempotent_on_second_call() {
+        let registry = DownloadCancelRegistry::new();
+        let id = "test-id-idempotent";
+
+        registry.register(id).await;
+        assert!(registry.cancel(id).await, "first cancel should return true");
+        assert!(
+            !registry.cancel(id).await,
+            "second cancel should return false (idempotent — token was removed)"
+        );
+    }
+
+    /// cancel() must record the id in cancelled_ids so download_url's
+    /// get_token-None fallback (retry backoff, playurl fetch, bangumi-durl)
+    /// can still detect the cancel via is_cancelled.
+    #[tokio::test]
+    async fn cancel_records_id_in_cancelled_ids_for_fallback() {
+        let registry = DownloadCancelRegistry::new();
+        let id = "test-id-fallback";
+
+        registry.register(id).await;
+        assert!(
+            !registry.is_cancelled(id).await,
+            "freshly registered id should not be cancelled"
+        );
+
+        registry.cancel(id).await;
+        assert!(
+            registry.is_cancelled(id).await,
+            "cancel() should record the id so the get_token-None fallback can detect it"
+        );
+    }
+
+    /// Guards against cancel-all × per-part cancel duplicate emit: once
+    /// cancel_all has cleared the tokens, a per-id cancel must return false.
+    #[tokio::test]
+    async fn cancel_after_cancel_all_returns_false() {
+        let registry = DownloadCancelRegistry::new();
+        let id = "test-id-cancel-all";
+
+        registry.register(id).await;
+        registry.cancel_all().await;
+        assert!(
+            !registry.cancel(id).await,
+            "per-id cancel after cancel_all should return false (no duplicate emit)"
+        );
+    }
+
+    /// Prerequisite for the get_token-None fallback path: cancel() must
+    /// remove the token so get_token returns None for in-flight callers.
+    #[tokio::test]
+    async fn cancel_removes_token_so_get_token_returns_none() {
+        let registry = DownloadCancelRegistry::new();
+        let id = "test-id-get-token";
+
+        registry.register(id).await;
+        assert!(registry.get_token(id).await.is_some());
+
+        registry.cancel(id).await;
+        assert!(
+            registry.get_token(id).await.is_none(),
+            "cancel() should remove the token so get_token returns None"
+        );
     }
 }

@@ -284,7 +284,26 @@ pub async fn download_url(
 
     // Get cancellation token from registry
     let cancel_token: Option<CancellationToken> = if let Some(ref id) = download_id {
-        DOWNLOAD_CANCEL_REGISTRY.get_token(id).await
+        match DOWNLOAD_CANCEL_REGISTRY.get_token(id).await {
+            Some(t) => Some(t),
+            None => {
+                // Token was removed by a prior cancel() (the registry drops
+                // tokens on cancel to stay idempotent). A download can still
+                // reach this point after the user cancelled — e.g. a retry
+                // attempt that started during a backoff sleep, or a playurl
+                // fetch that was in flight when cancel arrived. Consult the
+                // pre-cancel flag so we detect it here instead of running the
+                // download to completion.
+                if DOWNLOAD_CANCEL_REGISTRY.is_cancelled(id).await {
+                    log::info!(
+                        "[BE] download_url: token absent but pre-cancelled: id={}",
+                        id
+                    );
+                    return Err(anyhow::anyhow!("ERR::CANCELLED"));
+                }
+                None
+            }
+        }
     } else {
         None
     };
@@ -868,7 +887,23 @@ async fn single_stream_fallback(
 ) -> Result<()> {
     // Get cancellation token from registry if download_id is provided
     let cancel_token: Option<CancellationToken> = if let Some(ref id) = download_id {
-        DOWNLOAD_CANCEL_REGISTRY.get_token(id).await
+        match DOWNLOAD_CANCEL_REGISTRY.get_token(id).await {
+            Some(t) => Some(t),
+            None => {
+                // Token removed by a prior cancel(); fall back to the
+                // pre-cancel flag so a mid-flight cancel is detected here
+                // rather than after streaming the whole file. See
+                // download_url for the full rationale.
+                if DOWNLOAD_CANCEL_REGISTRY.is_cancelled(id).await {
+                    log::info!(
+                        "[BE] single_stream_fallback: token absent but pre-cancelled: id={}",
+                        id
+                    );
+                    return Err(anyhow::anyhow!("ERR::CANCELLED"));
+                }
+                None
+            }
+        }
     } else {
         None
     };
