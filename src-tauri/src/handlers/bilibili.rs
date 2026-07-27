@@ -495,8 +495,17 @@ async fn download_bangumi_durl(
     )
     .await;
 
-    // Always remove the cancellation token (success or error).
+    // Always clean up the registry (success or error): remove the token AND
+    // clear the pre-cancel flag. Mirrors the regular durl and DASH cleanup
+    // paths (remove + clear_cancelled). clear_cancelled matters here because
+    // cancel() records the id in cancelled_ids for the get_token-None
+    // fallback; without this, a cancelled bangumi-durl id would linger and
+    // could falsely trip download_video's start-up is_cancelled check on id
+    // reuse, and accumulate over long-running sessions.
     DOWNLOAD_CANCEL_REGISTRY.remove(&options.download_id).await;
+    DOWNLOAD_CANCEL_REGISTRY
+        .clear_cancelled(&options.download_id)
+        .await;
 
     match result {
         Ok(()) => {
