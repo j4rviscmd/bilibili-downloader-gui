@@ -24,6 +24,15 @@ enum SegmentError {
     /// Reconnect required due to slow speed detection or stream error
     /// (triggers CDN rotation via caller's loop)
     Reconnect,
+    // Why: introduced with inline disk writes (Plan B: chunks stream straight to
+    //   disk, write_segment removed) — a disk failure now happens mid-stream
+    //   inside download_segment_with_speed_check, so it needs a non-rotatable
+    //   variant; otherwise it would ride Reconnect and burn the CDN rotation
+    //   budget on an environmental error (ENOSPC) that rotation can't fix
+    //   (task: dl-perf).
+    /// Unrecoverable disk write failure (e.g. ENOSPC → ERR::DISK_FULL).
+    /// Not CDN-specific, so the caller fails the download rather than rotate.
+    DiskError(anyhow::Error),
 }
 
 use anyhow::Result;
@@ -31,7 +40,7 @@ use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use reqwest::header;
 use reqwest::RequestBuilder;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -101,6 +110,13 @@ fn map_io_error(e: std::io::Error) -> anyhow::Error {
         Some(28) => anyhow::anyhow!("ERR::DISK_FULL"),
         _ => e.into(),
     }
+}
+
+/// Maps an I/O error to a [`SegmentError::DiskError`], translating ENOSPC
+/// to `ERR::DISK_FULL` via [`map_io_error`]. Used at each disk write/seek/flush
+/// site in [`download_segment_with_speed_check`].
+fn to_segment_disk_error(e: std::io::Error) -> SegmentError {
+    SegmentError::DiskError(map_io_error(e))
 }
 
 /// Adds a Cookie header to a request builder when credentials are supplied.
@@ -383,7 +399,12 @@ pub async fn download_url(
     cdn_urls = ordered_urls;
 
     // ---- 2. Plan segments ----
-    const DEFAULT_SEGMENT_MB: u64 = 8;
+    // Why: raised from 8MB now that segments stream straight to disk (no
+    //   Vec<u8> buffering), so segment size no longer drives resident memory.
+    //   Fewer segment boundaries = fewer CDN-rotation resets and progress
+    //   dips. 32MB keeps small (50MB) videos parallelizable (2 segments)
+    //   while cutting 1GB from 125 to 32 segments.
+    const DEFAULT_SEGMENT_MB: u64 = 32;
     let segment_size = DEFAULT_SEGMENT_MB * 1024 * 1024;
     let segments: Vec<(u64, u64)> = calculate_segments(total, segment_size);
 
@@ -524,7 +545,8 @@ pub async fn download_url(
                         let download_result = download_segment_with_speed_check(
                             &mut resp,
                             idx,
-                            size,
+                            s,
+                            &path_c,
                             cdn_idx,
                             cdn_rotation_count,
                             cdn_urls_c.len(),
@@ -537,8 +559,16 @@ pub async fn download_url(
                         )
                         .await;
 
-                        let (buf, received) = match download_result {
-                            Ok(result) => result,
+                        let received = match download_result {
+                            Ok(received) => received,
+                            Err(SegmentError::DiskError(e)) => {
+                                log::error!(
+                                    "[BE] download_url: segment {} disk write failed: {}",
+                                    idx,
+                                    e
+                                );
+                                return Err(e);
+                            }
                             Err(SegmentError::Reconnect) => {
                                 // Belt-and-suspenders: chunk-stream errors now
                                 // reach this arm (issue #494) without the
@@ -546,12 +576,11 @@ pub async fn download_url(
                                 // detection has, so guard the rotation budget
                                 // here to avoid an unbounded loop when every
                                 // CDN returns a broken body stream.
-                                // Note: rotation is data-safe — the segment
-                                //   buffer lives in memory and reaches disk
-                                //   once via write_segment only on the Ok path,
-                                //   so `continue` here discards the partial
-                                //   buffer and leaves no half-written segment
-                                //   (issue #494).
+                                // Note: rotation is data-safe — chunks stream to
+                                //   disk at `pos`, and the retry reopens at `pos`
+                                //   overwriting partial bytes from this attempt;
+                                //   no half-written segment survives once the
+                                //   final attempt completes (issue #494).
                                 if cdn_rotation_count >= max_cdn_rotations {
                                     log::warn!(
                                         "[BE] download_url: segment {} CDN rotation budget exhausted ({}/{}, cdn_idx={})",
@@ -627,9 +656,6 @@ pub async fn download_url(
                             );
                             return Err(anyhow::anyhow!("segment {} size mismatch", idx));
                         }
-
-                        // Write to file
-                        write_segment(&path_c, s, &buf).await?;
 
                         return Ok(());
                     }
@@ -722,17 +748,19 @@ pub async fn download_url(
     Ok(())
 }
 
-/// Downloads a segment with time-based speed check.
+/// Downloads a segment with time-based speed check, streaming straight to disk.
 ///
-/// This function downloads data from a response stream while performing
-/// periodic speed checks at configured intervals. If the download speed
-/// falls below the minimum threshold, it signals that a reconnect is needed.
+/// Chunks are written directly to the pre-allocated file at `pos` (no in-memory
+/// segment buffer), so segment size does not bound resident memory. Periodic
+/// speed checks run at configured intervals; if throughput falls below the
+/// minimum threshold, a reconnect is signaled so the caller rotates CDN.
 ///
 /// # Arguments
 ///
 /// * `resp` - Mutable reference to the HTTP response to read from
 /// * `idx` - Segment index, used in trace/warn logs for per-segment identification
-/// * `size` - Expected segment size in bytes
+/// * `pos` - Absolute byte offset where the segment is written in `path`
+/// * `path` - Pre-allocated output file path (written via random-access seek)
 /// * `cdn_idx` - Index of the current CDN in `cdn_urls`, used in rotation/speed logs
 /// * `cdn_rotation_count` - Current CDN rotation count
 /// * `cdn_urls_len` - Total number of available CDN URLs
@@ -740,22 +768,44 @@ pub async fn download_url(
 ///
 /// # Returns
 ///
-/// - `Ok((buf, received))`: Download complete successfully. `buf` holds
-///   the downloaded data, `received` is the total bytes received.
+/// - `Ok(received)`: Download complete; bytes streamed to `path` at `pos`,
+///   `received` is the total bytes written.
 /// - `Err(SegmentError::Reconnect)`: Recoverable — either slow speed was
 ///   detected or the body stream broke mid-transfer (e.g. connection reset,
-///   decoding error). The caller rotates to the next CDN URL and retries
-///   this segment.
+///   decoding error). The caller rotates CDN and retries from `pos`,
+///   overwriting any partial bytes from the failed attempt.
+/// - `Err(SegmentError::DiskError(e))`: Unrecoverable disk write failure
+///   (e.g. ENOSPC → ERR::DISK_FULL); the caller fails the download.
+#[allow(clippy::too_many_arguments)]
 async fn download_segment_with_speed_check(
     resp: &mut reqwest::Response,
     idx: usize,
-    size: u64,
+    pos: u64,
+    path: &Path,
     cdn_idx: usize,
     cdn_rotation_count: u8,
     cdn_urls_len: usize,
     on_chunk_received: impl Fn(u64),
-) -> Result<(Vec<u8>, u64), SegmentError> {
-    let mut buf = Vec::with_capacity(size.min(8 * 1024 * 1024) as usize);
+) -> Result<u64, SegmentError> {
+    // Stream chunks straight to the pre-allocated file at `pos` instead of
+    // buffering the whole segment in memory. On Reconnect the caller retries
+    // this segment from `pos`, overwriting partial bytes from the failed
+    // attempt — the final successful attempt fully covers the range, so no
+    // half-written segment survives (same philosophy as single_stream_fallback).
+    // Constraint: open mode must stay write-only — no create/truncate. The file
+    //   is pre-allocated once by preallocate_file and shared by up to
+    //   `concurrency` segment writers, each owning its own byte range;
+    //   truncate(true) would zero the file and destroy other segments' data.
+    //   single_stream_fallback's create+truncate is safe only because it is the
+    //   sole sequential owner of the whole file.
+    let mut file = tokio::fs::OpenOptions::new()
+        .write(true)
+        .open(path)
+        .await
+        .map_err(to_segment_disk_error)?;
+    file.seek(std::io::SeekFrom::Start(pos))
+        .await
+        .map_err(to_segment_disk_error)?;
     let mut received: u64 = 0;
 
     // Time-based speed check variables
@@ -767,7 +817,9 @@ async fn download_segment_with_speed_check(
             Ok(Some(chunk)) => {
                 let chunk_len = chunk.len() as u64;
                 received += chunk_len;
-                buf.extend_from_slice(&chunk);
+                file.write_all(&chunk)
+                    .await
+                    .map_err(to_segment_disk_error)?;
 
                 // Report progress on chunk received
                 on_chunk_received(chunk_len);
@@ -835,37 +887,8 @@ async fn download_segment_with_speed_check(
         }
     }
 
-    Ok((buf, received))
-}
-
-/// Writes a downloaded segment buffer at the specified byte offset.
-///
-/// Opens the pre-allocated file for random-access write, seeks to `pos`,
-/// and flushes `buf`. Disk errors are translated via [`map_io_error`] so
-/// that `ENOSPC` surfaces as `ERR::DISK_FULL`.
-///
-/// # Arguments
-///
-/// * `path` - Pre-allocated output file path
-/// * `pos` - Absolute byte offset where the segment should be written
-/// * `buf` - Segment bytes to persist
-///
-/// # Errors
-///
-/// Returns an anyhow error on open, seek, or write failure (including
-/// `ERR::DISK_FULL`).
-async fn write_segment(path: &PathBuf, pos: u64, buf: &[u8]) -> Result<(), anyhow::Error> {
-    let mut file = tokio::fs::OpenOptions::new()
-        .write(true)
-        .open(path)
-        .await
-        .map_err(map_io_error)?;
-
-    file.seek(std::io::SeekFrom::Start(pos))
-        .await
-        .map_err(map_io_error)?;
-    file.write_all(buf).await.map_err(map_io_error)?;
-    Ok(())
+    file.flush().await.map_err(to_segment_disk_error)?;
+    Ok(received)
 }
 
 /// Fallback single-stream download for when Range requests are not supported.
@@ -1012,17 +1035,20 @@ async fn single_stream_fallback(
 
 /// Implements capped exponential backoff sleep for retry logic.
 ///
-/// Sleep durations double per attempt, capped at 3000 ms:
-/// 500 ms (attempt 1), 1000 ms (attempt 2), 2000 ms (attempt 3+).
-/// Used between segment download retries to throttle reconnection
-/// attempts to unstable CDN nodes.
+/// Sleep durations double per attempt, capped at 1500 ms:
+/// 200 ms (attempt 1), 400 ms (attempt 2), 800 ms (attempt 3), 1500 ms
+/// (attempt 4+). Used between segment download retries to throttle
+/// reconnection attempts to unstable CDN nodes.
 ///
 /// # Arguments
 ///
 /// * `attempt` - 1-indexed retry attempt number
 async fn backoff_sleep(attempt: u8) {
-    // Cap at 3000ms: 500ms (attempt 1), 1000ms (attempt 2), 2000ms (attempt 3+)
-    let ms = (500u64 << attempt.saturating_sub(1)).min(3000);
+    // Cap at 1500ms: 200ms (attempt 1), 400ms (attempt 2), 800ms (attempt 3),
+    //   1500ms (attempt 4+). Tighter than the prior 500/1000/2000 cap: CDN
+    //   under throughput swings and long backoffs dominate wall-clock
+    //   (observed: 291 rotations on an 88MB download, task: speed-trace-log).
+    let ms = (200u64 << attempt.saturating_sub(1)).min(1500);
     tokio::time::sleep(Duration::from_millis(ms)).await;
 }
 
