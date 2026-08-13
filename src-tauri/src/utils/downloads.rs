@@ -112,7 +112,7 @@ fn map_io_error(e: std::io::Error) -> anyhow::Error {
 ///
 /// * `req` - Request builder to attach the header to
 /// * `cookie` - Optional cookie header value
-fn apply_cookie(mut req: RequestBuilder, cookie: &Option<String>) -> RequestBuilder {
+pub(crate) fn apply_cookie(mut req: RequestBuilder, cookie: &Option<String>) -> RequestBuilder {
     if let Some(c) = cookie {
         req = req.header(header::COOKIE, c);
     }
@@ -156,6 +156,19 @@ enum SpeedCheckResult {
     InsufficientData,
 }
 
+/// Caps total CDN rotations at `cdn_urls_len × MAX_CDN_LOOPS`.
+///
+/// Why: single source of truth shared by the Slow decision, the download_url
+///   loop ceiling, and the SLOW warn-log denominator, so the logged
+///   "rotation N/M" denominator cannot drift from the real ceiling
+///   (task: speed-trace-log).
+///
+/// Constraint: saturating arithmetic + min-clamp to 255 prevents overflow
+///   when `cdn_urls_len` exceeds u8 range (e.g. very large backup URL lists).
+fn cdn_rotation_limit(cdn_urls_len: usize) -> u8 {
+    (cdn_urls_len.min(255) as u8).saturating_mul(MAX_CDN_LOOPS)
+}
+
 /// Checks if download speed meets minimum threshold.
 ///
 /// Uses time-based speed checking with configurable interval and minimum data
@@ -172,39 +185,28 @@ enum SpeedCheckResult {
 ///
 /// # Returns
 ///
-/// - Acceptable: Speed meets threshold or max rotations reached
-/// - Slow: Speed below threshold and rotations remain
-/// - InsufficientData: Not enough time elapsed or data received
+/// - `(Acceptable, Some(speed))`: Speed meets threshold or max rotations reached
+/// - `(Slow, Some(speed))`: Speed below threshold and rotations remain
+/// - `(InsufficientData, None)`: Not enough time elapsed or data received
 fn check_download_speed(
     received: u64,
     last_check_time: Instant,
     last_check_bytes: u64,
     cdn_rotation_count: u8,
     cdn_urls_len: usize,
-) -> SpeedCheckResult {
-    // Minimum data check (100KB)
+) -> (SpeedCheckResult, Option<u64>) {
     let bytes_since_check = received.saturating_sub(last_check_bytes);
-    if bytes_since_check < MIN_DATA_FOR_SPEED_CHECK {
-        return SpeedCheckResult::InsufficientData;
-    }
-
-    // Time elapsed check (3 seconds)
     let elapsed = last_check_time.elapsed().as_secs();
-    if elapsed < SPEED_CHECK_INTERVAL_SECS {
-        return SpeedCheckResult::InsufficientData;
+    if bytes_since_check < MIN_DATA_FOR_SPEED_CHECK || elapsed < SPEED_CHECK_INTERVAL_SECS {
+        return (SpeedCheckResult::InsufficientData, None);
     }
 
-    // Calculate speed
     let speed = (bytes_since_check as f64 / elapsed as f64) as u64;
-
-    // Check if rotation limit reached (CDN count × MAX_CDN_LOOPS)
-    // Use saturating operations to prevent overflow with large CDN lists
-    let max_rotations = (cdn_urls_len.min(255) as u8).saturating_mul(MAX_CDN_LOOPS);
-    if speed < MIN_SPEED_THRESHOLD && cdn_rotation_count < max_rotations {
-        return SpeedCheckResult::Slow;
+    if speed < MIN_SPEED_THRESHOLD && cdn_rotation_count < cdn_rotation_limit(cdn_urls_len) {
+        return (SpeedCheckResult::Slow, Some(speed));
     }
 
-    SpeedCheckResult::Acceptable
+    (SpeedCheckResult::Acceptable, Some(speed))
 }
 
 /// Downloads a file from a URL with automatic CDN rotation and retry.
@@ -439,8 +441,7 @@ pub async fn download_url(
             const MAX_SEG_RETRIES: u8 = 3;
             let size = e - s + 1;
             let mut cdn_rotation_count: u8 = 0;
-            let max_cdn_rotations: u8 =
-                (cdn_urls_c.len().min(255) as u8).saturating_mul(MAX_CDN_LOOPS);
+            let max_cdn_rotations: u8 = cdn_rotation_limit(cdn_urls_c.len());
             // Track bytes this segment has added to dl_total_c
             // for rollback on retry
             let seg_bytes_added = Arc::new(AtomicU64::new(0));
@@ -524,6 +525,7 @@ pub async fn download_url(
                             &mut resp,
                             idx,
                             size,
+                            cdn_idx,
                             cdn_rotation_count,
                             cdn_urls_c.len(),
                             |chunk_len| {
@@ -729,8 +731,9 @@ pub async fn download_url(
 /// # Arguments
 ///
 /// * `resp` - Mutable reference to the HTTP response to read from
-/// * `_idx` - Segment index (reserved for future error reporting)
+/// * `idx` - Segment index, used in trace/warn logs for per-segment identification
 /// * `size` - Expected segment size in bytes
+/// * `cdn_idx` - Index of the current CDN in `cdn_urls`, used in rotation/speed logs
 /// * `cdn_rotation_count` - Current CDN rotation count
 /// * `cdn_urls_len` - Total number of available CDN URLs
 /// * `on_chunk_received` - Callback invoked when each chunk is received
@@ -745,8 +748,9 @@ pub async fn download_url(
 ///   this segment.
 async fn download_segment_with_speed_check(
     resp: &mut reqwest::Response,
-    _idx: usize,
+    idx: usize,
     size: u64,
+    cdn_idx: usize,
     cdn_rotation_count: u8,
     cdn_urls_len: usize,
     on_chunk_received: impl Fn(u64),
@@ -769,15 +773,40 @@ async fn download_segment_with_speed_check(
                 on_chunk_received(chunk_len);
 
                 // Perform time-based speed check
-                match check_download_speed(
+                // Note: speed_bps is the exact value that drove the
+                //   Slow/Acceptable decision; reusing it for the logs (not a
+                //   recompute) keeps the traced KiB/s consistent with the
+                //   threshold comparison (task: speed-trace-log).
+                let (speed_check, speed_bps) = check_download_speed(
                     received,
                     last_check_time,
                     last_check_bytes,
                     cdn_rotation_count,
                     cdn_urls_len,
-                ) {
-                    SpeedCheckResult::Slow => return Err(SegmentError::Reconnect), // Reconnect needed
+                );
+                let speed_kibps = speed_bps.map_or(0.0, |b| b as f64 / 1024.0);
+                match speed_check {
+                    SpeedCheckResult::Slow => {
+                        log::warn!(
+                            "[BE] download_segment: segment {} CDN #{} SLOW {:.0} KiB/s (threshold {} KiB/s), triggering CDN rotation {}/{}",
+                            idx,
+                            cdn_idx,
+                            speed_kibps,
+                            MIN_SPEED_THRESHOLD / 1024,
+                            cdn_rotation_count + 1,
+                            cdn_rotation_limit(cdn_urls_len),
+                        );
+                        return Err(SegmentError::Reconnect);
+                    }
                     SpeedCheckResult::Acceptable => {
+                        // Trace observed throughput per segment each check interval;
+                        //   correlates UI speed dips with per-CDN reality.
+                        log::info!(
+                            "[BE] download_segment: segment {} CDN #{} speed {:.0} KiB/s",
+                            idx,
+                            cdn_idx,
+                            speed_kibps,
+                        );
                         // Reset check counters for next interval
                         last_check_time = Instant::now();
                         last_check_bytes = received;

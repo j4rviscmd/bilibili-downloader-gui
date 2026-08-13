@@ -12,7 +12,7 @@
 //! net. All domain/sort logic lives in pure functions covered by unit tests.
 
 use crate::constants::{CDN_PROBE_CONCURRENCY, CDN_PROBE_TIMEOUT_SECS, REFERER, USER_AGENT};
-use crate::utils::downloads::is_media_content_type;
+use crate::utils::downloads::{apply_cookie, is_media_content_type};
 use futures::stream::{FuturesUnordered, StreamExt};
 use reqwest::header;
 use std::sync::Arc;
@@ -126,13 +126,13 @@ async fn probe_single(
     //   phases, so treat the latency ordering as a coarse signal, not exact.
     let head_start = Instant::now();
 
-    let mut head_req = client
-        .head(url)
-        .header(header::REFERER, REFERER)
-        .timeout(Duration::from_secs(CDN_PROBE_TIMEOUT_SECS));
-    if let Some(c) = cookie {
-        head_req = head_req.header(header::COOKIE, c);
-    }
+    let head_req = apply_cookie(
+        client
+            .head(url)
+            .header(header::REFERER, REFERER)
+            .timeout(Duration::from_secs(CDN_PROBE_TIMEOUT_SECS)),
+        cookie,
+    );
 
     let mut latency_ms: Option<u64> = None;
     let mut size: Option<u64> = None;
@@ -156,14 +156,14 @@ async fn probe_single(
     // Range fallback when HEAD did not yield a size.
     if size.is_none() {
         let range_start = Instant::now();
-        let mut range_req = client
-            .get(url)
-            .header(header::RANGE, "bytes=0-0")
-            .header(header::REFERER, REFERER)
-            .timeout(Duration::from_secs(CDN_PROBE_TIMEOUT_SECS));
-        if let Some(c) = cookie {
-            range_req = range_req.header(header::COOKIE, c);
-        }
+        let range_req = apply_cookie(
+            client
+                .get(url)
+                .header(header::RANGE, "bytes=0-0")
+                .header(header::REFERER, REFERER)
+                .timeout(Duration::from_secs(CDN_PROBE_TIMEOUT_SECS)),
+            cookie,
+        );
         if let Ok(resp) = range_req.send().await {
             if resp.status().is_success()
                 && is_media_content_type(resp.headers().get(header::CONTENT_TYPE))
@@ -284,11 +284,18 @@ pub async fn select_best_cdns(urls: Vec<String>, cookie: Option<String>) -> Prob
         sorted.iter().map(|r| r.url.clone()).collect()
     };
 
+    // Trace per-CDN probe latency alongside the final order so the
+    //   "fast CDN ranked first" assumption can be checked against actual
+    //   download throughput observed in download_segment logs.
     log::info!(
-        "[BE] select_best_cdns: done, ordered_hosts={:?}, total_size={:?}",
-        ordered_urls
+        "[BE] select_best_cdns: done, ordered_hosts_with_latency={:?}, total_size={:?}",
+        sorted
             .iter()
-            .map(|u| extract_host(u).unwrap_or_default())
+            .map(|r| (
+                extract_host(&r.url).unwrap_or_default(),
+                r.latency_ms
+                    .map_or("-".to_string(), |ms| format!("{}ms", ms)),
+            ))
             .collect::<Vec<_>>(),
         total_size
     );
