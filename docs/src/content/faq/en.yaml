@@ -4,8 +4,10 @@ items:
   - question: How do I download a video?
     answer: "Simply paste the Bilibili video URL into the application and click download. The video will be saved to the folder specified in settings (default is the Downloads folder).\n\nNote: This app is intended for educational and personal use. Respect the terms of service and copyright laws. Do not download or redistribute content without permission from rights holders. The developer assumes no liability for any issues arising from the use of this app."
   - question: How do I log in?
-    answer: "The app automatically detects cookies from Firefox. Just log in to Bilibili in Firefox beforehand, and no manual login is required in the app. To download in 1080p or higher, please log in to Bilibili in Firefox first."
+    answer: "The app supports two login methods: Firefox cookie auto-detection and QR code login. With Firefox, just log in to Bilibili in Firefox beforehand and no manual login is required. With QR code login, scan the QR code shown in the app with the Bilibili mobile app. You can switch between the two methods at any time. To download in 1080p or higher, please log in first."
   - question: What video qualities are supported?
     answer: "We support 360p, 480p, 720p, 1080p, 1080p60fps, 4K, and more. Available quality depends on your login status and Bilibili membership. Without login: up to 480p. With login: up to 1080p. With premium membership: 1080p+ high bitrate, 1080p60fps, 4K, and other high-quality options."
   - question: Can I download subtitles?
-    answer: "Yes, subtitles can be embedded into videos. Two modes are supported: soft subtitles (switchable in players) and hard subtitles (permanently burned in).\n\nNote: Firefox login is required."
+    answer: "Yes, subtitles can be embedded into videos. Two modes are supported: soft subtitles (switchable in players) and hard subtitles (permanently burned in). AI-generated subtitles are also supported, and download progress is shown in real time.\n\nNote: Firefox login is required."
+  - question: Where can I check the version and environment info?
+    answer: "Open the About dialog from the app menu (on macOS, use the app menu; on other platforms, from the in-app menu). It shows the app version and Tauri/system environment information."

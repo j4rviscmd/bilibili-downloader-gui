@@ -19,17 +19,24 @@ const t = useTranslations(lang);
 const featureConfig = {
   download: { icon: "📥" },
   quality: { icon: "🎬" },
-  subtitle: { icon: "💬", isNew: true },
+  subtitle: { icon: "💬" },
   cdn: { icon: "⚡" },
   batch: { icon: "📦" },
-  bangumi: { icon: "📺", isNew: true },
-  hires: { icon: "🎵", isNew: true },
-  localTools: { icon: "🛠️", isNew: true },
-  bilibili: { icon: "🔗", isNew: true },
-  autoupdate: { icon: "🔄", isNew: true },
+  bangumi: { icon: "📺" },
+  hires: { icon: "🎵" },
+  localTools: { icon: "🛠️" },
+  bilibili: { icon: "🔗" },
+  autoupdate: { icon: "🔄" },
   adfree: { icon: "🚫" },
 } as const;
 
+// Caution: every key here must exist under features.list.* and
+// features.descriptions.* in all 6 languages in src/i18n/ui.ts; a missing key
+// falls back to English, then renders the raw dot-key to users (see
+// useTranslations in src/i18n/ui.ts)
+// Note: New badges were retired in this change, but FeatureCard.tsx /
+// FeaturesSection.tsx still support the `isNew` prop (commit cfa1232); do not
+// remove that prop as dead code based on this file alone
 const features = Object.entries(featureConfig).map(([key, config]) => ({
   key,
   ...config,

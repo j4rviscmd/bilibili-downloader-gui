@@ -37,6 +37,9 @@ export type Lang = keyof typeof languages;
  * ```
  */
 export function getLangFromUrl(url: URL): Lang {
+  // Why: the site deploys to GitHub Pages under a base path (see `base` in
+  // astro.config.mjs), so the base must be stripped before the first real
+  // path segment can be read as the locale
   const basePath = import.meta.env.BASE_URL;
   const pathWithoutBase = url.pathname.replace(
     new RegExp(`^${basePath}/?`),
@@ -94,6 +97,9 @@ export function useTranslations(lang: Lang) {
     if (typeof value === "string") return value;
 
     // Fallback to English if translation not found
+    // Caution: a key missing in both the target language and English renders
+    // the raw dot-notation key to users with no build-time error; per the
+    // CLAUDE.md i18n rule, new keys must be added to all 6 languages
     const fallbackValue = getNestedValue(translations[defaultLang], keys);
     return typeof fallbackValue === "string" ? fallbackValue : key;
   };
@@ -116,6 +122,8 @@ export function useTranslations(lang: Lang) {
  * ```
  */
 export function getLocalizedPath(path: string, lang: Lang): string {
+  // Constraint: astro.config.mjs sets prefixDefaultLocale: false, so English
+  // pages live at the site root; prefixing "en" would produce a 404 link
   return lang === defaultLang ? path : `/${lang}${path}`;
 }
 
@@ -156,15 +164,15 @@ const translations: Record<Lang, Record<string, unknown>> = {
           "Download subtitles in up to 15 languages. Choose soft subtitles as separate files or hard-burn them into the video. AI-generated subtitles are also supported.",
         cdn: "Automatically selects the fastest server for you, with automatic retry on network errors. No more waiting on slow downloads.",
         batch:
-          "Download multiple videos at once. Just paste multiple links and let the app do the rest.",
+          "Download all parts of a multi-part video at once — pick the episodes you want from courses and series.",
         bangumi:
           "Download official Bilibili content including anime, dramas, and variety shows.",
         hires:
           "Dolby Atmos and Hi-Res Lossless audio quality support for the best listening experience.\nRequires Bilibili Premium membership.",
         localTools:
-          "Trim, merge, or extract audio from local MP4 files — no need to re-download.",
+          "Trim — lossless stream copy or re-encode\nConcat — merge multiple MP4 files (auto re-encode on codec mismatch)\nAudio Extract — export audio to MP3/M4A with bitrate presets",
         bilibili:
-          "Browse your favorites and watch history, and auto-expand b23.tv short links.",
+          "Browse and download from your favorites and watch history, and auto-expand b23.tv short links.",
         autoupdate:
           "Built-in updater with signed release verification and release notes.",
         adfree: "No ads, no tracking, completely free.",
@@ -174,14 +182,8 @@ const translations: Record<Lang, Record<string, unknown>> = {
       title: "Download",
       button: "Download",
       windows: "Windows",
-      macos: "macOS",
-      macosArm: "macOS (Apple Silicon)",
-      macosIntel: "macOS (Intel)",
       linux: "Linux",
       comingSoon: "Coming Soon",
-    },
-    footer: {
-      copyright: "© 2024 Bilibili Downloader GUI",
     },
   },
   ja: {
@@ -219,14 +221,15 @@ const translations: Record<Lang, Record<string, unknown>> = {
           "最大15言語の字幕をダウンロード。字幕別ファイル（soft）または動画埋め込み（hard）を選択可能。AI生成字幕にも対応。",
         cdn: "最も高速なサーバーを自動で選択。ネットワークエラー時は自動でリトライします。遅いダウンロードで待たされるストレスから解放されます。",
         batch:
-          "複数の動画をまとめてダウンロード。リンクを複数貼り付けるだけで、あとはアプリにおまかせ。",
+          "シリーズや講座など、1本の動画の複数パートをまとめてダウンロード。欲しいエピソードだけ選べます。",
         bangumi:
           "Bilibiliの公式コンテンツ（アニメ、ドラマ、バラエティ番組など）をダウンロード。",
         hires:
           "Dolby Atmos、Hi-Res Lossless対応。最高品質の音声で楽しめます。\n利用にはBilibiliプレミアム会員が必要です。",
         localTools:
-          "ローカルのMP4ファイルのトリム、結合、音声抽出が可能。ダウンロードし直す必要はありません。",
-        bilibili: "お気に入りや視聴履歴の参照、b23.tv短縮URLの自動展開に対応。",
+          "トリム — ロスレスコピーまたは再エンコードで切り抜き\n結合 — 複数MP4を1つに統合（コーデック不一致時は再エンコード）\n音声抽出 — MP3/M4Aで書き出し、ビットレート選択可能",
+        bilibili:
+          "お気に入りや視聴履歴の参照とダウンロード、b23.tv短縮URLの自動展開に対応。",
         autoupdate: "署名検証付きのアップデーターとリリースノートを内蔵。",
         adfree: "広告なし、トラッキングなし、完全無料。",
       },
@@ -235,14 +238,8 @@ const translations: Record<Lang, Record<string, unknown>> = {
       title: "ダウンロード",
       button: "ダウンロード",
       windows: "Windows",
-      macos: "macOS",
-      macosArm: "macOS (Apple Silicon)",
-      macosIntel: "macOS (Intel)",
       linux: "Linux",
       comingSoon: "近日対応予定",
-    },
-    footer: {
-      copyright: "© 2024 Bilibili Downloader GUI",
     },
   },
   zh: {
@@ -278,12 +275,14 @@ const translations: Record<Lang, Record<string, unknown>> = {
         subtitle:
           "支持最多15种语言的字幕下载。可选择软字幕（独立文件）或硬字幕（嵌入视频）。也支持AI生成字幕。",
         cdn: "自动选择最快的下载服务器，网络错误时自动重试。告别漫长的等待。",
-        batch: "批量下载多个视频。只需粘贴多个链接，剩下的交给应用即可。",
+        batch:
+          "一次性下载多P视频的各分P——课程、系列等内容，可自由勾选想要的剧集。",
         bangumi: "下载Bilibili番剧，包括动漫、电视剧和综艺等官方内容。",
         hires:
           "支持 Dolby Atmos 和 Hi-Res Lossless，享受最高品质音频。\n需要Bilibili大会员。",
-        localTools: "剪辑、合并本地 MP4 文件或从中提取音频，无需重新下载。",
-        bilibili: "浏览收藏夹和观看历史，并自动展开 b23.tv 短链接。",
+        localTools:
+          "剪辑 — 无损流复制或重编码\n合并 — 将多个 MP4 合并为一个（编码不匹配时自动重编码）\n提取音频 — 导出为 MP3/M4A，可选比特率",
+        bilibili: "浏览并下载收藏夹和观看历史，并自动展开 b23.tv 短链接。",
         autoupdate: "内置带签名验证的更新器和发布说明。",
         adfree: "无广告、无追踪、完全免费。",
       },
@@ -292,14 +291,8 @@ const translations: Record<Lang, Record<string, unknown>> = {
       title: "下载",
       button: "下载",
       windows: "Windows",
-      macos: "macOS",
-      macosArm: "macOS (Apple Silicon)",
-      macosIntel: "macOS (Intel)",
       linux: "Linux",
       comingSoon: "即将支持",
-    },
-    footer: {
-      copyright: "© 2024 Bilibili Downloader GUI",
     },
   },
   ko: {
@@ -337,15 +330,15 @@ const translations: Record<Lang, Record<string, unknown>> = {
           "최대 15개 언어 자막을 다운로드하세요. 소프트 자막(별도 파일) 또는 하드 자막(비디오 내장) 선택 가능. AI 생성 자막도 지원합니다.",
         cdn: "가장 빠른 서버를 자동으로 선택하며, 네트워크 오류 시 자동으로 재시도합니다. 느린 다운로드로 기다릴 필요가 없습니다.",
         batch:
-          "여러 비디오를 한 번에 다운로드하세요. 여러 링크만 붙여넣으면 나머지는 앱이 알아서 처리합니다.",
+          "시리즈·강좌 등 한 편의 영상에 포함된 여러 파트를 한 번에 다운로드. 원하는 에피소드만 골라 담을 수 있습니다.",
         bangumi:
           "Bilibili 공식 콘텐츠(애니메이션, 드라마, 예능 프로그램 등)를 다운로드하세요.",
         hires:
           "Dolby Atmos, Hi-Res Lossless 지원으로 최고 품질의 음향을 경험하세요.\nBilibili 프리미엄 회원이 필요합니다.",
         localTools:
-          "로컬 MP4 파일을 자르고, 병합하고, 오디오를 추출할 수 있습니다. 다시 다운로드할 필요가 없습니다.",
+          "자르기 — 무손실 스트림 복사 또는 재인코딩\n병합 — 여러 MP4를 하나로 통합(코덱 불일치 시 자동 재인코딩)\n오디오 추출 — MP3/M4A로 내보내기, 비트레이트 선택 가능",
         bilibili:
-          "즐겨찾기와 시청 기록을 탐색하고, b23.tv 단축 URL을 자동으로 확장합니다.",
+          "즐겨찾기와 시청 기록을 탐색하고 다운로드할 수 있으며, b23.tv 단축 URL을 자동으로 확장합니다.",
         autoupdate: "서명 검증 업데이터와 릴리스 노트를 내장했습니다.",
         adfree: "광고 없음, 추적 없음, 완전 무료.",
       },
@@ -354,14 +347,8 @@ const translations: Record<Lang, Record<string, unknown>> = {
       title: "다운로드",
       button: "다운로드",
       windows: "Windows",
-      macos: "macOS",
-      macosArm: "macOS (Apple Silicon)",
-      macosIntel: "macOS (Intel)",
       linux: "Linux",
       comingSoon: "곧 지원 예정",
-    },
-    footer: {
-      copyright: "© 2024 Bilibili Downloader GUI",
     },
   },
   es: {
@@ -399,15 +386,15 @@ const translations: Record<Lang, Record<string, unknown>> = {
           "Descarga subtítulos en hasta 15 idiomas. Elige entre subtítulos suaves (archivos separados) o duros (incrustados en el video). También se admiten subtítulos generados por IA.",
         cdn: "Selecciona automáticamente el servidor más rápido para ti, con reintento automático ante errores de red. Olvídate de las descargas lentas.",
         batch:
-          "Descarga múltiples videos a la vez. Solo pega varios enlaces y deja que la aplicación haga el resto.",
+          "Descarga a la vez todas las partes de un vídeo multiparte: selecciona los episodios que quieras de cursos y series.",
         bangumi:
           "Descarga contenido oficial de Bilibili, incluyendo anime, dramas y programas de variedades.",
         hires:
           "Compatibilidad con Dolby Atmos y Hi-Res Lossless para la mejor experiencia de audio.\nRequiere membresía Premium de Bilibili.",
         localTools:
-          "Recorta, combina o extrae el audio de archivos MP4 locales, sin necesidad de volver a descargar.",
+          "Recortar — copia de flujo sin pérdida o recodificación\nCombinar — une varios MP4 en uno (recodificación automática si hay inconsistencia de códec)\nExtracción de audio — exporta a MP3/M4A con preajustes de bitrate",
         bilibili:
-          "Explora tus favoritos y tu historial de visualización, y expande automáticamente los enlaces cortos de b23.tv.",
+          "Explora y descarga desde tus favoritos y tu historial de visualización, y expande automáticamente los enlaces cortos de b23.tv.",
         autoupdate:
           "Actualizador integrado con verificación de versiones firmadas y notas de versión.",
         adfree: "Sin anuncios, sin rastreo, completamente gratis.",
@@ -417,14 +404,8 @@ const translations: Record<Lang, Record<string, unknown>> = {
       title: "Descargar",
       button: "Descargar",
       windows: "Windows",
-      macos: "macOS",
-      macosArm: "macOS (Apple Silicon)",
-      macosIntel: "macOS (Intel)",
       linux: "Linux",
       comingSoon: "Próximamente",
-    },
-    footer: {
-      copyright: "© 2024 Bilibili Downloader GUI",
     },
   },
   fr: {
@@ -462,15 +443,15 @@ const translations: Record<Lang, Record<string, unknown>> = {
           "Téléchargez des sous-titres dans jusqu'à 15 langues. Choisissez entre sous-titres soft (fichiers séparés) ou hard (incrustés dans la vidéo). Les sous-titres générés par IA sont également pris en charge.",
         cdn: "Sélectionne automatiquement le serveur le plus rapide pour vous, avec réessai automatique en cas d'erreurs réseau. Finis les téléchargements lents.",
         batch:
-          "Téléchargez plusieurs vidéos à la fois. Collez simplement plusieurs liens et laissez l'application faire le reste.",
+          "Téléchargez en une fois toutes les parties d'une vidéo multi-parties : choisissez les épisodes souhaités parmi les cours et séries.",
         bangumi:
           "Téléchargez du contenu officiel Bilibili, y compris anime, dramas et émissions de variétés.",
         hires:
           "Prise en charge Dolby Atmos et Hi-Res Lossless pour une expérience audio optimale.\nNécessite un abonnement Premium Bilibili.",
         localTools:
-          "Coupez, fusionnez ou extrayez l'audio de fichiers MP4 locaux, sans avoir à les retélécharger.",
+          "Découpage — copie de flux sans perte ou réencodage\nFusion — regroupe plusieurs MP4 en un seul (réencodage automatique en cas d'incompatibilité de codec)\nExtraction audio — exportation en MP3/M4A avec présélection du débit binaire",
         bilibili:
-          "Parcourez vos favoris et votre historique de visionnage, et développez automatiquement les liens courts b23.tv.",
+          "Parcourez et téléchargez depuis vos favoris et votre historique de visionnage, et développez automatiquement les liens courts b23.tv.",
         autoupdate:
           "Metteur à jour intégré avec vérification des versions signées et notes de version.",
         adfree: "Sans publicité, sans suivi, totalement gratuit.",
@@ -480,14 +461,8 @@ const translations: Record<Lang, Record<string, unknown>> = {
       title: "Télécharger",
       button: "Télécharger",
       windows: "Windows",
-      macos: "macOS",
-      macosArm: "macOS (Apple Silicon)",
-      macosIntel: "macOS (Intel)",
       linux: "Linux",
       comingSoon: "Bientôt disponible",
-    },
-    footer: {
-      copyright: "© 2024 Bilibili Downloader GUI",
     },
   },
 };
