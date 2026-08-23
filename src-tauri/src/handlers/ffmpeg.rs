@@ -773,6 +773,66 @@ pub async fn merge_avs(
     let audio_str = audio_path.to_str().ok_or_else(to_str_err)?;
     let output_str = output_path.to_str().ok_or_else(to_str_err)?;
 
+    // Post-download integrity check for the video m4s: separates a corrupted
+    // download from a bad merge when triaging user-reported broken files,
+    // and keeps the corrupt copy for offline inspection. Fire-and-forget on
+    // purpose: demux-only (-c copy -f null) still takes seconds on a ~1 GB
+    // stream, and awaiting it would stall the merge stage. The merge itself
+    // does not depend on the result; the log line arrives when the check
+    // finishes.
+    {
+        let ffmpeg_path_chk = ffmpeg_path.clone();
+        let video_str_chk = video_str.to_string();
+        let video_path_chk = video_path.to_path_buf();
+        let download_id_chk = download_id.clone();
+        tokio::spawn(async move {
+            // Constraint: std::process::Command::output() blocks its thread,
+            //   so it must go through spawn_blocking — calling it directly on
+            //   the async worker would stall other tasks (progress events,
+            //   concurrent segment downloads) for the whole check.
+            let out = tokio::task::spawn_blocking(move || {
+                std::process::Command::new(&ffmpeg_path_chk)
+                    .args([
+                        "-v",
+                        "error",
+                        "-i",
+                        &video_str_chk,
+                        "-map",
+                        "0:v",
+                        "-c",
+                        "copy",
+                        "-f",
+                        "null",
+                        "-",
+                    ])
+                    .output()
+            })
+            .await;
+            if let Ok(Ok(out)) = out {
+                let stderr = String::from_utf8_lossy(&out.stderr);
+                log::info!(
+                    "[BE] video integrity check: download_id={:?} success={}",
+                    download_id_chk,
+                    out.status.success()
+                );
+                if !out.status.success() || !stderr.trim().is_empty() {
+                    let saved = video_path_chk.with_extension("m4s.corrupt");
+                    match std::fs::copy(&video_path_chk, &saved) {
+                        Ok(_) => log::warn!(
+                            "[BE] video integrity check: corrupt download detected, download_id={:?}, saved copy to {:?}. stderr: {}",
+                            download_id_chk,
+                            saved,
+                            stderr.chars().take(400).collect::<String>()
+                        ),
+                        Err(e) => log::warn!(
+                            "[BE] video integrity check: failed to save corrupt copy: {e}"
+                        ),
+                    }
+                }
+            }
+        });
+    }
+
     // Try audio stream copy first; fall back to AAC re-encoding on failure.
     let copy_args = build_merge_args(
         video_str,

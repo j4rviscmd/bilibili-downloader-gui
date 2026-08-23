@@ -180,6 +180,31 @@ describe('progressSlice', () => {
       expect(state[0].percentage).toBe(35)
       expect(state[0].downloaded).toBe(35)
     })
+
+    it('should lift clamp when filesize changes (audio quality fallback)', () => {
+      let state = progressSlice.reducer([], setProgress(baseProgress))
+
+      // Primary stream (filesize 100) progresses to 64.2 then fails
+      state = progressSlice.reducer(
+        state,
+        setProgress({ ...baseProgress, percentage: 64, downloaded: 64.2 }),
+      )
+      // Quality fallback swaps in a smaller stream (filesize 26.8) whose
+      // numerator must not be clamped against the abandoned stream's value
+      state = progressSlice.reducer(
+        state,
+        setProgress({
+          ...baseProgress,
+          filesize: 26.8,
+          percentage: 5,
+          downloaded: 1.4,
+        }),
+      )
+
+      expect(state[0].percentage).toBe(5)
+      expect(state[0].downloaded).toBe(1.4)
+      expect(state[0].filesize).toBe(26.8)
+    })
   })
 
   describe('clearProgress', () => {

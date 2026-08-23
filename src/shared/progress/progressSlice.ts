@@ -62,13 +62,23 @@ export const progressSlice = createSlice({
         })
       } else {
         const prev = state[idx]
-        // Monotonic clamp: prevent progress regression during CDN switches
-        const percentage = payload.isComplete
-          ? payload.percentage
-          : Math.max(prev.percentage, payload.percentage)
-        const downloaded = payload.isComplete
-          ? payload.downloaded
-          : Math.max(prev.downloaded, payload.downloaded)
+        // Monotonic clamp: prevent progress regression during CDN switches.
+        // Lifted when the advertised filesize changes — the audio quality
+        // fallback swaps in a different (usually smaller) stream, and
+        // clamping the numerator against the abandoned stream's value
+        // showed impossible progress like "64.2mb/26.8mb" (issue #339's
+        // clamp predates the fallback feature).
+        // Note: strict `===` on filesize is intentional — the backend sets
+        //   it once per stream (Emits::new, rounded to 0.1 MB) and
+        //   re-serializes the identical f64 on every event, so equality
+        //   only breaks when the stream itself is swapped.
+        const clamp = !payload.isComplete && prev.filesize === payload.filesize
+        const percentage = clamp
+          ? Math.max(prev.percentage, payload.percentage)
+          : payload.percentage
+        const downloaded = clamp
+          ? Math.max(prev.downloaded, payload.downloaded)
+          : payload.downloaded
         // isRetrying is preserved when undefined (Rust sends Option<bool>).
         // CDN rotation explicitly sets Some(true)/Some(false); retry_download
         // leaves it None so it doesn't clobber state set via setRetrying.
