@@ -21,9 +21,31 @@ use crate::{
 /// Error type for segment download failures.
 #[derive(Debug)]
 enum SegmentError {
-    /// Reconnect required due to slow speed detection or stream error
-    /// (triggers CDN rotation via caller's loop)
-    Reconnect,
+    // Why: split from Reconnect because both fed one shared rotation budget,
+    //   so a globally slow CDN could burn the whole budget on SLOW rotations
+    //   and leave nothing to recover the stream errors that follow — a
+    //   segment then failed while it was still downloadable, just slowly
+    //   (seen in the v1.49.0 pre-release test: 35 segments dead after SLOW
+    //   consumed 6/6 rotations, then "error decoding response body" hit).
+    // Why: resume is now restricted to SAME-CDN stream-error retries.
+    //   Cross-CDN resume (rotating on SLOW then continuing from the bytes
+    //   already received) produced byte-count-correct but content-corrupt
+    //   files: Bilibili CDN mirrors can serve a different byte stream for
+    //   the same path (edge sync lag), so the 206 + Content-Range checks
+    //   all pass while the payload itself differs across CDNs. Stitching
+    //   CDN #0 bytes then CDN #1 bytes broke the moov atom (v1.49.0
+    //   pre-release test: goi3.mp4 verified corrupt, goi2.mp4 with zero
+    //   rotations verified fine). Bili23-Downloader avoids this by never
+    //   switching CDN mid-download.
+    /// Throughput below MIN_SPEED_THRESHOLD; rotate using the slow-speed
+    /// budget (separate from the stream-error budget of Reconnect). The
+    /// caller fully restarts the segment — resuming on another CDN is unsafe.
+    Slow,
+    /// Body stream broke mid-transfer (connection reset, decode error).
+    /// Carries the bytes already received in this attempt so the caller can
+    /// retry the SAME CDN from where it broke; once that budget runs out it
+    /// rotates CDN and fully restarts the segment.
+    Reconnect(u64),
     // Why: introduced with inline disk writes (Plan B: chunks stream straight to
     //   disk, write_segment removed) — a disk failure now happens mid-stream
     //   inside download_segment_with_speed_check, so it needs a non-rotatable
@@ -185,6 +207,18 @@ fn cdn_rotation_limit(cdn_urls_len: usize) -> u8 {
     (cdn_urls_len.min(255) as u8).saturating_mul(MAX_CDN_LOOPS)
 }
 
+/// Extracts the start offset from a `Content-Range: bytes {start}-{end}/{total}` header.
+///
+/// Returns `None` when the header is missing or unparsable (e.g. the
+/// unsatisfied-range form `bytes */{total}`), in which case the caller keeps
+/// trusting the response as before.
+fn content_range_start(value: &header::HeaderValue) -> Option<u64> {
+    let s = value.to_str().ok()?;
+    let bytes_spec = s.trim().strip_prefix("bytes ")?.split('/').next()?;
+    let start = bytes_spec.split('-').next()?.trim();
+    start.parse::<u64>().ok()
+}
+
 /// Checks if download speed meets minimum threshold.
 ///
 /// Uses time-based speed checking with configurable interval and minimum data
@@ -196,19 +230,20 @@ fn cdn_rotation_limit(cdn_urls_len: usize) -> u8 {
 /// * `received` - Total bytes received so far
 /// * `last_check_time` - Time of the last speed check
 /// * `last_check_bytes` - Bytes received at the last speed check
-/// * `cdn_rotation_count` - Current CDN rotation count
+/// * `slow_rotations` - Slow-speed rotations already used (its own budget,
+///   independent of the stream-error rotation count)
 /// * `cdn_urls_len` - Total number of available CDN URLs
 ///
 /// # Returns
 ///
-/// - `(Acceptable, Some(speed))`: Speed meets threshold or max rotations reached
-/// - `(Slow, Some(speed))`: Speed below threshold and rotations remain
+/// - `(Acceptable, Some(speed))`: Speed meets threshold or max slow rotations reached
+/// - `(Slow, Some(speed))`: Speed below threshold and slow rotations remain
 /// - `(InsufficientData, None)`: Not enough time elapsed or data received
 fn check_download_speed(
     received: u64,
     last_check_time: Instant,
     last_check_bytes: u64,
-    cdn_rotation_count: u8,
+    slow_rotations: u8,
     cdn_urls_len: usize,
 ) -> (SpeedCheckResult, Option<u64>) {
     let bytes_since_check = received.saturating_sub(last_check_bytes);
@@ -218,7 +253,7 @@ fn check_download_speed(
     }
 
     let speed = (bytes_since_check as f64 / elapsed as f64) as u64;
-    if speed < MIN_SPEED_THRESHOLD && cdn_rotation_count < cdn_rotation_limit(cdn_urls_len) {
+    if speed < MIN_SPEED_THRESHOLD && slow_rotations < cdn_rotation_limit(cdn_urls_len) {
         return (SpeedCheckResult::Slow, Some(speed));
     }
 
@@ -243,9 +278,10 @@ fn check_download_speed(
 /// 5. Pre-allocates the output file and emits progress updates via
 ///    [`Emits`] to the frontend.
 /// 6. Streams each segment through [`download_segment_with_speed_check`],
-///    transparently rotating CDN URLs when throughput drops below
-///    [`MIN_SPEED_THRESHOLD`] and rolling back any progress that was
-///    already reported for a segment being retried.
+///    rotating CDN URLs on slow throughput (own rotation budget) and on
+///    mid-transfer stream errors / size mismatches (separate rotation
+///    budget), rolling back any progress that was already reported for a
+///    segment being retried.
 /// 7. Verifies the final byte count against the advertised total and
 ///    emits either `complete` or `stop` to the frontend.
 ///
@@ -452,20 +488,36 @@ pub async fn download_url(
 
             // `http_retries` counts HTTP-layer failures (invalid status,
             // request error) bounded by MAX_SEG_RETRIES. CDN-rotation
-            // failures (size mismatch, slow speed) use `cdn_rotation_count`.
-            // Keeping these budgets independent prevents CDN rotations from
-            // inflating the HTTP retry counter — which previously disabled
-            // the in-segment chunk-retry budget inside
-            // download_segment_with_speed_check and produced misleading
-            // `attempt 8/3` log lines.
+            // failures (size mismatch, stream error) use `cdn_rotation_count`,
+            // slow-speed rotations use `slow_rotations`, and same-CDN resume
+            // retries use `same_cdn_retries`. Keeping these budgets independent
+            // prevents CDN rotations from inflating the HTTP retry counter —
+            // which previously disabled the in-segment chunk-retry budget
+            // inside download_segment_with_speed_check and produced misleading
+            // `attempt 8/3` log lines — and prevents SLOW rotations from
+            // starving stream-error recovery (see SegmentError::Slow).
             let mut http_retries: u8 = 0;
             const MAX_SEG_RETRIES: u8 = 3;
             let size = e - s + 1;
             let mut cdn_rotation_count: u8 = 0;
             let max_cdn_rotations: u8 = cdn_rotation_limit(cdn_urls_c.len());
+            let mut slow_rotations: u8 = 0;
+            let max_slow_rotations: u8 = cdn_rotation_limit(cdn_urls_c.len());
+            let mut same_cdn_retries: u8 = 0;
+            const MAX_SAME_CDN_RETRIES: u8 = 2;
             // Track bytes this segment has added to dl_total_c
             // for rollback on retry
             let seg_bytes_added = Arc::new(AtomicU64::new(0));
+            // Resume cursor for same-CDN stream-error retries only. Any CDN
+            // change (SLOW rotation, error rotation, size mismatch) fully
+            // restarts the segment instead — see SegmentError for why
+            // cross-CDN resume corrupts files.
+            let mut seg_start = s;
+            // Segment bytes remaining for the same-CDN resume path
+            let mut seg_remaining = size;
+            // Set by the error arms that must discard everything received so
+            // far; handled once at the top of the next loop iteration.
+            let mut needs_full_restart = false;
 
             loop {
                 // Check cancellation on each iteration
@@ -476,32 +528,45 @@ pub async fn download_url(
                     }
                 }
 
-                // Roll back previously added bytes on retry
-                let prev = seg_bytes_added.swap(0, Ordering::Relaxed);
-                if prev > 0 {
-                    dl_total_c.fetch_sub(prev, Ordering::Relaxed);
-                    // Reset progress display after rollback
-                    emits_c.update_progress(dl_total_c.load(Ordering::Relaxed));
+                if needs_full_restart {
+                    needs_full_restart = false;
+                    // Roll back ALL bytes this segment has counted so far:
+                    // the next attempt rewrites the whole [s, e] range.
+                    let prev = seg_bytes_added.swap(0, Ordering::Relaxed);
+                    if prev > 0 {
+                        let new_total =
+                            dl_total_c.fetch_sub(prev, Ordering::Relaxed) - prev;
+                        emits_c.update_progress(new_total);
+                    }
+                    seg_start = s;
+                    seg_remaining = size;
                 }
 
-                // Select CDN URL based on rotation count (CDN rotation with loop)
-                let cdn_idx = (cdn_rotation_count as usize) % cdn_urls_c.len();
+                // Select CDN URL from the combined rotation count of both
+                // budgets so each rotation still advances to the next CDN.
+                let rotations_used = cdn_rotation_count as usize + slow_rotations as usize;
+                let cdn_idx = rotations_used % cdn_urls_c.len();
                 let current_url = &cdn_urls_c[cdn_idx];
 
                 let req = apply_cookie(
                     client_c
                         .get(current_url)
-                        .header(header::RANGE, format!("bytes={}-{}", s, e))
+                        .header(header::RANGE, format!("bytes={}-{}", seg_start, e))
                         .header(header::REFERER, REFERER),
                     &cookie_c,
                 );
                 match req.send().await {
                     Ok(mut resp) => {
                         // Validate response status
+                        // Why: a plain 200 is trusted only when it starts at
+                        //   byte 0 and its Content-Length equals the full
+                        // segment — a 200 body always begins at offset 0, so
+                        //   mid-resume (seg_start > 0) writing it at seg_start
+                        //   would shift every byte and corrupt the file.
                         let is_valid_response = resp.status() == 206
-                            || (s == 0
+                            || (seg_start == 0
                                 && resp.status() == 200
-                                && size == resp.content_length().unwrap_or(size));
+                                && seg_remaining == resp.content_length().unwrap_or(seg_remaining));
 
                         if !is_valid_response {
                             http_retries += 1;
@@ -522,6 +587,49 @@ pub async fn download_url(
                                 idx,
                                 resp.status()
                             ));
+                        }
+
+                        // Resume safety: verify the server honored the Range
+                        // start. Some Bilibili CDN mirrors answer 206 with a
+                        // DIFFERENT Content-Range start than requested
+                        // (clamped to 0 or own chunk alignment). Writing that
+                        // body at `seg_start` shifts all subsequent bytes and
+                        // silently corrupts the file: byte counts still add
+                        // up so the final size check passes, yet the merged
+                        // mp4 lost its moov atom (v1.49.0 pre-release test,
+                        // goi.mp4).
+                        if let Some(cr) = resp.headers().get(header::CONTENT_RANGE) {
+                            if let Some(actual_start) = content_range_start(cr) {
+                                if actual_start != seg_start {
+                                    log::warn!(
+                                        "[BE] download_url: segment {} CDN ignored Range start: requested {}, got {} (cdn_idx={})",
+                                        idx,
+                                        seg_start,
+                                        actual_start,
+                                        cdn_idx
+                                    );
+                                    // Full restart; nothing was received from
+                                    // this response yet, so the rollback in
+                                    // needs_full_restart handling is a no-op.
+                                    needs_full_restart = true;
+                                    if cdn_rotation_count >= max_cdn_rotations {
+                                        log::warn!(
+                                            "[BE] download_url: segment {} CDN rotation budget exhausted after bad Content-Range ({}/{}, cdn_idx={})",
+                                            idx,
+                                            cdn_rotation_count,
+                                            max_cdn_rotations,
+                                            cdn_idx
+                                        );
+                                        return Err(anyhow::anyhow!(
+                                            "segment {} bad content-range after CDN rotation budget exhausted",
+                                            idx
+                                        ));
+                                    }
+                                    cdn_rotation_count += 1;
+                                    backoff_sleep(cdn_rotation_count).await;
+                                    continue;
+                                }
+                            }
                         }
 
                         // Reject non-media responses. Bilibili serves a JSON
@@ -545,10 +653,10 @@ pub async fn download_url(
                         let download_result = download_segment_with_speed_check(
                             &mut resp,
                             idx,
-                            s,
+                            seg_start,
                             &path_c,
                             cdn_idx,
-                            cdn_rotation_count,
+                            slow_rotations,
                             cdn_urls_c.len(),
                             |chunk_len| {
                                 seg_bytes_cb.fetch_add(chunk_len, Ordering::Relaxed);
@@ -569,18 +677,65 @@ pub async fn download_url(
                                 );
                                 return Err(e);
                             }
-                            Err(SegmentError::Reconnect) => {
-                                // Belt-and-suspenders: chunk-stream errors now
-                                // reach this arm (issue #494) without the
-                                // producer-side budget check that slow-speed
-                                // detection has, so guard the rotation budget
-                                // here to avoid an unbounded loop when every
-                                // CDN returns a broken body stream.
-                                // Note: rotation is data-safe — chunks stream to
-                                //   disk at `pos`, and the retry reopens at `pos`
-                                //   overwriting partial bytes from this attempt;
-                                //   no half-written segment survives once the
-                                //   final attempt completes (issue #494).
+                            Err(SegmentError::Slow) => {
+                                // Slow-speed rotations draw from their own
+                                // budget: when it runs out, check_download_speed
+                                // returns Acceptable (keep streaming slowly)
+                                // instead of Reconnect, so reaching here with
+                                // the budget already spent cannot happen.
+                                // No backoff: waiting does not raise CDN
+                                // throughput, and slow rotations are frequent.
+                                // Full restart, not resume: the next CDN may
+                                // serve a different byte stream for the same
+                                // path (see SegmentError::Slow).
+                                let next_cdn_idx = (rotations_used + 1) % cdn_urls_c.len();
+                                log::info!(
+                                    "[BE] download_url: segment {} rotating CDN #{} → #{} due to slow speed, restarting segment (slow rotation {}/{})",
+                                    idx,
+                                    cdn_idx,
+                                    next_cdn_idx,
+                                    slow_rotations + 1,
+                                    max_slow_rotations
+                                );
+                                needs_full_restart = true;
+                                slow_rotations += 1;
+                                continue;
+                            }
+                            Err(SegmentError::Reconnect(received)) => {
+                                // Stream broke mid-transfer. When every
+                                // expected byte had already arrived before the
+                                // break (trailing reset / bad chunked
+                                // trailer), the segment is complete on disk:
+                                // finish instead of resuming past `e`, which
+                                // would send a start > end Range (always 416)
+                                // and fail an already-complete segment.
+                                if received == seg_remaining {
+                                    return Ok(());
+                                }
+                                // First try resuming the SAME CDN from where it
+                                // broke: connection resets are usually
+                                // link-level, the CDN's own bytes stay
+                                // consistent, and no traffic is wasted. Only
+                                // after MAX_SAME_CDN_RETRIES do we rotate —
+                                // and a rotation discards everything received
+                                // so far because the next CDN may serve
+                                // different bytes for the same path (see
+                                // SegmentError for the corruption case).
+                                if same_cdn_retries < MAX_SAME_CDN_RETRIES {
+                                    same_cdn_retries += 1;
+                                    log::info!(
+                                        "[BE] download_url: segment {} retrying same CDN #{} after stream error, resuming at +{} bytes (same-CDN retry {}/{})",
+                                        idx,
+                                        cdn_idx,
+                                        received,
+                                        same_cdn_retries,
+                                        MAX_SAME_CDN_RETRIES
+                                    );
+                                    seg_start += received;
+                                    seg_remaining = seg_remaining.saturating_sub(received);
+                                    backoff_sleep(same_cdn_retries).await;
+                                    continue;
+                                }
                                 if cdn_rotation_count >= max_cdn_rotations {
                                     log::warn!(
                                         "[BE] download_url: segment {} CDN rotation budget exhausted ({}/{}, cdn_idx={})",
@@ -594,17 +749,17 @@ pub async fn download_url(
                                         idx
                                     ));
                                 }
-                                // Switch to next CDN URL on reconnect (loops back to start)
-                                let next_cdn_idx =
-                                    (cdn_rotation_count as usize + 1) % cdn_urls_c.len();
+                                // Switch to next CDN URL (loops back to start)
+                                let next_cdn_idx = (rotations_used + 1) % cdn_urls_c.len();
                                 log::info!(
-                                    "[BE] download_url: segment {} rotating CDN #{} → #{} (rotation {}/{})",
+                                    "[BE] download_url: segment {} rotating CDN #{} → #{} after stream error, restarting segment (rotation {}/{})",
                                     idx,
                                     cdn_idx,
                                     next_cdn_idx,
                                     cdn_rotation_count + 1,
                                     max_cdn_rotations
                                 );
+                                needs_full_restart = true;
                                 cdn_rotation_count += 1;
                                 backoff_sleep(cdn_rotation_count).await;
                                 continue;
@@ -612,24 +767,26 @@ pub async fn download_url(
                         };
 
                         // Verify size
-                        if received != size {
+                        if received != seg_remaining {
                             // Size mismatch typically indicates CDN edge cache
                             // corruption or rate-limit cutoff. Rotate to a
                             // different CDN immediately instead of retrying
                             // the same node, which tends to reproduce the
-                            // same truncated response.
+                            // same truncated response. The received bytes may
+                            // be corrupt, so restart the whole segment and
+                            // roll back all of this segment's progress.
+                            needs_full_restart = true;
                             if cdn_rotation_count < max_cdn_rotations {
                                 log::warn!(
                                     "[BE] download_url: segment {} size mismatch: expected {}, got {} (cdn rotation {}/{}, cdn_idx={})",
                                     idx,
-                                    size,
+                                    seg_remaining,
                                     received,
                                     cdn_rotation_count + 1,
                                     max_cdn_rotations,
                                     cdn_idx
                                 );
-                                let next_cdn_idx =
-                                    (cdn_rotation_count as usize + 1) % cdn_urls_c.len();
+                                let next_cdn_idx = (rotations_used + 1) % cdn_urls_c.len();
                                 log::info!(
                                     "[BE] download_url: segment {} rotating CDN #{} → #{} due to size mismatch (rotation {}/{})",
                                     idx,
@@ -770,10 +927,13 @@ pub async fn download_url(
 ///
 /// - `Ok(received)`: Download complete; bytes streamed to `path` at `pos`,
 ///   `received` is the total bytes written.
-/// - `Err(SegmentError::Reconnect)`: Recoverable — either slow speed was
-///   detected or the body stream broke mid-transfer (e.g. connection reset,
-///   decoding error). The caller rotates CDN and retries from `pos`,
-///   overwriting any partial bytes from the failed attempt.
+/// - `Err(SegmentError::Slow)`: Throughput dropped below
+///   [`MIN_SPEED_THRESHOLD`] while the slow-rotation budget remains; the
+///   caller rotates CDN and fully restarts the segment.
+/// - `Err(SegmentError::Reconnect(received))`: The body stream broke
+///   mid-transfer (e.g. connection reset, decoding error). The caller first
+///   retries the SAME CDN resuming at `pos + received`; after that budget
+///   runs out it rotates CDN and fully restarts the segment.
 /// - `Err(SegmentError::DiskError(e))`: Unrecoverable disk write failure
 ///   (e.g. ENOSPC → ERR::DISK_FULL); the caller fails the download.
 #[allow(clippy::too_many_arguments)]
@@ -783,15 +943,16 @@ async fn download_segment_with_speed_check(
     pos: u64,
     path: &Path,
     cdn_idx: usize,
-    cdn_rotation_count: u8,
+    slow_rotations: u8,
     cdn_urls_len: usize,
     on_chunk_received: impl Fn(u64),
 ) -> Result<u64, SegmentError> {
     // Stream chunks straight to the pre-allocated file at `pos` instead of
-    // buffering the whole segment in memory. On Reconnect the caller retries
-    // this segment from `pos`, overwriting partial bytes from the failed
-    // attempt — the final successful attempt fully covers the range, so no
-    // half-written segment survives (same philosophy as single_stream_fallback).
+    // buffering the whole segment in memory. On Reconnect the caller first
+    // resumes at `pos + received` on the same CDN (bytes already written stay
+    // valid); only a CDN rotation fully restarts the segment from `pos`,
+    // overwriting partial bytes — the final successful attempt always ends up
+    // covering the whole range, so no half-written segment survives.
     // Constraint: open mode must stay write-only — no create/truncate. The file
     //   is pre-allocated once by preallocate_file and shared by up to
     //   `concurrency` segment writers, each owning its own byte range;
@@ -833,7 +994,7 @@ async fn download_segment_with_speed_check(
                     received,
                     last_check_time,
                     last_check_bytes,
-                    cdn_rotation_count,
+                    slow_rotations,
                     cdn_urls_len,
                 );
                 let speed_kibps = speed_bps.map_or(0.0, |b| b as f64 / 1024.0);
@@ -845,10 +1006,10 @@ async fn download_segment_with_speed_check(
                             cdn_idx,
                             speed_kibps,
                             MIN_SPEED_THRESHOLD / 1024,
-                            cdn_rotation_count + 1,
+                            slow_rotations + 1,
                             cdn_rotation_limit(cdn_urls_len),
                         );
-                        return Err(SegmentError::Reconnect);
+                        return Err(SegmentError::Slow);
                     }
                     SpeedCheckResult::Acceptable => {
                         // Trace observed throughput per segment each check interval;
@@ -870,19 +1031,20 @@ async fn download_segment_with_speed_check(
             Err(e) => {
                 // Chunk-stream error (e.g. connection reset, decoding error).
                 // The stream is broken, so retrying chunk() on the same
-                // response cannot recover — trigger CDN rotation in the
-                // caller's download_url loop, which retries this segment on
-                // the next CDN URL.
+                // response cannot recover — return the bytes received so far
+                // and let the caller's download_url loop recover: it resumes
+                // the SAME CDN from `pos + received` first, and only rotates
+                // to the next CDN URL (fully restarting the segment) after
+                // that budget runs out.
                 // Why: all chunk() errors map to Reconnect rather than only
                 //   "decoding" ones, because classifying via reqwest's error
-                //   message string is fragile across versions. The deliberate
-                //   trade-off is losing a same-CDN reconnect chance for a
-                //   transient connection reset (issue #494).
+                //   message string is fragile across versions (issue #494).
                 log::warn!(
-                    "[BE] download_segment: stream error, triggering CDN rotation: {}",
+                    "[BE] download_segment: stream error after {} bytes: {}",
+                    received,
                     e
                 );
-                return Err(SegmentError::Reconnect);
+                return Err(SegmentError::Reconnect(received));
             }
         }
     }
@@ -1127,4 +1289,22 @@ pub(crate) fn is_media_content_type(ct: Option<&reqwest::header::HeaderValue>) -
     };
     let lower = ct.to_ascii_lowercase();
     !(lower.contains("application/json") || lower.starts_with("text/"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_content_range_start() {
+        let ok = header::HeaderValue::from_static("bytes 123-456/789");
+        assert_eq!(content_range_start(&ok), Some(123));
+        let zero = header::HeaderValue::from_static("bytes 0-0/1");
+        assert_eq!(content_range_start(&zero), Some(0));
+        // Unsatisfied-range form and garbage return None (caller skips check)
+        let unsat = header::HeaderValue::from_static("bytes */789");
+        assert_eq!(content_range_start(&unsat), None);
+        let junk = header::HeaderValue::from_static("items 1-2");
+        assert_eq!(content_range_start(&junk), None);
+    }
 }
