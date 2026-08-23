@@ -35,8 +35,10 @@ enum SegmentError {
     //   all pass while the payload itself differs across CDNs. Stitching
     //   CDN #0 bytes then CDN #1 bytes broke the moov atom (v1.49.0
     //   pre-release test: goi3.mp4 verified corrupt, goi2.mp4 with zero
-    //   rotations verified fine). Bili23-Downloader avoids this by never
-    //   switching CDN mid-download.
+    //   rotations verified fine). The safe designs are either never
+    //   switching CDN mid-download, or discarding all received bytes on
+    //   every CDN change — this codebase chose the latter so it can still
+    //   rotate away from a degraded node.
     /// Throughput below MIN_SPEED_THRESHOLD; rotate using the slow-speed
     /// budget (separate from the stream-error budget of Reconnect). The
     /// caller fully restarts the segment — resuming on another CDN is unsafe.
