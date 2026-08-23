@@ -15,7 +15,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { PartDownloadStatus } from '../hooks/usePartDownloadStatus'
 
-const MIN_HEIGHT = 'min-h-[33px]'
+// @why: 28px matches the tallest in-row control (h-7 buttons / size-7 icon
+//   buttons) so every state renders at the same height, keeping the block
+//   from jumping when the stage moves between pending/downloading/complete.
+const MIN_HEIGHT = 'min-h-[28px]'
 
 /**
  * Formats transfer rate in human-readable units.
@@ -327,7 +330,7 @@ export function PartDownloadProgress({
     : (errorMessage ?? t('video.download_failed_part'))
 
   return (
-    <div className="bg-muted/50 mt-2 space-y-2 rounded-md p-2">
+    <div className="bg-muted/50 mt-2 space-y-2 rounded-md p-1.5">
       {isComplete && (
         <div className={`flex ${MIN_HEIGHT} items-center justify-between`}>
           <div className="flex items-center gap-2 text-sm">
@@ -341,7 +344,7 @@ export function PartDownloadProgress({
               variant="outline"
               size="sm"
               onClick={handleOpenFile}
-              className="h-8 px-2 text-xs"
+              className="h-7 px-2 text-xs"
             >
               <FolderOpen className="mr-1 h-3 w-3" />
               {t('video.open_file')}
@@ -350,7 +353,7 @@ export function PartDownloadProgress({
               variant="outline"
               size="sm"
               onClick={handleRevealInFolder}
-              className="h-8 px-2 text-xs"
+              className="h-7 px-2 text-xs"
             >
               <FolderOpen className="mr-1 h-3 w-3" />
               {t('video.open_folder')}
@@ -428,7 +431,12 @@ export function PartDownloadProgress({
               <TooltipTrigger asChild>
                 <IconButton
                   variant="ghost"
-                  size="sm"
+                  // Constraint: xs resolves to size-7 (28px), the max height any
+                  //   in-row control may take so the row stays at MIN_HEIGHT.
+                  //   Bumping to sm (size-8 = 32px) would grow the row and
+                  //   reintroduce the state-change height jump (see MIN_HEIGHT
+                  //   @why; variants in animate-ui/components/buttons/icon.tsx).
+                  size="xs"
                   onClick={onCancel}
                   className="text-muted-foreground hover:text-destructive shrink-0"
                 >
