@@ -10,7 +10,7 @@
 
 use crate::{
     constants::{
-        MAX_CDN_LOOPS, MIN_DATA_FOR_SPEED_CHECK, MIN_MEDIA_BYTES, MIN_SPEED_THRESHOLD, REFERER,
+        MAX_CDN_LOOPS, MIN_MEDIA_BYTES, MIN_SPEED_THRESHOLD, REFERER, SEGMENT_STALL_TIMEOUT_SECS,
         SPEED_CHECK_INTERVAL_SECS, USER_AGENT,
     },
     emits::Emits,
@@ -48,7 +48,7 @@ enum SegmentError {
     Reconnect(u64),
     // Why: introduced with inline disk writes (Plan B: chunks stream straight to
     //   disk, write_segment removed) — a disk failure now happens mid-stream
-    //   inside download_segment_with_speed_check, so it needs a non-rotatable
+    //   inside download_segment_stream, so it needs a non-rotatable
     //   variant; otherwise it would ride Reconnect and burn the CDN rotation
     //   budget on an environmental error (ENOSPC) that rotation can't fix
     //   (task: dl-perf).
@@ -63,7 +63,7 @@ use futures::StreamExt;
 use reqwest::header;
 use reqwest::RequestBuilder;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager};
@@ -136,7 +136,7 @@ fn map_io_error(e: std::io::Error) -> anyhow::Error {
 
 /// Maps an I/O error to a [`SegmentError::DiskError`], translating ENOSPC
 /// to `ERR::DISK_FULL` via [`map_io_error`]. Used at each disk write/seek/flush
-/// site in [`download_segment_with_speed_check`].
+/// site in [`download_segment_stream`].
 fn to_segment_disk_error(e: std::io::Error) -> SegmentError {
     SegmentError::DiskError(map_io_error(e))
 }
@@ -180,18 +180,97 @@ fn check_cancelled(token: &Option<CancellationToken>) -> Result<()> {
     Ok(())
 }
 
-/// Outcome of a time-based download speed check.
+/// Resolves the cancellation token for a download from the registry.
 ///
-/// Produced by [`check_download_speed`] to signal whether the current
-/// throughput should continue, trigger a CDN rotation, or wait for more
-/// data before evaluating.
-enum SpeedCheckResult {
-    /// Throughput is at or above [`MIN_SPEED_THRESHOLD`]; continue as-is.
-    Acceptable,
-    /// Throughput is below threshold and CDN rotations remain; reconnect.
-    Slow,
-    /// Not enough elapsed time or bytes received yet for a reliable check.
-    InsufficientData,
+/// Why: the registry drops tokens on cancel (to stay idempotent), so a
+///   download can still reach this point after the user cancelled — e.g. a
+///   retry attempt that started during a backoff sleep, or a playurl fetch
+///   that was in flight when cancel arrived. When the token is absent the
+///   pre-cancel flag is consulted so the cancellation is detected here
+///   instead of running the download to completion.
+async fn resolve_cancel_token(
+    ctx: &str,
+    download_id: &Option<String>,
+) -> Result<Option<CancellationToken>> {
+    let Some(id) = download_id else {
+        return Ok(None);
+    };
+    match DOWNLOAD_CANCEL_REGISTRY.get_token(id).await {
+        Some(t) => Ok(Some(t)),
+        None => {
+            if DOWNLOAD_CANCEL_REGISTRY.is_cancelled(id).await {
+                log::info!("[BE] {}: token absent but pre-cancelled: id={}", ctx, id);
+                return Err(anyhow::anyhow!("ERR::CANCELLED"));
+            }
+            Ok(None)
+        }
+    }
+}
+
+/// Per-segment shared state consumed by the aggregate speed monitor.
+///
+/// Why an aggregate monitor instead of per-segment thresholds: with N
+///   parallel segments the local bandwidth splits N ways, so a per-segment
+/// threshold of MIN_SPEED_THRESHOLD is effectively divided by N and fires
+/// rotations on healthy downloads (observed: 604 slow rotations across 3
+/// downloads, ping-ponging between CDNs, each restart discarding up to 32MB).
+/// The "is it slow" decision moved to TOTAL throughput; per-segment state
+/// now only reports progress and receives rotation requests.
+///
+/// One instance per segment, shared by `Arc` between the segment task and
+/// the monitor task spawned in `download_url`.
+struct SegmentStats {
+    /// Cumulative bytes received by this segment (never reset — a full
+    /// restart keeps counting so monitor deltas stay monotonic).
+    bytes: AtomicU64,
+    /// Monitor's previous sample snapshot; swapped each tick to compute
+    /// this segment's delta without a mutex.
+    prev_sample: AtomicU64,
+    /// Set by the segment task once it acquires its semaphore permit and
+    /// starts streaming. A semaphore-waiting segment has delta == 0 and
+    /// would otherwise always win "slowest" without ever being able to
+    /// honor the request.
+    started: AtomicBool,
+    /// Set by the segment task on completion so the monitor stops
+    /// considering it as a rotation candidate.
+    finished: AtomicBool,
+    /// Set when this segment's slow-rotation budget is spent; the monitor
+    /// stops selecting it (it must keep streaming slowly — the safety
+    /// valve that keeps sub-threshold links converging instead of
+    /// rotating forever).
+    slow_budget_exhausted: AtomicBool,
+    /// Rotation request flag set by the monitor when aggregate throughput
+    /// stayed below MIN_SPEED_THRESHOLD and this segment had the smallest
+    /// delta. Consumed (cleared) by the segment task.
+    rotate_requested: AtomicBool,
+}
+
+impl SegmentStats {
+    fn new() -> Self {
+        Self {
+            bytes: AtomicU64::new(0),
+            prev_sample: AtomicU64::new(0),
+            started: AtomicBool::new(false),
+            finished: AtomicBool::new(false),
+            slow_budget_exhausted: AtomicBool::new(false),
+            rotate_requested: AtomicBool::new(false),
+        }
+    }
+}
+
+/// Picks the slowest rotation-eligible segment index from per-segment deltas.
+///
+/// `eligible` marks segments that are started, not finished, and still have
+/// slow-rotation budget. Ties resolve to the lowest index (deterministic).
+/// Returns `None` when no segment is eligible. Pure function — unit-testable.
+fn pick_slowest_segment(deltas: &[u64], eligible: &[bool]) -> Option<usize> {
+    deltas
+        .iter()
+        .zip(eligible)
+        .enumerate()
+        .filter(|(_, (_, &ok))| ok)
+        .min_by_key(|(_, (delta, _))| **delta)
+        .map(|(idx, _)| idx)
 }
 
 /// Caps total CDN rotations at `cdn_urls_len × MAX_CDN_LOOPS`.
@@ -219,47 +298,6 @@ fn content_range_start(value: &header::HeaderValue) -> Option<u64> {
     start.parse::<u64>().ok()
 }
 
-/// Checks if download speed meets minimum threshold.
-///
-/// Uses time-based speed checking with configurable interval and minimum data
-/// requirements. This improves detection of slow networks compared to the
-/// previous byte-threshold approach.
-///
-/// # Arguments
-///
-/// * `received` - Total bytes received so far
-/// * `last_check_time` - Time of the last speed check
-/// * `last_check_bytes` - Bytes received at the last speed check
-/// * `slow_rotations` - Slow-speed rotations already used (its own budget,
-///   independent of the stream-error rotation count)
-/// * `cdn_urls_len` - Total number of available CDN URLs
-///
-/// # Returns
-///
-/// - `(Acceptable, Some(speed))`: Speed meets threshold or max slow rotations reached
-/// - `(Slow, Some(speed))`: Speed below threshold and slow rotations remain
-/// - `(InsufficientData, None)`: Not enough time elapsed or data received
-fn check_download_speed(
-    received: u64,
-    last_check_time: Instant,
-    last_check_bytes: u64,
-    slow_rotations: u8,
-    cdn_urls_len: usize,
-) -> (SpeedCheckResult, Option<u64>) {
-    let bytes_since_check = received.saturating_sub(last_check_bytes);
-    let elapsed = last_check_time.elapsed().as_secs();
-    if bytes_since_check < MIN_DATA_FOR_SPEED_CHECK || elapsed < SPEED_CHECK_INTERVAL_SECS {
-        return (SpeedCheckResult::InsufficientData, None);
-    }
-
-    let speed = (bytes_since_check as f64 / elapsed as f64) as u64;
-    if speed < MIN_SPEED_THRESHOLD && slow_rotations < cdn_rotation_limit(cdn_urls_len) {
-        return (SpeedCheckResult::Slow, Some(speed));
-    }
-
-    (SpeedCheckResult::Acceptable, Some(speed))
-}
-
 /// Downloads a file from a URL with automatic CDN rotation and retry.
 ///
 /// Orchestrates the full segmented download pipeline used for audio and
@@ -269,7 +307,7 @@ fn check_download_speed(
 ///    `DOWNLOAD_CANCEL_REGISTRY`.
 /// 2. Handles existing file (override or error), then runs CDN
 ///    pre-selection via [`crate::utils::cdn_selector::select_best_cdns`]
-///    (static P2P demotion + latency probe) which also recovers the total
+///    (static P2P demotion + throughput probe) which also recovers the total
 ///    size.
 /// 3. Falls back to [`single_stream_fallback`] when the server does not
 ///    advertise `Accept-Ranges`/Content-Length.
@@ -277,11 +315,13 @@ fn check_download_speed(
 ///    because Bilibili's CDN is unstable with parallel range requests).
 /// 5. Pre-allocates the output file and emits progress updates via
 ///    [`Emits`] to the frontend.
-/// 6. Streams each segment through [`download_segment_with_speed_check`],
-///    rotating CDN URLs on slow throughput (own rotation budget) and on
-///    mid-transfer stream errors / size mismatches (separate rotation
-///    budget), rolling back any progress that was already reported for a
-///    segment being retried.
+/// 6. Streams each segment through [`download_segment_stream`] while an
+///    aggregate-speed monitor watches TOTAL throughput; when it stays below
+///    [`MIN_SPEED_THRESHOLD`] the slowest active segment is asked to rotate
+///    (own slow-rotation budget). Mid-transfer stream errors / stalls / size
+///    mismatches rotate CDN URLs through a separate rotation budget, rolling
+///    back any progress that was already reported for a segment being
+///    retried.
 /// 7. Verifies the final byte count against the advertised total and
 ///    emits either `complete` or `stop` to the frontend.
 ///
@@ -338,30 +378,7 @@ pub async fn download_url(
     );
 
     // Get cancellation token from registry
-    let cancel_token: Option<CancellationToken> = if let Some(ref id) = download_id {
-        match DOWNLOAD_CANCEL_REGISTRY.get_token(id).await {
-            Some(t) => Some(t),
-            None => {
-                // Token was removed by a prior cancel() (the registry drops
-                // tokens on cancel to stay idempotent). A download can still
-                // reach this point after the user cancelled — e.g. a retry
-                // attempt that started during a backoff sleep, or a playurl
-                // fetch that was in flight when cancel arrived. Consult the
-                // pre-cancel flag so we detect it here instead of running the
-                // download to completion.
-                if DOWNLOAD_CANCEL_REGISTRY.is_cancelled(id).await {
-                    log::info!(
-                        "[BE] download_url: token absent but pre-cancelled: id={}",
-                        id
-                    );
-                    return Err(anyhow::anyhow!("ERR::CANCELLED"));
-                }
-                None
-            }
-        }
-    } else {
-        None
-    };
+    let cancel_token = resolve_cancel_token("download_url", &download_id).await?;
 
     // Initial cancellation check
     check_cancelled(&cancel_token)?;
@@ -402,7 +419,7 @@ pub async fn download_url(
     // Use CDN selector to probe and order CDNs by performance
     // Why: avoid landing the primary request on a slow P2P/MCDN edge (e.g.
     //   *.mcdn.bilivideo.cn) by excluding/demoting it up front and probing the
-    //   candidate CDNs in parallel for latency instead of reacting to slowness
+    //   candidate CDNs in parallel for throughput instead of reacting to slowness
     //   mid-download (issue #490).
     let cdn_outcome =
         cdn_selector::select_best_cdns(cdn_urls.clone(), cookie.clone(), &host_health).await;
@@ -465,6 +482,10 @@ pub async fn download_url(
 
     let downloaded_total = Arc::new(AtomicU64::new(0));
     let sem = Arc::new(Semaphore::new(concurrency));
+    let segment_stats: Vec<Arc<SegmentStats>> = segments
+        .iter()
+        .map(|_| Arc::new(SegmentStats::new()))
+        .collect();
 
     // ---- 5. Download segments in parallel ----
     let mut futs = FuturesUnordered::new();
@@ -478,16 +499,20 @@ pub async fn download_url(
         let sem_c = sem.clone();
         let cancel_token_c = cancel_token.clone();
         let host_health_c = host_health.clone();
+        let stats_c = segment_stats[idx].clone();
         futs.push(tokio::spawn(async move {
             let _permit = sem_c.acquire().await.unwrap();
 
             // Check cancellation before starting segment
-            if let Some(ref t) = cancel_token_c {
-                if t.is_cancelled() {
-                    let _ = emits_c.stop().await;
-                    return Err(anyhow::anyhow!("ERR::CANCELLED"));
-                }
+            if let Err(e) = check_cancelled(&cancel_token_c) {
+                let _ = emits_c.stop().await;
+                return Err(e);
             }
+
+            // Mark as started so the aggregate monitor may select this
+            // segment as a rotation candidate (semaphore-waiting segments
+            // have delta == 0 and must not be picked).
+            stats_c.started.store(true, Ordering::Relaxed);
 
             // `http_retries` counts HTTP-layer failures (invalid status,
             // request error) bounded by MAX_SEG_RETRIES per selected URL;
@@ -498,7 +523,7 @@ pub async fn download_url(
             // `same_cdn_retries`. Keeping these budgets independent
             // prevents CDN rotations from inflating the HTTP retry counter —
             // which previously disabled the in-segment chunk-retry budget
-            // inside download_segment_with_speed_check and produced misleading
+            // inside download_segment_stream and produced misleading
             // `attempt 8/3` log lines — and prevents SLOW rotations from
             // starving stream-error recovery (see SegmentError::Slow).
             let mut http_retries: u8 = 0;
@@ -526,11 +551,9 @@ pub async fn download_url(
 
             loop {
                 // Check cancellation on each iteration
-                if let Some(ref t) = cancel_token_c {
-                    if t.is_cancelled() {
-                        let _ = emits_c.stop().await;
-                        return Err(anyhow::anyhow!("ERR::CANCELLED"));
-                    }
+                if let Err(e) = check_cancelled(&cancel_token_c) {
+                    let _ = emits_c.stop().await;
+                    return Err(e);
                 }
 
                 if needs_full_restart {
@@ -673,16 +696,17 @@ pub async fn download_url(
                         let emits_cb = emits_c.clone();
                         let dl_total_cb = dl_total_c.clone();
                         let seg_bytes_cb = seg_bytes_added.clone();
-                        let download_result = download_segment_with_speed_check(
+                        let stats_cb = stats_c.clone();
+                        let download_result = download_segment_stream(
                             &mut resp,
                             idx,
+                            cdn_idx,
                             seg_start,
                             &path_c,
-                            cdn_idx,
-                            slow_rotations,
-                            cdn_urls_c.len(),
+                            &stats_cb,
                             |chunk_len| {
                                 seg_bytes_cb.fetch_add(chunk_len, Ordering::Relaxed);
+                                stats_cb.bytes.fetch_add(chunk_len, Ordering::Relaxed);
                                 let new_total =
                                     dl_total_cb.fetch_add(chunk_len, Ordering::Relaxed) + chunk_len;
                                 emits_cb.update_progress(new_total);
@@ -702,12 +726,18 @@ pub async fn download_url(
                             }
                             Err(SegmentError::Slow) => {
                                 // Slow-speed rotations draw from their own
-                                // budget: when it runs out, check_download_speed
-                                // returns Acceptable (keep streaming slowly)
-                                // instead of Reconnect, so reaching here with
-                                // the budget already spent cannot happen.
+                                // budget: the monitor only selects segments
+                                // that still have budget (slow_budget_exhausted),
+                                // so a request arriving here is always within
+                                // budget. When the budget is spent, the flag
+                                // makes the monitor stop selecting this
+                                // segment — it keeps streaming slowly, the
+                                // same safety valve the old per-segment
+                                // check_download_speed had, so sub-threshold
+                                // links still converge instead of rotating
+                                // forever.
                                 // No backoff: waiting does not raise CDN
-                                // throughput, and slow rotations are frequent.
+                                // throughput.
                                 // Full restart, not resume: the next CDN may
                                 // serve a different byte stream for the same
                                 // path (see SegmentError::Slow).
@@ -722,6 +752,15 @@ pub async fn download_url(
                                 );
                                 needs_full_restart = true;
                                 slow_rotations += 1;
+                                if slow_rotations >= max_slow_rotations {
+                                    log::warn!(
+                                        "[BE] download_url: segment {} slow-rotation budget exhausted, will keep streaming on the current CDN",
+                                        idx
+                                    );
+                                    stats_c
+                                        .slow_budget_exhausted
+                                        .store(true, Ordering::Relaxed);
+                                }
                                 continue;
                             }
                             Err(SegmentError::Reconnect(received)) => {
@@ -733,6 +772,7 @@ pub async fn download_url(
                                 // would send a start > end Range (always 416)
                                 // and fail an already-complete segment.
                                 if received == seg_remaining {
+                                    stats_c.finished.store(true, Ordering::Relaxed);
                                     return Ok(());
                                 }
                                 // First try resuming the SAME CDN from where it
@@ -837,6 +877,10 @@ pub async fn download_url(
                             return Err(anyhow::anyhow!("segment {} size mismatch", idx));
                         }
 
+                        // Segment complete — retire it from monitor rotation
+                        // candidacy.
+                        stats_c.finished.store(true, Ordering::Relaxed);
+
                         return Ok(());
                     }
                     Err(e) => {
@@ -880,6 +924,84 @@ pub async fn download_url(
         }));
     }
 
+    // ---- 5b. Aggregate speed monitor ----
+    // Timer-driven (not chunk-callback-driven), so it also detects a full
+    // stall where no chunk ever arrives. When TOTAL throughput stays below
+    // MIN_SPEED_THRESHOLD for two consecutive samples, the slowest active
+    // segment is asked to rotate — one segment per verdict, so healthy
+    // segments keep their connections. Per-segment speed thresholds were
+    // removed because parallel segments split the local bandwidth and made
+    // every segment look slow (see `SegmentStats`).
+    let stats_for_monitor = segment_stats.clone();
+    let monitor = tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(SPEED_CHECK_INTERVAL_SECS));
+        interval.tick().await; // discard the immediate first tick (warm-up)
+        let mut last_sample = Instant::now();
+        let mut consecutive_slow: u32 = 0;
+        loop {
+            interval.tick().await;
+            let now = Instant::now();
+            // Floor at 1s: interval ticks can fire slightly early under
+            // timer coalescing, and a zero divisor would panic.
+            let elapsed = now.duration_since(last_sample).as_secs().max(1);
+            last_sample = now;
+
+            let mut deltas = Vec::with_capacity(stats_for_monitor.len());
+            let mut total_delta: u64 = 0;
+            for s in &stats_for_monitor {
+                let cur = s.bytes.load(Ordering::Relaxed);
+                let prev = s.prev_sample.swap(cur, Ordering::Relaxed);
+                let d = cur.saturating_sub(prev);
+                total_delta += d;
+                deltas.push(d);
+            }
+            let bps = total_delta / elapsed;
+            log::info!(
+                "[BE] download_url: aggregate speed {} KiB/s over {}s",
+                bps / 1024,
+                elapsed
+            );
+
+            if bps >= MIN_SPEED_THRESHOLD {
+                consecutive_slow = 0;
+                continue;
+            }
+            consecutive_slow += 1;
+            if consecutive_slow < 2 {
+                continue;
+            }
+            // Rotation candidates: started (not semaphore-waiting), not
+            // finished, and still holding slow-rotation budget.
+            let eligible: Vec<bool> = stats_for_monitor
+                .iter()
+                .map(|s| {
+                    s.started.load(Ordering::Relaxed)
+                        && !s.finished.load(Ordering::Relaxed)
+                        && !s.slow_budget_exhausted.load(Ordering::Relaxed)
+                })
+                .collect();
+            let Some(slowest) = pick_slowest_segment(&deltas, &eligible) else {
+                continue;
+            };
+            // compare_exchange skips a segment already consuming a previous
+            // request — its rotation is still in flight.
+            if stats_for_monitor[slowest]
+                .rotate_requested
+                .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
+                .is_ok()
+            {
+                log::warn!(
+                    "[BE] download_url: aggregate speed {} KiB/s below threshold {} KiB/s for {} samples, requesting rotation of slowest segment {} ({} bytes in window)",
+                    bps / 1024,
+                    MIN_SPEED_THRESHOLD / 1024,
+                    consecutive_slow,
+                    slowest,
+                    deltas[slowest]
+                );
+            }
+        }
+    });
+
     // Collect results
     let mut seg_errors = 0u32;
     while let Some(res) = futs.next().await {
@@ -890,6 +1012,7 @@ pub async fn download_url(
                 // fallback logic runs without retrying the same error URL.
                 if e.to_string().contains("ERR::INVALID_MEDIA_RESPONSE") {
                     emits.stop().await;
+                    monitor.abort();
                     return Err(e);
                 }
                 seg_errors += 1;
@@ -897,6 +1020,7 @@ pub async fn download_url(
             Err(_) => seg_errors += 1,
         }
     }
+    monitor.abort();
 
     if seg_errors > 0 {
         // Stop the background emitter so it doesn't leak a progress loop.
@@ -949,46 +1073,50 @@ pub async fn download_url(
     Ok(())
 }
 
-/// Downloads a segment with time-based speed check, streaming straight to disk.
+/// Streams one segment straight to disk, honoring monitor rotation requests
+/// and a per-chunk stall timeout.
 ///
 /// Chunks are written directly to the pre-allocated file at `pos` (no in-memory
-/// segment buffer), so segment size does not bound resident memory. Periodic
-/// speed checks run at configured intervals; if throughput falls below the
-/// minimum threshold, a reconnect is signaled so the caller rotates CDN.
+/// segment buffer), so segment size does not bound resident memory. There is
+/// no per-segment speed threshold here: the aggregate-speed monitor in
+/// `download_url` decides slowness from TOTAL throughput (see
+/// [`SegmentStats`]) and requests a rotation via `stats.rotate_requested`.
+/// A fully stalled stream (no chunk within [`SEGMENT_STALL_TIMEOUT_SECS`])
+/// is detected by a per-chunk timeout instead of a threshold.
 ///
 /// # Arguments
 ///
 /// * `resp` - Mutable reference to the HTTP response to read from
 /// * `idx` - Segment index, used in trace/warn logs for per-segment identification
+/// * `cdn_idx` - Index of the current CDN in `cdn_urls`, used in rotation logs
 /// * `pos` - Absolute byte offset where the segment is written in `path`
 /// * `path` - Pre-allocated output file path (written via random-access seek)
-/// * `cdn_idx` - Index of the current CDN in `cdn_urls`, used in rotation/speed logs
-/// * `cdn_rotation_count` - Current CDN rotation count
-/// * `cdn_urls_len` - Total number of available CDN URLs
+/// * `stats` - This segment's shared stats: receives byte counts, rotation
+///   requests
 /// * `on_chunk_received` - Callback invoked when each chunk is received
 ///
 /// # Returns
 ///
 /// - `Ok(received)`: Download complete; bytes streamed to `path` at `pos`,
 ///   `received` is the total bytes written.
-/// - `Err(SegmentError::Slow)`: Throughput dropped below
-///   [`MIN_SPEED_THRESHOLD`] while the slow-rotation budget remains; the
-///   caller rotates CDN and fully restarts the segment.
+/// - `Err(SegmentError::Slow)`: The aggregate-speed monitor flagged TOTAL
+///   throughput below [`MIN_SPEED_THRESHOLD`] and selected this segment;
+///   the caller rotates CDN and fully restarts the segment.
 /// - `Err(SegmentError::Reconnect(received))`: The body stream broke
-///   mid-transfer (e.g. connection reset, decoding error). The caller first
-///   retries the SAME CDN resuming at `pos + received`; after that budget
-///   runs out it rotates CDN and fully restarts the segment.
+///   mid-transfer (connection reset, decoding error) or stalled for
+///   [`SEGMENT_STALL_TIMEOUT_SECS`]. The caller first retries the SAME CDN
+///   resuming at `pos + received`; after that budget runs out it rotates CDN
+///   and fully restarts the segment.
 /// - `Err(SegmentError::DiskError(e))`: Unrecoverable disk write failure
 ///   (e.g. ENOSPC → ERR::DISK_FULL); the caller fails the download.
 #[allow(clippy::too_many_arguments)]
-async fn download_segment_with_speed_check(
+async fn download_segment_stream(
     resp: &mut reqwest::Response,
     idx: usize,
+    cdn_idx: usize,
     pos: u64,
     path: &Path,
-    cdn_idx: usize,
-    slow_rotations: u8,
-    cdn_urls_len: usize,
+    stats: &SegmentStats,
     on_chunk_received: impl Fn(u64),
 ) -> Result<u64, SegmentError> {
     // Stream chunks straight to the pre-allocated file at `pos` instead of
@@ -1013,12 +1141,32 @@ async fn download_segment_with_speed_check(
         .map_err(to_segment_disk_error)?;
     let mut received: u64 = 0;
 
-    // Time-based speed check variables
-    let mut last_check_time = Instant::now();
-    let mut last_check_bytes: u64 = 0;
-
     loop {
-        match resp.chunk().await {
+        // Per-chunk stall timeout: a connection that delivers nothing for
+        // SEGMENT_STALL_TIMEOUT_SECS is treated like a broken stream and
+        // routed through Reconnect recovery. This is the only in-segment
+        // liveness check — chunk callbacks cannot detect a full stall, so
+        // without this the segment would hang until the 120s whole-request
+        // timeout.
+        let chunk_result = tokio::time::timeout(
+            Duration::from_secs(SEGMENT_STALL_TIMEOUT_SECS),
+            resp.chunk(),
+        )
+        .await;
+        let chunk = match chunk_result {
+            Ok(c) => c,
+            Err(_) => {
+                log::warn!(
+                    "[BE] download_segment: segment {} CDN #{} stalled: no chunk for {}s after {} bytes",
+                    idx,
+                    cdn_idx,
+                    SEGMENT_STALL_TIMEOUT_SECS,
+                    received
+                );
+                return Err(SegmentError::Reconnect(received));
+            }
+        };
+        match chunk {
             Ok(Some(chunk)) => {
                 let chunk_len = chunk.len() as u64;
                 received += chunk_len;
@@ -1029,46 +1177,21 @@ async fn download_segment_with_speed_check(
                 // Report progress on chunk received
                 on_chunk_received(chunk_len);
 
-                // Perform time-based speed check
-                // Note: speed_bps is the exact value that drove the
-                //   Slow/Acceptable decision; reusing it for the logs (not a
-                //   recompute) keeps the traced KiB/s consistent with the
-                //   threshold comparison (task: speed-trace-log).
-                let (speed_check, speed_bps) = check_download_speed(
-                    received,
-                    last_check_time,
-                    last_check_bytes,
-                    slow_rotations,
-                    cdn_urls_len,
-                );
-                let speed_kibps = speed_bps.map_or(0.0, |b| b as f64 / 1024.0);
-                match speed_check {
-                    SpeedCheckResult::Slow => {
-                        log::warn!(
-                            "[BE] download_segment: segment {} CDN #{} SLOW {:.0} KiB/s (threshold {} KiB/s), triggering CDN rotation {}/{}",
-                            idx,
-                            cdn_idx,
-                            speed_kibps,
-                            MIN_SPEED_THRESHOLD / 1024,
-                            slow_rotations + 1,
-                            cdn_rotation_limit(cdn_urls_len),
-                        );
-                        return Err(SegmentError::Slow);
-                    }
-                    SpeedCheckResult::Acceptable => {
-                        // Trace observed throughput per segment each check interval;
-                        //   correlates UI speed dips with per-CDN reality.
-                        log::info!(
-                            "[BE] download_segment: segment {} CDN #{} speed {:.0} KiB/s",
-                            idx,
-                            cdn_idx,
-                            speed_kibps,
-                        );
-                        // Reset check counters for next interval
-                        last_check_time = Instant::now();
-                        last_check_bytes = received;
-                    }
-                    SpeedCheckResult::InsufficientData => {}
+                // Honor a monitor rotation request: consume the flag and
+                // surface as Slow so the caller rotates CDN with the
+                // slow-speed budget and fully restarts the segment.
+                if stats
+                    .rotate_requested
+                    .compare_exchange(true, false, Ordering::Relaxed, Ordering::Relaxed)
+                    .is_ok()
+                {
+                    log::info!(
+                        "[BE] download_segment: segment {} CDN #{} honoring aggregate-slow rotation request after {} bytes",
+                        idx,
+                        cdn_idx,
+                        received
+                    );
+                    return Err(SegmentError::Slow);
                 }
             }
             Ok(None) => break,
@@ -1144,27 +1267,7 @@ async fn single_stream_fallback(
     client: Arc<reqwest::Client>,
 ) -> Result<()> {
     // Get cancellation token from registry if download_id is provided
-    let cancel_token: Option<CancellationToken> = if let Some(ref id) = download_id {
-        match DOWNLOAD_CANCEL_REGISTRY.get_token(id).await {
-            Some(t) => Some(t),
-            None => {
-                // Token removed by a prior cancel(); fall back to the
-                // pre-cancel flag so a mid-flight cancel is detected here
-                // rather than after streaming the whole file. See
-                // download_url for the full rationale.
-                if DOWNLOAD_CANCEL_REGISTRY.is_cancelled(id).await {
-                    log::info!(
-                        "[BE] single_stream_fallback: token absent but pre-cancelled: id={}",
-                        id
-                    );
-                    return Err(anyhow::anyhow!("ERR::CANCELLED"));
-                }
-                None
-            }
-        }
-    } else {
-        None
-    };
+    let cancel_token = resolve_cancel_token("single_stream_fallback", &download_id).await?;
 
     // Initial cancellation check
     check_cancelled(&cancel_token)?;
@@ -1338,6 +1441,26 @@ pub(crate) fn is_media_content_type(ct: Option<&reqwest::header::HeaderValue>) -
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn picks_slowest_active_segment() {
+        let deltas = [500u64, 400, 0, 200];
+        let eligible = [true, true, false, true];
+        // Index 2 has the smallest delta but is ineligible, so index 3 wins.
+        assert_eq!(pick_slowest_segment(&deltas, &eligible), Some(3));
+    }
+
+    #[test]
+    fn picks_slowest_ties_resolve_to_lowest_index() {
+        let deltas = [0u64, 0, 0];
+        let eligible = [true, true, true];
+        assert_eq!(pick_slowest_segment(&deltas, &eligible), Some(0));
+    }
+
+    #[test]
+    fn picks_slowest_none_when_all_finished() {
+        assert_eq!(pick_slowest_segment(&[1, 2], &[false, false]), None);
+    }
 
     #[test]
     fn parses_content_range_start() {
