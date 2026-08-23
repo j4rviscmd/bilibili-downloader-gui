@@ -7,14 +7,17 @@
 //! 2. unhealthy-host substitution — URLs whose host failed connection
 //!    establishment earlier in the same download are rewritten to a healthy
 //!    mirror host (see [`HostHealth`]), and
-//! 3. a bounded parallel latency probe (HEAD -> 1-byte Range fallback) that
-//!    also recovers the total file size.
+//! 3. a bounded parallel throughput probe (`Range: bytes=0-{CDN_PROBE_BYTES-1}`
+//!    GET, streaming the body) that measures real download speed and also
+//!    recovers the total file size (issue #533).
 //!
 //! On total probe failure it falls back to the statically-filtered list, so
 //! the existing reactive rotation in `downloads.rs` remains the final safety
 //! net. All domain/sort logic lives in pure functions covered by unit tests.
 
-use crate::constants::{CDN_PROBE_CONCURRENCY, CDN_PROBE_TIMEOUT_SECS, REFERER, USER_AGENT};
+use crate::constants::{
+    CDN_PROBE_BYTES, CDN_PROBE_CONCURRENCY, CDN_PROBE_TIMEOUT_SECS, REFERER, USER_AGENT,
+};
 use crate::utils::downloads::{apply_cookie, is_media_content_type};
 use futures::stream::{FuturesUnordered, StreamExt};
 use reqwest::header;
@@ -199,14 +202,14 @@ pub(crate) fn substitute_in_list(urls: &[String], snap: &HealthSnapshot) -> Vec<
             let Some(host) = extract_host(url) else {
                 return url.clone();
             };
-            // Why: the second arm rewrites bilivideo.com P2P hosts that
+            // Why: the second clause rewrites bilivideo.com P2P hosts that
             // carry no unhealthy mark. It only matters when the whole list
             // is P2P — otherwise filter_out_p2p (running after this) drops
             // such URLs anyway, but its all-P2P fallback would keep them
             // verbatim, so substitution must rescue that case first.
-            let needs_rewrite = snap.unhealthy.contains(&host)
-                || (is_bilivideo_com_host(&host) && is_p2p_cdn_host(&host));
-            if !needs_rewrite || !is_bilivideo_com_host(&host) {
+            let rewrite = is_bilivideo_com_host(&host)
+                && (snap.unhealthy.contains(&host) || is_p2p_cdn_host(&host));
+            if !rewrite {
                 return url.clone();
             }
             match pick_mirror(snap, i) {
@@ -246,10 +249,10 @@ struct ProbeResult {
     url: String,
     /// Position in the statically-filtered input (for stable sort).
     original_index: usize,
-    /// Measured round-trip latency. `None` means the probe failed
-    /// (timeout, non-media response, or connection error).
-    latency_ms: Option<u64>,
-    /// Total size recovered from Content-Length / Content-Range.
+    /// Measured download throughput in bytes per second. `None` means the
+    /// probe failed (timeout, non-media response, or connection error).
+    throughput_bps: Option<u64>,
+    /// Total size recovered from Content-Range / Content-Length.
     size: Option<u64>,
 }
 
@@ -297,20 +300,23 @@ fn filter_out_p2p(urls: &[String]) -> Vec<String> {
     }
 }
 
-/// Orders probe results by latency ascending; failed probes go last.
+/// Orders probe results by measured throughput descending; failed probes go
+/// last.
 ///
-/// Successful probes are sorted by `latency_ms` with `original_index` as a
-/// stable tie-breaker (so equal-latency CDNs keep their pre-probe order).
-/// Failed probes (`latency_ms` None) are appended in `original_index` order.
-/// Pure function — fully unit-testable.
-fn sort_by_latency(results: Vec<ProbeResult>) -> Vec<ProbeResult> {
-    let (mut successful, mut failed): (Vec<_>, Vec<_>) =
-        results.into_iter().partition(|r| r.latency_ms.is_some());
+/// Successful probes are sorted by `throughput_bps` with `original_index` as
+/// a stable tie-breaker (so equal-throughput CDNs keep their pre-probe
+/// order). Failed probes (`throughput_bps` None) are appended in
+/// `original_index` order. Pure function — fully unit-testable.
+fn sort_by_throughput(results: Vec<ProbeResult>) -> Vec<ProbeResult> {
+    let (mut successful, mut failed): (Vec<_>, Vec<_>) = results
+        .into_iter()
+        .partition(|r| r.throughput_bps.is_some());
 
+    // All entries here are `Some` (partitioned above), so Option ordering
+    // sorts purely by throughput.
     successful.sort_by(|a, b| {
-        a.latency_ms
-            .unwrap_or(u64::MAX)
-            .cmp(&b.latency_ms.unwrap_or(u64::MAX))
+        b.throughput_bps
+            .cmp(&a.throughput_bps)
             .then_with(|| a.original_index.cmp(&b.original_index))
     });
     failed.sort_by_key(|r| r.original_index);
@@ -319,79 +325,76 @@ fn sort_by_latency(results: Vec<ProbeResult>) -> Vec<ProbeResult> {
     successful
 }
 
-/// Probes a single CDN URL for reachability, size, and latency.
+/// Probes a single CDN URL for reachability, size, and real throughput.
 ///
-/// Tries a HEAD request first; falls back to a 1-byte Range request
-/// (`bytes=0-0`) when the HEAD response lacks a usable Content-Length. A
-/// `latency_ms` of `None` marks the probe as failed (non-fatal — the URL is
-/// simply deprioritized and the existing reactive rotation can still reach it).
+/// Streams the first `CDN_PROBE_BYTES` of the body via a single Range GET
+/// and derives throughput as received bytes / elapsed time (issue #533).
+/// A `throughput_bps` of `None` marks the probe as failed (non-fatal — the
+/// URL is simply deprioritized and the existing reactive rotation can still
+/// reach it). Total size is recovered from `Content-Range` (206 responses),
+/// falling back to `Content-Length` (200 responses that ignore Range).
+///
+/// Note: probing in parallel slightly depresses per-node throughput when the
+/// local link saturates, but that only happens when every candidate is faster
+/// than the local link — a regime where the choice of CDN does not change the
+/// final download speed, so the ordering error is harmless.
 async fn probe_single(
     client: &reqwest::Client,
     url: &str,
     original_index: usize,
     cookie: &Option<String>,
 ) -> ProbeResult {
-    // Caution: latency is measured at whichever stage first succeeds — HEAD RTT
-    //   for CDNs that answer HEAD, Range-GET RTT for those that only answer the
-    //   Range fallback. Cross-CDN comparison therefore mixes two measurement
-    //   phases, so treat the latency ordering as a coarse signal, not exact.
-    let head_start = Instant::now();
+    let start = Instant::now();
 
-    let head_req = apply_cookie(
+    let range_req = apply_cookie(
         client
-            .head(url)
+            .get(url)
+            .header(header::RANGE, format!("bytes=0-{}", CDN_PROBE_BYTES - 1))
             .header(header::REFERER, REFERER)
             .timeout(Duration::from_secs(CDN_PROBE_TIMEOUT_SECS)),
         cookie,
     );
 
-    let mut latency_ms: Option<u64> = None;
+    let mut throughput_bps: Option<u64> = None;
     let mut size: Option<u64> = None;
 
-    if let Ok(resp) = head_req.send().await {
+    if let Ok(mut resp) = range_req.send().await {
         if resp.status().is_success()
             && is_media_content_type(resp.headers().get(header::CONTENT_TYPE))
         {
-            latency_ms = Some(head_start.elapsed().as_millis() as u64);
-            if let Some(val) = resp
+            // Content-Range: "bytes START-END/TOTAL" (206); Content-Length
+            // covers Range-ignoring 200 responses.
+            size = resp
                 .headers()
-                .get(header::CONTENT_LENGTH)
-                .and_then(|len| len.to_str().ok())
-                .and_then(|s| s.parse::<u64>().ok())
-            {
-                size = Some(val);
-            }
-        }
-    }
+                .get(header::CONTENT_RANGE)
+                .and_then(|cr| cr.to_str().ok())
+                .and_then(|s| s.rsplit('/').next())
+                .and_then(|v| v.trim().parse::<u64>().ok())
+                .or_else(|| {
+                    resp.headers()
+                        .get(header::CONTENT_LENGTH)
+                        .and_then(|len| len.to_str().ok())
+                        .and_then(|s| s.parse::<u64>().ok())
+                });
 
-    // Range fallback when HEAD did not yield a size.
-    if size.is_none() {
-        let range_start = Instant::now();
-        let range_req = apply_cookie(
-            client
-                .get(url)
-                .header(header::RANGE, "bytes=0-0")
-                .header(header::REFERER, REFERER)
-                .timeout(Duration::from_secs(CDN_PROBE_TIMEOUT_SECS)),
-            cookie,
-        );
-        if let Ok(resp) = range_req.send().await {
-            if resp.status().is_success()
-                && is_media_content_type(resp.headers().get(header::CONTENT_TYPE))
-            {
-                if latency_ms.is_none() {
-                    latency_ms = Some(range_start.elapsed().as_millis() as u64);
+            // Stream the body, counting bytes until the probe window is
+            // served. Reading stops at CDN_PROBE_BYTES even when the server
+            // ignores Range (200) and would keep sending — the measured
+            // prefix is enough, and dropping the connection cancels the rest.
+            let mut received: u64 = 0;
+            while received < CDN_PROBE_BYTES {
+                match resp.chunk().await {
+                    Ok(Some(chunk)) => received += chunk.len() as u64,
+                    Ok(None) | Err(_) => break,
                 }
-                // Content-Range: "bytes START-END/TOTAL"
-                if let Some(total) = resp
-                    .headers()
-                    .get(header::CONTENT_RANGE)
-                    .and_then(|cr| cr.to_str().ok())
-                    .and_then(|s| s.rsplit('/').next())
-                    .and_then(|v| v.parse::<u64>().ok())
-                {
-                    size = Some(total);
-                }
+            }
+
+            // A zero-byte body means nothing was measured — treat as failure
+            // (sorts last) rather than a bogus 0 bps. checked_div also
+            // yields None on a zero elapsed time.
+            if received > 0 {
+                let elapsed_nanos = start.elapsed().as_nanos() as u64;
+                throughput_bps = (received * 1_000_000_000).checked_div(elapsed_nanos);
             }
         }
     }
@@ -399,12 +402,13 @@ async fn probe_single(
     ProbeResult {
         url: url.to_string(),
         original_index,
-        latency_ms,
+        throughput_bps,
         size,
     }
 }
 
-/// Selects and ranks CDN URLs via static filtering + parallel latency probe.
+/// Selects and ranks CDN URLs via static filtering + parallel throughput
+/// probe.
 ///
 /// Pipeline:
 /// 1. Seed the shared mirror pool from this URL list, then substitute hosts
@@ -413,7 +417,7 @@ async fn probe_single(
 ///    every candidate is P2P).
 /// 3. Probe every URL in parallel, bounded by `CDN_PROBE_CONCURRENCY`;
 ///    successful probes record their host healthy (recovery).
-/// 4. Sort by latency (failed probes last).
+/// 4. Sort by measured throughput (failed probes last).
 /// 5. Recover the total size from the first successful probe.
 /// 6. Fallback: if no probe succeeded, keep the statically-filtered list.
 pub async fn select_best_cdns(
@@ -451,7 +455,7 @@ pub async fn select_best_cdns(
             .collect::<Vec<_>>()
     );
 
-    // 2. Short-timeout probe client (independent of the 120s DL client).
+    // Short-timeout probe client (independent of the 120s DL client).
     // Why: probes must fail fast (CDN_PROBE_TIMEOUT_SECS) so a dead or slow CDN
     //   node does not add the 120s download-client timeout to pre-selection
     //   latency, which would defeat the purpose of ranking by responsiveness.
@@ -495,22 +499,21 @@ pub async fn select_best_cdns(
     // 3b. Successful probes count as host-recovery evidence: an unhealthy
     // mark is cleared and the host re-enters the mirror pool.
     for r in &results {
-        if r.latency_ms.is_some() {
+        if r.throughput_bps.is_some() {
             health.record_url_healthy(&r.url);
         }
     }
-
-    // 4. Sort by latency (failed last).
-    let sorted = sort_by_latency(results);
+    // 4. Sort by measured throughput (failed last).
+    let sorted = sort_by_throughput(results);
 
     // Total size = first successful probe's size.
     // Note: every CDN serves the same stream, so the fastest probe's size (first
-    //   after the latency sort) is authoritative; trusting a failed/slow probe's
+    //   after the throughput sort) is authoritative; trusting a failed/slow probe's
     //   size could feed a wrong total to segmentation.
     let total_size = sorted.iter().find_map(|r| r.size);
     // Defensive: if probing yielded no results at all (e.g. the probe
     // semaphore was closed), keep the statically-filtered list. Normal total
-    // failures are already handled by sort_by_latency (failed probes keep
+    // failures are already handled by sort_by_throughput (failed probes keep
     // their static order at the tail).
     let ordered_urls: Vec<String> = if sorted.is_empty() {
         candidates.clone()
@@ -518,17 +521,18 @@ pub async fn select_best_cdns(
         sorted.iter().map(|r| r.url.clone()).collect()
     };
 
-    // Trace per-CDN probe latency alongside the final order so the
+    // Trace per-CDN probe throughput alongside the final order so the
     //   "fast CDN ranked first" assumption can be checked against actual
     //   download throughput observed in download_segment logs.
     log::info!(
-        "[BE] select_best_cdns: done, ordered_hosts_with_latency={:?}, total_size={:?}",
+        "[BE] select_best_cdns: done, ordered_hosts_with_throughput={:?}, total_size={:?}",
         sorted
             .iter()
             .map(|r| (
                 extract_host(&r.url).unwrap_or_default(),
-                r.latency_ms
-                    .map_or("-".to_string(), |ms| format!("{}ms", ms)),
+                r.throughput_bps.map_or("-".to_string(), |bps| {
+                    format!("{:.2}MB/s", bps as f64 / 1_048_576.0)
+                }),
             ))
             .collect::<Vec<_>>(),
         total_size
@@ -598,71 +602,71 @@ mod tests {
     }
 
     #[test]
-    fn test_sort_by_latency_ascending() {
+    fn test_sort_by_throughput_descending() {
         let results = vec![
             ProbeResult {
                 url: "a".into(),
                 original_index: 0,
-                latency_ms: Some(200),
+                throughput_bps: Some(2_000_000),
                 size: None,
             },
             ProbeResult {
                 url: "b".into(),
                 original_index: 1,
-                latency_ms: Some(50),
+                throughput_bps: Some(8_000_000),
                 size: None,
             },
             ProbeResult {
                 url: "c".into(),
                 original_index: 2,
-                latency_ms: Some(150),
+                throughput_bps: Some(5_000_000),
                 size: None,
             },
         ];
-        let sorted = sort_by_latency(results);
+        let sorted = sort_by_throughput(results);
         assert_eq!(sorted[0].url, "b");
         assert_eq!(sorted[1].url, "c");
         assert_eq!(sorted[2].url, "a");
     }
 
     #[test]
-    fn test_sort_by_latency_failed_go_last() {
+    fn test_sort_by_throughput_failed_go_last() {
         let results = vec![
             ProbeResult {
                 url: "fast".into(),
                 original_index: 0,
-                latency_ms: Some(100),
+                throughput_bps: Some(1_000_000),
                 size: None,
             },
             ProbeResult {
                 url: "dead".into(),
                 original_index: 1,
-                latency_ms: None,
+                throughput_bps: None,
                 size: None,
             },
         ];
-        let sorted = sort_by_latency(results);
+        let sorted = sort_by_throughput(results);
         assert_eq!(sorted[0].url, "fast");
         assert_eq!(sorted[1].url, "dead");
     }
 
     #[test]
-    fn test_sort_by_latency_equal_latency_uses_original_index() {
+    fn test_sort_by_throughput_equal_uses_original_index() {
         let results = vec![
             ProbeResult {
                 url: "first".into(),
                 original_index: 1,
-                latency_ms: Some(100),
+                throughput_bps: Some(1_000_000),
                 size: None,
             },
             ProbeResult {
                 url: "second".into(),
                 original_index: 0,
-                latency_ms: Some(100),
+                throughput_bps: Some(1_000_000),
                 size: None,
             },
         ];
-        let sorted = sort_by_latency(results);
+        let sorted = sort_by_throughput(results);
         assert_eq!(sorted[0].url, "second", "lower original_index wins on tie");
         assert_eq!(sorted[1].url, "first");
     }

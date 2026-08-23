@@ -28,11 +28,15 @@ pub const MIN_SPEED_THRESHOLD: u64 = 1024 * 1024; // 1MB/s
 /// Time between consecutive speed checks during download.
 pub const SPEED_CHECK_INTERVAL_SECS: u64 = 3;
 
-/// Minimum data required for speed calculation in bytes.
+/// Per-chunk stall timeout in seconds for segmented downloads.
 ///
-/// Ensures sufficient data for accurate speed measurement. Must accumulate
-/// at least this much data between speed checks.
-pub const MIN_DATA_FOR_SPEED_CHECK: u64 = 100 * 1024; // 100 KiB
+/// Wraps each `resp.chunk().await` so a connection that stops delivering
+/// data entirely is detected in bounded time and routed through the
+/// same-CDN resume / CDN-rotation recovery path — instead of hanging until
+/// the 120s whole-request timeout. A chunk arriving at even heavy-throttled
+/// speeds (a few KiB/s) resets this window, so only a fully stalled stream
+/// trips it.
+pub const SEGMENT_STALL_TIMEOUT_SECS: u64 = 10;
 
 /// Maximum number of CDN rotation loops.
 ///
@@ -56,10 +60,23 @@ pub const FFMPEG_VALIDATION_TIMEOUT_SECS: u64 = 60;
 /// to return HTML/XML error pages masquerading as media files.
 pub const MIN_MEDIA_BYTES: u64 = 1024; // 1 KiB
 
+/// Bytes to stream per CDN probe request (issue #533).
+///
+/// The probe measures real download throughput (bytes / elapsed), so it must
+/// pull a meaningful payload instead of a single byte. 4 MiB completes in
+/// ~0.4s on a fast CDN and keeps slow nodes (< ~820 KB/s) cut off by the
+/// timeout, which naturally ranks them as failed (sent to the tail).
+/// The probe response is discarded — reuse in the first download segment
+/// was considered and skipped (complexity vs. benefit).
+pub const CDN_PROBE_BYTES: u64 = 4 * 1024 * 1024; // 4 MiB
+
 /// Timeout in seconds for CDN probe requests.
 ///
-/// Each CDN probe HEAD/Range request must complete within this window.
-/// Generous enough for slow international routes to a single CDN node.
+/// Each CDN probe (a `Range: bytes=0-{CDN_PROBE_BYTES-1}` GET that streams
+/// the body to measure throughput) must complete within this window.
+/// A node that cannot deliver `CDN_PROBE_BYTES` in this window is slower
+/// than ~820 KB/s — below `MIN_SPEED_THRESHOLD` — so failing the probe and
+/// ranking it last is the desired outcome, not a false negative.
 pub const CDN_PROBE_TIMEOUT_SECS: u64 = 5;
 
 // Caution: Do not raise above 2 without re-validating empirically. Parallel
