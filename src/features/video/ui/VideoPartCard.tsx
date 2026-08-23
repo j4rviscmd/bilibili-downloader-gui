@@ -270,12 +270,20 @@ const VideoPartCard = memo(function VideoPartCard({
    * Whether any quality (video or audio) was substituted with a fallback
    * due to the originally requested quality being unavailable.
    * Drives the warning icon in the accordion trigger.
+   *
+   * WHY: codec fallback is excluded. The preferred codec being absent from
+   * the manifest leaves no alternative to choose, and the summary label
+   * already shows the actual codec (e.g. "1080p(AVC)"), so warning on it
+   * would fire on nearly every AVC-only video with pure noise.
    */
+  // Caution: with codec fallback excluded here, `videoCodecFallback` (sent by the
+  // backend download-quality-resolved event and stored via inputSlice
+  // setResolvedQuality) is no longer read anywhere in the UI. Introduced in
+  // PR #460 (a17c8da); keep-or-remove it end-to-end as a deliberate decision.
   const hasFallback = useMemo(() => {
     if (!resolvedQuality) return false
     return (
       resolvedQuality.videoQualityFallback ||
-      resolvedQuality.videoCodecFallback ||
       resolvedQuality.audioQualityFallback
     )
   }, [resolvedQuality])
