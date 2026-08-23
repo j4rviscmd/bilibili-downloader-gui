@@ -179,6 +179,10 @@ pub async fn install_ffmpeg(app: &AppHandle) -> Result<bool> {
         None,
         true, // emit progress so the splash can show a download progress bar
         segment_concurrency,
+        // Throwaway health scope: the ffmpeg archive comes from github/evermeet
+        // hosts, which are outside the bilivideo.com substitution domain, so
+        // sharing state would be meaningless here.
+        std::sync::Arc::new(crate::utils::cdn_selector::HostHealth::new()),
     )
     .await
     .is_err()

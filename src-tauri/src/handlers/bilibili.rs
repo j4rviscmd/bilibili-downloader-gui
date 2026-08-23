@@ -175,6 +175,7 @@ use reqwest::header;
 use reqwest::Client;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::AppHandle;
 
@@ -359,6 +360,7 @@ async fn download_bangumi_durl(
     cookie_header: &str,
     cookies: &[CookieEntry],
     player_result: BangumiPlayerResult,
+    host_health: Arc<crate::utils::cdn_selector::HostHealth>,
 ) -> Result<String, String> {
     use crate::handlers::concurrency::DOWNLOAD_CANCEL_REGISTRY;
 
@@ -442,6 +444,7 @@ async fn download_bangumi_durl(
     let bd_output_path = output_path.to_path_buf();
     let bd_cookie_header = cookie_header.to_string();
     let bd_download_id = options.download_id.clone();
+    let bd_host_health = host_health.clone();
     // Download directly. Capture the result so we always remove the token
     // (success or error) to avoid a registry leak on the early-return path.
     let result = retry_download(
@@ -458,6 +461,7 @@ async fn download_bangumi_durl(
             let output_path = bd_output_path.clone();
             let cookie_header = bd_cookie_header.clone();
             let download_id = bd_download_id.clone();
+            let host_health = bd_host_health.clone();
             async move {
                 let (url, backups) = if attempt == 1 {
                     (video_url.clone(), backup_urls.clone())
@@ -488,6 +492,7 @@ async fn download_bangumi_durl(
                     Some("video"),
                     true,
                     segment_concurrency,
+                    host_health.clone(),
                 )
                 .await
             }
@@ -585,6 +590,11 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
         .register(&options.download_id)
         .await;
 
+    // Per-download CDN host health, shared by the video stream, audio
+    // stream(s), every retry attempt, and their segment tasks. Dropping the
+    // last Arc when this download ends clears the state (issue #527).
+    let host_health = Arc::new(crate::utils::cdn_selector::HostHealth::new());
+
     // 1. Determine output file path + auto-rename
     let output_path = auto_rename(&build_output_path(app, &options.filename).await?);
 
@@ -609,6 +619,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
                 &cookie_header,
                 &cookies,
                 player_result,
+                host_health,
             )
             .await;
         }
@@ -701,6 +712,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
                     let output_path = d_output_path.to_path_buf();
                     let cookie_header = cookie_header.to_string();
                     let download_id = options.download_id.clone();
+                    let host_health = host_health.clone();
                     async move {
                         let (url, backups) = if attempt == 1 {
                             (video_url.clone(), backup_urls.clone())
@@ -731,6 +743,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
                             Some("video"),
                             true,
                             segment_concurrency,
+                            host_health.clone(),
                         )
                         .await
                     }
@@ -759,6 +772,21 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
     }
 
     let dash_data = data.dash.unwrap();
+
+    // Seed the shared mirror pool from the whole DASH manifest (video +
+    // audio streams, base + backup URLs) so the video pre-selection already
+    // knows mirror hosts that only the audio streams carry (issue #527).
+    let manifest_urls: Vec<String> = dash_data
+        .video
+        .iter()
+        .chain(dash_data.audio.iter())
+        .flat_map(|s| {
+            let mut v = vec![s.base_url.clone()];
+            v.extend(s.backup_urls.clone().unwrap_or_default());
+            v
+        })
+        .collect();
+    host_health.seed_mirrors_from_urls(&manifest_urls);
 
     // Diagnostic: record the audio stream landscape and any VIP-only
     // objects (dolby/flac) present in the manifest. Does not affect
@@ -885,6 +913,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
             cookie.clone(),
             &dash_data.audio,
             &audio_refetch_ctx,
+            host_health.clone(),
         );
         // Refetch inputs for attempt > 1 (bilibili signed URLs expire after
         // 120 min). Cloned here because the move closure must own them, while
@@ -913,6 +942,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
                 let temp_video_path = v_temp_video_path.clone();
                 let cookie = v_cookie.clone();
                 let download_id = v_download_id.clone();
+                let host_health = host_health.clone();
                 async move {
                     let (url, backups) = if attempt == 1 {
                         (video_url.clone(), video_backup_urls.clone())
@@ -947,6 +977,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
                         None,
                         false, // emit_complete: will be emitted after merge
                         segment_concurrency,
+                        host_health.clone(),
                     )
                     .await
                 }
@@ -1472,6 +1503,7 @@ async fn download_audio_with_fallback(
     cookie: Option<String>,
     all_audio_streams: &[crate::models::bilibili_api::XPlayerApiResponseVideo],
     refetch_ctx: &AudioRefetchCtx,
+    host_health: Arc<crate::utils::cdn_selector::HostHealth>,
 ) -> Result<(), String> {
     // Resolve the requested (primary) audio quality id from the stream
     // list so any fallback can be logged as an explicit
@@ -1505,6 +1537,7 @@ async fn download_audio_with_fallback(
     let a_backup_urls = backup_urls.clone();
     let a_output_path = output_path.clone();
     let a_cookie = cookie.clone();
+    let a_host_health = host_health.clone();
 
     // Try primary URL first
     let primary_result = retry_download(app, download_id, Some("audio"), move |attempt: u8| {
@@ -1517,6 +1550,7 @@ async fn download_audio_with_fallback(
         let output_path = a_output_path.clone();
         let cookie = a_cookie.clone();
         let download_id = a_download_id.clone();
+        let host_health = a_host_health.clone();
         async move {
             let (url, backups) = if attempt == 1 {
                 (primary_url.clone(), backup_urls.clone())
@@ -1545,6 +1579,7 @@ async fn download_audio_with_fallback(
                 None,
                 false,
                 segment_concurrency,
+                host_health,
             )
             .await
         }
@@ -1595,6 +1630,7 @@ async fn download_audio_with_fallback(
                     // Clone variables for the fallback closure to avoid move errors
                     let output_path_clone = output_path.clone();
                     let cookie_clone = cookie.clone();
+                    let stream_health = host_health.clone();
 
                     // CONSTRAINT: fallback loop intentionally does NOT refetch playurl on
                     // retry (issue #482 design decision). Each iteration already switches
@@ -1614,6 +1650,7 @@ async fn download_audio_with_fallback(
                                 None,
                                 false,
                                 segment_concurrency,
+                                stream_health.clone(),
                             )
                         })
                         .await;
