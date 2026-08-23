@@ -390,12 +390,11 @@ async fn probe_single(
             }
 
             // A zero-byte body means nothing was measured — treat as failure
-            // (sorts last) rather than a bogus 0 bps.
+            // (sorts last) rather than a bogus 0 bps. checked_div also
+            // yields None on a zero elapsed time.
             if received > 0 {
                 let elapsed_nanos = start.elapsed().as_nanos() as u64;
-                if elapsed_nanos > 0 {
-                    throughput_bps = Some(received * 1_000_000_000 / elapsed_nanos);
-                }
+                throughput_bps = (received * 1_000_000_000).checked_div(elapsed_nanos);
             }
         }
     }
