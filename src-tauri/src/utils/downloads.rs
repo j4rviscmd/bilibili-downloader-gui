@@ -329,6 +329,7 @@ pub async fn download_url(
     override_stage: Option<&str>,
     emit_complete: bool,
     concurrency: usize,
+    host_health: Arc<cdn_selector::HostHealth>,
 ) -> Result<()> {
     log::info!(
         "[BE] download_url: starting download to {:?}, cdn_count={}",
@@ -403,7 +404,8 @@ pub async fn download_url(
     //   *.mcdn.bilivideo.cn) by excluding/demoting it up front and probing the
     //   candidate CDNs in parallel for latency instead of reacting to slowness
     //   mid-download (issue #490).
-    let cdn_outcome = cdn_selector::select_best_cdns(cdn_urls.clone(), cookie.clone()).await;
+    let cdn_outcome =
+        cdn_selector::select_best_cdns(cdn_urls.clone(), cookie.clone(), &host_health).await;
 
     let ordered_urls = cdn_outcome.ordered_urls;
     let total = match cdn_outcome.total_size {
@@ -475,6 +477,7 @@ pub async fn download_url(
         let emits_c = emits.clone();
         let sem_c = sem.clone();
         let cancel_token_c = cancel_token.clone();
+        let host_health_c = host_health.clone();
         futs.push(tokio::spawn(async move {
             let _permit = sem_c.acquire().await.unwrap();
 
@@ -487,10 +490,12 @@ pub async fn download_url(
             }
 
             // `http_retries` counts HTTP-layer failures (invalid status,
-            // request error) bounded by MAX_SEG_RETRIES. CDN-rotation
-            // failures (size mismatch, stream error) use `cdn_rotation_count`,
-            // slow-speed rotations use `slow_rotations`, and same-CDN resume
-            // retries use `same_cdn_retries`. Keeping these budgets independent
+            // request error) bounded by MAX_SEG_RETRIES per selected URL;
+            // it resets when a request-error exhaustion rotates the CDN.
+            // CDN-rotation failures (size mismatch, stream error, connection
+            // failure) use `cdn_rotation_count`, slow-speed rotations use
+            // `slow_rotations`, and same-CDN resume retries use
+            // `same_cdn_retries`. Keeping these budgets independent
             // prevents CDN rotations from inflating the HTTP retry counter —
             // which previously disabled the in-segment chunk-retry budget
             // inside download_segment_with_speed_check and produced misleading
@@ -544,9 +549,27 @@ pub async fn download_url(
 
                 // Select CDN URL from the combined rotation count of both
                 // budgets so each rotation still advances to the next CDN.
+                // The rotation-time substitution layer then rewrites the
+                // URL when its host is marked unhealthy in this download —
+                // covering pools whose every URL lives on the same dead
+                // host, where index rotation alone cannot escape (issue #527).
                 let rotations_used = cdn_rotation_count as usize + slow_rotations as usize;
                 let cdn_idx = rotations_used % cdn_urls_c.len();
-                let current_url = &cdn_urls_c[cdn_idx];
+                let selected_url = &cdn_urls_c[cdn_idx];
+                let effective_url = cdn_selector::resolve_effective_url(
+                    selected_url,
+                    &host_health_c.snapshot(),
+                    rotations_used,
+                );
+                if &effective_url != selected_url {
+                    log::info!(
+                        "[BE] download_url: segment {} substituting unhealthy host: {} -> {}",
+                        idx,
+                        cdn_selector::extract_host(selected_url).unwrap_or_default(),
+                        cdn_selector::extract_host(&effective_url).unwrap_or_default()
+                    );
+                }
+                let current_url = &effective_url;
 
                 let req = apply_cookie(
                     client_c
@@ -827,6 +850,27 @@ pub async fn download_url(
                         );
                         if http_retries < MAX_SEG_RETRIES {
                             backoff_sleep(http_retries).await;
+                            continue;
+                        }
+                        // Connection-establishment failures exhausted this
+                        // URL's retries: host-level evidence, not a bad
+                        // signature — mark the host unhealthy for the rest of
+                        // this download and rotate away instead of failing the
+                        // segment (issue #527). Rotations draw from the shared
+                        // cdn_rotation_count budget; http_retries resets so
+                        // the next selected URL keeps its full retry value.
+                        host_health_c.mark_url_unhealthy(current_url);
+                        // Note: the mark is recorded BEFORE the rotation
+                        // budget check below — even when the budget is
+                        // exhausted and this segment fails, the next
+                        // retry_download attempt's pre-selection
+                        // substitutes away from this host, because a
+                        // playurl refetch can keep returning it (issue #527).
+                        if cdn_rotation_count < max_cdn_rotations {
+                            needs_full_restart = true; // CDN change => full restart (byte-stream rule)
+                            cdn_rotation_count += 1;
+                            http_retries = 0;
+                            backoff_sleep(cdn_rotation_count).await;
                             continue;
                         }
                         return Err(anyhow::anyhow!("segment {} request error: {e}", idx));

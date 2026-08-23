@@ -3,8 +3,11 @@
 //! Orders CDN URLs from best to worst before the segmented download starts,
 //! so the primary request does not land on a slow P2P/MCDN edge. Combines:
 //! 1. a static domain filter that removes known P2P/MCDN nodes (falling back
-//!    to the original list when every candidate is P2P), and
-//! 2. a bounded parallel latency probe (HEAD -> 1-byte Range fallback) that
+//!    to the original list when every candidate is P2P),
+//! 2. unhealthy-host substitution — URLs whose host failed connection
+//!    establishment earlier in the same download are rewritten to a healthy
+//!    mirror host (see [`HostHealth`]), and
+//! 3. a bounded parallel latency probe (HEAD -> 1-byte Range fallback) that
 //!    also recovers the total file size.
 //!
 //! On total probe failure it falls back to the statically-filtered list, so
@@ -15,6 +18,7 @@ use crate::constants::{CDN_PROBE_CONCURRENCY, CDN_PROBE_TIMEOUT_SECS, REFERER, U
 use crate::utils::downloads::{apply_cookie, is_media_content_type};
 use futures::stream::{FuturesUnordered, StreamExt};
 use reqwest::header;
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -27,6 +31,213 @@ pub struct ProbeOutcome {
     /// Total file size in bytes recovered during probing. `None` signals the
     /// caller to fall back to single-stream download (Range unsupported).
     pub total_size: Option<u64>,
+}
+
+/// Per-download CDN host health memory (issue #527).
+///
+/// Owned by the download orchestrator (`download_video`) and shared by
+/// `Arc` with the video stream, audio stream(s), every retry attempt, and
+/// the parallel segment tasks of that one download. Dropping the last `Arc`
+/// when the download ends clears the state — no explicit cleanup, no TTL.
+///
+/// Two kinds of evidence are recorded:
+/// - *unhealthy*: a host where connection-establishment failures exhausted
+///   the same-URL HTTP retries. This is host-level evidence — slow streams,
+///   HTTP statuses, or size mismatches never mark a host.
+/// - *mirrors*: the pool of known-eligible mirror hosts harvested from the
+///   download's own URL universe (manifest + probe results). Substitution
+///   targets are drawn from this pool, never from a hardcoded list.
+pub struct HostHealth {
+    inner: std::sync::Mutex<HostHealthInner>,
+}
+
+#[derive(Default)]
+struct HostHealthInner {
+    /// Known eligible mirror hosts, insertion-ordered, deduped, lowercase.
+    mirrors: Vec<String>,
+    /// Hosts with connection-establishment failure evidence.
+    unhealthy: HashSet<String>,
+}
+
+impl Default for HostHealth {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl HostHealth {
+    pub fn new() -> Self {
+        Self {
+            inner: std::sync::Mutex::new(HostHealthInner::default()),
+        }
+    }
+
+    /// Seeds the mirror pool from URLs (eligible `.bilivideo.com` non-P2P
+    /// hosts only; idempotent; no-op for github/akamaized/etc.).
+    pub fn seed_mirrors_from_urls(&self, urls: &[String]) {
+        let mut inner = self.inner.lock().unwrap();
+        for host in harvest_mirror_hosts(urls) {
+            if !inner.mirrors.contains(&host) {
+                inner.mirrors.push(host);
+            }
+        }
+    }
+
+    /// Marks the URL's host unhealthy and removes it from the mirror pool.
+    pub fn mark_url_unhealthy(&self, url: &str) {
+        if let Some(host) = extract_host(url) {
+            let mut inner = self.inner.lock().unwrap();
+            inner.unhealthy.insert(host.clone());
+            inner.mirrors.retain(|m| *m != host);
+        }
+    }
+
+    /// Records the URL's host as alive: clears an unhealthy mark and adds
+    /// the host back to the mirror pool when eligible. Called from probe
+    /// successes so a recovered host is trusted again.
+    pub fn record_url_healthy(&self, url: &str) {
+        if let Some(host) = extract_host(url) {
+            let mut inner = self.inner.lock().unwrap();
+            inner.unhealthy.remove(&host);
+            if is_mirror_host(&host) && !inner.mirrors.contains(&host) {
+                inner.mirrors.push(host);
+            }
+        }
+    }
+
+    /// Copy-out state for the pure decision functions.
+    pub(crate) fn snapshot(&self) -> HealthSnapshot {
+        let inner = self.inner.lock().unwrap();
+        HealthSnapshot {
+            mirrors: inner.mirrors.clone(),
+            unhealthy: inner.unhealthy.clone(),
+        }
+    }
+}
+
+/// Point-in-time copy of [`HostHealth`] consumed by the pure substitution
+/// functions (kept `pub(crate)` so `downloads.rs` can call them without
+/// re-deriving state).
+#[derive(Clone)]
+pub(crate) struct HealthSnapshot {
+    pub(crate) mirrors: Vec<String>,
+    pub(crate) unhealthy: HashSet<String>,
+}
+
+/// True for hosts on the `bilivideo.com` CDN family — the only domain where
+/// signed bilibili URLs are verified to work cross-host (issue #527:
+/// same path+query returned 206 across `upos-sz-mirror*.bilivideo.com`,
+/// while `*.akamaized.net` uses a different signing scheme and fails).
+fn is_bilivideo_com_host(host: &str) -> bool {
+    host.to_ascii_lowercase().ends_with(".bilivideo.com")
+}
+
+/// True for hosts eligible as substitution targets: `upos-sz-mirror*`
+/// mirrors on `bilivideo.com`, excluding P2P nodes.
+// Caution: this shape is deliberately narrow. Cross-host reuse of signed
+// URLs was verified only for these mirrors (issue #527); do not widen
+// without re-verifying that the signature still returns 206.
+fn is_mirror_host(host: &str) -> bool {
+    let h = host.to_ascii_lowercase();
+    is_bilivideo_com_host(&h) && h.starts_with("upos-sz-mirror") && !is_p2p_cdn_host(&h)
+}
+
+/// Collects deduped eligible mirror hosts from a URL list, preserving order.
+fn harvest_mirror_hosts(urls: &[String]) -> Vec<String> {
+    let mut seen = HashSet::new();
+    let mut out = Vec::new();
+    for url in urls {
+        if let Some(host) = extract_host(url) {
+            if is_mirror_host(&host) && seen.insert(host.clone()) {
+                out.push(host);
+            }
+        }
+    }
+    out
+}
+
+/// Rewrites only the host of `url`, preserving scheme/path/query (the
+/// signature). Returns `None` when `url` does not parse.
+fn substitute_host(url: &str, new_host: &str) -> Option<String> {
+    let mut parsed = reqwest::Url::parse(url).ok()?;
+    // set_host with None port keeps scheme/path/query intact.
+    parsed.set_host(Some(new_host)).ok()?;
+    // Constraint: the url crate's set_host (2.5.4, set_host_internal with
+    // opt_new_port: None) leaves an existing explicit port untouched, so a
+    // port carried by the original host would survive the swap. Drop it —
+    // mirrors serve on the scheme's default port.
+    let _ = parsed.set_port(None);
+    Some(parsed.to_string())
+}
+
+/// Picks a substitution target: mirrors minus unhealthy, spread by `salt`
+/// so repeated substitutions distribute load across the pool.
+/// Deterministic. `None` when no eligible mirror exists.
+fn pick_mirror(snap: &HealthSnapshot, salt: usize) -> Option<String> {
+    let eligible: Vec<&String> = snap
+        .mirrors
+        .iter()
+        .filter(|m| !snap.unhealthy.contains(*m))
+        .collect();
+    if eligible.is_empty() {
+        return None;
+    }
+    Some(eligible[salt % eligible.len()].clone())
+}
+
+/// Pre-selection layer: rewrites every URL whose host is unhealthy (and is
+/// on `bilivideo.com`) to a pool mirror. No-op until at least one unhealthy
+/// mark exists, so plain-P2P lists keep relying on the static filter.
+/// URLs that cannot be substituted are returned unchanged — never dropped.
+pub(crate) fn substitute_in_list(urls: &[String], snap: &HealthSnapshot) -> Vec<String> {
+    if urls.is_empty() || snap.unhealthy.is_empty() || snap.mirrors.is_empty() {
+        return urls.to_vec();
+    }
+    urls.iter()
+        .enumerate()
+        .map(|(i, url)| {
+            let Some(host) = extract_host(url) else {
+                return url.clone();
+            };
+            // Why: the second arm rewrites bilivideo.com P2P hosts that
+            // carry no unhealthy mark. It only matters when the whole list
+            // is P2P — otherwise filter_out_p2p (running after this) drops
+            // such URLs anyway, but its all-P2P fallback would keep them
+            // verbatim, so substitution must rescue that case first.
+            let needs_rewrite = snap.unhealthy.contains(&host)
+                || (is_bilivideo_com_host(&host) && is_p2p_cdn_host(&host));
+            if !needs_rewrite || !is_bilivideo_com_host(&host) {
+                return url.clone();
+            }
+            match pick_mirror(snap, i) {
+                Some(target) => {
+                    log::info!(
+                        "[BE] cdn_selector: substituting unhealthy/P2P host {} -> {}",
+                        host,
+                        target
+                    );
+                    substitute_host(url, &target).unwrap_or_else(|| url.clone())
+                }
+                None => url.clone(),
+            }
+        })
+        .collect()
+}
+
+/// Rotation-time layer: the URL to actually request. URLs on healthy or
+/// ineligible hosts pass through byte-identical; URLs on unhealthy
+/// `bilivideo.com` hosts are rewritten to a pool mirror chosen by `salt`.
+pub(crate) fn resolve_effective_url(url: &str, snap: &HealthSnapshot, salt: usize) -> String {
+    let Some(host) = extract_host(url) else {
+        return url.to_string();
+    };
+    if !snap.unhealthy.contains(&host) || !is_bilivideo_com_host(&host) {
+        return url.to_string();
+    }
+    match pick_mirror(snap, salt) {
+        Some(target) => substitute_host(url, &target).unwrap_or_else(|| url.to_string()),
+        None => url.to_string(),
+    }
 }
 
 /// Per-CDN probe result. Carries `original_index` for stable tie-breaking.
@@ -58,7 +269,7 @@ fn is_p2p_cdn_host(host: &str) -> bool {
 
 /// Extracts the lowercased host from a URL string. Returns `None` on parse
 /// failure (the caller treats unparseable URLs as non-P2P).
-fn extract_host(url: &str) -> Option<String> {
+pub(crate) fn extract_host(url: &str) -> Option<String> {
     reqwest::Url::parse(url)
         .ok()
         .and_then(|u| u.host_str().map(|h| h.to_ascii_lowercase()))
@@ -196,13 +407,20 @@ async fn probe_single(
 /// Selects and ranks CDN URLs via static filtering + parallel latency probe.
 ///
 /// Pipeline:
-/// 1. Statically filter out P2P/MCDN nodes (fall back to original list when
+/// 1. Seed the shared mirror pool from this URL list, then substitute hosts
+///    marked unhealthy in `health` with healthy pool mirrors.
+/// 2. Statically filter out P2P/MCDN nodes (fall back to original list when
 ///    every candidate is P2P).
-/// 2. Probe every URL in parallel, bounded by `CDN_PROBE_CONCURRENCY`.
-/// 3. Sort by latency (failed probes last).
-/// 4. Recover the total size from the first successful probe.
-/// 5. Fallback: if no probe succeeded, keep the statically-filtered list.
-pub async fn select_best_cdns(urls: Vec<String>, cookie: Option<String>) -> ProbeOutcome {
+/// 3. Probe every URL in parallel, bounded by `CDN_PROBE_CONCURRENCY`;
+///    successful probes record their host healthy (recovery).
+/// 4. Sort by latency (failed probes last).
+/// 5. Recover the total size from the first successful probe.
+/// 6. Fallback: if no probe succeeded, keep the statically-filtered list.
+pub async fn select_best_cdns(
+    urls: Vec<String>,
+    cookie: Option<String>,
+    health: &HostHealth,
+) -> ProbeOutcome {
     log::info!("[BE] select_best_cdns: {} candidate CDNs", urls.len());
 
     if urls.is_empty() {
@@ -212,9 +430,17 @@ pub async fn select_best_cdns(urls: Vec<String>, cookie: Option<String>) -> Prob
         };
     }
 
-    // 1. Static filtering of P2P/MCDN nodes.
-    let candidates = filter_out_p2p(&urls);
-    let removed = urls.len() - candidates.len();
+    // 1a. Self-seed the mirror pool so every download_url call is
+    // self-contained (durl/bangumi/audio-fallback paths pass only URLs).
+    health.seed_mirrors_from_urls(&urls);
+
+    // 1b. Rewrite unhealthy hosts to healthy mirrors before probing, so a
+    // retry attempt does not burn its HTTP retries on a known-dead host.
+    let substituted = substitute_in_list(&urls, &health.snapshot());
+
+    // 2. Static filtering of P2P/MCDN nodes.
+    let candidates = filter_out_p2p(&substituted);
+    let removed = substituted.len() - candidates.len();
     log::info!(
         "[BE] select_best_cdns: static filter removed {} P2P CDN(s), {} remain = {:?}",
         removed,
@@ -263,6 +489,14 @@ pub async fn select_best_cdns(urls: Vec<String>, cookie: Option<String>) -> Prob
     while let Some(r) = futs.next().await {
         if let Some(res) = r {
             results.push(res);
+        }
+    }
+
+    // 3b. Successful probes count as host-recovery evidence: an unhealthy
+    // mark is cleared and the host re-enters the mirror pool.
+    for r in &results {
+        if r.latency_ms.is_some() {
+            health.record_url_healthy(&r.url);
         }
     }
 
@@ -452,5 +686,148 @@ mod tests {
 
     fn to_hv(s: &str) -> header::HeaderValue {
         header::HeaderValue::from_str(s).unwrap()
+    }
+
+    const SIGNED_URL_A: &str = "https://upos-sz-mirrorcosov.bilivideo.com/upgcxcode/57/23/1/1-30280.m4s?e=ig8eu&deadline=1787467312&upsig=abc&platform=pc";
+    const SIGNED_URL_B: &str = "https://upos-hz-mirrorakam.akamaized.net/upgcxcode/57/23/1/1-30280.m4s?e=ig8eu&deadline=1787467312&upsig=abc&platform=pc";
+    const MIRROR_COS: &str = "https://upos-sz-mirrorcos.bilivideo.com/upgcxcode/57/23/1/1-30280.m4s?e=ig8eu&deadline=1787467312&upsig=abc&platform=pc";
+
+    fn snap(mirrors: &[&str], unhealthy: &[&str]) -> HealthSnapshot {
+        HealthSnapshot {
+            mirrors: mirrors.iter().map(|s| s.to_string()).collect(),
+            unhealthy: unhealthy.iter().map(|s| s.to_string()).collect(),
+        }
+    }
+
+    #[test]
+    fn test_is_bilivideo_com_host() {
+        assert!(is_bilivideo_com_host("upos-sz-mirrorcos.bilivideo.com"));
+        assert!(is_bilivideo_com_host(
+            "upos-hz-mirrorakam.akamaized.net.bilivideo.com"
+        ));
+        assert!(!is_bilivideo_com_host("xy.mcdn.bilivideo.cn"));
+        assert!(!is_bilivideo_com_host("upos-hz-mirrorakam.akamaized.net"));
+        assert!(!is_bilivideo_com_host("bilivideo.com"));
+    }
+
+    #[test]
+    fn test_substitute_host_preserves_path_and_query() {
+        let rewritten = substitute_host(SIGNED_URL_A, "upos-sz-mirrorhw.bilivideo.com").unwrap();
+        let orig = reqwest::Url::parse(SIGNED_URL_A).unwrap();
+        let new = reqwest::Url::parse(&rewritten).unwrap();
+        assert_eq!(new.host_str().unwrap(), "upos-sz-mirrorhw.bilivideo.com");
+        assert_eq!(new.path(), orig.path());
+        assert_eq!(new.query(), orig.query());
+        assert!(substitute_host("not a url", "x").is_none());
+    }
+
+    #[test]
+    fn test_substitute_in_list_rewrites_unhealthy() {
+        let s = snap(
+            &["upos-sz-mirrorhw.bilivideo.com"],
+            &["upos-sz-mirrorcosov.bilivideo.com"],
+        );
+        let out = substitute_in_list(&[SIGNED_URL_A.to_string(), MIRROR_COS.to_string()], &s);
+        assert!(out[0].contains("upos-sz-mirrorhw.bilivideo.com"));
+        assert_eq!(out[1], MIRROR_COS, "healthy URL passes through unchanged");
+    }
+
+    #[test]
+    fn test_substitute_in_list_skips_non_bilivideo_source() {
+        let s = snap(
+            &["upos-sz-mirrorhw.bilivideo.com"],
+            &["upos-hz-mirrorakam.akamaized.net"],
+        );
+        let out = substitute_in_list(&[SIGNED_URL_B.to_string()], &s);
+        assert_eq!(out[0], SIGNED_URL_B, "akamaized source is never rewritten");
+    }
+
+    #[test]
+    fn test_substitute_in_list_noop_when_pool_empty() {
+        let s = snap(&[], &["upos-sz-mirrorcosov.bilivideo.com"]);
+        let out = substitute_in_list(&[SIGNED_URL_A.to_string()], &s);
+        assert_eq!(out[0], SIGNED_URL_A);
+    }
+
+    #[test]
+    fn test_substitute_in_list_all_unhealthy_is_noop() {
+        let host = "upos-sz-mirrorcosov.bilivideo.com";
+        let s = snap(&[host], &[host]);
+        let out = substitute_in_list(&[SIGNED_URL_A.to_string()], &s);
+        assert_eq!(
+            out[0], SIGNED_URL_A,
+            "target must never be unhealthy itself"
+        );
+    }
+
+    #[test]
+    fn test_resolve_effective_url_healthy_passthrough() {
+        let s = snap(&["upos-sz-mirrorhw.bilivideo.com"], &[]);
+        assert_eq!(resolve_effective_url(SIGNED_URL_A, &s, 0), SIGNED_URL_A);
+    }
+
+    #[test]
+    fn test_resolve_effective_url_rotates_mirrors_by_salt() {
+        let s = snap(
+            &[
+                "upos-sz-mirrorhw.bilivideo.com",
+                "upos-sz-mirror08c.bilivideo.com",
+            ],
+            &["upos-sz-mirrorcosov.bilivideo.com"],
+        );
+        let a = resolve_effective_url(SIGNED_URL_A, &s, 0);
+        let b = resolve_effective_url(SIGNED_URL_A, &s, 1);
+        assert!(a.contains("upos-sz-mirrorhw.bilivideo.com"));
+        assert!(b.contains("upos-sz-mirror08c.bilivideo.com"));
+    }
+
+    #[test]
+    fn test_harvest_mirror_hosts_dedupes_and_filters() {
+        let urls = vec![
+            SIGNED_URL_A.to_string(),
+            SIGNED_URL_A.to_string(),
+            MIRROR_COS.to_string(),
+            SIGNED_URL_B.to_string(),
+            "https://xy.mcdn.bilivideo.com/a".to_string(),
+        ];
+        let hosts = harvest_mirror_hosts(&urls);
+        assert_eq!(hosts.len(), 2);
+        assert!(hosts.contains(&"upos-sz-mirrorcosov.bilivideo.com".to_string()));
+        assert!(hosts.contains(&"upos-sz-mirrorcos.bilivideo.com".to_string()));
+    }
+
+    #[test]
+    fn test_host_health_mark_seed_recover() {
+        let h = HostHealth::new();
+        h.seed_mirrors_from_urls(&[SIGNED_URL_A.to_string(), SIGNED_URL_B.to_string()]);
+        let s = h.snapshot();
+        assert_eq!(
+            s.mirrors.len(),
+            1,
+            "only bilivideo.com upos mirrors are seeded"
+        );
+        assert!(s.unhealthy.is_empty());
+
+        h.mark_url_unhealthy(SIGNED_URL_A);
+        let s = h.snapshot();
+        assert!(s.unhealthy.contains("upos-sz-mirrorcosov.bilivideo.com"));
+        assert!(
+            s.mirrors.is_empty(),
+            "marking removes the host from the pool"
+        );
+
+        // Recovery: a successful probe clears the mark and re-adds the pool.
+        h.record_url_healthy(SIGNED_URL_A);
+        let s = h.snapshot();
+        assert!(s.unhealthy.is_empty());
+        assert_eq!(s.mirrors.len(), 1);
+    }
+
+    #[test]
+    fn test_host_health_seed_is_idempotent() {
+        let h = HostHealth::new();
+        h.seed_mirrors_from_urls(&[MIRROR_COS.to_string()]);
+        h.seed_mirrors_from_urls(&[MIRROR_COS.to_string()]);
+        assert_eq!(h.snapshot().mirrors.len(), 1);
     }
 }
