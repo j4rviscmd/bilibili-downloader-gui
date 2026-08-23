@@ -6,12 +6,19 @@
 
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
 use tokio::{spawn, sync::watch, sync::Mutex, time};
 
 /// Progress update interval in milliseconds.
 const PROGRESS_UPDATE_INTERVAL_MS: u64 = 500;
+
+// Why 2s: above the 1s speed-calc window so a brief segment-boundary gap
+//   does not flicker the displayed rate to 0, while still turning the
+//   display truthful quickly during a real stall (issue #534).
+/// Seconds without any byte increase after which the displayed transfer
+/// rate is forced to 0 instead of keeping the last computed value.
+const SPEED_DISPLAY_IDLE_SECS: u64 = 2;
 
 /// Progress information structure sent to the frontend.
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -68,6 +75,9 @@ struct EmitsInner {
     last_speed_calc_instant: Instant,
     last_speed_calc_bytes: u64,
     last_speed_kbps: f64,
+    /// When the downloaded byte count last increased. Drives the idle
+    /// zeroing of the displayed transfer rate (issue #534).
+    last_byte_increase: Instant,
 }
 
 impl Default for EmitsInner {
@@ -82,6 +92,7 @@ impl Default for EmitsInner {
             last_speed_calc_bytes: 0,
             is_complete: false,
             last_speed_kbps: 0.0,
+            last_byte_increase: now,
         }
     }
 }
@@ -330,6 +341,20 @@ impl Emits {
             }
 
             inner.last_downloaded_bytes = current_bytes;
+            inner.last_byte_increase = now;
+        } else if now.duration_since(inner.last_byte_increase)
+            >= Duration::from_secs(SPEED_DISPLAY_IDLE_SECS)
+        {
+            // Why: the speed recompute above only runs on ticks where bytes
+            //   changed, so during a full stall the last computed value
+            //   (e.g. 10 MB/s) kept being displayed while nothing moved
+            //   (issue #534). Force the display to 0 once no byte has
+            //   arrived for SPEED_DISPLAY_IDLE_SECS.
+            // Note: the threshold sits above the 1s speed-calc window so a
+            //   brief segment-boundary gap does not flicker the rate to 0;
+            //   a boundary pause shorter than this keeps the last value.
+            inner.progress.transfer_rate = 0.0;
+            inner.last_speed_kbps = 0.0;
         }
 
         inner.progress.delta_time = delta_time;
