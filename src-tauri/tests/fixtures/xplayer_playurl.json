@@ -122,11 +122,7 @@
         "new_description": "360P 流畅",
         "display_desc": "360P 流畅",
         "superscript": "",
-        "codecs": [
-          "avc1.64001E",
-          "hev1.1.6.L120.90",
-          "av01.0.0M.08"
-        ]
+        "codecs": ["avc1.64001E", "hev1.1.6.L120.90", "av01.0.0M.08"]
       },
       {
         "quality": 32,
@@ -134,11 +130,7 @@
         "new_description": "480P 清晰",
         "display_desc": "480P 清晰",
         "superscript": "",
-        "codecs": [
-          "avc1.64001F",
-          "hev1.1.6.L120.90",
-          "av01.0.0M.08"
-        ]
+        "codecs": ["avc1.64001F", "hev1.1.6.L120.90", "av01.0.0M.08"]
       },
       {
         "quality": 80,
@@ -146,11 +138,7 @@
         "new_description": "1080P 高清",
         "display_desc": "1080P 高清",
         "superscript": "",
-        "codecs": [
-          "avc1.640032",
-          "hev1.1.6.L150.90",
-          "av01.0.08M.08"
-        ]
+        "codecs": ["avc1.640032", "hev1.1.6.L150.90", "av01.0.08M.08"]
       }
     ],
     "high_format": true
