@@ -1,0 +1,158 @@
+{
+  "code": 0,
+  "message": "0",
+  "ttl": 1,
+  "data": {
+    "accept_quality": [127, 126, 125, 120, 116, 112, 80, 64, 32, 16],
+    "accept_format": "hdflv2,flv,flv720,flv480,mp4",
+    "accept_description": [
+      "8K 超高清",
+      "杜比视界",
+      "HDR 真彩色",
+      "4K 超清",
+      "1080P60 高帧率",
+      "1080P 高码率",
+      "1080P 高清",
+      "720P 高清",
+      "480P 清晰",
+      "360P 流畅"
+    ],
+    "quality": 80,
+    "format_code": 0,
+    "has_dolby": true,
+    "has_flac": true,
+    "timelength": 265000,
+    "video_codecid": 7,
+    "seek_param": "",
+    "seek_type": "",
+    "dash": {
+      "duration": 265,
+      "video": [
+        {
+          "id": 127,
+          "codecid": 12,
+          "md5": "",
+          "baseUrl": "https://upos-sz-mirror08h.bilivideo.com/vod-mirror08h/example127.m4s",
+          "backupUrl": [
+            "https://upos-sz-mirrorcos.bilivideo.com/vod-mirrorcos/example127.m4s",
+            "https://upos-sz-mirrorhw.bilivideo.com/vod-mirrorhw/example127.m4s"
+          ],
+          "bandwidth": 4317613,
+          "mimeType": "video/mp4",
+          "codecs": "av01.0.12M.08",
+          "width": 1920,
+          "height": 1080,
+          "frameRate": "16000/657"
+        },
+        {
+          "id": 80,
+          "codecid": 7,
+          "md5": "",
+          "baseUrl": "https://upos-sz-mirror08h.bilivideo.com/vod-mirror08h/example80.m4s",
+          "backupUrl": [
+            "https://upos-sz-mirrorcos.bilivideo.com/vod-mirrorcos/example80.m4s"
+          ],
+          "bandwidth": 2434664,
+          "mimeType": "video/mp4",
+          "codecs": "avc1.640032",
+          "width": 1920,
+          "height": 1080,
+          "frameRate": "16000/657"
+        }
+      ],
+      "audio": [
+        {
+          "id": 30280,
+          "codecid": 13,
+          "md5": "",
+          "baseUrl": "https://upos-sz-mirror08h.bilivideo.com/vod-mirror08h/example30280.m4s",
+          "backupUrl": [
+            "https://upos-sz-mirrorcos.bilivideo.com/vod-mirrorcos/example30280.m4s"
+          ],
+          "bandwidth": 316271,
+          "mimeType": "audio/mp4",
+          "codecs": "ec-3",
+          "width": 0,
+          "height": 0
+        },
+        {
+          "id": 30216,
+          "codecid": 0,
+          "md5": "",
+          "baseUrl": "https://upos-sz-mirror08h.bilivideo.com/vod-mirror08h/example30216.m4s",
+          "backupUrl": [
+            "https://upos-sz-mirrorcos.bilivideo.com/vod-mirrorcos/example30216.m4s"
+          ],
+          "bandwidth": 67574,
+          "mimeType": "audio/mp4",
+          "codecs": "mp4a.40.2",
+          "width": 0,
+          "height": 0
+        }
+      ],
+      "dolby": {
+        "type": 1,
+        "audio": [
+          {
+            "id": 30255,
+            "codecid": 13,
+            "baseUrl": "https://upos-sz-mirror08h.bilivideo.com/vod-mirror08h/example30255.m4s",
+            "bandwidth": 640000,
+            "mimeType": "audio/mp4",
+            "codecs": "ec-3"
+          }
+        ]
+      },
+      "flac": {
+        "display": true,
+        "audio": {
+          "id": 30251,
+          "codecid": 13,
+          "baseUrl": "https://upos-sz-mirror08h.bilivideo.com/vod-mirror08h/example30251.m4s",
+          "bandwidth": 815459,
+          "mimeType": "audio/mp4",
+          "codecs": "fLaC"
+        }
+      }
+    },
+    "support_formats": [
+      {
+        "quality": 16,
+        "format": "mp4",
+        "new_description": "360P 流畅",
+        "display_desc": "360P 流畅",
+        "superscript": "",
+        "codecs": [
+          "avc1.64001E",
+          "hev1.1.6.L120.90",
+          "av01.0.0M.08"
+        ]
+      },
+      {
+        "quality": 32,
+        "format": "mp4",
+        "new_description": "480P 清晰",
+        "display_desc": "480P 清晰",
+        "superscript": "",
+        "codecs": [
+          "avc1.64001F",
+          "hev1.1.6.L120.90",
+          "av01.0.0M.08"
+        ]
+      },
+      {
+        "quality": 80,
+        "format": "mp4",
+        "new_description": "1080P 高清",
+        "display_desc": "1080P 高清",
+        "superscript": "",
+        "codecs": [
+          "avc1.640032",
+          "hev1.1.6.L150.90",
+          "av01.0.08M.08"
+        ]
+      }
+    ],
+    "high_format": true
+  }
+}

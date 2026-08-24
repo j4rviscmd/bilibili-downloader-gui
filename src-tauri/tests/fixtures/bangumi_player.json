@@ -1,0 +1,136 @@
+{
+  "code": 0,
+  "message": "success",
+  "result": {
+    "is_preview": 0,
+    "type": "DASH",
+    "timelength": 1432000,
+    "quality": 64,
+    "format": "flv480",
+    "accept_quality": [80, 64, 32, 16],
+    "accept_format": "hdflv2,flv,flv480,mp4",
+    "accept_description": ["1080P 高清", "720P 高清", "480P 清晰", "360P 流畅"],
+    "video_codecid": 7,
+    "seek_param": "",
+    "seek_type": "",
+    "dash": {
+      "duration": 1432,
+      "video": [
+        {
+          "id": 64,
+          "codecid": 7,
+          "baseUrl": "https://upos-sz-mirrorcoso1.bilivideo.com/example64.m4s",
+          "backupUrl": [
+            "https://upos-sz-mirrorcos.bilivideo.com/example64_backup1.m4s",
+            "https://upos-sz-mirrorcosb.bilivideo.com/example64_backup2.m4s"
+          ],
+          "bandwidth": 1199872,
+          "mimeType": "video/mp4",
+          "codecs": "avc1.640028",
+          "width": 1280,
+          "height": 720,
+          "frameRate": "25000/1000"
+        },
+        {
+          "id": 32,
+          "codecid": 7,
+          "baseUrl": "https://upos-sz-mirrorcoso1.bilivideo.com/example32.m4s",
+          "backupUrl": [
+            "https://upos-sz-mirrorcos.bilivideo.com/example32_backup1.m4s"
+          ],
+          "bandwidth": 515723,
+          "mimeType": "video/mp4",
+          "codecs": "avc1.64001f",
+          "width": 852,
+          "height": 480,
+          "frameRate": "25000/1000"
+        }
+      ],
+      "audio": [
+        {
+          "id": 30216,
+          "codecid": 0,
+          "baseUrl": "https://upos-sz-mirrorcoso1.bilivideo.com/example_audio30216.m4s",
+          "backupUrl": [
+            "https://upos-sz-mirrorcos.bilivideo.com/example_audio30216_backup.m4s"
+          ],
+          "bandwidth": 66077,
+          "mimeType": "audio/mp4",
+          "codecs": "mp4a.40.2",
+          "width": 0,
+          "height": 0
+        }
+      ]
+    },
+    "durl": [
+      {
+        "order": 1,
+        "length": 1432000,
+        "size": 214748364,
+        "url": "https://upos-sz-mirrorcos.bilivideo.com/example_durl.mp4",
+        "backup_url": [
+          "https://upos-sz-mirrorcosb.bilivideo.com/example_durl_backup.mp4"
+        ],
+        "md5": "",
+        "hash": ""
+      }
+    ],
+    "durls": [
+      {
+        "quality": 32,
+        "durl": [
+          {
+            "order": 1,
+            "length": 1432000,
+            "size": 92000000,
+            "url": "https://upos-sz-mirrorcos.bilivideo.com/example_durls_32.mp4",
+            "backup_url": [
+              "https://upos-sz-mirrorcosb.bilivideo.com/example_durls_32_backup.mp4"
+            ],
+            "md5": "",
+            "hash": ""
+          }
+        ]
+      },
+      {
+        "quality": 16,
+        "durl": [
+          {
+            "order": 1,
+            "length": 1432000,
+            "size": 52000000,
+            "url": "https://upos-sz-mirrorcos.bilivideo.com/example_durls_16.mp4",
+            "backup_url": [
+              "https://upos-sz-mirrorcosb.bilivideo.com/example_durls_16_backup.mp4"
+            ],
+            "md5": "",
+            "hash": ""
+          }
+        ]
+      }
+    ],
+    "support_formats": [
+      {
+        "quality": 80,
+        "format": "flv",
+        "description": "1080P 高清",
+        "new_description": "1080P 高清",
+        "display_desc": "1080P 高清",
+        "superscript": "",
+        "codecs": ["avc1.640032"]
+      },
+      {
+        "quality": 64,
+        "format": "flv",
+        "description": "720P 高清",
+        "new_description": "720P 高清",
+        "display_desc": "720P 高清",
+        "superscript": "",
+        "codecs": ["avc1.640028"]
+      }
+    ],
+    "last_play_cid": "",
+    "last_play_time": 0,
+    "view_points": []
+  }
+}
