@@ -180,7 +180,38 @@ jobs:
 
       - name: Run Clippy
         working-directory: src-tauri
-        run: cargo clippy -- -D warnings
+        # Why: --all-targets also lints test targets; plain clippy covers lib/bins only, and
+        # the test-coverage plan (see dev-dependencies note in src-tauri/Cargo.toml) adds
+        # unit tests that must stay warning-free
+        run: cargo clippy --all-targets -- -D warnings
+
+  # Why: cargo test also compiles and runs doctests — this job enforces them and is what
+  # surfaced the 19 failing doc examples fixed in this PR
+  rust-test:
+    name: Rust Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          shared-key: rust-ci
+
+      - name: Install dependencies (Ubuntu only)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libdbus-1-dev libglib2.0-dev
+
+      - name: Run Rust tests
+        working-directory: src-tauri
+        run: cargo test
 
   rust-format:
     name: Rust Format
@@ -248,6 +279,7 @@ jobs:
         test,
         rust-check,
         rust-clippy,
+        rust-test,
         rust-format,
         docs-format,
       ]

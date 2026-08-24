@@ -26,11 +26,13 @@ const SECONDS_PER_DAY: u64 = 86400;
 ///
 /// # Example
 ///
+/// Why: doctests compile as separate crates, so `crate::` paths do not resolve — use
+/// the lib crate name instead (this PR's doctest policy)
 /// ```rust,no_run
 /// use std::path::Path;
 ///
 /// let log_dir = Path::new("/path/to/logs");
-/// crate::utils::log_cleanup::cleanup_old_logs(log_dir, 30).ok();
+/// bilibili_downloader_gui_lib::utils::log_cleanup::cleanup_old_logs(log_dir, 30).ok();
 /// ```
 pub fn cleanup_old_logs(log_dir: &Path, days_to_keep: u64) -> Result<usize, String> {
     let mut deleted_count = 0;

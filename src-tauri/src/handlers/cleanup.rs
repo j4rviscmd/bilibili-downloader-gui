@@ -99,9 +99,10 @@ pub fn cleanup_temp_files(app: &AppHandle, max_age_hours: Option<u64>) -> Cleanu
 ///
 /// # Examples
 ///
-/// ```
+/// Why: private fn; doctests compile as a separate crate and cannot import it, even
+/// though the assertions themselves are pure (enforced by the rust-test CI job)
+/// ```ignore
 /// # use std::path::Path;
-/// # use crate::handlers::cleanup::is_temp_file;
 /// assert!(is_temp_file(Path::new("temp_video_123.m4s")));
 /// assert!(is_temp_file(Path::new("temp_audio_456.m4s")));
 /// assert!(is_temp_file(Path::new("temp_sub_789.srt")));

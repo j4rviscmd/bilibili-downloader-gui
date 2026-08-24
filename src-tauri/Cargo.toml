@@ -76,3 +76,17 @@ log = "0.4"
 tauri-plugin-webdriver = "0.2"
 tauri-plugin-mcp-bridge = "0.11"
 
+[dev-dependencies]
+# Why: declared up front (PR R1 of the test-coverage plan) so later PRs add
+# tests without re-touching Cargo.toml. No test code uses them yet — they are
+# consumed by upcoming PRs:
+# - tempfile: fs-touching tests (secure_storage, cookie Firefox fixtures, ...)
+# - wiremock: local mock HTTP server for BiliApi transport tests (no live network)
+# - tokio test-util: #[tokio::test(start_paused = true)] for deterministic time
+#   in emits.rs tests
+# - tauri "test" feature: tauri::test::mock_app() for AppHandle-coupled tests.
+#   Applies to test builds only; release binaries are unaffected.
+tempfile = "3"
+wiremock = "0.6"
+tokio = { version = "1", features = ["test-util"] }
+tauri = { version = "2", features = ["test"] }

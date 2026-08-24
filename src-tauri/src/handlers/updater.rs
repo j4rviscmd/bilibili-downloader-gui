@@ -30,7 +30,9 @@ use octocrab::Octocrab;
 ///
 /// # Example
 ///
-/// ```rust
+/// Why: fetch_all_release_notes paginates the live GitHub API; doctests run in CI
+/// (rust-test job) and must not hit external services
+/// ```ignore
 /// let notes = fetch_all_release_notes("j4rviscmd", "bilibili-downloader-gui", "1.1.0").await?;
 /// assert!(notes.contains("## v1.1.1"));
 /// ```

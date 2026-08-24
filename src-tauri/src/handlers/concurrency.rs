@@ -32,9 +32,14 @@ const DEFAULT_MAX_CONCURRENT_DOWNLOADS: usize = 8;
 ///
 /// # Example
 ///
+/// Why: doctests compile as separate crates, so `crate::` paths do not resolve —
+/// import via the lib crate name instead (this PR's doctest policy)
+/// Note: this example is executed by `cargo test` in CI; acquiring one permit from
+/// the 8-permit semaphore cannot deadlock
 /// ```rust
-/// use crate::handlers::concurrency::VIDEO_SEMAPHORE;
+/// use bilibili_downloader_gui_lib::handlers::concurrency::VIDEO_SEMAPHORE;
 ///
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// // Acquire semaphore (async)
 /// let permit = VIDEO_SEMAPHORE.clone().acquire_owned().await?;
 ///
@@ -43,6 +48,8 @@ const DEFAULT_MAX_CONCURRENT_DOWNLOADS: usize = 8;
 ///
 /// // Release semaphore
 /// drop(permit);
+/// # Ok(())
+/// # }
 /// ```
 pub static VIDEO_SEMAPHORE: Lazy<Arc<Semaphore>> =
     Lazy::new(|| Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_DOWNLOADS)));

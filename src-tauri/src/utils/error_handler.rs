@@ -13,8 +13,10 @@ use std::panic;
 ///
 /// # Example
 ///
+/// Why: doctests compile as separate crates, so `crate::` paths do not resolve — use
+/// the lib crate name instead (this PR's doctest policy)
 /// ```rust,no_run
-/// crate::utils::error_handler::setup_panic_hook();
+/// bilibili_downloader_gui_lib::utils::error_handler::setup_panic_hook();
 /// ```
 pub fn setup_panic_hook() {
     panic::set_hook(Box::new(|panic_info| {

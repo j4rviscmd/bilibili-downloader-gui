@@ -28,14 +28,15 @@ use octocrab::Octocrab;
 ///
 /// # Example
 ///
-/// ```rust
-/// use crate::handlers::github::fetch_repo_stars;
+/// Why: fetch_repo_stars queries the live GitHub API; doctests run in CI (rust-test
+/// job) and must not hit external services
+/// Note: the full-crate-path import is kept for documentation only — it is inert
+/// inside an ignored block
+/// ```ignore
+/// use bilibili_downloader_gui_lib::handlers::github::fetch_repo_stars;
 ///
-/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let stars = fetch_repo_stars("j4rviscmd", "bilibili-downloader-gui").await?;
 /// println!("Stars: {}", stars);
-/// # Ok(())
-/// # }
 /// ```
 pub async fn fetch_repo_stars(owner: &str, repo: &str) -> Result<usize> {
     log::info!(
