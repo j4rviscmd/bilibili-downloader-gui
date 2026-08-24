@@ -184,6 +184,7 @@ pub fn run() {
             search_history,
             export_history,
             reveal_in_folder,
+            reveal_log_file,
             open_file,
             get_release_notes,
             get_all_release_notes,
@@ -1075,6 +1076,40 @@ async fn reveal_in_folder(app: AppHandle, path: String) -> Result<(), String> {
     app.opener()
         .reveal_item_in_dir(&path)
         .map_err(|e| format!("Failed to reveal file: {}", e))
+}
+
+/// Reveals the current log file (`app.log`) in the system file manager.
+///
+/// Builds the log path from the app data directory using the same scheme
+/// as the log plugin setup, then asks the OS file manager to open the
+/// logs folder with `app.log` selected. The frontend never assembles
+/// backend-owned paths.
+///
+/// # Arguments
+///
+/// * `app` - Tauri application handle
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The app data directory cannot be resolved
+/// - The file manager cannot be opened
+#[tauri::command]
+async fn reveal_log_file(app: AppHandle) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let log_file = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to resolve app data dir: {}", e))?
+        // Note: "app.log" must stay in sync with the log plugin in run()'s
+        // setup() (log_dir join("logs") + file_name: Some("app".into())); the
+        // plugin appends the ".log" suffix, so grepping "app.log" will not find
+        // that site. Drift only fails at runtime when the user clicks the button.
+        .join("logs")
+        .join("app.log");
+    app.opener()
+        .reveal_item_in_dir(&log_file)
+        .map_err(|e| format!("Failed to reveal log file: {}", e))
 }
 
 /// Opens a file with the system's default application.

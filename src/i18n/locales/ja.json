@@ -399,6 +399,8 @@
     "trim_mode_copy": "高速（コピー）",
     "trim_mode_reencode": "高精度（再エンコード）",
     "app_section_label": "アプリケーション",
+    "open_logs_button": "ログを開く",
+    "open_logs_failed": "ログを開けませんでした",
     "show_github_stars_label": "GitHub Stars を表示",
     "show_github_stars_description": "アプリバーにスター数を表示します",
     "theme_label": "テーマ",

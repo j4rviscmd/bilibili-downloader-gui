@@ -399,6 +399,8 @@
     "trim_mode_copy": "快速（复制）",
     "trim_mode_reencode": "精确（重编码）",
     "app_section_label": "应用程序",
+    "open_logs_button": "打开日志",
+    "open_logs_failed": "无法打开日志",
     "show_github_stars_label": "显示 GitHub Stars",
     "show_github_stars_description": "在应用栏中显示星标数",
     "theme_label": "主题",
