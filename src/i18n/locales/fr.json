@@ -399,6 +399,8 @@
     "trim_mode_copy": "Rapide (Copie)",
     "trim_mode_reencode": "Précis (Réencodage)",
     "app_section_label": "Application",
+    "open_logs_button": "Ouvrir les journaux",
+    "open_logs_failed": "Impossible d'ouvrir les journaux",
     "show_github_stars_label": "Afficher les GitHub Stars",
     "show_github_stars_description": "Afficher le nombre d'étoiles dans la barre d'application",
     "theme_label": "Thème",

@@ -399,6 +399,8 @@
     "trim_mode_copy": "Rápido (Copiar)",
     "trim_mode_reencode": "Preciso (Recodificar)",
     "app_section_label": "Aplicación",
+    "open_logs_button": "Abrir registros",
+    "open_logs_failed": "No se pudieron abrir los registros",
     "show_github_stars_label": "Mostrar GitHub Stars",
     "show_github_stars_description": "Mostrar el recuento de estrellas en la barra de la aplicación",
     "theme_label": "Tema",
