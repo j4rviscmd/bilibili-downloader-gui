@@ -1172,7 +1172,9 @@ async fn open_file(app: AppHandle, path: String) -> Result<(), String> {
 ///
 /// # Example
 ///
-/// ```rust
+/// Why: private #[tauri::command] making a live GitHub API call; doctests compile as a
+/// separate crate and can neither import private items nor hit the network (rust-test job)
+/// ```ignore
 /// let notes = get_release_notes("j4rviscmd", "bilibili-downloader-gui", "1.1.0").await?;
 /// // notes contains Markdown formatted release notes for all newer versions
 /// ```
@@ -1235,15 +1237,11 @@ async fn get_all_release_notes(owner: String, repo: String) -> Result<String, St
 ///
 /// # Example
 ///
-/// ```rust
-/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// use tauri::AppHandle;
-///
-/// # let app: AppHandle = unimplemented!();
+/// Why: private #[tauri::command] making a live GitHub API call; doctests compile as a
+/// separate crate and can neither import private items nor hit the network (rust-test job)
+/// ```ignore
 /// let stars = get_repo_stars("j4rviscmd", "bilibili-downloader-gui".to_string()).await?;
 /// println!("Stars: {}", stars);
-/// # Ok(())
-/// # }
 /// ```
 #[tauri::command]
 async fn get_repo_stars(owner: String, repo: String) -> Result<usize, String> {

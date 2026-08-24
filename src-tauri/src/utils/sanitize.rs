@@ -40,7 +40,11 @@ pub fn apply_title_replacements(
 ///
 /// # Examples
 ///
+/// Why: doctests compile as separate crates, so bare/unqualified item names do not
+/// resolve — import via the lib crate name (this PR's doctest policy)
 /// ```
+/// use bilibili_downloader_gui_lib::utils::sanitize::resolve_duplicate_titles;
+///
 /// let titles = vec![
 ///     "Part 1".to_string(),
 ///     "Part 2".to_string(),

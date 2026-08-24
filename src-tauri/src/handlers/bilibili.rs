@@ -195,7 +195,9 @@ use tauri::AppHandle;
 ///
 /// # Example
 ///
-/// ```
+/// Why: the example sends a live HTTP request; doctests now run in CI (rust-test job),
+/// so it must not execute
+/// ```ignore
 /// let client = build_client()?;
 /// let response = client.get("https://api.bilibili.com/...").send().await?;
 /// ```
@@ -303,7 +305,9 @@ fn validate_bangumi_response(code: i64, message: &str) -> Result<(), String> {
 ///
 /// # Example
 ///
-/// ```
+/// Why: private fn; doctests compile as a separate crate and cannot import it, even
+/// though the assertions themselves are pure (enforced by the rust-test CI job)
+/// ```ignore
 /// let url = "https://www.bilibili.com/bangumi/play/ep3051843";
 /// assert_eq!(extract_bangumi_ep_id(url), Some(3051843));
 /// ```
@@ -1149,7 +1153,9 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
 ///
 /// # Example
 ///
-/// ```no_run
+/// Why: private fn; doctests compile as a separate crate and cannot import it
+/// (enforced by the rust-test CI job)
+/// ```ignore
 /// # use std::path::Path;
 /// # let lib_path = Path::new("/app/lib");
 /// cleanup_subtitle_files(lib_path, "download-123");
@@ -1390,7 +1396,9 @@ async fn save_to_history(
 ///
 /// # Examples
 ///
-/// ```rust
+/// Why: private fn; doctests compile as a separate crate and cannot import it
+/// (enforced by the rust-test CI job)
+/// ```ignore
 /// let options = vec![&"".to_string(), &"1080P".to_string(), &"720P".to_string()];
 /// assert_eq!(first_non_empty(&options), Some("1080P".to_string()));
 /// ```
@@ -2520,7 +2528,9 @@ pub struct WatchHistoryResponse {
 /// - Initial request: `max=0`, `view_at=0`
 /// - Subsequent requests: Use `cursor.max`, `cursor.view_at` from previous response
 ///
-/// ```rust
+/// Why: needs a live AppHandle with real Bilibili cookies; doctests run in CI
+/// (rust-test job) and must stay hermetic
+/// ```ignore
 /// let first_page = fetch_watch_history(app, 0, 0).await?;
 /// let next_page = fetch_watch_history(app, first_page.cursor.max, first_page.cursor.view_at).await?;
 /// ```
@@ -3813,7 +3823,9 @@ pub async fn fetch_bangumi_part_qualities(
 ///
 /// # Example
 ///
-/// ```rust
+/// Why: expand_short_url follows a live b23.tv redirect over the network; doctests
+/// run in CI (rust-test job) and must not hit external services
+/// ```ignore
 /// let full_url = expand_short_url("https://b23.tv/abc123".to_string()).await?;
 /// assert!(full_url.starts_with("https://www.bilibili.com/video/"));
 /// ```

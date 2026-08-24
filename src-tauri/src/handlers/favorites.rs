@@ -53,7 +53,9 @@ use crate::models::frontend_dto::{
 ///
 /// # Examples
 ///
-/// ```rust
+/// Why: needs a live AppHandle with authenticated Bilibili API access; doctests run
+/// in CI (rust-test job) and must stay hermetic
+/// ```ignore
 /// use tauri::AppHandle;
 ///
 /// // Fetch favorite folders for user with mid = 123456
@@ -160,7 +162,9 @@ pub async fn fetch_favorite_folders(
 ///
 /// # Examples
 ///
-/// ```rust
+/// Why: needs a live AppHandle with authenticated Bilibili API access; doctests run
+/// in CI (rust-test job) and must stay hermetic
+/// ```ignore
 /// use tauri::AppHandle;
 ///
 /// // Fetch first page (10 items) from folder with ID 98765

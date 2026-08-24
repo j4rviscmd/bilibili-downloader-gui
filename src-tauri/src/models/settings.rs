@@ -26,7 +26,11 @@ impl TitleReplacement {
     ///
     /// # Examples
     ///
+    /// Why: doctests compile as separate crates, so bare/unqualified item names do not
+    /// resolve — import via the lib crate name (this PR's doctest policy)
     /// ```
+    /// use bilibili_downloader_gui_lib::models::settings::TitleReplacement;
+    ///
     /// let rule = TitleReplacement::new(":", "_", true);
     /// assert_eq!(rule.from, ":");
     /// assert_eq!(rule.to, "_");
@@ -60,7 +64,11 @@ impl TitleReplacement {
 ///
 /// # Examples
 ///
+/// Why: doctests compile as separate crates, so bare/unqualified item names do not
+/// resolve — import via the lib crate name (this PR's doctest policy)
 /// ```
+/// use bilibili_downloader_gui_lib::models::settings::default_title_replacements;
+///
 /// let rules = default_title_replacements();
 /// assert_eq!(rules.len(), 8);
 /// assert!(rules.iter().all(|r| r.enabled));
