@@ -399,6 +399,8 @@
     "trim_mode_copy": "빠른 속도 (복사)",
     "trim_mode_reencode": "정확한 (재인코딩)",
     "app_section_label": "애플리케이션",
+    "open_logs_button": "로그 열기",
+    "open_logs_failed": "로그를 열지 못했습니다",
     "show_github_stars_label": "GitHub Stars 표시",
     "show_github_stars_description": "앱 바에 스타 수를 표시합니다",
     "theme_label": "테마",

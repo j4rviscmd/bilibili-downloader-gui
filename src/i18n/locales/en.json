@@ -399,6 +399,8 @@
     "trim_mode_copy": "Fast (Copy)",
     "trim_mode_reencode": "Accurate (Re-encode)",
     "app_section_label": "Application",
+    "open_logs_button": "Open Logs",
+    "open_logs_failed": "Failed to open logs",
     "show_github_stars_label": "Show GitHub Stars",
     "show_github_stars_description": "Display the star count in the app bar",
     "theme_label": "Theme",
