@@ -1,0 +1,90 @@
+{
+  "code": 0,
+  "message": "0",
+  "ttl": 1,
+  "data": {
+    "bvid": "BV1GJ411x7h7",
+    "aid": 85440373,
+    "videos": 2,
+    "tid": 21,
+    "tname": "日常",
+    "copyright": 1,
+    "pic": "http://i0.hdslb.com/bfs/archive/74f0d4d6ce811f65a7b8a54d0b1b1e0b.jpg",
+    "title": "【BW2019】自营 CUT",
+    "pubdate": 1564235142,
+    "ctime": 1564235142,
+    "desc": "-",
+    "state": 0,
+    "duration": 470,
+    "rights": {
+      "bp": 0,
+      "elec": 0,
+      "download": 0,
+      "movie": 0,
+      "pay": 0,
+      "hd5": 1,
+      "no_reprint": 1,
+      "autoplay": 1,
+      "ugc_pay": 0,
+      "is_cooperation": 0,
+      "ugc_pay_preview": 0,
+      "no_background": 0
+    },
+    "owner": {
+      "mid": 320164265,
+      "name": "example_owner",
+      "face": "http://i0.hdslb.com/bfs/face/0e6b95d0.jpg"
+    },
+    "stat": {
+      "aid": 85440373,
+      "view": 1726,
+      "danmaku": 20,
+      "reply": 11,
+      "favorite": 33,
+      "coin": 9,
+      "share": 4,
+      "now_rank": 0,
+      "his_rank": 0,
+      "like": 48,
+      "dislike": 0
+    },
+    "dynamic": "",
+    "cid": 146224527,
+    "dimension": {
+      "width": 1920,
+      "height": 1080,
+      "rotate": 0
+    },
+    "pages": [
+      {
+        "cid": 146224527,
+        "page": 1,
+        "from": "vupload",
+        "part": "1",
+        "duration": 265,
+        "vid": "",
+        "weblink": "",
+        "dimension": {
+          "width": 1920,
+          "height": 1080,
+          "rotate": 0
+        }
+      },
+      {
+        "cid": 146225172,
+        "page": 2,
+        "from": "vupload",
+        "part": "2",
+        "duration": 205,
+        "vid": "",
+        "weblink": "",
+        "first_frame": "http://i0.hdslb.com/bfs/story-fn/first-frame.jpg",
+        "dimension": {
+          "width": 1920,
+          "height": 1080,
+          "rotate": 0
+        }
+      }
+    ]
+  }
+}

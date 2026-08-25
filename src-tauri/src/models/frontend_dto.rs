@@ -249,3 +249,197 @@ pub struct DownloadRetrying {
     /// Whether the download is currently retrying
     pub is_retrying: bool,
 }
+
+// Why: these DTOs are the Tauri→frontend wire contract consumed by TS types
+// (e.g. src/features/video/types.ts) with no compile-time cross-language
+// check; these tests make a camelCase rename fail here instead of silently
+// breaking the frontend at runtime.
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn user_renames_is_login_and_defaults_has_cookie() {
+        let json = r#"{
+            "code": 0, "message": "0",
+            "data": { "mid": 7, "uname": "u", "isLogin": true }
+        }"#;
+        let user: User = serde_json::from_str(json).unwrap();
+        assert!(user.data.is_login, "isLogin rename");
+        assert_eq!(user.data.mid, Some(7));
+        assert!(!user.has_cookie, "absent has_cookie defaults to false");
+
+        let out = serde_json::to_value(&user).unwrap();
+        assert_eq!(out["data"]["isLogin"], true);
+        assert_eq!(out["hasCookie"], false);
+    }
+
+    fn sample_video() -> Video {
+        Video {
+            title: "t".into(),
+            bvid: "BV1xx".into(),
+            parts: vec![VideoPart {
+                cid: 11,
+                page: 1,
+                part: "P1".into(),
+                sanitized_part: None,
+                duration: 60,
+                thumbnail: Thumbnail {
+                    url: "http://thumb".into(),
+                },
+                video_qualities: vec![Quality {
+                    id: 80,
+                    codecid: 7,
+                    quality: "1080P".into(),
+                }],
+                audio_qualities: vec![],
+                subtitles: vec![SubtitleDto {
+                    lan: "zh-CN".into(),
+                    lan_doc: "中文（简体）".into(),
+                    subtitle_url: "http://sub.bcc".into(),
+                    is_ai: true,
+                    ai_type: Some(0),
+                }],
+                ep_id: None,
+                status: None,
+                aid: None,
+                is_preview: None,
+            }],
+            is_limited_quality: true,
+            content_type: "bangumi".into(),
+            ep_id: Some(3051843),
+            season_title: Some("Season".into()),
+        }
+    }
+
+    #[test]
+    fn video_roundtrips_camel_case() {
+        let video = sample_video();
+        let out = serde_json::to_value(&video).unwrap();
+        assert_eq!(out["title"], "t");
+        assert_eq!(out["bvid"], "BV1xx");
+        assert_eq!(out["isLimitedQuality"], true);
+        assert_eq!(out["contentType"], "bangumi");
+        assert_eq!(out["epId"], 3051843);
+        assert_eq!(out["seasonTitle"], "Season");
+
+        let part = &out["parts"][0];
+        assert_eq!(part["cid"], 11);
+        assert_eq!(part["sanitizedPart"], serde_json::Value::Null);
+        assert_eq!(part["subtitles"][0]["subtitleUrl"], "http://sub.bcc");
+        assert_eq!(part["subtitles"][0]["aiType"], 0);
+
+        let back: Video = serde_json::from_value(out).unwrap();
+        assert_eq!(back.parts.len(), 1);
+        assert_eq!(back.parts[0].video_qualities[0].quality, "1080P");
+        assert!(back.parts[0].subtitles[0].is_ai);
+    }
+
+    #[test]
+    fn video_defaults_content_type_video() {
+        let json = r#"{
+            "title": "t", "bvid": "BV1x",
+            "parts": [{ "cid": 1, "page": 1, "part": "p", "duration": 1,
+                        "thumbnail": { "url": "u" },
+                        "videoQualities": [], "audioQualities": [] }]
+        }"#;
+        let video: Video = serde_json::from_str(json).unwrap();
+        assert_eq!(video.content_type, "video");
+        assert!(!video.is_limited_quality);
+        assert!(video.ep_id.is_none());
+        assert!(video.season_title.is_none());
+        assert!(video.parts[0].subtitles.is_empty());
+        assert!(video.parts[0].sanitized_part.is_none());
+    }
+
+    #[test]
+    fn video_part_omits_sanitized_when_none() {
+        let video = sample_video();
+        let json = serde_json::to_string(&video).unwrap();
+        assert!(
+            !json.contains("sanitizedPart"),
+            "skip_serializing_if drops the key when None"
+        );
+    }
+
+    #[test]
+    fn favorite_dtos_roundtrip_camel_case() {
+        let resp = FavoriteVideoListResponse {
+            videos: vec![FavoriteVideo {
+                id: 1,
+                bvid: "BV1f".into(),
+                title: "v".into(),
+                cover: "c".into(),
+                duration: 90,
+                page: 1,
+                upper: FavoriteVideoUpperDto {
+                    mid: 2,
+                    name: "up".into(),
+                    face: "f".into(),
+                },
+                attr: 0,
+                play_count: 10,
+                collect_count: 3,
+                link: "l".into(),
+            }],
+            has_more: true,
+            total_count: 1,
+        };
+        let out = serde_json::to_value(&resp).unwrap();
+        assert_eq!(out["hasMore"], true);
+        assert_eq!(out["totalCount"], 1);
+        assert_eq!(out["videos"][0]["playCount"], 10);
+
+        let folder = FavoriteFolder {
+            id: 9,
+            title: "default".into(),
+            cover: None,
+            media_count: 4,
+            upper: None,
+        };
+        let folder_out = serde_json::to_value(&folder).unwrap();
+        assert_eq!(folder_out["mediaCount"], 4);
+        assert_eq!(folder_out["cover"], serde_json::Value::Null);
+        assert_eq!(folder_out["upper"], serde_json::Value::Null);
+    }
+
+    #[test]
+    fn watch_history_entry_serializes_camel_case() {
+        let entry = WatchHistoryEntry {
+            title: "t".into(),
+            cover: "c".into(),
+            bvid: "BV1w".into(),
+            cid: 5,
+            page: 2,
+            view_at: 1700000000,
+            duration: 100,
+            progress: 50,
+            url: "u".into(),
+        };
+        let out = serde_json::to_value(&entry).unwrap();
+        assert_eq!(out["viewAt"], 1700000000);
+        assert_eq!(out["bvid"], "BV1w");
+
+        let cursor = WatchHistoryCursor {
+            view_at: 1,
+            max: 2,
+            is_end: true,
+        };
+        let cursor_out = serde_json::to_value(&cursor).unwrap();
+        assert_eq!(cursor_out["viewAt"], 1);
+        assert_eq!(cursor_out["isEnd"], true);
+    }
+
+    #[test]
+    fn download_retrying_serializes_camel_case() {
+        let evt = DownloadRetrying {
+            download_id: "dl-1".into(),
+            stage: Some("video".into()),
+            is_retrying: true,
+        };
+        let out = serde_json::to_value(&evt).unwrap();
+        assert_eq!(out["downloadId"], "dl-1");
+        assert_eq!(out["stage"], "video");
+        assert_eq!(out["isRetrying"], true);
+    }
+}

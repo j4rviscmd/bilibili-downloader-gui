@@ -707,3 +707,475 @@ pub struct SupportFormat {
     #[serde(default)]
     pub display_desc: String,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Why: fixture payloads are shaped after the response examples in
+    // references/bilibili-API-collect/docs/ (video/info.md,
+    // video/videostream_url.md, bangumi/videostream_url.md) with identifiers
+    // and URL paths replaced by synthetic values, so parsing is exercised
+    // against realistic full-response breadth rather than minimal objects.
+    // Note: unmapped fields (rights, owner, stat, dolby, ...) are kept on
+    // purpose — do not trim fixtures to mapped fields only. Files must also
+    // stay strict JSON (no comments): serde_json parses the include_str!
+    // output directly.
+    const WEB_INTERFACE_VIEW: &str = include_str!("../../tests/fixtures/web_interface_view.json");
+    const XPLAYER_PLAYURL: &str = include_str!("../../tests/fixtures/xplayer_playurl.json");
+    const BANGUMI_PLAYER: &str = include_str!("../../tests/fixtures/bangumi_player.json");
+
+    #[test]
+    fn parses_web_interface_view_fixture() {
+        let resp: WebInterfaceApiResponse = serde_json::from_str(WEB_INTERFACE_VIEW).unwrap();
+        assert_eq!(resp.code, 0);
+
+        let data = resp.data.expect("data present");
+        assert_eq!(data.title, "【BW2019】自营 CUT");
+        assert_eq!(data.cid, 146224527);
+        assert!(data.redirect_url.is_none(), "no redirect in fixture");
+
+        let pages = data.pages.expect("pages present");
+        assert_eq!(pages.len(), 2);
+        assert_eq!(pages[0].cid, 146224527);
+        assert_eq!(pages[0].page, 1);
+        assert_eq!(pages[0].part, "1");
+        assert_eq!(pages[0].duration, 265);
+        assert!(
+            pages[0].first_frame.is_none(),
+            "first_frame absent on page 1"
+        );
+        assert_eq!(
+            pages[1].first_frame.as_deref(),
+            Some("http://i0.hdslb.com/bfs/story-fn/first-frame.jpg")
+        );
+    }
+
+    #[test]
+    fn web_interface_view_defaults_missing_optionals() {
+        // Minimal payload: pages/redirect_url omitted (serde defaults),
+        // unknown fields ignored.
+        let resp: WebInterfaceApiResponse = serde_json::from_str(
+            r#"{
+                "code": -404,
+                "message": "啥都木有",
+                "ttl": 1,
+                "data": {
+                    "title": "t", "pic": "p", "cid": 1,
+                    "bvid": "BV1xx", "aid": 2, "unknown_future_field": true
+                }
+            }"#,
+        )
+        .unwrap();
+
+        assert_eq!(resp.code, -404);
+        let data = resp.data.unwrap();
+        assert!(data.pages.is_none());
+        assert!(data.redirect_url.is_none());
+    }
+
+    #[test]
+    fn web_interface_view_data_absent_yields_none() {
+        // Error responses carry no data field at all.
+        let resp: WebInterfaceApiResponse =
+            serde_json::from_str(r#"{"code": 62002, "message": "稿件不可见"}"#).unwrap();
+        assert_eq!(resp.code, 62002);
+        assert!(resp.data.is_none());
+    }
+
+    #[test]
+    fn parses_xplayer_playurl_dash_fixture() {
+        let resp: XPlayerApiResponse = serde_json::from_str(XPLAYER_PLAYURL).unwrap();
+        assert_eq!(resp.code, 0);
+
+        let data = resp.data.expect("data present");
+        assert_eq!(data.quality, Some(80));
+
+        let dash = data.dash.expect("dash present");
+        assert_eq!(dash.video.len(), 2);
+        assert_eq!(dash.audio.len(), 2);
+
+        let v127 = &dash.video[0];
+        assert_eq!(v127.id, 127);
+        assert_eq!(v127.codecid, 12);
+        assert_eq!(v127.bandwidth, 4317613);
+        assert_eq!(v127.width, 1920);
+        assert_eq!(v127.height, 1080);
+        assert!(v127.base_url.contains("example127.m4s"), "baseUrl rename");
+        assert_eq!(
+            v127.backup_urls.as_deref().map(|u| u.len()),
+            Some(2),
+            "backupUrl rename"
+        );
+
+        // VIP-only objects are captured via flatten for diagnostics, never
+        // fed into stream selection (see issue #467 investigation).
+        assert!(dash.extra.contains_key("dolby"));
+        assert!(dash.extra.contains_key("flac"));
+
+        let formats = data.support_formats.expect("support_formats present");
+        assert_eq!(formats.len(), 3);
+        assert_eq!(formats[0].quality, 16);
+        assert_eq!(formats[2].display_desc, "1080P 高清");
+    }
+
+    #[test]
+    fn parses_xplayer_durl_only_variant() {
+        // Older (non-DASH) videos: dash absent, durl present instead.
+        let resp: XPlayerApiResponse = serde_json::from_str(
+            r#"{
+                "code": 0, "message": "0",
+                "data": {
+                    "quality": 32,
+                    "durl": [
+                        {
+                            "order": 1, "length": 205000, "size": 12345678,
+                            "url": "https://example.com/seg.mp4",
+                            "backup_url": ["https://example.com/seg_bak.mp4"]
+                        }
+                    ]
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let data = resp.data.unwrap();
+        assert!(data.dash.is_none());
+        let durl = data.durl.expect("durl present");
+        assert_eq!(durl.len(), 1);
+        assert_eq!(durl[0].order, 1);
+        assert_eq!(durl[0].size, 12345678);
+        assert_eq!(durl[0].url, "https://example.com/seg.mp4");
+        assert_eq!(durl[0].backup_url.as_deref().map(|u| u.len()), Some(1));
+    }
+
+    #[test]
+    fn parses_bangumi_player_fixture() {
+        let resp: BangumiPlayerApiResponse = serde_json::from_str(BANGUMI_PLAYER).unwrap();
+        assert_eq!(resp.code, 0);
+
+        let result = resp.result.expect("result present");
+        assert_eq!(result.quality, Some(64));
+        assert_eq!(result.timelength, Some(1432000));
+        assert_eq!(result.is_preview, Some(0));
+
+        // DASH and durl coexist in this fixture; durls carries per-quality MP4.
+        let dash = result.dash.expect("dash present");
+        assert_eq!(dash.video.len(), 2);
+        assert_eq!(dash.audio.len(), 1);
+        assert_eq!(dash.audio[0].id, 30216);
+
+        assert!(result.durl.as_deref().map(|d| d.len()) == Some(1));
+        let durls = result.durls.expect("durls present");
+        assert_eq!(durls.len(), 2);
+        assert_eq!(durls[0].quality, 32);
+        assert_eq!(durls[0].durl.len(), 1);
+
+        let formats = result.support_formats.expect("support_formats");
+        assert_eq!(formats[0].quality, 80);
+        assert_eq!(formats[0].description, "1080P 高清");
+    }
+
+    #[test]
+    fn parses_bangumi_season_and_episode_defaults() {
+        let resp: BangumiSeasonApiResponse = serde_json::from_str(
+            r#"{
+                "code": 0, "message": "success",
+                "result": {
+                    "season_id": 28237, "title": "season", "cover": "c",
+                    "episodes": [
+                        {
+                            "id": 3051843, "cid": 45776577, "aid": 74707191,
+                            "cover": "ec", "badge": "",
+                            "title": "1", "long_title": "Un cas"
+                        }
+                    ]
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let result = resp.result.unwrap();
+        assert_eq!(result.season_id, 28237);
+        // status/duration omitted -> serde defaults
+        assert_eq!(result.episodes.len(), 1);
+        let ep = &result.episodes[0];
+        assert_eq!(ep.id, 3051843);
+        assert_eq!(ep.cid, 45776577);
+        assert_eq!(ep.aid, 74707191);
+        assert_eq!(ep.long_title, "Un cas");
+        assert_eq!(ep.status, 0);
+        assert_eq!(ep.duration, 0);
+    }
+
+    #[test]
+    fn parses_user_api_response_with_is_login_rename() {
+        let resp: UserApiResponse = serde_json::from_str(
+            r#"{
+                "code": 0, "message": "0", "ttl": 1,
+                "data": {
+                    "isLogin": true,
+                    "mid": 10000,
+                    "uname": "tester",
+                    "wbi_img": { "img_url": "i", "sub_url": "s" }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        assert!(resp.data.is_login, "isLogin rename");
+        assert_eq!(resp.data.mid, Some(10000));
+        assert_eq!(resp.data.uname.as_deref(), Some("tester"));
+        assert_eq!(resp.data.wbi_img.img_url, "i");
+    }
+
+    #[test]
+    fn parses_user_api_response_logged_out() {
+        // Logged-out nav: mid/uname are null, isLogin false.
+        let resp: UserApiResponse = serde_json::from_str(
+            r#"{
+                "code": -101, "message": "账号未登录", "ttl": 1,
+                "data": {
+                    "isLogin": false, "mid": null, "uname": "",
+                    "wbi_img": { "img_url": "i", "sub_url": "s" }
+                }
+            }"#,
+        )
+        .unwrap();
+        assert!(!resp.data.is_login);
+        assert!(resp.data.mid.is_none());
+    }
+
+    #[test]
+    fn parses_favorite_folder_list_all() {
+        // list-all returns the minimal subset; optional fields absent.
+        let resp: FavoriteFolderListApiResponse = serde_json::from_str(
+            r#"{
+                "code": 0, "message": "0",
+                "data": {
+                    "count": 1,
+                    "list": [
+                        {
+                            "id": 111, "fid": 111, "mid": 222, "attr": 0,
+                            "title": "默认收藏夹", "media_count": 7
+                        }
+                    ]
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let data = resp.data.unwrap();
+        assert_eq!(data.count, 1);
+        let folder = &data.list.expect("list present")[0];
+        assert_eq!(folder.id, 111);
+        assert_eq!(folder.title, "默认收藏夹");
+        assert_eq!(folder.media_count, 7);
+        assert!(folder.cover.is_none());
+        assert!(folder.upper.is_none());
+        assert!(folder.fav_state.is_none());
+    }
+
+    #[test]
+    fn parses_favorite_resource_list() {
+        let resp: FavoriteResourceListApiResponse = serde_json::from_str(
+            r#"{
+                "code": 0, "message": "0",
+                "data": {
+                    "info": {
+                        "id": 111, "fid": 111, "mid": 222, "attr": 0,
+                        "title": "默认收藏夹", "cover": "c",
+                        "upper": { "mid": 222, "name": "u", "face": "f" },
+                        "cover_type": 0,
+                        "cnt_info": { "collect": 0, "play": 0, "thumb_up": 0, "share": 0 },
+                        "type": 0, "intro": "", "ctime": 1, "mtime": 2,
+                        "state": 0, "fav_state": 0, "media_count": 1
+                    },
+                    "medias": [
+                        {
+                            "id": 1, "type": 2, "title": "v", "cover": "cv",
+                            "intro": "", "page": 1, "duration": 60,
+                            "upper": { "mid": 3, "name": "up", "face": "fc" },
+                            "attr": 0,
+                            "cnt_info": { "collect": 1, "play": 2, "danmaku": 3 },
+                            "link": "https://www.bilibili.com/video/BV1xx",
+                            "ctime": 1, "pubtime": 1, "fav_time": 1,
+                            "bv_id": "BV1xx", "bvid": "BV1xx"
+                        }
+                    ],
+                    "has_more": true
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let data = resp.data.unwrap();
+        assert_eq!(data.info.id, 111);
+        // "type" renames to folder_type in info, media_type in medias
+        assert_eq!(data.info.folder_type, 0);
+        assert!(data.has_more);
+        let media = &data.medias.expect("medias")[0];
+        assert_eq!(media.media_type, 2);
+        assert_eq!(media.cnt_info.danmaku, 3);
+        assert_eq!(media.bvid, "BV1xx");
+    }
+
+    #[test]
+    fn parses_watch_history_with_defaults() {
+        let resp: WatchHistoryApiResponse = serde_json::from_str(
+            r#"{
+                "code": 0, "message": "0",
+                "data": {
+                    "list": [
+                        {
+                            "title": "1", "cover": "c",
+                            "history": { "bvid": "BV1h", "cid": 9, "page": 1 },
+                            "view_at": 1700000000, "duration": 100,
+                            "progress": -1
+                        }
+                    ],
+                    "cursor": { "view_at": 1700000000, "max": 1700000000, "is_end": false }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let data = resp.data.unwrap();
+        assert_eq!(data.list.len(), 1);
+        assert_eq!(data.list[0].history.bvid, "BV1h");
+        assert_eq!(data.list[0].progress, -1);
+        assert_eq!(data.cursor.max, 1700000000);
+        assert!(!data.cursor.is_end);
+    }
+
+    #[test]
+    fn watch_history_missing_optionals_default() {
+        // progress/cid/page are serde defaults; absent history fields must
+        // not fail the parse for legacy entries.
+        let resp: WatchHistoryApiResponse = serde_json::from_str(
+            r#"{
+                "code": 0, "message": "0",
+                "data": {
+                    "list": [
+                        {
+                            "title": "t", "cover": "c",
+                            "history": { "bvid": "BV1x" },
+                            "view_at": 1, "duration": 2
+                        }
+                    ],
+                    "cursor": { "view_at": 1, "max": 1 }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let item = &resp.data.unwrap().list[0];
+        assert_eq!(item.progress, 0);
+        assert_eq!(item.history.cid, 0);
+        assert_eq!(item.history.page, 0);
+    }
+
+    #[test]
+    fn parses_player_v2_subtitles_with_ai_type() {
+        let resp: PlayerV2ApiResponse = serde_json::from_str(
+            r#"{
+                "code": 0, "message": "0",
+                "data": {
+                    "subtitle": {
+                        "subtitles": [
+                            {
+                                "lan": "zh-CN", "lan_doc": "中文（简体）",
+                                "subtitle_url": "//aisubtitle.hdslb.com/bfs/ai_subtitle/1.bcc.json",
+                                "ai_type": 0
+                            },
+                            {
+                                "lan": "ai-zh", "lan_doc": "中文（自动生成）",
+                                "subtitle_url": "//aisubtitle.hdslb.com/bfs/ai_subtitle/2.bcc.json",
+                                "ai_status": 0
+                            },
+                            {
+                                "lan": "en", "lan_doc": "English",
+                                "subtitle_url": "//i0.hdslb.com/bfs/subtitle/3.bcc.json"
+                            }
+                        ]
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let subs = resp
+            .data
+            .and_then(|d| d.subtitle)
+            .and_then(|s| s.subtitles)
+            .expect("subtitles present");
+        assert_eq!(subs.len(), 3);
+        assert_eq!(subs[0].ai_type, Some(0));
+        assert_eq!(subs[0].lan_doc, "中文（简体）");
+        assert!(
+            subs[1].ai_type.is_none(),
+            "ai_status (different field) must not leak into ai_type"
+        );
+        assert!(subs[2].ai_type.is_none(), "manual subtitle has no ai_type");
+    }
+
+    #[test]
+    fn bcc_subtitle_parses_manual_format() {
+        let bcc: BccSubtitle = serde_json::from_str(
+            r#"{
+                "font_size": 0.4,
+                "font_color": "0xFFFFFF",
+                "background_alpha": 0.5,
+                "background_color": "0x000000",
+                "Stroke": "none",
+                "type": "ai",
+                "body": [
+                    { "from": 0.0, "to": 2.5, "location": 0, "content": "こんにちは" },
+                    { "from": 2.5, "to": 4.0, "content": "second line" }
+                ]
+            }"#,
+        )
+        .unwrap();
+
+        assert_eq!(bcc.font_size, 0.4);
+        assert_eq!(bcc.font_color, "0xFFFFFF");
+        assert_eq!(bcc.background_alpha, 0.5);
+        assert_eq!(bcc.stroke, "none", "Stroke capital-S rename");
+        assert_eq!(bcc.body.len(), 2);
+        assert_eq!(bcc.body[0].from, 0.0);
+        assert_eq!(bcc.body[0].to, 2.5);
+        assert_eq!(bcc.body[0].location, 0);
+        assert_eq!(bcc.body[0].content, "こんにちは");
+        assert_eq!(bcc.body[1].location, 0, "location serde default");
+    }
+
+    #[test]
+    fn bcc_subtitle_applies_ai_defaults() {
+        // AI subtitles omit styling fields — serde defaults must kick in.
+        let bcc: BccSubtitle =
+            serde_json::from_str(r#"{ "body": [ { "from": 1.0, "to": 2.0, "content": "ai" } ] }"#)
+                .unwrap();
+
+        assert_eq!(bcc.font_size, 0.0);
+        assert_eq!(bcc.font_color, "0xFFFFFF");
+        assert_eq!(bcc.background_alpha, 0.0);
+        assert_eq!(bcc.background_color, "0x000000");
+        assert_eq!(bcc.stroke, "");
+    }
+
+    #[test]
+    fn xplayer_roundtrip_preserves_renames() {
+        let resp: XPlayerApiResponse = serde_json::from_str(XPLAYER_PLAYURL).unwrap();
+        let json = serde_json::to_value(&resp).unwrap();
+        let reparsed: XPlayerApiResponse = serde_json::from_value(json.clone()).unwrap();
+
+        let orig = resp.data.and_then(|d| d.dash).unwrap();
+        let again = reparsed.data.and_then(|d| d.dash).unwrap();
+        assert_eq!(orig.video.len(), again.video.len());
+        assert_eq!(again.video[0].base_url, orig.video[0].base_url);
+        // flatten'd extra survives the roundtrip as a map
+        assert!(again.extra.contains_key("dolby"));
+        // serialized form uses the API field names
+        assert!(json["data"]["dash"]["video"][0].get("baseUrl").is_some());
+    }
+}

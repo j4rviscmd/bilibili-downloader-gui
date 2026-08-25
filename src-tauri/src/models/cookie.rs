@@ -40,3 +40,51 @@ pub struct SimulateLogoutFlag {
     /// Thread-safe flag indicating whether to simulate logout state
     pub enabled: Mutex<bool>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cookie_entry_roundtrips_snake_case_fields() {
+        let json = r#"{ "host": ".bilibili.com", "name": "SESSDATA", "value": "v" }"#;
+        let entry: CookieEntry = serde_json::from_str(json).unwrap();
+        assert_eq!(entry.host, ".bilibili.com");
+        assert_eq!(entry.name, "SESSDATA");
+        assert_eq!(entry.value, "v");
+
+        let out = serde_json::to_value(&entry).unwrap();
+        assert_eq!(out["host"], ".bilibili.com");
+        assert_eq!(out["name"], "SESSDATA");
+    }
+
+    #[test]
+    fn cookie_entry_default_is_empty() {
+        let entry = CookieEntry::default();
+        assert!(entry.host.is_empty());
+        assert!(entry.name.is_empty());
+        assert!(entry.value.is_empty());
+    }
+
+    #[test]
+    fn cookie_cache_starts_empty_and_accepts_locks() {
+        let cache = CookieCache::default();
+        assert!(cache.cookies.lock().unwrap().is_empty());
+
+        cache.cookies.lock().unwrap().push(CookieEntry {
+            host: ".bilibili.com".into(),
+            name: "buvid3".into(),
+            value: "x".into(),
+        });
+        assert_eq!(cache.cookies.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn simulate_logout_flag_defaults_false() {
+        let flag = SimulateLogoutFlag::default();
+        assert!(!*flag.enabled.lock().unwrap());
+
+        *flag.enabled.lock().unwrap() = true;
+        assert!(*flag.enabled.lock().unwrap());
+    }
+}
