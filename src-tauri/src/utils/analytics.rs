@@ -395,3 +395,30 @@ fn current_time_ms() -> u128 {
         .map(|d| d.as_millis())
         .unwrap_or(0)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Note: the "::detail" suffix is a dynamic original message (e.g.
+    //   "ERR::NETWORK::{msg}" produced in handlers/bilibili.rs), so only the
+    //   first segment is a stable bucket; the frontend parser
+    //   (src/shared/lib/mapBackendError.ts) splits on the same segment.
+    #[test]
+    fn extract_error_category_takes_first_segment() {
+        assert_eq!(
+            extract_error_category("ERR::NETWORK::connection reset"),
+            Some("NETWORK".to_string())
+        );
+        assert_eq!(
+            extract_error_category("ERR::VIDEO_NOT_FOUND"),
+            Some("VIDEO_NOT_FOUND".to_string())
+        );
+    }
+
+    #[test]
+    fn extract_error_category_ignores_non_err_strings() {
+        assert_eq!(extract_error_category("connection reset by peer"), None);
+        assert_eq!(extract_error_category(""), None);
+    }
+}

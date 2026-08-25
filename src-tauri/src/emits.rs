@@ -394,3 +394,42 @@ fn round_to(v: f64, places: i32) -> f64 {
     let p = 10f64.powi(places.max(0));
     (v * p).round() / p
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn calculate_percentage_uses_mb_denominator() {
+        // 5 MiB downloaded against 10 MiB total -> 50% (both sides are
+        // 1024-based despite the filesize_mb naming; see bytes_to_mb)
+        assert_eq!(
+            Emits::calculate_percentage(5 * 1024 * 1024, Some(10.0)),
+            50.0
+        );
+        // Zero progress stays 0
+        assert_eq!(Emits::calculate_percentage(0, Some(10.0)), 0.0);
+    }
+
+    #[test]
+    fn calculate_percentage_unknown_size_is_zero() {
+        // Unknown filesize (None) or zero filesize must not divide by zero.
+        assert_eq!(Emits::calculate_percentage(12345, None), 0.0);
+        assert_eq!(Emits::calculate_percentage(12345, Some(0.0)), 0.0);
+    }
+
+    #[test]
+    fn round_to_rounds_to_requested_places() {
+        assert_eq!(round_to(1.23456, 2), 1.23);
+        assert_eq!(round_to(2.5, 0), 3.0);
+        // Negative places clamp to zero
+        assert_eq!(round_to(1.618, -3), 2.0);
+    }
+
+    #[test]
+    fn round_to_non_finite_becomes_zero() {
+        assert_eq!(round_to(f64::NAN, 2), 0.0);
+        assert_eq!(round_to(f64::INFINITY, 2), 0.0);
+        assert_eq!(round_to(f64::NEG_INFINITY, 2), 0.0);
+    }
+}

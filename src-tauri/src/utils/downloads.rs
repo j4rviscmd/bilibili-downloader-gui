@@ -1476,4 +1476,26 @@ mod tests {
         let junk = header::HeaderValue::from_static("items 1-2");
         assert_eq!(content_range_start(&junk), None);
     }
+
+    #[test]
+    fn calculate_segments_splits_total_into_ranges() {
+        // 10 bytes / size 4 -> [0-3],[4-7],[8-9]
+        assert_eq!(calculate_segments(10, 4), vec![(0, 3), (4, 7), (8, 9)]);
+        // Exact multiples leave no tail segment
+        assert_eq!(calculate_segments(8, 4), vec![(0, 3), (4, 7)]);
+        // Single segment when total < size
+        assert_eq!(calculate_segments(3, 4), vec![(0, 2)]);
+        // Zero total -> no segments (no infinite loop)
+        assert!(calculate_segments(0, 4).is_empty());
+    }
+
+    #[test]
+    fn cdn_rotation_limit_caps_url_count_and_multiplies_loops() {
+        use crate::constants::MAX_CDN_LOOPS;
+        assert_eq!(cdn_rotation_limit(0), 0);
+        assert_eq!(cdn_rotation_limit(1), MAX_CDN_LOOPS);
+        assert_eq!(cdn_rotation_limit(5), 5 * MAX_CDN_LOOPS);
+        // Saturating u8 arithmetic: 300 urls -> 255 cap -> 255*3 saturates at u8::MAX
+        assert_eq!(cdn_rotation_limit(300), u8::MAX);
+    }
 }

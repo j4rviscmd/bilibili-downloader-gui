@@ -1264,6 +1264,314 @@ mod tests {
         let err = bangumi_player_result_to_xplayer(result).unwrap_err();
         assert_eq!(err, "ERR::BANGUMI_DURL_NOT_SUPPORTED");
     }
+
+    // ---- validate_api_response ----
+
+    // Why: ERR::* literals are a cross-boundary contract — the frontend maps
+    //   these exact strings to i18n keys (src/shared/lib/mapBackendError.ts;
+    //   see "Map backend ERR:: error codes" in CLAUDE.md), so a renamed code
+    //   must be mirrored there and in all 6 locale files.
+    #[test]
+    fn validate_api_response_maps_error_codes() {
+        // -101 drives the frontend to the login prompt; -404 to video error.
+        assert_eq!(
+            validate_api_response::<serde_json::Value>(-101, None),
+            Err("ERR::UNAUTHORIZED".to_string())
+        );
+        assert_eq!(
+            validate_api_response::<serde_json::Value>(-404, None),
+            Err("ERR::VIDEO_NOT_FOUND".to_string())
+        );
+    }
+
+    #[test]
+    fn validate_api_response_requires_data_on_success() {
+        let data = serde_json::json!({"pages": []});
+        assert!(validate_api_response(0, Some(&data)).is_ok());
+        // code 0 with no data field (empty payload) is an API error, not success
+        assert_eq!(
+            validate_api_response::<serde_json::Value>(0, None),
+            Err("ERR::API_ERROR".to_string())
+        );
+        // any other non-zero code falls through to the generic API error
+        assert_eq!(
+            validate_api_response::<serde_json::Value>(62002, Some(&data)),
+            Err("ERR::API_ERROR".to_string())
+        );
+    }
+
+    // ---- check_http_status ----
+
+    #[test]
+    fn check_http_status_classifies_status_ranges() {
+        use reqwest::StatusCode;
+
+        assert!(check_http_status(StatusCode::OK).is_ok());
+        assert!(check_http_status(StatusCode::CREATED).is_ok());
+        assert!(check_http_status(StatusCode::PARTIAL_CONTENT).is_ok());
+
+        assert_eq!(
+            check_http_status(StatusCode::TOO_MANY_REQUESTS),
+            Err("ERR::RATE_LIMITED".to_string())
+        );
+        assert_eq!(
+            check_http_status(StatusCode::FORBIDDEN),
+            Err("ERR::API_ERROR".to_string())
+        );
+        assert_eq!(
+            check_http_status(StatusCode::INTERNAL_SERVER_ERROR),
+            Err("ERR::API_ERROR".to_string())
+        );
+    }
+
+    // ---- validate_bangumi_response ----
+
+    #[test]
+    fn validate_bangumi_response_maps_special_codes() {
+        assert!(validate_bangumi_response(0, "").is_ok());
+        assert_eq!(
+            validate_bangumi_response(-101, ""),
+            Err("ERR::UNAUTHORIZED".to_string())
+        );
+        assert_eq!(
+            validate_bangumi_response(-404, ""),
+            Err("ERR::BANGUMI_NOT_FOUND".to_string())
+        );
+        assert_eq!(
+            validate_bangumi_response(-403, ""),
+            Err("ERR::BANGUMI_ACCESS_DENIED".to_string())
+        );
+        assert_eq!(
+            validate_bangumi_response(-688, ""),
+            Err("ERR::BANGUMI_REGION_RESTRICTED".to_string())
+        );
+        assert_eq!(
+            validate_bangumi_response(-689, ""),
+            Err("ERR::BANGUMI_COPYRIGHT_RESTRICTED".to_string())
+        );
+    }
+
+    #[test]
+    fn validate_bangumi_response_includes_code_and_message() {
+        let err = validate_bangumi_response(-999, "boom").unwrap_err();
+        assert!(
+            err.starts_with("ERR::API_ERROR (code -999): "),
+            "generic error must embed code and message: {err}"
+        );
+    }
+
+    // ---- first_non_empty (promoted from ignored doctest) ----
+
+    #[test]
+    fn first_non_empty_returns_first_non_empty_string() {
+        let empty = "".to_string();
+        let a = "1080P".to_string();
+        let b = "720P".to_string();
+        let options = vec![&empty, &a, &b];
+        assert_eq!(first_non_empty(&options), Some("1080P".to_string()));
+        assert_eq!(first_non_empty(&[&empty]), None);
+        assert_eq!(first_non_empty(&[]), None);
+    }
+
+    // ---- extract_bangumi_ep_id (promoted from ignored doctest) ----
+
+    #[test]
+    fn extract_bangumi_ep_id_parses_redirect_urls() {
+        assert_eq!(
+            extract_bangumi_ep_id("https://www.bilibili.com/bangumi/play/ep3051843"),
+            Some(3051843)
+        );
+        // Trailing path segments after the numeric id are ignored
+        assert_eq!(
+            extract_bangumi_ep_id("https://www.bilibili.com/bangumi/play/ep123?from=search"),
+            Some(123)
+        );
+        assert_eq!(
+            extract_bangumi_ep_id("https://www.bilibili.com/video/BV1xx"),
+            None
+        );
+        assert_eq!(
+            extract_bangumi_ep_id("https://www.bilibili.com/bangumi/play/ss123"),
+            None
+        );
+    }
+
+    // ---- url_host ----
+
+    #[test]
+    fn url_host_hides_signed_query_params() {
+        // Signed CDN URLs carry auth params that must never reach logs.
+        assert_eq!(
+            url_host("https://upos-sz-mirror08h.bilivideo.com/vod/x.m4s?upsig=secret&deadline=1"),
+            "upos-sz-mirror08h.bilivideo.com".to_string()
+        );
+        assert_eq!(url_host("not a url"), "<invalid>".to_string());
+    }
+
+    // ---- build_cookie_header ----
+
+    #[test]
+    fn build_cookie_header_filters_non_bilibili_hosts() {
+        use crate::models::cookie::CookieEntry;
+
+        let cookies = vec![
+            CookieEntry {
+                host: ".bilibili.com".into(),
+                name: "SESSDATA".into(),
+                value: "abc".into(),
+            },
+            CookieEntry {
+                host: ".biliapi.net".into(),
+                name: "OTHER".into(),
+                value: "x".into(),
+            },
+            CookieEntry {
+                host: "bilibili.com".into(),
+                name: "buvid3".into(),
+                value: "y".into(),
+            },
+        ];
+        assert_eq!(build_cookie_header(&cookies), "SESSDATA=abc; buvid3=y");
+        assert_eq!(build_cookie_header(&[]), "");
+    }
+
+    // ---- convert_qualities ----
+
+    fn stream(id: i32, codecid: i16) -> crate::models::bilibili_api::XPlayerApiResponseVideo {
+        crate::models::bilibili_api::XPlayerApiResponseVideo {
+            id,
+            codecid,
+            bandwidth: 0,
+            width: 0,
+            height: 0,
+            base_url: format!("https://example.com/{id}.m4s"),
+            backup_urls: None,
+        }
+    }
+
+    #[test]
+    fn convert_qualities_dedupes_by_highest_codecid_and_sorts_desc() {
+        let streams = vec![
+            stream(80, 7),  // avc 1080P
+            stream(80, 12), // av1 1080P — higher codecid wins the slot
+            stream(64, 7),  // 720P
+        ];
+        let qualities = convert_qualities(&streams);
+        let ids: Vec<i32> = qualities.iter().map(|q| q.id).collect();
+        assert_eq!(ids, vec![80, 64], "qualities sorted best-first");
+        assert_eq!(qualities[0].codecid, 12, "highest codecid kept for 80");
+        assert_eq!(qualities[0].quality, "1080P");
+        assert_eq!(qualities[1].quality, "720P");
+    }
+
+    // ---- select_stream_url ----
+
+    #[test]
+    fn select_stream_url_exact_match_marks_no_fallback() {
+        let items = vec![stream(80, 7), stream(64, 7)];
+        let (url, _backup, fell_back) = select_stream_url(&items, 64).unwrap();
+        assert_eq!(url, "https://example.com/64.m4s");
+        assert!(!fell_back);
+    }
+
+    #[test]
+    fn select_stream_url_unknown_quality_falls_back_to_first() {
+        let items = vec![stream(80, 7), stream(64, 7)];
+        let (url, _, fell_back) = select_stream_url(&items, 127).unwrap();
+        assert_eq!(url, "https://example.com/80.m4s");
+        assert!(fell_back, "caller shows a quality-fallback warning");
+    }
+
+    #[test]
+    fn select_stream_url_empty_list_errors() {
+        assert_eq!(
+            select_stream_url(&[], 80),
+            Err("ERR::QUALITY_NOT_FOUND".to_string())
+        );
+    }
+
+    // ---- auto_rename (fs, tempfile) ----
+
+    #[test]
+    fn auto_rename_appends_counter_until_free() {
+        let dir = tempfile::tempdir().unwrap();
+        let original = dir.path().join("video.mp4");
+        std::fs::write(&original, b"x").unwrap();
+
+        let first = auto_rename(&original);
+        assert_eq!(
+            first.file_name().unwrap().to_str().unwrap(),
+            "video (1).mp4"
+        );
+
+        std::fs::write(&first, b"x").unwrap();
+        let second = auto_rename(&original);
+        assert_eq!(
+            second.file_name().unwrap().to_str().unwrap(),
+            "video (2).mp4"
+        );
+    }
+
+    #[test]
+    fn auto_rename_missing_file_returns_unchanged() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("never_written.mp4");
+        let renamed = auto_rename(&path);
+        assert_eq!(renamed, path, "no collision when the file does not exist");
+    }
+
+    // ---- ensure_free_space (fs, tempfile) ----
+
+    #[test]
+    fn ensure_free_space_accepts_small_requests() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("out.mp4");
+        // 1 byte against a real (temp) filesystem with space available
+        assert!(ensure_free_space(&target, 1).is_ok());
+    }
+
+    // Why: the disk-space check is statvfs (unix-only); on Windows the
+    // function unconditionally returns Ok(()) and this assertion cannot hold.
+    #[cfg(target_family = "unix")]
+    #[test]
+    fn ensure_free_space_rejects_impossible_request() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("out.mp4");
+        // u64::MAX bytes can never fit; the guard must trip ERR::DISK_FULL
+        assert_eq!(
+            ensure_free_space(&target, u64::MAX),
+            Err("ERR::DISK_FULL".to_string())
+        );
+    }
+
+    // ---- cleanup_subtitle_files (fs, tempfile; promoted from ignored doctest) ----
+
+    #[test]
+    fn cleanup_subtitle_files_removes_only_matching_prefix() {
+        let dir = tempfile::tempdir().unwrap();
+        let keep_video = dir.path().join("video.mp4");
+        let keep_other_id = dir.path().join("temp_sub_other-id_en.srt");
+        let drop_en = dir.path().join("temp_sub_dl-1_en.srt");
+        let drop_ja = dir.path().join("temp_sub_dl-1_ja.srt");
+        for p in [&keep_video, &keep_other_id, &drop_en, &drop_ja] {
+            std::fs::write(p, b"x").unwrap();
+        }
+
+        cleanup_subtitle_files(dir.path(), "dl-1");
+
+        assert!(keep_video.exists());
+        assert!(keep_other_id.exists(), "other download ids untouched");
+        assert!(!drop_en.exists());
+        assert!(!drop_ja.exists());
+    }
+
+    #[test]
+    fn cleanup_subtitle_files_missing_dir_is_noop() {
+        let dir = tempfile::tempdir().unwrap();
+        let missing = dir.path().join("does-not-exist");
+        // Must not panic on a nonexistent directory.
+        cleanup_subtitle_files(&missing, "any");
+    }
 }
 
 /// Spawns an async task to save download history.
