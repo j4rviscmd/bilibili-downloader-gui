@@ -120,3 +120,28 @@ fn is_temp_file(path: &Path) -> bool {
 
     is_video || is_audio || is_subtitle
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    #[test]
+    fn is_temp_file_matches_temp_prefixes() {
+        // Promoted from the ignored doctest: private fn, pure assertions.
+        assert!(is_temp_file(Path::new("temp_video_123.m4s")));
+        assert!(is_temp_file(Path::new("temp_audio_456.m4s")));
+        assert!(is_temp_file(Path::new("temp_sub_789.srt")));
+        assert!(!is_temp_file(Path::new("final_video.mp4")));
+    }
+
+    #[test]
+    fn is_temp_file_rejects_mismatched_pairs() {
+        // Prefix without the matching extension (and vice versa) must not match.
+        assert!(!is_temp_file(Path::new("temp_video_123.mp4")));
+        assert!(!is_temp_file(Path::new("temp_audio_456.srt")));
+        assert!(!is_temp_file(Path::new("temp_sub_789.m4s")));
+        assert!(!is_temp_file(Path::new("temp_")));
+        assert!(!is_temp_file(Path::new("/dir/other.m4s")));
+    }
+}

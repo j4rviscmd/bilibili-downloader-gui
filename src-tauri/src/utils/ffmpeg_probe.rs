@@ -138,3 +138,36 @@ fn parse_trailing_kbps(line: &str) -> Option<u32> {
         .find(|t| !t.is_empty() && t.chars().all(|c| c.is_ascii_digit()))?;
     token.parse::<u32>().ok()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_resolution_finds_width_x_height_token() {
+        assert_eq!(
+            parse_resolution("Stream #0:0[0x1](und): Video: h264, 1920x1080 [SAR 1:1]"),
+            Some((1920, 1080))
+        );
+        assert_eq!(parse_resolution("640x360"), Some((640, 360)));
+        assert_eq!(parse_resolution("no dims here"), None);
+    }
+
+    #[test]
+    fn parse_resolution_rejects_zero_dims() {
+        // 0x0 streams (audio-only) must not be mistaken for video dims.
+        assert_eq!(parse_resolution("0x0"), None);
+        assert_eq!(parse_resolution("1920x0"), None);
+    }
+
+    #[test]
+    fn parse_trailing_kbps_takes_last_number_before_unit() {
+        assert_eq!(
+            parse_trailing_kbps("Video: h264, 1920x1080, 5000 kb/s, 30 fps"),
+            Some(5000)
+        );
+        assert_eq!(parse_trailing_kbps("Audio: aac, 320 kb/s"), Some(320));
+        assert_eq!(parse_trailing_kbps("no bitrate"), None);
+        assert_eq!(parse_trailing_kbps("kb/s"), None);
+    }
+}
