@@ -61,6 +61,7 @@ export {
   AUDIO_QUALITIES_ORDER,
   PARTS_PER_PAGE,
   VIDEO_QUALITIES_MAP,
+  VIDEO_QUALITIES_ORDER,
 } from './lib/constants'
 
 // Types

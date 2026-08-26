@@ -20,6 +20,17 @@ pub const REFERER: &str = "https://www.bilibili.com";
 /// Bilibili web-API origin used by every API fetcher (see `BiliApi`).
 pub const API_BASE: &str = "https://api.bilibili.com";
 
+/// `fnval` bitmap for playurl requests so VIP streams are actually returned.
+///
+/// Bits: DASH (16) | HDR (64) | 4K (128) | Dolby Audio (256) | Dolby Vision
+/// (512) | 8K (1024) | AV1 (2048) = 4048. `2064` (DASH+AV1 only) omits HDR
+/// and 4K, so logged-in 大会员 users never saw HDR10 / 4K dash entries.
+pub const PLAYURL_FNVAL: i32 = 16 | 64 | 128 | 256 | 512 | 1024 | 2048;
+
+/// Quality hint sent with playurl. DASH still returns every `fnval`-matching
+/// stream; 127 (8K) asks for the highest ladder rather than capping at 1080P60.
+pub const PLAYURL_QN: i32 = 127;
+
 /// Minimum download speed threshold in bytes per second.
 ///
 /// If the download speed is below this threshold for the configured interval,
@@ -95,3 +106,17 @@ pub const CDN_PROBE_TIMEOUT_SECS: u64 = 5;
 /// — enough to halve probe wall-time for multi-CDN lists without risking
 /// rate-limiting or instability.
 pub const CDN_PROBE_CONCURRENCY: usize = 2;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn playurl_fnval_includes_hdr_and_4k() {
+        assert_eq!(PLAYURL_FNVAL, 4048);
+        assert_eq!(PLAYURL_FNVAL & 16, 16, "DASH");
+        assert_eq!(PLAYURL_FNVAL & 64, 64, "HDR");
+        assert_eq!(PLAYURL_FNVAL & 128, 128, "4K");
+        assert_eq!(PLAYURL_QN, 127);
+    }
+}

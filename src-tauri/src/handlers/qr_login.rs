@@ -27,7 +27,7 @@ use tauri::AppHandle;
 use tauri::Manager;
 use tauri_plugin_store::StoreExt;
 
-use crate::constants;
+use crate::constants::{self, REFERER, USER_AGENT};
 use crate::handlers::bilibili::fetch_user_info;
 use crate::models::cookie::CookieCache;
 use crate::models::cookie::CookieEntry;
@@ -186,6 +186,17 @@ fn delete_session_from_store(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// HTTP client for passport.bilibili.com (QR generate / poll).
+///
+/// Why: a default `reqwest` User-Agent is often omitted from Set-Cookie on
+/// the poll response. Browser UA + Referer matches the main-site login page.
+fn passport_client() -> Result<Client, String> {
+    Client::builder()
+        .user_agent(USER_AGENT)
+        .build()
+        .map_err(|e| format!("Failed to build HTTP client: {}", e))
+}
+
 /// Generates a QR code for Bilibili login.
 ///
 /// This function:
@@ -208,11 +219,12 @@ fn delete_session_from_store(app: &AppHandle) -> Result<(), String> {
 /// - QR code generation fails
 pub async fn generate_qr_code(_app: &AppHandle) -> Result<QrCodeResult, String> {
     log::info!("[BE] generate_qr_code: generating QR code");
-    let client = Client::new();
+    let client = passport_client()?;
 
     // Call Bilibili QR generate API
     let response = client
         .get(QR_GENERATE_URL)
+        .header(reqwest::header::REFERER, REFERER)
         .send()
         .await
         .map_err(|e| format!("Failed to request QR code: {}", e))?;
@@ -279,15 +291,27 @@ pub async fn poll_qr_status(app: &AppHandle, qrcode_key: &str) -> Result<QrPollR
         "[BE] poll_qr_status: polling with qrcode_key={}",
         qrcode_key
     );
-    let client = Client::new();
+    let client = passport_client()?;
 
-    // Call Bilibili QR poll API
-    let url = format!("{}?qrcode_key={}", QR_POLL_URL, qrcode_key);
+    // Call Bilibili QR poll API. `source=main-fe-header` matches the web
+    // header login widget; without it some responses omit Set-Cookie.
     let response = client
-        .get(&url)
+        .get(QR_POLL_URL)
+        .header(reqwest::header::REFERER, REFERER)
+        .query(&[("qrcode_key", qrcode_key), ("source", "main-fe-header")])
         .send()
         .await
         .map_err(|e| format!("Failed to poll QR status: {}", e))?;
+
+    // Current Bilibili poll responses may leave credentials out of `data.url`
+    // and deliver them only as Set-Cookie. Capture headers before consuming
+    // the body.
+    let set_cookie_values: Vec<String> = response
+        .headers()
+        .get_all(reqwest::header::SET_COOKIE)
+        .iter()
+        .filter_map(|v| v.to_str().ok().map(str::to_string))
+        .collect();
 
     let poll_response: QrCodePollResponse = response
         .json()
@@ -306,7 +330,22 @@ pub async fn poll_qr_status(app: &AppHandle, qrcode_key: &str) -> Result<QrPollR
 
     // On success, extract cookies and store session
     if status == QrCodeStatus::Success {
-        let mut session = extract_session_from_url(&data.url, &data.refresh_token, data.timestamp)?;
+        let mut session = match extract_session(
+            &data.url,
+            &set_cookie_values,
+            &data.refresh_token,
+            data.timestamp,
+        ) {
+            Ok(session) => session,
+            Err(e) => {
+                log::error!("[BE] poll_qr_status: {}", e);
+                return Ok(QrPollResult {
+                    status: QrCodeStatus::Error,
+                    message: e,
+                    session: None,
+                });
+            }
+        };
 
         // Fetch buvid3/buvid4 for WBI authentication
         match fetch_buvid().await {
@@ -324,16 +363,32 @@ pub async fn poll_qr_status(app: &AppHandle, qrcode_key: &str) -> Result<QrPollR
         // Also update the in-memory cookie cache for immediate use
         update_cookie_cache(app, &session);
 
-        // Fetch username from user info API
+        // Confirm the extracted cookies actually authenticate. An empty or
+        // stale SESSDATA used to produce "login successful" in the UI while
+        // `/x/web-interface/nav` still returned isLogin=false.
         match fetch_user_info(app).await {
-            Ok(user) => {
+            Ok(user) if user.data.is_login => {
                 if let Some(uname) = user.data.uname {
                     session.uname = uname;
                 }
             }
+            Ok(user) => {
+                log::error!(
+                    "[BE] poll_qr_status: cookies rejected by nav API (is_login=false, code={})",
+                    user.code
+                );
+                clear_cookie_cache(app);
+                return Ok(QrPollResult {
+                    status: QrCodeStatus::Error,
+                    message: "Login cookies were not accepted".to_string(),
+                    session: None,
+                });
+            }
             Err(e) => {
-                log::debug!("[BE] Failed to fetch user info: {}", e);
-                // Continue without uname - not critical
+                log::warn!(
+                    "[BE] poll_qr_status: nav API failed after QR login, keeping session: {}",
+                    e
+                );
             }
         }
 
@@ -394,36 +449,60 @@ async fn fetch_buvid() -> Result<(String, String), String> {
     Ok((data.b_3, data.b_4))
 }
 
-/// Extracts session data from the login URL.
+/// Builds a session from the QR poll payload.
 ///
-/// The URL contains query parameters with cookie values.
-fn extract_session_from_url(
+/// Credentials may arrive as query params on `data.url` (legacy) and/or as
+/// `Set-Cookie` headers on the poll response (current Bilibili clients).
+/// Header values overlay URL params. `SESSDATA` must be present or login is
+/// treated as failed rather than stored as an empty session.
+fn extract_session(
     url: &str,
+    set_cookie_values: &[String],
     refresh_token: &str,
     timestamp: i64,
 ) -> Result<Session, String> {
-    // Parse URL and extract query parameters
-    let parsed_url = Url::parse(url).map_err(|e| format!("Failed to parse login URL: {}", e))?;
+    let mut fields = std::collections::HashMap::new();
 
-    let query_pairs: std::collections::HashMap<String, String> = parsed_url
-        .query_pairs()
-        .map(|(k, v)| (k.to_string(), v.to_string()))
-        .collect();
+    if !url.is_empty() {
+        if let Ok(parsed_url) = Url::parse(url) {
+            for (k, v) in parsed_url.query_pairs() {
+                fields.insert(k.to_string(), v.to_string());
+            }
+        }
+    }
+
+    for (k, v) in parse_set_cookie_values(set_cookie_values) {
+        fields.insert(k, v);
+    }
+
+    let sessdata = fields.get("SESSDATA").cloned().unwrap_or_default();
+    if sessdata.is_empty() {
+        return Err(
+            "Failed to extract SESSDATA from QR login response (url and Set-Cookie were empty)"
+                .to_string(),
+        );
+    }
 
     Ok(Session {
-        sessdata: query_pairs.get("SESSDATA").cloned().unwrap_or_default(),
-        bili_jct: query_pairs.get("bili_jct").cloned().unwrap_or_default(),
-        dede_user_id: query_pairs.get("DedeUserID").cloned().unwrap_or_default(),
-        dede_user_id_ck_md5: query_pairs
-            .get("DedeUserID__ckMd5")
-            .cloned()
-            .unwrap_or_default(),
+        sessdata,
+        bili_jct: fields.get("bili_jct").cloned().unwrap_or_default(),
+        dede_user_id: fields.get("DedeUserID").cloned().unwrap_or_default(),
+        dede_user_id_ck_md5: fields.get("DedeUserID__ckMd5").cloned().unwrap_or_default(),
         refresh_token: refresh_token.to_string(),
         timestamp,
         uname: String::new(),
         buvid3: String::new(),
         buvid4: String::new(),
     })
+}
+
+/// Extracts session data from the login URL only (legacy helper for tests).
+fn extract_session_from_url(
+    url: &str,
+    refresh_token: &str,
+    timestamp: i64,
+) -> Result<Session, String> {
+    extract_session(url, &[], refresh_token, timestamp)
 }
 
 /// Saves the session to encrypted file storage and login method to store.
@@ -1129,17 +1208,39 @@ mod tests {
     }
 
     #[test]
-    fn extract_session_from_url_missing_params_default_empty() {
-        let session =
-            extract_session_from_url("https://example.com/crossDomain?x=1", "rt", 1).unwrap();
-        assert!(session.sessdata.is_empty());
-        assert!(session.bili_jct.is_empty());
-        assert_eq!(session.refresh_token, "rt");
+    fn extract_session_from_url_missing_sessdata_errors() {
+        let err =
+            extract_session_from_url("https://example.com/crossDomain?x=1", "rt", 1).unwrap_err();
+        assert!(err.contains("SESSDATA"), "{err}");
     }
 
     #[test]
     fn extract_session_from_url_rejects_garbage() {
         assert!(extract_session_from_url("not a url", "rt", 1).is_err());
+    }
+
+    #[test]
+    fn extract_session_from_set_cookie_when_url_has_no_credentials() {
+        let cookies = vec![
+            "SESSDATA=from-header; Path=/; HttpOnly".to_string(),
+            "bili_jct=csrf; Path=/".to_string(),
+            "DedeUserID=99; Path=/".to_string(),
+            "DedeUserID__ckMd5=md5; Path=/".to_string(),
+        ];
+        let session = extract_session("https://www.bilibili.com/", &cookies, "rt", 1).unwrap();
+        assert_eq!(session.sessdata, "from-header");
+        assert_eq!(session.bili_jct, "csrf");
+        assert_eq!(session.dede_user_id, "99");
+        assert_eq!(session.dede_user_id_ck_md5, "md5");
+    }
+
+    #[test]
+    fn extract_session_set_cookie_overlays_url() {
+        let url = "https://passport.biligame.com/crossDomain?SESSDATA=from-url&bili_jct=old";
+        let cookies = vec!["SESSDATA=from-header; Path=/".to_string()];
+        let session = extract_session(url, &cookies, "rt", 1).unwrap();
+        assert_eq!(session.sessdata, "from-header");
+        assert_eq!(session.bili_jct, "old");
     }
 
     #[test]
