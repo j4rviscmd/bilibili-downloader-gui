@@ -12,12 +12,10 @@
 //! - Folder list: `GET https://api.bilibili.com/x/v3/fav/folder/created/list-all`
 //! - Folder contents: `GET https://api.bilibili.com/x/v3/fav/resource/list`
 
-use reqwest::header;
 use serde_json;
 use tauri::AppHandle;
 
-use crate::constants::REFERER;
-use crate::handlers::bilibili::{build_client, build_cookie_header_from_cache};
+use crate::handlers::bilibili::{build_cookie_header_from_cache, BiliApi};
 use crate::models::bilibili_api::{FavoriteFolderListApiResponse, FavoriteResourceListApiResponse};
 use crate::models::frontend_dto::{
     FavoriteFolder, FavoriteFolderUpperDto, FavoriteVideo, FavoriteVideoListResponse,
@@ -72,19 +70,17 @@ pub async fn fetch_favorite_folders(
     );
     let cookie_header = build_cookie_header_from_cache(app)?;
 
-    let client = build_client()?;
-    let url = format!(
-        "https://api.bilibili.com/x/v3/fav/folder/created/list-all?up_mid={}&type=2",
-        mid
-    );
-
-    let raw_text = client
-        .get(&url)
-        .header(header::COOKIE, &cookie_header)
-        .header(header::REFERER, REFERER)
-        .send()
-        .await
-        .map_err(|e| format!("Failed to fetch favorite folders: {e}"))?
+    // Why: BiliApi::get status-checks the response, which this module's fetchers
+    // previously skipped; a 429/5xx used to fall through to the JSON parse below
+    // and surface as a parse error instead of an ERR:: code the frontend can map
+    // (src/shared/lib/mapBackendError.ts).
+    let api = BiliApi::from_cookie_header(cookie_header)?;
+    let raw_text = api
+        .get(&format!(
+            "/x/v3/fav/folder/created/list-all?up_mid={}&type=2",
+            mid
+        ))
+        .await?
         .text()
         .await
         .map_err(|e| format!("Failed to read favorite folders response: {e}"))?;
@@ -190,19 +186,17 @@ pub async fn fetch_favorite_videos(
     );
     let cookie_header = build_cookie_header_from_cache(app)?;
 
-    let client = build_client()?;
-    let url = format!(
-        "https://api.bilibili.com/x/v3/fav/resource/list?media_id={}&pn={}&ps={}&order=mtime&type=0&platform=web",
-        media_id, page_num, page_size
-    );
-
-    let response = client
-        .get(&url)
-        .header(header::COOKIE, &cookie_header)
-        .header(header::REFERER, REFERER)
-        .send()
-        .await
-        .map_err(|e| format!("Failed to fetch favorite videos: {e}"))?
+    // Why: BiliApi::get status-checks the response, which this module's fetchers
+    // previously skipped; a 429/5xx used to fall through to the JSON parse below
+    // and surface as a parse error instead of an ERR:: code the frontend can map
+    // (src/shared/lib/mapBackendError.ts).
+    let api = BiliApi::from_cookie_header(cookie_header)?;
+    let response = api
+        .get(&format!(
+            "/x/v3/fav/resource/list?media_id={}&pn={}&ps={}&order=mtime&type=0&platform=web",
+            media_id, page_num, page_size
+        ))
+        .await?
         .json::<FavoriteResourceListApiResponse>()
         .await
         .map_err(|e| format!("Failed to parse favorite videos response: {e}"))?;

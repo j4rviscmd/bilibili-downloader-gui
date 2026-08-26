@@ -17,6 +17,9 @@ pub const USER_AGENT: &str = concat!(
 /// Required by Bilibili's API for request validation.
 pub const REFERER: &str = "https://www.bilibili.com";
 
+/// Bilibili web-API origin used by every API fetcher (see `BiliApi`).
+pub const API_BASE: &str = "https://api.bilibili.com";
+
 /// Minimum download speed threshold in bytes per second.
 ///
 /// If the download speed is below this threshold for the configured interval,
