@@ -78,14 +78,13 @@ const loginSlice = createSlice({
       state.error = action.payload
       state.isQrLoading = false
     },
-    /** Clears QR code and related state. Does not affect loginMethod. */
+    /** Clears QR code and related state. Does not affect loginMethod or session. */
     clearQrCode(state) {
       state.qrCodeImage = null
       state.qrcodeKey = null
       state.qrStatus = null
       state.statusMessage = ''
       state.isQrLoading = false
-      state.session = null
     },
     /** Resets entire login state to initial values. */
     resetLogin(state) {
