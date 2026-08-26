@@ -154,13 +154,13 @@ pub struct DownloadOptions {
     pub ep_id: Option<i64>,
 }
 
-use crate::constants::REFERER;
+use crate::constants::{API_BASE, REFERER};
 use crate::handlers::cookie::read_cookie;
 use crate::handlers::settings;
 use crate::models::bilibili_api::{
     BangumiPlayerApiResponse, BangumiPlayerResult, BangumiSeasonApiResponse, PlayerV2ApiResponse,
-    UserApiResponse, WatchHistoryApiResponse, WebInterfaceApiResponse, XPlayerApiResponse,
-    XPlayerApiResponseData, XPlayerApiResponseVideo,
+    UserApiResponse, WatchHistoryApiResponse, WebInterfaceApiResponse, WebInterfaceApiResponseData,
+    XPlayerApiResponse, XPlayerApiResponseData, XPlayerApiResponseVideo,
 };
 use crate::models::cookie::CookieEntry;
 use crate::models::frontend_dto::{
@@ -206,6 +206,80 @@ pub fn build_client() -> Result<Client, String> {
         .user_agent(USER_AGENT)
         .build()
         .map_err(|e| format!("failed to build client: {e}"))
+}
+
+/// Bilibili web-API transport: client + base URL + cookie header.
+///
+/// Why: every fetcher previously hardcoded `https://api.bilibili.com` and
+/// called `build_client()` inline, leaving the transport untestable. All
+/// GET fetchers now route through this struct so wiremock tests can point
+/// `base` at a local server. Error strings from the transport are the
+/// unified `"BiliApi request failed: ..."` form (non-`ERR::` freeform
+/// messages; only `ERR::` codes are mapped by the frontend).
+pub(crate) struct BiliApi {
+    http: Client,
+    /// API origin, e.g. "https://api.bilibili.com" (wiremock URL in tests)
+    base: String,
+    /// Pre-built Cookie header value; empty when logged out
+    cookie_header: String,
+}
+
+impl BiliApi {
+    /// Test constructor: explicit transport parts, no AppHandle needed.
+    pub(crate) fn new(
+        http: Client,
+        base: impl Into<String>,
+        cookie_header: impl Into<String>,
+    ) -> Self {
+        Self {
+            http,
+            base: base.into(),
+            cookie_header: cookie_header.into(),
+        }
+    }
+
+    /// Production constructor from a pre-built Cookie header value.
+    pub(crate) fn from_cookie_header(cookie_header: impl Into<String>) -> Result<Self, String> {
+        Ok(Self::new(build_client()?, API_BASE, cookie_header))
+    }
+
+    /// Production constructor from raw cookie entries.
+    fn from_cookies(cookies: &[CookieEntry]) -> Result<Self, String> {
+        Self::from_cookie_header(build_cookie_header(cookies))
+    }
+
+    /// GET `{base}{path}` with Cookie/Referer headers, returning the
+    /// status-checked response so callers keep their own parse/validate
+    /// semantics (json vs text, ERR:: code mapping variants).
+    pub(crate) async fn get(&self, path: &str) -> Result<reqwest::Response, String> {
+        self.get_q(path, &[]).await
+    }
+
+    // Why: WBI-signed query values can contain reserved characters (`&`, spaces;
+    // see w_rid in bili_api_get_q_encodes_query_pairs). reqwest's query encoder
+    // percent-encodes them, while format!-embedding them into the path would send
+    // raw bytes and break server-side parsing of the signed parameters.
+    /// GET variant with reqwest-encoded query pairs (WBI-signed requests).
+    pub(crate) async fn get_q(
+        &self,
+        path: &str,
+        query: &[(&str, String)],
+    ) -> Result<reqwest::Response, String> {
+        let mut req = self
+            .http
+            .get(format!("{}{}", self.base, path))
+            .header(header::REFERER, REFERER);
+        if !self.cookie_header.is_empty() {
+            req = req.header(header::COOKIE, &self.cookie_header);
+        }
+        let response = req
+            .query(query)
+            .send()
+            .await
+            .map_err(|e| format!("BiliApi request failed: {e}"))?;
+        check_http_status(response.status())?;
+        Ok(response)
+    }
 }
 
 /// Validates Bilibili API response and returns appropriate error codes.
@@ -1572,6 +1646,254 @@ mod tests {
         // Must not panic on a nonexistent directory.
         cleanup_subtitle_files(&missing, "any");
     }
+
+    // ---- BiliApi transport (wiremock) ----
+
+    fn bili_api_mock(base: &str, cookie: &str) -> BiliApi {
+        BiliApi::new(Client::new(), base, cookie)
+    }
+
+    #[tokio::test]
+    async fn bili_api_sends_cookie_and_referer_headers() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/nav"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0", "ttl": 1,
+                    "data": { "isLogin": true, "mid": 42, "uname": "u",
+                              "wbi_img": { "img_url": "i", "sub_url": "s" } }
+                })),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let api = bili_api_mock(&server.uri(), "SESSDATA=abc");
+        let body: UserApiResponse = api
+            .get("/x/web-interface/nav")
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert!(body.data.is_login);
+
+        let req = &server.received_requests().await.unwrap()[0];
+        assert_eq!(req.headers.get("cookie").unwrap(), "SESSDATA=abc");
+        assert_eq!(req.headers.get("referer").unwrap(), REFERER);
+    }
+
+    #[tokio::test]
+    async fn bili_api_omits_empty_cookie_header() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"code": 0, "message": "0", "data": null})),
+            )
+            .mount(&server)
+            .await;
+
+        let api = bili_api_mock(&server.uri(), "");
+        let _: WebInterfaceApiResponse = api
+            .get("/x/web-interface/view?bvid=x")
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+
+        let req = &server.received_requests().await.unwrap()[0];
+        assert!(
+            req.headers.get("cookie").is_none(),
+            "logged-out requests must not carry an empty Cookie header"
+        );
+    }
+
+    #[tokio::test]
+    async fn bili_api_maps_429_to_rate_limited() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(wiremock::ResponseTemplate::new(429))
+            .mount(&server)
+            .await;
+
+        let api = bili_api_mock(&server.uri(), "SESSDATA=x");
+        let err = api.get("/x/web-interface/nav").await.unwrap_err();
+        assert_eq!(err, "ERR::RATE_LIMITED");
+    }
+
+    #[tokio::test]
+    async fn bili_api_maps_server_error_to_api_error() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(wiremock::ResponseTemplate::new(502))
+            .mount(&server)
+            .await;
+
+        let api = bili_api_mock(&server.uri(), "");
+        let err = api.get("/x/web-interface/nav").await.unwrap_err();
+        assert_eq!(err, "ERR::API_ERROR");
+    }
+
+    #[tokio::test]
+    async fn bili_api_get_q_encodes_query_pairs() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::query_param("bvid", "BV1xx"))
+            .and(wiremock::matchers::query_param("cid", "100"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"code": 0, "message": "0", "data": null})),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let api = bili_api_mock(&server.uri(), "SESSDATA=x");
+        let query = vec![
+            ("bvid", "BV1xx".to_string()),
+            ("cid", "100".to_string()),
+            ("w_rid", "a b&c".to_string()), // URL-encoded by reqwest
+        ];
+        let _: XPlayerApiResponse = api
+            .get_q("/x/player/wbi/playurl", &query)
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        server.verify().await;
+    }
+
+    #[tokio::test]
+    async fn bili_api_validator_maps_unauthorized_code() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"code": -101, "message": "not logged in"})),
+            )
+            .mount(&server)
+            .await;
+
+        // Same transport shape fetch_video_title_by_build builds via
+        // from_cookies; constructed manually so `base` targets the mock
+        // server while the validator path stays under test.
+        let api = BiliApi::new(Client::new(), server.uri(), "SESSDATA=stale");
+        let body: WebInterfaceApiResponse = api
+            .get("/x/web-interface/view?bvid=x")
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(
+            validate_api_response(body.code, body.data.as_ref()),
+            Err("ERR::UNAUTHORIZED".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn expand_short_url_follows_redirect_chain() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::path("/short"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(302)
+                    .insert_header("Location", &format!("{}/video/BV1final", server.uri())),
+            )
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::path("/video/BV1final"))
+            .respond_with(wiremock::ResponseTemplate::new(200))
+            .mount(&server)
+            .await;
+
+        let client = Client::builder()
+            .redirect(reqwest::redirect::Policy::limited(5))
+            .build()
+            .unwrap();
+        let expanded = expand_short_url_with(client, format!("{}/short", server.uri()))
+            .await
+            .unwrap();
+        assert!(expanded.ends_with("/video/BV1final"), "{expanded}");
+    }
+
+    // ---- web_interface_data_to_video ----
+
+    use crate::models::bilibili_api::WebInterfaceApiResponsePage;
+
+    fn view_data(
+        title: &str,
+        pic: &str,
+        cid: i64,
+        pages: Option<Vec<WebInterfaceApiResponsePage>>,
+    ) -> WebInterfaceApiResponseData {
+        WebInterfaceApiResponseData {
+            title: title.into(),
+            pic: pic.into(),
+            cid,
+            pages,
+            redirect_url: None,
+        }
+    }
+
+    fn page(cid: i64, page: i32, part: &str, duration: i64) -> WebInterfaceApiResponsePage {
+        WebInterfaceApiResponsePage {
+            cid,
+            page,
+            part: part.into(),
+            duration,
+            first_frame: None,
+        }
+    }
+
+    #[test]
+    fn web_interface_data_to_video_single_part_falls_back_to_title() {
+        let data = view_data("Main Title", "http://pic", 7, Some(vec![]));
+        let video = web_interface_data_to_video(&data, "BV1x", None, false, true);
+        assert_eq!(video.parts.len(), 1);
+        assert_eq!(video.parts[0].cid, 7);
+        assert_eq!(video.parts[0].part, "Main Title");
+        assert_eq!(video.parts[0].sanitized_part.as_deref(), Some("Main Title"));
+        assert_eq!(video.parts[0].thumbnail.url, "http://pic");
+        assert!(video.is_limited_quality);
+        assert_eq!(video.content_type, "video");
+    }
+
+    #[test]
+    fn web_interface_data_to_video_multi_part_names_and_thumbs() {
+        let pages = vec![
+            page(1, 1, "Part A", 60),
+            page(2, 2, "", 30), // empty part name -> main title; no first_frame -> pic
+        ];
+        let data = view_data("T", "http://pic", 0, Some(pages));
+        let video = web_interface_data_to_video(&data, "BV1x", None, false, false);
+        assert_eq!(video.parts.len(), 2);
+        assert_eq!(video.parts[0].part, "Part A");
+        assert_eq!(video.parts[1].part, "T");
+        assert_eq!(video.parts[1].thumbnail.url, "http://pic");
+        assert_eq!(video.parts[1].duration, 30);
+    }
+
+    #[test]
+    fn web_interface_data_to_video_resolves_duplicate_sanitized_names() {
+        let pages = vec![page(1, 1, "same", 1), page(2, 2, "same", 1)];
+        let data = view_data("T", "p", 0, Some(pages));
+        let video = web_interface_data_to_video(&data, "BV1x", None, true, false);
+        assert_eq!(video.parts[0].sanitized_part.as_deref(), Some("same"));
+        assert_eq!(video.parts[1].sanitized_part.as_deref(), Some("same (1)"));
+    }
+
+    #[test]
+    fn web_interface_data_to_video_applies_title_replacements() {
+        use crate::models::settings::TitleReplacement;
+        let data = view_data("a:b", "p", 1, Some(vec![]));
+        let rules = [TitleReplacement::new(":", "_", true)];
+        let video = web_interface_data_to_video(&data, "BV1x", Some(&rules), false, false);
+        assert_eq!(video.title, "a_b");
+        assert_eq!(video.parts[0].sanitized_part.as_deref(), Some("a_b"));
+    }
 }
 
 /// Spawns an async task to save download history.
@@ -1756,19 +2078,14 @@ async fn fetch_video_info_for_history(
     bvid: &str,
     cookies: &[CookieEntry],
 ) -> Option<(String, Option<String>)> {
-    let client = build_client().ok()?;
-    let cookie_header = build_cookie_header(cookies);
-    let url = format!("https://api.bilibili.com/x/web-interface/view?bvid={bvid}");
-
-    let response = client
-        .get(url)
-        .header(header::COOKIE, cookie_header)
-        .header(reqwest::header::REFERER, REFERER)
-        .send()
+    let api = BiliApi::from_cookies(cookies).ok()?;
+    let body: WebInterfaceApiResponse = api
+        .get(&format!("/x/web-interface/view?bvid={bvid}"))
+        .await
+        .ok()?
+        .json()
         .await
         .ok()?;
-    check_http_status(response.status()).ok()?;
-    let body: WebInterfaceApiResponse = response.json().await.ok()?;
 
     let data = body.data?;
     let thumbnail_url = (!data.pic.is_empty()).then_some(data.pic);
@@ -2062,16 +2379,10 @@ pub async fn fetch_user_info(app: &AppHandle) -> Result<User, String> {
         });
     }
 
-    let client = build_client()?;
-    let response = client
-        .get("https://api.bilibili.com/x/web-interface/nav")
-        .header(header::COOKIE, cookie_header)
-        .header(reqwest::header::REFERER, REFERER)
-        .send()
-        .await
-        .map_err(|e| format!("Failed to fetch user info: {e}"))?;
-    check_http_status(response.status())?;
-    let body = response
+    let api = BiliApi::from_cookie_header(cookie_header)?;
+    let body = api
+        .get("/x/web-interface/nav")
+        .await?
         .json::<UserApiResponse>()
         .await
         .map_err(|e| format!("UserApi Failed to parse response JSON:: {e}"))?;
@@ -2160,8 +2471,6 @@ pub fn build_cookie_header_from_cache(app: &AppHandle) -> Result<String, String>
 /// - Video is not found (`ERR::VIDEO_NOT_FOUND`)
 /// - API request fails (`ERR::API_ERROR`)
 pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String> {
-    use crate::utils::sanitize::{apply_title_replacements, resolve_duplicate_titles};
-
     log::info!("[BE] fetch_video_info: requesting video info for id={}", id);
 
     let cookies = read_cookie(app)?.unwrap_or_default();
@@ -2184,7 +2493,6 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
         }
     }
 
-    // Get settings for title replacement
     let settings = settings::get_settings(app).await.ok();
     let replacements = settings
         .as_ref()
@@ -2194,9 +2502,30 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
         .and_then(|s| s.auto_rename_duplicates)
         .unwrap_or(true);
 
-    // Apply title replacement to the main title
-    let sanitized_title = apply_title_replacements(&data.title, replacements);
+    Ok(web_interface_data_to_video(
+        data,
+        id,
+        replacements,
+        auto_rename,
+        is_limited_quality,
+    ))
+}
 
+/// Maps a WebInterface view response into the frontend `Video` DTO.
+///
+/// Extracted from `fetch_video_info` so the mapping (title sanitization,
+/// single-part vs multi-part shaping, duplicate-title resolution) is
+/// testable without network access.
+fn web_interface_data_to_video(
+    data: &WebInterfaceApiResponseData,
+    id: &str,
+    replacements: Option<&[crate::models::settings::TitleReplacement]>,
+    auto_rename: bool,
+    is_limited_quality: bool,
+) -> Video {
+    use crate::utils::sanitize::{apply_title_replacements, resolve_duplicate_titles};
+
+    let sanitized_title = apply_title_replacements(&data.title, replacements);
     let pages = data.pages.as_deref().unwrap_or(&[]);
 
     let mut parts = if pages.is_empty() {
@@ -2231,7 +2560,6 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
                 } else {
                     &page.part
                 };
-                // Apply title replacement to part name
                 let sanitized_part = apply_title_replacements(part_name, replacements);
                 VideoPart {
                     cid: page.cid,
@@ -2254,7 +2582,6 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
             .collect()
     };
 
-    // Apply duplicate title resolution if enabled
     if auto_rename {
         let sanitized_titles: Vec<String> = parts
             .iter()
@@ -2262,7 +2589,6 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
             .cloned()
             .collect();
         let resolved_titles = resolve_duplicate_titles(&sanitized_titles);
-        // Apply resolved titles back to sanitized_part
         let mut resolved_iter = resolved_titles.into_iter();
         for part in parts.iter_mut() {
             if part.sanitized_part.is_some() {
@@ -2271,7 +2597,7 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
         }
     }
 
-    Ok(Video {
+    Video {
         title: sanitized_title,
         bvid: id.to_string(),
         parts,
@@ -2279,7 +2605,7 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
         content_type: "video".to_string(),
         ep_id: None,
         season_title: None,
-    })
+    }
 }
 
 /// Converts API video/audio quality data to frontend DTO format.
@@ -2350,18 +2676,10 @@ async fn fetch_video_title_by_bvid(
     bvid: &str,
     cookies: &[CookieEntry],
 ) -> Result<WebInterfaceApiResponse, String> {
-    let client = build_client()?;
-    let url = format!("https://api.bilibili.com/x/web-interface/view?bvid={bvid}");
-
-    let response = client
-        .get(url)
-        .header(header::COOKIE, build_cookie_header(cookies))
-        .header(reqwest::header::REFERER, REFERER)
-        .send()
-        .await
-        .map_err(|e| format!("WebInterface Api Failed to fetch video info: {e}"))?;
-    check_http_status(response.status())?;
-    let body: WebInterfaceApiResponse = response
+    let api = BiliApi::from_cookies(cookies)?;
+    let body: WebInterfaceApiResponse = api
+        .get(&format!("/x/web-interface/view?bvid={bvid}"))
+        .await?
         .json()
         .await
         .map_err(|e| format!("WebInterface Api Failed to parse response JSON: {e}"))?;
@@ -2402,15 +2720,10 @@ async fn fetch_video_details(
         bvid,
         cid
     );
-    let client = build_client()?;
-    let cookie_header = build_cookie_header(cookies);
+    let api = BiliApi::from_cookies(cookies)?;
     let mixin_key = crate::utils::wbi::fetch_mixin_key(
-        &client,
-        if cookie_header.is_empty() {
-            None
-        } else {
-            Some(&cookie_header)
-        },
+        &api.http,
+        (!api.cookie_header.is_empty()).then_some(&api.cookie_header),
     )
     .await?;
 
@@ -2432,16 +2745,9 @@ async fn fetch_video_details(
     query.push(("w_rid", signature.w_rid.clone()));
     query.push(("wts", signature.wts.clone()));
 
-    let response = client
-        .get("https://api.bilibili.com/x/player/wbi/playurl")
-        .header(header::COOKIE, build_cookie_header(cookies))
-        .header(header::REFERER, "https://www.bilibili.com")
-        .query(&query)
-        .send()
-        .await
-        .map_err(|e| format!("XPlayerApi Failed to fetch video info: {e}"))?;
-    check_http_status(response.status())?;
-    let body: XPlayerApiResponse = response
+    let body: XPlayerApiResponse = api
+        .get_q("/x/player/wbi/playurl", &query)
+        .await?
         .json()
         .await
         .map_err(|e| format!("XPlayerApi Failed to parse response JSON: {e}"))?;
@@ -2884,23 +3190,21 @@ pub async fn fetch_watch_history(
 
     // 2. API call
     // Omit parameters on first request; use max/view_at for subsequent pages
-    let client = build_client()?;
-    let url = if max == 0 && view_at == 0 {
-        "https://api.bilibili.com/x/web-interface/history/cursor?business=archive".to_string()
+    let api = BiliApi::from_cookie_header(cookie_header)?;
+    let path = if max == 0 && view_at == 0 {
+        "/x/web-interface/history/cursor?business=archive".to_string()
     } else {
         format!(
-            "https://api.bilibili.com/x/web-interface/history/cursor?max={}&view_at={}&business=archive",
+            "/x/web-interface/history/cursor?max={}&view_at={}&business=archive",
             max, view_at
         )
     };
 
-    let response = client
-        .get(&url)
-        .header(header::COOKIE, cookie_header)
-        .header(reqwest::header::REFERER, REFERER)
-        .send()
-        .await
-        .map_err(|e| format!("Failed to fetch watch history: {e}"))?;
+    // Why: BiliApi::get status-checks the response, which this fetcher previously
+    // skipped; a 429/5xx used to fall through to the JSON parse below and surface
+    // as a parse error instead of ERR::RATE_LIMITED, the code the frontend maps
+    // for rate-limit handling (src/shared/lib/mapBackendError.ts).
+    let response = api.get(&path).await?;
 
     let response_text = response
         .text()
@@ -3042,30 +3346,17 @@ pub async fn fetch_subtitles(
     query.push(("w_rid", signature.w_rid));
     query.push(("wts", signature.wts));
 
-    let response = match client
-        .get("https://api.bilibili.com/x/player/wbi/v2")
-        .header(header::COOKIE, &cookie_header)
-        .header(header::REFERER, "https://www.bilibili.com")
-        .query(&query)
-        .send()
+    // Transport errors (send failure or non-2xx status) both soft-fail here.
+    let response = match BiliApi::new(Client::clone(client), API_BASE, cookie_header)
+        .get_q("/x/player/wbi/v2", &query)
         .await
     {
         Ok(resp) => resp,
         Err(e) => {
-            log::error!("[BE] fetch_subtitles: HTTP request failed: {}", e);
+            log::error!("[BE] fetch_subtitles: request failed: {e}");
             return Vec::new();
         }
     };
-
-    let status = response.status();
-    if !status.is_success() {
-        log::error!(
-            "[BE] fetch_subtitles: API returned \
-             non-success status: {}",
-            status
-        );
-        return Vec::new();
-    }
 
     let body: PlayerV2ApiResponse = match response.json().await {
         Ok(b) => b,
@@ -3653,22 +3944,10 @@ pub async fn fetch_bangumi_info(app: &AppHandle, ep_id: i64) -> Result<Video, St
     let cookie_header = build_cookie_header(&cookies);
     let is_limited_quality = cookie_header.is_empty();
 
-    let client = build_client()?;
-    let url = format!(
-        "https://api.bilibili.com/pgc/view/web/season?ep_id={}",
-        ep_id
-    );
-
-    let response = client
-        .get(&url)
-        .header(header::COOKIE, &cookie_header)
-        .header(header::REFERER, "https://www.bilibili.com")
-        .send()
-        .await
-        .map_err(|e| format!("Failed to fetch bangumi info: {}", e))?;
-
-    check_http_status(response.status())?;
-    let body: BangumiSeasonApiResponse = response
+    let api = BiliApi::from_cookie_header(cookie_header)?;
+    let body: BangumiSeasonApiResponse = api
+        .get(&format!("/pgc/view/web/season?ep_id={}", ep_id))
+        .await?
         .json()
         .await
         .map_err(|e| format!("Failed to parse bangumi response: {}", e))?;
@@ -3791,23 +4070,15 @@ async fn fetch_bangumi_player_result(
     ep_id: i64,
     cid: i64,
 ) -> Result<BangumiPlayerResult, String> {
-    let client = build_client()?;
     let cookie_header = build_cookie_header(cookies);
+    let api = BiliApi::from_cookie_header(cookie_header)?;
 
-    let url = format!(
-        "https://api.bilibili.com/pgc/player/web/playurl?ep_id={}&cid={}&qn=116&fnval=2064&fnver=0&fourk=1",
-        ep_id, cid
-    );
-
-    let response = client
-        .get(&url)
-        .header(header::COOKIE, &cookie_header)
-        .header(header::REFERER, "https://www.bilibili.com")
-        .send()
-        .await
-        .map_err(|e| format!("Failed to fetch bangumi playurl: {}", e))?;
-
-    check_http_status(response.status())?;
+    let response = api
+        .get(&format!(
+            "/pgc/player/web/playurl?ep_id={}&cid={}&qn=116&fnval=2064&fnver=0&fourk=1",
+            ep_id, cid
+        ))
+        .await?;
 
     let body: BangumiPlayerApiResponse = response
         .json()
@@ -4146,6 +4417,12 @@ pub async fn expand_short_url(url: String) -> Result<String, String> {
         .build()
         .map_err(|e| format!("ERR::SHORT_URL_EXPAND: failed to build client: {}", e))?;
 
+    expand_short_url_with(client, url).await
+}
+
+/// Redirect-following expansion over an injected client so wiremock tests
+/// can exercise the redirect chain against a local server.
+async fn expand_short_url_with(client: Client, url: String) -> Result<String, String> {
     let response = client
         .get(&url)
         .send()
