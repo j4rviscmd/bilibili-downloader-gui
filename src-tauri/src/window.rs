@@ -456,49 +456,100 @@ fn available_monitors(app: &AppHandle) -> Vec<tauri::Monitor> {
     app.available_monitors().unwrap_or_default()
 }
 
-/// Returns true if the given logical dimensions are at least as large as some
-/// monitor's work area — i.e. the size corresponds to a maximized window, not
-/// a normal user-chosen size.
+/// A monitor's geometry in logical coordinates plus its work-area size.
 ///
-/// Why: maximize() can dispatch its Resized event before is_maximized() flips
-/// to true, so without this guard a maximized window would be persisted with
-/// work-area-sized bounds as the "normal" geometry, corrupting the real normal
-/// size. It also self-heals store entries written that way by older versions.
-fn is_maximize_sized(app: &AppHandle, width: f64, height: f64) -> bool {
-    available_monitors(app).iter().any(|m| {
-        let work = m.work_area();
+/// Extracted from the AppHandle-coupled checks so the geometry math is
+/// unit-testable without a running window manager.
+#[derive(Debug, Clone, Copy)]
+struct MonitorRect {
+    /// Monitor origin in logical coordinates
+    x: f64,
+    y: f64,
+    /// Full monitor size in logical coordinates
+    w: f64,
+    h: f64,
+    /// Work-area (menu-bar/taskbar excluded) size in logical coordinates
+    work_w: f64,
+    work_h: f64,
+}
+
+impl MonitorRect {
+    /// Physical-px tolerance for window-manager borders (see
+    /// `position_on_screen`); converted to logical per monitor scale.
+    const OFFSCREEN_MARGIN_PHYSICAL_PX: f64 = 16.0;
+
+    fn from_tauri(m: &tauri::Monitor) -> Self {
         let scale = m.scale_factor();
-        let work_w = work.size.width as f64 / scale;
-        let work_h = work.size.height as f64 / scale;
-        width >= work_w && height >= work_h
-    })
+        let pos = m.position();
+        let size = m.size();
+        let work = m.work_area();
+        Self {
+            x: pos.x as f64 / scale,
+            y: pos.y as f64 / scale,
+            w: size.width as f64 / scale,
+            h: size.height as f64 / scale,
+            work_w: work.size.width as f64 / scale,
+            work_h: work.size.height as f64 / scale,
+        }
+    }
+
+    /// True when the given logical dimensions are at least as large as this
+    /// monitor's work area — i.e. the size corresponds to a maximized window,
+    /// not a normal user-chosen size.
+    ///
+    /// Why: maximize() can dispatch its Resized event before is_maximized()
+    /// flips to true, so without this guard a maximized window would be
+    /// persisted with work-area-sized bounds as the "normal" geometry,
+    /// corrupting the real normal size. It also self-heals store entries
+    /// written that way by older versions.
+    fn maximize_sized(&self, width: f64, height: f64) -> bool {
+        width >= self.work_w && height >= self.work_h
+    }
+
+    /// True when the given logical coordinates fall within this monitor,
+    /// allowing a small negative-direction margin.
+    fn contains_point(&self, scale: f64, x: f64, y: f64) -> bool {
+        // Why: Windows has an invisible resize border (~7 physical px), so a
+        // window snapped to the screen's left/top edge reports a slightly
+        // negative outer_position. Strictly rejecting that marks the saved
+        // geometry as "offscreen" and falls back to defaults, losing both
+        // size and position restore (surfaces after Win+arrow snap or
+        // un-maximize). Allow a small physical-px margin in the negative
+        // direction to tolerate this.
+        let margin = Self::OFFSCREEN_MARGIN_PHYSICAL_PX / scale;
+        x >= self.x - margin && x < self.x + self.w && y >= self.y - margin && y < self.y + self.h
+    }
+
+    /// True when the given logical dimensions fit within this monitor.
+    fn fits(&self, width: f64, height: f64) -> bool {
+        width <= self.w && height <= self.h
+    }
+}
+
+/// Converts the app's monitors into logical-coordinate rects.
+fn monitor_rects(app: &AppHandle) -> Vec<MonitorRect> {
+    available_monitors(app)
+        .iter()
+        .map(MonitorRect::from_tauri)
+        .collect()
+}
+
+/// Returns true if the given logical dimensions are at least as large as some
+/// monitor's work area — see [`MonitorRect::maximize_sized`] for the rationale.
+fn is_maximize_sized(app: &AppHandle, width: f64, height: f64) -> bool {
+    monitor_rects(app)
+        .iter()
+        .any(|m| m.maximize_sized(width, height))
 }
 
 /// Checks whether the given logical coordinates fall within any monitor's bounds.
-///
-/// Converts physical monitor positions/sizes to logical coordinates using
-/// each monitor's scale factor before performing the hit test.
 fn is_position_on_screen(app: &AppHandle, x: f64, y: f64) -> bool {
-    // Why: Windows has an invisible resize border (~7 physical px), so a
-    // window snapped to the screen's left/top edge reports a slightly negative
-    // outer_position. Strictly rejecting that marks the saved geometry as
-    // "offscreen" and falls back to defaults, losing both size and position
-    // restore (surfaces after Win+arrow snap or un-maximize). Allow a small
-    // physical-px margin in the negative direction to tolerate this.
-    const OFFSCREEN_MARGIN_PHYSICAL_PX: f64 = 16.0;
+    // The margin conversion needs the per-monitor scale; approximating with
+    // the rect's own scale keeps the math pure (scale is only used for the
+    // border-tolerance conversion, not for the stored logical bounds).
     available_monitors(app).iter().any(|m| {
-        let pos = m.position();
-        let size = m.size();
-        let scale = m.scale_factor();
-        let mx = pos.x as f64 / scale;
-        let my = pos.y as f64 / scale;
-        let mw = size.width as f64 / scale;
-        let mh = size.height as f64 / scale;
-        // Why: ~7px border in physical pixels; allow 16 physical px (covers
-        // high-DPI scales) converted to logical per monitor.
-        let margin = OFFSCREEN_MARGIN_PHYSICAL_PX / scale;
-
-        x >= mx - margin && x < mx + mw && y >= my - margin && y < my + mh
+        let rect = MonitorRect::from_tauri(m);
+        rect.contains_point(m.scale_factor(), x, y)
     })
 }
 
@@ -507,12 +558,64 @@ fn is_position_on_screen(app: &AppHandle, x: f64, y: f64) -> bool {
 /// Used to prevent restoring a window size that would be larger than
 /// all connected monitors (e.g., after disconnecting an external display).
 fn fits_on_any_monitor(app: &AppHandle, width: f64, height: f64) -> bool {
-    available_monitors(app).iter().any(|m| {
-        let size = m.size();
-        let scale = m.scale_factor();
-        let mw = size.width as f64 / scale;
-        let mh = size.height as f64 / scale;
+    monitor_rects(app).iter().any(|m| m.fits(width, height))
+}
 
-        width <= mw && height <= mh
-    })
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn monitor(x: f64, y: f64, w: f64, h: f64, work_w: f64, work_h: f64) -> MonitorRect {
+        MonitorRect {
+            x,
+            y,
+            w,
+            h,
+            work_w,
+            work_h,
+        }
+    }
+
+    #[test]
+    fn maximize_sized_compares_against_work_area() {
+        let m = monitor(0.0, 0.0, 1920.0, 1080.0, 1920.0, 1040.0);
+        // Exactly work-area sized -> treated as maximized
+        assert!(m.maximize_sized(1920.0, 1040.0));
+        assert!(m.maximize_sized(2000.0, 1100.0), "oversized counts too");
+        // Normal user sizes stay below the work area
+        assert!(!m.maximize_sized(1919.0, 1040.0));
+        assert!(!m.maximize_sized(1920.0, 1039.0));
+    }
+
+    #[test]
+    fn contains_point_allows_negative_border_margin() {
+        let scale = 2.0;
+        let m = monitor(0.0, 0.0, 1920.0, 1080.0, 1920.0, 1040.0);
+        // 16 physical px at scale 2 -> 8 logical px of tolerance
+        assert!(m.contains_point(scale, -7.9, 0.0), "snap border tolerated");
+        assert!(
+            !m.contains_point(scale, -8.1, 0.0),
+            "beyond margin rejected"
+        );
+        assert!(m.contains_point(scale, 100.0, 100.0));
+        assert!(!m.contains_point(scale, 2000.0, 100.0));
+    }
+
+    #[test]
+    fn contains_point_uses_strict_upper_bound() {
+        let m = monitor(0.0, 0.0, 100.0, 100.0, 100.0, 100.0);
+        // Right/bottom edges are exclusive
+        assert!(!m.contains_point(1.0, 100.0, 0.0));
+        assert!(!m.contains_point(1.0, 0.0, 100.0));
+        assert!(m.contains_point(1.0, 99.9, 99.9));
+    }
+
+    #[test]
+    fn fits_checks_full_monitor_size() {
+        let m = monitor(0.0, 0.0, 1920.0, 1080.0, 1920.0, 1040.0);
+        assert!(m.fits(1920.0, 1080.0), "full size fits");
+        assert!(m.fits(800.0, 600.0));
+        assert!(!m.fits(1921.0, 1080.0));
+        assert!(!m.fits(1920.0, 1081.0));
+    }
 }

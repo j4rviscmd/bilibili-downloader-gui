@@ -151,53 +151,177 @@ impl HistoryStore {
 
     /// Searches history entries with optional query string and filters.
     ///
-    /// # Filtering Logic
-    ///
-    /// - **Query**: Searches case-insensitive in title and URL
-    /// - **Status**: Filters by status ("completed", "failed", or "all")
-    /// - **Date range**: Filters entries after `date_from` (if provided)
+    /// Delegates the actual matching to [`filter_entries`].
     pub fn search(
         &self,
         query: Option<String>,
         filters: Option<HistoryFilters>,
     ) -> Vec<HistoryEntry> {
         let entries = self.get_all();
-        let filters = filters.unwrap_or_default();
+        filter_entries(entries, query.as_deref(), &filters.unwrap_or_default())
+    }
+}
 
-        entries
-            .into_iter()
-            .filter(|entry| {
-                // Query search: match title or URL case-insensitively
-                if let Some(q) = query.as_ref().filter(|s| !s.is_empty()) {
-                    let query_lower = q.to_lowercase();
-                    let matches = entry.title.to_lowercase().contains(&query_lower)
-                        || entry.url.to_lowercase().contains(&query_lower);
-                    if !matches {
-                        return false;
-                    }
+/// Pure history filtering logic, extracted from `HistoryStore::search`.
+///
+/// # Filtering Logic
+///
+/// - **Query**: Searches case-insensitive in title and URL
+/// - **Status**: Filters by status ("completed", "failed", or "all");
+///   the legacy "success" status is treated as "completed"
+/// - **Date range**: Filters entries after `date_from` (if provided,
+///   ISO 8601 string comparison)
+fn filter_entries(
+    entries: Vec<HistoryEntry>,
+    query: Option<&str>,
+    filters: &HistoryFilters,
+) -> Vec<HistoryEntry> {
+    entries
+        .into_iter()
+        .filter(|entry| {
+            // Query search: match title or URL case-insensitively
+            if let Some(q) = query.filter(|s| !s.is_empty()) {
+                let query_lower = q.to_lowercase();
+                let matches = entry.title.to_lowercase().contains(&query_lower)
+                    || entry.url.to_lowercase().contains(&query_lower);
+                if !matches {
+                    return false;
                 }
+            }
 
-                // Status filter
-                if let Some(status) = filters.status.as_ref().filter(|s| *s != "all") {
-                    let entry_status = if entry.status == "success" || entry.status == "completed" {
-                        "completed"
-                    } else {
-                        entry.status.as_str()
-                    };
-                    if entry_status != status {
-                        return false;
-                    }
+            // Status filter
+            if let Some(status) = filters.status.as_ref().filter(|s| *s != "all") {
+                let entry_status = if entry.status == "success" || entry.status == "completed" {
+                    "completed"
+                } else {
+                    entry.status.as_str()
+                };
+                if entry_status != status {
+                    return false;
                 }
+            }
 
-                // Date range filter
-                if let Some(date_from) = filters.date_from.as_ref() {
-                    if &entry.downloaded_at < date_from {
-                        return false;
-                    }
+            // Date range filter
+            if let Some(date_from) = filters.date_from.as_ref() {
+                if &entry.downloaded_at < date_from {
+                    return false;
                 }
+            }
 
-                true
-            })
-            .collect()
+            true
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn entry(id: &str, title: &str, status: &str, downloaded_at: &str) -> HistoryEntry {
+        HistoryEntry {
+            id: id.into(),
+            title: title.into(),
+            bvid: None,
+            url: format!("https://www.bilibili.com/video/{id}"),
+            downloaded_at: downloaded_at.into(),
+            status: status.into(),
+            file_size: None,
+            quality: None,
+            thumbnail_url: None,
+            version: "1.0".into(),
+        }
+    }
+
+    #[test]
+    fn filter_entries_no_filters_returns_all() {
+        let entries = vec![entry("a", "A", "completed", "2026-01-01T00:00:00Z")];
+        let out = filter_entries(entries.clone(), None, &HistoryFilters::default());
+        assert_eq!(out.len(), 1);
+    }
+
+    #[test]
+    fn filter_entries_query_matches_title_or_url_case_insensitive() {
+        let entries = vec![
+            entry(
+                "a",
+                "【歌ってみた】Song Cover",
+                "completed",
+                "2026-01-01T00:00:00Z",
+            ),
+            entry("b", " unrelated", "completed", "2026-01-02T00:00:00Z"),
+        ];
+        let out = filter_entries(entries, Some("SONG"), &HistoryFilters::default());
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].id, "a");
+
+        // URL match also hits
+        let entries = vec![entry(
+            "x",
+            "no title match",
+            "completed",
+            "2026-01-01T00:00:00Z",
+        )];
+        let out = filter_entries(entries, Some("/video/x"), &HistoryFilters::default());
+        assert_eq!(out.len(), 1);
+    }
+
+    #[test]
+    fn filter_entries_empty_query_is_ignored() {
+        let entries = vec![entry("a", "t", "completed", "2026-01-01T00:00:00Z")];
+        let out = filter_entries(entries, Some(""), &HistoryFilters::default());
+        assert_eq!(out.len(), 1, "empty query must not filter anything out");
+    }
+
+    #[test]
+    fn filter_entries_status_treats_legacy_success_as_completed() {
+        let entries = vec![
+            entry("old", "t", "success", "2026-01-01T00:00:00Z"),
+            entry("new", "t", "completed", "2026-01-02T00:00:00Z"),
+            entry("bad", "t", "failed", "2026-01-03T00:00:00Z"),
+        ];
+        let filters = HistoryFilters {
+            status: Some("completed".into()),
+            date_from: None,
+        };
+        let out = filter_entries(entries, None, &filters);
+        let ids: Vec<&str> = out.iter().map(|e| e.id.as_str()).collect();
+        assert_eq!(ids, vec!["old", "new"]);
+
+        let entries = vec![entry("bad", "t", "failed", "2026-01-01T00:00:00Z")];
+        let out = filter_entries(entries, None, &filters);
+        assert!(out.is_empty());
+    }
+
+    #[test]
+    fn filter_entries_status_all_keeps_everything() {
+        let entries = vec![
+            entry("a", "t", "completed", "2026-01-01T00:00:00Z"),
+            entry("b", "t", "failed", "2026-01-02T00:00:00Z"),
+        ];
+        let filters = HistoryFilters {
+            status: Some("all".into()),
+            date_from: None,
+        };
+        assert_eq!(filter_entries(entries, None, &filters).len(), 2);
+    }
+
+    #[test]
+    fn filter_entries_date_from_keeps_entries_on_or_after() {
+        let entries = vec![
+            entry("old", "t", "completed", "2026-01-01T00:00:00Z"),
+            entry("edge", "t", "completed", "2026-01-02T00:00:00Z"),
+            entry("new", "t", "completed", "2026-01-03T00:00:00Z"),
+        ];
+        let filters = HistoryFilters {
+            status: None,
+            date_from: Some("2026-01-02T00:00:00Z".into()),
+        };
+        let out = filter_entries(entries, None, &filters);
+        let ids: Vec<&str> = out.iter().map(|e| e.id.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec!["edge", "new"],
+            "boundary is inclusive (string compare >=)"
+        );
     }
 }

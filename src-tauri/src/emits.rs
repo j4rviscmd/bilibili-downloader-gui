@@ -6,8 +6,15 @@
 
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tauri::{AppHandle, Emitter};
+// Why: tokio's Instant, not std, so the paused-clock tests below work:
+// with the test-util feature (dev-dependency only, src-tauri/Cargo.toml)
+// Instant::now() follows tokio::time::advance(); without it tokio
+// re-exports std::time::Instant, so runtime behavior is identical.
+// Note: reverting to std::time::Instant compiles but silently breaks
+// every #[tokio::test(start_paused = true)] in this module.
+use tokio::time::Instant;
 use tokio::{spawn, sync::watch, sync::Mutex, time};
 
 /// Progress update interval in milliseconds.
@@ -298,7 +305,15 @@ impl Emits {
     ///
     /// * `app` - Tauri application handle for event emission
     /// * `inner` - Mutable reference to the locked inner state
-    fn send_progress_locked(app: &AppHandle, inner: &mut EmitsInner, current_bytes: u64) {
+    // Why: generic over R — production callers pass AppHandle
+    // (= AppHandle<Wry>) while the tests pass tauri::test::mock_app()'s
+    // AppHandle<MockRuntime> (tauri "test" dev-dependency feature,
+    // src-tauri/Cargo.toml); Emitter<R> is the minimal bound covering both.
+    fn send_progress_locked<R: tauri::Runtime>(
+        app: &impl Emitter<R>,
+        inner: &mut EmitsInner,
+        current_bytes: u64,
+    ) {
         let now = Instant::now();
         let delta_time = now.duration_since(inner.last_instant).as_secs_f64();
         let elapsed_time = now.duration_since(inner.start_instant).as_secs_f64();
@@ -431,5 +446,87 @@ mod tests {
         assert_eq!(round_to(f64::NAN, 2), 0.0);
         assert_eq!(round_to(f64::INFINITY, 2), 0.0);
         assert_eq!(round_to(f64::NEG_INFINITY, 2), 0.0);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn idle_stall_zeroes_displayed_rate() {
+        let app = tauri::test::mock_app();
+        let mut inner = EmitsInner::default();
+        // Seed a previously computed non-zero rate as if a fast phase just ended
+        inner.progress.transfer_rate = 10_000.0;
+        inner.last_speed_kbps = 10_000.0;
+        inner.last_downloaded_bytes = 5 * 1024 * 1024;
+
+        // No bytes arrive for longer than SPEED_DISPLAY_IDLE_SECS (issue #534)
+        tokio::time::advance(Duration::from_secs(SPEED_DISPLAY_IDLE_SECS + 1)).await;
+        Emits::send_progress_locked(app.handle(), &mut inner, 5 * 1024 * 1024);
+
+        assert_eq!(inner.progress.transfer_rate, 0.0);
+        assert_eq!(inner.last_speed_kbps, 0.0);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn brief_gap_keeps_last_rate() {
+        let app = tauri::test::mock_app();
+        let mut inner = EmitsInner::default();
+        inner.progress.transfer_rate = 5_000.0;
+        inner.last_speed_kbps = 5_000.0;
+        inner.last_downloaded_bytes = 1024;
+
+        // A segment-boundary pause shorter than the idle threshold must NOT
+        // flicker the rate to 0.
+        tokio::time::advance(Duration::from_secs(SPEED_DISPLAY_IDLE_SECS - 1)).await;
+        Emits::send_progress_locked(app.handle(), &mut inner, 1024);
+
+        assert_eq!(inner.progress.transfer_rate, 5_000.0);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn byte_progress_recomputes_rate_after_one_second() {
+        let app = tauri::test::mock_app();
+        let mut inner = EmitsInner::default();
+        inner.progress.filesize = Some(4.0); // 4 MiB total
+        let baseline = 1024 * 1024u64;
+        inner.last_downloaded_bytes = baseline;
+        inner.last_speed_calc_bytes = baseline;
+
+        // 1 MiB arrives over 2s -> 512 KiB/s
+        tokio::time::advance(Duration::from_secs(2)).await;
+        Emits::send_progress_locked(app.handle(), &mut inner, baseline + 1024 * 1024);
+
+        assert!((inner.progress.transfer_rate - 512.0).abs() < 0.2);
+        assert_eq!(inner.progress.downloaded, Some(2.0));
+        assert_eq!(inner.progress.percentage, 50.0);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn sub_second_update_reuses_last_rate() {
+        let app = tauri::test::mock_app();
+        let mut inner = EmitsInner {
+            last_speed_kbps: 3_000.0,
+            ..Default::default()
+        };
+        inner.progress.transfer_rate = 3_000.0;
+
+        // 0.5s since last calc -> below the 1s window, rate is reused as-is
+        tokio::time::advance(Duration::from_millis(500)).await;
+        Emits::send_progress_locked(app.handle(), &mut inner, 2048);
+
+        assert_eq!(inner.progress.transfer_rate, 3_000.0);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn percentage_caps_at_hundred() {
+        let app = tauri::test::mock_app();
+        let mut inner = EmitsInner::default();
+        inner.progress.filesize = Some(1.0); // 1 MiB total
+        inner.last_downloaded_bytes = 0;
+
+        // Server reports more bytes than the announced size (shouldn't happen,
+        // but the display must never show 101%)
+        Emits::send_progress_locked(app.handle(), &mut inner, 2 * 1024 * 1024);
+
+        assert_eq!(inner.progress.percentage, 100.0);
+        assert_eq!(inner.progress.downloaded, Some(2.0));
     }
 }

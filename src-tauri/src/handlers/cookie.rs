@@ -317,3 +317,85 @@ fn read_bilibili_cookies(
     }
     Ok(count > 0)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    fn make_profile(root: &Path, name: &str) -> PathBuf {
+        let dir = root.join(name);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("cookies.sqlite"), b"stub").unwrap();
+        dir
+    }
+
+    fn write_ini(root: &Path, content: &str) {
+        std::fs::write(root.join("profiles.ini"), content).unwrap();
+    }
+
+    #[test]
+    fn resolves_via_install_section_default() {
+        let root = tempfile::tempdir().unwrap();
+        let expected = make_profile(root.path(), "abcd.default-release");
+        write_ini(
+            root.path(),
+            "[InstallC3C80A9D53B24A61]\nDefault=abcd.default-release\nLock=abc\n",
+        );
+        assert_eq!(find_active_firefox_profile(root.path()), Some(expected));
+    }
+
+    #[test]
+    fn install_section_ignored_when_cookies_missing() {
+        // Points at a profile without cookies.sqlite -> falls through to None
+        // (caller then directory-scans).
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(root.path().join("empty.profile")).unwrap();
+        write_ini(root.path(), "[InstallX]\nDefault=empty.profile\n");
+        assert_eq!(find_active_firefox_profile(root.path()), None);
+    }
+
+    #[test]
+    fn resolves_via_profile_section_default_flag() {
+        let root = tempfile::tempdir().unwrap();
+        let expected = make_profile(root.path(), "second.default");
+        make_profile(root.path(), "first.profile");
+        // Default=1 written BEFORE Path= (order independence)
+        write_ini(
+            root.path(),
+            "[Profile0]\nIsRelative=1\nPath=first.profile\n\n\
+             [Profile1]\nDefault=1\nPath=second.default\n",
+        );
+        assert_eq!(find_active_firefox_profile(root.path()), Some(expected));
+    }
+
+    #[test]
+    fn last_install_section_wins_over_profile_default() {
+        let root = tempfile::tempdir().unwrap();
+        let install_profile = make_profile(root.path(), "install.pick");
+        make_profile(root.path(), "legacy.pick");
+        write_ini(
+            root.path(),
+            "[Install1]\nDefault=install.pick\n\n\
+             [Profile0]\nDefault=1\nPath=legacy.pick\n",
+        );
+        // Priority 1 ([Install*]) beats Priority 2 ([Profile*] Default=1)
+        assert_eq!(
+            find_active_firefox_profile(root.path()),
+            Some(install_profile)
+        );
+    }
+
+    #[test]
+    fn missing_ini_or_file_yields_none() {
+        let root = tempfile::tempdir().unwrap();
+        assert_eq!(find_active_firefox_profile(root.path()), None);
+    }
+
+    #[test]
+    fn garbage_ini_yields_none() {
+        let root = tempfile::tempdir().unwrap();
+        write_ini(root.path(), "not an ini file at all\n[broken\n");
+        assert_eq!(find_active_firefox_profile(root.path()), None);
+    }
+}

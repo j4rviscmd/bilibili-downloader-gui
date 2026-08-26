@@ -57,68 +57,22 @@ impl Default for EncryptedFileStorage {
 
 impl SecureStorage for EncryptedFileStorage {
     fn save(&self, app: &AppHandle, session: &Session) -> Result<()> {
-        let json = serde_json::to_vec(session)
-            .map_err(|e| format!("Failed to serialize session: {}", e))?;
-
-        let key = derive_key()?;
-        let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
-        let cipher = Aes256Gcm::new_from_slice(&key)
-            .map_err(|e| format!("Failed to create cipher: {}", e))?;
-
-        let ciphertext = cipher
-            .encrypt(&nonce, json.as_ref())
-            .map_err(|e| format!("Encryption failed: {}", e))?;
-
-        let mut blob = Vec::with_capacity(NONCE_SIZE + ciphertext.len());
-        blob.extend_from_slice(&nonce);
-        blob.extend_from_slice(&ciphertext);
-
         let path = session_file_path(app);
-        fs::write(&path, &blob).map_err(|e| format!("Failed to write session file: {}", e))?;
-
-        set_file_permissions(&path);
-
-        log::info!("[BE] secure_storage::save: wrote {} bytes", blob.len());
-        Ok(())
+        let key = derive_key()?;
+        save_at(&path, session, &key)
     }
 
     fn load(&self, app: &AppHandle) -> Result<Option<Session>> {
         let path = session_file_path(app);
+        // Why: check existence BEFORE deriving the key — argon2id costs
+        // ~64 MiB / hundreds of ms, and most launches (logged-out or fresh
+        // install) have no session file at all. Also keeps hostname::get()
+        // failures from turning a "no session" result into an error.
         if !path.exists() {
             return Ok(None);
         }
-
-        let blob = fs::read(&path).map_err(|e| format!("Failed to read session file: {}", e))?;
-
-        if blob.len() <= NONCE_SIZE {
-            log::warn!("[BE] secure_storage::load: file too short, treating as empty");
-            return Ok(None);
-        }
-
-        let (nonce_bytes, ciphertext) = blob.split_at(NONCE_SIZE);
-        let nonce = Nonce::from_slice(nonce_bytes);
-
         let key = derive_key()?;
-        let cipher = Aes256Gcm::new_from_slice(&key)
-            .map_err(|e| format!("Failed to create cipher: {}", e))?;
-
-        let plaintext = match cipher.decrypt(nonce, ciphertext) {
-            Ok(p) => p,
-            Err(e) => {
-                log::warn!(
-                    "[BE] secure_storage::load: decryption failed ({}), \
-                     treating as no session",
-                    e
-                );
-                return Ok(None);
-            }
-        };
-
-        let session: Session = serde_json::from_slice(&plaintext)
-            .map_err(|e| format!("Failed to deserialize session: {}", e))?;
-
-        log::info!("[BE] secure_storage::load: session loaded successfully");
-        Ok(Some(session))
+        load_at(&path, &key)
     }
 
     fn delete(&self, app: &AppHandle) -> Result<()> {
@@ -133,18 +87,79 @@ impl SecureStorage for EncryptedFileStorage {
     }
 }
 
-/// Derives a 256-bit encryption key using argon2id.
+/// Writes an encrypted session blob to `path` using the given key.
 ///
-/// The key material is derived from:
-/// - **Password**: `"bilibili-dl-session:{USER}"` (or `USERNAME` on Windows)
-/// - **Salt**: `"bilibili-dl:{hostname}:{user}"`
+/// Split out of `SecureStorage::save` so tests can exercise the
+/// encrypt/decrypt round-trip against a tempfile without an AppHandle.
+fn save_at(path: &Path, session: &Session, key: &[u8; 32]) -> Result<()> {
+    let json =
+        serde_json::to_vec(session).map_err(|e| format!("Failed to serialize session: {}", e))?;
+
+    let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
+    let cipher =
+        Aes256Gcm::new_from_slice(key).map_err(|e| format!("Failed to create cipher: {}", e))?;
+
+    let ciphertext = cipher
+        .encrypt(&nonce, json.as_ref())
+        .map_err(|e| format!("Encryption failed: {}", e))?;
+
+    let mut blob = Vec::with_capacity(NONCE_SIZE + ciphertext.len());
+    blob.extend_from_slice(&nonce);
+    blob.extend_from_slice(&ciphertext);
+
+    fs::write(path, &blob).map_err(|e| format!("Failed to write session file: {}", e))?;
+
+    set_file_permissions(path);
+
+    log::info!("[BE] secure_storage::save: wrote {} bytes", blob.len());
+    Ok(())
+}
+
+/// Reads and decrypts a session blob from `path` using the given key.
 ///
-/// Argon2 parameters: 64 MiB memory, 3 iterations, 4 parallelism.
+/// Returns `Ok(None)` for a missing file, a too-short blob, or a failed
+/// decryption (e.g. key mismatch after hostname/user change) — callers
+/// treat all of these as "no stored session".
+fn load_at(path: &Path, key: &[u8; 32]) -> Result<Option<Session>> {
+    if !path.exists() {
+        return Ok(None);
+    }
+
+    let blob = fs::read(path).map_err(|e| format!("Failed to read session file: {}", e))?;
+
+    if blob.len() <= NONCE_SIZE {
+        log::warn!("[BE] secure_storage::load: file too short, treating as empty");
+        return Ok(None);
+    }
+
+    let (nonce_bytes, ciphertext) = blob.split_at(NONCE_SIZE);
+    let nonce = Nonce::from_slice(nonce_bytes);
+
+    let cipher =
+        Aes256Gcm::new_from_slice(key).map_err(|e| format!("Failed to create cipher: {}", e))?;
+
+    let plaintext = match cipher.decrypt(nonce, ciphertext) {
+        Ok(p) => p,
+        Err(e) => {
+            log::warn!(
+                "[BE] secure_storage::load: decryption failed ({}), \
+                 treating as no session",
+                e
+            );
+            return Ok(None);
+        }
+    };
+
+    let session: Session = serde_json::from_slice(&plaintext)
+        .map_err(|e| format!("Failed to deserialize session: {}", e))?;
+
+    log::info!("[BE] secure_storage::load: session loaded successfully");
+    Ok(Some(session))
+}
+
+/// Derives a 256-bit encryption key using argon2id from the machine identity.
 ///
-/// # Errors
-///
-/// Returns an error if the hostname cannot be resolved or argon2
-/// parameter construction / hashing fails.
+/// See [`derive_key_from`] for the derivation inputs.
 fn derive_key() -> Result<[u8; 32]> {
     let host = hostname::get()
         .map_err(|e| format!("Failed to get hostname: {}", e))?
@@ -155,6 +170,23 @@ fn derive_key() -> Result<[u8; 32]> {
         .or_else(|_| std::env::var("USERNAME"))
         .unwrap_or_else(|_| "unknown".to_string());
 
+    derive_key_from(&host, &user)
+}
+
+/// Derives a 256-bit argon2id key from an explicit host/user pair.
+///
+/// The key material is derived from:
+/// - **Password**: `"bilibili-dl-session:{user}"`
+/// - **Salt**: `"bilibili-dl:{host}:{user}"`
+///
+/// Argon2 parameters: 64 MiB memory, 3 iterations, 4 parallelism.
+/// Host and user are injected as parameters (rather than read from the
+/// environment) so tests can derive keys deterministically.
+///
+/// # Errors
+///
+/// Returns an error if argon2 parameter construction or hashing fails.
+fn derive_key_from(host: &str, user: &str) -> Result<[u8; 32]> {
     let password = format!("bilibili-dl-session:{}", user);
     let salt_input = format!("bilibili-dl:{}:{}", host, user);
 
@@ -199,3 +231,93 @@ fn set_file_permissions(path: &Path) {
 /// Windows uses ACLs; the file inherits the user's permissions by default.
 #[cfg(not(unix))]
 fn set_file_permissions(_path: &Path) {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Keep the argon2 call count low: each derivation costs ~64 MiB / ~300ms.
+    // Deriving once per test run and reusing via std::sync::LazyLock keeps the
+    // suite fast while still exercising real key derivation.
+    fn test_key() -> [u8; 32] {
+        static KEY: std::sync::OnceLock<[u8; 32]> = std::sync::OnceLock::new();
+        *KEY.get_or_init(|| derive_key_from("test-host", "test-user").unwrap())
+    }
+
+    fn sample_session() -> Session {
+        Session {
+            sessdata: "sess".into(),
+            bili_jct: "jct".into(),
+            dede_user_id: "42".into(),
+            dede_user_id_ck_md5: "md5".into(),
+            refresh_token: "rt".into(),
+            timestamp: 1700000000,
+            uname: "tester".into(),
+            buvid3: "b3".into(),
+            buvid4: "b4".into(),
+        }
+    }
+
+    #[test]
+    fn save_and_load_roundtrip() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(".session.enc");
+        let key = test_key();
+
+        save_at(&path, &sample_session(), &key).unwrap();
+        let loaded = load_at(&path, &key).unwrap().expect("session roundtrips");
+        assert_eq!(loaded.sessdata, "sess");
+        assert_eq!(loaded.bili_jct, "jct");
+        assert_eq!(loaded.timestamp, 1700000000);
+    }
+
+    #[test]
+    fn wrong_key_yields_none_not_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(".session.enc");
+
+        save_at(&path, &sample_session(), &test_key()).unwrap();
+        let other_key = derive_key_from("other-host", "other-user").unwrap();
+        // GCM auth failure is surfaced as "no session", not an error
+        assert!(load_at(&path, &other_key).unwrap().is_none());
+    }
+
+    #[test]
+    fn missing_file_yields_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("never.existed");
+        assert!(load_at(&path, &test_key()).unwrap().is_none());
+    }
+
+    #[test]
+    fn truncated_blob_yields_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(".session.enc");
+        // <= NONCE_SIZE bytes cannot contain nonce + ciphertext
+        std::fs::write(&path, vec![0u8; NONCE_SIZE]).unwrap();
+        assert!(load_at(&path, &test_key()).unwrap().is_none());
+    }
+
+    #[test]
+    fn derive_key_is_deterministic_and_input_sensitive() {
+        let a1 = derive_key_from("host-a", "user").unwrap();
+        let a2 = derive_key_from("host-a", "user").unwrap();
+        assert_eq!(a1, a2, "same inputs derive the same key");
+
+        let b = derive_key_from("host-b", "user").unwrap();
+        assert_ne!(a1, b, "different host derives a different key");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn saved_file_is_owner_only() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(".session.enc");
+        save_at(&path, &sample_session(), &test_key()).unwrap();
+
+        let mode = fs::metadata(&path).unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o600, "session file must be 0o600");
+    }
+}
