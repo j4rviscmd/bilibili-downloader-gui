@@ -319,6 +319,52 @@ src-tauri/src/
 - Frontend: React, Vite, TypeScript, Redux Toolkit, shadcn/ui, animate‑ui
 - Desktop: Tauri (Rust)
 
+## Testing
+
+### Running tests
+
+```bash
+# Frontend (Vitest)
+npm test -- --run
+
+# Rust (unit tests + doctests)
+cd src-tauri && cargo test
+```
+
+### Rust coverage
+
+CI runs a **report-only** `coverage` job (nightly toolchain +
+`cargo-llvm-cov`) on every PR; the summary and missing-line list appear in
+the job's Step Summary. It is not part of the required `ci-status` check.
+
+To run it locally:
+
+```bash
+cd src-tauri
+cargo llvm-cov --summary-only --show-missing-lines \
+  --ignore-filename-regex 'src/(main|lib|menu)\.rs'
+```
+
+Requires `cargo install cargo-llvm-cov` and a nightly toolchain
+(`rustup toolchain install nightly`).
+
+#### Coverage exclusions and why
+
+`main.rs`, `lib.rs`, and `menu.rs` are excluded from coverage:
+
+- **`main.rs`** — 3-line entry point that only calls the library `run()`
+- **`lib.rs`** — `run()` (full Tauri app bootstrap: plugins, windows,
+  event wiring — not unit-testable without a running app) plus ~54 thin
+  `#[tauri::command]` wrappers that delegate one-to-one to `handlers/`
+  functions; all logic lives in the handlers, which are covered
+- **`menu.rs`** — declarative menu builder (Tauri `Menu` API chains) with
+  no branching logic
+
+Everything else — handlers, models, utils, store — is in scope. Network
+fetchers go through the `BiliApi` transport, which is tested against a
+local [wiremock](https://crates.io/crates/wiremock) server (no live
+Bilibili calls in tests).
+
 ---
 
 Thank you for contributing!

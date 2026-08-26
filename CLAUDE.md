@@ -85,8 +85,9 @@ comments.
 
 ## CI & E2E Workflows
 
-- **CI** (`.github/workflows/ci.yml`) runs 9 jobs on Ubuntu and is
-  aggregated into the **required** `ci-status` status check.
+- **CI** (`.github/workflows/ci.yml`) runs on Ubuntu and is aggregated
+  into the **required** `ci-status` status check. The report-only
+  `coverage` job (nightly cargo-llvm-cov) is NOT part of ci-status.
 - **E2E Tests** (`.github/workflows/e2e.yml`) runs separately on macOS
   and is **NOT a required** status check.
 - When monitoring CI (e.g. during `worktree-finish`), do **not** wait

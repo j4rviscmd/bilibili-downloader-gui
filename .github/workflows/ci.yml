@@ -239,6 +239,54 @@ jobs:
         working-directory: src-tauri
         run: cargo fmt --check
 
+  # Why report-only (not in ci-status needs): coverage visibility disciplines
+  # the test-coverage push without failing PRs on flaky nightly/toolchain
+  # drift; rust-test remains the required green gate.
+  coverage:
+    name: Rust Coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust nightly
+        # Why nightly: cargo-llvm-cov relies on -Zinstrument-coverage,
+        # which is not stable yet
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          # Why: nightly build artifacts must not share a cache with the
+          # stable rust-ci jobs above in this file — nightly/stable rustc
+          # fingerprints differ, so a distinct shared-key keeps the caches
+          # from competing for the same slot
+          shared-key: rust-ci-nightly
+
+      - name: Install dependencies (Ubuntu only)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libdbus-1-dev libglib2.0-dev
+
+      - name: Run coverage
+        working-directory: src-tauri
+        # Why pipefail: without it the step exit code comes from tee (always 0),
+        # silently masking cargo-llvm-cov failures as a green, half-empty report
+        run: |
+          set -o pipefail
+          echo '```text' >> $GITHUB_STEP_SUMMARY
+          cargo llvm-cov --summary-only --show-missing-lines \
+            --ignore-filename-regex 'src/(main|lib|menu)\.rs' \
+            | tee -a $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
   docs-format:
     name: Docs Format
     runs-on: ubuntu-latest

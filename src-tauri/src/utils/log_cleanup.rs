@@ -80,3 +80,43 @@ pub fn cleanup_old_logs(log_dir: &Path, days_to_keep: u64) -> Result<usize, Stri
 
     Ok(deleted_count)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cleanup_old_logs_missing_dir_returns_zero() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(cleanup_old_logs(&dir.path().join("none"), 30), Ok(0));
+    }
+
+    #[test]
+    fn cleanup_old_logs_deletes_only_stale_log_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let stale = dir.path().join("app.20260101.log");
+        let fresh = dir.path().join("app.log"); // active log is always skipped
+        let stale_txt = dir.path().join("old.txt"); // non-.log ignored
+        std::fs::write(&stale, b"x").unwrap();
+        std::fs::write(&fresh, b"x").unwrap();
+        std::fs::write(&stale_txt, b"x").unwrap();
+        // Why days_to_keep=0 instead of back-dating mtimes: a zero cutoff
+        // makes every non-active .log stale, exercising the same age
+        // comparison with less setup than File::set_modified
+        let deleted = cleanup_old_logs(dir.path(), 0).unwrap();
+        assert_eq!(deleted, 1);
+        assert!(!stale.exists());
+        assert!(fresh.exists(), "active app.log is never deleted");
+        assert!(stale_txt.exists(), "non-.log files are ignored");
+    }
+
+    #[test]
+    fn cleanup_old_logs_zero_days_deletes_any_nonactive_log() {
+        // days_to_keep=0 -> cutoff 0s: any non-active .log (mtime < now) goes
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("a.log"), b"x").unwrap();
+        std::fs::write(dir.path().join("b.log"), b"x").unwrap();
+        std::fs::write(dir.path().join("keepme.log"), b"x").unwrap();
+        assert_eq!(cleanup_old_logs(dir.path(), 0), Ok(3));
+    }
+}

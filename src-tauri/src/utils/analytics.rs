@@ -421,4 +421,21 @@ mod tests {
         assert_eq!(extract_error_category("connection reset by peer"), None);
         assert_eq!(extract_error_category(""), None);
     }
+
+    #[test]
+    fn get_or_create_client_id_reuses_existing_file() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("client_id"), "  existing-id \n").unwrap();
+        assert_eq!(get_or_create_client_id(dir.path()), "existing-id");
+    }
+
+    #[test]
+    fn get_or_create_client_id_generates_and_persists() {
+        let dir = tempfile::tempdir().unwrap();
+        let first = get_or_create_client_id(dir.path());
+        assert!(!first.is_empty());
+        assert_eq!(first.len(), 36, "UUID v4 textual length");
+        // Persisted: a second call returns the same id
+        assert_eq!(get_or_create_client_id(dir.path()), first);
+    }
 }
