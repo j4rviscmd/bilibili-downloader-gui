@@ -170,4 +170,67 @@ mod tests {
         assert_eq!(parse_trailing_kbps("no bitrate"), None);
         assert_eq!(parse_trailing_kbps("kb/s"), None);
     }
+
+    /// Writes a fake "ffmpeg" executable that prints the given stderr and
+    /// exits, so probe_duration_sec / probe_audio_bitrate_kbps can be tested
+    /// without a real ffmpeg binary.
+    #[cfg(unix)]
+    fn write_fake_ffmpeg(dir: &std::path::Path, stderr_text: &str) -> std::path::PathBuf {
+        let script = format!("#!/bin/sh\ncat 1>&2 <<'EOF'\n{stderr_text}\nEOF\nexit 0\n");
+        let path = dir.join("fake-ffmpeg");
+        std::fs::write(&path, script).unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        path
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn probe_duration_parses_ffmpeg_stderr_line() {
+        let dir = tempfile::tempdir().unwrap();
+        let ffmpeg = write_fake_ffmpeg(
+            dir.path(),
+            "Input #0, mov,mp4,m4a, from 'x.mp4':\n  Duration: 00:01:02.75, start: 0.000000, bitrate: 5000 kb/s\n",
+        );
+        let secs = probe_duration_sec(&ffmpeg, "x.mp4").await;
+        assert_eq!(secs, Some(62.75));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn probe_duration_missing_line_yields_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let ffmpeg = write_fake_ffmpeg(dir.path(), "no duration info here\n");
+        assert!(probe_duration_sec(&ffmpeg, "x.mp4").await.is_none());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn probe_audio_bitrate_takes_audio_line_value() {
+        let dir = tempfile::tempdir().unwrap();
+        let ffmpeg = write_fake_ffmpeg(
+            dir.path(),
+            "  Duration: 00:01:02.75, start: 0.000000, bitrate: 5000 kb/s\n  Stream #0:1[0x2](und): Audio: aac (LC), 44100 Hz, stereo, fltp, 192 kb/s\n",
+        );
+        // The Video line's 5000 kb/s must NOT win; the Audio line's 192 does.
+        assert_eq!(probe_audio_bitrate_kbps(&ffmpeg, "x.mp4").await, Some(192));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn probe_audio_bitrate_na_falls_back_to_preceding_number() {
+        // Why: pins ACTUAL behavior — for "N/A kb/s" the parser grabs the
+        // last all-digit token before "kb/s" (the sample rate 44100), NOT
+        // None as the doc comment on parse_trailing_kbps claims. Kept as-is
+        // in this refactor PR; flagged for a follow-up fix decision.
+        let dir = tempfile::tempdir().unwrap();
+        let ffmpeg = write_fake_ffmpeg(
+            dir.path(),
+            "  Stream #0:1: Audio: flac, 44100 Hz, stereo, N/A kb/s\n",
+        );
+        assert_eq!(
+            probe_audio_bitrate_kbps(&ffmpeg, "x.mp4").await,
+            Some(44100)
+        );
+    }
 }

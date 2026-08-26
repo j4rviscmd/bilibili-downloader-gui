@@ -953,7 +953,13 @@ pub async fn refresh_cookie(app: &AppHandle) -> Result<Session, String> {
     log::debug!("[BE] Refresh API response status: {}", response.status());
 
     // Extract new cookies from Set-Cookie headers
-    let new_cookies = extract_cookies_from_response(&response);
+    let set_cookie_values: Vec<String> = response
+        .headers()
+        .get_all(reqwest::header::SET_COOKIE)
+        .iter()
+        .filter_map(|v| v.to_str().ok().map(str::to_string))
+        .collect();
+    let new_cookies = parse_set_cookie_values(&set_cookie_values);
     log::debug!("[BE] Extracted {} cookies from response", new_cookies.len());
 
     let response_text = response
@@ -1068,24 +1074,23 @@ fn get_cookie_header(app: &AppHandle) -> String {
         .join("; ")
 }
 
-/// Extracts cookies from Set-Cookie headers.
+/// Extracts cookies from Set-Cookie header values.
 ///
-/// Parses every `Set-Cookie` header on `response`, splitting on the first
-/// `=` to capture the name/value pair and ignoring attribute pairs such as
-/// `Path=` or `HttpOnly`. When the same cookie name appears multiple times,
-/// the last occurrence wins.
-fn extract_cookies_from_response(
-    response: &reqwest::Response,
-) -> std::collections::HashMap<String, String> {
+/// Parses each raw `Set-Cookie` value, splitting on the first `=` to
+/// capture the name/value pair and ignoring attribute pairs such as
+/// `Path=` or `HttpOnly`. When the same cookie name appears multiple
+/// times, the last occurrence wins.
+///
+/// Takes the raw header values (rather than a `reqwest::Response`) so the
+/// parsing logic is testable without network plumbing.
+fn parse_set_cookie_values(values: &[String]) -> std::collections::HashMap<String, String> {
     let mut cookies = std::collections::HashMap::new();
 
-    for cookie in response.headers().get_all(reqwest::header::SET_COOKIE) {
-        if let Ok(cookie_str) = cookie.to_str() {
-            // Parse "name=value; Path=/; ..."
-            if let Some(cookie_part) = cookie_str.split(';').next() {
-                if let Some((name, value)) = cookie_part.split_once('=') {
-                    cookies.insert(name.trim().to_string(), value.trim().to_string());
-                }
+    for cookie_str in values {
+        // Parse "name=value; Path=/; ..."
+        if let Some(cookie_part) = cookie_str.split(';').next() {
+            if let Some((name, value)) = cookie_part.split_once('=') {
+                cookies.insert(name.trim().to_string(), value.trim().to_string());
             }
         }
     }
@@ -1095,7 +1100,7 @@ fn extract_cookies_from_response(
 
 /// Builds a Cookie header from a HashMap.
 ///
-/// Inverse of [`extract_cookies_from_response`]: joins each entry with
+/// Inverse of [`parse_set_cookie_values`]: joins each entry with
 /// `; ` to form a value suitable for the `Cookie` request header.
 fn build_cookie_header(cookies: &std::collections::HashMap<String, String>) -> String {
     cookies
@@ -1103,4 +1108,81 @@ fn build_cookie_header(cookies: &std::collections::HashMap<String, String>) -> S
         .map(|(k, v)| format!("{}={}", k, v))
         .collect::<Vec<_>>()
         .join("; ")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extract_session_from_url_maps_query_params() {
+        let url = "https://passport.biligame.com/crossDomain?\
+                   DedeUserID=42&DedeUserID__ckMd5=abc&SESSDATA=s%2Cd&bili_jct=jct";
+        let session = extract_session_from_url(url, "rt", 1700000000).unwrap();
+        assert_eq!(session.sessdata, "s,d", "query values are URL-decoded");
+        assert_eq!(session.bili_jct, "jct");
+        assert_eq!(session.dede_user_id, "42");
+        assert_eq!(session.dede_user_id_ck_md5, "abc");
+        assert_eq!(session.refresh_token, "rt");
+        assert_eq!(session.timestamp, 1700000000);
+        assert!(session.uname.is_empty());
+    }
+
+    #[test]
+    fn extract_session_from_url_missing_params_default_empty() {
+        let session =
+            extract_session_from_url("https://example.com/crossDomain?x=1", "rt", 1).unwrap();
+        assert!(session.sessdata.is_empty());
+        assert!(session.bili_jct.is_empty());
+        assert_eq!(session.refresh_token, "rt");
+    }
+
+    #[test]
+    fn extract_session_from_url_rejects_garbage() {
+        assert!(extract_session_from_url("not a url", "rt", 1).is_err());
+    }
+
+    #[test]
+    fn parse_set_cookie_values_keeps_last_and_strips_attributes() {
+        let values = vec![
+            "SESSDATA=first%2Cvalue; Path=/; HttpOnly; Secure".to_string(),
+            // Same cookie set again later must win
+            "SESSDATA=second; Path=/".to_string(),
+            "bili_jct=jct; Path=/; SameSite=None".to_string(),
+            // No '=' pair at all -> ignored
+            "novalue".to_string(),
+        ];
+        let cookies = parse_set_cookie_values(&values);
+        assert_eq!(cookies.get("SESSDATA").map(String::as_str), Some("second"));
+        assert_eq!(cookies.get("bili_jct").map(String::as_str), Some("jct"));
+        assert_eq!(cookies.len(), 2);
+    }
+
+    #[test]
+    fn build_cookie_header_joins_pairs() {
+        let mut cookies = std::collections::HashMap::new();
+        cookies.insert("SESSDATA".to_string(), "v1".to_string());
+        cookies.insert("buvid3".to_string(), "v2".to_string());
+        let header = build_cookie_header(&cookies);
+        // HashMap order is unspecified; assert both pairs are present
+        assert!(header.contains("SESSDATA=v1"));
+        assert!(header.contains("buvid3=v2"));
+        assert_eq!(header.matches("; ").count(), 1);
+        assert!(build_cookie_header(&std::collections::HashMap::new()).is_empty());
+    }
+
+    #[test]
+    fn generate_correspond_path_produces_rsa_sized_hex() {
+        // RSA-OAEP with a 1024-bit key -> 128-byte ciphertext -> 256 hex chars.
+        // OAEP padding is randomized, so output must also be non-deterministic.
+        let a = generate_correspond_path(1700000000).unwrap();
+        let b = generate_correspond_path(1700000000).unwrap();
+        assert_eq!(a.len(), 256, "128-byte ciphertext as lowercase hex");
+        assert!(
+            a.chars()
+                .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()),
+            "base16ct lower-case encoding"
+        );
+        assert_ne!(a, b, "randomized OAEP padding");
+    }
 }
