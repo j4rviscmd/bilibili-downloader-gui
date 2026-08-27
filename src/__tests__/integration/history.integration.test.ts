@@ -1,13 +1,9 @@
 import * as historyApi from '@/features/history/api/historyApi'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(),
-}))
-
-import { invoke } from '@tauri-apps/api/core'
-
-const mockInvoke = invoke as unknown as ReturnType<typeof vi.fn>
+// invoke is mocked globally by src/test/setup.ts; mockInvoke is re-exported
+// by the shared test toolkit.
+import { mockInvoke } from '@/test/test-utils'
 
 describe('History Integration Tests', () => {
   beforeEach(() => {
