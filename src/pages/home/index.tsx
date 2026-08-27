@@ -1,31 +1,24 @@
 import type { RootState } from '@/app/store'
-import { useAppDispatch, useSelector } from '@/app/store'
+import { store, useAppDispatch, useSelector } from '@/app/store'
 import { OpenDownloadStatusDialogButton } from '@/features/download-status'
+import { getHistory } from '@/features/history/api/historyApi'
+import { setEntries as setHistoryEntries } from '@/features/history/model/historySlice'
 import { useInit } from '@/features/init'
 import { QRCodeLoginDialog } from '@/features/login'
 import type { Video } from '@/features/video'
 import {
   deselectAll,
-  deselectPageAll,
   DownloadButton,
   PARTS_PER_PAGE,
-  selectHasSelectedParts,
-  selectPageAll,
+  selectAll,
   setHomePage,
   useVideoInfo,
   VideoForm1,
   VideoInfoProvider,
 } from '@/features/video'
+import { collectDownloadedPartIndices } from '@/features/video/lib/downloadedParts'
 import VideoPartCard from '@/features/video/ui/VideoPartCard'
 import VideoPartCardSkeleton from '@/features/video/ui/VideoPartCardSkeleton'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/shared/animate-ui/radix/dialog'
 import {
   Tooltip,
   TooltipContent,
@@ -67,7 +60,7 @@ import { useNavigate, useSearchParams } from 'react-router'
  * @property label - Button label text to display
  * @property onClick - Click event handler callback
  * @property disabled - Whether the button is disabled (optional)
- * @property tooltip - Tooltip text to show when disabled (optional)
+ * @property tooltip - Tooltip text (shown on hover; required for disabled buttons)
  */
 type TooltipButtonProps = {
   label: string
@@ -77,7 +70,10 @@ type TooltipButtonProps = {
 }
 
 /**
- * Button component that displays a tooltip when disabled.
+ * Button that shows a tooltip on hover.
+ *
+ * Disabled buttons use a wrapping span so the tooltip still fires when
+ * `pointer-events: none` blocks the native hover target.
  *
  * @private
  */
@@ -376,9 +372,37 @@ function HomeContentInner() {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const hasActiveDownloads = useSelector(selectHasActiveDownloads)
+  const queue = useSelector((state: RootState) => state.queue)
+  const historyEntries = useSelector(
+    (state: RootState) => state.history.entries,
+  )
   const user = useSelector((state: RootState) => state.user)
   const isLoggedIn = user.hasCookie && user.data?.isLogin
   const [isQrLoginDialogOpen, setIsQrLoginDialogOpen] = useState(false)
+
+  // Load download history so Select All can skip parts finished in
+  // previous sessions. Merge by id so an in-flight fetch cannot wipe
+  // entries added by history:entry_added while the request was out.
+  useEffect(() => {
+    let cancelled = false
+    void getHistory()
+      .then((loaded) => {
+        if (cancelled) return
+        const current = store.getState().history.entries
+        const seen = new Set(current.map((entry) => entry.id))
+        const merged = [...current]
+        for (const entry of loaded) {
+          if (!seen.has(entry.id)) merged.push(entry)
+        }
+        store.dispatch(setHistoryEntries(merged))
+      })
+      .catch(() => {
+        // Select All still skips current-session queue items.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Page state management:
   // - `p` parameter: part number (for initial display and part selection)
@@ -451,15 +475,6 @@ function HomeContentInner() {
 
   // Track scroll request timestamp to ensure each navigation triggers scroll
   const [scrollRequestId, setScrollRequestId] = useState(0)
-
-  // Confirmation dialog state for page navigation
-  const [pendingPageChange, setPendingPageChange] = useState<number | null>(
-    null,
-  )
-  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false)
-
-  // Check if any part is selected
-  const hasSelectedParts = useSelector(selectHasSelectedParts)
 
   // Track previous pendingDownload to detect when it's cleared
   const prevPendingDownloadRef = useRef<typeof input.pendingDownload>(null)
@@ -541,62 +556,18 @@ function HomeContentInner() {
   )
 
   /**
-   * Handles pagination navigation with confirmation dialog when parts are selected.
-   *
-   * If parts are selected, shows a confirmation dialog before navigating.
-   * On confirmation, clears selection and navigates to the new page.
-   * On cancel, stays on the current page.
+   * Handles pagination navigation. Selection is kept across pages so the
+   * user can pick parts on every page (or use Select All) before downloading.
    *
    * @param page - The target page number (1-indexed)
    */
   const handlePageChange = useCallback(
     (page: number) => {
-      // Skip confirmation if navigating to the same page
       if (page === currentPage) return
-
-      if (hasSelectedParts) {
-        setPendingPageChange(page)
-        setIsConfirmDialogOpen(true)
-      } else {
-        performPageChange(page)
-      }
+      performPageChange(page)
     },
-    [currentPage, hasSelectedParts, performPageChange],
+    [currentPage, performPageChange],
   )
-
-  /**
-   * Confirms page navigation: clears selection and navigates.
-   */
-  const handleConfirmNavigation = useCallback(() => {
-    if (pendingPageChange !== null) {
-      dispatch(deselectAll())
-      performPageChange(pendingPageChange)
-    }
-    setIsConfirmDialogOpen(false)
-    setPendingPageChange(null)
-  }, [pendingPageChange, performPageChange])
-
-  /**
-   * Cancels page navigation: closes dialog without changes.
-   */
-  const handleCancelNavigation = useCallback(() => {
-    setIsConfirmDialogOpen(false)
-    setPendingPageChange(null)
-  }, [])
-
-  /**
-   * Part index range (0-based, inclusive) for the currently visible page.
-   * Used to scope select/deselect operations to the current page only.
-   */
-  // Calculate page range for select/deselect operations
-  const pageRange = useMemo(() => {
-    const startIndex = (currentPage - 1) * PARTS_PER_PAGE
-    const endIndex = Math.min(
-      startIndex + PARTS_PER_PAGE - 1,
-      video.parts.length - 1,
-    )
-    return { startIndex, endIndex }
-  }, [currentPage, video.parts.length])
 
   // Handle autoFetch from query parameter
   useEffect(() => {
@@ -648,15 +619,22 @@ function HomeContentInner() {
     ? t('video.download_in_progress')
     : undefined
 
-  // Select all parts on current page
-  const handleSelectAllCurrentPage = useCallback(() => {
-    dispatch(selectPageAll(pageRange))
-  }, [pageRange])
+  // Select every part on every page except ones already downloaded
+  const handleSelectAll = useCallback(() => {
+    const skipIndices = collectDownloadedPartIndices({
+      queue,
+      historyEntries,
+      videoBvid: video.bvid,
+      partCount: video.parts.length,
+      firstPartAid: video.parts[0]?.aid,
+    })
+    dispatch(selectAll({ skipIndices }))
+  }, [dispatch, queue, historyEntries, video.bvid, video.parts])
 
-  // Deselect all parts on current page
-  const handleDeselectAllCurrentPage = useCallback(() => {
-    dispatch(deselectPageAll(pageRange))
-  }, [pageRange])
+  // Deselect every part on every page
+  const handleDeselectAll = useCallback(() => {
+    dispatch(deselectAll())
+  }, [dispatch])
 
   return (
     <div className="flex h-full flex-col">
@@ -732,16 +710,20 @@ function HomeContentInner() {
                   <div className="flex items-center gap-2">
                     <DownloadButton />
                     <TooltipButton
-                      label={t('video.select_all_page')}
-                      onClick={handleSelectAllCurrentPage}
+                      label={t('video.select_all')}
+                      onClick={handleSelectAll}
                       disabled={hasActiveDownloads}
-                      tooltip={selectTooltip}
+                      tooltip={
+                        selectTooltip ?? t('video.select_all_tooltip')
+                      }
                     />
                     <TooltipButton
-                      label={t('video.deselect_all_page')}
-                      onClick={handleDeselectAllCurrentPage}
+                      label={t('video.deselect_all')}
+                      onClick={handleDeselectAll}
                       disabled={hasActiveDownloads}
-                      tooltip={selectTooltip}
+                      tooltip={
+                        selectTooltip ?? t('video.deselect_all_tooltip')
+                      }
                     />
                   </div>
                 )}
@@ -760,26 +742,6 @@ function HomeContentInner() {
           </Card>
         </div>
       )}
-
-      {/* Confirmation Dialog for Page Navigation */}
-      <Dialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
-        <DialogContent disableOutsideClick>
-          <DialogHeader>
-            <DialogTitle>{t('video.confirm_navigation_title')}</DialogTitle>
-            <DialogDescription>
-              {t('video.confirm_navigation_message')}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={handleCancelNavigation}>
-              {t('video.confirm_navigation_cancel')}
-            </Button>
-            <Button onClick={handleConfirmNavigation}>
-              {t('video.confirm_navigation_ok')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

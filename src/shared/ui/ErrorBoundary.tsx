@@ -77,7 +77,7 @@ export class ErrorBoundary extends Component<Props, State> {
       <div style={CONTAINER_STYLE}>
         <h1>Something went wrong</h1>
         <p>An unexpected error occurred. Please restart the application.</p>
-        {import.meta.env.DEV && this.state.error && (
+        {this.state.error && (
           <pre style={ERROR_STYLE}>{this.state.error.message}</pre>
         )}
       </div>

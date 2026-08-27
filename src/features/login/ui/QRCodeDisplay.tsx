@@ -43,11 +43,15 @@ import { useLogin } from '../model/useLogin'
 
 /**
  * QRCodeDisplay component props.
- *
- * Currently this component has no props as it manages all its state
- * internally via the useLogin hook.
  */
-export type QRCodeDisplayProps = Record<string, never>
+export type QRCodeDisplayProps = {
+  /**
+   * Called after a successful login (after a short delay so the success
+   * message is visible). Dialog hosts use this to close the modal instead
+   * of navigating — `navigate('/home')` is a no-op when already on home.
+   */
+  onLoggedIn?: () => void
+}
 
 /**
  * Status configuration for display.
@@ -81,7 +85,7 @@ interface StatusConfig {
  * <QRCodeDisplay />
  * ```
  */
-export function QRCodeDisplay() {
+export function QRCodeDisplay({ onLoggedIn }: QRCodeDisplayProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { getUserInfo } = useUser()
@@ -93,7 +97,6 @@ export function QRCodeDisplay() {
     error,
     generateNewQrCode,
     stopPolling,
-    resetLogin,
   } = useLogin()
 
   // Track if we've handled the success state to prevent duplicate navigation
@@ -103,17 +106,11 @@ export function QRCodeDisplay() {
   const navigationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   /**
-   * Reset login state and generate QR code on mount.
-   *
-   * This effect runs when the component first mounts:
-   * 1. Resets the login state to clear any previous success/error status
-   * 2. Generates a new QR code
-   * 3. Enables success handling after QR code is generated
+   * Generate a QR code on mount. `generateNewQrCode` already clears prior
+   * QR UI state; do not `resetLogin()` here — that would wipe a just-saved
+   * session and reset the login method to Firefox.
    */
   useEffect(() => {
-    // Reset login state to clear previous success status
-    resetLogin()
-    // Generate QR code and enable success handling after it's ready
     generateNewQrCode().then(() => {
       // Enable success handling only after new QR code is generated
       setHasHandledSuccess(false)
@@ -163,12 +160,18 @@ export function QRCodeDisplay() {
         logger.error('QRCodeDisplay: Failed to get user info after login', e),
       )
 
-      // Navigate after a short delay to show success message
+      // Navigate (login page) or close the dialog after a short delay so
+      // the success message is visible. `navigate('/home')` does nothing
+      // when the dialog is already opened from the home page / AppBar.
       navigationTimerRef.current = setTimeout(() => {
-        navigate('/home')
+        if (onLoggedIn) {
+          onLoggedIn()
+        } else {
+          navigate('/home')
+        }
       }, 1500)
     }
-  }, [qrStatus, qrCodeImage, hasHandledSuccess]) // Minimal deps - navigate and getUserInfo are stable
+  }, [qrStatus, qrCodeImage, hasHandledSuccess, onLoggedIn, navigate])
 
   /**
    * Gets the status configuration based on current QR code status.

@@ -70,7 +70,7 @@ function AppBar({ user, theme, setTheme }: Props) {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span className="cursor-help text-sm">
-                    {maskedUserName || t('user.not_logged_in')}
+                    {maskedUserName || t('user.logged_in_user')}
                   </span>
                 </TooltipTrigger>
                 {hasUsername && (

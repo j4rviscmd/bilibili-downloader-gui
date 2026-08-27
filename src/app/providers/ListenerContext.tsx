@@ -63,6 +63,14 @@ interface SubtitleWarningPayload {
 const ListenerContext = createContext<boolean>(false)
 
 /**
+ * downloadIds that already showed the AAC re-encode toast. The backend
+ * used to leave stage=`merge-fallback` on the 500ms progress ticker, which
+ * re-fired this toast twice a second for the whole re-encode. Deduping
+ * here so a sticky stage or a retry cannot spam the UI.
+ */
+const mergeFallbackToasted = new Set<string>()
+
+/**
  * Provider component for Tauri event listeners.
  *
  * Sets up listeners for events emitted from the Tauri Rust backend:
@@ -109,6 +117,7 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
         if (stage === 'complete') {
           // Mark as done - keep in queue so completion actions remain visible
           store.dispatch(updateQueueStatus({ downloadId, status: 'done' }))
+          if (downloadId) mergeFallbackToasted.delete(downloadId)
         } else if (isDownloadStage) {
           // Mark as running when download stages start
           store.dispatch(updateQueueStatus({ downloadId, status: 'running' }))
@@ -124,11 +133,20 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
         //   fallback handled below (warn-*-quality-fallback), which is about
         //   the CDN serving a lower-than-requested quality. Keep this stage
         //   string in sync with the Rust emitter if it is renamed.
-        // Show toast for audio fallback during merge
+        // Constraint: one toast per downloadId, shared toast id across the
+        //   batch. The progress ticker used to emit merge-fallback every
+        //   500ms, which stacked this message for the entire AAC pass.
         if (stage === 'merge-fallback') {
-          toast.info(i18n.t('video.audio_merge_fallback'), {
-            duration: 6000,
-          })
+          const alreadyToasted = downloadId
+            ? mergeFallbackToasted.has(downloadId)
+            : false
+          if (!alreadyToasted) {
+            if (downloadId) mergeFallbackToasted.add(downloadId)
+            toast.info(i18n.t('video.audio_merge_fallback'), {
+              duration: 6000,
+              id: 'video-audio-merge-fallback',
+            })
+          }
         }
 
         // Show toast for quality fallback warnings

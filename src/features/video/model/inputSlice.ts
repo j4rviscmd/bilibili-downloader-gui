@@ -127,12 +127,24 @@ export const inputSlice = createSlice({
       if (target) target.selected = selected
     },
     /**
-     * Selects all video parts for download.
+     * Selects video parts for download, skipping already-downloaded indices.
      *
-     * @param state - Current input state
+     * Skipped parts keep their current selection so a user who manually
+     * re-checked a completed part to re-download it is not overwritten.
      */
-    selectAll: (state) => {
-      state.partInputs.forEach((p) => (p.selected = true))
+    selectAll: {
+      reducer(
+        state,
+        action: PayloadAction<{ skipIndices?: number[] }>,
+      ) {
+        const skip = new Set(action.payload.skipIndices ?? [])
+        state.partInputs.forEach((p, i) => {
+          if (!skip.has(i)) p.selected = true
+        })
+      },
+      prepare(payload?: { skipIndices?: number[] }) {
+        return { payload: payload ?? {} }
+      },
     },
     /**
      * Deselects all video parts.

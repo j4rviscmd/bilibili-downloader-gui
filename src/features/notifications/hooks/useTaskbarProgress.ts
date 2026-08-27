@@ -32,7 +32,10 @@ export function useTaskbarProgress(): void {
   useEffect(() => {
     const win = getCurrentWindow()
     if (enabled && hasActive) {
-      const progress = Math.min(100, Math.round(overallRatio * 100))
+      const progress = Math.min(
+        100,
+        Math.max(0, Math.round(Number.isFinite(overallRatio) ? overallRatio * 100 : 0)),
+      )
       win
         .setProgressBar({ progress })
         .catch((e) => logger.error('setProgressBar failed', e))

@@ -1,7 +1,9 @@
 import inputReducer, {
   defaultSubtitleConfig,
+  deselectAll,
   initPartInputs,
   resetInput,
+  selectAll,
   selectHomePage,
   setHomePage,
   setPartQualities,
@@ -416,6 +418,65 @@ describe('inputSlice', () => {
 
     it('should default to 1 when homePage is unset', () => {
       expect(selectHomePage({ input: initialState })).toBe(1)
+    })
+  })
+
+  describe('selectAll / deselectAll', () => {
+    const partsState = {
+      ...initialState,
+      partInputs: [
+        {
+          cid: 1,
+          page: 1,
+          title: 'Part 1',
+          videoQuality: '80',
+          audioQuality: '30216',
+          selected: true,
+          duration: 120,
+          subtitle: defaultSubtitleConfig,
+        },
+        {
+          cid: 2,
+          page: 2,
+          title: 'Part 2',
+          videoQuality: '80',
+          audioQuality: '30216',
+          selected: false,
+          duration: 120,
+          subtitle: defaultSubtitleConfig,
+        },
+        {
+          cid: 3,
+          page: 11,
+          title: 'Part 11 (page 2)',
+          videoQuality: '80',
+          audioQuality: '30216',
+          selected: false,
+          duration: 120,
+          subtitle: defaultSubtitleConfig,
+        },
+      ],
+    }
+
+    it('selects every part, including those on later pages', () => {
+      const state = inputReducer(partsState, selectAll())
+      expect(state.partInputs.every((p) => p.selected)).toBe(true)
+    })
+
+    it('skips already-downloaded parts without clearing a manual re-check', () => {
+      const state = inputReducer(
+        partsState,
+        selectAll({ skipIndices: [0, 2] }),
+      )
+      expect(state.partInputs[0]?.selected).toBe(true)
+      expect(state.partInputs[1]?.selected).toBe(true)
+      expect(state.partInputs[2]?.selected).toBe(false)
+    })
+
+    it('deselects every part, including those on later pages', () => {
+      const selected = inputReducer(partsState, selectAll())
+      const state = inputReducer(selected, deselectAll())
+      expect(state.partInputs.every((p) => !p.selected)).toBe(true)
     })
   })
 })
