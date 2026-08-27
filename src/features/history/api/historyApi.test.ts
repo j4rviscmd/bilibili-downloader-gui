@@ -74,6 +74,14 @@ describe('historyApi', () => {
         'Failed to retrieve history: Database error',
       )
     })
+
+    it('should stringify non-Error rejections into the prefixed message', async () => {
+      mockInvoke.mockRejectedValue('ERR::DB_LOCKED')
+
+      await expect(getHistory()).rejects.toThrow(
+        'Failed to retrieve history: ERR::DB_LOCKED',
+      )
+    })
   })
 
   describe('addHistoryEntry', () => {

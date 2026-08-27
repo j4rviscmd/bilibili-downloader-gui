@@ -35,11 +35,9 @@ npx shadcn@latest add <component>
 - **IMPORTANT**: When adding or changing a key in any language file,
   apply the same change to **all 6 languages
   (`en`/`ja`/`zh`/`ko`/`es`/`fr`)**. Adding to only some languages causes
-  runtime errors. Verify:
-
-  ```bash
-  for f in src/i18n/locales/*.json; do echo "$f: $(grep -c '":' "$f")"; done
-  ```
+  runtime errors. Enforced automatically by
+  `src/i18n/locales.test.ts` (full key-set parity vs `en.json`, reports
+  exact missing/extra keys per language) — run `npm test` to verify.
 
 - Map backend `ERR::*` error codes to translation keys (e.g.,
   `ERR::VIDEO_NOT_FOUND` → `video.video_not_found`)
