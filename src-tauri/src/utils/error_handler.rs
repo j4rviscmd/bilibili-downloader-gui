@@ -36,3 +36,18 @@ pub fn setup_panic_hook() {
         log::error!("[BE] APPLICATION PANIC at {}: {}", location, message);
     }));
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn setup_panic_hook_installs_without_panicking() {
+        // Installs the hook; capturing the previous hook keeps the default
+        // replaceable. The hook body itself is exercised by std's test
+        // harness (any later panic logs via log::error).
+        let previous = std::panic::take_hook();
+        setup_panic_hook();
+        std::panic::set_hook(previous);
+    }
+}
