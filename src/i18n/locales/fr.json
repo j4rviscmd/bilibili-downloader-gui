@@ -229,6 +229,8 @@
     "reload_after_error": "Recharger la page pour réessayer",
     "select_all": "Tout sélectionner",
     "deselect_all": "Tout désélectionner",
+    "select_all_tooltip": "Sélectionne les parties non téléchargées de toutes les pages",
+    "deselect_all_tooltip": "Désélectionne toutes les parties de toutes les pages",
     "select_all_page": "Sélectionner la page",
     "deselect_all_page": "Désélectionner la page",
     "pagination_previous": "Précédent",

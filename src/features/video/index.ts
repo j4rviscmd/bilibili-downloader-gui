@@ -62,6 +62,11 @@ export {
   PARTS_PER_PAGE,
   VIDEO_QUALITIES_MAP,
 } from './lib/constants'
+export {
+  clampPartDownloadConcurrency,
+  createConcurrencyLimiter,
+  resolvePartDownloadConcurrency,
+} from './lib/concurrency'
 
 // Types
 export type { Input, PendingDownload, Video } from './types'

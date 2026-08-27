@@ -10,14 +10,38 @@ use std::sync::Arc;
 use tokio::sync::{Mutex, Semaphore};
 use tokio_util::sync::CancellationToken;
 
-/// Default maximum number of concurrent video downloads.
-const DEFAULT_MAX_CONCURRENT_DOWNLOADS: usize = 8;
+/// Minimum concurrent video downloads. Downloads are mostly I/O bound, so even
+/// a single-core machine still benefits from a small amount of overlap.
+const MIN_CONCURRENT_DOWNLOADS: usize = 2;
+
+/// Maximum concurrent video downloads. ffmpeg merge is CPU-heavy, and each
+/// part also opens several HTTP segment streams; 16 simultaneous merges
+/// white-screens the UI and resets CDN connections.
+const MAX_CONCURRENT_DOWNLOADS: usize = 8;
+
+/// Fallback when `available_parallelism` is unavailable.
+const FALLBACK_CPU_COUNT: usize = 4;
+
+/// Clamps a logical CPU count into the allowed concurrent-download range.
+pub(crate) fn clamp_cpu_count(cpu_count: usize) -> usize {
+    cpu_count.clamp(MIN_CONCURRENT_DOWNLOADS, MAX_CONCURRENT_DOWNLOADS)
+}
+
+/// Resolves how many video downloads may run at once from the machine's
+/// logical CPU count. Uses core count (not live utilization) so the limit is
+/// stable across a session instead of oscillating with load.
+pub fn resolve_max_concurrent_downloads() -> usize {
+    let cpu_count = std::thread::available_parallelism()
+        .map(std::num::NonZeroUsize::get)
+        .unwrap_or(FALLBACK_CPU_COUNT);
+    clamp_cpu_count(cpu_count)
+}
 
 /// Global semaphore limiting concurrent video downloads.
 ///
 /// This semaphore controls how many video files can be downloaded simultaneously.
-/// The default limit allows 8 concurrent downloads. Audio downloads are not
-/// limited by this semaphore.
+/// The permit count follows the machine's logical CPU count (clamped to
+/// `[2, 8]`). Audio downloads are not limited by this semaphore.
 ///
 /// # Semaphore Lifecycle
 ///
@@ -35,7 +59,7 @@ const DEFAULT_MAX_CONCURRENT_DOWNLOADS: usize = 8;
 /// Why: doctests compile as separate crates, so `crate::` paths do not resolve —
 /// import via the lib crate name instead (this PR's doctest policy)
 /// Note: this example is executed by `cargo test` in CI; acquiring one permit from
-/// the 8-permit semaphore cannot deadlock
+/// the CPU-sized semaphore cannot deadlock
 /// ```rust
 /// use bilibili_downloader_gui_lib::handlers::concurrency::VIDEO_SEMAPHORE;
 ///
@@ -52,7 +76,7 @@ const DEFAULT_MAX_CONCURRENT_DOWNLOADS: usize = 8;
 /// # }
 /// ```
 pub static VIDEO_SEMAPHORE: Lazy<Arc<Semaphore>> =
-    Lazy::new(|| Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_DOWNLOADS)));
+    Lazy::new(|| Arc::new(Semaphore::new(resolve_max_concurrent_downloads())));
 
 /// Global registry for download cancellation tokens.
 ///
@@ -276,6 +300,22 @@ impl DownloadCancelRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn clamp_cpu_count_bounds() {
+        assert_eq!(clamp_cpu_count(1), MIN_CONCURRENT_DOWNLOADS);
+        assert_eq!(clamp_cpu_count(8), 8);
+        assert_eq!(clamp_cpu_count(32), MAX_CONCURRENT_DOWNLOADS);
+    }
+
+    #[test]
+    fn resolve_max_concurrent_downloads_is_clamped() {
+        let n = resolve_max_concurrent_downloads();
+        assert!(
+            n >= MIN_CONCURRENT_DOWNLOADS && n <= MAX_CONCURRENT_DOWNLOADS,
+            "resolved concurrency {n} is outside [{MIN_CONCURRENT_DOWNLOADS}, {MAX_CONCURRENT_DOWNLOADS}]"
+        );
+    }
 
     /// The core fix: a second cancel for the same id must return false so
     /// cancel_download does not emit a duplicate `download_cancelled` event

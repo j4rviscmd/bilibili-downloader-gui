@@ -1,5 +1,6 @@
 import { IconButton } from '@/components/animate-ui/components/buttons/icon'
 import { CircleX } from '@/components/animate-ui/icons/circle-x'
+import { formatPercent, formatTransferRate } from '@/features/download-status/lib/format'
 import {
   Tooltip,
   TooltipContent,
@@ -21,17 +22,6 @@ import type { PartDownloadStatus } from '../hooks/usePartDownloadStatus'
 const MIN_HEIGHT = 'min-h-[28px]'
 
 /**
- * Formats transfer rate in human-readable units.
- * Converts kilobytes per second to KB/s or MB/s depending on size.
- */
-function formatTransferRate(kb: number): string {
-  if (kb < 1000) {
-    return `${kb.toFixed(0)}KB/s`
-  }
-  return `${(kb / 1024).toFixed(1)}MB/s`
-}
-
-/**
  * Formats a megabyte value, trimming the decimal when it is .0.
  * Example: 123.0 → 123, 123.4 → 123.4
  *
@@ -39,7 +29,7 @@ function formatTransferRate(kb: number): string {
  * (round_to(..., 1)); this only controls display of the trailing .0.
  */
 function formatMb(mb: number): string {
-  const formatted = mb.toFixed(1)
+  const formatted = Number.isFinite(mb) ? mb.toFixed(1) : '0.0'
   return formatted.endsWith('.0') ? formatted.slice(0, -2) : formatted
 }
 
@@ -119,12 +109,12 @@ function StageProgress({
       <StageIcon icon={icon} label={stageLabel} fontWeight="medium" />
       <span className="tabular-nums">
         <span className="inline-block min-w-[3ch] text-right">
-          {progress.percentage.toFixed(0)}
+          {formatPercent(progress.percentage)}
         </span>
         %
       </span>
       <span className="inline-block min-w-[7ch] text-right tabular-nums">
-        {formatTransferRate(progress.transferRate || 0)}
+        {formatTransferRate(progress.transferRate)}
       </span>
       {progress.filesize != null && (
         <span className="tabular-nums">
@@ -161,11 +151,11 @@ function MergeStageProgress({ progressEntries, t }: MergeStageProgressProps) {
     return (
       <div
         className={`flex ${MIN_HEIGHT} items-center gap-1`}
-        aria-label={`${mergeLabel}: ${mergeProgress.percentage.toFixed(0)}%`}
+        aria-label={`${mergeLabel}: ${formatPercent(mergeProgress.percentage)}%`}
       >
         <StageIcon icon="🔄" label={mergeLabel} fontWeight="medium" />
         <span className="font-medium"> {mergeLabel}</span>
-        <span>{mergeProgress.percentage.toFixed(0)}%</span>
+        <span>{formatPercent(mergeProgress.percentage)}%</span>
       </div>
     )
   }
