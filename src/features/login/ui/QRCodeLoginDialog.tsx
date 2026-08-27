@@ -54,7 +54,7 @@ export function QRCodeLoginDialog({
         <DialogHeader>
           <DialogTitle>{t('login.title', 'Login to Bilibili')}</DialogTitle>
         </DialogHeader>
-        <QRCodeDisplay />
+        <QRCodeDisplay onLoggedIn={() => onOpenChange(false)} />
       </DialogContent>
     </Dialog>
   )
