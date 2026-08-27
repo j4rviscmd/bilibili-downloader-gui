@@ -59,6 +59,7 @@ const Toaster = ({ theme, richColors }: ToasterProps) => {
       pauseOnFocusLoss
       pauseOnHover
       draggable
+      limit={4}
       toastClassName="select-none max-w-[480px]"
       style={
         {

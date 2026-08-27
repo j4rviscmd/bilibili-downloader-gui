@@ -229,6 +229,8 @@
     "reload_after_error": "페이지 새로고침 후 재시도",
     "select_all": "전체 선택",
     "deselect_all": "전체 해제",
+    "select_all_tooltip": "아직 다운로드하지 않은 모든 페이지의 파트를 선택합니다",
+    "deselect_all_tooltip": "모든 페이지의 파트 선택을 해제합니다",
     "select_all_page": "페이지 선택",
     "deselect_all_page": "페이지 해제",
     "pagination_previous": "이전",

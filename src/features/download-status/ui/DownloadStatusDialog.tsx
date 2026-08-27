@@ -10,7 +10,10 @@ import {
 import { TooltipProvider } from '@/shared/animate-ui/radix/tooltip'
 import { cn } from '@/shared/lib/utils'
 import { cancelDownload } from '@/shared/queue'
+import { ErrorBoundary } from '@/shared/ui/ErrorBoundary'
+import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Virtuoso } from 'react-virtuoso'
 
 import { useDownloadStatusDialog } from '../hooks/useDownloadStatusDialog'
 import {
@@ -19,6 +22,9 @@ import {
 } from '../model/selectors'
 import { OverallProgressBar } from './OverallProgressBar'
 import { PartStatusRow } from './PartStatusRow'
+
+/** Approximate height of one compact status row, including vertical padding. */
+const PART_STATUS_ROW_HEIGHT = 40
 
 /**
  * ダウンロード状況サマリダイアログ。
@@ -29,20 +35,14 @@ import { PartStatusRow } from './PartStatusRow'
  *
  * DialogContent は grid 配置のため、子に min-w-0 を付与しないと
  * （grid item の min-width: auto で）内容が親幅を溢れる。
- * スクロール領域は ScrollArea ではなく overflow-y-auto の div を使い、
- * 内容の max-content に水平に広がらないようにする。
+ * スクロールは Virtuoso に任せ、180+ 行を全部マウントしない。
  * TooltipProvider は PartStatusRow の Tooltip 表示に必要。
  *
- * @why overflow-x-clip + px-1: `overflow-y-auto` promotes the computed
- *   `overflow-x` from `visible` to `auto` (CSS Overflow spec: a `visible`
- *   axis is forced to `auto` when the other axis is non-`visible`), which
- *   clips a child's box-shadow at the container edge. Each PartStatusRow's
- *   `ring-1` sits 1px outside its border box flush against this container's
- *   left edge, so without `px-1` the left ring — and the row's left rounded
- *   corner — gets clipped (visible as the "left edge cut off"). `px-1`
- *   reserves a gutter so the ring renders; `overflow-x-clip` also suppresses
- *   any implicit horizontal scrollbar, honoring the "don't expand
- *   horizontally" intent above.
+ * @why overflow-x-clip + px-1: Virtuoso's scroller still clips a child's
+ *   box-shadow at the container edge. Each PartStatusRow's `ring-1` sits 1px
+ *   outside its border box, so without `px-1` the left ring — and the row's
+ *   left rounded corner — gets clipped. `px-1` reserves a gutter so the ring
+ *   renders; `overflow-x-clip` suppresses an implicit horizontal scrollbar.
  */
 export function DownloadStatusDialog() {
   const { t } = useTranslation()
@@ -51,6 +51,23 @@ export function DownloadStatusDialog() {
   const isOpen = useSelector(selectDownloadStatusDialogOpen)
   const rows = useSelector(selectPartStatusRows)
 
+  const handleCancel = useCallback(
+    (downloadId: string, partIndex: number) => {
+      dispatch(cancelDownload(downloadId))
+      // @why: Mirror the home (VideoPartCard.handleCancel) behavior and
+      //   also clear the selection on cancel. Without this, a re-download
+      //   would re-fetch this part, contradicting the user's "I don't want
+      //   it" intent. partIndex is 1-based, so -1 converts to 0-based.
+      dispatch(
+        updatePartSelected({
+          index: partIndex - 1,
+          selected: false,
+        }),
+      )
+    },
+    [dispatch],
+  )
+
   return (
     <Dialog
       open={isOpen}
@@ -58,7 +75,7 @@ export function DownloadStatusDialog() {
         if (!open) close()
       }}
     >
-      <DialogContent className="max-w-5xl [&>*]:min-w-0">
+      <DialogContent className="flex max-h-[85vh] max-w-5xl flex-col [&>*]:min-w-0">
         <TooltipProvider delayDuration={300}>
           <DialogHeader>
             <DialogTitle>{t('downloadStatus.title')}</DialogTitle>
@@ -67,8 +84,10 @@ export function DownloadStatusDialog() {
           {rows.length > 0 && <OverallProgressBar />}
           <div
             className={cn(
-              'max-h-[80vh] min-h-[22rem] overflow-x-clip overflow-y-auto px-1',
-              rows.length === 0 && 'flex items-center justify-center',
+              'min-h-[22rem] min-w-0 overflow-x-clip px-1',
+              rows.length === 0
+                ? 'flex items-center justify-center'
+                : 'h-[min(70vh,36rem)]',
             )}
           >
             {rows.length === 0 ? (
@@ -76,27 +95,31 @@ export function DownloadStatusDialog() {
                 {t('downloadStatus.no_downloads')}
               </p>
             ) : (
-              <div className="space-y-1 py-2">
-                {rows.map((row) => (
-                  <PartStatusRow
-                    key={row.downloadId}
-                    part={row}
-                    onCancel={() => {
-                      dispatch(cancelDownload(row.downloadId))
-                      // @why: Mirror the home (VideoPartCard.handleCancel) behavior and
-                      //   also clear the selection on cancel. Without this, a re-download
-                      //   would re-fetch this part, contradicting the user's "I don't want
-                      //   it" intent. partIndex is 1-based, so -1 converts to 0-based.
-                      dispatch(
-                        updatePartSelected({
-                          index: row.partIndex - 1,
-                          selected: false,
-                        }),
-                      )
-                    }}
-                  />
-                ))}
-              </div>
+              <ErrorBoundary
+                fallback={
+                  <p className="text-muted-foreground py-4 text-center text-sm">
+                    {t('video.download_failed')}
+                  </p>
+                }
+              >
+                <Virtuoso
+                  style={{ height: '100%' }}
+                  data={rows}
+                  computeItemKey={(_index, row) => row.downloadId}
+                  defaultItemHeight={PART_STATUS_ROW_HEIGHT}
+                  increaseViewportBy={160}
+                  itemContent={(_index, row) => (
+                    <div className="py-0.5">
+                      <PartStatusRow
+                        part={row}
+                        onCancel={() =>
+                          handleCancel(row.downloadId, row.partIndex)
+                        }
+                      />
+                    </div>
+                  )}
+                />
+              </ErrorBoundary>
             )}
           </div>
         </TooltipProvider>

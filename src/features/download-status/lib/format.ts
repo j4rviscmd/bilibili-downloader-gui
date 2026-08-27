@@ -1,10 +1,30 @@
 /**
+ * Returns a finite number, or `fallback` when the value is missing/NaN/Infinity.
+ *
+ * Progress events from the backend can omit `transferRate`/`percentage` during
+ * CDN rotation and stream errors. Calling `Number#toFixed` on those values
+ * throws and whitescreens the whole app via the root ErrorBoundary.
+ */
+export function finiteNumber(value: unknown, fallback = 0): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+/**
  * KB/s を KB/s または MB/s にフォーマットする。
  * PartDownloadProgress の formatTransferRate と同一ロジック。
  */
-export function formatTransferRate(kb: number): string {
-  if (kb < 1000) return `${kb.toFixed(0)}KB/s`
-  return `${(kb / 1024).toFixed(1)}MB/s`
+export function formatTransferRate(kb: unknown): string {
+  const n = finiteNumber(kb)
+  if (n < 1000) return `${n.toFixed(0)}KB/s`
+  return `${(n / 1024).toFixed(1)}MB/s`
+}
+
+/**
+ * Formats a 0–100 percentage for display, coercing invalid values to 0.
+ */
+export function formatPercent(value: unknown): string {
+  const n = Math.min(100, Math.max(0, Math.round(finiteNumber(value))))
+  return String(n)
 }
 
 /**

@@ -9,9 +9,10 @@ import {
 import { mapBackendError } from '@/shared/lib/mapBackendError'
 import { cn } from '@/shared/lib/utils'
 import { GitMerge } from 'lucide-react'
+import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { formatTransferRate } from '../lib/format'
+import { finiteNumber, formatTransferRate } from '../lib/format'
 import type { PartStatusRowModel, StageProgress } from '../model/types'
 
 const STATUS_DOT_CLASS: Record<string, string> = {
@@ -36,7 +37,7 @@ function StageMini({
   showSpeed?: boolean
 }) {
   if (!stage) return null
-  const pct = Math.min(100, Math.round(stage.percentage))
+  const pct = Math.min(100, Math.round(finiteNumber(stage.percentage)))
   return (
     <div className="flex shrink-0 items-center gap-1">
       <TooltipProvider delayDuration={300}>
@@ -95,7 +96,7 @@ function SubtitleStageMini({ tooltipLabel }: { tooltipLabel: string }) {
  * 左から: ステータスドット / P番号 / パート名 / [DL中] audio bar+%+speed +
  * video bar+%+speed / [マージ中] merge bar+% / ステータスラベル。
  */
-export function PartStatusRow({
+export const PartStatusRow = memo(function PartStatusRow({
   part,
   onCancel,
 }: {
@@ -118,7 +119,9 @@ export function PartStatusRow({
     part.status === 'error' && part.errorMessage
       ? mapBackendError(part.errorMessage)
       : null
-  const rawName = mappedErrorKey ? t(mappedErrorKey) : part.title
+  const rawName = String(
+    mappedErrorKey ? t(mappedErrorKey) : (part.title ?? ''),
+  )
   const MAX_TOOLTIP_CHARS = 100
   const tooltipName =
     rawName.length > MAX_TOOLTIP_CHARS
@@ -183,13 +186,13 @@ export function PartStatusRow({
             label="🔊"
             tooltipLabel={t('downloadStatus.stage_audio')}
             stage={part.audio}
-            showSpeed
+            showSpeed={!part.isRetrying}
           />
           <StageMini
             label="🎬"
             tooltipLabel={t('downloadStatus.stage_video')}
             stage={part.video}
-            showSpeed
+            showSpeed={!part.isRetrying}
           />
           {part.stage === 'subtitle' && (
             <SubtitleStageMini
@@ -243,4 +246,4 @@ export function PartStatusRow({
       )}
     </div>
   )
-}
+})

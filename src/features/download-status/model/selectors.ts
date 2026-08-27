@@ -3,6 +3,7 @@ import { createSelector } from '@reduxjs/toolkit'
 import type { RootState } from '@/app/store'
 import type { Progress } from '@/shared/ui/Progress'
 
+import { finiteNumber } from '../lib/format'
 import type { OverallSummary, PartStatusRowModel } from './types'
 
 /** ダイアログ開閉状態そのもの。 */
@@ -89,19 +90,28 @@ function pickStageData(entries: Progress[]): {
   const video = byStage('video')
   const merge = byStage('merge')
   const subtitle = byStage('subtitle')
-  const audioPct = audio?.percentage ?? (merge ? 100 : 0)
-  const videoPct = video?.percentage ?? (merge ? 100 : 0)
-  const mergePct = merge?.percentage ?? 0
+  const audioPct = finiteNumber(audio?.percentage ?? (merge ? 100 : 0))
+  const videoPct = finiteNumber(video?.percentage ?? (merge ? 100 : 0))
+  const mergePct = finiteNumber(merge?.percentage ?? 0)
   return {
     percentage: (audioPct + videoPct + mergePct) / 3,
     audio: audio
-      ? { percentage: audio.percentage, transferRate: audio.transferRate }
+      ? {
+          percentage: finiteNumber(audio.percentage),
+          transferRate: finiteNumber(audio.transferRate),
+        }
       : null,
     video: video
-      ? { percentage: video.percentage, transferRate: video.transferRate }
+      ? {
+          percentage: finiteNumber(video.percentage),
+          transferRate: finiteNumber(video.transferRate),
+        }
       : null,
     merge: merge
-      ? { percentage: merge.percentage, transferRate: merge.transferRate }
+      ? {
+          percentage: finiteNumber(merge.percentage),
+          transferRate: finiteNumber(merge.transferRate),
+        }
       : null,
     isRetrying:
       (audio?.isRetrying ?? false) ||

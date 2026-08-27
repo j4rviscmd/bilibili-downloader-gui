@@ -230,6 +230,8 @@
     "reload_after_error": "刷新页面后重试",
     "select_all": "全选",
     "deselect_all": "取消全选",
+    "select_all_tooltip": "选中所有分页中尚未下载的分P",
+    "deselect_all_tooltip": "取消选中所有分页中的全部分P",
     "select_all_page": "选择本页",
     "deselect_all_page": "取消本页",
     "pagination_previous": "上一页",

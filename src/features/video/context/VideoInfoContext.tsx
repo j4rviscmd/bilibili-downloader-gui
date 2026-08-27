@@ -1,5 +1,5 @@
 import { isUnauthorizedError } from '@/app/lib/invokeErrorHandler'
-import { type RootState, store, useSelector } from '@/app/store'
+import { store, useSelector } from '@/app/store'
 import { openDownloadStatusDialog } from '@/features/download-status'
 import { downloadVideo } from '@/features/video/api/downloadVideo'
 import {
@@ -10,6 +10,10 @@ import {
   buildVideoFormSchema1,
   buildVideoFormSchema2,
 } from '@/features/video/lib/formSchema'
+import {
+  createConcurrencyLimiter,
+  resolvePartDownloadConcurrency,
+} from '@/features/video/lib/concurrency'
 import { shouldSelectPart } from '@/features/video/lib/partSelection'
 import { extractContentId } from '@/features/video/lib/utils'
 import {
@@ -69,7 +73,6 @@ function extractPageFromUrl(url: string): number | null {
  * Context value type for VideoInfoProvider.
  */
 export type VideoInfoContextValue = {
-  progress: RootState['progress']
   video: Video
   input: Input
   onValid1: (url: string) => Promise<void>
@@ -138,7 +141,6 @@ type VideoInfoProviderProps = {
  */
 export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
   const { t } = useTranslation()
-  const progress = useSelector((state) => state.progress)
   const video = useSelector((state) => state.video)
   const input = useSelector((state) => state.input)
   const [triggerFetch, { isFetching: isFetchingVideo }] =
@@ -424,9 +426,9 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
     )
 
     // Pre-enqueue every selected part as pending so the download status
-    // dialog shows all parts immediately. Downloads run serially, so without
-    // this only the in-flight part would appear. downloadVideo's own enqueue
-    // is a no-op for these IDs (deduped by downloadId).
+    // dialog shows all parts immediately. Parts download concurrently, so
+    // without this only the in-flight parts would appear. downloadVideo's
+    // own enqueue is a no-op for these IDs (deduped by downloadId).
     for (const { pi, idx } of selectedParts) {
       store.dispatch(
         enqueue({
@@ -442,104 +444,128 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
     // each part's progress. Closing the dialog keeps the download running.
     store.dispatch(openDownloadStatusDialog(parentId))
 
-    for (const { pi, idx } of selectedParts) {
-      // Abort remaining parts if cancelled (e.g. via cancelAllDownloads).
-      // Stop deterministically on the parent's status rather than relying on
-      // downloadVideo's reject error message.
-      const parent = store
-        .getState()
-        .queue.find((q) => q.downloadId === parentId)
-      if (parent?.status === 'cancelling' || parent?.status === 'cancelled') {
-        break
-      }
+    const limiter = createConcurrencyLimiter(
+      resolvePartDownloadConcurrency(
+        undefined,
+        store.getState().settings.downloadParallelism,
+      ),
+    )
 
-      const currentPartInput = store.getState().input.partInputs[idx]
-      if (!currentPartInput?.selected) continue
+    await Promise.all(
+      selectedParts.map(({ pi, idx }) =>
+        limiter.run(async () => {
+          // Skip queued parts if the whole playlist was cancelled while they
+          // waited for a slot. In-flight parts still get ERR::CANCELLED from
+          // the backend; leftover pending children are cleaned up below.
+          const parent = store
+            .getState()
+            .queue.find((q) => q.downloadId === parentId)
+          if (
+            parent?.status === 'cancelling' ||
+            parent?.status === 'cancelled'
+          ) {
+            return
+          }
 
-      // Get ep_id for bangumi content
-      const epId = video.parts[idx]?.epId
+          const currentPartInput = store.getState().input.partInputs[idx]
+          if (!currentPartInput?.selected) return
 
-      const downloadId = `${parentId}-p${idx + 1}`
-      try {
-        await downloadVideo(
-          videoId,
-          pi.cid,
-          pi.title.trim(),
-          pi.videoQuality ? parseInt(pi.videoQuality, 10) : null,
-          pi.audioQuality ? parseInt(pi.audioQuality, 10) : null,
-          downloadId,
-          parentId,
-          pi.duration,
-          pi.thumbnailUrl,
-          pi.page,
-          pi.subtitle,
-          currentPartInput.subtitles,
-          epId,
-        )
-      } catch (e) {
-        const raw = String(e)
+          // Get ep_id for bangumi content
+          const epId = video.parts[idx]?.epId
 
-        const parent = store
-          .getState()
-          .queue.find((q) => q.downloadId === parentId)
-        // Whole-playlist cancel (cancelAllDownloads) stops the loop. Judge by
-        // the parent's status so error-message format changes can't let the
-        // next part start.
-        if (parent?.status === 'cancelling' || parent?.status === 'cancelled') {
-          break
-        }
+          const downloadId = `${parentId}-p${idx + 1}`
+          try {
+            await downloadVideo(
+              videoId,
+              pi.cid,
+              pi.title.trim(),
+              pi.videoQuality ? parseInt(pi.videoQuality, 10) : null,
+              pi.audioQuality ? parseInt(pi.audioQuality, 10) : null,
+              downloadId,
+              parentId,
+              pi.duration,
+              pi.thumbnailUrl,
+              pi.page,
+              pi.subtitle,
+              currentPartInput.subtitles,
+              epId,
+            )
+          } catch (e) {
+            const raw = String(e)
 
-        // Per-part cancel (cancelDownload) only rejects this part with
-        // ERR::CANCELLED while leaving the parent running/pending — skip this
-        // part silently and continue to the next. Don't toast: the user
-        // intentionally cancelled.
-        if (raw.includes('ERR::CANCELLED')) {
-          continue
-        }
+            const cancelledParent = store
+              .getState()
+              .queue.find((q) => q.downloadId === parentId)
+            // Whole-playlist cancel (cancelAllDownloads): this part is done;
+            // queued siblings still check parent status before starting.
+            if (
+              cancelledParent?.status === 'cancelling' ||
+              cancelledParent?.status === 'cancelled'
+            ) {
+              return
+            }
 
-        const key = mapBackendError(raw)
-        // Constraint: when mapBackendError has no mapping AND the raw error is
-        // ERR::UNAUTHORIZED, return null so no toast is shown here. Session
-        // expiry is handled centrally by interceptInvokeError/handleSessionExpiry
-        // (src/app/lib/invokeErrorHandler.ts), which emits its own dedicated
-        // session-expiry toast — showing another one here would duplicate it.
-        const description = key ? t(key) : isUnauthorizedError(raw) ? null : raw
-        if (description) {
-          // Bilibili-side transient errors: append a retry hint so the user
-          // knows the failure is likely temporary and a later retry may
-          // succeed. Confirmed by logs — when the built-in retry exhausts,
-          // a later manual retry typically succeeds (CDN-side instability).
-          const isTransientError =
-            raw.includes('ERR::NETWORK') ||
-            raw.includes('ERR::INVALID_MEDIA_RESPONSE') ||
-            raw.includes('ERR::AUDIO_DOWNLOAD_FAILED') ||
-            raw.includes('ERR::RATE_LIMITED')
-          const retryHint = isTransientError ? t('video.retry_hint') : undefined
-          const partDescription = t('video.download_failed_part_description', {
-            page: pi.page,
-            title: pi.title,
-            description,
-          })
-          // The wrapper (`@/shared/ui/toast`) injects the Copy button and
-          // disables the close button app-wide, so we only pass the localized
-          // text (with optional retry hint) as a plain string description.
-          toast.error(t('video.download_failed'), {
-            duration: Infinity,
-            description: retryHint
-              ? `${partDescription}\n${retryHint}`
-              : partDescription,
-          })
-          store.dispatch(
-            setError(retryHint ? `${description}\n${retryHint}` : description),
-          )
-        }
-        logger.error('Download failed', raw)
+            // Per-part cancel (cancelDownload) only rejects this part with
+            // ERR::CANCELLED while leaving the parent running/pending — skip
+            // this part silently. Don't toast: the user intentionally cancelled.
+            if (raw.includes('ERR::CANCELLED')) {
+              return
+            }
 
-        // Transient failures (e.g. network errors) should not block
-        // the remaining selected parts from being attempted.
-        continue
-      }
-    }
+            const key = mapBackendError(raw)
+            // Constraint: when mapBackendError has no mapping AND the raw error
+            // is ERR::UNAUTHORIZED, return null so no toast is shown here.
+            // Session expiry is handled centrally by
+            // interceptInvokeError/handleSessionExpiry
+            // (src/app/lib/invokeErrorHandler.ts), which emits its own dedicated
+            // session-expiry toast — showing another one here would duplicate it.
+            const description = key
+              ? t(key)
+              : isUnauthorizedError(raw)
+                ? null
+                : raw
+            if (description) {
+              // Bilibili-side transient errors: append a retry hint so the user
+              // knows the failure is likely temporary and a later retry may
+              // succeed. Confirmed by logs — when the built-in retry exhausts,
+              // a later manual retry typically succeeds (CDN-side instability).
+              const isTransientError =
+                raw.includes('ERR::NETWORK') ||
+                raw.includes('ERR::INVALID_MEDIA_RESPONSE') ||
+                raw.includes('ERR::AUDIO_DOWNLOAD_FAILED') ||
+                raw.includes('ERR::RATE_LIMITED')
+              const retryHint = isTransientError
+                ? t('video.retry_hint')
+                : undefined
+              const partDescription = t(
+                'video.download_failed_part_description',
+                {
+                  page: pi.page,
+                  title: pi.title,
+                  description,
+                },
+              )
+              // The wrapper (`@/shared/ui/toast`) injects the Copy button and
+              // disables the close button app-wide, so we only pass the
+              // localized text (with optional retry hint) as a plain string.
+              toast.error(t('video.download_failed'), {
+                duration: 12000,
+                id: `download-failed-${downloadId}`,
+                description: retryHint
+                  ? `${partDescription}\n${retryHint}`
+                  : partDescription,
+              })
+              store.dispatch(
+                setError(
+                  retryHint ? `${description}\n${retryHint}` : description,
+                ),
+              )
+            }
+            logger.error('Download failed', raw)
+          }
+        }),
+      ),
+    )
 
     const parent = store.getState().queue.find((q) => q.downloadId === parentId)
     if (parent?.status === 'cancelled' || parent?.status === 'cancelling') {
@@ -575,23 +601,36 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
     isForm2ValidAll,
     input.url,
     input.partInputs,
-    video.title,
+    video,
     t,
   ])
 
-  const value: VideoInfoContextValue = {
-    progress,
-    video,
-    input,
-    onValid1,
-    onValid2,
-    isForm1Valid,
-    isForm2ValidAll,
-    duplicateIndices,
-    selectedCount,
-    isFetching,
-    download,
-  }
+  const value = useMemo<VideoInfoContextValue>(
+    () => ({
+      video,
+      input,
+      onValid1,
+      onValid2,
+      isForm1Valid,
+      isForm2ValidAll,
+      duplicateIndices,
+      selectedCount,
+      isFetching,
+      download,
+    }),
+    [
+      video,
+      input,
+      onValid1,
+      onValid2,
+      isForm1Valid,
+      isForm2ValidAll,
+      duplicateIndices,
+      selectedCount,
+      isFetching,
+      download,
+    ],
+  )
 
   return (
     <VideoInfoContext.Provider value={value}>

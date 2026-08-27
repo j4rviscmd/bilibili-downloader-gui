@@ -864,19 +864,24 @@ pub async fn merge_avs(
 
     // Cancellation must propagate immediately — it is a user action, not a
     // transcode failure, and must NOT trigger the AAC re-encode fallback.
-    if matches!(
-        copy_result.as_ref().err().map(String::as_str),
-        Some("ERR::CANCELLED")
-    ) {
-        return Err(copy_result.unwrap_err());
+    let copy_err = copy_result.unwrap_err();
+    if copy_err == "ERR::CANCELLED" {
+        return Err(copy_err);
     }
 
     // Audio copy failed (non-cancel): reset the progress baseline so the
     // frontend's monotonic clamp tracks the re-encode from 0% instead of
     // sitting at the copy attempt's peak, then fall back to AAC re-encoding.
-    log::info!("[BE] merge_avs: audio copy failed, falling back to AAC re-encoding");
+    log::warn!(
+        "[BE] merge_avs: audio copy failed ({}), falling back to AAC re-encoding",
+        copy_err
+    );
     emits.update_progress(0);
+    // One-shot notify, then restore `merge`. Leaving stage at merge-fallback
+    // made the 500ms progress ticker re-emit it for the whole AAC pass, which
+    // stacked "audio stream copy failed" toasts on the frontend.
     let _ = emits.set_stage("merge-fallback").await;
+    let _ = emits.set_stage("merge").await;
 
     let reencode_args = build_merge_args(
         video_str,

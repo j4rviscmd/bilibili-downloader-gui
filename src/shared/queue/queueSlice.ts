@@ -26,7 +26,7 @@ type QueueItemStatus =
  * Aggregates parent queue item statuses based on their children.
  *
  * Updates parent status based on the statuses of all child items with
- * matching parentId. Status priority: error > cancelling > running > done > cancelled > pending.
+ * matching parentId. Status priority: cancelling > running > pending > error > done > cancelled.
  * If no children exist and parent is not in 'cancelling' state, removes the parent from the queue.
  *
  * @param state - Current queue array to modify
@@ -53,22 +53,21 @@ function aggregateParentStatuses(state: QueueItem[]): void {
 
     const statuses = children.map((c) => c.status)
 
-    // Priority: error > cancelling > running > pending > done > cancelled.
-    // A pending child means the playlist hasn't finished yet, so a cancelled
-    // sibling (from a per-part cancel) must NOT flip the parent to
-    // 'cancelled' — that would abort the remaining parts in the serial
-    // download loop. Only once every remaining part is done/cancelled does
-    // the parent settle to 'cancelled' (or 'done' if nothing was skipped).
+    // Priority: cancelling > running > pending > error > done > cancelled.
+    // A single failed part must not flip the parent to 'error' while
+    // siblings are still downloading — that freezes elapsed time and
+    // makes the batch look finished (and has crashed the UI when error
+    // toasts piled up on top of that state).
     const previousStatus = parent.status
     let nextStatus: QueueItemStatus
-    if (statuses.includes('error')) {
-      nextStatus = 'error'
-    } else if (statuses.includes('cancelling')) {
+    if (statuses.includes('cancelling')) {
       nextStatus = 'cancelling'
     } else if (statuses.includes('running')) {
       nextStatus = 'running'
     } else if (statuses.includes('pending')) {
       nextStatus = 'pending'
+    } else if (statuses.includes('error')) {
+      nextStatus = 'error'
     } else if (statuses.every((s) => s === 'done')) {
       nextStatus = 'done'
     } else if (statuses.includes('cancelled')) {

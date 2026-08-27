@@ -229,6 +229,8 @@
     "reload_after_error": "ページをリロードして再試行",
     "select_all": "全選択",
     "deselect_all": "全解除",
+    "select_all_tooltip": "未ダウンロードのパートをすべてのページから選択",
+    "deselect_all_tooltip": "すべてのページの全パートの選択を解除",
     "select_all_page": "ページ選択",
     "deselect_all_page": "ページ解除",
     "pagination_previous": "前へ",
