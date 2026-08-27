@@ -65,7 +65,9 @@ export function selectBestEffortResolution(
   sourceHeight: number | null,
 ): ResolutionHeightPreset {
   if (sourceHeight === null) return DEFAULT_TARGET_HEIGHT
-  for (const preset of [...RESOLUTION_HEIGHT_PRESETS].reverse()) {
+  // Presets are stored descending, so the first preset <= sourceHeight is
+  // the largest one that does not up-scale the source.
+  for (const preset of RESOLUTION_HEIGHT_PRESETS) {
     if (preset <= sourceHeight) return preset
   }
   return MIN_TARGET_HEIGHT

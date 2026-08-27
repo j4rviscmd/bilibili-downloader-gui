@@ -37,7 +37,7 @@ export default defineConfig({
       ],
       // Ratchet baseline; bump per PR, 100 at the end of the F-series.
       // Lines only: v8 branch/function metrics on TSX are noisy.
-      thresholds: { lines: 15 },
+      thresholds: { lines: 28 },
     },
   },
   resolve: {
