@@ -121,11 +121,13 @@ jobs:
         if: steps.cache-nm-test.outputs.cache-hit != 'true'
         run: npm ci
 
-      - name: Run tests
+      - name: Run tests with coverage
+        # Why coverage run: the vitest.config.ts line threshold ratchets
+        # coverage per PR; a plain run would not enforce it
         if: hashFiles('**/*.test.ts', '**/*.test.tsx', '**/*.spec.ts', '**/*.spec.tsx') != ''
         run: |
           if grep -q '"test"' package.json; then
-            npm test -- --run
+            npm run test:coverage
           else
             echo "No test script defined in package.json, skipping tests."
           fi

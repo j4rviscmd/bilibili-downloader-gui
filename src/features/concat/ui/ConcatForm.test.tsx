@@ -8,10 +8,6 @@ vi.mock('../hooks/useConcat', () => ({
   useConcat: vi.fn(),
 }))
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
-}))
-
 /**
  * Builds a `useConcat` return value with sensible defaults, overlaid with
  * the given per-test overrides. Keeps each test focused on the state it

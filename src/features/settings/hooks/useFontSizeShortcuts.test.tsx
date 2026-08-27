@@ -15,9 +15,10 @@ vi.mock('@/shared/ui/toast', () => ({
   toast: { info: (...args: unknown[]) => toastInfo(...args) },
 }))
 
-// i18next is not initialized in unit tests; stub `t` (and the default
-// `i18n` instance used by `@/i18n`) so we can assert the toast message
-// shape without booting the full i18n pipeline.
+// Why local i18next mock (not the centralized one): this test proves the
+// computed size REACHES `t` — the centralized identity-t returns the bare
+// key regardless of opts, which would silently pass if the hook dropped
+// the { size } argument. The `:size` suffix makes that regression fail.
 vi.mock('i18next', () => {
   const t = (key: string, opts?: Record<string, unknown>) =>
     opts && typeof opts.size === 'number' ? `${key}:${opts.size}` : key

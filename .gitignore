@@ -39,3 +39,5 @@ references/
 
 # Playwright MCP artifacts
 .playwright-mcp/
+# Vitest coverage output (npm run test:coverage)
+coverage/
