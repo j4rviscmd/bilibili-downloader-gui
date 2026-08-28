@@ -27,6 +27,7 @@
 
 import { useUser } from '@/features/user'
 import { logger } from '@/shared/lib/logger'
+import { mapBackendError } from '@/shared/lib/mapBackendError'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
 import {
@@ -38,16 +39,18 @@ import {
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useDispatch } from 'react-redux'
 import { useNavigate } from 'react-router'
+import { setError, setQrStatus } from '../model/loginSlice'
 import { useLogin } from '../model/useLogin'
 
 /**
  * QRCodeDisplay component props.
- *
- * Currently this component has no props as it manages all its state
- * internally via the useLogin hook.
  */
-export type QRCodeDisplayProps = Record<string, never>
+export type QRCodeDisplayProps = {
+  /** Optional callback invoked after successful login (after success animation). */
+  onSuccess?: () => void
+}
 
 /**
  * Status configuration for display.
@@ -81,9 +84,10 @@ interface StatusConfig {
  * <QRCodeDisplay />
  * ```
  */
-export function QRCodeDisplay() {
+export function QRCodeDisplay({ onSuccess }: QRCodeDisplayProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const dispatch = useDispatch()
   const { getUserInfo } = useUser()
   const {
     qrCodeImage,
@@ -93,7 +97,6 @@ export function QRCodeDisplay() {
     error,
     generateNewQrCode,
     stopPolling,
-    resetLogin,
   } = useLogin()
 
   // Track if we've handled the success state to prevent duplicate navigation
@@ -103,17 +106,13 @@ export function QRCodeDisplay() {
   const navigationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   /**
-   * Reset login state and generate QR code on mount.
+   * Generate a QR code on mount.
    *
-   * This effect runs when the component first mounts:
-   * 1. Resets the login state to clear any previous success/error status
-   * 2. Generates a new QR code
-   * 3. Enables success handling after QR code is generated
+   * `generateNewQrCode` already clears prior QR UI state (via `clearQrCode`);
+   * do not call `resetLogin()` here — it would wipe the just-saved session
+   * and reset the login method to Firefox (see PR #546).
    */
   useEffect(() => {
-    // Reset login state to clear previous success status
-    resetLogin()
-    // Generate QR code and enable success handling after it's ready
     generateNewQrCode().then(() => {
       // Enable success handling only after new QR code is generated
       setHasHandledSuccess(false)
@@ -136,7 +135,7 @@ export function QRCodeDisplay() {
   }, [])
 
   /**
-   * Handle login success - navigate to home after short delay.
+   * Handle login success - navigate to home or invoke onSuccess after short delay.
    *
    * This effect:
    * 1. Detects when login status changes to 'success'
@@ -144,10 +143,11 @@ export function QRCodeDisplay() {
    * 3. Requires qrCodeImage to exist (guards against stale success state)
    * 4. Stops polling immediately
    * 5. Refreshes user info to update app bar
-   * 6. Navigates to home after 1.5 second delay to show success message
+   * 6. After 1.5s delay to show success animation, either calls onSuccess
+   *    (when rendered inside a dialog) or navigates to home (standalone page)
    *
-   * The delay allows the user to see the success animation before
-   * being redirected to the home page.
+   * The onSuccess callback allows QRCodeLoginDialog to auto-close after a
+   * successful login without relying on navigation side-effects.
    */
   useEffect(() => {
     // Only run once when qrStatus becomes 'success' AND qrCodeImage exists
@@ -158,17 +158,56 @@ export function QRCodeDisplay() {
       // Stop polling immediately to prevent unnecessary API calls
       stopPolling()
 
-      // Refresh user info to update AppBar with logged-in state
-      getUserInfo().catch((e) =>
-        logger.error('QRCodeDisplay: Failed to get user info after login', e),
-      )
-
-      // Navigate after a short delay to show success message
-      navigationTimerRef.current = setTimeout(() => {
-        navigate('/home')
-      }, 1500)
+      // Verify that the QR login actually established a valid session before
+      // closing the dialog or navigating. If verification fails, keep the
+      // dialog open and surface an error so the user can retry instead of
+      // showing a false "success" that leaves the AppBar in a logged-out
+      // state (see review P1).
+      getUserInfo()
+        .then((user) => {
+          if (!user.data.isLogin) {
+            logger.error(
+              'QRCodeDisplay: getUserInfo after QR success returned isLogin=false',
+              user,
+            )
+            dispatch(
+              setQrStatus({
+                status: 'error',
+                message: 'ERR::QR_VERIFY_FAILED',
+              }),
+            )
+            dispatch(setError('ERR::QR_VERIFY_FAILED'))
+            return
+          }
+          // After delay to show success message, either close dialog or navigate
+          navigationTimerRef.current = setTimeout(() => {
+            if (onSuccess) {
+              onSuccess()
+            } else {
+              navigate('/home')
+            }
+          }, 1500)
+        })
+        .catch((e) => {
+          logger.error('QRCodeDisplay: Failed to get user info after login', e)
+          dispatch(
+            setQrStatus({
+              status: 'error',
+              message: 'ERR::QR_VERIFY_FAILED',
+            }),
+          )
+          dispatch(setError('ERR::QR_VERIFY_FAILED'))
+        })
     }
-  }, [qrStatus, qrCodeImage, hasHandledSuccess]) // Minimal deps - navigate and getUserInfo are stable
+  }, [
+    qrStatus,
+    qrCodeImage,
+    hasHandledSuccess,
+    onSuccess,
+    navigate,
+    getUserInfo,
+    dispatch,
+  ])
 
   /**
    * Gets the status configuration based on current QR code status.
@@ -192,12 +231,16 @@ export function QRCodeDisplay() {
           text: t('login.qrExpired', 'QR code expired'),
           colorClass: 'text-red-500',
         }
-      case 'error':
+      case 'error': {
+        const mappedKey = statusMessage ? mapBackendError(statusMessage) : null
         return {
           icon: <XCircle className="h-5 w-5 text-red-500" />,
-          text: statusMessage || t('login.loginFailed', 'Login failed'),
+          text: mappedKey
+            ? t(mappedKey)
+            : statusMessage || t('login.loginFailed', 'Login failed'),
           colorClass: 'text-red-500',
         }
+      }
       case 'scannedWaitingConfirm':
         return {
           icon: <Smartphone className="h-5 w-5 text-blue-500" />,
@@ -287,7 +330,14 @@ export function QRCodeDisplay() {
       </div>
 
       {/* Error message - shown when polling fails */}
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {error && (
+        <p className="text-sm text-red-500">
+          {(() => {
+            const k = mapBackendError(error)
+            return k ? t(k) : error
+          })()}
+        </p>
+      )}
 
       {/* Instructions - shown when waiting for user to scan */}
       {qrStatus === 'waitingForScan' && (

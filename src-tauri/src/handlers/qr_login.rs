@@ -21,14 +21,13 @@ use std::sync::RwLock;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use image::Luma;
 use qrcode::QrCode;
-use reqwest::Client;
 use reqwest::Url;
 use tauri::AppHandle;
 use tauri::Manager;
 use tauri_plugin_store::StoreExt;
 
 use crate::constants;
-use crate::handlers::bilibili::fetch_user_info;
+use crate::handlers::bilibili::build_client;
 use crate::models::cookie::CookieCache;
 use crate::models::cookie::CookieEntry;
 use crate::models::qr_login::{
@@ -88,6 +87,70 @@ fn bilibili_cookie(name: &str, value: String) -> CookieEntry {
         name: name.to_string(),
         value,
     }
+}
+
+/// Builds a `Cookie` header value from a `Session` without touching the
+/// global `CookieCache`. Used for temporary verification of a freshly
+/// extracted QR session (review P2: avoid polluting the global cache on
+/// failure and avoid deleting Firefox cookies on `clear_cookie_cache`).
+fn build_cookie_header_from_session(session: &Session) -> String {
+    let mut parts = vec![
+        format!("SESSDATA={}", session.sessdata),
+        format!("bili_jct={}", session.bili_jct),
+        format!("DedeUserID={}", session.dede_user_id),
+        format!("DedeUserID__ckMd5={}", session.dede_user_id_ck_md5),
+    ];
+    if !session.buvid3.is_empty() {
+        parts.push(format!("buvid3={}", session.buvid3));
+    }
+    if !session.buvid4.is_empty() {
+        parts.push(format!("buvid4={}", session.buvid4));
+    }
+    parts.join("; ")
+}
+
+/// Verifies a session by calling the nav API with a temporary cookie header.
+///
+/// Does not read or write the global `CookieCache`, so a failed
+/// verification never clobbers existing Firefox cookies.
+async fn verify_session_with_header(
+    cookie_header: &str,
+) -> Result<crate::models::frontend_dto::User, String> {
+    use crate::handlers::bilibili::BiliApi;
+    use crate::models::bilibili_api::UserApiResponse;
+    use crate::models::frontend_dto::{User, UserData};
+
+    if cookie_header.is_empty() {
+        return Ok(User {
+            code: 0,
+            message: String::new(),
+            data: UserData {
+                mid: None,
+                uname: None,
+                is_login: false,
+            },
+            has_cookie: false,
+        });
+    }
+
+    let api = BiliApi::from_cookie_header(cookie_header.to_string())?;
+    let body = api
+        .get("/x/web-interface/nav")
+        .await?
+        .json::<UserApiResponse>()
+        .await
+        .map_err(|e| format!("UserApi Failed to parse response JSON:: {e}"))?;
+
+    Ok(User {
+        code: body.code,
+        message: body.message,
+        data: UserData {
+            mid: body.data.mid,
+            uname: body.data.uname,
+            is_login: body.data.is_login,
+        },
+        has_cookie: true,
+    })
 }
 
 /// Saves session to encrypted file storage.
@@ -208,11 +271,43 @@ fn delete_session_from_store(app: &AppHandle) -> Result<(), String> {
 /// - QR code generation fails
 pub async fn generate_qr_code(_app: &AppHandle) -> Result<QrCodeResult, String> {
     log::info!("[BE] generate_qr_code: generating QR code");
-    let client = Client::new();
 
-    // Call Bilibili QR generate API
-    let response = client
+    // Pre-fetch buvid3/buvid4 to activate device fingerprint before QR
+    // generation. Bilibili passport risk control may require a valid device
+    // fingerprint. The returned buvid values are forwarded as `Cookie`
+    // headers on the generate request so the server sees a consistent
+    // fingerprint (previous code fetched but discarded them, so the next
+    // request used a fresh client without cookies).
+    // Best-effort: failure is logged but does not block QR generation.
+    let buvid_cookie = match fetch_buvid().await {
+        Ok((b3, b4)) => {
+            log::info!(
+                "[BE] generate_qr_code: pre-fetched buvid3 ({} bytes), buvid4 ({} bytes) to activate fingerprint",
+                b3.len(),
+                b4.len()
+            );
+            if b3.is_empty() && b4.is_empty() {
+                String::new()
+            } else {
+                format!("buvid3={}; buvid4={}", b3, b4)
+            }
+        }
+        Err(e) => {
+            log::warn!("[BE] generate_qr_code: failed to pre-fetch buvid: {}", e);
+            String::new()
+        }
+    };
+
+    let client = build_client()?;
+
+    // Call Bilibili QR generate API (with UA/Referer to match other Bilibili requests)
+    let mut request = client
         .get(QR_GENERATE_URL)
+        .header(reqwest::header::REFERER, constants::REFERER);
+    if !buvid_cookie.is_empty() {
+        request = request.header(reqwest::header::COOKIE, buvid_cookie);
+    }
+    let response = request
         .send()
         .await
         .map_err(|e| format!("Failed to request QR code: {}", e))?;
@@ -279,15 +374,28 @@ pub async fn poll_qr_status(app: &AppHandle, qrcode_key: &str) -> Result<QrPollR
         "[BE] poll_qr_status: polling with qrcode_key={}",
         qrcode_key
     );
-    let client = Client::new();
+    let client = build_client()?;
 
-    // Call Bilibili QR poll API
-    let url = format!("{}?qrcode_key={}", QR_POLL_URL, qrcode_key);
+    // Call Bilibili QR poll API (with UA/Referer to match other Bilibili requests).
+    // `source=main-fe-header` matches the web header login widget; without it
+    // some responses omit Set-Cookie headers.
     let response = client
-        .get(&url)
+        .get(QR_POLL_URL)
+        .header(reqwest::header::REFERER, constants::REFERER)
+        .query(&[("qrcode_key", qrcode_key), ("source", "main-fe-header")])
         .send()
         .await
         .map_err(|e| format!("Failed to poll QR status: {}", e))?;
+
+    // Current Bilibili poll responses may leave credentials out of `data.url`
+    // and deliver them only as Set-Cookie. Capture headers before consuming
+    // the body.
+    let set_cookie_values: Vec<String> = response
+        .headers()
+        .get_all(reqwest::header::SET_COOKIE)
+        .iter()
+        .filter_map(|v| v.to_str().ok().map(str::to_string))
+        .collect();
 
     let poll_response: QrCodePollResponse = response
         .json()
@@ -306,7 +414,31 @@ pub async fn poll_qr_status(app: &AppHandle, qrcode_key: &str) -> Result<QrPollR
 
     // On success, extract cookies and store session
     if status == QrCodeStatus::Success {
-        let mut session = extract_session_from_url(&data.url, &data.refresh_token, data.timestamp)?;
+        let mut session = match extract_session(
+            &data.url,
+            &set_cookie_values,
+            &data.refresh_token,
+            data.timestamp,
+        ) {
+            Ok(s) => s,
+            Err(e) => {
+                log::error!("[BE] poll_qr_status: failed to extract session: {}", e);
+                return Ok(QrPollResult {
+                    status: QrCodeStatus::Error,
+                    message: e,
+                    session: None,
+                });
+            }
+        };
+
+        // Diagnostic: log extracted cookie lengths for troubleshooting
+        // (do not log values themselves to avoid leaking tokens)
+        log::info!(
+            "[BE] poll_qr_status: extracted sessdata {} bytes, bili_jct {} bytes, dede_user_id={}",
+            session.sessdata.len(),
+            session.bili_jct.len(),
+            session.dede_user_id
+        );
 
         // Fetch buvid3/buvid4 for WBI authentication
         match fetch_buvid().await {
@@ -321,24 +453,59 @@ pub async fn poll_qr_status(app: &AppHandle, qrcode_key: &str) -> Result<QrPollR
             }
         }
 
-        // Also update the in-memory cookie cache for immediate use
-        update_cookie_cache(app, &session);
-
-        // Fetch username from user info API
-        match fetch_user_info(app).await {
+        // Verify session validity using a temporary cookie header so the
+        // global `CookieCache` (which may hold Firefox cookies) is not
+        // polluted on failure. Only on successful verification do we commit
+        // the new cookies to the global cache and persistent storage (review
+        // P2).
+        let temp_cookie_header = build_cookie_header_from_session(&session);
+        match verify_session_with_header(&temp_cookie_header).await {
             Ok(user) => {
+                log::info!(
+                    "[BE] poll_qr_status: verification is_login={}, has_cookie={}, uname={:?}, sessdata_len={}, bili_jct_len={}",
+                    user.data.is_login,
+                    user.has_cookie,
+                    user.data.uname,
+                    session.sessdata.len(),
+                    session.bili_jct.len()
+                );
+                if !user.data.is_login {
+                    log::error!(
+                        "[BE] poll_qr_status: login verification failed - is_login=false (code={}), sessdata_len={}, bili_jct_len={}, refresh_token_len={}",
+                        user.code,
+                        session.sessdata.len(),
+                        session.bili_jct.len(),
+                        session.refresh_token.len()
+                    );
+                    return Ok(QrPollResult {
+                        status: QrCodeStatus::Error,
+                        message: "ERR::QR_COOKIE_REJECTED".to_string(),
+                        session: None,
+                    });
+                }
                 if let Some(uname) = user.data.uname {
                     session.uname = uname;
                 }
+                // Verification succeeded: commit to global cache and storage.
+                update_cookie_cache(app, &session);
+                save_session(app, &session).await?;
             }
             Err(e) => {
-                log::debug!("[BE] Failed to fetch user info: {}", e);
-                // Continue without uname - not critical
+                // Nav API failure is likely transient (network). Keep the
+                // session and commit it so a fresh SESSDATA that may actually
+                // be valid is not discarded. The frontend's `getUserInfo`
+                // verification (QRCodeDisplay) will surface the state and
+                // avoid closing the dialog on a false success.
+                log::warn!(
+                    "[BE] poll_qr_status: nav API failed after QR login, keeping session: {}, sessdata_len={}, bili_jct_len={}",
+                    e,
+                    session.sessdata.len(),
+                    session.bili_jct.len()
+                );
+                update_cookie_cache(app, &session);
+                save_session(app, &session).await?;
             }
         }
-
-        // Store session to persistent storage
-        save_session(app, &session).await?;
     }
 
     Ok(QrPollResult {
@@ -362,11 +529,10 @@ pub async fn poll_qr_status(app: &AppHandle, qrcode_key: &str) -> Result<QrPollR
 /// Returns an error if the API request fails or returns invalid data.
 async fn fetch_buvid() -> Result<(String, String), String> {
     log::info!("[BE] fetch_buvid: fetching buvid3/buvid4 from API");
-    let client = Client::new();
+    let client = build_client()?;
 
     let response = client
         .get("https://api.bilibili.com/x/frontend/finger/spi")
-        .header(reqwest::header::USER_AGENT, constants::USER_AGENT)
         .header(reqwest::header::REFERER, constants::REFERER)
         .send()
         .await
@@ -394,36 +560,92 @@ async fn fetch_buvid() -> Result<(String, String), String> {
     Ok((data.b_3, data.b_4))
 }
 
-/// Extracts session data from the login URL.
+/// Builds a session from the QR poll payload.
 ///
-/// The URL contains query parameters with cookie values.
-fn extract_session_from_url(
+/// Credentials may arrive as query params on `data.url` (legacy) and/or as
+/// `Set-Cookie` headers on the poll response (current Bilibili clients).
+/// Header values overlay URL params. `SESSDATA` and `bili_jct` must be
+/// present or login is treated as failed rather than stored as an incomplete
+/// session (SESSDATA alone cannot perform authenticated writes).
+///
+/// This dual-source extraction is critical because recent Bilibili poll
+/// responses may return an empty `data.url` and deliver credentials only
+/// via `Set-Cookie` (see PR #546). Header extraction uses
+/// `parse_set_cookie_values` which handles `; Path=/` attributes and
+/// last-write-wins for duplicate names.
+fn extract_session(
     url: &str,
+    set_cookie_values: &[String],
     refresh_token: &str,
     timestamp: i64,
 ) -> Result<Session, String> {
-    // Parse URL and extract query parameters
-    let parsed_url = Url::parse(url).map_err(|e| format!("Failed to parse login URL: {}", e))?;
+    let mut fields: std::collections::HashMap<String, String> = std::collections::HashMap::new();
 
-    let query_pairs: std::collections::HashMap<String, String> = parsed_url
-        .query_pairs()
-        .map(|(k, v)| (k.to_string(), v.to_string()))
-        .collect();
+    if !url.is_empty() {
+        if let Ok(parsed_url) = Url::parse(url) {
+            for (k, v) in parsed_url.query_pairs() {
+                fields.insert(k.to_string(), v.to_string());
+            }
+        } else {
+            log::warn!("[BE] extract_session: failed to parse url, trying Set-Cookie only");
+        }
+    }
+
+    for (k, v) in parse_set_cookie_values(set_cookie_values) {
+        fields.insert(k, v);
+    }
+
+    let sessdata = fields.get("SESSDATA").cloned().unwrap_or_default();
+    if sessdata.is_empty() {
+        log::error!(
+            "[BE] extract_session: SESSDATA is empty or missing, url_len={}, cookie_headers={}, refresh_token_len={}, timestamp={}",
+            url.len(),
+            set_cookie_values.len(),
+            refresh_token.len(),
+            timestamp
+        );
+        return Err("ERR::QR_SESSDATA_MISSING".to_string());
+    }
+
+    // A session without the CSRF token can read public data but every
+    // authenticated write (favorites, cookie refresh confirm) would fail,
+    // so treat it as an incomplete login rather than storing it.
+    let bili_jct = fields.get("bili_jct").cloned().unwrap_or_default();
+    if bili_jct.is_empty() {
+        log::error!(
+            "[BE] extract_session: bili_jct is empty or missing (SESSDATA {} bytes), url_len={}, cookie_headers={}, refresh_token_len={}, timestamp={}",
+            sessdata.len(),
+            url.len(),
+            set_cookie_values.len(),
+            refresh_token.len(),
+            timestamp
+        );
+        return Err("ERR::QR_SESSDATA_MISSING".to_string());
+    }
 
     Ok(Session {
-        sessdata: query_pairs.get("SESSDATA").cloned().unwrap_or_default(),
-        bili_jct: query_pairs.get("bili_jct").cloned().unwrap_or_default(),
-        dede_user_id: query_pairs.get("DedeUserID").cloned().unwrap_or_default(),
-        dede_user_id_ck_md5: query_pairs
-            .get("DedeUserID__ckMd5")
-            .cloned()
-            .unwrap_or_default(),
+        sessdata,
+        bili_jct,
+        dede_user_id: fields.get("DedeUserID").cloned().unwrap_or_default(),
+        dede_user_id_ck_md5: fields.get("DedeUserID__ckMd5").cloned().unwrap_or_default(),
         refresh_token: refresh_token.to_string(),
         timestamp,
         uname: String::new(),
         buvid3: String::new(),
         buvid4: String::new(),
     })
+}
+
+/// Extracts session data from the login URL only (legacy helper for tests).
+///
+/// Thin wrapper around `extract_session` with no Set-Cookie headers.
+#[allow(dead_code)]
+fn extract_session_from_url(
+    url: &str,
+    refresh_token: &str,
+    timestamp: i64,
+) -> Result<Session, String> {
+    extract_session(url, &[], refresh_token, timestamp)
 }
 
 /// Saves the session to encrypted file storage and login method to store.
@@ -720,10 +942,13 @@ pub async fn check_cookie_refresh(app: &AppHandle) -> Result<CookieRefreshInfo, 
     let cookies = get_cookie_header(app);
     log::debug!("[BE] Checking with cookies: {} bytes", cookies.len());
 
-    let client = Client::new();
+    // UA/Referer to match other Bilibili requests: bare clients trip passport
+    // risk control, which misreads valid sessions as expired (-101).
+    let client = build_client()?;
     let response = client
         .get(COOKIE_INFO_URL)
         .header("Cookie", &cookies)
+        .header(reqwest::header::REFERER, constants::REFERER)
         .send()
         .await
         .map_err(|e| format!("Failed to check cookie refresh: {}", e))?;
@@ -828,14 +1053,18 @@ async fn fetch_refresh_csrf(app: &AppHandle, correspond_path: &str) -> Result<St
     let url = format!("{}{}", CORRESPOND_URL_PREFIX, correspond_path);
     log::debug!("[BE] fetch_refresh_csrf: URL: {}", url);
 
-    let client = Client::new();
+    // build_client() supplies the canonical USER_AGENT; the previous inline
+    // Chrome/120 string went stale as fingerprinting material.
+    let client = build_client()?;
     let response = client
         .get(&url)
         .header("Cookie", &cookies)
-        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+        .header(
+            "Accept",
+            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        )
         .header("Accept-Language", "en-US,en;q=0.5")
         .header("Accept-Encoding", "identity")
-        .header("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
         .send()
         .await
         .map_err(|e| format!("Failed to fetch refresh_csrf: {}", e))?;
@@ -932,7 +1161,8 @@ pub async fn refresh_cookie(app: &AppHandle) -> Result<Session, String> {
 
     // Step 3: Call cookie refresh API
     let cookies = get_cookie_header(app);
-    let client = Client::new();
+    // UA/Referer to match other Bilibili requests (passport risk control).
+    let client = build_client()?;
 
     let params = [
         ("csrf", session.bili_jct.clone()),
@@ -945,6 +1175,7 @@ pub async fn refresh_cookie(app: &AppHandle) -> Result<Session, String> {
     let response = client
         .post(COOKIE_REFRESH_URL)
         .header("Cookie", &cookies)
+        .header(reqwest::header::REFERER, constants::REFERER)
         .form(&params)
         .send()
         .await
@@ -1130,16 +1361,82 @@ mod tests {
 
     #[test]
     fn extract_session_from_url_missing_params_default_empty() {
-        let session =
-            extract_session_from_url("https://example.com/crossDomain?x=1", "rt", 1).unwrap();
-        assert!(session.sessdata.is_empty());
-        assert!(session.bili_jct.is_empty());
-        assert_eq!(session.refresh_token, "rt");
+        // SESSDATA is now required; missing SESSDATA must error instead of
+        // silently returning an empty session (prevents persisting invalid logins).
+        let err =
+            extract_session_from_url("https://example.com/crossDomain?x=1", "rt", 1).unwrap_err();
+        assert!(
+            err.contains("SESSDATA"),
+            "missing SESSDATA must error: {err}"
+        );
+    }
+
+    #[test]
+    fn extract_session_from_url_empty_sessdata_errors() {
+        let err = extract_session_from_url(
+            "https://example.com/crossDomain?SESSDATA=&bili_jct=jct",
+            "rt",
+            1,
+        )
+        .unwrap_err();
+        assert!(err.contains("SESSDATA"), "empty SESSDATA must error: {err}");
+    }
+
+    #[test]
+    fn extract_session_missing_bili_jct_errors() {
+        // SESSDATA without the CSRF token is an incomplete login: it can read
+        // public data but every authenticated write would fail.
+        let err =
+            extract_session_from_url("https://example.com/crossDomain?SESSDATA=s%2Cd", "rt", 1)
+                .unwrap_err();
+        assert!(
+            err.contains("SESSDATA"),
+            "missing bili_jct must error with the credentials code: {err}"
+        );
+    }
+
+    #[test]
+    fn extract_session_bili_jct_from_set_cookie_overlays_missing_url_param() {
+        // SESSDATA arrives on data.url, bili_jct only via Set-Cookie.
+        let cookies = vec!["bili_jct=csrf; Path=/".to_string()];
+        let session = extract_session(
+            "https://passport.biligame.com/crossDomain?SESSDATA=s%2Cd",
+            &cookies,
+            "rt",
+            1,
+        )
+        .unwrap();
+        assert_eq!(session.sessdata, "s,d");
+        assert_eq!(session.bili_jct, "csrf");
     }
 
     #[test]
     fn extract_session_from_url_rejects_garbage() {
         assert!(extract_session_from_url("not a url", "rt", 1).is_err());
+    }
+
+    #[test]
+    fn extract_session_from_set_cookie_when_url_has_no_credentials() {
+        let cookies = vec![
+            "SESSDATA=from-header; Path=/; HttpOnly".to_string(),
+            "bili_jct=csrf; Path=/".to_string(),
+            "DedeUserID=99; Path=/".to_string(),
+            "DedeUserID__ckMd5=md5; Path=/".to_string(),
+        ];
+        let session = extract_session("https://www.bilibili.com/", &cookies, "rt", 1).unwrap();
+        assert_eq!(session.sessdata, "from-header");
+        assert_eq!(session.bili_jct, "csrf");
+        assert_eq!(session.dede_user_id, "99");
+        assert_eq!(session.dede_user_id_ck_md5, "md5");
+    }
+
+    #[test]
+    fn extract_session_set_cookie_overlays_url() {
+        let url = "https://passport.biligame.com/crossDomain?SESSDATA=from-url&bili_jct=old";
+        let cookies = vec!["SESSDATA=from-header; Path=/".to_string()];
+        let session = extract_session(url, &cookies, "rt", 1).unwrap();
+        assert_eq!(session.sessdata, "from-header");
+        assert_eq!(session.bili_jct, "old");
     }
 
     #[test]

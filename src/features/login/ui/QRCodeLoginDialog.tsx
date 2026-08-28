@@ -54,7 +54,10 @@ export function QRCodeLoginDialog({
         <DialogHeader>
           <DialogTitle>{t('login.title', 'Login to Bilibili')}</DialogTitle>
         </DialogHeader>
-        <QRCodeDisplay />
+        {/* Mount QRCodeDisplay only when open so polling stops on close
+            and a fresh QR is generated on each open (remount triggers
+            QRCodeDisplay's mount effect). */}
+        {open && <QRCodeDisplay onSuccess={() => onOpenChange(false)} />}
       </DialogContent>
     </Dialog>
   )
