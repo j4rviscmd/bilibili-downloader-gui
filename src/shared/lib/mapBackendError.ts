@@ -31,6 +31,10 @@ const VIDEO_ERROR_MAP: Record<string, string> = {
   // Audio / media download error codes
   'ERR::INVALID_MEDIA_RESPONSE': 'video.invalid_media_response',
   'ERR::AUDIO_DOWNLOAD_FAILED': 'video.audio_download_failed',
+  // QR login error codes
+  'ERR::QR_COOKIE_REJECTED': 'login.qrVerifyFailed',
+  'ERR::QR_SESSDATA_MISSING': 'login.qrSessdataMissing',
+  'ERR::QR_VERIFY_FAILED': 'login.qrVerifyFailed',
   // Why: trailing "::" matches the "ERR::NETWORK::<detail>" shape produced
   // by retry_download (it appends segment-failure details after the code),
   // so the dynamic suffix is discarded and the fixed key is returned.

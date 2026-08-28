@@ -675,7 +675,9 @@
     "session_expired": "La sesión ha expirado. Por favor, inicia sesión de nuevo.",
     "loginMethodDescription": "Elige cómo se autentica la app con Bilibili. Es necesario reiniciar la app después de cambiar.",
     "loginMethodChanged": "Método de inicio de sesión actualizado",
-    "restartRequired": "Reinicia la app para que el cambio surta efecto."
+    "restartRequired": "Reinicia la app para que el cambio surta efecto.",
+    "qrVerifyFailed": "Error al verificar el inicio de sesión. Inténtalo de nuevo o usa la cookie de Firefox.",
+    "qrSessdataMissing": "No se pudieron obtener las credenciales. Inténtalo de nuevo."
   },
   "downloadStatus": {
     "title": "Estado de descarga",

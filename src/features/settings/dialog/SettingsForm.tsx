@@ -7,7 +7,7 @@ import {
   type LoginMethod,
   type Session,
 } from '@/features/login'
-import { useUser } from '@/features/user'
+import { fetchUser, useUser } from '@/features/user'
 import type { User } from '@/features/user/types'
 import { setUser } from '@/features/user/userSlice'
 import { videoApi } from '@/features/video'
@@ -104,6 +104,13 @@ function getLoginStatusText(
       : 'login.notLoggedIn'
   }
   if (session === null) return 'login.notLoggedIn'
+  // QR method with a stored session: the file existing does not guarantee
+  // the cookies are still valid (e.g. refresh failed, wind-control issued an
+  // empty SESSDATA). Check the live user state as well so the Settings UI
+  // stays consistent with the AppBar, which is driven by the nav API.
+  if (!user.hasCookie || !user.data.isLogin) {
+    return 'login.session_expired'
+  }
   return 'login.qrCodeLoggedIn'
 }
 
@@ -269,13 +276,24 @@ function SettingsForm() {
    * Refreshes local login state from the backend and syncs userSlice.
    *
    * Used after operations that change server-side session state (logout,
-   * login-method switch) so the form and AppBar stay consistent.
+   * login-method switch) so the form and AppBar stay consistent. The user
+   * is fetched from the live nav API rather than derived from the session
+   * file so a stale QR session that failed verification does not incorrectly
+   * appear as logged-in (see review P1).
    */
   const refreshLoginState = async () => {
     const state = await getLoginState()
     setLoginMethod(state.method)
     setSession(state.session)
-    store.dispatch(setUser(sessionToUser(state.session)))
+    try {
+      const user = await fetchUser()
+      store.dispatch(setUser(user))
+    } catch {
+      // Fallback to file-derived user when the API is unreachable (e.g.
+      // network offline). This keeps the UI responsive while still
+      // preferring the live state when available.
+      store.dispatch(setUser(sessionToUser(state.session)))
+    }
     return state
   }
 

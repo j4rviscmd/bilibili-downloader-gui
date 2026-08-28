@@ -101,9 +101,21 @@ pub async fn initialize(app: AppHandle) -> Result<(), String> {
                         Ok(_) => {
                             emit_step(&app, "init.cookie_refreshed");
                         }
-                        Err(_) => {
-                            // Refresh failed: clear the stale session, stay logged out.
-                            let _ = qr_login::logout(&app).await;
+                        Err(e) => {
+                            // Refresh failed: keep the stale session file for now so
+                            // the user can retry without re-scanning on transient
+                            // network failures, but do not claim the session was
+                            // restored. The subsequent `fetch_user_info` will
+                            // return `isLogin=false` for a truly invalid session,
+                            // and `SettingsForm` now checks the live user state
+                            // (not just file existence) so the UI stays
+                            // consistent (both AppBar and Settings show not
+                            // logged-in / expired).
+                            log::warn!(
+                                "[BE] init: cookie refresh failed, keeping stale session for retry: {}",
+                                e
+                            );
+                            emit_step(&app, "init.cookie_failed");
                         }
                     }
                 }

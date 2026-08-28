@@ -675,7 +675,9 @@
     "session_expired": "Session expired. Please log in again.",
     "loginMethodDescription": "Choose how the app authenticates with Bilibili. Restart required after switching.",
     "loginMethodChanged": "Login method updated",
-    "restartRequired": "Please restart the app for the change to take effect."
+    "restartRequired": "Please restart the app for the change to take effect.",
+    "qrVerifyFailed": "Login verification failed. Please try again or use Firefox cookie login.",
+    "qrSessdataMissing": "Failed to get login credentials. Please try again."
   },
   "downloadStatus": {
     "title": "Download Status",
