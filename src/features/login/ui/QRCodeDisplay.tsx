@@ -41,7 +41,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useDispatch } from 'react-redux'
 import { useNavigate } from 'react-router'
-import { setError, setQrStatus } from '../model/loginSlice'
+import { setQrStatus } from '../model/loginSlice'
 import { useLogin } from '../model/useLogin'
 
 /**
@@ -170,13 +170,14 @@ export function QRCodeDisplay({ onSuccess }: QRCodeDisplayProps) {
               'QRCodeDisplay: getUserInfo after QR success returned isLogin=false',
               user,
             )
+            // Why: setQrStatus only: the error tile already renders the mapped
+            // message; setError would duplicate it in the <p> below.
             dispatch(
               setQrStatus({
                 status: 'error',
                 message: 'ERR::QR_VERIFY_FAILED',
               }),
             )
-            dispatch(setError('ERR::QR_VERIFY_FAILED'))
             return
           }
           // After delay to show success message, either close dialog or navigate
@@ -190,13 +191,13 @@ export function QRCodeDisplay({ onSuccess }: QRCodeDisplayProps) {
         })
         .catch((e) => {
           logger.error('QRCodeDisplay: Failed to get user info after login', e)
+          // Why: setQrStatus only — same rationale as the isLogin=false branch.
           dispatch(
             setQrStatus({
               status: 'error',
               message: 'ERR::QR_VERIFY_FAILED',
             }),
           )
-          dispatch(setError('ERR::QR_VERIFY_FAILED'))
         })
     }
   }, [
