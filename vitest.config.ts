@@ -37,7 +37,11 @@ export default defineConfig({
       ],
       // Ratchet baseline; bump per PR, 100 at the end of the F-series.
       // Lines only: v8 branch/function metrics on TSX are noisy.
-      thresholds: { lines: 28 },
+      // Why: 48 sits just under the measured lines coverage of this batch
+      // (48.87% via `npx vitest run --coverage`), so the gate passes today
+      // and only a real regression fails. v8 counts drift slightly across
+      // platforms, so on a CI/local mismatch re-measure rather than lowering.
+      thresholds: { lines: 48 },
     },
   },
   resolve: {
