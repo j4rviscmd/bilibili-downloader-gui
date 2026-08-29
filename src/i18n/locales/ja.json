@@ -675,7 +675,9 @@
     "session_expired": "セッションの有効期限が切れました。再度ログインしてください。",
     "loginMethodDescription": "Bilibiliとの認証方法を選択します。切り替え後にアプリの再起動が必要です。",
     "loginMethodChanged": "ログイン方法を変更しました",
-    "restartRequired": "変更を反映するにはアプリを再起動してください。"
+    "restartRequired": "変更を反映するにはアプリを再起動してください。",
+    "qrVerifyFailed": "ログイン検証に失敗しました。再試行するか、Firefox Cookieでログインしてください。",
+    "qrSessdataMissing": "ログイン情報の取得に失敗しました。再試行してください。"
   },
   "downloadStatus": {
     "title": "ダウンロード状況",

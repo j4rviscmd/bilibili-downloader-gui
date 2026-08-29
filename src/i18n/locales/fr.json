@@ -675,7 +675,9 @@
     "session_expired": "La session a expiré. Veuillez vous reconnecter.",
     "loginMethodDescription": "Choisissez comment l'application s'authentifie auprès de Bilibili. Un redémarrage est nécessaire après le changement.",
     "loginMethodChanged": "Méthode de connexion mise à jour",
-    "restartRequired": "Veuillez redémarrer l'application pour appliquer le changement."
+    "restartRequired": "Veuillez redémarrer l'application pour appliquer le changement.",
+    "qrVerifyFailed": "Échec de la vérification de connexion. Veuillez réessayer ou utiliser le cookie Firefox.",
+    "qrSessdataMissing": "Impossible d'obtenir les identifiants. Veuillez réessayer."
   },
   "downloadStatus": {
     "title": "Statut du téléchargement",

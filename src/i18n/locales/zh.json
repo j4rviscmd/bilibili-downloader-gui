@@ -675,7 +675,9 @@
     "session_expired": "会话已过期，请重新登录。",
     "loginMethodDescription": "选择应用与哔哩哔哩的认证方式。切换后需要重启应用。",
     "loginMethodChanged": "登录方式已更新",
-    "restartRequired": "请重启应用以使更改生效。"
+    "restartRequired": "请重启应用以使更改生效。",
+    "qrVerifyFailed": "登录验证失败，请重试或使用 Firefox Cookie 登录。",
+    "qrSessdataMissing": "获取登录凭证失败，请重试。"
   },
   "downloadStatus": {
     "title": "下载状态",

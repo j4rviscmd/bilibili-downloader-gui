@@ -28,6 +28,9 @@
  * ```
  */
 
+// API
+export { fetchUser } from './api/fetchUser'
+
 // Custom hooks
 export * from './useUser'
 
