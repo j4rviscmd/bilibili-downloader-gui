@@ -38,6 +38,9 @@ const userHook = vi.hoisted(() => ({
   user: null as User | null,
   onChangeUser: vi.fn(),
   getUserInfo: vi.fn().mockResolvedValue(undefined),
+  // Why fetchUser mock: upstream now derives the login status from the live
+  // nav API via fetchUser() instead of the session file.
+  fetchUser: vi.fn(),
 }))
 
 const videoApiMock = vi.hoisted(() => ({
@@ -52,6 +55,7 @@ vi.mock('@/features/user', () => ({
     onChangeUser: userHook.onChangeUser,
     getUserInfo: userHook.getUserInfo,
   }),
+  fetchUser: userHook.fetchUser,
 }))
 vi.mock('@/features/video', () => ({ videoApi: videoApiMock }))
 
@@ -152,6 +156,10 @@ describe('SettingsForm', () => {
     })
     loginApi.qrLogout.mockResolvedValue(undefined)
     loginApi.setLoginMethod.mockResolvedValue(undefined)
+    // Default fetchUser -> network-unreachable fallback (sessionToUser), so
+    // tests read like the pre-verification file-derived flow unless they
+    // explicitly opt into the live nav-API path.
+    userHook.fetchUser.mockRejectedValue(new Error('offline'))
     seedSettings()
   })
 
@@ -212,6 +220,10 @@ describe('SettingsForm', () => {
       method: 'qrCode',
       session,
     })
+    // Live nav API confirms the stored session is still valid; the
+    // dispatched setUser result is what useUser surfaces on re-render
+    userHook.fetchUser.mockResolvedValue(loggedInFirefoxUser)
+    userHook.user = loggedInFirefoxUser
     renderWithProviders(<SettingsForm />)
 
     expect(await screen.findByText('login.qrCodeLoggedIn')).toBeInTheDocument()

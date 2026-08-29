@@ -28,7 +28,15 @@ const login = vi.hoisted(() => ({
 }))
 
 const userHook = vi.hoisted(() => ({
-  getUserInfo: vi.fn().mockResolvedValue(undefined),
+  // Why resolved shape: the post-success verification path reads
+  // user.data.isLogin — undefined would take the ERR::QR_VERIFY_FAILED
+  // branch and never navigate.
+  getUserInfo: vi.fn().mockResolvedValue({
+    code: 0,
+    message: '0',
+    data: { mid: 42, uname: 'u', isLogin: true },
+    hasCookie: true,
+  }),
 }))
 
 vi.mock('@/features/login/model/useLogin', () => ({
@@ -88,8 +96,9 @@ describe('QRCodeDisplay', () => {
 
     expect(screen.getByText('login.generatingQR')).toBeInTheDocument()
     expect(screen.queryByRole('img')).toBeNull()
-    // Mount effect resets stale state and requests a code
-    expect(login.resetLogin).toHaveBeenCalled()
+    // Mount effect requests a code; resetLogin was dropped upstream (it
+    // reset loginMethod back to firefox on every mount)
+    expect(login.resetLogin).not.toHaveBeenCalled()
     expect(login.generateNewQrCode).toHaveBeenCalled()
   })
 
