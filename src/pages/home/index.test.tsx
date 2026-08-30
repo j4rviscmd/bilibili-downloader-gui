@@ -7,7 +7,7 @@ import type { Video, VideoPart } from '@/features/video/types'
 import HomeContent from '@/pages/home'
 import { renderWithProviders } from '@/test/test-utils'
 import { screen, within } from '@testing-library/react'
-import { Navigate, Route, Routes } from 'react-router'
+import { Navigate, Route, Routes, useLocation } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Leaf UI components are covered by their own F4 tests; here they are stubbed
@@ -95,6 +95,24 @@ function RedirectHarness() {
       <Route path="/" element={<Navigate to="/home" replace />} />
       <Route path="/home" element={<HomeContent />} />
       <Route path="/init" element={<div>init-route</div>} />
+    </Routes>
+  )
+}
+
+/** /home route with an echo of the search string so URL rewrites are observable. */
+function HomeWithSearchEcho() {
+  const { search } = useLocation()
+  return (
+    <Routes>
+      <Route
+        path="/home"
+        element={
+          <>
+            <HomeContent />
+            <div data-testid="search-echo">{search}</div>
+          </>
+        }
+      />
     </Routes>
   )
 }
@@ -264,5 +282,40 @@ describe('HomeContent', () => {
     renderWithProviders(<RedirectHarness />, { route: '/' })
 
     expect(await screen.findByText('init-route')).toBeInTheDocument()
+  })
+
+  it('strips a stale page param when a ?p= URL lands in the store', async () => {
+    store.dispatch(setInput(initialInput))
+    renderWithProviders(<HomeWithSearchEcho />, { route: '/home?page=2' })
+
+    // A multi-part URL arriving in the store invalidates the page param
+    store.dispatch(
+      setInput({
+        ...initialInput,
+        url: 'https://www.bilibili.com/video/BV1x?p=3',
+      }),
+    )
+
+    await vi.waitFor(() =>
+      expect(screen.getByTestId('search-echo').textContent).toBe(''),
+    )
+  })
+
+  it('keeps other search params when stripping the stale page param', async () => {
+    store.dispatch(setInput(initialInput))
+    renderWithProviders(<HomeWithSearchEcho />, {
+      route: '/home?page=2&foo=1',
+    })
+
+    store.dispatch(
+      setInput({
+        ...initialInput,
+        url: 'https://www.bilibili.com/video/BV1y?p=2',
+      }),
+    )
+
+    await vi.waitFor(() =>
+      expect(screen.getByTestId('search-echo').textContent).toBe('?foo=1'),
+    )
   })
 })

@@ -178,4 +178,42 @@ describe('QRCodeDisplay', () => {
 
     expect(screen.getByText('HOME-MARKER')).toBeInTheDocument()
   })
+
+  it('error status maps a known ERR:: code to its translation key', () => {
+    Object.assign(login.state, {
+      qrStatus: 'error',
+      statusMessage: 'x ERR::VIDEO_NOT_FOUND y',
+    })
+    renderLogin()
+
+    expect(screen.getByText('video.video_not_found')).toBeInTheDocument()
+  })
+
+  it('error status falls back to the raw status message for unknown codes', () => {
+    Object.assign(login.state, {
+      qrStatus: 'error',
+      statusMessage: 'mystery failure',
+    })
+    renderLogin()
+
+    expect(screen.getByText('mystery failure')).toBeInTheDocument()
+  })
+
+  it('error status uses the generic failure text without a message', () => {
+    Object.assign(login.state, { qrStatus: 'error', statusMessage: '' })
+    renderLogin()
+
+    expect(screen.getByText('login.loginFailed')).toBeInTheDocument()
+  })
+
+  it('renders a polling error verbatim when it has no known code', () => {
+    Object.assign(login.state, {
+      qrStatus: 'waitingForScan',
+      qrCodeImage: 'data:image/png;base64,qr',
+      error: 'poll request failed',
+    })
+    renderLogin()
+
+    expect(screen.getByText('poll request failed')).toBeInTheDocument()
+  })
 })

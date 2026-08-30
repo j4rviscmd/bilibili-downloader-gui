@@ -5,6 +5,7 @@ import type {
 } from '@/features/video/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  fetchBangumiPartQualities,
   fetchPartQualities,
   fetchSubtitlesForPart,
   fetchVideoInfo,
@@ -128,6 +129,42 @@ describe('fetchVideoInfo', () => {
 
       await expect(fetchPartQualities('BV1234567890', 123456)).rejects.toThrow(
         'Failed to fetch qualities',
+      )
+    })
+  })
+
+  describe('fetchBangumiPartQualities', () => {
+    it('returns the triple from fetch_bangumi_part_qualities', async () => {
+      const mockVideoQualities: VideoQuality[] = [{ quality: '1080p', id: 80 }]
+      const mockAudioQualities: AudioQuality[] = [{ quality: '64K', id: 30216 }]
+      mockInvoke.mockResolvedValue([
+        mockVideoQualities,
+        mockAudioQualities,
+        true,
+      ])
+
+      const result = await fetchBangumiPartQualities(3051843, 123456)
+
+      expect(mockInvoke).toHaveBeenCalledWith('fetch_bangumi_part_qualities', {
+        epId: 3051843,
+        cid: 123456,
+      })
+      expect(result).toEqual([mockVideoQualities, mockAudioQualities, true])
+    })
+
+    it('keeps isPreview null when the backend sends null', async () => {
+      mockInvoke.mockResolvedValue([[], [], null])
+
+      const result = await fetchBangumiPartQualities(3051843, 123456)
+
+      expect(result[2]).toBeNull()
+    })
+
+    it('should propagate errors from backend', async () => {
+      mockInvoke.mockRejectedValue(new Error('bangumi qualities failed'))
+
+      await expect(fetchBangumiPartQualities(3051843, 123456)).rejects.toThrow(
+        'bangumi qualities failed',
       )
     })
   })
