@@ -85,6 +85,20 @@ describe('useDownloadCompletionNotifications', () => {
     expect(mockRequestUserAttention).not.toHaveBeenCalled()
   })
 
+  it('swallows requestUserAttention rejections', async () => {
+    mockRequestUserAttention.mockRejectedValueOnce(new Error('os refused'))
+    seedRunning()
+    renderHook(() => useDownloadCompletionNotifications(), { wrapper })
+    store.dispatch(updateQueueStatus({ downloadId: 'child-1', status: 'done' }))
+
+    // The promise rejection is caught and logged, never unhandled
+    await waitFor(() => {
+      expect(store.getState().queue[0]?.status).toBe('done')
+    })
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(mockRequestUserAttention).toHaveBeenCalledTimes(1)
+  })
+
   it('does NOT flash when flashTaskbarOnComplete is disabled', async () => {
     store.dispatch(
       setSettings({ ...baselineSettings, flashTaskbarOnComplete: false }),

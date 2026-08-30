@@ -7,7 +7,11 @@
  */
 
 import { store } from '@/app/store'
-import { useFavorite } from '@/features/favorite/hooks/useFavorite'
+import {
+  formatDuration,
+  formatPlayCount,
+  useFavorite,
+} from '@/features/favorite/hooks/useFavorite'
 import {
   reset as resetFavorite,
   setFolders as seedFolders,
@@ -243,5 +247,70 @@ describe('useFavorite', () => {
     })
     expect(toastError).toHaveBeenCalledWith('ERR::NO_COOKIE')
     expect(result.current.foldersLoading).toBe(false)
+  })
+
+  it('swallows an unauthorized expiry silently (handled centrally)', async () => {
+    mockCommands({ fetch_favorite_folders: new Error('ERR::UNAUTHORIZED') })
+    const { result } = renderHookWithStore(() => useFavorite(42))
+
+    // interceptInvokeError returns null for session expiry, so the slice
+    // keeps error null and no toast fires here; loading is still reset.
+    await waitFor(() => {
+      expect(result.current.foldersLoading).toBe(false)
+    })
+    expect(result.current.error).toBeNull()
+    expect(toastError).not.toHaveBeenCalled()
+  })
+
+  it('records the error and toast when a loadMore page fails', async () => {
+    store.dispatch(seedFolders([folderA]))
+    store.dispatch(setSelectedFolder(10))
+    mockCommands({
+      fetch_favorite_videos: (args: Record<string, unknown>) =>
+        args.pageNum === 1 ? pageOf([1], true) : new Error('ERR::API_ERROR'),
+    })
+    const { result } = renderHookWithStore(() => useFavorite(42))
+    await waitFor(() => {
+      expect(result.current.hasMore).toBe(true)
+    })
+
+    await act(async () => {
+      await result.current.loadMore()
+    })
+
+    expect(result.current.error).toBe('ERR::API_ERROR')
+    expect(toastError).toHaveBeenCalledWith('ERR::API_ERROR')
+    // setError also clears the loading flags; the failed page is not stuck.
+    expect(result.current.loading).toBe(false)
+    // The videos from page 1 are preserved.
+    expect(result.current.videos).toHaveLength(1)
+  })
+
+  it('refresh is a no-op when logged out', async () => {
+    const { result } = renderHookWithStore(() => useFavorite(null))
+
+    await act(async () => {
+      await result.current.refresh()
+    })
+
+    expect(mockInvoke).not.toHaveBeenCalled()
+  })
+})
+
+describe('formatDuration / formatPlayCount (pure helpers)', () => {
+  it('formats minutes and seconds below one hour', () => {
+    expect(formatDuration(65)).toBe('1:05')
+    expect(formatDuration(5)).toBe('0:05')
+  })
+
+  it('formats hours once over an hour', () => {
+    expect(formatDuration(3671)).toBe('1:01:11')
+  })
+
+  it('abbreviates play counts by magnitude', () => {
+    expect(formatPlayCount(999)).toBe('999')
+    expect(formatPlayCount(1500)).toBe('1.5K')
+    expect(formatPlayCount(25000)).toBe('2.5万')
+    expect(formatPlayCount(2500000)).toBe('2.5M')
   })
 })

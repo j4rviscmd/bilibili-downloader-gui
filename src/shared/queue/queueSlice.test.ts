@@ -24,6 +24,7 @@ import {
   selectDownloadIdByPartIndex,
   selectHasActiveDownloads,
   selectHasCancellingDownloads,
+  updateQueueItem,
   updateQueueStatus,
 } from './queueSlice'
 
@@ -306,6 +307,54 @@ describe('selectors', () => {
     expect(selectHasCancellingDownloads(store.getState())).toBe(false)
     store.dispatch(enqueue(item('c', { status: 'cancelling' })))
     expect(selectHasCancellingDownloads(store.getState())).toBe(true)
+  })
+})
+
+describe('updateQueueItem', () => {
+  it('merges the provided fields into the matching item', () => {
+    store.dispatch(enqueue(item('a', { filename: 'old.mp4' })))
+
+    store.dispatch(
+      updateQueueItem({ downloadId: 'a', filename: 'new.mp4', title: 'T' }),
+    )
+
+    expect(queue()).toHaveLength(1)
+    expect(queue()[0]).toMatchObject({
+      downloadId: 'a',
+      filename: 'new.mp4',
+      title: 'T',
+      status: 'pending',
+    })
+  })
+
+  it('is a no-op for an unknown downloadId', () => {
+    store.dispatch(enqueue(item('a')))
+
+    store.dispatch(updateQueueItem({ downloadId: 'missing', filename: 'x' }))
+
+    expect(queue()).toHaveLength(1)
+    expect(queue()[0]?.filename).toBeUndefined()
+  })
+})
+
+describe('clearQueue', () => {
+  it('removes every item including parents', () => {
+    seedParentWithChildren(['running', 'done'])
+
+    store.dispatch(clearQueue())
+
+    expect(queue()).toHaveLength(0)
+  })
+})
+
+describe('cancelAllDownloads backend rejection', () => {
+  it('still finalizes cancelling items to cancelled', async () => {
+    seedParentWithChildren(['running'])
+    mockInvoke.mockRejectedValueOnce(new Error('backend down'))
+
+    await store.dispatch(cancelAllDownloads())
+
+    expect(queue().map((i) => i.status)).toEqual(['cancelled', 'cancelled'])
   })
 })
 

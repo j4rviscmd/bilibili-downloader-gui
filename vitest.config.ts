@@ -43,7 +43,7 @@ export default defineConfig({
       // 70, since 70.09% leaves only ~3 covered lines of margin and v8
       // counts drift slightly across platforms (macOS local vs Ubuntu CI);
       // on a mismatch re-measure rather than lowering.
-      thresholds: { lines: 69 },
+      thresholds: { lines: 92 },
     },
   },
   resolve: {
