@@ -99,6 +99,12 @@ describe('useFontSizeShortcuts', () => {
     expect(document.documentElement.style.fontSize).toBe('13px')
   })
 
+  it("treats '=' as an alias for '+'", () => {
+    renderHook(() => useFontSizeShortcuts(), { wrapper })
+    press('=', { ctrlKey: true })
+    expect(store.getState().settings.fontSize).toBe(15)
+  })
+
   it('accepts Cmd (metaKey) on macOS', () => {
     renderHook(() => useFontSizeShortcuts(), { wrapper })
     press('+', { metaKey: true })

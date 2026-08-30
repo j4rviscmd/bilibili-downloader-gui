@@ -33,4 +33,25 @@ describe('HistoryFilters', () => {
 
     expect(onChange).toHaveBeenCalledWith('failed')
   })
+
+  it.each([
+    ['all', 'history.filterAll', 'all'],
+    ['completed', 'history.filterSuccess', 'completed'],
+  ])(
+    'reports %s when picked from the menu',
+    async (initial, itemLabel, expected) => {
+      const onChange = vi.fn()
+      const { user } = renderWithProviders(
+        <HistoryFilters
+          value={initial as 'all' | 'completed' | 'failed'}
+          onChange={onChange}
+        />,
+      )
+
+      await user.click(screen.getByRole('button', { name: itemLabel }))
+      await user.click(screen.getByRole('menuitem', { name: itemLabel }))
+
+      expect(onChange).toHaveBeenCalledWith(expected)
+    },
+  )
 })

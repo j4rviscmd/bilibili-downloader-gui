@@ -17,7 +17,23 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ReleaseNotesSection } from './ReleaseNotesSection'
 
-const NOTES = '# Release Notes\n\n- Fixed download stall\n- Added CSV export'
+// Fixture exercises every markdown renderer: headings, lists, code, links,
+// emphasis and blockquotes.
+const NOTES = [
+  '# Release Notes',
+  '## Fixes',
+  '### Downloads',
+  '- Fixed download stall',
+  '- Added CSV export',
+  '1. First change',
+  '2. Second change',
+  'Run `npm run build` to verify:',
+  '```',
+  'const x = 1',
+  '```',
+  'See [the repo](https://github.com/j4rviscmd/bilibili-downloader-gui) for **details**.',
+  '> Migrated from the legacy queue.',
+].join('\n\n')
 
 /** The Radix overlay reflects open state even while exit content lingers. */
 function overlayState(): string | null | undefined {

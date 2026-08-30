@@ -128,14 +128,22 @@ vi.mock('i18next', async (requireActual) => {
   return { ...actual, ...instance, default: instance }
 })
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: i18nT,
-    i18n: { language: 'en', changeLanguage: vi.fn() },
-  }),
-  initReactI18next: { type: '3rdParty', init: () => {} },
-  I18nextProvider: ({ children }: { children: React.ReactNode }) => children,
-}))
+vi.mock('react-i18next', async () => {
+  // Factory is async so `react` can be imported lazily (hoisting-safe).
+  const { createElement } = await import('react')
+  return {
+    useTranslation: () => ({
+      t: i18nT,
+      i18n: { language: 'en', changeLanguage: vi.fn() },
+    }),
+    initReactI18next: { type: '3rdParty', init: () => {} },
+    I18nextProvider: ({ children }: { children: React.ReactNode }) => children,
+    // HomeContent renders <Trans i18nKey=...> for the login-benefits alert.
+    // Identity render (key only) keeps the assertion style "raw keys".
+    Trans: ({ i18nKey }: { i18nKey: string }) =>
+      createElement('span', null, i18nKey),
+  }
+})
 
 // happy-dom has no WAAPI; motion components call element.animate at mount.
 // ponytail: no-op polyfill; replace only if a test needs animation state.
