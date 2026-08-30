@@ -1,6 +1,7 @@
 import { TooltipProvider } from '@/shared/animate-ui/radix/tooltip'
 import type { Progress } from '@/shared/progress/types'
 import { mockInvoke, renderWithProviders } from '@/test/test-utils'
+import { error as logError } from '@tauri-apps/plugin-log'
 import { screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -185,5 +186,54 @@ describe('PartDownloadProgress', () => {
     expect(
       screen.queryByText('video.download_cancelled'),
     ).not.toBeInTheDocument()
+  })
+
+  it('reveals the finished file in the folder', async () => {
+    mockInvoke.mockResolvedValue(undefined)
+    const { user: actor } = setup(
+      createMockStatus({
+        isComplete: true,
+        outputPath: '/downloads/video.mp4',
+      }),
+    )
+
+    await actor.click(screen.getByRole('button', { name: 'video.open_folder' }))
+
+    expect(mockInvoke).toHaveBeenCalledWith('reveal_in_folder', {
+      path: '/downloads/video.mp4',
+    })
+  })
+
+  it('swallows an open_file rejection through the logger', async () => {
+    mockInvoke.mockRejectedValueOnce(new Error('no association'))
+    const { user: actor } = setup(
+      createMockStatus({
+        isComplete: true,
+        outputPath: '/downloads/video.mp4',
+      }),
+    )
+
+    // Must not throw out of the click handler
+    await actor.click(screen.getByRole('button', { name: 'video.open_file' }))
+
+    expect(logError).toHaveBeenCalledWith(
+      '[FE] Failed to open file: Error: no association',
+    )
+  })
+
+  it('swallows a reveal_in_folder rejection through the logger', async () => {
+    mockInvoke.mockRejectedValueOnce(new Error('finder error'))
+    const { user: actor } = setup(
+      createMockStatus({
+        isComplete: true,
+        outputPath: '/downloads/video.mp4',
+      }),
+    )
+
+    await actor.click(screen.getByRole('button', { name: 'video.open_folder' }))
+
+    expect(logError).toHaveBeenCalledWith(
+      '[FE] Failed to reveal in folder: Error: finder error',
+    )
   })
 })
