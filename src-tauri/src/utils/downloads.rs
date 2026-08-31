@@ -39,10 +39,15 @@ enum SegmentError {
     //   switching CDN mid-download, or discarding all received bytes on
     //   every CDN change — this codebase chose the latter so it can still
     //   rotate away from a degraded node.
-    /// Throughput below MIN_SPEED_THRESHOLD; rotate using the slow-speed
-    /// budget (separate from the stream-error budget of Reconnect). The
-    /// caller fully restarts the segment — resuming on another CDN is unsafe.
-    Slow,
+    /// Throughput below MIN_SPEED_THRESHOLD; recovery draws from the
+    /// slow-speed budget (separate from the stream-error budget of
+    /// Reconnect). Carries the bytes already received in this attempt so
+    /// the caller can first resume the SAME CDN with a fresh connection
+    /// (rate shapers throttle by connection age, not by CDN — fresh
+    /// connections re-accelerate even on the same host); once that budget
+    /// runs out it rotates CDN and fully restarts the segment, because
+    /// resuming on ANOTHER CDN is unsafe (byte-stream mismatch).
+    Slow(u64),
     /// Body stream broke mid-transfer (connection reset, decode error).
     /// Carries the bytes already received in this attempt so the caller can
     /// retry the SAME CDN from where it broke; once that budget runs out it
@@ -72,6 +77,213 @@ use tauri::{AppHandle, Manager};
 use tokio::sync::Semaphore;
 use tokio::{fs, io::AsyncSeekExt, io::AsyncWriteExt};
 use tokio_util::sync::CancellationToken;
+
+/// Maximum same-CDN resume attempts per segment on the aggregate-slow path.
+///
+/// Why a separate budget: `same_cdn_retries` (stream errors) and
+/// `slow_rotations` (CDN rotations) are deliberately independent so one
+/// failure class cannot starve the other (see the budget comments in the
+/// segment loop). Slow-speed resumes draw from their own budget for the
+/// same reason. Three attempts cover the observed re-throttle pattern
+/// (fresh connection re-accelerates, then decays again after a few
+/// seconds) while still escaping a genuinely throttled node.
+const MAX_SLOW_RESUMES: u8 = 3;
+
+/// Minimum bytes a segment attempt must have received before a same-CDN
+/// resume is worth one unit of the slow-resume budget.
+///
+/// Why: a fresh connection re-accelerates only when the THROTTLED
+/// connection is the problem. A Slow verdict with almost zero received
+/// bytes (observed 2026-08-31 19:22 log: +15 KiB and +7 KiB, both right
+/// after a stream-error reconnect) means the connection is already fresh
+/// and still dead — the node/path is the bottleneck, so rotating CDN is
+/// the correct move and a resume would just burn budget.
+const SLOW_RESUME_MIN_BYTES: u64 = 1024 * 1024;
+
+/// Bytes re-fetched and compared before every same-CDN resume.
+///
+/// Why: "same host = same byte stream" is NOT guaranteed — DNS rotation /
+/// connection pooling can land a new connection on a different CDN edge,
+/// and edges can serve different versions of the same path (sync lag).
+/// Stitching bytes from two versions corrupts the file with byte counts
+/// still matching every size check (v1.49.0 goi3.mp4, and the 2026-08-31
+/// 19:48 "低速テスト3" download: 7 segments reconnecting simultaneously
+/// after a network drop, video stream corrupt from a mid-file stitch).
+/// Re-fetching the tail bytes already on disk and comparing them proves
+/// the edge still serves the same stream before the resume stitches onto
+/// it. The 64 KiB cost is negligible against a segment-sized re-download.
+const SAME_STREAM_VERIFY_BYTES: u64 = 64 * 1024;
+
+/// Same-CDN full restarts allowed after a tail-verification rejection.
+///
+/// Why not rotate immediately on rejection: the rejection only proves THIS
+/// connection landed on an edge serving a different version — the host may
+/// still be fine. A full restart on the same host discards the segment
+/// bytes (no stitch, so no corruption risk) WITHOUT consuming the CDN
+/// rotation budget, which is what starved segments into "1 segment(s)
+/// failed" → whole-file retry (2026-08-31 21:21 download: 5 rejections
+/// burned rotation budget, one segment died, 1.5 GB re-downloaded from
+/// zero). One restart covers the flapping case; a second rejection means
+/// the host itself is unhealthy and the caller rotates for real.
+const MAX_TAIL_REJECT_RESTARTS: u8 = 1;
+
+/// Byte range to re-fetch for resume verification: the tail of the bytes
+/// already on disk for THIS segment, capped at [`SAME_STREAM_VERIFY_BYTES`].
+///
+/// Args are the segment's base offset `seg_base` (= `s`) and the on-disk
+/// end (`seg_start + received` — the stitch point the resume continues
+/// from). The window is `[on_disk_end - len, on_disk_end)`: the bytes
+/// immediately before the stitch, which the next attempt appends to.
+///
+/// Returns `None` when the segment has no on-disk progress yet — nothing
+/// to contradict, resume is trivially safe. Pure function — fully
+/// unit-testable.
+///
+/// Why computed from `seg_base`/`on_disk_end` and NOT from `seg_start`
+/// alone: `seg_start` is an absolute file offset, so deriving the window
+/// as `[seg_start - len, seg_start)` probes bytes from BEFORE this attempt
+/// — on a first resume that is the PREVIOUS segment's region (parallel
+/// task, possibly a different CDN edge, possibly still sparse zeros from
+/// `set_len`), causing false rejections, and for segment 0 it disabled
+/// verification entirely (len clamped to 0). The stitch-adjacent bytes of
+/// THIS attempt were never compared (caught in review, 2026-08-31).
+fn resume_verify_range(seg_base: u64, on_disk_end: u64) -> Option<(u64, u64)> {
+    let len = on_disk_end
+        .saturating_sub(seg_base)
+        .min(SAME_STREAM_VERIFY_BYTES);
+    if len == 0 {
+        return None;
+    }
+    Some((on_disk_end - len, len))
+}
+
+/// Verifies the CDN still serves the same byte stream before a same-CDN
+/// resume: re-fetches [`resume_verify_range`] from `url` and compares it
+/// with the bytes already written to disk.
+///
+/// Any mismatch, non-206 response, wrong Content-Range start, wrong body
+/// length, or I/O failure returns `false` — the caller must fully restart
+/// the segment instead of stitching, because a mismatch proves the new
+/// connection landed on an edge serving a different version of the file.
+async fn verify_resume_tail(
+    client: &reqwest::Client,
+    url: &str,
+    cookie: &Option<String>,
+    path: &Path,
+    seg_base: u64,
+    on_disk_end: u64,
+) -> bool {
+    let Some((verify_start, verify_len)) = resume_verify_range(seg_base, on_disk_end) else {
+        // No on-disk progress in this segment yet — no stitch point,
+        // resume is trivially safe.
+        return true;
+    };
+
+    // Read the bytes already on disk for the same range.
+    let mut disk = vec![0u8; verify_len as usize];
+    let read_ok = match tokio::fs::File::open(path).await {
+        Ok(mut f) => {
+            use tokio::io::AsyncReadExt;
+            f.seek(std::io::SeekFrom::Start(verify_start)).await.is_ok()
+                && f.read_exact(&mut disk).await.is_ok()
+        }
+        Err(_) => false,
+    };
+    if !read_ok {
+        log::warn!(
+            "[BE] verify_resume_tail: failed reading disk bytes at {}..{}",
+            verify_start,
+            verify_start + verify_len
+        );
+        return false;
+    }
+
+    let req = apply_cookie(
+        client
+            .get(url)
+            .header(
+                header::RANGE,
+                format!("bytes={}-{}", verify_start, verify_start + verify_len - 1),
+            )
+            .header(header::REFERER, REFERER)
+            .timeout(Duration::from_secs(SEGMENT_STALL_TIMEOUT_SECS)),
+        cookie,
+    );
+    let resp = match req.send().await {
+        Ok(r) => r,
+        Err(e) => {
+            log::warn!("[BE] verify_resume_tail: request failed: {e}");
+            return false;
+        }
+    };
+    if resp.status() != reqwest::StatusCode::PARTIAL_CONTENT {
+        log::warn!(
+            "[BE] verify_resume_tail: expected 206, got {}",
+            resp.status()
+        );
+        return false;
+    }
+    match resp.headers().get(header::CONTENT_RANGE) {
+        Some(cr) if content_range_start(cr) == Some(verify_start) => {}
+        other => {
+            log::warn!(
+                "[BE] verify_resume_tail: bad Content-Range {:?}",
+                other.and_then(|v| v.to_str().ok())
+            );
+            return false;
+        }
+    }
+    let body = match resp.bytes().await {
+        Ok(b) => b,
+        Err(e) => {
+            log::warn!("[BE] verify_resume_tail: body read failed: {e}");
+            return false;
+        }
+    };
+    if body.len() as u64 != verify_len || body.as_ref() != disk.as_slice() {
+        log::warn!("[BE] verify_resume_tail: tail bytes differ (edge serving a different stream)");
+        return false;
+    }
+    true
+}
+
+/// Recovery decision for the aggregate-slow path (`SegmentError::Slow`).
+#[derive(Debug, PartialEq, Eq)]
+enum SlowAction {
+    /// Every expected byte already arrived before the rotation request was
+    /// consumed — the segment is complete, finish it.
+    Complete,
+    /// Reconnect the SAME CDN with a fresh connection and resume from the
+    /// received offset; the received bytes already on disk stay valid.
+    ResumeSameCdn,
+    /// Same-CDN resume budget spent (the CDN itself is the bottleneck):
+    /// rotate to the next CDN URL and fully restart the segment.
+    RotateCdn,
+}
+
+/// Decides the recovery step after the aggregate-speed monitor flagged this
+/// segment slow. Pure function — fully unit-testable.
+///
+/// Order matters: a fully-received segment must finish (a resume past `e`
+/// sends `start > end` and always 416s), and same-CDN resume is tried
+/// before a byte-discarding CDN rotation because the observed slowdown is
+/// per-connection, not per-CDN (fresh connections re-accelerate on the
+/// same host — 2026-08-31 52MB download log: every reconnect, cross-CDN or
+/// not, jumped to 3–6 MB/s before decaying again). A resume is only worth
+/// its budget when the current attempt actually delivered bytes — see
+/// [`SLOW_RESUME_MIN_BYTES`].
+fn decide_slow_action(received: u64, seg_remaining: u64, slow_resumes: u8) -> SlowAction {
+    // `>=` not `==`: an over-delivering edge (Range-ignoring, seen before —
+    // see the Content-Range start check) must complete, not fall through to
+    // a subtraction that underflows.
+    if received >= seg_remaining {
+        return SlowAction::Complete;
+    }
+    if slow_resumes < MAX_SLOW_RESUMES && received >= SLOW_RESUME_MIN_BYTES {
+        return SlowAction::ResumeSameCdn;
+    }
+    SlowAction::RotateCdn
+}
 
 /// Builds the shared reqwest::Client for downloads with connection pooling
 /// tuned for parallel segment fetches (see inline comments for each option).
@@ -133,6 +345,25 @@ fn map_io_error(e: std::io::Error) -> anyhow::Error {
     match e.raw_os_error() {
         Some(28) => anyhow::anyhow!("ERR::DISK_FULL"),
         _ => e.into(),
+    }
+}
+
+/// Flushes the segment file before returning a resume-carrying error.
+///
+/// Why: tokio's `File::write_all` hands the chunk to a blocking-pool write
+/// and resolves immediately — the bytes may not have reached the OS yet
+/// when `download_segment_stream` returns `Slow(received)` /
+/// `Reconnect(received)`. The caller's `verify_resume_tail` re-reads the
+/// tail from disk; unflushed bytes read as pre-allocated zeros and force a
+/// false rejection (observed as mystery rejections under parallel write
+/// load, 2026-08-31). Flushing here also surfaces a swallowed write error
+/// on the final chunk (e.g. ENOSPC): without it, `received` counts bytes
+/// that never landed and a resume would stitch a gap into the file — so a
+/// flush failure is promoted to `DiskError` instead of the resume error.
+async fn flush_before_resume(file: &mut tokio::fs::File, resume_err: SegmentError) -> SegmentError {
+    match file.flush().await {
+        Ok(()) => resume_err,
+        Err(e) => to_segment_disk_error(e),
     }
 }
 
@@ -535,6 +766,15 @@ pub async fn download_url(
             let max_cdn_rotations: u8 = cdn_rotation_limit(cdn_urls_c.len());
             let mut slow_rotations: u8 = 0;
             let max_slow_rotations: u8 = cdn_rotation_limit(cdn_urls_c.len());
+            // Same-CDN resume attempts on the aggregate-slow path (see
+            // MAX_SLOW_RESUMES). Independent from `same_cdn_retries` so a
+            // slow link cannot starve stream-error recovery.
+            let mut slow_resumes: u8 = 0;
+            // Full restarts on the same CDN after a tail-verification
+            // rejection (see MAX_TAIL_REJECT_RESTARTS). Shared by the SLOW
+            // and Reconnect arms so one flapping host cannot burn more than
+            // one no-cost restart before a real rotation.
+            let mut tail_reject_restarts: u8 = 0;
             let mut same_cdn_retries: u8 = 0;
             const MAX_SAME_CDN_RETRIES: u8 = 2;
             // Track bytes this segment has added to dl_total_c
@@ -726,44 +966,119 @@ pub async fn download_url(
                                 );
                                 return Err(e);
                             }
-                            Err(SegmentError::Slow) => {
-                                // Slow-speed rotations draw from their own
-                                // budget: the monitor only selects segments
-                                // that still have budget (slow_budget_exhausted),
-                                // so a request arriving here is always within
-                                // budget. When the budget is spent, the flag
-                                // makes the monitor stop selecting this
-                                // segment — it keeps streaming slowly, the
-                                // same safety valve the old per-segment
-                                // check_download_speed had, so sub-threshold
-                                // links still converge instead of rotating
-                                // forever.
-                                // No backoff: waiting does not raise CDN
-                                // throughput.
-                                // Full restart, not resume: the next CDN may
-                                // serve a different byte stream for the same
-                                // path (see SegmentError::Slow).
-                                let next_cdn_idx = (rotations_used + 1) % cdn_urls_c.len();
-                                log::info!(
-                                    "[BE] download_url: segment {} rotating CDN #{} → #{} due to slow speed, restarting segment (slow rotation {}/{})",
-                                    idx,
-                                    cdn_idx,
-                                    next_cdn_idx,
-                                    slow_rotations + 1,
-                                    max_slow_rotations
-                                );
-                                needs_full_restart = true;
-                                slow_rotations += 1;
-                                if slow_rotations >= max_slow_rotations {
+                            Err(SegmentError::Slow(received)) => {
+                                let mut action =
+                                    decide_slow_action(received, seg_remaining, slow_resumes);
+                                if matches!(action, SlowAction::ResumeSameCdn)
+                                    && !verify_resume_tail(
+                                        &client_c,
+                                        current_url,
+                                        &cookie_c,
+                                        &path_c,
+                                        s,
+                                        seg_start + received,
+                                    )
+                                    .await
+                                {
+                                    // Tail verification failed: stitching here
+                                    // would corrupt the file. Try one free
+                                    // full restart on the same host first
+                                    // (see MAX_TAIL_REJECT_RESTARTS); only a
+                                    // second rejection costs a rotation.
+                                    if tail_reject_restarts < MAX_TAIL_REJECT_RESTARTS {
+                                        tail_reject_restarts += 1;
+                                        log::warn!(
+                                            "[BE] download_url: segment {} same-CDN resume rejected by tail verification, fully restarting segment on same CDN #{} (reject restart {}/{})",
+                                            idx,
+                                            cdn_idx,
+                                            tail_reject_restarts,
+                                            MAX_TAIL_REJECT_RESTARTS
+                                        );
+                                        needs_full_restart = true;
+                                        backoff_sleep(1).await;
+                                        continue;
+                                    }
                                     log::warn!(
-                                        "[BE] download_url: segment {} slow-rotation budget exhausted, will keep streaming on the current CDN",
+                                        "[BE] download_url: segment {} same-CDN resume rejected by tail verification, rotating CDN instead",
                                         idx
                                     );
-                                    stats_c
-                                        .slow_budget_exhausted
-                                        .store(true, Ordering::Relaxed);
+                                    action = SlowAction::RotateCdn;
                                 }
-                                continue;
+                                match action {
+                                    SlowAction::Complete => {
+                                        // The rotation request is consumed on
+                                        // the next chunk arrival, so Slow can
+                                        // surface with every expected byte
+                                        // already on disk. Finish instead of
+                                        // resuming past `e` — a start > end
+                                        // Range always 416s and would fail an
+                                        // already-complete segment.
+                                        stats_c.finished.store(true, Ordering::Relaxed);
+                                        return Ok(());
+                                    }
+                                    SlowAction::ResumeSameCdn => {
+                                        // Fresh connection, same host, resume
+                                        // from the received offset: the bytes
+                                        // on disk stay valid and nothing is
+                                        // re-fetched, unlike a rotation's
+                                        // full restart. No backoff — waiting
+                                        // does not raise CDN throughput.
+                                        log::info!(
+                                            "[BE] download_url: segment {} slow speed, resuming same CDN #{} at +{} bytes (slow resume {}/{})",
+                                            idx,
+                                            cdn_idx,
+                                            received,
+                                            slow_resumes + 1,
+                                            MAX_SLOW_RESUMES
+                                        );
+                                        slow_resumes += 1;
+                                        seg_start += received;
+                                        seg_remaining = seg_remaining.saturating_sub(received);
+                                        continue;
+                                    }
+                                    SlowAction::RotateCdn => {
+                                        // Slow-speed rotations draw from their
+                                        // own budget: the monitor only selects
+                                        // segments that still have budget
+                                        // (slow_budget_exhausted), so a
+                                        // request arriving here is always
+                                        // within budget. When the budget is
+                                        // spent, the flag makes the monitor
+                                        // stop selecting this segment — it
+                                        // keeps streaming slowly, the same
+                                        // safety valve the old per-segment
+                                        // check_download_speed had, so
+                                        // sub-threshold links still converge
+                                        // instead of rotating forever.
+                                        // No backoff: waiting does not raise
+                                        // CDN throughput.
+                                        // Full restart, not resume: the next
+                                        // CDN may serve a different byte
+                                        // stream for the same path (see
+                                        // SegmentError::Slow).
+                                        let next_cdn_idx = (rotations_used + 1) % cdn_urls_c.len();
+                                        log::info!(
+                                            "[BE] download_url: segment {} rotating CDN #{} → #{} due to slow speed, restarting segment (slow rotation {}/{})",
+                                            idx,
+                                            cdn_idx,
+                                            next_cdn_idx,
+                                            slow_rotations + 1,
+                                            max_slow_rotations
+                                        );
+                                        needs_full_restart = true;
+                                        slow_rotations += 1;
+                                        if slow_rotations >= max_slow_rotations {
+                                            log::warn!(
+                                                "[BE] download_url: segment {} slow-rotation budget exhausted, will keep streaming on the current CDN",
+                                                idx
+                                            );
+                                            stats_c
+                                                .slow_budget_exhausted
+                                                .store(true, Ordering::Relaxed);
+                                        }
+                                        continue;
+                                    }
+                                }
                             }
                             Err(SegmentError::Reconnect(received)) => {
                                 // Stream broke mid-transfer. When every
@@ -787,19 +1102,57 @@ pub async fn download_url(
                                 // different bytes for the same path (see
                                 // SegmentError for the corruption case).
                                 if same_cdn_retries < MAX_SAME_CDN_RETRIES {
-                                    same_cdn_retries += 1;
-                                    log::info!(
-                                        "[BE] download_url: segment {} retrying same CDN #{} after stream error, resuming at +{} bytes (same-CDN retry {}/{})",
-                                        idx,
-                                        cdn_idx,
-                                        received,
-                                        same_cdn_retries,
-                                        MAX_SAME_CDN_RETRIES
+                                    // Same edge-version proof as the slow-resume
+                                    // path: without it, a simultaneous reconnect
+                                    // burst (network drop) can land on a different
+                                    // edge and stitch corrupting bytes
+                                    // (2026-08-31 19:48 download, 7 segments).
+                                    if verify_resume_tail(
+                                        &client_c,
+                                        current_url,
+                                        &cookie_c,
+                                        &path_c,
+                                        s,
+                                        seg_start + received,
+                                    )
+                                    .await
+                                    {
+                                        same_cdn_retries += 1;
+                                        log::info!(
+                                            "[BE] download_url: segment {} retrying same CDN #{} after stream error, resuming at +{} bytes (same-CDN retry {}/{})",
+                                            idx,
+                                            cdn_idx,
+                                            received,
+                                            same_cdn_retries,
+                                            MAX_SAME_CDN_RETRIES
+                                        );
+                                        seg_start += received;
+                                        seg_remaining =
+                                            seg_remaining.saturating_sub(received);
+                                        backoff_sleep(same_cdn_retries).await;
+                                        continue;
+                                    }
+                                    // Rejected: one free same-host full
+                                    // restart before paying the rotation
+                                    // cost (same policy as the slow-resume
+                                    // arm).
+                                    if tail_reject_restarts < MAX_TAIL_REJECT_RESTARTS {
+                                        tail_reject_restarts += 1;
+                                        log::warn!(
+                                            "[BE] download_url: segment {} same-CDN retry rejected by tail verification, fully restarting segment on same CDN #{} (reject restart {}/{})",
+                                            idx,
+                                            cdn_idx,
+                                            tail_reject_restarts,
+                                            MAX_TAIL_REJECT_RESTARTS
+                                        );
+                                        needs_full_restart = true;
+                                        backoff_sleep(1).await;
+                                        continue;
+                                    }
+                                    log::warn!(
+                                        "[BE] download_url: segment {} same-CDN retry rejected by tail verification, rotating CDN",
+                                        idx
                                     );
-                                    seg_start += received;
-                                    seg_remaining = seg_remaining.saturating_sub(received);
-                                    backoff_sleep(same_cdn_retries).await;
-                                    continue;
                                 }
                                 if cdn_rotation_count >= max_cdn_rotations {
                                     log::warn!(
@@ -1101,9 +1454,11 @@ pub async fn download_url(
 ///
 /// - `Ok(received)`: Download complete; bytes streamed to `path` at `pos`,
 ///   `received` is the total bytes written.
-/// - `Err(SegmentError::Slow)`: The aggregate-speed monitor flagged TOTAL
-///   throughput below [`MIN_SPEED_THRESHOLD`] and selected this segment;
-///   the caller rotates CDN and fully restarts the segment.
+/// - `Err(SegmentError::Slow(received))`: The aggregate-speed monitor
+///   flagged TOTAL throughput below [`MIN_SPEED_THRESHOLD`] and selected
+///   this segment; the caller first resumes the SAME CDN from the received
+///   offset (fresh connection), then falls back to a CDN rotation with a
+///   full segment restart once that budget is spent.
 /// - `Err(SegmentError::Reconnect(received))`: The body stream broke
 ///   mid-transfer (connection reset, decoding error) or stalled for
 ///   [`SEGMENT_STALL_TIMEOUT_SECS`]. The caller first retries the SAME CDN
@@ -1165,7 +1520,9 @@ async fn download_segment_stream(
                     SEGMENT_STALL_TIMEOUT_SECS,
                     received
                 );
-                return Err(SegmentError::Reconnect(received));
+                return Err(
+                    flush_before_resume(&mut file, SegmentError::Reconnect(received)).await,
+                );
             }
         };
         match chunk {
@@ -1180,8 +1537,8 @@ async fn download_segment_stream(
                 on_chunk_received(chunk_len);
 
                 // Honor a monitor rotation request: consume the flag and
-                // surface as Slow so the caller rotates CDN with the
-                // slow-speed budget and fully restarts the segment.
+                // surface as Slow so the caller first resumes the SAME CDN
+                // with a fresh connection (see SegmentError::Slow).
                 if stats
                     .rotate_requested
                     .compare_exchange(true, false, Ordering::Relaxed, Ordering::Relaxed)
@@ -1193,7 +1550,7 @@ async fn download_segment_stream(
                         cdn_idx,
                         received
                     );
-                    return Err(SegmentError::Slow);
+                    return Err(flush_before_resume(&mut file, SegmentError::Slow(received)).await);
                 }
             }
             Ok(None) => break,
@@ -1213,7 +1570,9 @@ async fn download_segment_stream(
                     received,
                     e
                 );
-                return Err(SegmentError::Reconnect(received));
+                return Err(
+                    flush_before_resume(&mut file, SegmentError::Reconnect(received)).await,
+                );
             }
         }
     }
@@ -1497,5 +1856,125 @@ mod tests {
         assert_eq!(cdn_rotation_limit(5), 5 * MAX_CDN_LOOPS);
         // Saturating u8 arithmetic: 300 urls -> 255 cap -> 255*3 saturates at u8::MAX
         assert_eq!(cdn_rotation_limit(300), u8::MAX);
+    }
+
+    #[test]
+    fn slow_action_fully_received_segment_completes() {
+        // Rotation request is consumed on a chunk arrival, so Slow can
+        // surface with every expected byte already on disk.
+        assert_eq!(decide_slow_action(1000, 1000, 0), SlowAction::Complete);
+        assert_eq!(
+            decide_slow_action(1000, 1000, MAX_SLOW_RESUMES),
+            SlowAction::Complete
+        );
+    }
+
+    #[test]
+    fn slow_action_resumes_same_cdn_within_budget() {
+        let delivered = SLOW_RESUME_MIN_BYTES + 1;
+        let remaining = delivered + 1000; // normal case: received < remaining
+        assert_eq!(
+            decide_slow_action(delivered, remaining, 0),
+            SlowAction::ResumeSameCdn
+        );
+        let last = MAX_SLOW_RESUMES.saturating_sub(1);
+        assert_eq!(
+            decide_slow_action(delivered, remaining, last),
+            SlowAction::ResumeSameCdn
+        );
+    }
+
+    #[test]
+    fn slow_action_rotates_after_resume_budget_spent() {
+        let delivered = SLOW_RESUME_MIN_BYTES + 1;
+        let remaining = delivered + 1000;
+        assert_eq!(
+            decide_slow_action(delivered, remaining, MAX_SLOW_RESUMES),
+            SlowAction::RotateCdn
+        );
+        assert_eq!(
+            decide_slow_action(delivered, remaining, MAX_SLOW_RESUMES + 5),
+            SlowAction::RotateCdn
+        );
+    }
+
+    #[test]
+    fn slow_action_min_bytes_boundary() {
+        // Exactly the minimum still resumes...
+        assert_eq!(
+            decide_slow_action(SLOW_RESUME_MIN_BYTES, SLOW_RESUME_MIN_BYTES + 1000, 0),
+            SlowAction::ResumeSameCdn
+        );
+        // ...one byte less rotates: a near-empty attempt means the
+        // connection is already fresh and still dead — the node is the
+        // bottleneck, not the connection.
+        assert_eq!(
+            decide_slow_action(SLOW_RESUME_MIN_BYTES - 1, SLOW_RESUME_MIN_BYTES + 999, 0),
+            SlowAction::RotateCdn
+        );
+    }
+
+    #[test]
+    fn slow_action_near_zero_received_rotates_without_burning_budget() {
+        // Observed in the 2026-08-31 19:22 log: Slow surfaced at +15 KiB
+        // and +7 KiB right after stream-error reconnects. Those resumes
+        // wasted the budget on connections that were already fresh.
+        let remaining = 10 * SLOW_RESUME_MIN_BYTES;
+        assert_eq!(decide_slow_action(0, remaining, 0), SlowAction::RotateCdn);
+        assert_eq!(
+            decide_slow_action(15_141, remaining, 0),
+            SlowAction::RotateCdn
+        );
+        assert_eq!(
+            decide_slow_action(6_951, remaining, 0),
+            SlowAction::RotateCdn
+        );
+    }
+
+    #[test]
+    fn resume_verify_range_window_ends_at_stitch_point() {
+        // Segment starting at s = 32 MiB, 5 MiB received: the verify window
+        // must END at the stitch point (s + received) and stay inside this
+        // segment — the bytes the next attempt appends to.
+        let s = 32 * 1024 * 1024;
+        let end = s + 5_000_000;
+        assert_eq!(
+            resume_verify_range(s, end),
+            Some((end - SAME_STREAM_VERIFY_BYTES, SAME_STREAM_VERIFY_BYTES))
+        );
+        // Short on-disk progress (under the cap): verify all of it.
+        assert_eq!(resume_verify_range(s, s + 500), Some((s, 500)));
+    }
+
+    #[test]
+    fn resume_verify_range_segment_zero_first_resume_is_verified() {
+        // Regression (review 2026-08-31): segment 0's FIRST resume was
+        // skipped entirely (len clamped to 0 via the old seg_start cap),
+        // leaving the goi3-style corruption case unguarded. The window must
+        // cover the tail of the received bytes, not return None.
+        assert_eq!(
+            resume_verify_range(0, 5_000_000),
+            Some((
+                5_000_000 - SAME_STREAM_VERIFY_BYTES,
+                SAME_STREAM_VERIFY_BYTES
+            ))
+        );
+        // Even a sub-cap first stitch of segment 0 verifies fully.
+        assert_eq!(resume_verify_range(0, 500), Some((0, 500)));
+    }
+
+    #[test]
+    fn resume_verify_range_none_when_nothing_on_disk() {
+        // No on-disk progress in this segment: no stitch point, resume
+        // trivially safe.
+        assert_eq!(resume_verify_range(0, 0), None);
+        assert_eq!(resume_verify_range(123, 123), None);
+    }
+
+    #[test]
+    fn slow_action_over_delivery_completes_instead_of_underflowing() {
+        // An over-delivering edge (received > remaining) must complete, not
+        // fall through to a subtraction that underflows (review 2026-08-31).
+        assert_eq!(decide_slow_action(2_000, 1_000, 0), SlowAction::Complete);
     }
 }
