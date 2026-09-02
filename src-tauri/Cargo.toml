@@ -25,7 +25,6 @@ tauri-build = { version = "2", features = [] }
 # only), so private API use is acceptable here.
 tauri = { version = "2", features = ["macos-private-api"] }
 tauri-plugin-opener = "2"
-tauri-plugin-store = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 serde = { version = "1", features = ["derive"] }
@@ -47,6 +46,9 @@ rusqlite = { version = "0.31", features = ["bundled"] }
 tauri-plugin-process = "2"
 futures = "0.3.31"
 once_cell = "1.18.0"
+# Why: inter-process file locking (flock / LockFileEx) for the multi-process
+# safe JSON stores and download reservation files (issue #560).
+fs2 = "0.4"
 libc = "0.2"
 rand = "0.8"
 chrono = "0.4"

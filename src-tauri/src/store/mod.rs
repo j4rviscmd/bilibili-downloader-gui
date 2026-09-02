@@ -1,7 +1,7 @@
 //! Storage modules
 //!
-//! This module contains persistent storage implementations using
-//! tauri-plugin-store for various data types.
+//! This module contains persistent storage implementations backed by the
+//! multi-process safe locked JSON helpers (`utils::locked_json`).
 
 pub mod history_store;
 

@@ -2,10 +2,16 @@
 //!
 //! This module handles reading and writing application settings to a JSON file,
 //! including validation of download paths and fallback to system defaults.
+//! Reads and writes go through the multi-process safe locked JSON helpers
+//! (issue #560): atomic tmp+rename writes and inter-process locking, so two
+//! app instances never corrupt each other's settings.
 
-use std::{fs, path::PathBuf};
+use std::path::PathBuf;
 
-use crate::{models::settings::Settings, utils::paths};
+use crate::{
+    models::settings::Settings,
+    utils::{locked_json, paths},
+};
 use tauri::{AppHandle, Manager};
 
 /// Saves application settings to the settings.json file.
@@ -32,8 +38,6 @@ use tauri::{AppHandle, Manager};
 /// - File write fails
 pub async fn set_settings(app: &AppHandle, settings: &Settings) -> Result<(), String> {
     let filepath = paths::get_settings_path(app);
-    let settings_str = serde_json::to_string_pretty(settings)
-        .map_err(|e| format!("Failed to serialize settings: {}", e))?;
 
     // Validate download output directory
     let dl_output_path = settings
@@ -49,8 +53,12 @@ pub async fn set_settings(app: &AppHandle, settings: &Settings) -> Result<(), St
         return Err("ERR:SETTINGS_PATH_NOT_DIRECTORY".to_string());
     }
 
-    fs::write(&filepath, settings_str)
-        .map_err(|e| format!("Failed to write settings.json: {}", e))?;
+    locked_json::with_json_mut(&filepath, |value| {
+        *value = serde_json::to_value(settings)
+            .map_err(|e| format!("Failed to serialize settings: {}", e))?;
+        Ok(())
+    })
+    .map_err(|e| format!("Failed to write settings.json: {}", e))?;
 
     Ok(())
 }
@@ -72,35 +80,23 @@ pub async fn set_settings(app: &AppHandle, settings: &Settings) -> Result<(), St
 pub async fn get_settings(app: &AppHandle) -> Result<Settings, String> {
     let filepath = paths::get_settings_path(app);
 
-    // Try to read settings from file
-    let settings: Settings = if filepath.exists() {
-        match fs::read_to_string(&filepath) {
-            Ok(content) if !content.trim().is_empty() => match serde_json::from_str(&content) {
-                Ok(s) => s,
-                Err(e) => {
-                    log::warn!(
-                        "[BE] get_settings: failed to parse settings.json: {}. Using defaults.",
-                        e
-                    );
-                    Settings::default()
-                }
-            },
-            Ok(_) => {
-                // Empty file - use defaults
-                Settings::default()
-            }
-            Err(e) => {
+    // Read settings under the inter-process lock; missing/empty/corrupt file
+    // (corrupt files are quarantined by locked_json) all fall back to defaults
+    // without creating the file (only set_settings creates it).
+    let settings: Settings = locked_json::with_json(&filepath, |value| {
+        Ok(if value.as_object().is_some_and(|m| m.is_empty()) {
+            Settings::default()
+        } else {
+            serde_json::from_value(value.clone()).unwrap_or_else(|e| {
                 log::warn!(
-                    "[BE] get_settings: failed to read settings.json: {}. Using defaults.",
+                    "[BE] get_settings: failed to parse settings.json: {}. Using defaults.",
                     e
                 );
                 Settings::default()
-            }
-        }
-    } else {
-        // File doesn't exist - use defaults without creating file
-        Settings::default()
-    };
+            })
+        })
+    })
+    .map_err(|e| format!("Failed to read settings.json: {}", e))?;
 
     // Apply default download directory if not set
     let settings = if settings

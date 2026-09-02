@@ -67,6 +67,9 @@ pub async fn initialize(app: AppHandle) -> Result<(), String> {
     // 1. Clean up orphaned temp files from previous sessions.
     emit_step(&app, "init.cleanup_in_progress");
     let _ = cleanup::cleanup_temp_files(&app, None);
+    // Also sweep abandoned *.part.* staging files from the download
+    // output directory (crashed downloads, issue #560).
+    let _ = cleanup::cleanup_part_files(&app).await;
 
     // 2. ffmpeg validate / install (heaviest step; downloads on first run).
     //    Settings are already loaded in setup and stored in InitResult, so

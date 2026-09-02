@@ -165,7 +165,8 @@ pub enum LoginMethod {
 /// Stored login state for persistence.
 ///
 /// Note: Session data is stored in an encrypted file,
-/// while only the login method preference is stored in tauri-plugin-store.
+/// while only the login method preference is stored in login_state.json
+/// (multi-process safe locked JSON store).
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct LoginState {

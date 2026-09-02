@@ -598,6 +598,7 @@
       "title": "Échec de la mise à jour",
       "no_update_available": "Aucune mise à jour disponible",
       "download_failed": "Échec du téléchargement de la mise à jour",
+      "update_in_progress": "Une autre session met déjà l'application à jour. Veuillez attendre la fin.",
       "restart_failed": "Échec du redémarrage de l'application"
     }
   },

@@ -379,6 +379,9 @@ function SettingsForm() {
     const changed = Object.fromEntries(
       changedKeys.map((key) => [key, data[key]]),
     ) as Partial<z.infer<typeof formSchema>>
+    // TODO(#563): this spreads the whole (possibly stale) Redux snapshot,
+    // so changes saved by another app instance while this form was open
+    // would be silently overwritten. A partial-update API removes the race.
     await saveByForm({ ...settings, ...changed })
   }
 

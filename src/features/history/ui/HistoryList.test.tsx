@@ -42,6 +42,19 @@ describe('HistoryList', () => {
     expect(screen.getByText('init.initializing')).toBeInTheDocument()
   })
 
+  it('keeps the list mounted while refreshing with existing entries (issue #560)', () => {
+    // A refresh (page re-becoming visible) sets loading=true briefly; the
+    // list must NOT swap to the loading placeholder, or the Virtuoso
+    // remounts and the scroll position resets. In jsdom Virtuoso renders
+    // no items (zero height), so assert on its scroller element instead.
+    renderWithProviders(
+      <HistoryList entries={[entry]} loading onDelete={vi.fn()} />,
+    )
+
+    expect(screen.queryByText('init.initializing')).not.toBeInTheDocument()
+    expect(screen.getByTestId('virtuoso-scroller')).toBeInTheDocument()
+  })
+
   it('shows the empty state when there are no entries', () => {
     renderWithProviders(
       <HistoryList entries={[]} loading={false} onDelete={vi.fn()} />,

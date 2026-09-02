@@ -91,6 +91,24 @@ describe('useHistory', () => {
     expect(store.getState().history.loading).toBe(false)
   })
 
+  it('refresh() re-reads entries from the backend (parallel instance wrote new ones)', async () => {
+    // Mount with one entry, then simulate another app instance's download
+    // appearing on disk: the next get_history returns both (issue #560).
+    mockCommands({ get_history: [entryCompleted] })
+    const { result } = renderHookWithStore(() => useHistory())
+    await waitFor(() => expect(result.current.entries).toHaveLength(1))
+
+    mockCommands({ get_history: [entryNew, entryCompleted] })
+    act(() => {
+      result.current.refresh()
+    })
+
+    await waitFor(() => {
+      expect(result.current.entries).toEqual([entryNew, entryCompleted])
+    })
+    expect(mockInvoke).toHaveBeenCalledWith('get_history', {})
+  })
+
   it('filters by status', async () => {
     mockCommands({ get_history: [entryCompleted, entryFailed] })
     const { result } = renderHookWithStore(() => useHistory())

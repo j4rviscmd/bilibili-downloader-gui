@@ -9,7 +9,7 @@
 //! ```text
 //! app_data_dir()/
 //! ├── settings.json         ← Fixed (user cannot change)
-//! └── history.json          ← Managed by tauri-plugin-store
+//! └── history.json          ← Multi-process safe locked JSON store
 //!
 //! user-specified libPath/   (default: app_data_dir()/lib/)
 //! ├── ffmpeg/

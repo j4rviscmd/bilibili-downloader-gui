@@ -13,7 +13,7 @@ import { store } from '@/app/store'
 import { setOpenDialog } from '@/features/settings/settingsSlice'
 import { Sidebar, SidebarProvider } from '@/shared/animate-ui/radix/sidebar'
 import { mockInvoke, renderWithProviders } from '@/test/test-utils'
-import { fireEvent, screen } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/features/settings/dialog/SettingsForm', () => ({
@@ -75,5 +75,19 @@ describe('SettingsDialog', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
 
     expect(store.getState().settings.dialogOpen).toBe(false)
+  })
+
+  it('re-reads settings from the backend when opened (issue #560)', async () => {
+    // settings.json is shared across app instances; opening the dialog must
+    // refresh the in-memory snapshot so another instance's changes are
+    // shown (and not silently overwritten on save).
+    store.dispatch(setOpenDialog(false))
+    renderWithProviders(<SettingsDialog />)
+
+    act(() => {
+      store.dispatch(setOpenDialog(true))
+    })
+
+    await waitFor(() => expect(mockInvoke).toHaveBeenCalledWith('get_settings'))
   })
 })

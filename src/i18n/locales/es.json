@@ -598,6 +598,7 @@
       "title": "Error en la actualización",
       "no_update_available": "No hay actualizaciones disponibles",
       "download_failed": "Error al descargar la actualización",
+      "update_in_progress": "Otra sesión está actualizando la aplicación. Espera a que termine.",
       "restart_failed": "Error al reiniciar la aplicación"
     }
   },

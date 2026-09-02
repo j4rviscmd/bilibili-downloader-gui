@@ -5,7 +5,7 @@
 
 import { store } from '@/app/store'
 import { resetUpdater } from '@/features/updater/model/updaterSlice'
-import { renderHookWithStore } from '@/test/test-utils'
+import { mockInvoke, renderHookWithStore } from '@/test/test-utils'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { check } from '@tauri-apps/plugin-updater'
 import { act, waitFor } from '@testing-library/react'
@@ -15,6 +15,9 @@ import { useUpdateDownload } from './useUpdateDownload'
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // Default: begin_update_session (and any other invoke) resolves — tests
+  // that exercise the lock contention path override this.
+  mockInvoke.mockImplementation(() => Promise.resolve(undefined))
   store.dispatch(resetUpdater())
 })
 
@@ -148,5 +151,42 @@ describe('useUpdateDownload', () => {
       await fail.result.current.handleRestart()
     })
     expect(updater().error).toBe('updater.error.restart_failed')
+  })
+
+  it('claims the update session (begin_update_session) before checking', async () => {
+    const invoked: string[] = []
+    mockInvoke.mockImplementation((cmd: string) => {
+      invoked.push(cmd)
+      return Promise.resolve(undefined)
+    })
+    mockUpdate([{ event: 'Finished', data: {} }])
+    const { result } = renderHookWithStore(() => useUpdateDownload())
+
+    await act(async () => {
+      await result.current.handleUpdate()
+    })
+
+    expect(invoked[0]).toBe('begin_update_session')
+    expect(updater().isUpdateReady).toBe(true)
+  })
+
+  it('aborts without checking when another session holds update.lock', async () => {
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === 'begin_update_session') {
+        return Promise.reject('ERR::UPDATE_IN_PROGRESS')
+      }
+      return Promise.resolve(undefined)
+    })
+    mockUpdate([{ event: 'Finished', data: {} }])
+    const { result } = renderHookWithStore(() => useUpdateDownload())
+
+    await act(async () => {
+      await result.current.handleUpdate()
+    })
+
+    expect(check).not.toHaveBeenCalled()
+    expect(updater().error).toBe('updater.error.update_in_progress')
+    expect(updater().isDownloading).toBe(false)
+    expect(updater().downloadProgress).toBe(0)
   })
 })

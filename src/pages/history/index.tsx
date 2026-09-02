@@ -13,8 +13,9 @@ import { toast } from '@/shared/ui/toast'
 import { confirm, save } from '@tauri-apps/plugin-dialog'
 import { writeTextFile } from '@tauri-apps/plugin-fs'
 import { FileText, Trash2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useLocation } from 'react-router'
 
 import { logger } from '@/shared/lib/logger'
 
@@ -39,9 +40,27 @@ export function HistoryContent() {
     setSearch,
     updateFilters,
     exportData,
+    refresh,
   } = useHistory()
 
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
+
+  // Re-fetch history whenever this page becomes visible again (issue #560).
+  // Pages are kept mounted with display:none by PersistentPageLayout, so a
+  // plain mount effect would run once per app launch — entries downloaded by
+  // another app instance would stay invisible until restart. The component
+  // stays mounted through this, so scroll position and search/filter state
+  // are preserved; only the Redux entries array is replaced.
+  const { pathname } = useLocation()
+  const prevPathname = useRef(pathname)
+  useEffect(() => {
+    const becameVisible =
+      prevPathname.current !== '/history' && pathname === '/history'
+    prevPathname.current = pathname
+    if (becameVisible) {
+      refresh()
+    }
+  }, [pathname, refresh])
 
   /**
    * Extracts the page number from a Bilibili URL.
