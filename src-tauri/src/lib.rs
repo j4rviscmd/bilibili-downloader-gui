@@ -1191,6 +1191,8 @@ async fn begin_update_session(app: AppHandle) -> Result<(), String> {
         .join("update.lock");
     let file = std::fs::OpenOptions::new()
         .create(true)
+        // truncate(false): re-opening an existing update.lock must not zero it.
+        .truncate(false)
         .write(true)
         .read(true)
         .open(&lock_path)

@@ -2962,6 +2962,9 @@ fn lock_temp_paths(paths: &[&Path]) -> Vec<File> {
     for path in paths {
         let file = match OpenOptions::new()
             .create(true)
+            // truncate(false): opening an existing temp must never zero it —
+            // the download continues into the same inode the flock lives on.
+            .truncate(false)
             .write(true)
             .read(true)
             .open(path)

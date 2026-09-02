@@ -74,7 +74,7 @@ impl HistoryStore {
     ///
     /// Returns an error if the file cannot be read or parsed.
     pub fn load(&self) -> Result<Vec<HistoryEntry>, String> {
-        with_json(&self.path, |v| Self::entries_from(v)).map_err(|e| e.to_string())
+        with_json(&self.path, Self::entries_from).map_err(|e| e.to_string())
     }
 
     /// Saves history entries with an atomic locked write.
