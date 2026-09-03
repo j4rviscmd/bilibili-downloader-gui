@@ -62,4 +62,18 @@ describe('settingsSlice', () => {
     // setSettings preserves UI-only state that the backend object lacks.
     expect(s.dialogOpen).toBe(true)
   })
+
+  it('merges a partial patch (issue #563) keeping untouched fields and dialogOpen', () => {
+    // Save paths now dispatch single-field patches; the reducer must
+    // shallow-merge them instead of replacing the whole state.
+    store.dispatch(setSettings({ dlOutputPath: '/downloads', language: 'ja' }))
+    store.dispatch(setOpenDialog(true))
+
+    store.dispatch(setSettings({ fontSize: 16 }))
+
+    expect(settings().fontSize).toBe(16)
+    expect(settings().language).toBe('ja')
+    expect(settings().dlOutputPath).toBe('/downloads')
+    expect(settings().dialogOpen).toBe(true)
+  })
 })
