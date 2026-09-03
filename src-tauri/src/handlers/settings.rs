@@ -239,6 +239,26 @@ mod tests {
     }
 
     #[test]
+    fn patch_updates_lib_path_via_serde_rename_key() {
+        // Pins the contract used by update_lib_path: it patches the
+        // camelCase serde rename `libPath`. If the sent key ever diverges
+        // from the rename, the patch silently no-ops (unknown keys are kept
+        // on disk but ignored by Settings), so the library path would never
+        // change.
+        let dir = tempdir();
+        write_settings(dir.path(), json!({"language": "en", "libPath": "/old/lib"}));
+
+        patch_settings_at(&settings_file(dir.path()), &json!({"libPath": "/new/lib"})).unwrap();
+
+        // On-disk document carries the renamed key...
+        assert_eq!(read_settings(dir.path())["libPath"], json!("/new/lib"));
+        // ...and the merged document still deserializes into Settings with
+        // the field populated.
+        let merged: Settings = serde_json::from_value(read_settings(dir.path())).unwrap();
+        assert_eq!(merged.lib_path.as_deref(), Some("/new/lib"));
+    }
+
+    #[test]
     fn patch_on_missing_file_creates_it_with_patch_only() {
         let dir = tempdir();
         patch_settings_at(&settings_file(dir.path()), &json!({"fontSize": 16})).unwrap();
