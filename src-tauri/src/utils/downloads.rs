@@ -62,6 +62,15 @@ enum SegmentError {
     /// Unrecoverable disk write failure (e.g. ENOSPC → ERR::DISK_FULL).
     /// Not CDN-specific, so the caller fails the download rather than rotate.
     DiskError(anyhow::Error),
+    // Why: the chunk-receive loop used to stream a whole 32MB segment to
+    //   completion after the user cancelled (observed 47s lag, issue #562) —
+    //   cancel was only checked at segment start, segment retry, and
+    //   download_url entry, so the gap could span an entire attempt including
+    //   same-CDN resume retries. Non-rotatable like DiskError: no CDN or
+    //   resume recovery may follow a user-initiated cancel.
+    /// Download cancellation observed mid-stream (issue #562). The caller
+    /// fails the download with `ERR::CANCELLED` immediately.
+    Cancelled,
 }
 
 use anyhow::Result;
@@ -945,6 +954,7 @@ pub async fn download_url(
                             cdn_idx,
                             seg_start,
                             &path_c,
+                            &cancel_token_c,
                             &stats_cb,
                             |chunk_len| {
                                 seg_bytes_cb.fetch_add(chunk_len, Ordering::Relaxed);
@@ -965,6 +975,16 @@ pub async fn download_url(
                                     e
                                 );
                                 return Err(e);
+                            }
+                            // Mirror of DiskError: fail immediately, no retry,
+                            // no rotation. emits/monitor shutdown is handled
+                            // by the collect loop's ERR::CANCELLED propagation.
+                            Err(SegmentError::Cancelled) => {
+                                log::info!(
+                                    "[BE] download_url: segment {} download cancelled",
+                                    idx
+                                );
+                                return Err(anyhow::anyhow!("ERR::CANCELLED"));
                             }
                             Err(SegmentError::Slow(received)) => {
                                 let mut action =
@@ -1365,7 +1385,13 @@ pub async fn download_url(
             Ok(Err(e)) => {
                 // Propagate invalid-media errors immediately so the caller's
                 // fallback logic runs without retrying the same error URL.
-                if e.to_string().contains("ERR::INVALID_MEDIA_RESPONSE") {
+                // Cancelled propagates the same way (issue #562): otherwise
+                // the seg_errors counter below rewrites it into
+                // "N segment(s) failed" (no ERR:: prefix), which
+                // retry_download treats as a transient network failure and
+                // retries — restarting a download the user just cancelled.
+                let msg = e.to_string();
+                if msg.contains("ERR::INVALID_MEDIA_RESPONSE") || msg.contains("ERR::CANCELLED") {
                     emits.stop().await;
                     monitor.abort();
                     return Err(e);
@@ -1446,6 +1472,8 @@ pub async fn download_url(
 /// * `cdn_idx` - Index of the current CDN in `cdn_urls`, used in rotation logs
 /// * `pos` - Absolute byte offset where the segment is written in `path`
 /// * `path` - Pre-allocated output file path (written via random-access seek)
+/// * `cancel_token` - Cancellation token checked on every received chunk
+///   (issue #562): a flag read, so the per-chunk cost is negligible
 /// * `stats` - This segment's shared stats: receives byte counts, rotation
 ///   requests
 /// * `on_chunk_received` - Callback invoked when each chunk is received
@@ -1466,6 +1494,8 @@ pub async fn download_url(
 ///   and fully restarts the segment.
 /// - `Err(SegmentError::DiskError(e))`: Unrecoverable disk write failure
 ///   (e.g. ENOSPC → ERR::DISK_FULL); the caller fails the download.
+/// - `Err(SegmentError::Cancelled)`: Download cancellation observed on a
+///   received chunk; the caller fails the download with `ERR::CANCELLED`.
 #[allow(clippy::too_many_arguments)]
 async fn download_segment_stream(
     resp: &mut reqwest::Response,
@@ -1473,6 +1503,7 @@ async fn download_segment_stream(
     cdn_idx: usize,
     pos: u64,
     path: &Path,
+    cancel_token: &Option<CancellationToken>,
     stats: &SegmentStats,
     on_chunk_received: impl Fn(u64),
 ) -> Result<u64, SegmentError> {
@@ -1535,6 +1566,22 @@ async fn download_segment_stream(
 
                 // Report progress on chunk received
                 on_chunk_received(chunk_len);
+
+                // Honor a cancellation request before anything else (issue
+                // #562): a flag read like rotate_requested below, checked on
+                // every chunk so a healthy-but-slow CDN cannot run a whole
+                // segment to completion after the user cancelled. No flush
+                // needed — nothing resumes after a cancel, the caller fails
+                // with ERR::CANCELLED and cleanup deletes the partial file.
+                if cancel_token.as_ref().is_some_and(|t| t.is_cancelled()) {
+                    log::info!(
+                        "[BE] download_segment: segment {} CDN #{} cancelled after {} bytes",
+                        idx,
+                        cdn_idx,
+                        received
+                    );
+                    return Err(SegmentError::Cancelled);
+                }
 
                 // Honor a monitor rotation request: consume the flag and
                 // surface as Slow so the caller first resumes the SAME CDN
@@ -1976,5 +2023,59 @@ mod tests {
         // An over-delivering edge (received > remaining) must complete, not
         // fall through to a subtraction that underflows (review 2026-08-31).
         assert_eq!(decide_slow_action(2_000, 1_000, 0), SlowAction::Complete);
+    }
+
+    // ---- download_segment_stream cancellation (issue #562) ----
+
+    /// Drives download_segment_stream against a wiremock server streaming
+    /// `body`, writing into a pre-created file at `path`.
+    async fn segment_stream_against_mock(
+        body: Vec<u8>,
+        cancel_token: Option<CancellationToken>,
+        path: &std::path::Path,
+    ) -> Result<u64, SegmentError> {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_bytes(body))
+            .mount(&server)
+            .await;
+        let mut resp = reqwest::Client::new()
+            .get(server.uri())
+            .send()
+            .await
+            .unwrap();
+        let stats = SegmentStats::new();
+        download_segment_stream(&mut resp, 0, 0, 0, path, &cancel_token, &stats, |_| {}).await
+    }
+
+    #[tokio::test]
+    async fn segment_stream_returns_cancelled_when_token_cancelled() {
+        // Regression (issue #562): with cancel only checked at segment
+        // start/retry, a healthy-but-slow CDN streamed a whole segment to
+        // completion after cancel (observed 47s lag). The per-chunk check
+        // must surface Cancelled on the first received chunk instead.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("seg.bin");
+        std::fs::write(&path, []).unwrap();
+
+        let token = CancellationToken::new();
+        token.cancel();
+
+        let result = segment_stream_against_mock(vec![0xAB; 64 * 1024], Some(token), &path).await;
+        assert!(matches!(result, Err(SegmentError::Cancelled)));
+    }
+
+    #[tokio::test]
+    async fn segment_stream_completes_without_cancel_token() {
+        // Happy path guard: no token registered — the per-chunk check must
+        // not disturb a normal stream.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("seg.bin");
+        std::fs::write(&path, []).unwrap();
+
+        let body = vec![0xCD; 64 * 1024];
+        let result = segment_stream_against_mock(body.clone(), None, &path).await;
+        assert_eq!(result.unwrap(), body.len() as u64);
+        assert_eq!(std::fs::read(&path).unwrap(), body);
     }
 }

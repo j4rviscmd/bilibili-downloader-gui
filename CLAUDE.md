@@ -111,6 +111,12 @@ comments.
 ## Pre-verification Checklist
 
 - Use `@hypothesi/tauri-mcp-server` to retrieve logs and HTML elements
+- When asked to check app logs (e.g. after user verification), grep
+  `~/Library/Application Support/com.bilibili-downloader-gui.app/logs/app.log`
+  — both backend `[BE]` and frontend `[FE]` logs land there (plugin-log
+  Folder target captures webview logs too). Dev (`npm run tauri dev`)
+  and release builds share this path (same bundle identifier). The
+  tauri-mcp `console` capture may lag or belong to a stale app instance
 - Before user verification, check the following:
   - `npm run lint` has no errors
   - `cargo build` compiles successfully
