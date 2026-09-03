@@ -84,12 +84,9 @@ describe('useAudio', () => {
     })
     expect(store.getState().settings.audioFormat).toBe('m4a')
     expect(result.current.outputPath).toBeNull()
-    expect(mockInvoke).toHaveBeenCalledWith(
-      'set_settings',
-      expect.objectContaining({
-        settings: expect.objectContaining({ audioFormat: 'm4a' }),
-      }),
-    )
+    expect(mockInvoke).toHaveBeenCalledWith('patch_settings', {
+      patch: { audioFormat: 'm4a' },
+    })
   })
 
   it('extract invokes extract_audio with the form values and succeeds', async () => {

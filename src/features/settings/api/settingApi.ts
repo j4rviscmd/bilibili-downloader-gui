@@ -1,4 +1,4 @@
-import type { Settings } from '@/features/settings/type'
+import type { Settings, SettingsPatch } from '@/features/settings/type'
 import { logger } from '@/shared/lib/logger'
 import { invoke } from '@tauri-apps/api/core'
 
@@ -31,29 +31,33 @@ export const callGetSettings = async (): Promise<Settings> => {
 }
 
 /**
- * Persists application settings to the Tauri backend.
+ * Applies a partial settings update to the Tauri backend (issue #563).
  *
- * Invokes the 'set_settings' Tauri command to save settings to persistent
- * storage. The backend performs validation and handles file I/O.
+ * Invokes the 'patch_settings' Tauri command, which merges only the patched
+ * fields into the latest on-disk settings under the inter-process lock —
+ * fields another app instance saved in the meantime are preserved. Never
+ * send a whole-settings object; pass only the changed fields.
  *
- * @param settings - The settings object to persist
+ * @param patch - The settings fields to change
  * @returns A promise that resolves when the settings are saved
- * @throws Error if the backend fails to save (e.g., invalid path, disk full)
+ * @throws Error if the backend fails to save (e.g., invalid patch, invalid path)
  *
  * @example
  * ```typescript
- * await callSetSettings({ dlOutputPath: '/downloads', language: 'en' })
+ * await callPatchSettings({ fontSize: 16 })
  * ```
  */
-export const callSetSettings = async (settings: Settings): Promise<void> => {
+export const callPatchSettings = async (
+  patch: SettingsPatch,
+): Promise<void> => {
   logger.debug(
-    `callSetSettings: Saving settings, language=${settings.language}`,
+    `callPatchSettings: Patching settings, fields=${Object.keys(patch).join(', ')}`,
   )
   try {
-    await invoke('set_settings', { settings })
-    logger.debug('callSetSettings: Settings saved successfully')
+    await invoke('patch_settings', { patch })
+    logger.debug('callPatchSettings: Settings saved successfully')
   } catch (error) {
-    logger.error('callSetSettings: Failed to save settings', error)
+    logger.error('callPatchSettings: Failed to save settings', error)
     throw error
   }
 }

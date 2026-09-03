@@ -64,7 +64,7 @@ export function DevOptions() {
   }
 
   const handleToggleDevtools = (checked: boolean) => {
-    saveByForm({ ...settings, openDevtoolsOnStartup: checked })
+    saveByForm({ openDevtoolsOnStartup: checked })
   }
 
   // Only show in development mode

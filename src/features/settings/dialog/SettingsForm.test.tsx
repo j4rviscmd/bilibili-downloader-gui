@@ -7,7 +7,7 @@
  *   / qrLogout / setLoginMethod), '@/features/user' (useUser) and
  *   '@/features/video' (videoApi reset).
  * - useSettings stays real: assertions go through the seeded singleton
- *   store and the 'set_settings' mockInvoke payload.
+ *   store and the 'patch_settings' mockInvoke payload.
  * - Decorative siblings (updater/about/logs/dev sections) are stubbed;
  *   TitleReplacementSettings stays real so its wiring is exercised via
  *   the form too.
@@ -131,13 +131,13 @@ const loggedOutUser: User = {
   hasCookie: false,
 }
 
-/** Returns the latest set_settings payload, or undefined. */
-function lastSetSettings(): Settings | undefined {
+/** Returns the latest patch_settings payload (changed fields), or undefined. */
+function lastSetSettings(): Partial<Settings> | undefined {
   const calls = mockInvoke.mock.calls.filter(
-    (c: unknown[]) => c[0] === 'set_settings',
+    (c: unknown[]) => c[0] === 'patch_settings',
   )
   const call = calls[calls.length - 1]
-  return call?.[1]?.settings as Settings | undefined
+  return call?.[1]?.patch as Partial<Settings> | undefined
 }
 
 function seedSettings(partial: Partial<Settings> = {}) {
@@ -202,7 +202,7 @@ describe('SettingsForm', () => {
     expect(
       await screen.findByText('validation.path.required'),
     ).toBeInTheDocument()
-    expect(mockInvoke.mock.calls.some((c) => c[0] === 'set_settings')).toBe(
+    expect(mockInvoke.mock.calls.some((c) => c[0] === 'patch_settings')).toBe(
       false,
     )
   })

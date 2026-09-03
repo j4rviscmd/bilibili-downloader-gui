@@ -60,10 +60,7 @@ export function useFontSizeShortcuts(): void {
       // keystroke was received and the limit was hit.
       if (updated !== current) {
         applyFontSize(updated)
-        void saveByFormRef.current(
-          { ...currentSettings, fontSize: updated },
-          true,
-        )
+        void saveByFormRef.current({ fontSize: updated }, true)
       }
 
       toast.info(t('settings.font_size_changed', { size: updated }), {

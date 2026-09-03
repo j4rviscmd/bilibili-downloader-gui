@@ -199,7 +199,7 @@ describe('useTrim', () => {
   })
 
   it('setMode persists to the settings slice and backend', async () => {
-    mockCommands({ set_settings: undefined })
+    mockCommands({ patch_settings: undefined })
     const { result } = renderHook(() => useTrim(), { wrapper })
 
     act(() => {
@@ -209,8 +209,8 @@ describe('useTrim', () => {
     expect(result.current.mode).toBe('reencode')
     expect(store.getState().settings.trimMode).toBe('reencode')
     await waitFor(() => {
-      expect(mockInvoke).toHaveBeenCalledWith('set_settings', {
-        settings: expect.objectContaining({ trimMode: 'reencode' }),
+      expect(mockInvoke).toHaveBeenCalledWith('patch_settings', {
+        patch: { trimMode: 'reencode' },
       })
     })
   })
