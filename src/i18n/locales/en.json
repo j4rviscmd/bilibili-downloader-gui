@@ -598,6 +598,7 @@
       "title": "Update Failed",
       "no_update_available": "No update available",
       "download_failed": "Failed to download update",
+      "update_in_progress": "Another session is already updating the app. Please wait for it to finish.",
       "restart_failed": "Failed to restart application"
     }
   },

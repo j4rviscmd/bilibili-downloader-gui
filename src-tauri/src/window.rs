@@ -17,10 +17,11 @@
 //! the main window is built resizable and maximizes correctly from the start.
 
 use crate::models::settings::{Settings, UiTheme};
+use crate::utils::locked_json;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, Theme, WebviewUrl, WebviewWindowBuilder};
-use tauri_plugin_store::StoreExt;
 
+const WINDOW_STATE_FILE: &str = "window-state.json";
 const DEFAULT_WIDTH: f64 = 980.0;
 const DEFAULT_HEIGHT: f64 = 609.0;
 const MIN_WIDTH: f64 = 980.0;
@@ -365,16 +366,19 @@ pub fn save_window_geometry(app: &AppHandle) {
         }
     };
 
-    if let Ok(store) = app.store("window-state.json") {
-        store.set(
-            GEOMETRY_STORE_KEY,
-            serde_json::to_value(&geo).unwrap_or_default(),
-        );
-        // Why: store.set() only schedules a debounced autosave (~100ms), but
-        // Windows tears down the process as soon as the last window closes, so
-        // the timer may not fire before exit. Save explicitly (mirrors
-        // settings.rs) to guarantee the latest geometry reaches disk.
-        let _ = store.save();
+    let Ok(dir) = app.path().app_data_dir() else {
+        return;
+    };
+    let path = dir.join(WINDOW_STATE_FILE);
+    // Why locked write: geometry saves fire on every Resized/Moved, so two
+    // app instances can race; the lock + atomic rename (issue #560) keeps
+    // the file well-formed. The write is synchronous and immediate — no
+    // debounced autosave that Windows process teardown could swallow.
+    if let Err(e) = locked_json::with_json_mut(&path, |value| {
+        value[GEOMETRY_STORE_KEY] = serde_json::to_value(&geo).unwrap_or_default();
+        Ok(())
+    }) {
+        log::warn!("[BE] save_window_geometry: failed to persist: {}", e);
     }
 }
 
@@ -395,15 +399,22 @@ fn primary_monitor_work_area_logical(app: &AppHandle) -> Option<(f64, f64, f64, 
     ))
 }
 
+/// Reads the raw persisted geometry value from the window-state store,
+/// if present.
+fn read_geometry_value(app: &AppHandle) -> Option<serde_json::Value> {
+    let path = app.path().app_data_dir().ok()?.join(WINDOW_STATE_FILE);
+    locked_json::with_json(&path, |value| Ok(value.get(GEOMETRY_STORE_KEY).cloned()))
+        .ok()
+        .flatten()
+}
+
 /// Reads the raw saved geometry without monitor validation.
 ///
 /// Unlike `read_saved_geometry`, this performs no position/size validation and
 /// is used only to preserve the last normal geometry when persisting the
 /// `maximized` flag alone (maximized windows report full-screen bounds).
 fn read_raw_geometry(app: &AppHandle) -> Option<WindowGeometry> {
-    let store = app.store("window-state.json").ok()?;
-    let raw = store.get(GEOMETRY_STORE_KEY)?;
-    serde_json::from_value(raw).ok()
+    serde_json::from_value(read_geometry_value(app)?).ok()
 }
 
 /// Reads saved window geometry from the persistent store.
@@ -416,9 +427,7 @@ fn read_raw_geometry(app: &AppHandle) -> Option<WindowGeometry> {
 ///
 /// Returns `None` otherwise, causing the caller to fall back to defaults.
 fn read_saved_geometry(app: &AppHandle) -> Option<WindowGeometry> {
-    let store = app.store("window-state.json").ok()?;
-    let raw = store.get(GEOMETRY_STORE_KEY)?;
-    let mut geo: WindowGeometry = serde_json::from_value(raw).ok()?;
+    let mut geo: WindowGeometry = serde_json::from_value(read_geometry_value(app)?).ok()?;
 
     geo.width = geo.width.max(MIN_WIDTH);
     geo.height = geo.height.max(MIN_HEIGHT);

@@ -6,6 +6,7 @@ import {
   setIsUpdateReady,
 } from '@/features/updater/model/updaterSlice'
 import { logger } from '@/shared/lib/logger'
+import { invoke } from '@tauri-apps/api/core'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { check } from '@tauri-apps/plugin-updater'
 import { useCallback } from 'react'
@@ -43,6 +44,23 @@ export function useUpdateDownload() {
       dispatch(setIsDownloading(true))
       dispatch(setError(null))
       dispatch(setDownloadProgress(0))
+
+      // Single update session per machine (issue #560): claim update.lock
+      // before touching the network so two app instances can never download
+      // and install simultaneously (the loser would risk a downgrade).
+      // Note: every failure mode of begin_update_session (lock held by
+      // another instance, poisoned lock, I/O error) is reported to the user
+      // as this same "update in progress" message — deliberate
+      // over-reporting per issue #560; the specific backend error string
+      // stays in the log only.
+      try {
+        await invoke('begin_update_session')
+      } catch (e) {
+        logger.warn(`Another session is already updating: ${String(e)}`)
+        dispatch(setError(t('updater.error.update_in_progress')))
+        dispatch(setIsDownloading(false))
+        return
+      }
 
       const update = await check()
       if (!update) {

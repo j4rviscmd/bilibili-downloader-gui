@@ -598,6 +598,7 @@
       "title": "更新失败",
       "no_update_available": "无可用更新",
       "download_failed": "更新下载失败",
+      "update_in_progress": "另一个会话正在更新应用，请等待其完成。",
       "restart_failed": "应用程序重启失败"
     }
   },

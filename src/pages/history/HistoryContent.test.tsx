@@ -11,6 +11,7 @@ import { renderWithProviders } from '@/test/test-utils'
 import { confirm, save } from '@tauri-apps/plugin-dialog'
 import { writeTextFile } from '@tauri-apps/plugin-fs'
 import { screen, waitFor } from '@testing-library/react'
+import { Link, useLocation } from 'react-router'
 import type { Mock } from 'vitest'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -26,6 +27,7 @@ const historyHook = vi.hoisted(() => ({
   updateFilters: vi.fn(),
   remove: vi.fn(),
   clear: vi.fn(),
+  refresh: vi.fn(),
   exportData: vi.fn().mockResolvedValue('[{"id":"1"}]'),
 }))
 
@@ -168,5 +170,36 @@ describe('HistoryContent', () => {
     expect(historyHook.updateFilters).toHaveBeenCalledWith({
       status: 'failed',
     })
+  })
+
+  it('re-fetches history when the page becomes visible again (issue #560)', async () => {
+    // Mini-reproduction of PersistentPageLayout: the page component stays
+    // mounted and is merely hidden while another route is active. Entries
+    // downloaded by a parallel app instance must be picked up when the user
+    // returns to /history — via refresh(), without a remount.
+    function Harness() {
+      const { pathname } = useLocation()
+      return (
+        <>
+          <div style={{ display: pathname === '/history' ? 'block' : 'none' }}>
+            <HistoryContent />
+          </div>
+          {pathname === '/home' && <Link to="/history">back-to-history</Link>}
+          {pathname === '/history' && <Link to="/home">go-home</Link>}
+        </>
+      )
+    }
+
+    const { user } = renderWithProviders(<Harness />, { route: '/home' })
+    expect(historyHook.refresh).not.toHaveBeenCalled()
+
+    // First arrival at /history: the page becomes visible → refresh (1).
+    await user.click(screen.getByText('back-to-history'))
+    await waitFor(() => expect(historyHook.refresh).toHaveBeenCalledTimes(1))
+
+    // Leave and come back → refresh fires again (2), no remount involved.
+    await user.click(screen.getByText('go-home'))
+    await user.click(screen.getByText('back-to-history'))
+    await waitFor(() => expect(historyHook.refresh).toHaveBeenCalledTimes(2))
   })
 })

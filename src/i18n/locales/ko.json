@@ -598,6 +598,7 @@
       "title": "업데이트 실패",
       "no_update_available": "사용 가능한 업데이트가 없습니다",
       "download_failed": "업데이트 다운로드 실패",
+      "update_in_progress": "다른 세션에서 앱을 업데이트 중입니다. 완료될 때까지 기다려 주세요.",
       "restart_failed": "애플리케이션 재시작 실패"
     }
   },

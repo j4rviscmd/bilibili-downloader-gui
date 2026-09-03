@@ -74,6 +74,21 @@ _why_, not just _what_.**
 - Render `TooltipContent` only when the reason applies (conditional), not
   always-on
 
+### Unit Tests
+
+**Every new or changed testable logic ships with unit tests** — keep the
+suite growing with the codebase. The only exemption is thin
+AppHandle-coupled glue (command wrappers, plugin registration); extract
+the real logic into pure functions or test seams and test those:
+
+- Rust: `with_path`-style constructors or `*_in_dir` functions let the
+  logic run against `tempfile::tempdir()` without an `AppHandle`
+  (see `HistoryStore::with_path`, `cleanup_temp_files_in_dir`)
+- Frontend: use the global `mockInvoke` + `renderHookWithStore` /
+  `renderWithProviders` conventions (`src/test/test-utils.tsx`); do not
+  add per-file `vi.mock('@tauri-apps/api/core')`
+- Run `npm test` and `cargo test` before handing over for verification
+
 ### Code Comments
 
 **Write all code comments in English.** This includes inline `//`

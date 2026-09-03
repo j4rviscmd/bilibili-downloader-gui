@@ -12,6 +12,7 @@ import { changeLanguage } from '@/shared/i18n'
 import { logger } from '@/shared/lib/logger'
 import { toast } from '@/shared/ui/toast'
 import { t as staticT, t } from 'i18next'
+import { useCallback } from 'react'
 
 /**
  * Hook for managing application settings.
@@ -166,12 +167,14 @@ export const useSettings = () => {
    *
    * @returns The fetched settings object
    */
-  const getSettings = async (): Promise<Settings> => {
+  // Why useCallback: SettingsDialog's open-refresh effect depends on this
+  // reference; an unstable one would re-run the fetch on every render.
+  const getSettings = useCallback(async (): Promise<Settings> => {
     const settings = await callGetSettings()
     store.dispatch(setSettings(settings))
 
     return settings
-  }
+  }, [])
 
   /**
    * Converts a language ID to its display label.

@@ -12,8 +12,8 @@
 //! argon2 + AES-256-GCM and stored in the app data directory.
 //! The encryption key is derived from hostname + username.
 //!
-//! The tauri-plugin-store is only used for non-sensitive settings
-//! like the preferred login method.
+//! login_state.json (multi-process safe locked JSON store) is only used for
+//! non-sensitive settings like the preferred login method.
 
 use std::io::Cursor;
 use std::sync::RwLock;
@@ -24,7 +24,6 @@ use qrcode::QrCode;
 use reqwest::Url;
 use tauri::AppHandle;
 use tauri::Manager;
-use tauri_plugin_store::StoreExt;
 
 use crate::constants;
 use crate::handlers::bilibili::build_client;
@@ -35,6 +34,7 @@ use crate::models::qr_login::{
     CookieRefreshResponse, LoginMethod, LoginState, QrCodeGenerateResponse, QrCodePollResponse,
     QrCodeResult, QrCodeStatus, QrPollResult, Session,
 };
+use crate::utils::locked_json;
 use crate::utils::secure_storage::{EncryptedFileStorage, SecureStorage};
 
 /// Bilibili QR code generation API endpoint.
@@ -45,6 +45,26 @@ const QR_POLL_URL: &str = "https://passport.bilibili.com/x/passport-login/web/qr
 const STORE_FILE_NAME: &str = "login_state.json";
 /// Key used within the store file for login state persistence.
 const LOGIN_STATE_KEY: &str = "loginState";
+
+/// Writes `state` to `app_data_dir/login_state.json` under the inter-process
+/// lock with an atomic rename (issue #560), preserving any other keys.
+fn write_login_state(
+    app: &AppHandle,
+    state: &crate::models::qr_login::LoginState,
+) -> Result<(), String> {
+    let path = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to resolve app data dir: {}", e))?
+        .join(STORE_FILE_NAME);
+
+    locked_json::with_json_mut(&path, |value| {
+        value[LOGIN_STATE_KEY] = serde_json::to_value(state)
+            .map_err(|e| format!("Failed to serialize login state: {}", e))?;
+        Ok(())
+    })
+    .map_err(|e| format!("Failed to save login state: {}", e))
+}
 
 /// Encrypted file storage instance for persisting session tokens.
 static STORAGE: EncryptedFileStorage = EncryptedFileStorage::new();
@@ -657,24 +677,12 @@ async fn save_session(app: &AppHandle, session: &Session) -> Result<(), String> 
     save_session_to_store(app, session)?;
 
     // Save only the login method to store (non-sensitive)
-    let store = app
-        .store(STORE_FILE_NAME)
-        .map_err(|e| format!("Failed to open store: {}", e))?;
-
     let login_state = LoginState {
         method: LoginMethod::QrCode,
         session: None, // Don't store session in store
     };
 
-    store.set(
-        LOGIN_STATE_KEY,
-        serde_json::to_value(&login_state)
-            .map_err(|e| format!("Failed to serialize login state: {}", e))?,
-    );
-
-    store
-        .save()
-        .map_err(|e| format!("Failed to save store: {}", e))?;
+    write_login_state(app, &login_state)?;
 
     Ok(())
 }
@@ -775,19 +783,7 @@ pub async fn logout(app: &AppHandle) -> Result<(), String> {
     delete_session_from_store(app)?;
 
     // Clear login method from store
-    let store = app
-        .store(STORE_FILE_NAME)
-        .map_err(|e| format!("Failed to open store: {}", e))?;
-
-    store.set(
-        LOGIN_STATE_KEY,
-        serde_json::to_value(LoginState::default())
-            .map_err(|e| format!("Failed to serialize login state: {}", e))?,
-    );
-
-    store
-        .save()
-        .map_err(|e| format!("Failed to save store: {}", e))?;
+    write_login_state(app, &LoginState::default())?;
 
     Ok(())
 }
@@ -814,25 +810,13 @@ pub async fn set_login_method(app: &AppHandle, method: LoginMethod) -> Result<()
         clear_cookie_cache(app);
     }
 
-    let store = app
-        .store(STORE_FILE_NAME)
-        .map_err(|e| format!("Failed to open store: {}", e))?;
-
     // Only store the method, not the session (session is in encrypted file)
     let login_state = LoginState {
         method,
         session: None,
     };
 
-    store.set(
-        LOGIN_STATE_KEY,
-        serde_json::to_value(&login_state)
-            .map_err(|e| format!("Failed to serialize login state: {}", e))?,
-    );
-
-    store
-        .save()
-        .map_err(|e| format!("Failed to save store: {}", e))?;
+    write_login_state(app, &login_state)?;
 
     Ok(())
 }
@@ -854,18 +838,20 @@ pub async fn get_login_method(app: &AppHandle) -> Result<LoginMethod, String> {
 ///
 /// Session data is loaded from encrypted file separately.
 async fn get_login_state_from_store(app: &AppHandle) -> Result<LoginState, String> {
-    let store = match app.store(STORE_FILE_NAME) {
-        Ok(s) => s,
-        Err(_) => return Ok(LoginState::default()),
-    };
+    let path = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to resolve app data dir: {}", e))?
+        .join(STORE_FILE_NAME);
 
-    let value = match store.get(LOGIN_STATE_KEY) {
-        Some(v) => v,
-        None => return Ok(LoginState::default()),
-    };
-
-    let mut state: LoginState = serde_json::from_value(value.clone())
-        .map_err(|e| format!("Failed to deserialize login state: {}", e))?;
+    let mut state: LoginState = locked_json::with_json(&path, |value| {
+        let raw = match value.get(LOGIN_STATE_KEY) {
+            Some(v) => v.clone(),
+            None => return Ok(LoginState::default()),
+        };
+        serde_json::from_value(raw).map_err(|e| format!("Failed to deserialize login state: {}", e))
+    })
+    .map_err(|e| format!("Failed to read login state: {}", e))?;
 
     // Session is not stored in the store anymore, clear it if present from old data
     state.session = None;

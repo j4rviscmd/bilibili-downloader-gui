@@ -1,150 +1,139 @@
 //! History Store
 //!
-//! This module provides persistent storage for download history using
-//! tauri-plugin-store with versioning, migration, and concurrent
-//! write protection.
+//! This module provides persistent storage for download history using the
+//! multi-process safe locked JSON helpers (`utils::locked_json`), with
+//! versioning and entry-count capping (issue #560).
+//!
+//! The on-disk format is identical to the previous tauri-plugin-store layout
+//! (`{"__version__": "1.0", "entries": [...]}`) and lives at the same
+//! `app_data_dir/history.json` path, so existing data needs no migration.
 
 use crate::models::history::{HistoryEntry, HistoryFilters};
-use serde_json::json;
-use std::sync::Arc;
-use tauri::AppHandle;
-use tauri_plugin_store::StoreExt;
+use crate::utils::locked_json::{with_json, with_json_mut};
+use serde_json::{json, Value};
+use std::path::PathBuf;
+use tauri::{AppHandle, Manager};
 
 const VERSION_KEY: &str = "__version__";
 const ENTRIES_KEY: &str = "entries";
 const CURRENT_VERSION: &str = "1.0";
 
-/// History store wrapper for tauri-plugin-store.
+/// Upper bound on stored history entries (issue #560).
 ///
-/// Provides thread-safe operations with file locking for concurrent
-/// write protection and automatic version migration.
+/// Why a cap: every write re-reads and re-serializes the whole file under the
+/// lock; ~5.5 MB of JSON at 10k entries is still a few milliseconds, but the
+/// list serves search only, so unbounded growth buys nothing.
+const MAX_ENTRIES: usize = 10_000;
+
+/// History store backed by `app_data_dir/history.json`.
+///
+/// All operations serialize through the inter-process file lock provided by
+/// [`crate::utils::locked_json`], so two app instances writing simultaneously
+/// (parallel downloads, issue #560) never lose entries. Reads always hit the
+/// disk, so entries written by another process are visible immediately.
 pub struct HistoryStore {
-    store: Arc<tauri_plugin_store::Store<tauri::Wry>>,
+    path: PathBuf,
 }
 
 impl HistoryStore {
-    /// Creates a new HistoryStore instance backed by a persistent JSON file.
-    ///
-    /// This function initializes or opens the history.json file from the
-    /// application's store directory using tauri-plugin-store.
-    ///
-    /// # Arguments
-    ///
-    /// * `app` - Tauri application handle for accessing the store
-    ///
-    /// # Returns
-    ///
-    /// Returns `Ok(HistoryStore)` on success.
+    /// Creates a handle to the history store.
     ///
     /// # Errors
     ///
-    /// Returns an error if the store cannot be created or opened.
+    /// Returns an error if the app data directory cannot be resolved.
     pub fn new(app: &AppHandle) -> Result<Self, Box<dyn std::error::Error>> {
-        let store = app
-            .store("history.json")
-            .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
-
-        Ok(Self { store })
+        let path = app.path().app_data_dir()?.join("history.json");
+        Ok(Self::with_path(path))
     }
 
-    /// Loads all history entries from the persistent store.
+    /// Creates a handle to a history store at an explicit path.
     ///
-    /// Retrieves the entries array from the store and deserializes it
-    /// into a vector of `HistoryEntry` structures.
-    ///
-    /// # Returns
-    ///
-    /// Returns `Ok(entries)` on success.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - The stored value is not a valid JSON array
-    /// - Deserialization into `HistoryEntry` fails
-    pub fn load(&self) -> Result<Vec<HistoryEntry>, String> {
-        let entries_value = self.store.get(ENTRIES_KEY).unwrap_or(json!([]));
+    /// Test seam for the store logic itself (merge, cap, remove); production
+    /// code goes through [`HistoryStore::new`].
+    pub fn with_path(path: PathBuf) -> Self {
+        Self { path }
+    }
+
+    /// Deserializes the entries array from a store document.
+    fn entries_from(value: &Value) -> Result<Vec<HistoryEntry>, String> {
+        let entries_value = value.get(ENTRIES_KEY).cloned().unwrap_or_else(|| json!([]));
         serde_json::from_value(entries_value).map_err(|e| e.to_string())
     }
 
-    /// Saves history entries to the persistent store with atomic write.
-    ///
-    /// Serializes the entries vector and writes it to the store with version
-    /// information. The write operation is atomic via tauri-plugin-store.
-    ///
-    /// # Arguments
-    ///
-    /// * `entries` - Vector of history entries to save
-    ///
-    /// # Returns
-    ///
-    /// Returns `Ok(())` on success.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - Serialization to JSON fails
-    /// - Store write operation fails
-    pub fn save(&self, entries: &Vec<HistoryEntry>) -> Result<(), String> {
+    /// Writes the entries array (plus version key) into a store document.
+    fn set_entries(value: &mut Value, entries: &[HistoryEntry]) -> Result<(), String> {
         let entries_value = serde_json::to_value(entries).map_err(|e| e.to_string())?;
-
-        self.store.set(VERSION_KEY, CURRENT_VERSION);
-        self.store.set(ENTRIES_KEY, entries_value);
-        self.store.save().map_err(|e| e.to_string())
+        value[VERSION_KEY] = json!(CURRENT_VERSION);
+        value[ENTRIES_KEY] = entries_value;
+        Ok(())
     }
 
-    /// Adds a single entry to the beginning of history.
-    ///
-    /// Inserts the new entry at index 0 (newest first).
-    ///
-    /// # Arguments
-    ///
-    /// * `entry` - The history entry to add
+    /// Loads all history entries from disk.
     ///
     /// # Errors
     ///
-    /// Returns an error if loading or saving fails.
+    /// Returns an error if the file cannot be read or parsed.
+    pub fn load(&self) -> Result<Vec<HistoryEntry>, String> {
+        with_json(&self.path, Self::entries_from).map_err(|e| e.to_string())
+    }
+
+    /// Saves history entries with an atomic locked write.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if serialization or the locked write fails.
+    pub fn save(&self, entries: &[HistoryEntry]) -> Result<(), String> {
+        with_json_mut(&self.path, |v| Self::set_entries(v, entries)).map_err(|e| e.to_string())
+    }
+
+    /// Adds a single entry to the beginning of history (newest first).
+    ///
+    /// The read-insert-write sequence runs as one locked transaction: entries
+    /// added by another process in the meantime are preserved, and the list is
+    /// capped at [`MAX_ENTRIES`] (oldest beyond the cap are dropped).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the locked read-modify-write fails.
     pub fn add_entry(&self, entry: HistoryEntry) -> Result<(), String> {
-        let mut entries = self.load()?;
-        entries.insert(0, entry);
-        self.save(&entries)
+        with_json_mut(&self.path, |v| {
+            let mut entries = Self::entries_from(v)?;
+            entries.insert(0, entry);
+            entries.truncate(MAX_ENTRIES);
+            Self::set_entries(v, &entries)
+        })
+        .map_err(|e| e.to_string())
     }
 
     /// Removes an entry by ID.
     ///
     /// This operation is idempotent: removing a non-existent ID succeeds without error.
     ///
-    /// # Arguments
-    ///
-    /// * `id` - The unique identifier of the entry to remove
-    ///
     /// # Errors
     ///
-    /// Returns an error only if loading or saving fails.
+    /// Returns an error only if the locked read-modify-write fails.
     pub fn remove_entry(&self, id: &str) -> Result<(), String> {
-        let mut entries = self.load()?;
-        entries.retain(|e| e.id != id);
-        self.save(&entries)
+        with_json_mut(&self.path, |v| {
+            let mut entries = Self::entries_from(v)?;
+            entries.retain(|e| e.id != id);
+            Self::set_entries(v, &entries)
+        })
+        .map_err(|e| e.to_string())
     }
 
     /// Removes all history entries from the store.
     ///
     /// # Errors
     ///
-    /// Returns an error if saving fails.
+    /// Returns an error if the locked write fails.
     pub fn clear(&self) -> Result<(), String> {
-        self.store.set(ENTRIES_KEY, json!([]));
-        self.store.save().map_err(|e| e.to_string())
+        with_json_mut(&self.path, |v| Self::set_entries(v, &[])).map_err(|e| e.to_string())
     }
 
     /// Retrieves all history entries from the store.
     ///
-    /// This is a convenience method that returns all entries. If loading
-    /// fails (e.g., corrupted data), it returns an empty vector instead
-    /// of an error.
-    ///
-    /// # Returns
-    ///
-    /// Returns all history entries, or an empty vector if loading fails.
+    /// If loading fails (e.g., corrupted data), it returns an empty vector
+    /// instead of an error.
     pub fn get_all(&self) -> Vec<HistoryEntry> {
         self.load().unwrap_or_default()
     }
@@ -217,7 +206,11 @@ fn filter_entries(
 mod tests {
     use super::*;
 
-    fn entry(id: &str, title: &str, status: &str, downloaded_at: &str) -> HistoryEntry {
+    fn store_in(dir: &std::path::Path) -> HistoryStore {
+        HistoryStore::with_path(dir.join("history.json"))
+    }
+
+    fn store_entry(id: &str, title: &str, status: &str, downloaded_at: &str) -> HistoryEntry {
         HistoryEntry {
             id: id.into(),
             title: title.into(),
@@ -234,7 +227,7 @@ mod tests {
 
     #[test]
     fn filter_entries_no_filters_returns_all() {
-        let entries = vec![entry("a", "A", "completed", "2026-01-01T00:00:00Z")];
+        let entries = vec![store_entry("a", "A", "completed", "2026-01-01T00:00:00Z")];
         let out = filter_entries(entries.clone(), None, &HistoryFilters::default());
         assert_eq!(out.len(), 1);
     }
@@ -242,20 +235,20 @@ mod tests {
     #[test]
     fn filter_entries_query_matches_title_or_url_case_insensitive() {
         let entries = vec![
-            entry(
+            store_entry(
                 "a",
                 "【歌ってみた】Song Cover",
                 "completed",
                 "2026-01-01T00:00:00Z",
             ),
-            entry("b", " unrelated", "completed", "2026-01-02T00:00:00Z"),
+            store_entry("b", " unrelated", "completed", "2026-01-02T00:00:00Z"),
         ];
         let out = filter_entries(entries, Some("SONG"), &HistoryFilters::default());
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].id, "a");
 
         // URL match also hits
-        let entries = vec![entry(
+        let entries = vec![store_entry(
             "x",
             "no title match",
             "completed",
@@ -267,7 +260,7 @@ mod tests {
 
     #[test]
     fn filter_entries_empty_query_is_ignored() {
-        let entries = vec![entry("a", "t", "completed", "2026-01-01T00:00:00Z")];
+        let entries = vec![store_entry("a", "t", "completed", "2026-01-01T00:00:00Z")];
         let out = filter_entries(entries, Some(""), &HistoryFilters::default());
         assert_eq!(out.len(), 1, "empty query must not filter anything out");
     }
@@ -275,9 +268,9 @@ mod tests {
     #[test]
     fn filter_entries_status_treats_legacy_success_as_completed() {
         let entries = vec![
-            entry("old", "t", "success", "2026-01-01T00:00:00Z"),
-            entry("new", "t", "completed", "2026-01-02T00:00:00Z"),
-            entry("bad", "t", "failed", "2026-01-03T00:00:00Z"),
+            store_entry("old", "t", "success", "2026-01-01T00:00:00Z"),
+            store_entry("new", "t", "completed", "2026-01-02T00:00:00Z"),
+            store_entry("bad", "t", "failed", "2026-01-03T00:00:00Z"),
         ];
         let filters = HistoryFilters {
             status: Some("completed".into()),
@@ -287,7 +280,7 @@ mod tests {
         let ids: Vec<&str> = out.iter().map(|e| e.id.as_str()).collect();
         assert_eq!(ids, vec!["old", "new"]);
 
-        let entries = vec![entry("bad", "t", "failed", "2026-01-01T00:00:00Z")];
+        let entries = vec![store_entry("bad", "t", "failed", "2026-01-01T00:00:00Z")];
         let out = filter_entries(entries, None, &filters);
         assert!(out.is_empty());
     }
@@ -295,8 +288,8 @@ mod tests {
     #[test]
     fn filter_entries_status_all_keeps_everything() {
         let entries = vec![
-            entry("a", "t", "completed", "2026-01-01T00:00:00Z"),
-            entry("b", "t", "failed", "2026-01-02T00:00:00Z"),
+            store_entry("a", "t", "completed", "2026-01-01T00:00:00Z"),
+            store_entry("b", "t", "failed", "2026-01-02T00:00:00Z"),
         ];
         let filters = HistoryFilters {
             status: Some("all".into()),
@@ -308,9 +301,9 @@ mod tests {
     #[test]
     fn filter_entries_date_from_keeps_entries_on_or_after() {
         let entries = vec![
-            entry("old", "t", "completed", "2026-01-01T00:00:00Z"),
-            entry("edge", "t", "completed", "2026-01-02T00:00:00Z"),
-            entry("new", "t", "completed", "2026-01-03T00:00:00Z"),
+            store_entry("old", "t", "completed", "2026-01-01T00:00:00Z"),
+            store_entry("edge", "t", "completed", "2026-01-02T00:00:00Z"),
+            store_entry("new", "t", "completed", "2026-01-03T00:00:00Z"),
         ];
         let filters = HistoryFilters {
             status: None,
@@ -323,5 +316,121 @@ mod tests {
             vec!["edge", "new"],
             "boundary is inclusive (string compare >=)"
         );
+    }
+
+    // ---- HistoryStore file-backed operations (fs, tempfile) ----
+
+    #[test]
+    fn add_entry_prepends_newest_first() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = store_in(dir.path());
+
+        store
+            .add_entry(store_entry("a", "A", "completed", "2026-01-01T00:00:00Z"))
+            .unwrap();
+        store
+            .add_entry(store_entry("b", "B", "completed", "2026-01-02T00:00:00Z"))
+            .unwrap();
+
+        let all = store.get_all();
+        let ids: Vec<&str> = all.iter().map(|e| e.id.as_str()).collect();
+        assert_eq!(ids, vec!["b", "a"]);
+    }
+
+    #[test]
+    fn add_entry_preserves_entries_written_by_another_process() {
+        // The core #560 guarantee: a locked read-modify-write must not lose
+        // entries another process wrote behind our back. Simulated here by
+        // two independent store handles on the same file (with_json has no
+        // in-process cache, so the second handle reads the first's writes).
+        let dir = tempfile::tempdir().unwrap();
+        let process_a = store_in(dir.path());
+        let process_b = store_in(dir.path());
+
+        process_a
+            .add_entry(store_entry("a", "A", "completed", "2026-01-01T00:00:00Z"))
+            .unwrap();
+        process_b
+            .add_entry(store_entry("b", "B", "completed", "2026-01-02T00:00:00Z"))
+            .unwrap();
+
+        let all = process_a.get_all();
+        let ids: Vec<&str> = all.iter().map(|e| e.id.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec!["b", "a"],
+            "no entry may be lost to last-write-wins"
+        );
+    }
+
+    #[test]
+    fn add_entry_caps_history_at_max_entries() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = store_in(dir.path());
+
+        // Seed directly at the cap + 1 (fast path; adding 10k times through
+        // the lock would be needlessly slow), then one more insert through
+        // add_entry must drop the oldest beyond the cap.
+        let mut entries: Vec<HistoryEntry> = (0..=MAX_ENTRIES as u32)
+            .map(|i| store_entry(&format!("e{i}"), "t", "completed", "2026-01-01T00:00:00Z"))
+            .collect();
+        entries.reverse(); // oldest first so save keeps chronological order
+        store.save(&entries).unwrap();
+        assert_eq!(store.get_all().len(), MAX_ENTRIES + 1);
+
+        store
+            .add_entry(store_entry(
+                "fresh",
+                "t",
+                "completed",
+                "2026-02-01T00:00:00Z",
+            ))
+            .unwrap();
+
+        let all = store.get_all();
+        assert_eq!(all.len(), MAX_ENTRIES, "cap enforced on insert");
+        assert_eq!(all[0].id, "fresh", "newest stays at the head");
+        assert!(
+            !all.iter().any(|e| e.id == "e0"),
+            "oldest entry beyond the cap is dropped"
+        );
+    }
+
+    #[test]
+    fn remove_entry_is_idempotent_and_clear_empties() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = store_in(dir.path());
+        store
+            .add_entry(store_entry("a", "A", "completed", "2026-01-01T00:00:00Z"))
+            .unwrap();
+        store
+            .add_entry(store_entry("b", "B", "completed", "2026-01-02T00:00:00Z"))
+            .unwrap();
+
+        store.remove_entry("a").unwrap();
+        store.remove_entry("a").unwrap(); // non-existent: no error
+        assert_eq!(store.get_all().len(), 1);
+
+        store.clear().unwrap();
+        assert!(store.get_all().is_empty());
+    }
+
+    #[test]
+    fn on_disk_format_keeps_plugin_store_layout() {
+        // Backward compatibility: files written by the old tauri-plugin-store
+        // era (and read by future versions) keep the same shape and path
+        // relative layout: {"__version__": "1.0", "entries": [...]}.
+        let dir = tempfile::tempdir().unwrap();
+        let store = store_in(dir.path());
+        store
+            .add_entry(store_entry("a", "A", "completed", "2026-01-01T00:00:00Z"))
+            .unwrap();
+
+        let raw: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(dir.path().join("history.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(raw["__version__"], "1.0");
+        assert!(raw["entries"].is_array());
     }
 }

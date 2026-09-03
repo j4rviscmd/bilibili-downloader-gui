@@ -35,6 +35,7 @@
 //! - `ERR::BANGUMI_*` - Bangumi-specific errors (VIP only, region restricted, etc.)
 
 use crate::utils::codec::{select_video_stream, VideoStreamSelection, CODECID_AVC};
+use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use tauri::Emitter;
 
@@ -174,6 +175,7 @@ use crate::{constants::USER_AGENT, models::frontend_dto::User};
 use reqwest::header;
 use reqwest::Client;
 use std::collections::BTreeMap;
+use std::fs::{self, File, OpenOptions};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -673,9 +675,17 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
     // last Arc when this download ends clears the state (issue #527).
     let host_health = Arc::new(crate::utils::cdn_selector::HostHealth::new());
 
-    // 1. Determine output file path + auto-rename
-    let output_path = auto_rename(&build_output_path(app, &options.filename).await?);
+    // 1. Determine output file path + reserve it (multi-process safe,
+    //    issue #560). All bytes are written to the reserved staging name
+    //    (`{stem}.part.{ext}`) and renamed to the final name on success;
+    //    `OutputReservation`'s Drop removes the staging file on every early
+    //    return below.
+    let reservation = reserve_output_path(&build_output_path(app, &options.filename).await?)?;
 
+    // TODO(#561): every `?` below returns before the function-final
+    // DOWNLOAD_CANCEL_REGISTRY cleanup, leaking the cancel token registered
+    // above. The reservation's Drop covers the staging file, but the token
+    // needs its own guard — tracked separately.
     // 2. Get cookies (WBI signing enables non-logged-in usage)
     let cookies = read_cookie(app)?.unwrap_or_default();
     let cookie_header = build_cookie_header(&cookies);
@@ -690,16 +700,20 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
 
         // durl format (direct MP4 URL): consume player_result and return early.
         if player_result.dash.is_none() {
+            // Finalize: rename the completed staging file to its final name;
+            // on error the reservation's Drop removes the staging file.
             return download_bangumi_durl(
                 app,
                 options,
-                &output_path,
+                reservation.reserved_path(),
                 &cookie_header,
                 &cookies,
                 player_result,
                 host_health,
             )
-            .await;
+            .await
+            .and_then(|_| reservation.complete())
+            .map(|p| p.to_string_lossy().into_owned());
         }
         // DASH format: convert the already-fetched result instead of re-fetching.
         (
@@ -768,14 +782,14 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
             .ok();
 
             if let Some(vs) = head_content_length(&video_url, Some(&cookie_header)).await {
-                ensure_free_space(&output_path, vs + 5 * 1024 * 1024)?;
+                ensure_free_space(reservation.reserved_path(), vs + 5 * 1024 * 1024)?;
             }
 
             let d_refetch_cookies = cookies.clone();
             let d_refetch_bvid = options.bvid.clone();
             let d_cid = options.cid;
             let d_ep_id = options.ep_id;
-            let d_output_path = output_path.clone();
+            let d_output_path = reservation.reserved_path().to_path_buf();
             retry_download(
                 app,
                 &options.download_id,
@@ -829,8 +843,8 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
             )
             .await?;
 
-            let output_path_str = output_path.to_string_lossy().to_string();
-            let actual_file_size = tokio::fs::metadata(&output_path)
+            let output_path_str = reservation.reserved_path().to_string_lossy().to_string();
+            let actual_file_size = tokio::fs::metadata(reservation.reserved_path())
                 .await
                 .ok()
                 .map(|m| m.len());
@@ -838,6 +852,12 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
             Ok(output_path_str)
         }
         .await;
+
+        // Finalize: rename the completed staging file to its final name; on
+        // error the reservation's Drop removes the staging file.
+        let result = result
+            .and_then(|_| reservation.complete())
+            .map(|p| p.to_string_lossy().into_owned());
 
         // Cleanup: remove token and clear the pre-cancel flag (this path
         // bypasses download_video's final cleanup).
@@ -953,13 +973,25 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
     let audio_size = head_content_length(&audio_url, Some(&cookie_header)).await;
     if let (Some(vs), Some(asz)) = (video_size, audio_size) {
         let total_needed = vs + asz + (5 * 1024 * 1024); // 5MB buffer
-        ensure_free_space(&output_path, total_needed)?;
+        ensure_free_space(reservation.reserved_path(), total_needed)?;
     }
 
     // 6. Generate temp file paths
     let lib_path = get_lib_path(app);
     let temp_video_path = lib_path.join(format!("temp_video_{}.m4s", options.download_id));
     let temp_audio_path = lib_path.join(format!("temp_audio_{}.m4s", options.download_id));
+
+    // Hold an exclusive flock on both temp files for the whole download
+    // (issue #560): startup cleanup treats a temp file whose flock is free as
+    // an orphan (owner crashed) and deletes it immediately regardless of age,
+    // so a second app instance must never see an in-flight temp as garbage.
+    // The lock lives on the inode the download writes to (created once by
+    // preallocate/single-stream open, never deleted-and-recreated mid-flight),
+    // and advisory locking never blocks our own writers.
+    // Note: keep the named binding — `let _ = lock_temp_paths(...)` would drop
+    // the locks immediately, and startup cleanup would then delete these
+    // in-flight temps as orphans.
+    let _temp_locks = lock_temp_paths(&[&temp_video_path, &temp_audio_path]);
 
     // Result to track success/failure for cleanup
     let result = async {
@@ -1142,7 +1174,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
             app,
             &temp_video_path,
             &temp_audio_path,
-            &output_path,
+            reservation.reserved_path(),
             Some(options.download_id.clone()),
             Some((options.duration_seconds * 1000) as u64),
             subtitle_mode,
@@ -1174,14 +1206,14 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
             let _ = tokio::fs::remove_file(&sub_path).await;
         }
 
-        // Keep output path (clone for history saving)
-        let output_path_str = output_path.to_string_lossy().to_string();
-
-        // Get actual file size
-        let actual_file_size = tokio::fs::metadata(&output_path)
+        // Get actual file size from the staging file (still the merge output)
+        let actual_file_size = tokio::fs::metadata(reservation.reserved_path())
             .await
             .ok()
             .map(|m| m.len());
+
+        // Finalize: rename the staging file to the user-visible name.
+        let final_path = reservation.complete()?;
 
         log::info!(
             "[BE] download_video: download complete id={}, size={:?}bytes",
@@ -1192,7 +1224,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
         // Save to history (async failure does not affect download)
         spawn_save_to_history(app, options, actual_file_size);
 
-        Ok(output_path_str)
+        Ok(final_path.to_string_lossy().into_owned())
     }
     .await;
 
@@ -1564,34 +1596,116 @@ mod tests {
         );
     }
 
-    // ---- auto_rename (fs, tempfile) ----
+    // ---- reserve_output_path / OutputReservation (fs, tempfile) ----
 
     #[test]
-    fn auto_rename_appends_counter_until_free() {
+    fn reserve_appends_counter_when_final_name_taken() {
         let dir = tempfile::tempdir().unwrap();
         let original = dir.path().join("video.mp4");
         std::fs::write(&original, b"x").unwrap();
 
-        let first = auto_rename(&original);
+        let reservation = reserve_output_path(&original).unwrap();
         assert_eq!(
-            first.file_name().unwrap().to_str().unwrap(),
-            "video (1).mp4"
+            reservation.reserved_path().file_name().unwrap(),
+            "video (1).part.mp4",
+            "existing final file pushes us to the (1) variant staging name"
         );
 
-        std::fs::write(&first, b"x").unwrap();
-        let second = auto_rename(&original);
+        std::fs::write(reservation.reserved_path(), b"x").unwrap();
+        let second = reserve_output_path(&original).unwrap();
         assert_eq!(
-            second.file_name().unwrap().to_str().unwrap(),
-            "video (2).mp4"
+            second.reserved_path().file_name().unwrap(),
+            "video (2).part.mp4"
         );
     }
 
     #[test]
-    fn auto_rename_missing_file_returns_unchanged() {
+    fn reserve_uses_plain_name_when_free() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("never_written.mp4");
-        let renamed = auto_rename(&path);
-        assert_eq!(renamed, path, "no collision when the file does not exist");
+        let reservation = reserve_output_path(&path).unwrap();
+        assert_eq!(
+            reservation.reserved_path().file_name().unwrap(),
+            "never_written.part.mp4"
+        );
+    }
+
+    #[test]
+    fn concurrent_reservations_never_share_a_staging_file() {
+        // Two live reservations for the same desired name must land on
+        // different candidates — the O_EXCL create makes slipping through
+        // the same name impossible.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("race.mp4");
+        let a = reserve_output_path(&path).unwrap();
+        let b = reserve_output_path(&path).unwrap();
+        assert_ne!(a.reserved_path(), b.reserved_path());
+    }
+
+    #[test]
+    fn complete_renames_staging_to_final() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("done.mp4");
+        let reservation = reserve_output_path(&path).unwrap();
+        std::fs::write(reservation.reserved_path(), b"payload").unwrap();
+        let final_path = reservation.complete().unwrap();
+        assert_eq!(final_path, path);
+        assert_eq!(std::fs::read(&path).unwrap(), b"payload");
+        assert!(!reservation_exists(dir.path(), "done.part.mp4"));
+    }
+
+    #[test]
+    fn drop_without_complete_removes_staging_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("abandoned.mp4");
+        let reservation = reserve_output_path(&path).unwrap();
+        std::fs::write(reservation.reserved_path(), b"partial").unwrap();
+        drop(reservation);
+        assert!(!reservation_exists(dir.path(), "abandoned.part.mp4"));
+        assert!(!path.exists(), "final name must stay untouched on failure");
+    }
+
+    #[test]
+    fn dead_reservation_is_reclaimed_on_next_reserve() {
+        // Simulate a crashed process: a staging file exists but nobody holds
+        // its flock. The next reserve for the same name must reclaim it
+        // instead of jumping to " (1)".
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("video.mp4");
+        std::fs::write(part_path(&path), b"orphan").unwrap();
+
+        let reservation = reserve_output_path(&path).unwrap();
+        assert_eq!(
+            reservation.reserved_path().file_name().unwrap(),
+            "video.part.mp4",
+            "dead reservation is reclaimed, not skipped"
+        );
+    }
+
+    /// Test helper: does `name` exist in `dir`?
+    fn reservation_exists(dir: &std::path::Path, name: &str) -> bool {
+        dir.join(name).exists()
+    }
+
+    #[test]
+    fn complete_shifts_to_next_variant_when_final_appeared() {
+        // Another instance completed the same filename while we were
+        // downloading: complete() must not clobber the finished file.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("video.mp4");
+        let reservation = reserve_output_path(&path).unwrap();
+        std::fs::write(&path, b"winner").unwrap();
+        std::fs::write(reservation.reserved_path(), b"ours").unwrap();
+
+        let final_path = reservation.complete().unwrap();
+
+        assert_eq!(final_path.file_name().unwrap(), "video (1).mp4");
+        assert_eq!(
+            std::fs::read(&path).unwrap(),
+            b"winner",
+            "finished file must not be overwritten"
+        );
+        assert_eq!(std::fs::read(&final_path).unwrap(), b"ours");
     }
 
     // ---- ensure_free_space (fs, tempfile) ----
@@ -2756,43 +2870,237 @@ async fn fetch_video_details(
     Ok(body)
 }
 
-/// Automatically renames file if it already exists.
+/// Multi-process safe output-file reservation (issue #560).
 ///
-/// If the original path exists, appends a counter (e.g., "filename (1).mp4")
-/// to generate a unique filename. Searches up to 10,000 variations,
-/// falling back to a timestamp-based name if all are duplicates.
+/// Two app instances downloading to the same output filename used to race:
+/// the old `auto_rename` checked `path.exists()` once at download start
+/// (TOCTOU), so both processes could grab `video.mp4` and their ffmpeg merges
+/// would overwrite each other. This reservation closes that window with two
+/// OS-level primitives:
 ///
-/// # Arguments
+/// - `File::create_new` (O_EXCL) — exactly one process can create the
+///   reservation file; creation is atomic, so there is no check-then-create
+///   gap to slip through.
+/// - an exclusive `flock` held on it for the download's lifetime — if the
+///   owning process dies, the OS releases the lock, so the leftover
+///   reservation is detectably dead and the next download reclaims it.
 ///
-/// * `path` - Original file path to check
-///
-/// # Returns
-///
-/// Returns the original path if it doesn't exist.
-/// Returns a renamed path with counter appended if it exists (e.g., "file (1).mp4").
-fn auto_rename(path: &Path) -> PathBuf {
-    if !path.exists() {
-        return path.to_path_buf();
+/// All output (direct durl downloads, ffmpeg merges) is written to the
+/// reserved staging name (`{stem}.part.{ext}`) and only renamed to the
+/// final user-visible name on success, so a crashed download can never leave
+/// a half-written `video.mp4` behind — only a `.part` staging file,
+/// which startup cleanup removes.
+struct OutputReservation {
+    /// Final user-visible path (e.g. `video.mp4`).
+    final_path: PathBuf,
+    /// Staging path all bytes are written to (e.g. `video.part.mp4`).
+    reserved_path: PathBuf,
+    /// Holds the exclusive flock for the download's lifetime. Releasing it
+    /// (drop / process death) is what marks this reservation as reclaimable.
+    lock_file: Option<File>,
+    completed: bool,
+}
+
+impl OutputReservation {
+    fn new(final_path: PathBuf, reserved_path: PathBuf, lock_file: File) -> Self {
+        Self {
+            final_path,
+            reserved_path,
+            lock_file: Some(lock_file),
+            completed: false,
+        }
     }
+
+    /// The path download bytes must be written to.
+    fn reserved_path(&self) -> &Path {
+        &self.reserved_path
+    }
+
+    /// Renames the completed staging file to its final name and releases the
+    /// reservation. Consumes `self`; returns the final path.
+    ///
+    /// Secondary defense: if the final name appeared while we were
+    /// downloading (another instance completed the same name after our
+    /// reservation), falls through to the next unused variant instead of
+    /// clobbering the finished file.
+    fn complete(mut self) -> Result<PathBuf, String> {
+        let target = if self.final_path.exists() {
+            candidate_output_paths(&self.final_path)
+                .into_iter()
+                .find(|c| !c.exists())
+                .unwrap_or_else(|| self.final_path.clone())
+        } else {
+            self.final_path.clone()
+        };
+        fs::rename(&self.reserved_path, &target)
+            .map_err(|e| format!("Failed to finalize output file: {}", e))?;
+        self.completed = true;
+        Ok(target)
+    }
+}
+
+impl Drop for OutputReservation {
+    fn drop(&mut self) {
+        // Anything but a successful complete() — including early `?` returns,
+        // cancellation, and merge failures — removes the staging file so no
+        // zero-byte or partial garbage accumulates. (A hard process kill
+        // skips Drop; startup cleanup and dead-reservation reclamation cover
+        // that case.)
+        if !self.completed {
+            let _ = fs::remove_file(&self.reserved_path);
+        }
+        self.lock_file = None; // release the flock
+    }
+}
+
+/// Opens each temp path (creating it if absent) and holds an exclusive flock
+/// for the caller's lifetime. Best-effort: an unpersistable path logs and is
+/// skipped rather than failing the download (cleanup then falls back to the
+/// age-based rule for that file).
+fn lock_temp_paths(paths: &[&Path]) -> Vec<File> {
+    let mut locked = Vec::with_capacity(paths.len());
+    for path in paths {
+        let file = match OpenOptions::new()
+            .create(true)
+            // truncate(false): opening an existing temp must never zero it —
+            // the download continues into the same inode the flock lives on.
+            .truncate(false)
+            .write(true)
+            .read(true)
+            .open(path)
+        {
+            Ok(file) => file,
+            Err(e) => {
+                log::warn!(
+                    "[BE] lock_temp_paths: open failed for {}: {}",
+                    path.display(),
+                    e
+                );
+                continue;
+            }
+        };
+        if let Err(e) = file.lock_exclusive() {
+            log::warn!(
+                "[BE] lock_temp_paths: lock failed for {}: {}",
+                path.display(),
+                e
+            );
+            continue;
+        }
+        locked.push(file);
+    }
+    locked
+}
+
+/// Builds the staging path for a candidate final path
+/// (`video.mp4` -> `video.part.mp4`).
+///
+/// Why keep the real extension: ffmpeg infers the output container format
+/// from the output path extension.
+fn part_path(candidate: &Path) -> PathBuf {
+    let stem = candidate
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("file");
+    let ext = candidate
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("mp4");
+    candidate.with_file_name(format!("{}.part.{}", stem, ext))
+}
+
+/// Yields candidate final paths: the desired name first, then `" (N)"`
+/// variants for N in 1..=10_000 (mirrors the historical auto_rename scheme).
+fn candidate_output_paths(path: &Path) -> Vec<PathBuf> {
     let parent = path.parent().unwrap_or(Path::new("."));
     let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("file");
     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("mp4");
 
-    for idx in 1..=10_000u32 {
-        let new_name = format!("{} ({}).{}", stem, idx, ext);
-        let new_path = parent.join(new_name);
-        if !new_path.exists() {
-            return new_path;
+    let mut candidates = vec![path.to_path_buf()];
+    candidates
+        .extend((1..=10_000u32).map(|idx| parent.join(format!("{} ({}).{}", stem, idx, ext))));
+    candidates
+}
+
+/// Tries to claim `candidate` by atomically creating its staging file.
+///
+/// Returns `Some((locked_file, staging_path))` on success. On
+/// `AlreadyExists`, checks whether the existing reservation is dead (its
+/// holder crashed: flock gone) and if so reclaims it, so a crashed download
+/// never blocks its filename for 24h. Returns `None` when the name is taken
+/// by a live reservation or cannot be claimed.
+fn try_claim(candidate: &Path) -> Option<(File, PathBuf)> {
+    let reserved = part_path(candidate);
+    match OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .read(true)
+        .open(&reserved)
+    {
+        Ok(file) => match file.lock_exclusive() {
+            Ok(()) => Some((file, reserved)),
+            // Locking a file only we just created should never fail; treat it
+            // as claim failure rather than panicking.
+            Err(_) => {
+                let _ = fs::remove_file(&reserved);
+                None
+            }
+        },
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+            // Dead-holder reclamation: an exclusive try_lock on the existing
+            // staging file succeeds only when no live process holds it.
+            if let Ok(existing) = OpenOptions::new().write(true).read(true).open(&reserved) {
+                if existing.try_lock_exclusive().is_ok() {
+                    drop(existing);
+                    let _ = fs::remove_file(&reserved);
+                }
+            }
+            None
+        }
+        Err(_) => None,
+    }
+}
+
+/// Reserves a unique output path for a download (issue #560).
+///
+/// Walks `desired`, `desired (1)`, ... until a staging file can be claimed
+/// atomically. Falls back to a timestamp-based name if all 10,000 variants
+/// are taken (mirrors the historical auto_rename behavior).
+fn reserve_output_path(desired: &Path) -> Result<OutputReservation, String> {
+    for candidate in candidate_output_paths(desired) {
+        // Preserve the historical auto_rename contract: never target a name
+        // whose final file already exists (a finished download).
+        if candidate.exists() {
+            continue;
+        }
+        // Two passes per candidate: the first pass may reclaim a dead
+        // reservation, the second can then create_new it ourselves.
+        for _ in 0..2 {
+            if let Some((lock_file, reserved_path)) = try_claim(&candidate) {
+                return Ok(OutputReservation::new(candidate, reserved_path, lock_file));
+            }
         }
     }
 
-    // Fallback: use timestamp to ensure uniqueness
+    // Fallback: timestamp-based name (same scheme as historical auto_rename)
+    let parent = desired.parent().unwrap_or(Path::new("."));
+    let stem = desired
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("file");
+    let ext = desired
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("mp4");
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_millis())
         .unwrap_or(0);
-    let fallback_name = format!("{}_{}.{}", stem, timestamp, ext);
-    parent.join(fallback_name)
+    let fallback = parent.join(format!("{}_{}.{}", stem, timestamp, ext));
+    let Some((lock_file, reserved_path)) = try_claim(&fallback) else {
+        return Err("ERR::OUTPUT_RESERVE_FAILED".to_string());
+    };
+    Ok(OutputReservation::new(fallback, reserved_path, lock_file))
 }
 
 /// Builds the full output path for a download file.

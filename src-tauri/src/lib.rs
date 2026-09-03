@@ -144,6 +144,11 @@ pub fn run() {
     // window position restoration during development
     #[allow(unused_mut)]
     let mut builder = tauri::Builder::default()
+        // CONSTRAINT: single-instance stays DISABLED. Running two app
+        // instances side by side is a supported way to download in parallel
+        // (issue #560); enabling this plugin would forbid it. Cross-process
+        // safety of the shared JSON stores, download output reservation, and
+        // the update session lock is handled without this plugin.
         // .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
         //     let _ = app
         //         .get_webview_window("main")
@@ -157,7 +162,11 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_os::init())
-        .plugin(tauri_plugin_store::Builder::new().build())
+        // Note: tauri-plugin-store is intentionally NOT registered anymore
+        // (issue #560): its in-memory cache hides writes made by other app
+        // processes and its save() is a plain non-atomic fs::write. All four
+        // JSON stores (history/settings/login_state/window-state) go through
+        // utils::locked_json instead — do not re-add the plugin.
         .invoke_handler(tauri::generate_handler![
             validate_ffmpeg,
             install_ffmpeg,
@@ -187,6 +196,7 @@ pub fn run() {
             reveal_log_file,
             open_file,
             get_release_notes,
+            begin_update_session,
             get_all_release_notes,
             get_repo_stars,
             fetch_favorite_folders,
@@ -1148,6 +1158,55 @@ async fn open_file(app: AppHandle, path: String) -> Result<(), String> {
 //     Ok(())
 // }
 
+/// Holds the `update.lock` file (and its flock) once this process starts an
+/// update session (issue #560).
+///
+/// The lock is intentionally never released while the process lives: an
+/// install ends in a relaunch anyway, and the OS frees the flock on process
+/// death, so a crashed session never blocks the next one.
+static UPDATE_SESSION_LOCK: std::sync::Mutex<Option<std::fs::File>> = std::sync::Mutex::new(None);
+
+/// Claims the exclusive right to run an update download for this machine.
+///
+/// Called by the frontend at the moment the user actually starts the update
+/// (not on the availability check). Fails with `ERR::UPDATE_IN_PROGRESS` when
+/// another app instance already holds the session — that instance finishes
+/// the install and this one picks the new version up on its next check.
+#[tauri::command]
+async fn begin_update_session(app: AppHandle) -> Result<(), String> {
+    use fs2::FileExt;
+
+    let mut guard = UPDATE_SESSION_LOCK
+        .lock()
+        .map_err(|_| "ERR::UPDATE_LOCK_POISONED".to_string())?;
+    if guard.is_some() {
+        // This process already holds the session (e.g. user pressed retry).
+        return Ok(());
+    }
+
+    let lock_path = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to resolve app data dir: {}", e))?
+        .join("update.lock");
+    let file = std::fs::OpenOptions::new()
+        .create(true)
+        // truncate(false): re-opening an existing update.lock must not zero it.
+        .truncate(false)
+        .write(true)
+        .read(true)
+        .open(&lock_path)
+        .map_err(|e| format!("Failed to open update.lock: {}", e))?;
+
+    // Non-blocking: another live instance holds it right now.
+    file.try_lock_exclusive()
+        .map_err(|_| "ERR::UPDATE_IN_PROGRESS".to_string())?;
+
+    *guard = Some(file);
+    log::info!("[BE] begin_update_session: acquired update.lock");
+    Ok(())
+}
+
 /// Fetches all release notes from GitHub for versions newer than current.
 ///
 /// This command retrieves all releases from the GitHub repository,
@@ -1665,6 +1724,13 @@ async fn get_login_method(app: AppHandle) -> Result<String, String> {
 /// # Returns
 ///
 /// Returns the full login state including method and session info.
+///
+/// NOTE: multi-process freshness (issue #560) — this always reads the latest
+/// login_state.json, but the UI snapshots it once at startup. A login or
+/// logout performed in another app instance is therefore not reflected in
+/// this window until restart. Accepted as a known limitation (low impact:
+/// simultaneous login flows in two windows are unrealistic); revisit if that
+/// changes.
 #[tauri::command]
 async fn get_login_state(app: AppHandle) -> Result<LoginState, String> {
     qr_login::get_login_state(&app).await

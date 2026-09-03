@@ -51,8 +51,11 @@ function HistoryList({
 }: Props) {
   const { t } = useTranslation()
 
-  // Loading state - shows animated text
-  if (loading) {
+  // Loading state - shows animated text. Only for the initial load: a
+  // refresh with entries already on screen (e.g. re-fetch when the history
+  // page becomes visible again, issue #560) must keep the Virtuoso mounted,
+  // otherwise the list remounts and the scroll position resets to the top.
+  if (loading && entries.length === 0) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
         <div className="text-muted-foreground animate-pulse">

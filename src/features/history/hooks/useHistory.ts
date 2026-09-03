@@ -23,7 +23,7 @@ import {
 } from '@/features/history/model/historySlice'
 import { logger } from '@/shared/lib/logger'
 import { toast } from '@/shared/ui/toast'
-import { useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 
@@ -67,11 +67,23 @@ export function useHistory() {
     (state: RootState) => state.history.searchQuery,
   )
 
-  useEffect(() => {
+  /**
+   * Re-reads history from the backend into the store.
+   *
+   * Called on mount and whenever the history page becomes visible again
+   * (issue #560): another app instance downloads in parallel and writes its
+   * own history entries, so a stale in-memory snapshot would never learn
+   * about them until restart.
+   */
+  const refresh = useCallback(() => {
     withLoading(() =>
       getHistory().then((entries) => store.dispatch(setEntries(entries))),
     )
   }, [])
+
+  useEffect(() => {
+    refresh()
+  }, [refresh])
 
   const filteredEntries = useMemo(() => {
     let result = entries
@@ -165,5 +177,6 @@ export function useHistory() {
     setSearch,
     updateFilters,
     exportData,
+    refresh,
   }
 }
