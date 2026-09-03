@@ -31,13 +31,6 @@ const SIDEBAR_WIDTH = '16rem'
 const SIDEBAR_WIDTH_ICON = '3rem'
 const SIDEBAR_KEYBOARD_SHORTCUT = 'b'
 
-type Settings = {
-  dlOutputPath?: string
-  language: string
-  libPath?: string
-  sidebarExpanded?: boolean
-}
-
 /**
  * Sidebar context property types
  *
@@ -121,9 +114,6 @@ function SidebarProvider({
 }: SidebarProviderProps) {
   const dispatch = useAppDispatch()
   const [fallbackOpen] = React.useState(defaultOpen)
-  const [cachedSettings, setCachedSettings] = React.useState<Settings | null>(
-    null,
-  )
   const [isHydrated, setIsHydrated] = React.useState(false)
 
   React.useEffect(() => {
@@ -145,24 +135,17 @@ function SidebarProvider({
         dispatch(setSidebarOpen(openState))
       }
 
-      // Persist to settings.json
-      const persist = async () => {
-        try {
-          const current =
-            cachedSettings ?? ((await invoke('get_settings')) as Settings)
-          const updatedSettings = {
-            ...current,
-            sidebarExpanded: openState,
-          }
-          setCachedSettings(updatedSettings)
-          await invoke('set_settings', { settings: updatedSettings })
-        } catch (error) {
+      // Persist just the sidebarExpanded field (issue #563 field patch): the
+      // backend merges it into the latest on-disk settings, so the previous
+      // get_settings + full-object save (which could overwrite another app
+      // instance's changes) is no longer needed.
+      invoke('patch_settings', { patch: { sidebarExpanded: openState } }).catch(
+        (error) => {
           logger.error('Failed to save sidebar state to settings', error)
-        }
-      }
-      persist()
+        },
+      )
     },
-    [dispatch, open, setOpenProp, cachedSettings],
+    [dispatch, open, setOpenProp],
   )
 
   const toggleSidebar = React.useCallback(() => {

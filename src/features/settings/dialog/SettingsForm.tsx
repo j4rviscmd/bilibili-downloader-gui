@@ -379,10 +379,7 @@ function SettingsForm() {
     const changed = Object.fromEntries(
       changedKeys.map((key) => [key, data[key]]),
     ) as Partial<z.infer<typeof formSchema>>
-    // TODO(#563): this spreads the whole (possibly stale) Redux snapshot,
-    // so changes saved by another app instance while this form was open
-    // would be silently overwritten. A partial-update API removes the race.
-    await saveByForm({ ...settings, ...changed })
+    await saveByForm(changed)
   }
 
   /** Handles language selection change with immediate submit. */
@@ -415,9 +412,9 @@ function SettingsForm() {
     (value: number[]) => {
       const size = parseFontSize(value[0]) as FontSizePreset
       applyFontSize(size)
-      saveByForm({ ...settings, fontSize: size })
+      saveByForm({ fontSize: size })
     },
-    [settings, saveByForm],
+    [saveByForm],
   )
 
   return (
@@ -454,10 +451,7 @@ function SettingsForm() {
           <RadioGroup
             value={settings.theme ?? 'light'}
             onValueChange={(value) => {
-              saveByForm({
-                ...settings,
-                theme: value as 'light' | 'dark',
-              })
+              saveByForm({ theme: value as 'light' | 'dark' })
             }}
             className="flex gap-6"
           >
@@ -545,7 +539,7 @@ function SettingsForm() {
           <Switch
             checked={settings.autoRenameDuplicates ?? true}
             onCheckedChange={(checked) => {
-              saveByForm({ ...settings, autoRenameDuplicates: checked })
+              saveByForm({ autoRenameDuplicates: checked })
               // Clear video cache so new setting applies on next fetch
               store.dispatch(videoApi.util.resetApiState())
             }}
@@ -571,10 +565,7 @@ function SettingsForm() {
           <RadioGroup
             value={String(settings.downloadParallelism ?? 8)}
             onValueChange={(value) => {
-              saveByForm({
-                ...settings,
-                downloadParallelism: Number(value),
-              })
+              saveByForm({ downloadParallelism: Number(value) })
             }}
             className="grid grid-cols-5 gap-2"
           >
@@ -635,7 +626,7 @@ function SettingsForm() {
           <Switch
             checked={settings.showGithubStars ?? true}
             onCheckedChange={(checked) => {
-              saveByForm({ ...settings, showGithubStars: checked })
+              saveByForm({ showGithubStars: checked })
             }}
           />
         </div>
@@ -650,7 +641,7 @@ function SettingsForm() {
           <Switch
             checked={settings.skipSplashAnimation ?? false}
             onCheckedChange={(checked) => {
-              saveByForm({ ...settings, skipSplashAnimation: checked })
+              saveByForm({ skipSplashAnimation: checked })
             }}
           />
         </div>
@@ -673,7 +664,7 @@ function SettingsForm() {
             <Switch
               checked={settings.showTaskbarProgress ?? true}
               onCheckedChange={(checked) => {
-                saveByForm({ ...settings, showTaskbarProgress: checked })
+                saveByForm({ showTaskbarProgress: checked })
               }}
             />
           </div>
@@ -687,7 +678,7 @@ function SettingsForm() {
             <Switch
               checked={settings.flashTaskbarOnComplete ?? true}
               onCheckedChange={(checked) => {
-                saveByForm({ ...settings, flashTaskbarOnComplete: checked })
+                saveByForm({ flashTaskbarOnComplete: checked })
               }}
             />
           </div>
@@ -704,10 +695,7 @@ function SettingsForm() {
             <RadioGroup
               value={settings.trimMode ?? 'copy'}
               onValueChange={(value) => {
-                saveByForm({
-                  ...settings,
-                  trimMode: value as 'copy' | 'reencode',
-                })
+                saveByForm({ trimMode: value as 'copy' | 'reencode' })
               }}
               className="grid grid-cols-2 gap-4"
             >
@@ -773,10 +761,7 @@ function SettingsForm() {
           <RadioGroup
             value={settings.audioFormat ?? 'mp3'}
             onValueChange={(value) => {
-              saveByForm({
-                ...settings,
-                audioFormat: value as 'mp3' | 'm4a',
-              })
+              saveByForm({ audioFormat: value as 'mp3' | 'm4a' })
             }}
             className="grid grid-cols-2 gap-4"
           >
@@ -807,7 +792,6 @@ function SettingsForm() {
               value={settings.videoCodecPriority ?? 'av1First'}
               onValueChange={(value) => {
                 saveByForm({
-                  ...settings,
                   videoCodecPriority: value as
                     | 'av1First'
                     | 'hevcFirst'
@@ -930,10 +914,7 @@ function SettingsForm() {
             <RadioGroup
               value={settings.rotationMode ?? 'copy'}
               onValueChange={(value) => {
-                saveByForm({
-                  ...settings,
-                  rotationMode: value as 'copy' | 'reencode',
-                })
+                saveByForm({ rotationMode: value as 'copy' | 'reencode' })
               }}
               className="grid grid-cols-2 gap-4"
             >
@@ -1003,10 +984,7 @@ function SettingsForm() {
           <RadioGroup
             value={String(settings.rotationAngle ?? 90)}
             onValueChange={(value) => {
-              saveByForm({
-                ...settings,
-                rotationAngle: Number(value) as 90 | 180 | 270,
-              })
+              saveByForm({ rotationAngle: Number(value) as 90 | 180 | 270 })
             }}
             className="grid grid-cols-3 gap-4"
           >

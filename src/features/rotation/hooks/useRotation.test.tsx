@@ -81,18 +81,15 @@ describe('useRotation', () => {
     expect(result.current.inputPath).toBeNull()
   })
 
-  it('setAngle persists to settings via set_settings', async () => {
+  it('setAngle persists to settings via patch_settings', async () => {
     const { result } = renderHookWithStore(() => useRotation())
     await act(async () => {
       result.current.setAngle(180)
     })
     expect(store.getState().settings.rotationAngle).toBe(180)
-    expect(mockInvoke).toHaveBeenCalledWith(
-      'set_settings',
-      expect.objectContaining({
-        settings: expect.objectContaining({ rotationAngle: 180 }),
-      }),
-    )
+    expect(mockInvoke).toHaveBeenCalledWith('patch_settings', {
+      patch: { rotationAngle: 180 },
+    })
   })
 
   it('handleRotate succeeds and invokes rotate_video with the form values', async () => {

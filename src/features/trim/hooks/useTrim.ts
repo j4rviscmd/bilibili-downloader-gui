@@ -8,9 +8,8 @@
  */
 
 import { store, useSelector } from '@/app/store'
-import { callSetSettings } from '@/features/settings/api/settingApi'
+import { callPatchSettings } from '@/features/settings/api/settingApi'
 import { setSettings } from '@/features/settings/settingsSlice'
-import type { Settings } from '@/features/settings/type'
 import { toast } from '@/shared/ui/toast'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
@@ -114,9 +113,8 @@ export function useTrim(): UseTrimResult {
     (value: TrimMode) => {
       setModeLocal(value)
       setStatus('idle')
-      const updated = { ...settings, trimMode: value } as Settings
-      store.dispatch(setSettings(updated))
-      callSetSettings(updated).catch((e) => {
+      store.dispatch(setSettings({ trimMode: value }))
+      callPatchSettings({ trimMode: value }).catch((e) => {
         logError(`Failed to save trim mode: ${e}`)
       })
     },

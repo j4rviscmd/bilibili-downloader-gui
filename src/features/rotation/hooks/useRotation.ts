@@ -8,9 +8,8 @@
  */
 
 import { store, useSelector } from '@/app/store'
-import { callSetSettings } from '@/features/settings/api/settingApi'
+import { callPatchSettings } from '@/features/settings/api/settingApi'
 import { setSettings } from '@/features/settings/settingsSlice'
-import type { Settings } from '@/features/settings/type'
 import { toast } from '@/shared/ui/toast'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
@@ -102,9 +101,8 @@ export function useRotation(): UseRotationResult {
     (value: RotationAngle) => {
       setAngleLocal(value)
       setStatus('idle')
-      const updated = { ...settings, rotationAngle: value } as Settings
-      store.dispatch(setSettings(updated))
-      callSetSettings(updated).catch((e) => {
+      store.dispatch(setSettings({ rotationAngle: value }))
+      callPatchSettings({ rotationAngle: value }).catch((e) => {
         logError(`Failed to save rotation angle: ${e}`)
       })
     },
@@ -115,9 +113,8 @@ export function useRotation(): UseRotationResult {
     (value: RotationMode) => {
       setModeLocal(value)
       setStatus('idle')
-      const updated = { ...settings, rotationMode: value } as Settings
-      store.dispatch(setSettings(updated))
-      callSetSettings(updated).catch((e) => {
+      store.dispatch(setSettings({ rotationMode: value }))
+      callPatchSettings({ rotationMode: value }).catch((e) => {
         logError(`Failed to save rotation mode: ${e}`)
       })
     },

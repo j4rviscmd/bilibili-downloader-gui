@@ -129,9 +129,9 @@ describe('DevOptions', () => {
 
     await user.click(switchById('open-devtools-on-startup'))
 
-    const call = mockInvoke.mock.calls.find((c) => c[0] === 'set_settings')
+    const call = mockInvoke.mock.calls.find((c) => c[0] === 'patch_settings')
     expect(call?.[1]).toMatchObject({
-      settings: { openDevtoolsOnStartup: false },
+      patch: { openDevtoolsOnStartup: false },
     })
   })
 })

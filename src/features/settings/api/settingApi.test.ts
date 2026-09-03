@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   callGetCurrentLibPath,
   callGetSettings,
-  callSetSettings,
+  callPatchSettings,
   callUpdateLibPath,
 } from './settingApi'
 
@@ -35,25 +35,28 @@ describe('callGetSettings', () => {
   })
 })
 
-describe('callSetSettings', () => {
+describe('callPatchSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('should call invoke with set_settings command and settings', async () => {
+  it('should call invoke with patch_settings command and the patch fields', async () => {
     mockInvoke.mockResolvedValue(undefined)
 
-    await callSetSettings(mockSettings)
+    // Issue #563: only the changed fields are sent, never a whole object.
+    await callPatchSettings({ fontSize: 16 })
 
-    expect(mockInvoke).toHaveBeenCalledWith('set_settings', {
-      settings: mockSettings,
+    expect(mockInvoke).toHaveBeenCalledWith('patch_settings', {
+      patch: { fontSize: 16 },
     })
   })
 
   it('should propagate errors from backend', async () => {
     mockInvoke.mockRejectedValue(new Error('Disk full'))
 
-    await expect(callSetSettings(mockSettings)).rejects.toThrow('Disk full')
+    await expect(callPatchSettings({ fontSize: 16 })).rejects.toThrow(
+      'Disk full',
+    )
   })
 })
 

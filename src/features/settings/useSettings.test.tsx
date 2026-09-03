@@ -1,7 +1,7 @@
 /**
  * useSettings suite.
  *
- * Asserts the invoke commands ('get_settings' / 'set_settings' /
+ * Asserts the invoke commands ('get_settings' / 'patch_settings' /
  * 'update_lib_path') and their arguments via the global mockInvoke, plus
  * Redux effects on the real singleton store. Toast content is asserted via
  * a local toast spy (identity t from the centralized i18n mock).
@@ -72,24 +72,25 @@ describe('useSettings', () => {
   })
 
   describe('updateSettings', () => {
-    it('dispatches first, then persists via set_settings', async () => {
-      mockCommands({ set_settings: undefined })
+    it('dispatches first, then persists via patch_settings', async () => {
+      mockCommands({ patch_settings: undefined })
       const { result } = renderHookWithStore(() => useSettings())
 
-      await result.current.updateSettings(backendSettings)
+      // Issue #563: updateSettings sends only the changed fields.
+      await result.current.updateSettings({ dlOutputPath: '/downloads' })
 
-      expect(mockInvoke).toHaveBeenCalledWith('set_settings', {
-        settings: backendSettings,
+      expect(mockInvoke).toHaveBeenCalledWith('patch_settings', {
+        patch: { dlOutputPath: '/downloads' },
       })
       expect(store.getState().settings.dlOutputPath).toBe('/downloads')
     })
 
     it('keeps the dispatched state but throws when the backend rejects', async () => {
-      mockCommands({ set_settings: new Error('ERR::SAVE_FAILED') })
+      mockCommands({ patch_settings: new Error('ERR::SAVE_FAILED') })
       const { result } = renderHookWithStore(() => useSettings())
 
       await expect(
-        result.current.updateSettings(backendSettings),
+        result.current.updateSettings({ dlOutputPath: '/downloads' }),
       ).rejects.toThrow('ERR::SAVE_FAILED')
       // The Redux update happened before the failed persistence call.
       expect(store.getState().settings.dlOutputPath).toBe('/downloads')
@@ -98,10 +99,10 @@ describe('useSettings', () => {
 
   describe('saveByForm', () => {
     it('toasts settings.save_success on success', async () => {
-      mockCommands({ set_settings: undefined })
+      mockCommands({ patch_settings: undefined })
       const { result } = renderHookWithStore(() => useSettings())
 
-      await result.current.saveByForm(backendSettings)
+      await result.current.saveByForm({ dlOutputPath: '/downloads' })
 
       expect(toastSuccess).toHaveBeenCalledWith('settings.save_success')
       expect(toastError).not.toHaveBeenCalled()
@@ -109,11 +110,11 @@ describe('useSettings', () => {
 
     it('maps ERR:SETTINGS_PATH_NOT_DIRECTORY to a localized description', async () => {
       mockCommands({
-        set_settings: new Error('ERR:SETTINGS_PATH_NOT_DIRECTORY'),
+        patch_settings: new Error('ERR:SETTINGS_PATH_NOT_DIRECTORY'),
       })
       const { result } = renderHookWithStore(() => useSettings())
 
-      await result.current.saveByForm(backendSettings)
+      await result.current.saveByForm({ dlOutputPath: '/downloads' })
 
       expect(toastError).toHaveBeenCalledWith('settings.save_failed_generic', {
         duration: 10000,
@@ -122,10 +123,10 @@ describe('useSettings', () => {
     })
 
     it('maps ERR:SETTINGS_PATH_NOT_EXIST to a localized description', async () => {
-      mockCommands({ set_settings: new Error('ERR:SETTINGS_PATH_NOT_EXIST') })
+      mockCommands({ patch_settings: new Error('ERR:SETTINGS_PATH_NOT_EXIST') })
       const { result } = renderHookWithStore(() => useSettings())
 
-      await result.current.saveByForm(backendSettings)
+      await result.current.saveByForm({ dlOutputPath: '/downloads' })
 
       expect(toastError).toHaveBeenCalledWith('settings.save_failed_generic', {
         duration: 10000,
@@ -134,10 +135,10 @@ describe('useSettings', () => {
     })
 
     it('falls back to the raw error string for unknown codes', async () => {
-      mockCommands({ set_settings: new Error('weird failure') })
+      mockCommands({ patch_settings: new Error('weird failure') })
       const { result } = renderHookWithStore(() => useSettings())
 
-      await result.current.saveByForm(backendSettings)
+      await result.current.saveByForm({ dlOutputPath: '/downloads' })
 
       expect(toastError).toHaveBeenCalledWith('settings.save_failed_generic', {
         duration: 10000,
@@ -148,10 +149,10 @@ describe('useSettings', () => {
     })
 
     it('silent mode suppresses both success and error toasts', async () => {
-      mockCommands({ set_settings: new Error('ERR::SAVE_FAILED') })
+      mockCommands({ patch_settings: new Error('ERR::SAVE_FAILED') })
       const { result } = renderHookWithStore(() => useSettings())
 
-      await result.current.saveByForm(backendSettings, true)
+      await result.current.saveByForm({ dlOutputPath: '/downloads' }, true)
 
       expect(toastSuccess).not.toHaveBeenCalled()
       expect(toastError).not.toHaveBeenCalled()
@@ -172,14 +173,14 @@ describe('useSettings', () => {
 
   describe('updateLanguage', () => {
     it('changes i18n language and persists the settings', async () => {
-      mockCommands({ set_settings: undefined })
+      mockCommands({ patch_settings: undefined })
       const { result } = renderHookWithStore(() => useSettings())
 
       await result.current.updateLanguage('ja')
 
       expect(mockChangeLanguage).toHaveBeenCalledWith('ja')
-      expect(mockInvoke).toHaveBeenCalledWith('set_settings', {
-        settings: expect.objectContaining({ language: 'ja' }),
+      expect(mockInvoke).toHaveBeenCalledWith('patch_settings', {
+        patch: { language: 'ja' },
       })
       expect(store.getState().settings.language).toBe('ja')
     })

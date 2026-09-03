@@ -113,7 +113,7 @@ pub use utils::wbi;
 ///
 /// **Settings & Paths:**
 /// - `get_settings`: Retrieves application settings
-/// - `set_settings`: Updates application settings
+/// - `patch_settings`: Partially updates application settings (field patch)
 /// - `update_lib_path`: Updates library storage path and moves ffmpeg
 /// - `get_current_lib_path`: Returns the current library path
 /// - `get_os`: Returns the current operating system identifier
@@ -181,7 +181,7 @@ pub fn run() {
             cancel_download,
             cancel_all_downloads,
             get_settings,
-            set_settings,
+            patch_settings,
             update_lib_path,
             get_current_lib_path,
             get_os,
@@ -783,13 +783,15 @@ async fn get_settings(app: AppHandle) -> Result<Settings, String> {
 /// # Errors
 ///
 /// Returns an error if:
-/// - Download path is not set (`ERR:SETTINGS_PATH_NOT_SET`)
-/// - Download path does not exist (`ERR:SETTINGS_PATH_NOT_EXIST`)
-/// - Download path is not a directory (`ERR:SETTINGS_PATH_NOT_DIRECTORY`)
+/// - The patch is not a JSON object (`ERR:SETTINGS_PATCH_INVALID`)
+/// - The merged settings fail type validation (`ERR:SETTINGS_PATCH_INVALID`)
+/// - The patch changes `dlOutputPath` and the path is invalid
+///   (`ERR:SETTINGS_PATH_NOT_SET` / `ERR:SETTINGS_PATH_NOT_EXIST` /
+///   `ERR:SETTINGS_PATH_NOT_DIRECTORY`)
 /// - File write fails
 #[tauri::command]
-async fn set_settings(app: AppHandle, settings: Settings) -> Result<(), String> {
-    settings::set_settings(&app, &settings).await
+async fn patch_settings(app: AppHandle, patch: serde_json::Value) -> Result<(), String> {
+    settings::patch_settings(&app, patch).await
 }
 
 /// Updates the library storage path and moves ffmpeg to the new location.
@@ -821,9 +823,6 @@ async fn set_settings(app: AppHandle, settings: Settings) -> Result<(), String> 
 async fn update_lib_path(app: AppHandle, new_path: String) -> Result<(), String> {
     use crate::utils::paths;
 
-    // Get current settings for later update
-    let current_settings = settings::get_settings(&app).await?;
-
     // Use the user-selected path as-is (no /lib suffix for user-specified paths)
     let new_lib_path = PathBuf::from(&new_path);
 
@@ -838,11 +837,17 @@ async fn update_lib_path(app: AppHandle, new_path: String) -> Result<(), String>
         ffmpeg::move_ffmpeg(old_ffmpeg_path.clone(), new_ffmpeg_path).await?;
     }
 
-    // Update settings with new lib_path
-    let mut updated_settings = current_settings;
-    updated_settings.lib_path = new_lib_path.to_str().map(|s| s.to_string());
-
-    settings::set_settings(&app, &updated_settings).await?;
+    // Update settings with the new lib_path only (field patch, issue #563):
+    // a full-object save would overwrite settings another app instance
+    // saved in the meantime.
+    // Note: the key must be the literal serde name "libPath" (see
+    // models/settings.rs). Patch keys bypass struct (de)serialization, so a
+    // mistyped key is silently kept as an unknown on-disk field and the save
+    // has no effect.
+    let patch = serde_json::json!({
+        "libPath": new_lib_path.to_str().map(|s| s.to_string()),
+    });
+    settings::patch_settings(&app, patch).await?;
 
     Ok(())
 }

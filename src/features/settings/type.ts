@@ -128,6 +128,16 @@ export interface Settings {
 }
 
 /**
+ * Partial settings update for the `patch_settings` command (issue #563).
+ *
+ * Only the fields present here are changed; the backend merges the patch
+ * into the latest on-disk settings, so fields saved by another app instance
+ * are never overwritten. Always send just the changed fields — never a
+ * whole-settings object.
+ */
+export type SettingsPatch = Partial<Settings>
+
+/**
  * Font size preset in pixels, applied as root font-size.
  * All rem-based Tailwind utilities scale proportionally.
  */

@@ -1,12 +1,12 @@
 import { store, useSelector } from '@/app/store'
 import {
   callGetSettings,
-  callSetSettings,
+  callPatchSettings,
   callUpdateLibPath,
 } from '@/features/settings/api/settingApi'
 import { languages } from '@/features/settings/language/languages'
 import { setOpenDialog, setSettings } from '@/features/settings/settingsSlice'
-import type { Settings } from '@/features/settings/type'
+import type { Settings, SettingsPatch } from '@/features/settings/type'
 import type { SupportedLang } from '@/i18n'
 import { changeLanguage } from '@/shared/i18n'
 import { logger } from '@/shared/lib/logger'
@@ -42,23 +42,24 @@ export const useSettings = () => {
   const settings = useSelector((state) => state.settings)
 
   /**
-   * Saves settings from the form with optional toast notifications.
+   * Saves a settings patch from the form with optional toast notifications.
    *
-   * Attempts to save settings via `updateSettings`. On success, displays
-   * a success toast (unless silent mode is enabled). On failure, parses
-   * backend error codes and displays localized error messages
-   * (e.g., 'ERR:SETTINGS_PATH_NOT_DIRECTORY').
+   * Attempts to save via `updateSettings` (a field patch — issue #563: only
+   * the changed fields are sent, so a parallel app instance's saves are never
+   * overwritten). On success, displays a success toast (unless silent mode is
+   * enabled). On failure, parses backend error codes and displays localized
+   * error messages (e.g., 'ERR:SETTINGS_PATH_NOT_DIRECTORY').
    *
-   * @param settings - The settings object to save
+   * @param patch - The settings fields to change
    * @param silent - If true, suppresses toast notifications for both
    *   success and error cases. Errors are still logged to console.
    */
   const saveByForm = async (
-    settings: Settings,
+    patch: SettingsPatch,
     silent = false,
   ): Promise<void> => {
     try {
-      await updateSettings(settings)
+      await updateSettings(patch)
       if (!silent) {
         toast.success(staticT('settings.save_success', 'Settings saved'))
       }
@@ -74,6 +75,10 @@ export const useSettings = () => {
         messageKey = 'settings.path_not_directory'
       else if (raw.includes('ERR:SETTINGS_PATH_NOT_EXIST'))
         messageKey = 'settings.path_not_exist'
+      else if (raw.includes('ERR:SETTINGS_PATH_NOT_SET'))
+        messageKey = 'settings.path_not_set'
+      else if (raw.includes('ERR:SETTINGS_PATCH_INVALID'))
+        messageKey = 'settings.patch_invalid'
       else if (raw.includes('ERR::SAVE_FAILED'))
         messageKey = 'settings.save_failed'
       else if (raw.includes('ERR::PERMISSION'))
@@ -102,33 +107,35 @@ export const useSettings = () => {
   /**
    * Changes the application language and persists the setting.
    *
-   * First applies the language change via i18n, then saves the updated
-   * settings to the backend.
+   * First applies the language change via i18n, then saves just the
+   * `language` field as a patch.
    *
    * @param lang - The target language code
    */
   const updateLanguage = async (lang: SupportedLang) => {
     await changeLanguage(lang)
-    await updateSettings({ ...settings, language: lang })
+    await updateSettings({ language: lang })
   }
 
   /**
-   * Updates and persists application settings.
+   * Applies and persists a partial settings update (issue #563).
    *
-   * First updates the Redux store, then saves to the Tauri backend.
-   * If the backend save fails, the Redux state remains updated but
-   * persistence fails.
+   * First merges the patch into the Redux store (the slice reducer shallow-
+   * merges, so untouched fields keep their state values), then sends only the
+   * patched fields to the backend, which merges them into the latest on-disk
+   * settings under the inter-process lock. If the backend save fails, the
+   * Redux state remains updated but persistence fails.
    *
-   * @param newSettings - The new settings object
+   * @param patch - The settings fields to change
    * @returns True if settings were successfully saved, false otherwise
    * @throws Error if backend save operation fails
    */
-  const updateSettings = async (newSettings: Settings): Promise<boolean> => {
+  const updateSettings = async (patch: SettingsPatch): Promise<boolean> => {
     let isSuccessful = false
 
     try {
-      store.dispatch(setSettings(newSettings))
-      await callSetSettings(newSettings)
+      store.dispatch(setSettings(patch))
+      await callPatchSettings(patch)
       isSuccessful = true
     } catch (e) {
       isSuccessful = false

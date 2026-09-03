@@ -3,7 +3,7 @@
  *
  * Renders the real component against the singleton store seeded via
  * setSettings BEFORE render (the store is shared across tests), and
- * asserts every mutation persists through the 'set_settings' invoke
+ * asserts every mutation persists through the 'patch_settings' invoke
  * payload (useSettings is real). Rule rows are located via their
  * read-only Input display values.
  */
@@ -75,9 +75,9 @@ describe('TitleReplacementSettings', () => {
       }),
     )
 
-    const call = mockInvoke.mock.calls.find((c) => c[0] === 'set_settings')
+    const call = mockInvoke.mock.calls.find((c) => c[0] === 'patch_settings')
     expect(call?.[1]).toMatchObject({
-      settings: {
+      patch: {
         titleReplacements: [...rules, { from: '', to: '', enabled: true }],
       },
     })
@@ -89,9 +89,9 @@ describe('TitleReplacementSettings', () => {
 
     await user.click(within(rowOf('/')).getByRole('switch'))
 
-    const call = mockInvoke.mock.calls.find((c) => c[0] === 'set_settings')
+    const call = mockInvoke.mock.calls.find((c) => c[0] === 'patch_settings')
     expect(call?.[1]).toMatchObject({
-      settings: {
+      patch: {
         titleReplacements: [
           { from: '/', to: '-', enabled: false },
           { from: ':', to: '_', enabled: false },
@@ -115,9 +115,9 @@ describe('TitleReplacementSettings', () => {
     await user.type(toInput, 'x')
     await user.click(within(row).getByRole('button', { name: 'OK' }))
 
-    const call = mockInvoke.mock.calls.find((c) => c[0] === 'set_settings')
+    const call = mockInvoke.mock.calls.find((c) => c[0] === 'patch_settings')
     expect(call?.[1]).toMatchObject({
-      settings: {
+      patch: {
         titleReplacements: [
           { from: '?', to: 'x', enabled: true },
           { from: ':', to: '_', enabled: false },
@@ -132,9 +132,9 @@ describe('TitleReplacementSettings', () => {
 
     await user.click(within(rowOf(':')).getAllByRole('button')[1])
 
-    const call = mockInvoke.mock.calls.find((c) => c[0] === 'set_settings')
+    const call = mockInvoke.mock.calls.find((c) => c[0] === 'patch_settings')
     expect(call?.[1]).toMatchObject({
-      settings: { titleReplacements: [{ from: '/', to: '-', enabled: true }] },
+      patch: { titleReplacements: [{ from: '/', to: '-', enabled: true }] },
     })
   })
 

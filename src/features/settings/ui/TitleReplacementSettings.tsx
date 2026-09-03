@@ -47,7 +47,7 @@ export function TitleReplacementSettings() {
    * @param newRules - Updated array of title replacement rules
    */
   const saveRules = async (newRules: TitleReplacement[]) => {
-    await saveByForm({ ...settings, titleReplacements: newRules })
+    await saveByForm({ titleReplacements: newRules })
     store.dispatch(videoApi.util.resetApiState())
   }
 

@@ -60,15 +60,15 @@ export const settingsSlice = createSlice({
       state.dialogOpen = action.payload
     },
     /**
-     * Updates all settings from a full settings object.
+     * Applies a partial settings update (field patch, issue #563).
      *
-     * Merges the provided settings with the current state,
+     * Merges the patched fields with the current state,
      * preserving the dialogOpen state.
      *
      * @param state - Current settings state
-     * @param action - Action containing the new settings
+     * @param action - Action containing the settings patch
      */
-    setSettings: (state, action: PayloadAction<Settings>) => {
+    setSettings: (state, action: PayloadAction<Partial<Settings>>) => {
       return { ...state, ...action.payload }
     },
   },

@@ -74,12 +74,9 @@ describe('useFontSizeShortcuts', () => {
     press('=', { ctrlKey: true })
     expect(store.getState().settings.fontSize).toBe(15)
     expect(document.documentElement.style.fontSize).toBe('15px')
-    expect(mockInvoke).toHaveBeenCalledWith(
-      'set_settings',
-      expect.objectContaining({
-        settings: expect.objectContaining({ fontSize: 15 }),
-      }),
-    )
+    expect(mockInvoke).toHaveBeenCalledWith('patch_settings', {
+      patch: { fontSize: 15 },
+    })
     expect(toastInfo).toHaveBeenCalledWith(
       'settings.font_size_changed:15',
       expect.objectContaining({ id: 'font-size-shortcut' }),
