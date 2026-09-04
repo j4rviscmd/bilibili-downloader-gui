@@ -448,10 +448,8 @@ pub fn recover_interrupted_in(store: &HistoryStore, lock_dir: &Path) -> Recovery
     if let Ok(entries) = fs::read_dir(lock_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
-            if is_session_lock(&path) && is_unlocked(&path) {
-                if fs::remove_file(&path).is_ok() {
-                    result.locks_removed += 1;
-                }
+            if is_session_lock(&path) && is_unlocked(&path) && fs::remove_file(&path).is_ok() {
+                result.locks_removed += 1;
             }
         }
     }
