@@ -225,6 +225,7 @@
     "audio_merge_fallback": "音声ストリームコピーに失敗しました。AAC再エンコードを使用します。",
     "invalid_media_response": "サーバーから無効なメディア応答がありました（エラーページを受信）。",
     "audio_download_failed": "すべての利用可能なストリームを試しましたが、音声のダウンロードに失敗しました。",
+    "download_interrupted": "ダウンロードが中断されました（アプリ終了またはクラッシュ）。",
     "queue_waiting_prefix": "キュー待ち:",
     "reload_after_error": "ページをリロードして再試行",
     "select_all": "全選択",

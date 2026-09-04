@@ -7,6 +7,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
+import { mapBackendError } from '@/shared/lib/mapBackendError'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
 import { toast } from '@/shared/ui/toast'
@@ -140,6 +141,12 @@ function HistoryItem({ entry, onDelete, onDownload, disabled }: Props) {
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
   const isSuccess = entry.status === 'completed'
+  // Failed entries store a backend ERR::* code; map it to a translated
+  // message and fall back to the raw string for unmapped codes (issue #511).
+  const errorText =
+    entry.status === 'failed' && entry.errorMessage
+      ? t(mapBackendError(entry.errorMessage) ?? entry.errorMessage)
+      : null
 
   const handleCopyUrl = async () => {
     try {
@@ -258,8 +265,8 @@ function HistoryItem({ entry, onDelete, onDownload, disabled }: Props) {
           </div>
         </div>
 
-        {entry.status === 'failed' && entry.errorMessage && (
-          <p className="text-destructive mt-1 text-xs">{entry.errorMessage}</p>
+        {errorText && (
+          <p className="text-destructive mt-1 text-xs">{errorText}</p>
         )}
       </div>
 

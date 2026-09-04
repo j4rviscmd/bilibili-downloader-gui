@@ -121,6 +121,40 @@ impl HistoryStore {
         .map_err(|e| e.to_string())
     }
 
+    /// Applies `f` to the entry with `id`, but only while it is still
+    /// `in_progress` (issue #511).
+    ///
+    /// The find-and-mutate runs as one locked transaction. Returns the
+    /// post-mutation entry, or `None` when the id is absent (the entry was
+    /// cleared or truncated while the download ran) or already finalized —
+    /// both are idempotent no-ops, so a finalize can never resurrect an
+    /// entry the user deleted, and two processes racing to settle the same
+    /// id cannot double-apply.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error only if the locked read-modify-write fails.
+    pub fn update_in_progress(
+        &self,
+        id: &str,
+        f: impl FnOnce(&mut HistoryEntry),
+    ) -> Result<Option<HistoryEntry>, String> {
+        with_json_mut(&self.path, |v| {
+            let mut entries = Self::entries_from(v)?;
+            let Some(entry) = entries
+                .iter_mut()
+                .find(|e| e.id == id && e.status == "in_progress")
+            else {
+                return Ok(None);
+            };
+            f(entry);
+            let updated = entry.clone();
+            Self::set_entries(v, &entries)?;
+            Ok(Some(updated))
+        })
+        .map_err(|e| e.to_string())
+    }
+
     /// Removes all history entries from the store.
     ///
     /// # Errors
@@ -130,12 +164,21 @@ impl HistoryStore {
         with_json_mut(&self.path, |v| Self::set_entries(v, &[])).map_err(|e| e.to_string())
     }
 
-    /// Retrieves all history entries from the store.
+    /// Retrieves history entries from the store, excluding `in_progress`
+    /// entries (issue #511).
+    ///
+    /// Active downloads are invisible to the UI, search, and export; only
+    /// finalized entries (`completed`/`failed`) are user-visible. Internal
+    /// callers that need the raw list (startup recovery) use [`load`].
     ///
     /// If loading fails (e.g., corrupted data), it returns an empty vector
     /// instead of an error.
     pub fn get_all(&self) -> Vec<HistoryEntry> {
-        self.load().unwrap_or_default()
+        self.load()
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|e| e.status != "in_progress")
+            .collect()
     }
 
     /// Searches history entries with optional query string and filters.
@@ -218,6 +261,7 @@ mod tests {
             url: format!("https://www.bilibili.com/video/{id}"),
             downloaded_at: downloaded_at.into(),
             status: status.into(),
+            error_message: None,
             file_size: None,
             quality: None,
             thumbnail_url: None,
@@ -413,6 +457,97 @@ mod tests {
 
         store.clear().unwrap();
         assert!(store.get_all().is_empty());
+    }
+
+    #[test]
+    fn update_in_progress_mutates_only_live_entries() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = store_in(dir.path());
+        store
+            .add_entry(store_entry(
+                "live",
+                "t",
+                "in_progress",
+                "2026-01-01T00:00:00Z",
+            ))
+            .unwrap();
+        store
+            .add_entry(store_entry(
+                "done",
+                "t",
+                "completed",
+                "2026-01-02T00:00:00Z",
+            ))
+            .unwrap();
+
+        // in_progress entry: mutated, post-mutation entry returned.
+        let updated = store
+            .update_in_progress("live", |e| {
+                e.status = "failed".into();
+                e.error_message = Some("ERR::NETWORK::x".into());
+            })
+            .unwrap()
+            .expect("live entry must update");
+        assert_eq!(updated.status, "failed");
+        assert_eq!(updated.error_message.as_deref(), Some("ERR::NETWORK::x"));
+
+        // Finalized entry: no-op (a settle can never resurrect/rewrite it).
+        assert!(store
+            .update_in_progress("done", |e| e.status = "failed".into())
+            .unwrap()
+            .is_none());
+        // Missing entry (cleared/truncated while downloading): no-op.
+        assert!(store
+            .update_in_progress("gone", |e| e.status = "failed".into())
+            .unwrap()
+            .is_none());
+
+        let all = store.get_all();
+        // Newest first: [done, live-turned-failed].
+        assert_eq!(all[0].status, "completed", "done entry untouched");
+        assert_eq!(all[1].status, "failed");
+    }
+
+    #[test]
+    fn update_in_progress_persists_across_store_handles() {
+        // Another process must observe the mutation (no in-process cache).
+        let dir = tempfile::tempdir().unwrap();
+        let writer = store_in(dir.path());
+        let reader = store_in(dir.path());
+        writer
+            .add_entry(store_entry("a", "t", "in_progress", "2026-01-01T00:00:00Z"))
+            .unwrap();
+        writer
+            .update_in_progress("a", |e| e.status = "completed".into())
+            .unwrap()
+            .unwrap();
+        assert_eq!(reader.get_all()[0].status, "completed");
+    }
+
+    #[test]
+    fn get_all_hides_in_progress_entries() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = store_in(dir.path());
+        store
+            .add_entry(store_entry(
+                "live",
+                "t",
+                "in_progress",
+                "2026-01-01T00:00:00Z",
+            ))
+            .unwrap();
+        store
+            .add_entry(store_entry("ok", "t", "completed", "2026-01-02T00:00:00Z"))
+            .unwrap();
+
+        // UI/search/export surface: active downloads are invisible...
+        let visible = store.get_all();
+        assert_eq!(visible.len(), 1);
+        assert_eq!(visible[0].id, "ok");
+        // ...while search (which goes through get_all) matches too.
+        assert_eq!(store.search(None, None).len(), 1);
+        // Raw load keeps in_progress for internal callers (recovery).
+        assert_eq!(store.load().unwrap().len(), 2);
     }
 
     #[test]

@@ -225,6 +225,7 @@
     "audio_merge_fallback": "La copie du flux audio a échoué. Utilisation du réencodage AAC à la place.",
     "invalid_media_response": "Réponse média non valide du serveur (page d'erreur reçue).",
     "audio_download_failed": "Échec du téléchargement audio après avoir essayé tous les flux disponibles.",
+    "download_interrupted": "Le téléchargement a été interrompu (fermeture ou plantage de l'application).",
     "queue_waiting_prefix": "En file d'attente:",
     "reload_after_error": "Recharger la page pour réessayer",
     "select_all": "Tout sélectionner",
