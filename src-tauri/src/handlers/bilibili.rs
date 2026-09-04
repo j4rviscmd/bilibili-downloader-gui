@@ -1262,6 +1262,24 @@ fn cleanup_subtitle_files(lib_path: &std::path::Path, download_id: &str) {
 mod tests {
     use super::*;
 
+    /// Tests the E2E fixture `Video` mapping used under E2E_TESTING.
+    ///
+    /// Verifies the bundled 2-page fixture maps to a Video with both
+    /// parts and the requested bvid, matching what E2E specs assert
+    /// (part indices 0 and 1).
+    #[test]
+    fn test_e2e_mock_video_info() {
+        let video = e2e_mock_video_info("BV1i3411y7xB").expect("fixture maps");
+        assert_eq!(video.bvid, "BV1i3411y7xB");
+        assert_eq!(video.content_type, "video");
+        assert!(!video.title.is_empty());
+        assert_eq!(video.parts.len(), 2);
+        assert_eq!(video.parts[0].cid, 146224527);
+        assert_eq!(video.parts[0].page, 1);
+        assert_eq!(video.parts[1].cid, 146225172);
+        assert_eq!(video.parts[1].page, 2);
+    }
+
     /// Tests quality ID to human-readable string conversion.
     ///
     /// Verifies that known quality IDs produce expected display names
@@ -2565,6 +2583,14 @@ pub fn build_cookie_header_from_cache(app: &AppHandle) -> Result<String, String>
 pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String> {
     log::info!("[BE] fetch_video_info: requesting video info for id={}", id);
 
+    // E2E mode: CI runner IPs are blocked by Bilibili's risk control
+    // (issue #565), so serve the bundled fixture instead of the live
+    // view API. Same env-var pattern as qr_login's secure-storage bypass.
+    if crate::handlers::qr_login::is_e2e_testing() {
+        log::info!("[BE] fetch_video_info: returning E2E_TESTING fixture");
+        return e2e_mock_video_info(id);
+    }
+
     let cookies = read_cookie(app)?.unwrap_or_default();
     let cookie_header = build_cookie_header(&cookies);
     let is_limited_quality = cookie_header.is_empty();
@@ -2601,6 +2627,31 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
         auto_rename,
         is_limited_quality,
     ))
+}
+
+/// Builds the E2E fixture `Video` from the bundled view-API fixture JSON.
+///
+/// Parses `tests/fixtures/web_interface_view.json` (a 2-page view
+/// response) and runs it through the production `Video` mapping so the
+/// E2E flow exercises the same shaping logic as the live path.
+fn e2e_mock_video_info(id: &str) -> Result<Video, String> {
+    // Note: The fixture JSON is pinned by assertions elsewhere — the cid/page
+    // pairs in test_e2e_mock_video_info and the 2-part assertion in
+    // e2e-tests/test/app-launch.e2e.ts both fail if the fixture is swapped
+    // for a different video, so update all three together.
+    const FIXTURE: &str = include_str!("../../tests/fixtures/web_interface_view.json");
+    let body: WebInterfaceApiResponse =
+        serde_json::from_str(FIXTURE).map_err(|e| format!("E2E fixture parse failed: {e}"))?;
+    let data = body.data.as_ref().ok_or("E2E fixture has no data")?;
+    // Why: is_limited_quality=true mirrors the live path's cookie-less case —
+    // E2E_TESTING bypasses session storage (qr_login::is_e2e_testing), so CI
+    // never has a cookie header (live path: is_limited_quality = cookie_header
+    // .is_empty()).
+    // Note: The fixture is a snapshot of BV1GJ411x7h7 (added for the serde
+    // contract tests, commit 6a23fbc8), not of the BV typed in the E2E spec
+    // (BV1i3411y7xB). The mapping overrides bvid with the requested id, so the
+    // UI shows the snapshot video's title/parts for whatever URL was entered.
+    Ok(web_interface_data_to_video(data, id, None, true, true))
 }
 
 /// Maps a WebInterface view response into the frontend `Video` DTO.
