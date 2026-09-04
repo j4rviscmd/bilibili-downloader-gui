@@ -2004,6 +2004,46 @@ mod tests {
         assert_eq!(video.title, "a_b");
         assert_eq!(video.parts[0].sanitized_part.as_deref(), Some("a_b"));
     }
+
+    /// Whitelist for retryable ERR:: codes (issue #484): only
+    /// ERR::INVALID_MEDIA_RESPONSE may retry; other business errors stay
+    /// non-retryable.
+    #[test]
+    fn test_is_retryable_err_code() {
+        assert!(is_retryable_err_code("ERR::INVALID_MEDIA_RESPONSE"));
+        // Wrapped / suffixed variants still match (contains-based, matching
+        // how download_url errors may carry appended detail).
+        assert!(is_retryable_err_code(
+            "prefix ERR::INVALID_MEDIA_RESPONSE detail"
+        ));
+
+        assert!(!is_retryable_err_code("ERR::CANCELLED"));
+        assert!(!is_retryable_err_code("ERR::DISK_FULL"));
+        assert!(!is_retryable_err_code("ERR::FILE_EXISTS"));
+        assert!(!is_retryable_err_code("ERR::MERGE_FAILED"));
+        assert!(!is_retryable_err_code("ERR::NETWORK::2 segment(s) failed"));
+        assert!(!is_retryable_err_code("connection reset by peer"));
+        assert!(!is_retryable_err_code(""));
+    }
+
+    /// Exhaustion keeps whitelisted ERR:: codes verbatim (so callers and
+    /// the UI classify them correctly) and wraps transient messages as
+    /// ERR::NETWORK (issue #484).
+    #[test]
+    fn test_exhausted_retry_error() {
+        assert_eq!(
+            exhausted_retry_error("ERR::INVALID_MEDIA_RESPONSE".to_string()),
+            "ERR::INVALID_MEDIA_RESPONSE"
+        );
+        assert_eq!(
+            exhausted_retry_error("2 segment(s) failed".to_string()),
+            "ERR::NETWORK::2 segment(s) failed"
+        );
+        assert_eq!(
+            exhausted_retry_error("final size mismatch: 10 vs 20".to_string()),
+            "ERR::NETWORK::final size mismatch: 10 vs 20"
+        );
+    }
 }
 
 /// Spawns an async task to save download history.
@@ -3259,7 +3299,11 @@ fn ensure_free_space(target_path: &Path, needed_bytes: u64) -> Result<(), String
 ///
 /// - `ERR::` prefix: Business logic errors (e.g. `ERR::DISK_FULL`,
 ///   `ERR::CANCELLED`, `ERR::FILE_EXISTS`) are passed through immediately
-///   without retry.
+///   without retry. Exception: whitelisted codes
+///   (`ERR::INVALID_MEDIA_RESPONSE`, issue #484) are CDN-edge-scoped error
+///   bodies tied to a specific signed URL, so they are retried — the next
+///   attempt re-fetches a fresh signed playurl URL (see the closures at
+///   each call site).
 /// - All other errors: Treated as transient network failures and retried.
 ///   `download_url` only produces non-`ERR::` errors for network-related
 ///   causes (request failures, connection resets, timeouts, segment issues),
@@ -3271,7 +3315,9 @@ fn ensure_free_space(target_path: &Path, needed_bytes: u64) -> Result<(), String
 ///
 /// - Maximum attempts: 3
 /// - Backoff strategy: Linear (500ms, 1000ms, 1500ms)
-/// - Final failure is wrapped as `ERR::NETWORK::{original_message}`
+/// - Final failure is wrapped as `ERR::NETWORK::{original_message}`;
+///   whitelisted `ERR::` codes keep their own code so callers and the UI
+///   can classify them (issue #484)
 ///
 /// # Retry State Notification
 ///
@@ -3296,8 +3342,13 @@ fn ensure_free_space(target_path: &Path, needed_bytes: u64) -> Result<(), String
 /// # Errors
 ///
 /// Returns errors in the following cases:
-/// - All retry attempts failed (wrapped as `ERR::NETWORK::*`)
-/// - Error contains `ERR::` prefix (passed through unchanged)
+/// - All retry attempts failed (wrapped as `ERR::NETWORK::*`; whitelisted
+///   `ERR::` codes keep their own code)
+/// - Error contains a non-whitelisted `ERR::` prefix (passed through
+///   unchanged)
+///
+/// See also: `is_retryable_err_code` / `exhausted_retry_error` for the
+/// whitelist and exhaustion-wrapping decisions (issue #484).
 async fn retry_download<F, Fut>(
     app: &AppHandle,
     download_id: &str,
@@ -3337,8 +3388,11 @@ where
             Err(e) => {
                 let msg = e.to_string();
 
-                // ERR:: prefix = business logic error, never retry
-                if msg.contains("ERR::") {
+                // ERR:: prefix = business logic error, never retry.
+                // Exception: whitelisted codes (issue #484) are CDN-edge
+                // error bodies — fall through so the next attempt re-fetches
+                // a fresh signed playurl URL before re-downloading.
+                if msg.contains("ERR::") && !is_retryable_err_code(&msg) {
                     log::warn!("[BE] retry_download: non-retryable: {msg}");
                     if attempt > 1 {
                         emit_retrying(false);
@@ -3346,14 +3400,15 @@ where
                     return Err(msg);
                 }
 
-                // Non-ERR:: errors from download_url are network-related.
-                // Retry unconditionally; final attempt wraps as ERR::NETWORK.
+                // Transient network errors and whitelisted ERR:: codes retry;
+                // the final attempt wraps as ERR::NETWORK, except whitelisted
+                // codes which keep their own semantic code.
                 if attempt >= MAX_ATTEMPTS {
                     log::error!("[BE] retry_download: exhausted {MAX_ATTEMPTS} attempts: {msg}");
                     if attempt > 1 {
                         emit_retrying(false);
                     }
-                    return Err(format!("ERR::NETWORK::{msg}"));
+                    return Err(exhausted_retry_error(msg));
                 }
 
                 log::warn!("[BE] retry_download: attempt {attempt}/{MAX_ATTEMPTS} failed: {msg}");
@@ -3363,6 +3418,26 @@ where
     }
 
     unreachable!()
+}
+
+/// True for `ERR::` codes that are CDN-edge-scoped (error body tied to a
+/// specific signed URL) and worth retrying with a re-fetched playurl URL.
+/// All other `ERR::` codes are true business errors and stay non-retryable.
+/// Whitelist intentionally minimal (issue #484).
+fn is_retryable_err_code(msg: &str) -> bool {
+    msg.contains("ERR::INVALID_MEDIA_RESPONSE")
+}
+
+/// Final error after exhausting all retry attempts. Only whitelisted
+/// `ERR::` codes reach exhaustion (non-whitelisted ones return early);
+/// they keep their semantic code while transient network messages are
+/// wrapped as `ERR::NETWORK` (issue #484).
+fn exhausted_retry_error(msg: String) -> String {
+    if msg.contains("ERR::") {
+        msg
+    } else {
+        format!("ERR::NETWORK::{msg}")
+    }
 }
 
 /// Selects a stream URL from the quality list.
