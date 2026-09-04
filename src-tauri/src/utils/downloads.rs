@@ -437,10 +437,10 @@ async fn resolve_cancel_token(
     let Some(id) = download_id else {
         return Ok(None);
     };
-    match DOWNLOAD_CANCEL_REGISTRY.get_token(id).await {
+    match DOWNLOAD_CANCEL_REGISTRY.get_token(id) {
         Some(t) => Ok(Some(t)),
         None => {
-            if DOWNLOAD_CANCEL_REGISTRY.is_cancelled(id).await {
+            if DOWNLOAD_CANCEL_REGISTRY.is_cancelled(id) {
                 log::info!("[BE] {}: token absent but pre-cancelled: id={}", ctx, id);
                 return Err(anyhow::anyhow!("ERR::CANCELLED"));
             }

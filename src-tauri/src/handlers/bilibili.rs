@@ -446,15 +446,10 @@ async fn download_bangumi_durl(
 
     // download_video already registered the cancellation token. Do NOT
     // re-register here (it would overwrite the existing token and lose an
-    // in-flight cancel). Just check the pre-cancel flag.
-    if DOWNLOAD_CANCEL_REGISTRY
-        .is_cancelled(&options.download_id)
-        .await
-    {
-        DOWNLOAD_CANCEL_REGISTRY
-            .clear_cancelled(&options.download_id)
-            .await;
-        DOWNLOAD_CANCEL_REGISTRY.remove(&options.download_id).await;
+    // in-flight cancel). Just check the pre-cancel flag; the
+    // CancelTokenGuard held by download_video deregisters on every return
+    // path from here (issue #561).
+    if DOWNLOAD_CANCEL_REGISTRY.is_cancelled(&options.download_id) {
         return Err("ERR::CANCELLED".to_string());
     }
 
@@ -525,8 +520,9 @@ async fn download_bangumi_durl(
     let bd_cookie_header = cookie_header.to_string();
     let bd_download_id = options.download_id.clone();
     let bd_host_health = host_health.clone();
-    // Download directly. Capture the result so we always remove the token
-    // (success or error) to avoid a registry leak on the early-return path.
+    // Download directly. Capture the result so success and error are handled
+    // separately below (history save vs partial-file removal). Registry
+    // cleanup is handled by download_video's CancelTokenGuard.
     let result = retry_download(
         app,
         &options.download_id,
@@ -580,17 +576,9 @@ async fn download_bangumi_durl(
     )
     .await;
 
-    // Always clean up the registry (success or error): remove the token AND
-    // clear the pre-cancel flag. Mirrors the regular durl and DASH cleanup
-    // paths (remove + clear_cancelled). clear_cancelled matters here because
-    // cancel() records the id in cancelled_ids for the get_token-None
-    // fallback; without this, a cancelled bangumi-durl id would linger and
-    // could falsely trip download_video's start-up is_cancelled check on id
-    // reuse, and accumulate over long-running sessions.
-    DOWNLOAD_CANCEL_REGISTRY.remove(&options.download_id).await;
-    DOWNLOAD_CANCEL_REGISTRY
-        .clear_cancelled(&options.download_id)
-        .await;
+    // Registry cleanup (token removal + pre-cancel flag clear) is handled by
+    // the CancelTokenGuard download_video holds for this download_id (issue
+    // #561) — no explicit cleanup needed here on any return path.
 
     match result {
         Ok(()) => {
@@ -654,21 +642,24 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
     let segment_concurrency = Settings::resolve_segment_concurrency(&settings);
 
     // If this part was cancelled (via cancel_all_downloads) before
-    // download_video started, reject immediately so it never runs.
-    if DOWNLOAD_CANCEL_REGISTRY
-        .is_cancelled(&options.download_id)
-        .await
-    {
-        DOWNLOAD_CANCEL_REGISTRY
-            .clear_cancelled(&options.download_id)
-            .await;
+    // download_video started, reject immediately so it never runs. The flag
+    // is cleared here because this runs BEFORE register() — no guard exists
+    // yet to clear it on Drop.
+    if DOWNLOAD_CANCEL_REGISTRY.is_cancelled(&options.download_id) {
+        DOWNLOAD_CANCEL_REGISTRY.clear_cancelled(&options.download_id);
         return Err("ERR::CANCELLED".to_string());
     }
 
-    // Register cancellation token for this download
-    let cancel_token = DOWNLOAD_CANCEL_REGISTRY
-        .register(&options.download_id)
-        .await;
+    // Register the cancellation token for this download. The returned guard
+    // deregisters the token (remove + clear_cancelled) on EVERY exit path —
+    // including the early `?` returns below that previously leaked it
+    // (issue #561). Keep it alive until function return.
+    // Note: the `_` prefix only silences the unused-variable warning; unlike a
+    // bare `_` pattern, the binding lives to the end of the function, which is
+    // what makes the Drop cleanup fire. Rewriting it to `_` silently
+    // reintroduces the #561 leak.
+    let (cancel_token, _cancel_token_guard) =
+        DOWNLOAD_CANCEL_REGISTRY.register(&options.download_id);
 
     // Per-download CDN host health, shared by the video stream, audio
     // stream(s), every retry attempt, and their segment tasks. Dropping the
@@ -682,10 +673,6 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
     //    return below.
     let reservation = reserve_output_path(&build_output_path(app, &options.filename).await?)?;
 
-    // TODO(#561): every `?` below returns before the function-final
-    // DOWNLOAD_CANCEL_REGISTRY cleanup, leaking the cancel token registered
-    // above. The reservation's Drop covers the staging file, but the token
-    // needs its own guard — tracked separately.
     // 2. Get cookies (WBI signing enables non-logged-in usage)
     let cookies = read_cookie(app)?.unwrap_or_default();
     let cookie_header = build_cookie_header(&cookies);
@@ -741,8 +728,9 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
     })?;
 
     // Regular video durl format (audio embedded in MP4). Wrapped in a block so
-    // all early returns funnel through the cleanup below — this path otherwise
-    // bypasses download_video's final cleanup (remove + clear_cancelled).
+    // all early returns funnel through reservation.complete() (staging-file
+    // finalize). Registry cleanup is handled by the CancelTokenGuard held in
+    // download_video.
     if data.dash.is_none() {
         let result: Result<String, String> = async {
             let durl_segments = data
@@ -854,17 +842,11 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
         .await;
 
         // Finalize: rename the completed staging file to its final name; on
-        // error the reservation's Drop removes the staging file.
+        // error the reservation's Drop removes the staging file. Registry
+        // cleanup is handled by the CancelTokenGuard held in download_video.
         let result = result
             .and_then(|_| reservation.complete())
             .map(|p| p.to_string_lossy().into_owned());
-
-        // Cleanup: remove token and clear the pre-cancel flag (this path
-        // bypasses download_video's final cleanup).
-        DOWNLOAD_CANCEL_REGISTRY.remove(&options.download_id).await;
-        DOWNLOAD_CANCEL_REGISTRY
-            .clear_cancelled(&options.download_id)
-            .await;
 
         return result;
     }
@@ -1228,12 +1210,8 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
     }
     .await;
 
-    // Cleanup: Remove cancellation token from registry and clear any
-    // pre-cancel flag so cancelled_ids doesn't accumulate.
-    DOWNLOAD_CANCEL_REGISTRY.remove(&options.download_id).await;
-    DOWNLOAD_CANCEL_REGISTRY
-        .clear_cancelled(&options.download_id)
-        .await;
+    // Registry cleanup (token removal + pre-cancel flag clear) is handled by
+    // the CancelTokenGuard acquired at register() above (issue #561).
 
     // On error, clean up temp files
     if result.is_err() {
