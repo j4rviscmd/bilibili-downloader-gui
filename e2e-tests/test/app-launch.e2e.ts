@@ -7,7 +7,9 @@
  * - Navigation to /home
  * - Sidebar verification
  * - Settings dialog open/close
- * - Video URL input and info fetch (real API)
+ * - Video URL input and info fetch (backend serves a bundled fixture
+ *   under E2E_TESTING — CI runner IPs are blocked by Bilibili, issue
+ *   #565; see e2e_mock_video_info in src-tauri/src/handlers/bilibili.rs)
  * - Video part cards display
  */
 
@@ -22,11 +24,11 @@ import {
 import * as S from '../helpers/selectors'
 
 /**
- * URL of a stable, well-known Bilibili official video used as the
- * test fixture for video info fetch and part card rendering.
+ * URL submitted through the URL input form.
  *
- * Chosen for its reliability and longevity as an official upload,
- * reducing flakiness from takedown or geo-restrictions.
+ * Under E2E_TESTING the backend answers fetch_video_info with a
+ * bundled fixture regardless of the video ID, so any valid URL shape
+ * works; this is simply a realistic one (issue #565).
  */
 const TEST_VIDEO_URL = 'https://www.bilibili.com/video/BV1i3411y7xB'
 
@@ -174,7 +176,7 @@ describe('bilibili-downloader-gui E2E', () => {
     await saveScreenshot('settings', '01-dialog-closed')
   })
 
-  // -- Phase 3: Video URL Input & Info Fetch (Real API) --
+  // -- Phase 3: Video URL Input & Info Fetch (E2E fixture response) --
 
   it('should accept a video URL in the input field', async () => {
     const input = await browser.$(S.URL_INPUT)
@@ -191,6 +193,8 @@ describe('bilibili-downloader-gui E2E', () => {
     // The form submits on blur (handleFormBlur in VideoForm1).
     // WKWebView's WebDriver doesn't propagate focus changes on
     // click, so we explicitly blur the active element via JS.
+    // Under E2E_TESTING the backend answers fetch_video_info with
+    // a bundled fixture (Bilibili blocks CI runner IPs, issue #565).
     await browser.execute(() => {
       const el = document.activeElement
       if (el instanceof HTMLElement) el.blur()
@@ -206,6 +210,10 @@ describe('bilibili-downloader-gui E2E', () => {
   it('should display video part cards', async () => {
     const firstPart = await browser.$(S.DATA_PART_INDEX(0))
     expect(await firstPart.isExisting()).to.be.true
+
+    // Fixture provides two parts; both should render
+    const secondPart = await browser.$(S.DATA_PART_INDEX(1))
+    expect(await secondPart.isExisting()).to.be.true
 
     await saveScreenshot('video', '02-part-cards')
   })
