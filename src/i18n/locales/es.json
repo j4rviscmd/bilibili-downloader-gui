@@ -225,6 +225,7 @@
     "audio_merge_fallback": "La copia del flujo de audio falló. Usando recodificación AAC en su lugar.",
     "invalid_media_response": "Respuesta de medios no válida del servidor (se recibió página de error).",
     "audio_download_failed": "Error al descargar audio después de intentar todas las transmisiones disponibles.",
+    "download_interrupted": "La descarga fue interrumpida (la aplicación se cerró o falló).",
     "queue_waiting_prefix": "En cola:",
     "reload_after_error": "Recargar página para reintentar",
     "select_all": "Seleccionar todo",

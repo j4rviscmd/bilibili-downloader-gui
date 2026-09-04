@@ -31,6 +31,8 @@ const VIDEO_ERROR_MAP: Record<string, string> = {
   // Audio / media download error codes
   'ERR::INVALID_MEDIA_RESPONSE': 'video.invalid_media_response',
   'ERR::AUDIO_DOWNLOAD_FAILED': 'video.audio_download_failed',
+  // Download history: process died before the result settled (issue #511)
+  'ERR::INTERRUPTED': 'video.download_interrupted',
   // QR login error codes
   'ERR::QR_COOKIE_REJECTED': 'login.qrVerifyFailed',
   'ERR::QR_SESSDATA_MISSING': 'login.qrSessdataMissing',

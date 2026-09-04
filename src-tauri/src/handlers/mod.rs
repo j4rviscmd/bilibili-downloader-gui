@@ -22,6 +22,7 @@ pub mod cookie;
 pub mod favorites;
 pub mod ffmpeg;
 pub mod github;
+pub mod history_session;
 pub mod init;
 pub mod qr_login;
 pub mod resolution;

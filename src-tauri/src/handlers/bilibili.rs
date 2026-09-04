@@ -157,6 +157,7 @@ pub struct DownloadOptions {
 
 use crate::constants::{API_BASE, REFERER};
 use crate::handlers::cookie::read_cookie;
+use crate::handlers::history_session::HistorySession;
 use crate::handlers::settings;
 use crate::models::bilibili_api::{
     BangumiPlayerApiResponse, BangumiPlayerResult, BangumiSeasonApiResponse, PlayerV2ApiResponse,
@@ -582,11 +583,9 @@ async fn download_bangumi_durl(
 
     match result {
         Ok(()) => {
-            let output_path_str = output_path.to_string_lossy().to_string();
-            let actual_file_size = tokio::fs::metadata(output_path).await.ok().map(|m| m.len());
-            // Save to history asynchronously (success only)
-            spawn_save_to_history(app, options, actual_file_size);
-            Ok(output_path_str)
+            // History recording is settled by download_video's HistorySession
+            // from this return value (issue #511); no per-path save here.
+            Ok(output_path.to_string_lossy().into_owned())
         }
         Err(e) => {
             // Remove partial output on failure/cancel to avoid leftover garbage.
@@ -628,6 +627,20 @@ async fn download_bangumi_durl(
 /// - ffmpeg merge fails (`ERR::MERGE_FAILED`)
 /// - Download is cancelled (`ERR::CANCELLED`)
 pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Result<String, String> {
+    // History lifecycle (issue #511): insert the in_progress entry before the
+    // download body runs and settle it from the body's final Result, so every
+    // exit path (early `?` returns included) is recorded with its real error
+    // code. A pre-cancelled part settles as cancelled and removes the entry
+    // again; a download killed mid-flight is caught by startup recovery.
+    let session = HistorySession::start(app, options);
+    let result = download_video_impl(app, options).await;
+    session.settle(app, options, &result).await;
+    result
+}
+
+/// Download body behind [`download_video`]; the wrapper owns the history
+/// session so no early return inside can bypass the final settle.
+async fn download_video_impl(app: &AppHandle, options: &DownloadOptions) -> Result<String, String> {
     use crate::handlers::concurrency::DOWNLOAD_CANCEL_REGISTRY;
 
     log::info!(
@@ -732,7 +745,7 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
     // finalize). Registry cleanup is handled by the CancelTokenGuard held in
     // download_video.
     if data.dash.is_none() {
-        let result: Result<String, String> = async {
+        let result: Result<(), String> = async {
             let durl_segments = data
                 .durl
                 .as_ref()
@@ -831,13 +844,9 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
             )
             .await?;
 
-            let output_path_str = reservation.reserved_path().to_string_lossy().to_string();
-            let actual_file_size = tokio::fs::metadata(reservation.reserved_path())
-                .await
-                .ok()
-                .map(|m| m.len());
-            spawn_save_to_history(app, options, actual_file_size);
-            Ok(output_path_str)
+            // History recording is settled by download_video's HistorySession
+            // from the finalized path (issue #511).
+            Ok(())
         }
         .await;
 
@@ -1203,8 +1212,8 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
             actual_file_size
         );
 
-        // Save to history (async failure does not affect download)
-        spawn_save_to_history(app, options, actual_file_size);
+        // History recording is settled by download_video's HistorySession
+        // from this return value (issue #511).
 
         Ok(final_path.to_string_lossy().into_owned())
     }
@@ -2046,120 +2055,6 @@ mod tests {
     }
 }
 
-/// Spawns an async task to save download history.
-///
-/// Extracts relevant fields from `options` and spawns a background task
-/// that calls [`save_to_history`]. Failures are logged but not propagated.
-fn spawn_save_to_history(app: &AppHandle, options: &DownloadOptions, file_size: Option<u64>) {
-    let app = app.clone();
-    let bvid = options.bvid.clone();
-    let filename = options.filename.clone();
-    let quality = options.quality;
-    let thumbnail_url = options.thumbnail_url.clone();
-    let page = options.page;
-    tokio::spawn(async move {
-        if let Err(e) = save_to_history(
-            &app,
-            &bvid,
-            quality,
-            file_size,
-            &filename,
-            thumbnail_url,
-            page,
-        )
-        .await
-        {
-            log::warn!(
-                "[BE] download_video: failed to save to history for {}: {}",
-                bvid,
-                e
-            );
-        }
-    });
-}
-
-/// Saves a history entry after download completion.
-///
-/// Creates a history record with video metadata, quality info, and file size.
-/// The entry is persisted via `HistoryStore` and emitted as an event to notify
-/// the frontend.
-///
-/// # Arguments
-///
-/// * `app` - Tauri application handle
-/// * `bvid` - Bilibili video ID
-/// * `quality` - Downloaded video quality ID
-/// * `file_size` - Actual file size in bytes (optional)
-/// * `filename` - Output filename used for title extraction
-/// * `thumbnail_url` - Video thumbnail URL (fetched if not provided)
-/// * `page` - Page number for multi-part videos (optional)
-///
-/// # Returns
-///
-/// Returns `Ok(())` on success, or an error if store operations fail.
-async fn save_to_history(
-    app: &AppHandle,
-    bvid: &str,
-    quality: Option<i32>,
-    file_size: Option<u64>,
-    filename: &str,
-    thumbnail_url: Option<String>,
-    page: Option<i32>,
-) -> Result<(), Box<dyn std::error::Error>> {
-    use crate::models::history::HistoryEntry;
-    use crate::store::HistoryStore;
-    use chrono::Utc;
-    use std::path::Path;
-
-    let title = Path::new(filename)
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or(filename)
-        .to_string();
-
-    let thumbnail_url = match thumbnail_url {
-        Some(url) => Some(url),
-        None => {
-            let cookies = read_cookie(app)?.unwrap_or_default();
-            fetch_video_info_for_history(bvid, &cookies)
-                .await
-                .and_then(|(_, url)| url)
-        }
-    };
-
-    let page_suffix = page.map(|p| format!("?p={p}")).unwrap_or_default();
-
-    let url = format!("https://www.bilibili.com/video/{bvid}{page_suffix}");
-
-    let id = format!(
-        "{bvid}_{}",
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis()
-    );
-
-    let entry = HistoryEntry {
-        id,
-        title,
-        bvid: Some(bvid.to_string()),
-        url,
-        downloaded_at: Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
-        status: "completed".to_string(),
-        file_size,
-        quality: quality.as_ref().map(quality_to_string),
-        thumbnail_url,
-        version: "1.0".to_string(),
-    };
-
-    HistoryStore::new(app)?.add_entry(entry.clone())?;
-
-    // Emit event to notify frontend of new history entry
-    let _ = app.emit("history:entry_added", &entry);
-
-    Ok(())
-}
-
 /// Returns the first non-empty string in a slice, or `None` if all are empty.
 ///
 /// Used to select the first valid (non-empty) string from multiple candidates.
@@ -2198,7 +2093,7 @@ fn first_non_empty(strings: &[&String]) -> Option<String> {
 /// # Returns
 ///
 /// Human-readable quality string.
-fn quality_to_string(quality: &i32) -> String {
+pub(crate) fn quality_to_string(quality: &i32) -> String {
     match quality {
         116 => "4K".to_string(),
         112 => "1080P60".to_string(),
@@ -2224,7 +2119,7 @@ fn quality_to_string(quality: &i32) -> String {
 ///
 /// Returns `Some((title, thumbnail_url))` on success.
 /// Returns `None` on failure.
-async fn fetch_video_info_for_history(
+pub(crate) async fn fetch_video_info_for_history(
     bvid: &str,
     cookies: &[CookieEntry],
 ) -> Option<(String, Option<String>)> {

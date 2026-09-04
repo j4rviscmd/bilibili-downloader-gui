@@ -226,6 +226,7 @@
     "audio_merge_fallback": "音频流复制失败，正在使用 AAC 重新编码。",
     "invalid_media_response": "服务器返回了无效的媒体响应（接收到错误页面而非媒体）。",
     "audio_download_failed": "尝试了所有可用流后，音频下载失败。",
+    "download_interrupted": "下载已中断（应用退出或崩溃）。",
     "queue_waiting_prefix": "排队中:",
     "reload_after_error": "刷新页面后重试",
     "select_all": "全选",

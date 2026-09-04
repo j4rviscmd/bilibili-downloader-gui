@@ -11,7 +11,7 @@ use std::sync::Mutex;
 
 use tauri::{AppHandle, Emitter, Manager, State};
 
-use crate::handlers::{bilibili, cleanup, cookie, ffmpeg, qr_login};
+use crate::handlers::{bilibili, cleanup, cookie, ffmpeg, history_session, qr_login};
 use crate::models::frontend_dto::User;
 use crate::models::qr_login::{CookieRefreshInfo, LoginMethod};
 use crate::models::settings::Settings;
@@ -70,6 +70,10 @@ pub async fn initialize(app: AppHandle) -> Result<(), String> {
     // Also sweep abandoned *.part.* staging files from the download
     // output directory (crashed downloads, issue #560).
     let _ = cleanup::cleanup_part_files(&app).await;
+    // Mark in_progress history entries whose owning process is gone as
+    // failed (crash recovery, issue #511). Live downloads in another app
+    // instance hold their session flock and are never touched.
+    let _ = history_session::recover_interrupted(&app);
 
     // 2. ffmpeg validate / install (heaviest step; downloads on first run).
     //    Settings are already loaded in setup and stored in InitResult, so

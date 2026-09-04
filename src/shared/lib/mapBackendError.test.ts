@@ -15,6 +15,12 @@ describe('mapBackendError', () => {
     )
   })
 
+  it('maps ERR::INTERRUPTED (crashed download history) to its key', () => {
+    expect(mapBackendError('ERR::INTERRUPTED')).toBe(
+      'video.download_interrupted',
+    )
+  })
+
   it('maps ERR::NETWORK:: with a dynamic suffix to the fixed network key', () => {
     expect(mapBackendError('ERR::NETWORK::2 segment(s) failed')).toBe(
       'video.network_error',

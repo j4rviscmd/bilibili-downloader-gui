@@ -86,6 +86,13 @@ describe('HistoryItem', () => {
     expect(screen.getByText('network reset')).toBeInTheDocument()
   })
 
+  it('maps a stored ERR:: code in the error line to its translation key', () => {
+    renderEntry({ status: 'failed', errorMessage: 'ERR::INTERRUPTED' })
+
+    expect(screen.getByText('video.download_interrupted')).toBeInTheDocument()
+    expect(screen.queryByText('ERR::INTERRUPTED')).toBeNull()
+  })
+
   it('renders the thumbnail placeholder when no thumbnail exists', () => {
     renderEntry({ thumbnailUrl: undefined })
 

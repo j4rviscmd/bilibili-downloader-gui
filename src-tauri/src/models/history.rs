@@ -23,8 +23,13 @@ pub struct HistoryEntry {
     pub url: String,
     /// Download completion timestamp (ISO 8601 format).
     pub downloaded_at: String,
-    /// Download status: "completed" or "failed".
+    /// Download status: "in_progress", "completed", or "failed".
     pub status: String,
+    /// Backend `ERR::*` code explaining why status is "failed"; the pseudo
+    /// code `ERR::INTERRUPTED` marks entries whose owning process died
+    /// before the download result settled (issue #511).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error_message: Option<String>,
     /// Downloaded file size in bytes (optional).
     pub file_size: Option<u64>,
     /// Video quality (e.g., "1080P60", optional).
@@ -92,6 +97,35 @@ mod tests {
             "http://i0.hdslb.com/bfs/archive/thumb.jpg"
         );
         assert_eq!(out["version"], "1.0");
+        // errorMessage is omitted when None (on-disk format stays compact).
+        assert!(out.get("errorMessage").is_none());
+    }
+
+    #[test]
+    fn history_entry_roundtrips_error_message() {
+        let json = r#"{
+            "id": "err-1", "title": "t", "url": "u",
+            "downloadedAt": "2026-09-01T00:00:00Z",
+            "status": "failed",
+            "errorMessage": "ERR::INTERRUPTED"
+        }"#;
+        let entry: HistoryEntry = serde_json::from_str(json).unwrap();
+        assert_eq!(entry.error_message.as_deref(), Some("ERR::INTERRUPTED"));
+
+        let out = serde_json::to_value(&entry).unwrap();
+        assert_eq!(out["errorMessage"], "ERR::INTERRUPTED");
+
+        // Legacy entries written before issue #511 deserialize without the
+        // field (serde default -> None).
+        let legacy: HistoryEntry = serde_json::from_str(
+            r#"{
+                "id": "old-1", "title": "t", "url": "u",
+                "downloadedAt": "2026-08-01T00:00:00Z",
+                "status": "completed"
+            }"#,
+        )
+        .unwrap();
+        assert!(legacy.error_message.is_none());
     }
 
     #[test]
