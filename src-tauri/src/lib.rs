@@ -670,7 +670,7 @@ async fn cancel_download(app: AppHandle, download_id: String) -> Result<bool, St
     use tauri::Emitter;
 
     // Signal cancellation
-    let was_found = DOWNLOAD_CANCEL_REGISTRY.cancel(&download_id).await;
+    let was_found = DOWNLOAD_CANCEL_REGISTRY.cancel(&download_id);
 
     if was_found {
         // Emit cancellation event to frontend
@@ -690,7 +690,7 @@ async fn cancel_download(app: AppHandle, download_id: String) -> Result<bool, St
         // second toast), and for a pending child the frontend's pending
         // reducer has already finalized the row to 'cancelled' — so an emit
         // here is redundant in every case.
-        DOWNLOAD_CANCEL_REGISTRY.mark_cancelled(&download_id).await;
+        DOWNLOAD_CANCEL_REGISTRY.mark_cancelled(&download_id);
     }
 
     Ok(was_found)
@@ -718,16 +718,14 @@ async fn cancel_all_downloads(app: AppHandle, download_ids: Vec<String>) -> Resu
 
     // Mark all requested IDs (including not-yet-started pending children) as
     // cancelled so download_video rejects them on start.
-    DOWNLOAD_CANCEL_REGISTRY
-        .mark_cancelled_many(&download_ids)
-        .await;
+    DOWNLOAD_CANCEL_REGISTRY.mark_cancelled_many(&download_ids);
 
     // Force-cancel every registered token. Per-ID cancel() can miss an
     // in-flight download due to timing, so cancel_all() is more reliable for
     // stopping a running download. Serial-download assumption means there is
     // effectively one parent at a time, so the blast radius is bounded.
-    let active_ids = DOWNLOAD_CANCEL_REGISTRY.get_all_ids().await;
-    let count = DOWNLOAD_CANCEL_REGISTRY.cancel_all().await;
+    let active_ids = DOWNLOAD_CANCEL_REGISTRY.get_all_ids();
+    let count = DOWNLOAD_CANCEL_REGISTRY.cancel_all();
 
     // Emit cancellation events for each active download
     for download_id in active_ids {
