@@ -122,6 +122,14 @@ pub struct Settings {
         skip_serializing_if = "Option::is_none"
     )]
     pub auto_rename_duplicates: Option<bool>,
+    /// Whether to omit the part name in the default download filename when
+    /// it matches the video title. Defaults to true.
+    #[serde(
+        rename = "omitDuplicatePartTitle",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub omit_duplicate_part_title: Option<bool>,
     /// Whether to show GitHub stars in the app bar. Defaults to true.
     #[serde(
         rename = "showGithubStars",

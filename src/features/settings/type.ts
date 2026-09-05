@@ -47,6 +47,12 @@ export interface Settings {
    */
   autoRenameDuplicates?: boolean
   /**
+   * Whether to omit the part name in the default download filename when it
+   * matches the video title (trim-exact comparison of sanitized strings).
+   * Defaults to true if not specified.
+   */
+  omitDuplicatePartTitle?: boolean
+  /**
    * Whether to show GitHub stars in the app bar.
    *
    * Defaults to true if not specified.

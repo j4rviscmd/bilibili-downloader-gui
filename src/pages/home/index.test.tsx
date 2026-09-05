@@ -44,6 +44,7 @@ const initialInput = {
 function makePart(index: number): VideoPart {
   return {
     part: `Part ${index + 1}`,
+    defaultTitle: `Test Video Part ${index + 1}`,
     page: index + 1,
     cid: 1000 + index,
     duration: 60,

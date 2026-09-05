@@ -77,6 +77,11 @@ pub struct VideoPart {
     /// Sanitized part name with special character replacement and duplicate avoidance (for download filename)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sanitized_part: Option<String>,
+    /// Default download filename combining the sanitized video title and
+    /// part name. When they match (trim-exact), the part name is omitted
+    /// per the `omitDuplicatePartTitle` setting.
+    #[serde(default)]
+    pub default_title: String,
     pub duration: i64,
     pub thumbnail: Thumbnail,
     pub video_qualities: Vec<Quality>,
@@ -283,6 +288,7 @@ mod tests {
                 page: 1,
                 part: "P1".into(),
                 sanitized_part: None,
+                default_title: "t P1".into(),
                 duration: 60,
                 thumbnail: Thumbnail {
                     url: "http://thumb".into(),
@@ -326,6 +332,7 @@ mod tests {
         let part = &out["parts"][0];
         assert_eq!(part["cid"], 11);
         assert_eq!(part["sanitizedPart"], serde_json::Value::Null);
+        assert_eq!(part["defaultTitle"], "t P1");
         assert_eq!(part["subtitles"][0]["subtitleUrl"], "http://sub.bcc");
         assert_eq!(part["subtitles"][0]["aiType"], 0);
 
@@ -350,6 +357,8 @@ mod tests {
         assert!(video.season_title.is_none());
         assert!(video.parts[0].subtitles.is_empty());
         assert!(video.parts[0].sanitized_part.is_none());
+        // default_title falls back to an empty string when absent
+        assert_eq!(video.parts[0].default_title, "");
     }
 
     #[test]

@@ -18,6 +18,7 @@ const video: Video = {
   parts: [
     {
       part: 'Part 1',
+      defaultTitle: 'Test Video Part 1',
       page: 1,
       cid: 123,
       duration: 120,

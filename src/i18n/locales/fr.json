@@ -440,6 +440,8 @@
     },
     "auto_rename_duplicates_label": "Renommer automatiquement les parties dupliquées",
     "auto_rename_duplicates_description": "Ajoute automatiquement des numéros quand les parties ont le même nom (ex: Nom → Nom (1))",
+    "omit_duplicate_part_title_label": "Omettre le nom de partie dupliqué",
+    "omit_duplicate_part_title_description": "Quand le nom d'une partie est identique au titre de la vidéo, le nom de fichier téléchargé évite de le répéter (p. ex., Titre Titre → Titre)",
     "title_replacement": {
       "section_label": "Remplacement de caractères du titre",
       "description": "Personnalisez comment les caractères spéciaux dans les titres de vidéos sont remplacés dans les noms de fichiers.",

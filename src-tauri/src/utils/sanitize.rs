@@ -72,6 +72,52 @@ pub fn resolve_duplicate_titles(titles: &[String]) -> Vec<String> {
         .collect()
 }
 
+/// Builds the default download filename for a part from the sanitized
+/// video title and part name.
+///
+/// When `omit_duplicate` is true and the two sanitized strings match after
+/// trimming surrounding whitespace, the part name is omitted so the
+/// filename does not repeat the title (e.g., "My Song My Song"). Otherwise
+/// the filename is `"{title} {part}"`.
+///
+/// Why trim comparison: bilibili sometimes returns part names that equal the
+/// video title except for surrounding whitespace, which previously defeated
+/// the frontend's strict-equality check.
+///
+/// # Arguments
+///
+/// * `sanitized_title` - Sanitized video title
+/// * `sanitized_part` - Sanitized part name (after duplicate-title suffixing)
+/// * `omit_duplicate` - Whether to omit a part name identical to the title
+///
+/// # Returns
+///
+/// The default download filename for the part.
+///
+/// # Examples
+///
+/// Why: doctests compile as separate crates, so bare/unqualified item names do not
+/// resolve — import via the lib crate name (this PR's doctest policy)
+/// ```
+/// use bilibili_downloader_gui_lib::utils::sanitize::build_default_part_title;
+///
+/// assert_eq!(build_default_part_title("My Song", "My Song", true), "My Song");
+/// assert_eq!(build_default_part_title("My Song", " My Song ", true), "My Song");
+/// assert_eq!(build_default_part_title("My Song", "My Song", false), "My Song My Song");
+/// assert_eq!(build_default_part_title("My Song", "Cover", true), "My Song Cover");
+/// ```
+pub fn build_default_part_title(
+    sanitized_title: &str,
+    sanitized_part: &str,
+    omit_duplicate: bool,
+) -> String {
+    if omit_duplicate && sanitized_title.trim() == sanitized_part.trim() {
+        sanitized_title.to_string()
+    } else {
+        format!("{} {}", sanitized_title, sanitized_part)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -179,5 +225,40 @@ mod tests {
         let titles = vec!["single".to_string()];
         let result = resolve_duplicate_titles(&titles);
         assert_eq!(result, vec!["single".to_string()]);
+    }
+
+    #[test]
+    fn test_build_default_part_title_omits_matching_part() {
+        // Identical sanitized strings -> title only
+        assert_eq!(
+            build_default_part_title("My Song", "My Song", true),
+            "My Song"
+        );
+        // Surrounding whitespace is ignored
+        assert_eq!(
+            build_default_part_title("My Song", " My Song ", true),
+            "My Song"
+        );
+    }
+
+    #[test]
+    fn test_build_default_part_title_combines_when_different() {
+        assert_eq!(
+            build_default_part_title("My Song", "Cover", true),
+            "My Song Cover"
+        );
+        // Inner whitespace difference is NOT trimmed
+        assert_eq!(
+            build_default_part_title("My Song", "My  Song", true),
+            "My Song My  Song"
+        );
+    }
+
+    #[test]
+    fn test_build_default_part_title_setting_off_always_combines() {
+        assert_eq!(
+            build_default_part_title("My Song", "My Song", false),
+            "My Song My Song"
+        );
     }
 }

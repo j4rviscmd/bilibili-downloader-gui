@@ -52,6 +52,7 @@ function partOf(overrides: Partial<Video['parts'][number]>) {
   return {
     part: 'Part 1',
     sanitizedPart: 'Part 1',
+    defaultTitle: 'Test Video Part 1',
     page: 1,
     cid: 100,
     duration: 60,
@@ -70,7 +71,13 @@ const videoPayload: Video = {
   contentType: 'video',
   parts: [
     partOf({ page: 1, cid: 100, part: 'Part 1', sanitizedPart: 'Part 1' }),
-    partOf({ page: 2, cid: 200, part: 'Part 2', sanitizedPart: 'Part 2' }),
+    partOf({
+      page: 2,
+      cid: 200,
+      part: 'Part 2',
+      sanitizedPart: 'Part 2',
+      defaultTitle: 'Test Video Part 2',
+    }),
   ],
 }
 
@@ -85,6 +92,7 @@ const bangumiPayload: Video = {
       epId: 3051842,
       part: 'Episode 1',
       sanitizedPart: 'Episode 1',
+      defaultTitle: 'Test Video Episode 1',
     }),
     partOf({
       page: 2,
@@ -92,6 +100,7 @@ const bangumiPayload: Video = {
       epId: 3051843,
       part: 'Episode 2',
       sanitizedPart: 'Episode 2',
+      defaultTitle: 'Test Video Episode 2',
     }),
   ],
 }
@@ -165,6 +174,33 @@ describe('onValid1', () => {
     expect(parts[0]?.subtitle).toEqual({ mode: 'off', selectedLans: [] })
     expect(ctx.isForm1Valid).toBe(true)
     expect(ctx.isFetching).toBe(false)
+  })
+
+  it('uses the backend default title without duplicating a matching part name', async () => {
+    // Part name identical to the video title; the backend omits the
+    // duplication from defaultTitle (omitDuplicatePartTitle setting).
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === 'fetch_video_info')
+        return Promise.resolve({
+          ...videoPayload,
+          parts: [
+            partOf({
+              part: 'Test Video',
+              sanitizedPart: 'Test Video',
+              defaultTitle: 'Test Video',
+            }),
+          ],
+        })
+      return Promise.resolve(undefined)
+    })
+
+    renderProvider()
+
+    await act(async () => {
+      await ctx.onValid1(VIDEO_URL)
+    })
+
+    expect(store.getState().input.partInputs[0]?.title).toBe('Test Video')
   })
 
   it('selects only the ?p= part for a part URL', async () => {

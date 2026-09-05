@@ -169,10 +169,13 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
     const partInputs = v.parts.map((p, index) => ({
       cid: p.cid,
       page: p.page,
-      title:
-        v.title === p.part
-          ? v.title
-          : `${v.title} ${p.sanitizedPart ?? p.part}`,
+      // Why: the previous inline `v.title === p.part` check compared the
+      // sanitized title against the raw part name, so title-replacement rules
+      // (issue #233) broke the match and filenames came out as "Title Title".
+      // The backend now owns the assembly (build_default_part_title in
+      // src-tauri/src/utils/sanitize.rs) — FE stays presentation-only.
+      // Filename precomputed by the backend (dedup vs video title included)
+      title: p.defaultTitle,
       videoQuality: '',
       audioQuality: '',
       selected: shouldSelectPart(p, index, {

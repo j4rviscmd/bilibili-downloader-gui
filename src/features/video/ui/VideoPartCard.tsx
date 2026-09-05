@@ -84,36 +84,6 @@ type Props = {
   isDuplicate?: boolean
 }
 
-/**
- * Computes the default title for a video part.
- *
- * Returns the video title for single-part videos, or combines video
- * title with part name for multi-part videos. Uses sanitizedPart if
- * available (for download filename), falls back to the original part name.
- *
- * @param video - The video object containing title and parts
- * @param videoPart - The specific video part with part name and optional sanitized name
- * @returns The computed default title string
- *
- * @example
- * ```typescript
- * const video = { title: "My Video", parts: [...] };
- * const part = { part: "Episode 1", sanitizedPart: "Episode 1" };
- * computeDefaultTitle(video, part); // "My Video Episode 1"
- * ```
- */
-function computeDefaultTitle(
-  video: Video,
-  videoPart: { part: string; sanitizedPart?: string },
-): string {
-  const hasValidParts = video?.parts.length && video.parts[0].cid !== 0
-  if (!hasValidParts) return ''
-  const displayName = videoPart.sanitizedPart ?? videoPart.part
-  return video.title === videoPart.part
-    ? video.title
-    : `${video.title} ${displayName}`
-}
-
 /** Props for the UnavailableEpisodeWarning component. */
 type UnavailableEpisodeWarningProps = {
   /** Episode status code. 13 = VIP-only, others = unavailable. */
@@ -588,10 +558,13 @@ const VideoPartCard = memo(function VideoPartCard({
 
   const schema2 = useMemo(() => buildVideoFormSchema2(t), [t])
 
-  const initialTitle = useMemo(
-    () => partInput?.title ?? computeDefaultTitle(video, videoPart),
-    [partInput?.title, video, videoPart],
-  )
+  // Why: defaultTitle is assembled by the backend (build_default_part_title in
+  // src-tauri/src/utils/sanitize.rs, honoring omitDuplicatePartTitle). Do not
+  // re-derive it here: the removed computeDefaultTitle compared the sanitized
+  // title against the raw part name and missed real duplicates.
+  // Plain const: defaultValues are only read on mount, and strings have
+  // no referential identity for useMemo to preserve.
+  const initialTitle = partInput?.title ?? videoPart.defaultTitle
 
   const form = useForm<z.infer<typeof schema2>>({
     resolver: zodResolver(schema2),
@@ -605,7 +578,7 @@ const VideoPartCard = memo(function VideoPartCard({
   useEffect(() => {
     if (!video || video.parts.length === 0 || video.parts[0].cid === 0) return
 
-    const title = partInput?.title ?? computeDefaultTitle(video, videoPart)
+    const title = partInput?.title ?? videoPart.defaultTitle
     form.setValue('title', title, { shouldValidate: true })
   }, [video, partInput?.title, form, videoPart])
 
@@ -624,8 +597,7 @@ const VideoPartCard = memo(function VideoPartCard({
     const needsVideoQuality = !partInput?.videoQuality
     const needsAudioQuality = hasAudioQualities && !partInput?.audioQuality
     if (needsVideoQuality || needsAudioQuality) {
-      const title =
-        partInput?.title ?? videoPart.sanitizedPart ?? videoPart.part
+      const title = partInput?.title ?? videoPart.defaultTitle
       form.trigger().then((isValid) => {
         if (isValid) {
           onValid2(page - 1, title, videoQuality, audioQuality)
@@ -641,8 +613,7 @@ const VideoPartCard = memo(function VideoPartCard({
     form,
     onValid2,
     page,
-    videoPart.sanitizedPart,
-    videoPart.part,
+    videoPart.defaultTitle,
   ])
 
   /**
