@@ -56,6 +56,7 @@ const video: Video = {
   parts: [
     {
       part: 'Part 1',
+      defaultTitle: 'My Video Part 1',
       page: 1,
       cid: 111,
       duration: 125,
@@ -170,7 +171,7 @@ const shortVideo: Video = {
 /** Single part whose name equals the video title. */
 const sameTitleVideo: Video = {
   ...video,
-  parts: [{ ...video.parts[0]!, part: 'My Video' }],
+  parts: [{ ...video.parts[0]!, part: 'My Video', defaultTitle: 'My Video' }],
 }
 
 /** Bangumi episode with an epId (qualities load per-episode). */

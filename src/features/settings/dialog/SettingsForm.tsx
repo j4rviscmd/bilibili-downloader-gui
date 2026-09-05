@@ -587,6 +587,27 @@ function SettingsForm() {
           </RadioGroup>
         </div>
         <Separator />
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label>{t('settings.omit_duplicate_part_title_label')}</Label>
+            <p className="text-muted-foreground text-sm">
+              {t('settings.omit_duplicate_part_title_description')}
+            </p>
+          </div>
+          {/* Constraint: the `?? true` default must stay in sync with the Rust
+              default (`unwrap_or(true)` in fetch_video_info /
+              fetch_bangumi_info); a divergence would make the toggle display a
+              state the backend does not implement. */}
+          <Switch
+            checked={settings.omitDuplicatePartTitle ?? true}
+            onCheckedChange={(checked) => {
+              saveByForm({ omitDuplicatePartTitle: checked })
+              // Clear video cache so new setting applies on next fetch
+              store.dispatch(videoApi.util.resetApiState())
+            }}
+          />
+        </div>
+        <Separator />
         <TitleReplacementSettings />
         <Separator />
         <div className="space-y-2">

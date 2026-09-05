@@ -440,6 +440,8 @@
     },
     "auto_rename_duplicates_label": "重複パート名を自動リネーム",
     "auto_rename_duplicates_description": "同じ名前のパートがある場合、自動で番号を付与します（例: パート名 → パート名 (1)）",
+    "omit_duplicate_part_title_label": "重複パート名を省略",
+    "omit_duplicate_part_title_description": "パート名が動画タイトルと同一の場合、ダウンロードファイル名の重複を省略します（例: タイトル タイトル → タイトル）",
     "title_replacement": {
       "section_label": "タイトル文字置換",
       "description": "動画タイトルに含まれる特殊文字をファイル名でどのように置換するか設定します。",

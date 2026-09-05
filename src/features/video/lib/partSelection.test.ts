@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 /** Minimal VideoPart factory for tests. */
 const makePart = (overrides: Partial<VideoPart> = {}): VideoPart => ({
   part: 'Part',
+  defaultTitle: 'Part',
   page: 1,
   cid: 100,
   duration: 60,

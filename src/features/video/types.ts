@@ -104,6 +104,12 @@ export type VideoPart = {
   part: string
   /** Sanitized part name with special character replacement and duplicate avoidance (for download filename) */
   sanitizedPart?: string
+  /**
+   * Default download filename combining the sanitized video title and part
+   * name. When they match (trim-exact), the part name is omitted per the
+   * `omitDuplicatePartTitle` setting.
+   */
+  defaultTitle: string
   /** Page number (1-indexed) */
   page: number
   /** Part CID (unique identifier) */

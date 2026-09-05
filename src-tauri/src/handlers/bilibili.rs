@@ -1970,11 +1970,12 @@ mod tests {
     #[test]
     fn web_interface_data_to_video_single_part_falls_back_to_title() {
         let data = view_data("Main Title", "http://pic", 7, Some(vec![]));
-        let video = web_interface_data_to_video(&data, "BV1x", None, false, true);
+        let video = web_interface_data_to_video(&data, "BV1x", None, false, true, true);
         assert_eq!(video.parts.len(), 1);
         assert_eq!(video.parts[0].cid, 7);
         assert_eq!(video.parts[0].part, "Main Title");
         assert_eq!(video.parts[0].sanitized_part.as_deref(), Some("Main Title"));
+        assert_eq!(video.parts[0].default_title, "Main Title");
         assert_eq!(video.parts[0].thumbnail.url, "http://pic");
         assert!(video.is_limited_quality);
         assert_eq!(video.content_type, "video");
@@ -1987,10 +1988,13 @@ mod tests {
             page(2, 2, "", 30), // empty part name -> main title; no first_frame -> pic
         ];
         let data = view_data("T", "http://pic", 0, Some(pages));
-        let video = web_interface_data_to_video(&data, "BV1x", None, false, false);
+        let video = web_interface_data_to_video(&data, "BV1x", None, false, true, false);
         assert_eq!(video.parts.len(), 2);
         assert_eq!(video.parts[0].part, "Part A");
+        assert_eq!(video.parts[0].default_title, "T Part A");
+        // Empty part name falls back to the title, which then gets omitted
         assert_eq!(video.parts[1].part, "T");
+        assert_eq!(video.parts[1].default_title, "T");
         assert_eq!(video.parts[1].thumbnail.url, "http://pic");
         assert_eq!(video.parts[1].duration, 30);
     }
@@ -1999,9 +2003,12 @@ mod tests {
     fn web_interface_data_to_video_resolves_duplicate_sanitized_names() {
         let pages = vec![page(1, 1, "same", 1), page(2, 2, "same", 1)];
         let data = view_data("T", "p", 0, Some(pages));
-        let video = web_interface_data_to_video(&data, "BV1x", None, true, false);
+        let video = web_interface_data_to_video(&data, "BV1x", None, true, true, false);
         assert_eq!(video.parts[0].sanitized_part.as_deref(), Some("same"));
         assert_eq!(video.parts[1].sanitized_part.as_deref(), Some("same (1)"));
+        // Suffix from duplicate resolution breaks the title match, so both combine
+        assert_eq!(video.parts[0].default_title, "T same");
+        assert_eq!(video.parts[1].default_title, "T same (1)");
     }
 
     #[test]
@@ -2009,9 +2016,27 @@ mod tests {
         use crate::models::settings::TitleReplacement;
         let data = view_data("a:b", "p", 1, Some(vec![]));
         let rules = [TitleReplacement::new(":", "_", true)];
-        let video = web_interface_data_to_video(&data, "BV1x", Some(&rules), false, false);
+        let video = web_interface_data_to_video(&data, "BV1x", Some(&rules), false, true, false);
         assert_eq!(video.title, "a_b");
         assert_eq!(video.parts[0].sanitized_part.as_deref(), Some("a_b"));
+        // Sanitized strings match, so the part name is omitted
+        assert_eq!(video.parts[0].default_title, "a_b");
+    }
+
+    #[test]
+    fn web_interface_data_to_video_omits_part_matching_title_after_trim() {
+        // Part name equals the title except for surrounding whitespace
+        let pages = vec![page(1, 1, " My Song ", 60)];
+        let data = view_data("My Song", "http://pic", 0, Some(pages));
+        let video = web_interface_data_to_video(&data, "BV1x", None, false, true, false);
+        assert_eq!(video.parts[0].default_title, "My Song");
+    }
+
+    #[test]
+    fn web_interface_data_to_video_keeps_duplicate_title_when_omission_off() {
+        let data = view_data("Main Title", "http://pic", 7, Some(vec![]));
+        let video = web_interface_data_to_video(&data, "BV1x", None, false, false, false);
+        assert_eq!(video.parts[0].default_title, "Main Title Main Title");
     }
 
     /// Whitelist for retryable ERR:: codes (issue #484): only
@@ -2554,12 +2579,17 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
         .as_ref()
         .and_then(|s| s.auto_rename_duplicates)
         .unwrap_or(true);
+    let omit_duplicate = settings
+        .as_ref()
+        .and_then(|s| s.omit_duplicate_part_title)
+        .unwrap_or(true);
 
     Ok(web_interface_data_to_video(
         data,
         id,
         replacements,
         auto_rename,
+        omit_duplicate,
         is_limited_quality,
     ))
 }
@@ -2586,7 +2616,23 @@ fn e2e_mock_video_info(id: &str) -> Result<Video, String> {
     // contract tests, commit 6a23fbc8), not of the BV typed in the E2E spec
     // (BV1i3411y7xB). The mapping overrides bvid with the requested id, so the
     // UI shows the snapshot video's title/parts for whatever URL was entered.
-    Ok(web_interface_data_to_video(data, id, None, true, true))
+    Ok(web_interface_data_to_video(
+        data, id, None, true, true, true,
+    ))
+}
+
+/// Fills each part's `default_title` from the sanitized video title.
+///
+/// Must run after duplicate-title resolution so a suffixed part name
+/// (e.g., "Title (1)") no longer matches the title.
+fn fill_default_part_titles(parts: &mut [VideoPart], sanitized_title: &str, omit_duplicate: bool) {
+    use crate::utils::sanitize::build_default_part_title;
+
+    for part in parts.iter_mut() {
+        let sanitized_part = part.sanitized_part.as_deref().unwrap_or(&part.part);
+        part.default_title =
+            build_default_part_title(sanitized_title, sanitized_part, omit_duplicate);
+    }
 }
 
 /// Maps a WebInterface view response into the frontend `Video` DTO.
@@ -2599,6 +2645,7 @@ fn web_interface_data_to_video(
     id: &str,
     replacements: Option<&[crate::models::settings::TitleReplacement]>,
     auto_rename: bool,
+    omit_duplicate: bool,
     is_limited_quality: bool,
 ) -> Video {
     use crate::utils::sanitize::{apply_title_replacements, resolve_duplicate_titles};
@@ -2612,6 +2659,7 @@ fn web_interface_data_to_video(
             page: 1,
             part: data.title.clone(),
             sanitized_part: Some(sanitized_title.clone()),
+            default_title: String::new(),
             duration: 0,
             thumbnail: Thumbnail {
                 url: data.pic.clone(),
@@ -2644,6 +2692,7 @@ fn web_interface_data_to_video(
                     page: page.page,
                     part: part_name.to_string(),
                     sanitized_part: Some(sanitized_part),
+                    default_title: String::new(),
                     duration: page.duration,
                     thumbnail: Thumbnail {
                         url: thumb_url.to_string(),
@@ -2674,6 +2723,8 @@ fn web_interface_data_to_video(
             }
         }
     }
+
+    fill_default_part_titles(&mut parts, &sanitized_title, omit_duplicate);
 
     Video {
         title: sanitized_title,
@@ -4286,6 +4337,10 @@ pub async fn fetch_bangumi_info(app: &AppHandle, ep_id: i64) -> Result<Video, St
         .as_ref()
         .and_then(|s| s.auto_rename_duplicates)
         .unwrap_or(true);
+    let omit_duplicate = settings
+        .as_ref()
+        .and_then(|s| s.omit_duplicate_part_title)
+        .unwrap_or(true);
 
     // Convert episodes to VideoParts
     let mut parts: Vec<VideoPart> = result
@@ -4304,6 +4359,7 @@ pub async fn fetch_bangumi_info(app: &AppHandle, ep_id: i64) -> Result<Video, St
                 page: (idx + 1) as i32,
                 part: original_part,
                 sanitized_part: Some(sanitized_part),
+                default_title: String::new(),
                 duration: ep.duration / 1000, // Convert ms to seconds
                 thumbnail: Thumbnail {
                     url: ep.cover.clone(),
@@ -4338,6 +4394,8 @@ pub async fn fetch_bangumi_info(app: &AppHandle, ep_id: i64) -> Result<Video, St
 
     // Apply title replacement to main title
     let sanitized_title = apply_title_replacements(&result.title, replacements);
+
+    fill_default_part_titles(&mut parts, &sanitized_title, omit_duplicate);
 
     Ok(Video {
         title: sanitized_title,

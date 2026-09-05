@@ -16,6 +16,7 @@ const initialState: SettingsState = {
   language: 'en',
   dialogOpen: false,
   autoRenameDuplicates: true,
+  omitDuplicatePartTitle: true,
   showGithubStars: true,
   fontSize: FONT_SIZE_DEFAULT,
   trimMode: 'copy',

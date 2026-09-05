@@ -457,6 +457,10 @@ describe('SettingsForm', () => {
     ['settings.skip_splash_animation_label', { skipSplashAnimation: true }],
     ['settings.taskbar_progress_label', { showTaskbarProgress: false }],
     [
+      'settings.omit_duplicate_part_title_label',
+      { omitDuplicatePartTitle: false },
+    ],
+    [
       'settings.flash_taskbar_on_complete_label',
       { flashTaskbarOnComplete: false },
     ],
