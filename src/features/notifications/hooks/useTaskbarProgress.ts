@@ -1,5 +1,5 @@
 import { useSelector } from '@/app/store'
-import { selectOverallSummary } from '@/features/download-status/model/selectors'
+import { selectOverallSummary } from '@/features/video'
 import { logger } from '@/shared/lib/logger'
 import { selectHasActiveDownloads } from '@/shared/queue/queueSlice'
 import { getCurrentWindow, ProgressBarStatus } from '@tauri-apps/api/window'
@@ -8,15 +8,16 @@ import { useEffect } from 'react'
 /**
  * Reflect download progress on the taskbar.
  *
- * Subscribes to the same `overallRatio` the download dialog's
- * `OverallProgressBar` renders, plus the active-downloads flag, and drives
+ * Subscribes to the same `overallRatio` the home page's DownloadStatusBar
+ * renders, plus the active-downloads flag, and drives
  * `getCurrentWindow().setProgressBar`. Clears immediately
  * (`ProgressBarStatus.None`) when no downloads are active or the setting is
  * off, so a stale bar never lingers after completion.
  *
- * The percentage formula mirrors `OverallProgressBar.tsx` exactly
- * (`Math.min(100, Math.round(ratio * 100))`) so the taskbar and the dialog
- * always show the same value, including any future refinement to the ratio.
+ * The percentage formula mirrors `DownloadStatusBar.tsx` exactly
+ * (`Math.min(100, Math.round(ratio * 100))`) so the taskbar and the inline
+ * bar always show the same value, including any future refinement to the
+ * ratio.
  *
  * Must be mounted exactly once at the app root (see App.tsx).
  */

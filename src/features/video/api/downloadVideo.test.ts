@@ -150,7 +150,9 @@ describe('downloadVideo', () => {
       downloadVideo('BV1', 1, 'name', 80, null, 'id-cancel'),
     ).rejects.toBe('ERR::CANCELLED')
 
-    expect(findItem('id-cancel')?.status).toBe('pending')
+    // Running (set at invoke time) — the download_cancelled event owns the
+    // terminal 'cancelled' transition in the real app.
+    expect(findItem('id-cancel')?.status).toBe('running')
     expect(findItem('id-cancel')?.errorMessage).toBeUndefined()
   })
 
@@ -179,6 +181,6 @@ describe('downloadVideo', () => {
     ).rejects.toThrow('ERR::DISK_FULL')
 
     expect(findItem('parent-1')?.status).toBe('cancelling')
-    expect(findItem('child-1')?.status).toBe('pending')
+    expect(findItem('child-1')?.status).toBe('running')
   })
 })

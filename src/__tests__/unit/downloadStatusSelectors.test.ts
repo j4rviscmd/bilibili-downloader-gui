@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { RootState } from '@/app/store'
-import { selectOverallSummary } from '@/features/download-status/model/selectors'
+import { selectOverallSummary } from '@/features/video/model/downloadProgress'
 import type { QueueItem } from '@/shared/queue/queueSlice'
 import type { Progress } from '@/shared/ui/Progress'
 
@@ -10,14 +10,10 @@ import type { Progress } from '@/shared/ui/Progress'
  * selector (and its input selectors) read are populated; the rest of RootState
  * is irrelevant here.
  */
-type TestState = Pick<
-  RootState,
-  'downloadStatusDialog' | 'queue' | 'progress' | 'input'
->
+type TestState = Pick<RootState, 'queue' | 'progress' | 'input'>
 
 function makeState(overrides: Partial<TestState> = {}): TestState {
   return {
-    downloadStatusDialog: { dialogOpen: true, activeParentId: 'parent-1' },
     queue: [],
     progress: [],
     input: { partInputs: [] } as unknown as TestState['input'],

@@ -85,6 +85,14 @@ export const downloadVideo = async (
     : null
 
   try {
+    // Flip to 'running' at invoke time, not on the first progress event:
+    // the backend spends seconds fetching playurl/streams before the first
+    // event, and during that window the part showed the "waiting" label
+    // even though its download had actively started. With 'running' set
+    // here, the compact row and the stage spinners appear immediately.
+    // Cancel/error terminal states are still owned by the
+    // download_cancelled event / the catch below.
+    store.dispatch(updateQueueStatus({ downloadId, status: 'running' }))
     const outputPath = await invoke<string>('download_video', {
       options: {
         bvid: videoId,

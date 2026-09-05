@@ -1,4 +1,3 @@
-import downloadStatusDialogReducer from '@/features/download-status/model/downloadStatusDialogSlice'
 import favoriteReducer from '@/features/favorite/model/favoriteSlice'
 import historyReducer from '@/features/history/model/historySlice'
 import initReducer from '@/features/init/model/initSlice'
@@ -25,13 +24,12 @@ import {
  * Configured Redux store with all application reducers.
  *
  * Combines feature slices (video, history, settings, etc.) and shared
- * utilities (progress, queue, download status) into a single state tree.
+ * utilities (progress, queue) into a single state tree.
  * DevTools enabled in non-production environments.
  */
 export const store = configureStore({
   reducer: {
     dev: devReducer,
-    downloadStatusDialog: downloadStatusDialogReducer,
     favorite: favoriteReducer,
     history: historyReducer,
     init: initReducer,

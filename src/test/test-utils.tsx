@@ -20,9 +20,31 @@ import { MemoryRouter } from 'react-router'
 import type { Mock } from 'vitest'
 
 import { store } from '@/app/store'
+import type { PartDownloadStatus } from '@/features/video/hooks/usePartDownloadStatus'
 
 /** The single `vi.fn` created by src/test/setup.ts — re-exported for ergonomics. */
 export const mockInvoke = invoke as unknown as Mock
+
+/** Builds an idle PartDownloadStatus with per-test overrides. */
+export function createPartDownloadStatus(
+  overrides: Partial<PartDownloadStatus> = {},
+): PartDownloadStatus {
+  return {
+    downloadId: undefined,
+    status: undefined,
+    errorMessage: undefined,
+    outputPath: undefined,
+    filename: undefined,
+    progressEntries: [],
+    isComplete: false,
+    isDownloading: false,
+    isPending: false,
+    hasError: false,
+    isCancelling: false,
+    isCancelled: false,
+    ...overrides,
+  }
+}
 
 /** Wrapper for `renderHook` against the real singleton store. */
 export function storeWrapper({ children }: { children: ReactNode }) {

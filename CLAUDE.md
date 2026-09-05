@@ -64,7 +64,7 @@ _why_, not just _what_.**
 
 - Use `@/shared/animate-ui/radix/tooltip` (`Tooltip` / `TooltipTrigger` /
   `TooltipContent`). `TooltipProvider` may be omitted when an ancestor
-  already provides it (e.g. `DownloadStatusDialog`)
+  already provides it (e.g. `DownloadStatusBar`)
 - **Disabled buttons**: native `title` won't fire because
   `pointer-events: none` blocks hover. Wrap with
   `<TooltipTrigger asChild><span><Button disabled>…</Button></span></TooltipTrigger>`

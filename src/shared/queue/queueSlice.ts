@@ -92,8 +92,20 @@ function aggregateParentStatuses(state: QueueItem[]): void {
     ) {
       parent.startedAtMs = Date.now()
     }
+    // @why: Stamp the completion time only when the session has actually
+    //   settled. 'error' outranks 'pending'/'running' in the priority above,
+    //   so a mid-session part failure aggregates the parent to 'error' while
+    //   its siblings are still queued — stamping there would freeze the
+    //   elapsed timer at the first failure for the rest of the session
+    //   (transient errors don't stop the serial loop; the remaining parts
+    //   keep downloading). Only a parent whose children are all terminal
+    //   (done/cancelled/error) is complete.
+    const sessionSettled = statuses.every(
+      (s) => s === 'done' || s === 'cancelled' || s === 'error',
+    )
     if (
       (nextStatus === 'done' || nextStatus === 'error') &&
+      sessionSettled &&
       !parent.completedAtMs
     ) {
       parent.completedAtMs = Date.now()

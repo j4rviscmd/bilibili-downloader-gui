@@ -1,6 +1,5 @@
 import { isUnauthorizedError } from '@/app/lib/invokeErrorHandler'
 import { type RootState, store, useSelector } from '@/app/store'
-import { openDownloadStatusDialog } from '@/features/download-status'
 import { downloadVideo } from '@/features/video/api/downloadVideo'
 import {
   useLazyFetchBangumiInfoQuery,
@@ -438,10 +437,9 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
       )
     }
 
-    // Open the download status dialog on start so the user can follow
-    // each part's progress. Closing the dialog keeps the download running.
-    store.dispatch(openDownloadStatusDialog(parentId))
-
+    // No dialog to open anymore (issue #569): the inline DownloadStatusBar
+    // and the compact part cards pick the session up from the queue state
+    // these enqueues just created.
     for (const { pi, idx } of selectedParts) {
       // Abort remaining parts if cancelled (e.g. via cancelAllDownloads).
       // Stop deterministically on the parent's status rather than relying on

@@ -38,6 +38,7 @@ export {
 export { setVideo, videoSlice } from './model/videoSlice'
 
 // Selectors
+export { selectOverallSummary } from './model/downloadProgress'
 export {
   selectAllPartValid,
   selectDuplicateIndices,

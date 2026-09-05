@@ -140,10 +140,10 @@
     "browse": "浏览",
     "noFileSelected": "未选择文件",
     "angle": {
+      "180": "180°",
       "label": "旋转角度",
       "right90": "右90°",
       "right90Hint": "顺时针旋转90°",
-      "180": "180°",
       "180Hint": "旋转180°（上下颠倒）",
       "left90": "左90°",
       "left90Hint": "逆时针旋转90°"
@@ -684,23 +684,15 @@
     "qrSessdataMissing": "获取登录凭证失败，请重试。"
   },
   "downloadStatus": {
-    "title": "下载状态",
-    "no_downloads": "无下载",
     "elapsed": "已用时间",
     "cancel_all": "全部取消",
     "cancel_all_disabled_merging": "正在合并，无法取消",
-    "open": "下载",
     "status_completed": "完成",
     "status_downloading": "下载中",
     "status_waiting": "等待中",
     "status_cancelling": "取消中",
     "status_cancelled": "已取消",
-    "status_error": "错误",
-    "status_merging": "合并中",
-    "stage_audio": "音频",
-    "stage_video": "视频",
-    "stage_merge": "合并",
-    "stage_subtitle": "字幕"
+    "status_error": "错误"
   },
   "audio": {
     "title": "音频提取",

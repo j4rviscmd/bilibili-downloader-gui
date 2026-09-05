@@ -1,46 +1,125 @@
 import { createSelector } from '@reduxjs/toolkit'
 
 import type { RootState } from '@/app/store'
+import type { QueueItem } from '@/shared/queue/queueSlice'
 import type { Progress } from '@/shared/ui/Progress'
 
-import type { OverallSummary, PartStatusRowModel } from './types'
+/**
+ * Download progress view-model for the inline (home page) download UI.
+ *
+ * Merges the shared `queue` and `progress` slices with the video input
+ * (part titles) into per-part row models plus an overall summary, and
+ * derives which part the compact cards should auto-expand.
+ *
+ * Moved from the former `features/download-status` feature when its modal
+ * dialog was abolished (issue #569); logic is unchanged except that the
+ * dialog-only `activeParentId` pin is gone — the resolved parent is always
+ * the most recently enqueued one.
+ */
 
-/** ダイアログ開閉状態そのもの。 */
-export const selectDownloadStatusDialogState = (state: RootState) =>
-  state.downloadStatusDialog
+/** パートのDLステータス。queueSlice の QueueItemStatus から導出する。 */
+export type DownloadPartStatus = NonNullable<QueueItem['status']>
 
-/** ダイアログが開いているか。 */
-export const selectDownloadStatusDialogOpen = (state: RootState) =>
-  state.downloadStatusDialog.dialogOpen
+/** 個別ステージ（audio/video/merge）の進捗。null = 未開始/完了 */
+export type StageProgress = {
+  percentage: number
+  transferRate: number
+} | null
 
-/** 明示的に指定された表示対象の親DL ID。 */
-export const selectActiveParentId = (state: RootState) =>
-  state.downloadStatusDialog.activeParentId
+/**
+ * 1パート分のDL状況（コンパクト行/展開詳細の表示モデル）。
+ *
+ * `queue` の子アイテムと、その downloadId に紐づく `progress`
+ * エントリを統合した表示用モデル。
+ */
+export type PartStatusRowModel = {
+  /** 子ダウンロードID（{parentId}-p{partIndex}） */
+  downloadId: string
+  /** パート番号（1-based）。downloadId の -p(\d+)$ から抽出 */
+  partIndex: number
+  /** パート名（input.partInputs の title） */
+  title: string
+  /** キューのステータス（pending/running/cancelling/cancelled/done/error） */
+  status: DownloadPartStatus
+  /** エラーメッセージ（status === 'error' のとき） */
+  errorMessage?: string
+  /** 全体進捗 0-100（3ステージ均等: overall = (audioPct + videoPct + mergePct) / 3） */
+  percentage: number
+  /** audio ステージ進捗（null = 未開始/完了） */
+  audio: StageProgress
+  /** video ステージ進捗（null = 未開始/完了） */
+  video: StageProgress
+  /** merge ステージ進捗（null = 未開始/完了） */
+  merge: StageProgress
+  /** CDN切り替え等のリトライ中か */
+  isRetrying: boolean
+  /** 現在ステージ（download/merge/complete） */
+  stage?: string
+  /** 完了しているか（progress の complete ステージ有無） */
+  isComplete: boolean
+}
+
+/** 全体サマリ（進捗バー + 完了数 + 経過時間の表示モデル）。 */
+export type OverallSummary = {
+  /** 対象親の全パート数 */
+  totalParts: number
+  /** status === 'done' の件数 */
+  completedCount: number
+  /** status === 'error' の件数 */
+  errorCount: number
+  /** status === 'cancelled' の件数 */
+  cancelledCount: number
+  /** running + pending の件数 */
+  activeCount: number
+  /** 何らかのDLが進行中か */
+  hasActive: boolean
+  /**
+   * True when any part is currently merging (ffmpeg CLI running). Blocks cancel-all.
+   *
+   * @why The merge stage spawns an ffmpeg CLI child process to combine video
+   *   and audio. Cancelling must kill that child, but if the cancel arrives in
+   *   the brief window right after ffmpeg reaches `progress=end` (done), the
+   *   process exits successfully and the output file is already complete. This
+   *   follows the "don't discard a finished file" intent in
+   *   `src-tauri/src/handlers/ffmpeg.rs` `merge_avs` (commit d9202270). It
+   *   actually caused a contradictory "cancelled yet complete progress emitted"
+   *   UI state.
+   * @constraint Fully closing that race window in the backend is hard, so the
+   *   safest and simplest workaround is to refuse cancel-all while any part is
+   *   merging (disable the button).
+   */
+  isMerging: boolean
+  /** 全体進捗 0..1（完了=1、進行中=percentage/100 の平均） */
+  overallRatio: number
+  /**
+   * Elapsed time in seconds — real wall-clock time from the parent download's
+   * start to its completion (or now if still active).
+   *
+   * @why Derived from the parent QueueItem's startedAtMs/completedAtMs, not by
+   *   summing per-stage elapsed times. audio and video stages run in parallel
+   *   (tokio::try_join! in the backend), so summing their elapsed times would
+   *   make this advance at ~2x real time.
+   */
+  elapsedSeconds: number
+}
 
 /**
  * 表示対象の親DL IDを解決する。
  *
- * activeParentId がキューに存在すればそれを使い、
- * 無ければ直近（最後に enqueue された）の親を選ぶ。
+ * キュー内の親のうち、最後（直近に enqueue されたもの）を選ぶ。
  * 直列DL前提なので、同時に進行する親は実質1つ。
  *
  * 入力に state.queue（参照安定）を直接使う。新配列を返す入力セレクタを
  * 挟むと createSelector のメモ化が実質無効化するため。
  */
 export const selectResolvedParentId = createSelector(
-  [selectActiveParentId, (state: RootState) => state.queue],
-  (activeParentId, queue) => {
+  [(state: RootState) => state.queue],
+  (queue) => {
     const parentIds = [
       ...new Set(
         queue.map((q) => q.parentId).filter((id): id is string => id != null),
       ),
     ]
-    // Respect the explicitly-set parent even if it's no longer in the queue
-    // (e.g. children were cancelled/cleared). Don't silently switch to a
-    // different download.
-    if (activeParentId) {
-      return activeParentId
-    }
     return parentIds[parentIds.length - 1] ?? null
   },
 )
@@ -52,11 +131,11 @@ function extractPartIndex(downloadId: string): number | null {
 }
 
 /** 1ダウンロードの progress を audio/video/merge 個別に返す。 */
-function pickStageData(entries: Progress[]): {
+export function pickStageData(entries: Progress[]): {
   percentage: number
-  audio: import('./types').StageProgress
-  video: import('./types').StageProgress
-  merge: import('./types').StageProgress
+  audio: StageProgress
+  video: StageProgress
+  merge: StageProgress
   isRetrying: boolean
   stage?: string
   isComplete: boolean
@@ -146,7 +225,7 @@ export const selectPartStatusRows = createSelector(
         // @why: When cancel-all lands right after a merge finishes, child.status
         //   becomes 'cancelled' even though the file is actually complete. Override
         //   to 'done' when isComplete so the display matches the real artifact —
-        //   this keeps the PartStatusRow dot/strikethrough and OverallSummary
+        //   this keeps the compact row dot/strikethrough and OverallSummary
         //   completedCount free of a contradictory "cancelled but complete" state.
         const status = rep.isComplete ? 'done' : (child.status ?? 'pending')
         return {
@@ -169,7 +248,7 @@ export const selectPartStatusRows = createSelector(
   },
 )
 
-/** ダイアログヘッダーの全体サマリ。 */
+/** 全体サマリ（進捗バー + 完了数 + 経過時間 + cancel-all ガード）。 */
 export const selectOverallSummary = createSelector(
   [
     selectResolvedParentId,
@@ -213,15 +292,6 @@ export const selectOverallSummary = createSelector(
 
     // Any part in the merge stage blocks cancel-all: ffmpeg is a CLI
     // process that's unsafe to interrupt mid-merge.
-    // @why: The merge stage runs an ffmpeg CLI child process. Cancelling kills
-    //   the child, but if the cancel arrives in the brief window right after
-    //   ffmpeg reaches `progress=end`, it exits successfully and the output file
-    //   is already complete (see src-tauri/src/handlers/ffmpeg.rs merge_avs
-    //   "don't discard a finished file", commit d9202270). This actually caused
-    //   a contradictory "cancelled yet complete progress emitted" display.
-    // @constraint: Fully closing that race window in the backend is hard, so the
-    //   safest and simplest fix is to refuse cancel-all while any part is
-    //   merging (disable the button).
     const isMerging = rows.some(
       (r) => r.status === 'running' && r.stage === 'merge',
     )
@@ -236,5 +306,26 @@ export const selectOverallSummary = createSelector(
       overallRatio,
       elapsedSeconds,
     }
+  },
+)
+
+/**
+ * 展開すべきパート番号（1-based）。running があればそれ、無ければ最初の
+ * pending。どちらも無ければ null。
+ *
+ * @why pending fallback keeps the expansion stable across the part-to-part
+ *   handover: when part N finishes, part N+1 is already pending, so the
+ *   expanded row switches instantly instead of collapsing and re-expanding.
+ *   Returns a primitive so per-part subscribers (VideoPartCard) only
+ *   re-render when the expanded part actually changes — never on every
+ *   progress tick (do not subscribe cards to selectPartStatusRows; its array
+ *   identity changes per tick).
+ */
+export const selectActivePartIndex = createSelector(
+  [selectPartStatusRows],
+  (rows): number | null => {
+    const running = rows.find((r) => r.status === 'running')
+    if (running) return running.partIndex
+    return rows.find((r) => r.status === 'pending')?.partIndex ?? null
   },
 )

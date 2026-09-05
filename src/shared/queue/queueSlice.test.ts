@@ -155,6 +155,31 @@ describe('aggregateParentStatuses (via updateQueueStatus)', () => {
     )
     vi.useRealTimers()
   })
+
+  it('does not stamp completedAtMs while sibling parts are still active', () => {
+    vi.useFakeTimers()
+    // Mirror the real flow: all children pre-enqueued pending, then part 1
+    // fails transiently; the serial loop continues to part 2, so the session
+    // must not count as complete yet (elapsed timer keeps running)
+    seedParentWithChildren(['pending', 'pending'])
+    vi.setSystemTime(5000)
+    store.dispatch(
+      updateQueueStatus({ downloadId: 'parent-p1', status: 'error' }),
+    )
+    expect(
+      queue().find((i) => i.downloadId === 'parent')!.completedAtMs,
+    ).toBeUndefined()
+
+    vi.setSystemTime(9000)
+    store.dispatch(
+      updateQueueStatus({ downloadId: 'parent-p2', status: 'done' }),
+    )
+    // Every child terminal now — stamped at the actual settle time
+    expect(queue().find((i) => i.downloadId === 'parent')!.completedAtMs).toBe(
+      9000,
+    )
+    vi.useRealTimers()
+  })
 })
 
 describe('updateQueueStatus protected-status matrix', () => {

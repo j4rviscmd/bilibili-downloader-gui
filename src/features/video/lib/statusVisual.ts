@@ -1,4 +1,4 @@
-import type { DownloadPartStatus } from '../model/types'
+import type { DownloadPartStatus } from '../model/downloadProgress'
 
 /** ステータスの表示トーン。アイコンや色の選択に使う。 */
 export type StatusTone =

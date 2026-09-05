@@ -11,7 +11,10 @@ import { setInput } from '@/features/video/model/inputSlice'
 import type { Input, PartInput, Video } from '@/features/video/types'
 import { TooltipProvider } from '@/shared/animate-ui/radix/tooltip'
 import { clearQueue, enqueue } from '@/shared/queue'
-import { renderWithProviders } from '@/test/test-utils'
+import {
+  createPartDownloadStatus,
+  renderWithProviders,
+} from '@/test/test-utils'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { fireEvent, screen } from '@testing-library/react'
 import { Provider } from 'react-redux'
@@ -65,25 +68,7 @@ const video: Video = {
 }
 
 /** Idle status the mocked hook returns by default. */
-function createMockStatus(
-  overrides: Partial<PartDownloadStatus> = {},
-): PartDownloadStatus {
-  return {
-    downloadId: undefined,
-    status: undefined,
-    errorMessage: undefined,
-    outputPath: undefined,
-    filename: undefined,
-    progressEntries: [],
-    isComplete: false,
-    isDownloading: false,
-    isPending: false,
-    hasError: false,
-    isCancelling: false,
-    isCancelled: false,
-    ...overrides,
-  }
-}
+const createMockStatus = createPartDownloadStatus
 
 /** Builds a selected PartInput for page 1. */
 function createPartInput(overrides: Partial<PartInput> = {}): PartInput {
@@ -725,8 +710,9 @@ describe('VideoPartCard', () => {
     })
   })
 
-  it('renders the waiting-for-turn row while another download is active', () => {
-    // A foreign running child download keeps this part waiting for its turn
+  it('collapses into the compact waiting row while another download is active', () => {
+    // A foreign running child download keeps this part waiting for its turn;
+    // the card body collapses into the compact single-line row (issue #569).
     store.dispatch(enqueue({ downloadId: 'other', status: 'pending' }))
     store.dispatch(
       enqueue({
@@ -737,6 +723,12 @@ describe('VideoPartCard', () => {
     )
     setup()
 
-    expect(screen.getByText('video.download_pending')).toBeInTheDocument()
+    expect(
+      screen.getAllByText('downloadStatus.status_waiting').length,
+    ).toBeGreaterThan(0)
+    // The full form is swapped out while compact
+    expect(
+      screen.queryByDisplayValue('My Video Part 1'),
+    ).not.toBeInTheDocument()
   })
 })
