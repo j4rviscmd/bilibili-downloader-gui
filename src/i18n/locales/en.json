@@ -439,9 +439,9 @@
       "simulate_logout_description": "When enabled, the app behaves as if you are not logged in (for testing purposes)."
     },
     "auto_rename_duplicates_label": "Auto-rename duplicate parts",
-    "auto_rename_duplicates_description": "Automatically add numbers when parts have the same name (e.g., Part Name → Part Name (1))",
+    "auto_rename_duplicates_description": "Adds numbers to parts with the same name (e.g., Part Name → Part Name (1)). When off, duplicate part names are shown as-is and only renamed at save time if needed to avoid file collisions",
     "omit_duplicate_part_title_label": "Omit duplicate part name",
-    "omit_duplicate_part_title_description": "When a part name matches the video title, the download filename uses the title alone instead of repeating it (e.g., Title Title → Title)",
+    "omit_duplicate_part_title_description": "When a part name matches the video title, the download filename omits the repetition (e.g., Title Title → Title). When off, the filename keeps the \"Title Part Name\" form",
     "title_replacement": {
       "section_label": "Title Character Replacement",
       "description": "Customize how special characters in video titles are replaced in filenames.",

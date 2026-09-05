@@ -439,9 +439,9 @@
       "simulate_logout_description": "启用后，应用将以未登录状态运行（用于测试）。"
     },
     "auto_rename_duplicates_label": "自动重命名重复分P",
-    "auto_rename_duplicates_description": "当分P名称相同时自动添加编号（例如：分P名称 → 分P名称 (1)）",
+    "auto_rename_duplicates_description": "当分P名称相同时自动添加编号（例如：分P名称 → 分P名称 (1)）。关闭时，分P名称保持重复显示，仅在保存时为避免同名文件冲突而按需改名",
     "omit_duplicate_part_title_label": "省略重复分P名",
-    "omit_duplicate_part_title_description": "当分P名与视频标题相同时，下载文件名不再重复拼接（例如：标题 标题 → 标题）",
+    "omit_duplicate_part_title_description": "当分P名与视频标题相同时，下载文件名不再重复拼接（例如：标题 标题 → 标题）。关闭时，文件名保持「标题 分P名」的形式",
     "title_replacement": {
       "section_label": "标题字符替换",
       "description": "自定义视频标题中的特殊字符在文件名中如何替换。",

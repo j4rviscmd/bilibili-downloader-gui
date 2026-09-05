@@ -439,9 +439,9 @@
       "simulate_logout_description": "활성화하면 앱이 로그인하지 않은 상태로 실행됩니다(테스트용)."
     },
     "auto_rename_duplicates_label": "중복 파트 이름 자동 변경",
-    "auto_rename_duplicates_description": "같은 이름의 파트가 있을 때 자동으로 번호를 추가합니다 (예: 파트 이름 → 파트 이름 (1))",
+    "auto_rename_duplicates_description": "같은 이름의 파트가 있을 때 자동으로 번호를 추가합니다 (예: 파트 이름 → 파트 이름 (1)). 끄면 파트 이름이 중복된 채로 표시되며, 저장 시 동일한 파일명과의 충돌을 피하기 위해 필요한 경우에만 다른 이름으로 저장됩니다",
     "omit_duplicate_part_title_label": "중복 파트명 생략",
-    "omit_duplicate_part_title_description": "파트 이름이 영상 제목과 같으면 다운로드 파일명에 중복을 생략합니다 (예: 제목 제목 → 제목)",
+    "omit_duplicate_part_title_description": "파트 이름이 영상 제목과 같으면 다운로드 파일명에 중복을 생략합니다 (예: 제목 제목 → 제목). 끄면 '제목 파트 이름' 형식이 그대로 유지됩니다",
     "title_replacement": {
       "section_label": "제목 문자 치환",
       "description": "비디오 제목의 특수 문자가 파일명에서 어떻게 치환되는지 사용자 정의합니다.",

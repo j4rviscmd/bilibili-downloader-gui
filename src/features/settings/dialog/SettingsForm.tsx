@@ -529,23 +529,6 @@ function SettingsForm() {
           )}
         />
         <Separator />
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label>{t('settings.auto_rename_duplicates_label')}</Label>
-            <p className="text-muted-foreground text-sm">
-              {t('settings.auto_rename_duplicates_description')}
-            </p>
-          </div>
-          <Switch
-            checked={settings.autoRenameDuplicates ?? true}
-            onCheckedChange={(checked) => {
-              saveByForm({ autoRenameDuplicates: checked })
-              // Clear video cache so new setting applies on next fetch
-              store.dispatch(videoApi.util.resetApiState())
-            }}
-          />
-        </div>
-        <Separator />
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <Label>{t('settings.download_parallelism_label')}</Label>
@@ -585,6 +568,23 @@ function SettingsForm() {
               </div>
             ))}
           </RadioGroup>
+        </div>
+        <Separator />
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label>{t('settings.auto_rename_duplicates_label')}</Label>
+            <p className="text-muted-foreground text-sm">
+              {t('settings.auto_rename_duplicates_description')}
+            </p>
+          </div>
+          <Switch
+            checked={settings.autoRenameDuplicates ?? true}
+            onCheckedChange={(checked) => {
+              saveByForm({ autoRenameDuplicates: checked })
+              // Clear video cache so new setting applies on next fetch
+              store.dispatch(videoApi.util.resetApiState())
+            }}
+          />
         </div>
         <Separator />
         <div className="flex items-center justify-between">

@@ -439,9 +439,9 @@
       "simulate_logout_description": "Lorsqu'activé, l'application se comporte comme si vous n'étiez pas connecté (à des fins de test)."
     },
     "auto_rename_duplicates_label": "Renommer automatiquement les parties dupliquées",
-    "auto_rename_duplicates_description": "Ajoute automatiquement des numéros quand les parties ont le même nom (ex: Nom → Nom (1))",
+    "auto_rename_duplicates_description": "Ajoute automatiquement des numéros quand les parties ont le même nom (ex: Nom → Nom (1)). Désactivé, les noms dupliqués s'affichent tels quels et ne sont renommés qu'à l'enregistrement si nécessaire pour éviter les collisions de fichiers",
     "omit_duplicate_part_title_label": "Omettre le nom de partie dupliqué",
-    "omit_duplicate_part_title_description": "Quand le nom d'une partie est identique au titre de la vidéo, le nom de fichier téléchargé évite de le répéter (p. ex., Titre Titre → Titre)",
+    "omit_duplicate_part_title_description": "Quand le nom d'une partie est identique au titre de la vidéo, le nom de fichier téléchargé évite de le répéter (p. ex., Titre Titre → Titre). Désactivé, le nom conserve la forme « Titre Nom de la partie »",
     "title_replacement": {
       "section_label": "Remplacement de caractères du titre",
       "description": "Personnalisez comment les caractères spéciaux dans les titres de vidéos sont remplacés dans les noms de fichiers.",
