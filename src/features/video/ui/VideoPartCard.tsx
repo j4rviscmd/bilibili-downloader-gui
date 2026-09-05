@@ -17,7 +17,6 @@ import { usePartDownloadStatus } from '@/features/video/hooks/usePartDownloadSta
 import {
   AUDIO_QUALITIES_MAP,
   AUDIO_QUALITIES_ORDER,
-  VIDEO_CODEC_MAP,
   VIDEO_QUALITIES_MAP,
 } from '@/features/video/lib/constants'
 import { buildVideoFormSchema2 } from '@/features/video/lib/formSchema'
@@ -257,15 +256,13 @@ const VideoPartCard = memo(function VideoPartCard({
     const parts: string[] = []
 
     if (resolvedQuality) {
+      // WHY codec is omitted: the codec is chosen by the global
+      // videoCodecPriority setting, not per download, and most users cannot
+      // act on it — the summary stays focused on the selected quality.
       const videoLabel =
         VIDEO_QUALITIES_MAP[resolvedQuality.videoQuality] ||
         String(resolvedQuality.videoQuality)
-      // Append codec in parentheses so the video attributes (quality + codec)
-      // read as a single unit, visually separate from the audio quality.
-      const codecLabel =
-        VIDEO_CODEC_MAP[resolvedQuality.videoCodecid] ||
-        String(resolvedQuality.videoCodecid)
-      parts.push(`${videoLabel}(${codecLabel})`)
+      parts.push(videoLabel)
 
       if (resolvedQuality.audioQuality !== null) {
         const audioLabel =
@@ -296,15 +293,16 @@ const VideoPartCard = memo(function VideoPartCard({
    * due to the originally requested quality being unavailable.
    * Drives the warning icon in the accordion trigger.
    *
-   * WHY: codec fallback is excluded. The preferred codec being absent from
-   * the manifest leaves no alternative to choose, and the summary label
-   * already shows the actual codec (e.g. "1080p(AVC)"), so warning on it
-   * would fire on nearly every AVC-only video with pure noise.
+   * WHY: codec fallback is excluded. The codec is governed by the global
+   * videoCodecPriority setting, and the preferred codec being absent from
+   * the manifest leaves no alternative to choose, so warning on it would
+   * fire on nearly every AVC-only video with pure noise.
    */
-  // Caution: with codec fallback excluded here, `videoCodecFallback` (sent by the
-  // backend download-quality-resolved event and stored via inputSlice
-  // setResolvedQuality) is no longer read anywhere in the UI. Introduced in
-  // PR #460 (a17c8da); keep-or-remove it end-to-end as a deliberate decision.
+  // Caution: `videoCodecFallback` (sent by the backend
+  // download-quality-resolved event and stored via inputSlice
+  // setResolvedQuality) is deliberately kept end-to-end despite being
+  // unread by the UI today — it may feed a future codec indication.
+  // Introduced in PR #460 (a17c8da); removal decided against 2026-09.
   const hasFallback = useMemo(() => {
     if (!resolvedQuality) return false
     return (
