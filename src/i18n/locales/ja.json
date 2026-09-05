@@ -140,10 +140,10 @@
     "browse": "参照",
     "noFileSelected": "ファイルが選択されていません",
     "angle": {
+      "180": "180°",
       "label": "回転角度",
       "right90": "右90°",
       "right90Hint": "時計回りに90°回転",
-      "180": "180°",
       "180Hint": "180°回転（上下反転）",
       "left90": "左90°",
       "left90Hint": "反時計回りに90°回転"
@@ -684,23 +684,15 @@
     "qrSessdataMissing": "ログイン情報の取得に失敗しました。再試行してください。"
   },
   "downloadStatus": {
-    "title": "ダウンロード状況",
-    "no_downloads": "ダウンロードなし",
     "elapsed": "経過",
     "cancel_all": "すべてキャンセル",
     "cancel_all_disabled_merging": "マージ中のためキャンセルできません",
-    "open": "DL状況",
     "status_completed": "完了",
     "status_downloading": "DL中",
     "status_waiting": "待機中",
     "status_cancelling": "キャンセル中",
     "status_cancelled": "キャンセル済み",
-    "status_error": "エラー",
-    "status_merging": "マージ中",
-    "stage_audio": "音声",
-    "stage_video": "動画",
-    "stage_merge": "マージ",
-    "stage_subtitle": "字幕"
+    "status_error": "エラー"
   },
   "audio": {
     "title": "音声抽出",

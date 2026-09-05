@@ -40,7 +40,7 @@ type ToasterProps = {
  * @why: Radix Dialog (modal) sets pointer-events: none on body siblings
  *   while open, which would disable react-toastify's portal. Force auto
  *   so drag/swipe-to-dismiss and the Copy button stay clickable above
- *   open dialogs (e.g. DownloadStatusDialog). zIndex keeps toasts above
+ *   open dialogs (e.g. SettingsDialog). zIndex keeps toasts above
  *   dialogs (z-50) and other overlays.
  *
  * NOTE: `select-none` is applied via `toastClassName` so toast text is

@@ -51,6 +51,7 @@
     "react-dom": "^19.1.0",
     "react-hook-form": "^7.62.0",
     "react-i18next": "^15.5.1",
+    "react-loading-indicators": "^1.0.1",
     "react-markdown": "^10.1.0",
     "react-redux": "^9.2.0",
     "react-router": "^7.7.1",

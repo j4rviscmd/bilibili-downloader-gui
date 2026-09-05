@@ -1,6 +1,10 @@
 import { TooltipProvider } from '@/shared/animate-ui/radix/tooltip'
 import type { Progress } from '@/shared/progress/types'
-import { mockInvoke, renderWithProviders } from '@/test/test-utils'
+import {
+  createPartDownloadStatus,
+  mockInvoke,
+  renderWithProviders,
+} from '@/test/test-utils'
 import { error as logError } from '@tauri-apps/plugin-log'
 import { screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -25,25 +29,8 @@ function stage(overrides: Partial<Progress> = {}): Progress {
 }
 
 /** Builds an idle PartDownloadStatus with per-test overrides. */
-function createMockStatus(
-  overrides: Partial<PartDownloadStatus> = {},
-): PartDownloadStatus {
-  return {
-    downloadId: 'dl-1-p1',
-    status: undefined,
-    errorMessage: undefined,
-    outputPath: undefined,
-    filename: undefined,
-    progressEntries: [],
-    isComplete: false,
-    isDownloading: false,
-    isPending: false,
-    hasError: false,
-    isCancelling: false,
-    isCancelled: false,
-    ...overrides,
-  }
-}
+const createMockStatus = (overrides: Partial<PartDownloadStatus> = {}) =>
+  createPartDownloadStatus({ downloadId: 'dl-1-p1', ...overrides })
 
 /** Renders the component inside the TooltipProvider its stage icons need. */
 function setup(status: PartDownloadStatus, onCancel?: () => void) {
@@ -86,6 +73,36 @@ describe('PartDownloadProgress', () => {
     expect(
       screen.queryByRole('button', { name: 'actions.cancel' }),
     ).not.toBeInTheDocument()
+  })
+
+  it('shows the Mosaic indicator next to a stage icon until its first event', () => {
+    // Running with only an audio entry: audio shows numbers, video still
+    // waits in its fetch/speed-check window with the indicator
+    setup(
+      createMockStatus({
+        isDownloading: true,
+        progressEntries: [stage({ stage: 'audio', percentage: 10 })],
+      }),
+    )
+
+    expect(screen.getByText('10')).toBeInTheDocument()
+    // The indicator wrapper (Mosaic) appears in exactly the waiting column
+    const indicators = document.querySelectorAll('.flex-1.justify-center')
+    expect(indicators).toHaveLength(1)
+  })
+
+  it('shows no indicator once both download stages report progress', () => {
+    setup(
+      createMockStatus({
+        isDownloading: true,
+        progressEntries: [
+          stage({ stage: 'audio', percentage: 30 }),
+          stage({ stage: 'video', percentage: 40 }),
+        ],
+      }),
+    )
+
+    expect(document.querySelector('.flex-1.justify-center')).toBeNull()
   })
 
   it('renders per-stage progress while downloading', async () => {

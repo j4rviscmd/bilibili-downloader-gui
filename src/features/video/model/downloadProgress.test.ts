@@ -1,11 +1,12 @@
 /**
- * download-status selectors unit suite.
+ * downloadProgress selectors unit suite.
  *
- * Dispatches against the real singleton store (queue + progress + dialog
+ * Dispatches against the real singleton store (queue + progress + input
  * slices) and asserts selector output. The sibling
  * src/__tests__/unit/downloadStatusSelectors.test.ts covers
  * selectOverallSummary.elapsedSeconds only — this file covers parent
- * resolution, per-part rows, and the summary counts/ratios.
+ * resolution, per-part rows, summary counts/ratios, and the active-part
+ * derivation for the compact cards.
  */
 
 import { store } from '@/app/store'
@@ -16,14 +17,12 @@ import { clearProgress, setProgress } from '@/shared/progress/progressSlice'
 import type { QueueItem } from '@/shared/queue/queueSlice'
 import { clearQueue, enqueue } from '@/shared/queue/queueSlice'
 import type { Progress } from '@/shared/ui/Progress'
-import { setActiveDownloadStatusParent } from './downloadStatusDialogSlice'
 import {
-  selectDownloadStatusDialogOpen,
-  selectDownloadStatusDialogState,
+  selectActivePartIndex,
   selectOverallSummary,
   selectPartStatusRows,
   selectResolvedParentId,
-} from './selectors'
+} from './downloadProgress'
 
 type Status = NonNullable<QueueItem['status']>
 
@@ -64,17 +63,6 @@ beforeEach(() => {
   store.dispatch(clearQueue())
   store.dispatch(clearProgress())
   store.dispatch(resetInput())
-  store.dispatch(setActiveDownloadStatusParent(null))
-})
-
-describe('dialog state selectors', () => {
-  it('expose the raw slice state and dialogOpen flag', () => {
-    expect(selectDownloadStatusDialogState(store.getState())).toEqual({
-      dialogOpen: false,
-      activeParentId: null,
-    })
-    expect(selectDownloadStatusDialogOpen(store.getState())).toBe(false)
-  })
 })
 
 describe('selectResolvedParentId', () => {
@@ -94,14 +82,7 @@ describe('selectResolvedParentId', () => {
     expect(selectResolvedParentId(store.getState())).toBe('parent-1')
   })
 
-  it('respects an explicit activeParentId even when absent from the queue', () => {
-    seedFamily('parent-1', [{ id: 'parent-1-p1', status: 'done' }])
-    store.dispatch(setActiveDownloadStatusParent('ghost-parent'))
-
-    expect(selectResolvedParentId(store.getState())).toBe('ghost-parent')
-  })
-
-  it('returns null with an empty queue and no explicit parent', () => {
+  it('returns null with an empty queue', () => {
     expect(selectResolvedParentId(store.getState())).toBeNull()
   })
 })
@@ -112,12 +93,10 @@ describe('selectPartStatusRows', () => {
   })
 
   it('sorts rows by partIndex and skips downloadIds without a -pN suffix', () => {
-    store.dispatch(setActiveDownloadStatusParent('parent-1'))
     store.dispatch(enqueue(queueItem('parent-1')))
     store.dispatch(enqueue(queueItem('parent-1-p2', { parentId: 'parent-1' })))
     store.dispatch(enqueue(queueItem('parent-1-p1', { parentId: 'parent-1' })))
-    // Stray child of another parent and a malformed sibling id are excluded
-    store.dispatch(enqueue(queueItem('parent-2-p1', { parentId: 'parent-2' })))
+    // Malformed sibling id (no -pN suffix) is excluded
     store.dispatch(enqueue(queueItem('parent-1-px', { parentId: 'parent-1' })))
 
     const rows = selectPartStatusRows(store.getState())
@@ -129,8 +108,20 @@ describe('selectPartStatusRows', () => {
     expect(rows.map((r) => r.partIndex)).toEqual([1, 2])
   })
 
+  it('only resolves rows for the most recently enqueued parent', () => {
+    seedFamily('parent-1', [
+      { id: 'parent-1-p1', status: 'done' },
+      { id: 'parent-1-p2', status: 'done' },
+    ])
+    seedFamily('parent-2', [{ id: 'parent-2-p1', status: 'running' }])
+
+    const rows = selectPartStatusRows(store.getState())
+
+    // parent-2 was enqueued last, so parent-1's children are not shown
+    expect(rows.map((r) => r.downloadId)).toEqual(['parent-2-p1'])
+  })
+
   it('takes titles from partInputs (0-based) with Part N fallback', () => {
-    store.dispatch(setActiveDownloadStatusParent('parent-1'))
     store.dispatch(
       initPartInputs([
         {
@@ -156,7 +147,6 @@ describe('selectPartStatusRows', () => {
   })
 
   it('renders zeroed rows for children without progress entries', () => {
-    store.dispatch(setActiveDownloadStatusParent('parent-1'))
     store.dispatch(enqueue(queueItem('parent-1')))
     // Undefined status must fall back to 'pending'
     store.dispatch(enqueue({ downloadId: 'parent-1-p1', parentId: 'parent-1' }))
@@ -177,7 +167,6 @@ describe('selectPartStatusRows', () => {
   })
 
   it('averages audio/video/merge percentages and infers 100 for stages passed', () => {
-    store.dispatch(setActiveDownloadStatusParent('parent-1'))
     seedFamily('parent-1', [{ id: 'parent-1-p1', status: 'running' }])
     // video already finished (no live entry) while merge is at 80:
     // videoPct falls back to 100 because merge exists.
@@ -195,7 +184,6 @@ describe('selectPartStatusRows', () => {
   })
 
   it('ORs isRetrying across the audio/video/merge stages', () => {
-    store.dispatch(setActiveDownloadStatusParent('parent-1'))
     seedFamily('parent-1', [{ id: 'parent-1-p1', status: 'running' }])
     seedProgress({
       downloadId: 'parent-1-p1',
@@ -217,7 +205,6 @@ describe('selectPartStatusRows', () => {
   })
 
   it('prefers merge over the lingering subtitle entry for the stage label', () => {
-    store.dispatch(setActiveDownloadStatusParent('parent-1'))
     seedFamily('parent-1', [{ id: 'parent-1-p1', status: 'running' }])
     seedProgress({
       downloadId: 'parent-1-p1',
@@ -236,7 +223,6 @@ describe('selectPartStatusRows', () => {
   })
 
   it('forces status done for a cancelled child whose file is complete', () => {
-    store.dispatch(setActiveDownloadStatusParent('parent-1'))
     store.dispatch(enqueue(queueItem('parent-1')))
     store.dispatch(
       enqueue(
@@ -263,7 +249,6 @@ describe('selectPartStatusRows', () => {
 
 describe('selectOverallSummary counts and ratio', () => {
   it('excludes cancelled parts from totals and reports them separately', () => {
-    store.dispatch(setActiveDownloadStatusParent('parent-1'))
     seedFamily('parent-1', [
       { id: 'parent-1-p1', status: 'running' },
       { id: 'parent-1-p2', status: 'pending' },
@@ -286,7 +271,6 @@ describe('selectOverallSummary counts and ratio', () => {
   })
 
   it('averages done as 1 and running as percentage/100 over active parts', () => {
-    store.dispatch(setActiveDownloadStatusParent('parent-1'))
     seedFamily('parent-1', [
       { id: 'parent-1-p1', status: 'done' },
       { id: 'parent-1-p2', status: 'running' },
@@ -308,7 +292,6 @@ describe('selectOverallSummary counts and ratio', () => {
   })
 
   it('flags isMerging only for a running part in the merge stage', () => {
-    store.dispatch(setActiveDownloadStatusParent('parent-1'))
     seedFamily('parent-1', [
       { id: 'parent-1-p1', status: 'running' },
       { id: 'parent-1-p2', status: 'running' },
@@ -341,5 +324,42 @@ describe('selectOverallSummary counts and ratio', () => {
       overallRatio: 0,
       elapsedSeconds: 0,
     })
+  })
+})
+
+describe('selectActivePartIndex (compact card auto-follow)', () => {
+  it('returns the running part', () => {
+    seedFamily('parent-1', [
+      { id: 'parent-1-p1', status: 'done' },
+      { id: 'parent-1-p2', status: 'running' },
+      { id: 'parent-1-p3', status: 'pending' },
+    ])
+
+    expect(selectActivePartIndex(store.getState())).toBe(2)
+  })
+
+  it('falls back to the first pending part when nothing is running', () => {
+    seedFamily('parent-1', [
+      { id: 'parent-1-p1', status: 'done' },
+      { id: 'parent-1-p2', status: 'done' },
+      { id: 'parent-1-p3', status: 'pending' },
+      { id: 'parent-1-p4', status: 'pending' },
+    ])
+
+    expect(selectActivePartIndex(store.getState())).toBe(3)
+  })
+
+  it('returns null when the session has no running or pending parts', () => {
+    seedFamily('parent-1', [
+      { id: 'parent-1-p1', status: 'done' },
+      { id: 'parent-1-p2', status: 'cancelled' },
+      { id: 'parent-1-p3', status: 'error' },
+    ])
+
+    expect(selectActivePartIndex(store.getState())).toBeNull()
+  })
+
+  it('returns null with an empty queue', () => {
+    expect(selectActivePartIndex(store.getState())).toBeNull()
   })
 })

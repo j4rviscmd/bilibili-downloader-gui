@@ -140,10 +140,10 @@
     "browse": "Examinar",
     "noFileSelected": "Ningún archivo seleccionado",
     "angle": {
+      "180": "180°",
       "label": "Ángulo de rotación",
       "right90": "Derecha 90°",
       "right90Hint": "Rotar 90° en sentido horario",
-      "180": "180°",
       "180Hint": "Rotar 180° (invertido)",
       "left90": "Izquierda 90°",
       "left90Hint": "Rotar 90° en sentido antihorario"
@@ -684,23 +684,15 @@
     "qrSessdataMissing": "No se pudieron obtener las credenciales. Inténtalo de nuevo."
   },
   "downloadStatus": {
-    "title": "Estado de descarga",
-    "no_downloads": "Sin descargas",
     "elapsed": "Transcurrido",
     "cancel_all": "Cancelar todo",
     "cancel_all_disabled_merging": "Combinación en curso: no se puede cancelar",
-    "open": "Descargas",
     "status_completed": "Completado",
     "status_downloading": "Descargando",
     "status_waiting": "En espera",
     "status_cancelling": "Cancelando",
     "status_cancelled": "Cancelado",
-    "status_error": "Error",
-    "status_merging": "Combinando",
-    "stage_audio": "Audio",
-    "stage_video": "Video",
-    "stage_merge": "Combinar",
-    "stage_subtitle": "Subtítulos"
+    "status_error": "Error"
   },
   "audio": {
     "title": "Extracción de audio",

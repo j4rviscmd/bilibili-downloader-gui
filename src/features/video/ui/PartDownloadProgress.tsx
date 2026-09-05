@@ -13,6 +13,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { CheckCircle2, FolderOpen } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Mosaic } from 'react-loading-indicators'
 import type { PartDownloadStatus } from '../hooks/usePartDownloadStatus'
 
 // @why: 28px matches the tallest in-row control (h-7 buttons / size-7 icon
@@ -50,6 +51,15 @@ type StageProgressProps = {
   stageName: string
   t: (key: string) => string
   waitingLabel?: string
+  /**
+   * Show an indeterminate indicator next to the icon while the part is
+   * downloading but THIS stage has not emitted its first progress event
+   * yet. Covers the per-stage lag (stream fetch / speed-check window)
+   * between the invoke-time 'running' flip (downloadVideo.ts) and each
+   * stage's first event — otherwise the column shows only a bare emoji
+   * and reads as stuck. The meaningful signal is per-stage entry absence.
+   */
+  startingIndicator?: boolean
 }
 
 /**
@@ -93,6 +103,7 @@ function StageProgress({
   stageName,
   t,
   waitingLabel,
+  startingIndicator = false,
 }: StageProgressProps) {
   const progress = progressEntries.find((p) => p.stage === stageName)
   const stageLabel = t(labelKey)
@@ -100,10 +111,27 @@ function StageProgress({
   if (!progress) {
     return (
       <div
-        className={`flex ${MIN_HEIGHT} items-center`}
+        className={`flex ${MIN_HEIGHT} items-center gap-1`}
         aria-label={`${stageLabel}: ${waitingLabel ?? t('video.stage_waiting')}`}
       >
         <StageIcon icon={icon} label={stageLabel} />
+        {/* Mosaic indicator (react-loading-indicators), centered in the
+            column's remaining width so the "preparing" state reads as a
+            whole-column state, not a left-aligned value.
+            @constraint: the indicator is sized in em (5em grid), so the
+            2.4px font-size yields a ~12px indicator — safely under the
+            28px MIN_HEIGHT, so this state never grows the row/area height.
+            color="currentColor" + the wrapper's text-primary theme the
+            cubes (single-color mono, matching the app's progress bars)
+            instead of the library's hard-coded limegreen. */}
+        {startingIndicator && (
+          <span
+            className="text-primary flex flex-1 justify-center"
+            aria-hidden="true"
+          >
+            <Mosaic color="currentColor" style={{ fontSize: '2.4px' }} />
+          </span>
+        )}
       </div>
     )
   }
@@ -111,9 +139,7 @@ function StageProgress({
   // Why: each numeric span is pinned to a min-width and rendered with
   // tabular-nums so digit transitions during a download (9% → 10% → 99%,
   // 1.2MB/s → 99.9MB/s, 9.9mb → 123.4mb) don't shift the surrounding text
-  // column. Mirrors the w-7 / w-14 + text-end + tabular-nums layout already
-  // used by PartStatusRow.tsx in the download-status dialog, so the inline
-  // per-part progress stays visually aligned with the dialog rows.
+  // column.
   return (
     <div className={`flex ${MIN_HEIGHT} items-center gap-1`}>
       <StageIcon icon={icon} label={stageLabel} fontWeight="medium" />
@@ -237,6 +263,14 @@ type Props = {
   onCancel?: () => void
   /** True if audio is embedded (durl format), so only video stage is shown */
   hasEmbeddedAudio?: boolean
+  /**
+   * Render without the block's own surface (bg/rounded/padding/margin).
+   * Used inside PartCompactCard, where the surrounding active-part
+   * highlight already provides the surface — drawing a second
+   * slightly-different background on top made the detail read as a
+   * floating foreign box instead of part of the same area.
+   */
+  flat?: boolean
 }
 
 /**
@@ -248,6 +282,7 @@ export function PartDownloadProgress({
   isWaitingForTurn = false,
   onCancel,
   hasEmbeddedAudio = false,
+  flat = false,
 }: Props) {
   const { t } = useTranslation()
   const {
@@ -288,6 +323,14 @@ export function PartDownloadProgress({
     (p) => p.stage === 'merge' && !p.isComplete,
   )
 
+  // @why: Between download start and each stage's first progress event there
+  //   is a fetch/speed-check window with no byte data for that column. Show
+  //   the starting indicator on audio/video icons during the whole download
+  //   phase whenever the individual stage has no entry — once its event
+  //   arrives the column shows real numbers. (Merge keeps its waiting label:
+  //   it is genuinely minutes away while audio/video run.)
+  const startingIndicator = isDownloading
+
   // @why: subtitle stage runs after audio/video reach 100% and before merge.
   //   Detected separately so the merge column can swap to an indeterminate
   //   "subtitle downloading" state instead of freezing at 100%.
@@ -295,7 +338,8 @@ export function PartDownloadProgress({
 
   // Why: merge-stage cancellation is disabled because killing ffmpeg mid-merge
   // races with the final write and produces a contradictory (cancelled-but-
-  // complete) display. Mirrors the canCancel guard in PartStatusRow.tsx.
+  // complete) display. Sibling guards: PartCompactCard only offers row-level
+  // cancel while pending; cancel-all is blocked by OverallSummary.isMerging.
   const canCancel = (isPending || isDownloading) && !isInMergeStage && onCancel
 
   const handleOpenFile = useCallback(async () => {
@@ -330,7 +374,11 @@ export function PartDownloadProgress({
     : (errorMessage ?? t('video.download_failed_part'))
 
   return (
-    <div className="bg-muted/50 mt-2 space-y-2 rounded-md p-1.5">
+    <div
+      className={
+        flat ? 'space-y-2' : 'bg-muted/50 mt-2 space-y-2 rounded-md p-1.5'
+      }
+    >
       {isComplete && (
         <div className={`flex ${MIN_HEIGHT} items-center justify-between`}>
           <div className="flex items-center gap-2 text-sm">
@@ -388,6 +436,7 @@ export function PartDownloadProgress({
                 progressEntries={progressEntries}
                 stageName="audio"
                 t={t}
+                startingIndicator={startingIndicator}
               />
             </div>
             <div className="flex-1">
@@ -397,6 +446,7 @@ export function PartDownloadProgress({
                 progressEntries={progressEntries}
                 stageName="video"
                 t={t}
+                startingIndicator={startingIndicator}
               />
             </div>
             <div className="flex-1">
@@ -417,6 +467,7 @@ export function PartDownloadProgress({
                   progressEntries={progressEntries}
                   stageName="video"
                   t={t}
+                  startingIndicator={startingIndicator}
                 />
               </div>
               <div className="flex-1" />

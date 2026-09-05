@@ -9,7 +9,7 @@ import { isUnauthorizedError } from '@/app/lib/invokeErrorHandler'
  * the fixed message is used instead.
  *
  * Extracted from VideoInfoContext.getErrorMessage so queue display paths
- * (PartStatusRow / PartDownloadProgress) can share the same mapping.
+ * (PartDownloadProgress / PartCompactCard) can share the same mapping.
  */
 const VIDEO_ERROR_MAP: Record<string, string> = {
   'ERR::VIDEO_NOT_FOUND': 'video.video_not_found',

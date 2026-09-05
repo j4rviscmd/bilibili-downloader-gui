@@ -1,9 +1,9 @@
 /**
  * PageLayoutShell suite.
  *
- * Heavy siblings are stubbed (SettingsDialog, DownloadStatusDialog — both
- * have their own suites); the sidebar/app-bar chrome, route-aware nav
- * button and children slot are asserted against the real store.
+ * Heavy siblings are stubbed (SettingsDialog has its own suite); the
+ * sidebar/app-bar chrome, route-aware nav button and children slot are
+ * asserted against the real store.
  */
 
 import { store } from '@/app/store'
@@ -13,9 +13,6 @@ import { screen } from '@testing-library/react'
 import { Route, Routes } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/features/download-status', () => ({
-  DownloadStatusDialog: () => <div data-testid="download-status-dialog" />,
-}))
 vi.mock('@/features/settings/dialog/SettingsDialog', () => ({
   default: () => <div data-testid="settings-dialog" />,
 }))
@@ -63,7 +60,6 @@ describe('PageLayoutShell', () => {
       screen.getByRole('button', { name: /nav\.aria\.(open|close)Sidebar/ }),
     ).toBeInTheDocument()
     expect(screen.getByTestId('settings-dialog')).toBeInTheDocument()
-    expect(screen.getByTestId('download-status-dialog')).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: 'settings.title' }),
     ).toBeInTheDocument()

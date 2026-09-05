@@ -140,10 +140,10 @@
     "browse": "찾아보기",
     "noFileSelected": "선택된 파일이 없습니다",
     "angle": {
+      "180": "180°",
       "label": "회전 각도",
       "right90": "오른쪽 90°",
       "right90Hint": "시계 방향으로 90° 회전",
-      "180": "180°",
       "180Hint": "180° 회전 (상하 반전)",
       "left90": "왼쪽 90°",
       "left90Hint": "반시계 방향으로 90° 회전"
@@ -684,23 +684,15 @@
     "qrSessdataMissing": "로그인 정보를 가져오지 못했습니다. 다시 시도하세요."
   },
   "downloadStatus": {
-    "title": "다운로드 상태",
-    "no_downloads": "다운로드 없음",
     "elapsed": "경과",
     "cancel_all": "모두 취소",
     "cancel_all_disabled_merging": "병합 중이라 취소할 수 없습니다",
-    "open": "다운로드",
     "status_completed": "완료",
     "status_downloading": "다운로드 중",
     "status_waiting": "대기 중",
     "status_cancelling": "취소 중",
     "status_cancelled": "취소됨",
-    "status_error": "오류",
-    "status_merging": "병합 중",
-    "stage_audio": "오디오",
-    "stage_video": "비디오",
-    "stage_merge": "병합",
-    "stage_subtitle": "자막"
+    "status_error": "오류"
   },
   "audio": {
     "title": "오디오 추출",

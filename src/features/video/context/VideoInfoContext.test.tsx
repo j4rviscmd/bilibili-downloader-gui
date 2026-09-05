@@ -27,10 +27,6 @@ import { act, waitFor } from '@testing-library/react'
 import type { Mock } from 'vitest'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import {
-  closeDownloadStatusDialog,
-  setActiveDownloadStatusParent,
-} from '@/features/download-status'
 import type { Video } from '../types'
 import {
   useVideoInfo,
@@ -126,8 +122,6 @@ beforeEach(() => {
   store.dispatch(clearQueue())
   store.dispatch(clearProgress())
   store.dispatch(clearDownloadError())
-  store.dispatch(closeDownloadStatusDialog())
-  store.dispatch(setActiveDownloadStatusParent(null))
   downloadVideoMock.mockResolvedValue(undefined)
   mockInvoke.mockImplementation((cmd: string) => {
     if (cmd === 'fetch_video_info') return Promise.resolve(videoPayload)
@@ -434,11 +428,6 @@ describe('download', () => {
       undefined,
       undefined,
     )
-
-    // The status dialog opens on the new parent.
-    const dialog = store.getState().downloadStatusDialog
-    expect(dialog.dialogOpen).toBe(true)
-    expect(dialog.activeParentId).toBe(parent?.downloadId)
   })
 
   it('is a no-op while form 1 is invalid', async () => {

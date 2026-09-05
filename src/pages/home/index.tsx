@@ -1,6 +1,5 @@
 import type { RootState } from '@/app/store'
 import { useAppDispatch, useSelector } from '@/app/store'
-import { OpenDownloadStatusDialogButton } from '@/features/download-status'
 import { useInit } from '@/features/init'
 import { QRCodeLoginDialog } from '@/features/login'
 import type { Video } from '@/features/video'
@@ -16,6 +15,7 @@ import {
   VideoForm1,
   VideoInfoProvider,
 } from '@/features/video'
+import { DownloadStatusBar } from '@/features/video/ui/DownloadStatusBar'
 import VideoPartCard from '@/features/video/ui/VideoPartCard'
 import VideoPartCardSkeleton from '@/features/video/ui/VideoPartCardSkeleton'
 import {
@@ -254,12 +254,24 @@ function PaginatedPartList({
             page={i + 1}
             isDuplicate={duplicateIndices.includes(i)}
           />
-          {i < pageRange.endIndex && <Separator className="my-3" />}
+          {i < pageRange.endIndex && (
+            <Separator
+              // Tighter rhythm between collapsed rows while a download
+              // session is active (compact part cards)
+              className={hasActiveDownloads ? 'my-0.5' : 'my-3'}
+            />
+          )}
         </div>,
       )
     }
     return parts
-  }, [video, duplicateIndices, pageRange.startIndex, pageRange.endIndex])
+  }, [
+    video,
+    duplicateIndices,
+    pageRange.startIndex,
+    pageRange.endIndex,
+    hasActiveDownloads,
+  ])
 
   if (isFetching) {
     return (
@@ -271,9 +283,14 @@ function PaginatedPartList({
 
   return (
     <>
+      {/* The list is the flex-1 scroll region of the Step 2 card: its
+          height is whatever remains after the header, status bar and
+          footer — so the pagination and download button stay visible at
+          any font scale (the old fixed 100dvh-rem budget clipped them
+          when the root font size was raised). */}
       <CardContent
         data-part-list
-        className="max-h-[calc(100dvh-2.3rem-19.5rem)] space-y-0 overflow-y-auto"
+        className="min-h-0 flex-1 space-y-0 overflow-y-auto"
       >
         {pageParts}
       </CardContent>
@@ -715,8 +732,8 @@ function HomeContentInner() {
 
       {/* Step 2: Paginated Area */}
       {(isFetching || video.parts.length > 0) && (
-        <div className="mx-auto w-full max-w-5xl px-3 pb-3 sm:px-6">
-          <Card>
+        <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col px-3 pb-3 sm:px-6">
+          <Card className="flex min-h-0 flex-1 flex-col">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="font-display text-lg">
@@ -747,6 +764,10 @@ function HomeContentInner() {
                 )}
               </div>
             </CardHeader>
+            {/* Inline overall progress bar (successor of the abolished
+                download-status dialog, issue #569). Structurally sticky:
+                the part list scrolls in its own container below. */}
+            <DownloadStatusBar />
             <PaginatedPartList
               video={video}
               duplicateIndices={duplicateIndices}
@@ -805,7 +826,6 @@ export function HomeContent() {
   return (
     <VideoInfoProvider>
       <HomeContentInner />
-      <OpenDownloadStatusDialogButton />
     </VideoInfoProvider>
   )
 }

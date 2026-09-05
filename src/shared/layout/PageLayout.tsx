@@ -1,4 +1,3 @@
-import { DownloadStatusDialog } from '@/features/download-status'
 import { useSettings } from '@/features/settings'
 import OpenSettingsDialogButton from '@/features/settings/dialog/OpenSettingsDialogButton'
 import SettingsDialog from '@/features/settings/dialog/SettingsDialog'
@@ -145,7 +144,6 @@ export function PageLayoutShell({ children }: PageLayoutShellProps) {
           </div>
         </SidebarInset>
       </SidebarProvider>
-      <DownloadStatusDialog />
       <SettingsDialog />
     </>
   )

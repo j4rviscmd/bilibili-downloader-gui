@@ -140,10 +140,10 @@
     "browse": "Browse",
     "noFileSelected": "No file selected",
     "angle": {
+      "180": "180°",
       "label": "Rotation angle",
       "right90": "Right 90°",
       "right90Hint": "Rotate clockwise 90°",
-      "180": "180°",
       "180Hint": "Rotate 180° (upside-down)",
       "left90": "Left 90°",
       "left90Hint": "Rotate counter-clockwise 90°"
@@ -684,23 +684,15 @@
     "qrSessdataMissing": "Failed to get login credentials. Please try again."
   },
   "downloadStatus": {
-    "title": "Download Status",
-    "no_downloads": "No downloads",
     "elapsed": "Elapsed",
     "cancel_all": "Cancel All",
     "cancel_all_disabled_merging": "Merging in progress — cancel unavailable",
-    "open": "Downloads",
     "status_completed": "Completed",
     "status_downloading": "Downloading",
     "status_waiting": "Waiting",
     "status_cancelling": "Cancelling",
     "status_cancelled": "Cancelled",
-    "status_error": "Error",
-    "status_merging": "Merging",
-    "stage_audio": "Audio",
-    "stage_video": "Video",
-    "stage_merge": "Merge",
-    "stage_subtitle": "Subtitles"
+    "status_error": "Error"
   },
   "audio": {
     "title": "Audio Extraction",

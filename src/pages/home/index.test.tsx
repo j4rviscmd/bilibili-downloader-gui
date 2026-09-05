@@ -30,11 +30,6 @@ vi.mock('@/features/login', () => ({
   QRCodeLoginDialog: () => <div data-testid="qr-login-dialog" />,
   QRCodeDisplay: () => <div data-testid="qr-code-display" />,
 }))
-vi.mock('@/features/download-status', () => ({
-  OpenDownloadStatusDialogButton: () => (
-    <div data-testid="open-download-status-button" />
-  ),
-}))
 vi.mock('@/shared/ui/toast', () => ({
   toast: { info: vi.fn(), warning: vi.fn(), error: vi.fn(), success: vi.fn() },
 }))
@@ -208,10 +203,6 @@ describe('HomeContent', () => {
     expect(screen.getAllByTestId('video-part-card')).toHaveLength(3)
     // DownloadButton mounts both in the step-2 header and the list footer.
     expect(screen.getAllByTestId('download-button')).toHaveLength(2)
-    // The download-status entry point is mounted by the page.
-    expect(
-      screen.getByTestId('open-download-status-button'),
-    ).toBeInTheDocument()
     // 3 parts fit one page → no pagination controls.
     expect(
       screen.queryByText('video.pagination_previous'),
