@@ -41,27 +41,6 @@ export const AUDIO_QUALITIES_ORDER: number[] = [
 ]
 
 /**
- * Video codec IDs as defined by Bilibili DASH API.
- *
- * References:
- * - AVC: https://en.wikipedia.org/wiki/Advanced_Video_Coding
- * - HEVC: https://en.wikipedia.org/wiki/High_Efficiency_Video_Coding
- * - AV1: https://en.wikipedia.org/wiki/AV1
- */
-export const CODECID_AVC: number = 7
-export const CODECID_HEVC: number = 12
-export const CODECID_AV1: number = 13
-
-/**
- * Mapping of video codec IDs to display labels.
- */
-export const VIDEO_CODEC_MAP: Record<number, string> = {
-  [CODECID_AVC]: 'AVC',
-  [CODECID_HEVC]: 'HEVC',
-  [CODECID_AV1]: 'AV1',
-}
-
-/**
  * Number of parts displayed per page in the paginated part list.
  *
  * Also bounds the default selection when a URL does not identify a

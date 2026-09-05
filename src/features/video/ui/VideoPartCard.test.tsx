@@ -439,7 +439,9 @@ describe('VideoPartCard', () => {
     })
 
     const trigger = screen.getByRole('button', { name: /video.options/ })
-    expect(trigger).toHaveTextContent('1080p(AVC)')
+    // Codec is no longer part of the summary (global setting governs it)
+    expect(trigger).toHaveTextContent('1080p')
+    expect(trigger).not.toHaveTextContent('(AVC)')
     expect(trigger).toHaveTextContent('192K')
     // More than two languages collapse into a count
     expect(trigger).toHaveTextContent('video.subtitle_n_languages')
