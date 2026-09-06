@@ -18,6 +18,7 @@ import {
   AUDIO_QUALITIES_MAP,
   AUDIO_QUALITIES_ORDER,
   VIDEO_QUALITIES_MAP,
+  VIDEO_QUALITIES_ORDER,
 } from '@/features/video/lib/constants'
 import { buildVideoFormSchema2 } from '@/features/video/lib/formSchema'
 import { buildVideoUrl } from '@/features/video/lib/utils'
@@ -885,18 +886,21 @@ const VideoPartCard = memo(function VideoPartCard({
                                       >
                                         <QualityRadioGroup
                                           idPrefix={`vq-${page}`}
-                                          options={Object.entries(
-                                            VIDEO_QUALITIES_MAP,
-                                          )
-                                            .reverse()
-                                            .map(([id, label]) => ({
-                                              id,
-                                              label,
+                                          unavailableReason={t(
+                                            'video.quality_requires_vip_or_login',
+                                          )}
+                                          options={VIDEO_QUALITIES_ORDER.map(
+                                            (id) => ({
+                                              id: String(id),
+                                              label:
+                                                VIDEO_QUALITIES_MAP[id] ??
+                                                String(id),
                                               isAvailable: isQualityAvailable(
-                                                Number(id),
+                                                id,
                                                 'video',
                                               ),
-                                            }))}
+                                            }),
+                                          )}
                                         />
                                       </RadioGroup>
                                     </FormControl>
@@ -942,6 +946,12 @@ const VideoPartCard = memo(function VideoPartCard({
                                         >
                                           <QualityRadioGroup
                                             idPrefix={`aq-${page}`}
+                                            // Why: the `video.*` key is reused on purpose, not a copy-paste slip —
+                                            // availability is a bare membership check with no per-option cause, so
+                                            // one generic message serves both groups (issue #584)
+                                            unavailableReason={t(
+                                              'video.quality_requires_vip_or_login',
+                                            )}
                                             options={AUDIO_QUALITIES_ORDER.map(
                                               (id) => ({
                                                 id: String(id),

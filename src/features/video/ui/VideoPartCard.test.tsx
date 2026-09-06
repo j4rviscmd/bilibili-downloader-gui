@@ -249,11 +249,9 @@ describe('VideoPartCard', () => {
       },
     })
 
-    // 1080p is available; 4K Dolby Vision (id 120) is not in the store list
+    // 1080p is available; 4K (id 120) is not in the store list
     expect(screen.getByRole('radio', { name: '1080p' })).toBeEnabled()
-    expect(
-      screen.getByRole('radio', { name: '4K Dolby Vision' }),
-    ).toBeDisabled()
+    expect(screen.getByRole('radio', { name: '4K' })).toBeDisabled()
 
     // No audio qualities -> embedded-audio info box instead of a radio group
     expect(screen.getByText('video.bangumi_audio_embedded')).toBeInTheDocument()

@@ -197,7 +197,8 @@
     "title_description": "Saisissez le titre de la vidéo BiliBili. Il sera utilisé comme nom de fichier.",
     "quality_label": "Qualité",
     "quality_description": "Sélectionnez la qualité de la vidéo à télécharger.",
-    "quality_note": "* Certaines qualités élevées comme 720p60 / 1080p60 peuvent ne pas être disponibles selon l'état de connexion ou la région.",
+    "quality_note": "* 4K / HDR10 / Dolby Vision / 8K nécessitent un compte VIP (大会員) connecté. Les autres qualités élevées peuvent dépendre de l'état de connexion ou de la région.",
+    "quality_requires_vip_or_login": "Connexion requise ; certaines options nécessitent en plus un abonnement VIP (大会員)",
     "audio_quality_label": "Qualité audio",
     "audio_quality_description": "Sélectionnez la qualité audio à télécharger.",
     "audio_quality_note": "* L'audio haute qualité (Dolby Atmos / Hi-Res) peut nécessiter l'état de connexion ou la région et peut être indisponible.\n* Nous récupérons la qualité la plus proche de votre sélection ; si elle n'est pas disponible, la qualité la plus élevée disponible est utilisée.",
@@ -321,8 +322,7 @@
   "user": {
     "cookie_valid": "Cookies chargées",
     "cookie_missing": "Aucun cookie trouvé (qualité limitée)",
-    "not_logged_in": "Non connecté",
-    "login_required_for_high_quality": "Connexion requise pour une qualité supérieure"
+    "not_logged_in": "Non connecté"
   },
   "init": {
     "initializing": "Initialisation...",
