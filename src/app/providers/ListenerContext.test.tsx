@@ -108,31 +108,31 @@ describe('progress event', () => {
     expect(queue().find((q) => q.downloadId === 'd1')!.status).toBe('pending')
   })
 
-  it('merge-fallback stage shows the audio-merge-fallback toast', async () => {
+  it('merge-fallback stage shows the audio-merge-fallback toast once', async () => {
     await mount()
     act(() => {
       emitTauriEvent('progress', { ...progressBase, stage: 'merge-fallback' })
     })
+    expect(toast.info).toHaveBeenCalledTimes(1)
     expect(toast.info).toHaveBeenCalledWith('video.audio_merge_fallback', {
       duration: 6000,
     })
   })
 
-  it.each(['warn-video-quality-fallback', 'warn-audio-quality-fallback'])(
-    '%s shows the matching warning toast',
-    async (stage) => {
-      await mount()
-      act(() => {
-        emitTauriEvent('progress', { ...progressBase, stage })
+  it('repeated merge-fallback progress events do not re-toast (issue #586)', async () => {
+    await mount()
+    // The backend ticker re-emits stage="merge-fallback" every 500ms during
+    // the whole AAC re-encode; only the first event may toast.
+    act(() => {
+      emitTauriEvent('progress', { ...progressBase, stage: 'merge-fallback' })
+      emitTauriEvent('progress', {
+        ...progressBase,
+        stage: 'merge-fallback',
+        percentage: 20,
       })
-      expect(toast.warning).toHaveBeenCalledWith(
-        stage.startsWith('warn-video')
-          ? 'video.video_quality_fallback'
-          : 'video.audio_quality_fallback',
-        { duration: 6000 },
-      )
-    },
-  )
+    })
+    expect(toast.info).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('history:entry_added', () => {

@@ -67,7 +67,7 @@ const ListenerContext = createContext<boolean>(false)
  *
  * Sets up listeners for events emitted from the Tauri Rust backend:
  * - `progress` - Download progress updates dispatched to Redux state,
- *   with toast notifications for quality fallback warnings
+ *   with a one-time toast notification for the AAC merge fallback
  * - `history:entry_added` - New history entries dispatched to Redux state
  * - `download_cancelled` - Clears queue items and progress, shows info toast
  * - `download-quality-resolved` - Updates resolved video/audio quality in state
@@ -101,6 +101,27 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
       unlistenProgress = await listen('progress', (event) => {
         const payload = event.payload as Progress
         const { stage, downloadId } = payload
+
+        // Why: `set_stage("merge-fallback")` persists the stage in the
+        //   backend progress state, so the 500ms progress ticker re-emits
+        //   stage="merge-fallback" for the whole AAC re-encode (issue #586).
+        //   Detect the *first* occurrence by checking the store before this
+        //   dispatch creates the `${downloadId}:merge-fallback` entry —
+        //   entry presence means the toast already fired.
+        // Note: the `${downloadId}:${stage}` id format comes from
+        //   computeInternalId in src/shared/progress/progressSlice.ts and is
+        //   duplicated here as a literal — changing it there silently breaks
+        //   this dedupe and the toast spam returns. No other stage maps to
+        //   this id ('complete' reuses `${downloadId}:merge`), so the entry
+        //   survives until clearProgress/clearProgressByDownloadId.
+        const isFirstMergeFallback =
+          stage === 'merge-fallback' &&
+          !store
+            .getState()
+            .progress.some(
+              (p) => p.internalId === `${downloadId}:merge-fallback`,
+            )
+
         store.dispatch(setProgress(payload))
 
         // Update queue status based on progress stage
@@ -114,33 +135,18 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
           store.dispatch(updateQueueStatus({ downloadId, status: 'running' }))
         }
 
-        // Why: the backend emits the `merge-fallback` stage (Emits::set_stage
+        // Why: the backend sets the `merge-fallback` stage (Emits::set_stage
         //   in merge_avs, src-tauri/src/handlers/ffmpeg.rs) only when the
         //   fast/lossless `-c:a copy` path fails and it falls back to AAC
         //   re-encoding. Surfacing it as a toast keeps the user informed that
         //   this merge will run slower than the usual stream-copy fast path
-        //   (Issue #492).
-        // Note: this is the merge *codec* fallback, distinct from the *quality*
-        //   fallback handled below (warn-*-quality-fallback), which is about
-        //   the CDN serving a lower-than-requested quality. Keep this stage
-        //   string in sync with the Rust emitter if it is renamed.
-        // Show toast for audio fallback during merge
-        if (stage === 'merge-fallback') {
+        //   (Issue #492). One toast per download is enough — the entry
+        //   persists until cancel/clear, so a retry that falls back again
+        //   stays silent intentionally.
+        // Note: keep this stage string in sync with the Rust emitter if it
+        //   is renamed.
+        if (isFirstMergeFallback) {
           toast.info(i18n.t('video.audio_merge_fallback'), {
-            duration: 6000,
-          })
-        }
-
-        // Show toast for quality fallback warnings
-        const isFallbackWarning =
-          stage === 'warn-video-quality-fallback' ||
-          stage === 'warn-audio-quality-fallback'
-        if (isFallbackWarning) {
-          const key =
-            stage === 'warn-video-quality-fallback'
-              ? 'video.video_quality_fallback'
-              : 'video.audio_quality_fallback'
-          toast.warning(i18n.t(key, { from: 'selected', to: 'fallback' }), {
             duration: 6000,
           })
         }
