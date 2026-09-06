@@ -2,10 +2,7 @@
 
 # Bilibili Downloader GUI
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./public/app-image(searched)_en.png">
-  <img src="./public/app-image(searched)_en_light.png" alt="App Image">
-</picture>
+<img src="./public/app-demo_en.webp" alt="App Demo">
 
 English | [日本語](README.ja.md) | [简体中文](README.zh.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Français](README.fr.md)
 
