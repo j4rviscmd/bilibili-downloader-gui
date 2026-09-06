@@ -71,9 +71,7 @@ describe('QualityRadioGroup', () => {
     // an exiting clone mounted alongside the new content.
     await actor.hover(screen.getByText('4K'))
 
-    expect(
-      await screen.findAllByText('Login required'),
-    ).not.toHaveLength(0)
+    expect(await screen.findAllByText('Login required')).not.toHaveLength(0)
   })
 
   it('renders no tooltip when no unavailable reason is given', () => {
