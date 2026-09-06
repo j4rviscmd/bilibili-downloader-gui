@@ -15,6 +15,7 @@ import { videoApi } from '@/features/video/api/videoApi'
 import {
   resetInput,
   setPendingDownload,
+  setUrl,
   updatePartSelected,
 } from '@/features/video/model/inputSlice'
 import { resetVideo } from '@/features/video/model/videoSlice'
@@ -290,7 +291,7 @@ describe('onValid1', () => {
     })
     renderProvider()
 
-    let running: Promise<void> | undefined
+    let running: Promise<boolean> | undefined
     act(() => {
       running = ctx.onValid1(VIDEO_URL)
     })
@@ -303,6 +304,88 @@ describe('onValid1', () => {
       await running
     })
     expect(ctx.isFetching).toBe(false)
+  })
+
+  it('applies video info and returns true on a silent success', async () => {
+    renderProvider()
+
+    let result: boolean | undefined
+    await act(async () => {
+      result = await ctx.onValid1(VIDEO_URL, { silent: true })
+    })
+
+    expect(result).toBe(true)
+    expect(store.getState().input.partInputs).toHaveLength(2)
+  })
+
+  it('suppresses toasts and returns false on a silent failure', async () => {
+    mockInvoke.mockRejectedValue(new Error('ERR::VIDEO_NOT_FOUND'))
+    renderProvider()
+
+    let result: boolean | undefined
+    await act(async () => {
+      result = await ctx.onValid1(VIDEO_URL, { silent: true })
+    })
+
+    expect(result).toBe(false)
+    expect(toastError).not.toHaveBeenCalled()
+    expect(store.getState().video.title).toBe('')
+  })
+
+  it('exposes isSilentFetching only while a silent fetch is in flight', async () => {
+    let resolveFetch: (v: Video) => void = () => {}
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd !== 'fetch_video_info') return Promise.resolve(undefined)
+      return new Promise<Video>((resolve) => {
+        resolveFetch = resolve
+      })
+    })
+    renderProvider()
+
+    let running: Promise<boolean> | undefined
+    act(() => {
+      running = ctx.onValid1(VIDEO_URL, { silent: true })
+    })
+    await act(async () => {})
+
+    expect(ctx.isFetching).toBe(true)
+    expect(ctx.isSilentFetching).toBe(true)
+
+    await act(async () => {
+      resolveFetch(videoPayload)
+      await running
+    })
+    expect(ctx.isSilentFetching).toBe(false)
+  })
+
+  it('discards a stale result when the URL moved on mid-flight', async () => {
+    let resolveFetch: (v: Video) => void = () => {}
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd !== 'fetch_video_info') return Promise.resolve(undefined)
+      return new Promise<Video>((resolve) => {
+        resolveFetch = resolve
+      })
+    })
+    renderProvider()
+
+    let running: Promise<boolean> | undefined
+    act(() => {
+      running = ctx.onValid1(VIDEO_URL, { silent: true })
+    })
+    await act(async () => {})
+
+    // Simulate a newer URL replacing the in-flight one while the input
+    // stays enabled during the silent fetch.
+    act(() => {
+      store.dispatch(setUrl(`${VIDEO_URL}?p=2`))
+    })
+
+    await act(async () => {
+      resolveFetch(videoPayload)
+      const result = await running
+      expect(result).toBe(false)
+    })
+    expect(store.getState().video.title).toBe('')
   })
 })
 

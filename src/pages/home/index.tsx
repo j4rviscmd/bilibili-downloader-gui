@@ -388,14 +388,24 @@ function PaginatedPartList({
  */
 function HomeContentInner() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const { video, duplicateIndices, onValid1, isFetching, input } =
-    useVideoInfo()
+  const {
+    video,
+    duplicateIndices,
+    onValid1,
+    isFetching,
+    isSilentFetching,
+    input,
+  } = useVideoInfo()
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const hasActiveDownloads = useSelector(selectHasActiveDownloads)
   const user = useSelector((state: RootState) => state.user)
   const isLoggedIn = user.hasCookie && user.data?.isLogin
   const [isQrLoginDialogOpen, setIsQrLoginDialogOpen] = useState(false)
+
+  // Fetch in flight that the UI should reflect (explicit submit). The
+  // silent auto-fetch on input pause is excluded — it must stay invisible.
+  const isExplicitFetching = isFetching && !isSilentFetching
 
   // Page state management:
   // - `p` parameter: part number (for initial display and part selection)
@@ -731,7 +741,14 @@ function HomeContentInner() {
       </div>
 
       {/* Step 2: Paginated Area */}
-      {(isFetching || video.parts.length > 0) && (
+      {/* Hidden while a silent auto-fetch is in flight: the debounced
+          fetch on input pause must stay invisible, so Step 2 only
+          appears once its data actually arrived (or on an explicit
+          submit's fetch, which shows the skeleton as before). The same
+          gate applies to the skeletons below: with a previous video
+          still displayed, a silent refetch keeps the old list mounted
+          instead of flashing skeletons mid-typing. */}
+      {(video.parts.length > 0 || isExplicitFetching) && (
         <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col px-3 pb-3 sm:px-6">
           <Card className="flex min-h-0 flex-1 flex-col">
             <CardHeader>
@@ -739,7 +756,7 @@ function HomeContentInner() {
                 <CardTitle className="font-display text-lg">
                   {t('video.step2_title')}
                 </CardTitle>
-                {isFetching ? (
+                {isExplicitFetching ? (
                   <div className="flex items-center gap-2">
                     <Skeleton className="h-10 w-[88px]" />
                     <Skeleton className="h-8 w-[68px]" />
@@ -771,7 +788,7 @@ function HomeContentInner() {
             <PaginatedPartList
               video={video}
               duplicateIndices={duplicateIndices}
-              isFetching={isFetching}
+              isFetching={isExplicitFetching}
               currentPage={currentPage}
               onPageChange={handlePageChange}
               scrollToPartIndex={scrollToPartIndex}
