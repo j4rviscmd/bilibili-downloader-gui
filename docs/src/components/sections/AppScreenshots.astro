@@ -38,6 +38,17 @@ const basePath = import.meta.env.BASE_URL;
       />
     </div>
   </div>
+  <div class="mt-8 flex w-full justify-center">
+    <video
+      id="app-demo"
+      src={`${basePath}/app-demo_en.mp4`}
+      class="w-full max-w-3xl rounded-lg border shadow-lg"
+      controls
+      autoplay
+      muted
+      loop
+      playsinline></video>
+  </div>
 </section>
 
 <script define:vars={{ basePath }}>
