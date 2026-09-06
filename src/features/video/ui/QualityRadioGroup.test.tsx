@@ -1,4 +1,5 @@
 import { RadioGroup } from '@/shared/animate-ui/radix/radio-group'
+import { TooltipProvider } from '@/shared/animate-ui/radix/tooltip'
 import { renderWithProviders } from '@/test/test-utils'
 import { screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
@@ -12,11 +13,17 @@ const options = [
 ]
 
 /** Renders the group inside the RadioGroup root it is used with in prod. */
-function setup(onValueChange = vi.fn()) {
+function setup(onValueChange = vi.fn(), unavailableReason?: string) {
   const result = renderWithProviders(
-    <RadioGroup value="" onValueChange={onValueChange}>
-      <QualityRadioGroup options={options} idPrefix="vq-1" />
-    </RadioGroup>,
+    <TooltipProvider>
+      <RadioGroup value="" onValueChange={onValueChange}>
+        <QualityRadioGroup
+          options={options}
+          idPrefix="vq-1"
+          unavailableReason={unavailableReason}
+        />
+      </RadioGroup>
+    </TooltipProvider>,
   )
   return { ...result, onValueChange }
 }
@@ -54,5 +61,23 @@ describe('QualityRadioGroup', () => {
     await actor.click(screen.getByRole('radio', { name: '1080p' }))
 
     expect(onValueChange).toHaveBeenCalledWith('80')
+  })
+
+  it('shows the unavailable reason tooltip on hover for disabled options', async () => {
+    const { user: actor } = setup(undefined, 'Login required')
+
+    // Hovering the disabled 4K label (wrapped in a span trigger) opens the
+    // tooltip with the reason. findAllByText: the motion tooltip may keep
+    // an exiting clone mounted alongside the new content.
+    await actor.hover(screen.getByText('4K'))
+
+    expect(await screen.findAllByText('Login required')).not.toHaveLength(0)
+  })
+
+  it('renders no tooltip when no unavailable reason is given', () => {
+    setup()
+
+    // No tooltip trigger wrapper: the disabled option is a plain div child.
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
   })
 })

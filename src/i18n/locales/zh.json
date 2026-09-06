@@ -197,7 +197,8 @@
     "title_description": "输入 BiliBili 视频标题。它会作为文件名。",
     "quality_label": "清晰度",
     "quality_description": "选择要下载的视频清晰度。",
-    "quality_note": "* 部分高码率清晰度（如 720p60 / 1080p60）可能因登录状态或地区不可用。",
+    "quality_note": "* 4K / HDR10 / 杜比视界 / 8K 需要登录大会员账号。其他高码率清晰度可能因登录状态或地区不可用。",
+    "quality_requires_vip_or_login": "需要登录；部分选项还需要大会员",
     "audio_quality_label": "音质",
     "audio_quality_description": "选择要下载的音频音质。",
     "audio_quality_note": "* 部分高品质音频（Dolby Atmos / Hi-Res）可能需要登录或受地区限制而不可用。\n* 我们会尽可能获取接近所选音质的版本；若不可用，则使用当前可用的最高音质。",
@@ -321,8 +322,7 @@
   "user": {
     "cookie_valid": "Cookie已加载",
     "cookie_missing": "未找到Cookie（画质受限）",
-    "not_logged_in": "未登录",
-    "login_required_for_high_quality": "登录后可获得更高画质"
+    "not_logged_in": "未登录"
   },
   "init": {
     "initializing": "初始化中...",

@@ -30,7 +30,7 @@ Pas de publicités, pas de suivi. 100 % gratuit.
 
 ### Téléchargement
 
-- **Téléchargement vidéo haute qualité** - Choisissez n'importe quelle qualité : 4K/1080p/720p/HDR
+- **Téléchargement vidéo haute qualité** - Choisissez n'importe quelle qualité : 8K/4K/1080p/720p/HDR10/Dolby Vision
 - **Prise en charge de Bangumi (anime et séries)** - Téléchargez des épisodes d'anime et de séries en plus des vidéos régulières
 - **Sauvegarde par lot de vidéos multi-parties** - Téléchargez automatiquement toutes les parties de cours, séries, etc.
 - **Téléchargements rapides et stables** - Changement automatique de CDN avec réessai automatique en cas d'erreurs réseau

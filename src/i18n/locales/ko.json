@@ -197,7 +197,8 @@
     "title_description": "BiliBili 영상 제목을 입력하세요. 파일명으로 사용됩니다.",
     "quality_label": "화질",
     "quality_description": "다운로드할 영상 화질을 선택하세요.",
-    "quality_note": "* 720p60 / 1080p60 등의 고화질은 로그인 상태나 지역에 따라 선택 불가할 수 있습니다.",
+    "quality_note": "* 4K / HDR10 / 돌비 비전 / 8K는 로그인된 VIP(대회원) 계정이 필요합니다. 기타 고화질은 로그인 상태나 지역에 따라 선택 불가할 수 있습니다.",
+    "quality_requires_vip_or_login": "로그인이 필요하며, 일부 옵션은 대회원이 필요합니다",
     "audio_quality_label": "음질",
     "audio_quality_description": "다운로드할 음성 음질을 선택하세요.",
     "audio_quality_note": "* Dolby Atmos / Hi-Res 등의 고음질은 로그인 상태나 지역에 따라 선택 불가할 수 있습니다.\n* 선택한 음질에 최대한 가까운 것을 가져오며, 사용할 수 없는 경우 현재 사용 가능한 가장 높은 음질로 제공됩니다.",
@@ -321,8 +322,7 @@
   "user": {
     "cookie_valid": "Cookie가 로드됨",
     "cookie_missing": "Cookie를 찾을 수 없음（화질 제한됨）",
-    "not_logged_in": "비로그인",
-    "login_required_for_high_quality": "고화질에는 로그인 필요"
+    "not_logged_in": "비로그인"
   },
   "init": {
     "initializing": "초기화 중...",

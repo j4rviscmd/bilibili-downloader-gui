@@ -1,19 +1,34 @@
 /**
  * Mapping of Bilibili video quality IDs to display labels.
  *
+ * IDs follow the official playurl `qn` table (120 = 4K, 125 = HDR10,
+ * 126 = Dolby Vision, 127 = 8K). 4K / HDR10 / Dolby Vision / 8K require a
+ * logged-in VIP (大会員) account and matching `fnval` request bits.
  * Higher numbers generally indicate better quality.
  */
 export const VIDEO_QUALITIES_MAP: Record<number, string> = {
-  125: 'HDR',
-  120: '4K Dolby Vision',
+  127: '8K',
+  126: 'Dolby Vision',
+  125: 'HDR10',
+  120: '4K',
   116: '1080p60',
-  74: '720p60',
   112: '1080p+',
   80: '1080p',
+  74: '720p60',
   64: '720p',
   32: '480p',
   16: '360p',
 }
+
+/**
+ * Video quality display order (descending by quality).
+ *
+ * Explicit order (mirrors `AUDIO_QUALITIES_ORDER`) so numeric object-key
+ * sorting cannot hide 8K / HDR10 / Dolby Vision.
+ */
+export const VIDEO_QUALITIES_ORDER: number[] = [
+  127, 126, 125, 120, 116, 112, 80, 74, 64, 32, 16,
+]
 
 /**
  * localStorage key for the video URL input (legacy, currently unused).

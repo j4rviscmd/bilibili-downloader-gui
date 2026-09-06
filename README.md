@@ -30,7 +30,7 @@ No ads, no tracking. 100% free.
 
 ### Download
 
-- **High-quality video download** - Choose any quality from 4K/1080p/720p/HDR
+- **High-quality video download** - Choose any quality from 8K/4K/1080p/720p/HDR10/Dolby Vision
 - **Bangumi (anime & series) support** - Download anime and series episodes alongside regular videos
 - **Multi-part video batch save** - Automatically download all parts of courses, series, etc.
 - **Fast & stable downloads** - Auto CDN switching with automatic retry on network errors

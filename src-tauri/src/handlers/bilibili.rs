@@ -155,7 +155,7 @@ pub struct DownloadOptions {
     pub ep_id: Option<i64>,
 }
 
-use crate::constants::{API_BASE, REFERER};
+use crate::constants::{API_BASE, PLAYURL_FNVAL, PLAYURL_QN, REFERER};
 use crate::handlers::cookie::read_cookie;
 use crate::handlers::history_session::HistorySession;
 use crate::handlers::settings;
@@ -888,10 +888,12 @@ async fn download_video_impl(app: &AppHandle, options: &DownloadOptions) -> Resu
         dash_data.extra.keys().collect::<Vec<_>>(),
     );
 
-    // Resolve codec priority and filter streams. Falls back to all streams
-    // when the preferred codec is unavailable so the download never fails.
+    // Resolve codec priority and filter streams, scoped to the requested
+    // quality when it exists (HDR10/Dolby Vision are HEVC-only). Falls back
+    // to all streams when the preferred codec is unavailable so the download
+    // never fails.
     let (streams_for_selection, codec_selection) =
-        select_streams_by_codec_priority(app, &dash_data.video).await;
+        select_streams_by_codec_priority(app, &dash_data.video, options.quality).await;
 
     // Fallback if selected quality is unavailable (first = highest quality)
     // None means best available → -1 won't match any real quality ID.
@@ -1292,12 +1294,18 @@ mod tests {
     /// Tests quality ID to human-readable string conversion.
     ///
     /// Verifies that known quality IDs produce expected display names
-    /// and unknown IDs fall back to "Q{id}" format.
+    /// per the official playurl qn table and unknown IDs fall back to
+    /// "Q{id}" format.
     #[test]
     fn test_quality_to_string() {
-        assert_eq!(quality_to_string(&116), "4K");
-        assert_eq!(quality_to_string(&112), "1080P60");
+        assert_eq!(quality_to_string(&127), "8K");
+        assert_eq!(quality_to_string(&126), "Dolby Vision");
+        assert_eq!(quality_to_string(&125), "HDR10");
+        assert_eq!(quality_to_string(&120), "4K");
+        assert_eq!(quality_to_string(&116), "1080P60");
+        assert_eq!(quality_to_string(&112), "1080P+");
         assert_eq!(quality_to_string(&80), "1080P");
+        assert_eq!(quality_to_string(&74), "720P60");
         assert_eq!(quality_to_string(&64), "720P");
         assert_eq!(quality_to_string(&32), "480P");
         assert_eq!(quality_to_string(&16), "360P");
@@ -1310,7 +1318,7 @@ mod tests {
     /// quality levels without returning empty strings.
     #[test]
     fn test_quality_to_string_coverage() {
-        let known_qualities = [116, 112, 80, 64, 32, 16];
+        let known_qualities = [127, 126, 125, 120, 116, 112, 80, 74, 64, 32, 16];
         for q in known_qualities {
             let result = quality_to_string(&q);
             assert!(
@@ -1319,6 +1327,32 @@ mod tests {
                 q
             );
         }
+    }
+
+    /// Tests quality scoping for codec-priority stream selection (issue #584).
+    ///
+    /// HDR10 / Dolby Vision are HEVC-only; scoping keeps them selectable even
+    /// when the codec priority prefers another codec.
+    #[test]
+    fn test_scope_streams_to_quality() {
+        // 1080P60 AV1 + HDR10 HEVC-only manifest.
+        let streams = vec![
+            stream(116, crate::utils::codec::CODECID_AV1),
+            stream(125, crate::utils::codec::CODECID_HEVC),
+        ];
+
+        // Requested quality present: only its streams remain.
+        let scoped = scope_streams_to_quality(&streams, Some(125));
+        assert_eq!(scoped.len(), 1);
+        assert_eq!(scoped[0].id, 125);
+
+        // Requested quality absent: all streams remain (legacy fallback).
+        let unscoped = scope_streams_to_quality(&streams, Some(120));
+        assert_eq!(unscoped.len(), 2);
+
+        // No explicit quality (best-available): all streams remain.
+        let none = scope_streams_to_quality(&streams, None);
+        assert_eq!(none.len(), 2);
     }
 
     /// Tests DASH-format bangumi result conversion.
@@ -2113,16 +2147,22 @@ fn first_non_empty(strings: &[&String]) -> Option<String> {
 ///
 /// # Arguments
 ///
-/// * `quality` - Bilibili quality ID (e.g., 116 for 4K, 80 for 1080P)
+/// * `quality` - Bilibili quality ID per the official playurl qn table
+///   (e.g., 120 for 4K, 80 for 1080P; see `references/bilibili-API-collect`)
 ///
 /// # Returns
 ///
 /// Human-readable quality string.
 pub(crate) fn quality_to_string(quality: &i32) -> String {
     match quality {
-        116 => "4K".to_string(),
-        112 => "1080P60".to_string(),
+        127 => "8K".to_string(),
+        126 => "Dolby Vision".to_string(),
+        125 => "HDR10".to_string(),
+        120 => "4K".to_string(),
+        116 => "1080P60".to_string(),
+        112 => "1080P+".to_string(),
         80 => "1080P".to_string(),
+        74 => "720P60".to_string(),
         64 => "720P".to_string(),
         32 => "480P".to_string(),
         16 => "360P".to_string(),
@@ -2859,8 +2899,8 @@ async fn fetch_video_details(
     let mut params = BTreeMap::from([
         ("bvid".to_string(), bvid.to_string()),
         ("cid".to_string(), cid.to_string()),
-        ("qn".to_string(), "116".to_string()),
-        ("fnval".to_string(), "2064".to_string()),
+        ("qn".to_string(), PLAYURL_QN.to_string()),
+        ("fnval".to_string(), PLAYURL_FNVAL.to_string()),
         ("fnver".to_string(), "0".to_string()),
         ("fourk".to_string(), "1".to_string()),
     ]);
@@ -3429,12 +3469,35 @@ fn select_stream_url(
         .ok_or_else(|| "ERR::QUALITY_NOT_FOUND".into())
 }
 
+/// Filters streams down to the requested quality when it exists (issue #584).
+///
+/// HDR10 (qn=125) and Dolby Vision (qn=126) are HEVC-only renditions, so an
+/// AV1-first codec filter applied across the whole manifest would drop them
+/// before quality selection ever runs. Scoping to the requested quality keeps
+/// the codec fallback downward-only *within* that quality. Unknown or absent
+/// quality (`None`) falls back to all streams — callers then rely on the
+/// existing first-item (highest quality) fallback.
+fn scope_streams_to_quality(
+    video_streams: &[XPlayerApiResponseVideo],
+    requested_quality: Option<i32>,
+) -> Vec<XPlayerApiResponseVideo> {
+    match requested_quality {
+        Some(qn) if video_streams.iter().any(|v| v.id == qn) => video_streams
+            .iter()
+            .filter(|v| v.id == qn)
+            .cloned()
+            .collect(),
+        _ => video_streams.to_vec(),
+    }
+}
+
 /// Resolves the user's codec priority and filters video streams accordingly.
 ///
 /// Reads the codec priority setting once and returns:
-/// - The streams to use for quality selection: filtered by the preferred
-///   codec, or all streams when the preferred codec is unavailable for any
-///   quality (so the download never fails).
+/// - The streams to use for quality selection: scoped to `requested_quality`
+///   when that quality exists (see `scope_streams_to_quality`), then filtered
+///   by the preferred codec — or all streams when the preferred codec is
+///   unavailable for any quality (so the download never fails).
 /// - The codec selection result, used by callers to detect codec fallback.
 ///   `None` means no priority codec was available at all (caller treats this
 ///   as a codec fallback for warning purposes).
@@ -3444,6 +3507,7 @@ fn select_stream_url(
 async fn select_streams_by_codec_priority(
     app: &AppHandle,
     video_streams: &[XPlayerApiResponseVideo],
+    requested_quality: Option<i32>,
 ) -> (Vec<XPlayerApiResponseVideo>, Option<VideoStreamSelection>) {
     let codec_priority = settings::get_settings(app)
         .await
@@ -3451,10 +3515,12 @@ async fn select_streams_by_codec_priority(
         .and_then(|s| s.video_codec_priority)
         .unwrap_or_default();
 
-    let available_codecs: Vec<i16> = video_streams.iter().map(|v| v.codecid).collect();
+    let quality_scoped = scope_streams_to_quality(video_streams, requested_quality);
+
+    let available_codecs: Vec<i16> = quality_scoped.iter().map(|v| v.codecid).collect();
     let codec_selection = select_video_stream(&codec_priority, &available_codecs);
 
-    let filtered: Vec<_> = video_streams
+    let filtered: Vec<_> = quality_scoped
         .iter()
         .filter(|v| {
             codec_selection
@@ -3467,7 +3533,7 @@ async fn select_streams_by_codec_priority(
 
     if filtered.is_empty() {
         log::info!("[BE] no streams with preferred codec, using all streams");
-        (video_streams.to_vec(), codec_selection)
+        (quality_scoped, codec_selection)
     } else {
         (filtered, codec_selection)
     }
@@ -4440,8 +4506,8 @@ async fn fetch_bangumi_player_result(
 
     let response = api
         .get(&format!(
-            "/pgc/player/web/playurl?ep_id={}&cid={}&qn=116&fnval=2064&fnver=0&fourk=1",
-            ep_id, cid
+            "/pgc/player/web/playurl?ep_id={}&cid={}&qn={}&fnval={}&fnver=0&fourk=1",
+            ep_id, cid, PLAYURL_QN, PLAYURL_FNVAL
         ))
         .await?;
 
@@ -4595,7 +4661,10 @@ async fn refetch_dash_urls(
 
     // Reuse the same codec-aware stream selection as the initial download so
     // a retry picks the same codec (keeps the merged output consistent).
-    let (streams_for_selection, _) = select_streams_by_codec_priority(app, &dash.video).await;
+    // `video_quality` is the resolved quality, so scoping to it mirrors the
+    // initial download's per-quality codec selection.
+    let (streams_for_selection, _) =
+        select_streams_by_codec_priority(app, &dash.video, Some(video_quality)).await;
     let (video_url, video_backup_urls, _) =
         select_stream_url(&streams_for_selection, video_quality)?;
     let resolved_audio_quality =

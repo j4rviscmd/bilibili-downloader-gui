@@ -20,6 +20,21 @@ pub const REFERER: &str = "https://www.bilibili.com";
 /// Bilibili web-API origin used by every API fetcher (see `BiliApi`).
 pub const API_BASE: &str = "https://api.bilibili.com";
 
+/// `fnval` bitmap for playurl requests — "all available DASH streams"
+/// (issue #584).
+///
+/// Bits: DASH (16) | HDR (64) | 4K (128) | Dolby Audio (256) | Dolby Vision
+/// (512) | 8K (1024) | AV1 (2048) = 4048. The previous 2064 (DASH+AV1 only)
+/// omitted the HDR/4K/Dolby/8K bits, so VIP accounts never received those
+/// renditions in the DASH manifest.
+pub const PLAYURL_FNVAL: i32 = 16 | 64 | 128 | 256 | 512 | 1024 | 2048;
+
+/// Quality hint sent with playurl (127 = 8K, top of the ladder).
+///
+/// DASH responses include every fnval-matching rendition regardless of qn;
+/// this value mainly steers durl-format fallbacks toward the highest quality.
+pub const PLAYURL_QN: i32 = 127;
+
 /// Minimum download speed threshold in bytes per second.
 ///
 /// If the download speed is below this threshold for the configured interval,
