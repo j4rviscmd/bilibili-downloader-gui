@@ -34,6 +34,7 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Input, Video } from '../types'
@@ -71,7 +72,7 @@ export type VideoInfoContextValue = {
   progress: RootState['progress']
   video: Video
   input: Input
-  onValid1: (url: string) => Promise<void>
+  onValid1: (url: string, opts?: { silent?: boolean }) => Promise<boolean>
   onValid2: (
     index: number,
     title: string,
@@ -83,6 +84,8 @@ export type VideoInfoContextValue = {
   duplicateIndices: number[]
   selectedCount: number
   isFetching: boolean
+  /** True while a debounced auto-fetch (input pause) is in flight. */
+  isSilentFetching: boolean
   download: () => Promise<void>
 }
 
@@ -145,6 +148,11 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
   const [triggerFetchBangumi, { isFetching: isFetchingBangumi }] =
     useLazyFetchBangumiInfoQuery()
   const isFetching = isFetchingVideo || isFetchingBangumi
+  const [isSilentFetching, setIsSilentFetching] = useState(false)
+  // Ref-count of in-flight silent fetches: overlapping silent fetches are
+  // possible (user pauses on URL A, resumes typing, pauses on URL B before
+  // A resolves), so a plain boolean would read false while B still runs.
+  const silentFetchCountRef = useRef(0)
 
   // Track the pending download being processed (singleton ref)
   const processingPendingRef = useRef<{
@@ -201,29 +209,37 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
    * Uses RTK Query for caching - subsequent requests for the same videoId/epId
    * will be served from cache for 1 hour.
    *
+   * With `{ silent: true }` (debounced auto-fetch on input pause) no error
+   * toast is shown — the auto path must stay invisible; explicit submit
+   * (Enter/blur) reports errors instead.
+   *
    * @param url - Video or bangumi URL to validate and fetch
+   * @param opts - `silent` suppresses error toasts for the auto-fetch path
+   * @returns true when video info was applied to the store
    */
   const onValid1 = useCallback(
-    async (url: string) => {
+    async (url: string, opts?: { silent?: boolean }): Promise<boolean> => {
+      const silent = opts?.silent ?? false
+      const failToast = (description: string | null | undefined) => {
+        if (silent || !description) return
+        toast.error(t('video.fetch_info'), {
+          duration: 5000,
+          description,
+        })
+      }
+
       const schema1 = buildVideoFormSchema1(t)
       const result = schema1.safeParse({ url })
       if (!result.success) {
-        const message = result.error.issues[0]?.message
-        toast.error(t('video.fetch_info'), {
-          duration: 5000,
-          description: message,
-        })
+        failToast(result.error.issues[0]?.message)
         store.dispatch(clearPendingDownload())
-        return
+        return false
       }
 
       const contentId = extractContentId(url)
       if (!contentId) {
-        toast.error(t('video.fetch_info'), {
-          duration: 5000,
-          description: t('validation.video.url.invalid'),
-        })
-        return
+        failToast(t('validation.video.url.invalid'))
+        return false
       }
 
       // Extract p parameter from URL for part selection
@@ -243,6 +259,10 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
         }
       }
 
+      // Note: this also runs for the debounced silent auto-fetch (a mere
+      // typing pause), wiping the current part selections / finished queue
+      // items before the new video arrives — same behavior as an explicit
+      // submit, accepted tradeoff for the auto path.
       store.dispatch(setUrl(url))
       // Clear all selections when navigating to a new video via URL input
       store.dispatch(deselectAll())
@@ -250,29 +270,43 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
 
       let fetchResult: { data?: Video; error?: unknown }
 
-      if (contentId.type === 'video') {
-        fetchResult = await triggerFetch(contentId.id, true)
-      } else {
-        const epId = parseInt(contentId.epId, 10)
-        fetchResult = await triggerFetchBangumi(epId, true)
+      if (silent) {
+        silentFetchCountRef.current += 1
+        setIsSilentFetching(true)
       }
+      try {
+        if (contentId.type === 'video') {
+          fetchResult = await triggerFetch(contentId.id, true)
+        } else {
+          const epId = parseInt(contentId.epId, 10)
+          fetchResult = await triggerFetchBangumi(epId, true)
+        }
+      } finally {
+        if (silent) {
+          silentFetchCountRef.current -= 1
+          if (silentFetchCountRef.current === 0) setIsSilentFetching(false)
+        }
+      }
+
+      // Stale guard: the input stays enabled during a silent fetch, so the
+      // user may have moved on to another URL — a newer onValid1 has already
+      // replaced input.url. Discard this outdated result.
+      if (store.getState().input.url !== url) return false
 
       if (fetchResult.data) {
         const v = fetchResult.data
         store.dispatch(setVideo(v))
         initInputsForVideo(v)
-      } else if (fetchResult.error) {
+        return true
+      }
+      if (fetchResult.error) {
         const raw = String(fetchResult.error)
         const key = mapBackendError(raw)
         const description = key ? t(key) : isUnauthorizedError(raw) ? null : raw
-        if (description) {
-          toast.error(t('video.fetch_info'), {
-            duration: 5000,
-            description,
-          })
-        }
+        failToast(description)
         logger.error('Failed to fetch content info', raw)
       }
+      return false
     },
     [t, initInputsForVideo, triggerFetch, triggerFetchBangumi],
   )
@@ -591,6 +625,7 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
     duplicateIndices,
     selectedCount,
     isFetching,
+    isSilentFetching,
     download,
   }
 

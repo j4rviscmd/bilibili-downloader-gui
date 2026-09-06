@@ -21,7 +21,7 @@ vi.mock('@/features/video/api/expandShortUrl', () => ({
 const VALID_URL = 'https://www.bilibili.com/video/BV1xx411c7XD'
 
 /** Renders the form with a fresh store input and a spied onValid1. */
-function setup(isFetching = false) {
+function setup(isFetching = false, isSilentFetching = false) {
   const onValid1 = vi.fn()
   store.dispatch(
     setInput({ url: '', partInputs: [], pendingDownload: null, homePage: 1 }),
@@ -30,6 +30,7 @@ function setup(isFetching = false) {
     input: store.getState().input,
     onValid1,
     isFetching,
+    isSilentFetching,
   } as unknown as ReturnType<typeof useVideoInfo>)
   return { ...renderWithProviders(<VideoForm1 />), onValid1 }
 }
@@ -74,6 +75,14 @@ describe('VideoForm1', () => {
     expect(
       screen.getByPlaceholderText('video.url_placeholder_example'),
     ).toBeDisabled()
+  })
+
+  it('keeps the input enabled during a silent auto-fetch', () => {
+    setup(true, true)
+
+    expect(
+      screen.getByPlaceholderText('video.url_placeholder_example'),
+    ).toBeEnabled()
   })
 
   it('clears the input via the clear button', async () => {
@@ -151,6 +160,71 @@ describe('VideoForm1', () => {
       expect(
         screen.getByText('validation.video.url.short_url_expand_failed'),
       ).toBeInTheDocument()
+    })
+  })
+
+  describe('debounced silent auto-fetch', () => {
+    // Note: 700ms is a safety margin over the production AUTO_ACTION_DELAY_MS
+    // (500ms in VideoForm1.tsx) — exactly 500ms would race the debounce and
+    // flake.
+    // Real timers: the 500ms debounce elapses naturally, which keeps the
+    // shared userEvent instance (no advanceTimers wiring) usable.
+    const debounce = () => new Promise((resolve) => setTimeout(resolve, 700))
+
+    /** Types a URL without submitting (the debounce drives the fetch). */
+    async function typeUrl(url: string) {
+      const utils = setup()
+      const input = screen.getByPlaceholderText('video.url_placeholder_example')
+      await utils.user.type(input, url)
+      return { ...utils, input }
+    }
+
+    it('silently fetches a valid URL after the 500ms debounce', async () => {
+      const { onValid1 } = await typeUrl(VALID_URL)
+
+      await debounce()
+      expect(onValid1).toHaveBeenCalledTimes(1)
+      expect(onValid1).toHaveBeenCalledWith(VALID_URL, { silent: true })
+    })
+
+    it('ignores an invalid URL without any feedback', async () => {
+      const { onValid1 } = await typeUrl('https://example.com/video/x')
+
+      await debounce()
+      expect(onValid1).not.toHaveBeenCalled()
+    })
+
+    it('does not double-fetch when blur lands during the silent fetch', async () => {
+      const { onValid1, user } = await typeUrl(VALID_URL)
+      // Never-resolving promise: the silent fetch stays in flight.
+      onValid1.mockReturnValue(new Promise(() => {}))
+
+      await debounce()
+      await user.click(document.body) // blur the input
+
+      expect(onValid1).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not refetch on blur after a successful silent fetch', async () => {
+      const { onValid1, user } = await typeUrl(VALID_URL)
+      onValid1.mockResolvedValue(true)
+
+      await debounce()
+      await user.click(document.body) // blur the input
+
+      expect(onValid1).toHaveBeenCalledTimes(1)
+    })
+
+    it('retries visibly on blur after a failed silent fetch', async () => {
+      const { onValid1, user } = await typeUrl(VALID_URL)
+      onValid1.mockResolvedValue(false) // silent fetch fails
+
+      await debounce()
+      await user.click(document.body) // blur the input
+
+      // Second call is the explicit (non-silent) submit
+      expect(onValid1).toHaveBeenCalledTimes(2)
+      expect(onValid1).toHaveBeenLastCalledWith(VALID_URL)
     })
   })
 })
