@@ -79,6 +79,12 @@ struct EmitsInner {
     last_instant: Instant,
     last_downloaded_bytes: u64,
     is_complete: bool,
+    /// Raw total size in bytes. `progress.filesize` is the same value
+    /// rounded to 0.1 MiB for display; using it as the percentage
+    /// denominator made a fully-downloaded file land on 99% whenever the
+    /// rounding went up (e.g. 3.15 MiB -> 3.2). Percentage math must use
+    /// this raw value.
+    total_bytes: Option<u64>,
     last_speed_calc_instant: Instant,
     last_speed_calc_bytes: u64,
     last_speed_kbps: f64,
@@ -98,6 +104,7 @@ impl Default for EmitsInner {
             last_downloaded_bytes: 0,
             last_speed_calc_bytes: 0,
             is_complete: false,
+            total_bytes: None,
             last_speed_kbps: 0.0,
             last_byte_increase: now,
         }
@@ -149,6 +156,13 @@ impl Emits {
             start_instant: now,
             last_instant: now,
             last_speed_calc_instant: now,
+            // Note: this and `progress.filesize` above are the same total in
+            // two units (raw bytes vs 0.1 MiB display). Every code path that
+            // sets the total must set both — calculate_percentage returns 0.0
+            // when total_bytes is None, so a lone filesize update would show
+            // a size with the bar stuck at 0% (update_total keeps them in
+            // step; see its raw-bytes skip check).
+            total_bytes: filesize_bytes,
             ..Default::default()
         }));
 
@@ -234,7 +248,8 @@ impl Emits {
     /// forcing 100% would mislead the frontend — combined with the frontend's
     /// monotonic clamp, the progress bar would lock at 100% even while
     /// `retry_download` keeps retrying in the background. On success paths
-    /// the bytes already equal filesize, so recalculating yields 100%.
+    /// the bytes equal the raw total, so the byte-ratio recalculation in
+    /// `send_progress_locked` yields exactly 100%.
     ///
     /// NOTE: This does NOT set `progress.is_complete = true`; only the
     /// internal timer-stop flag is set. Use [`complete()`] for the final
@@ -284,12 +299,15 @@ impl Emits {
         let filesize_mb = round_to(filesize_bytes as f64 / (1024.0 * 1024.0), 1);
         let mut guard = self.inner.lock().await;
 
-        // Skip if already set to the same value
-        if guard.progress.filesize == Some(filesize_mb) {
+        // Skip if already set to the same value. Compare the raw bytes, not
+        // the rounded filesize: two totals within the same 0.1 MiB band
+        // would otherwise skip the update and leave total_bytes stale.
+        if guard.total_bytes == Some(filesize_bytes) {
             return;
         }
 
         guard.progress.filesize = Some(filesize_mb);
+        guard.total_bytes = Some(filesize_bytes);
         // Get current bytes from watch channel
         let bytes = *self.progress_tx.subscribe().borrow();
         Self::send_progress_locked(&self.app, &mut guard, bytes);
@@ -322,7 +340,7 @@ impl Emits {
         if bytes_changed {
             // Calculate percentage
             inner.progress.percentage =
-                Self::calculate_percentage(current_bytes, inner.progress.filesize);
+                Self::calculate_percentage(current_bytes, inner.total_bytes);
 
             // Transfer rate: recompute every ~1s from the byte delta and
             // reuse the last value in between ticks.
@@ -379,14 +397,17 @@ impl Emits {
         let _ = app.emit("progress", inner.progress.clone());
     }
 
-    /// Calculates download percentage based on bytes downloaded and total file size.
-    fn calculate_percentage(downloaded_bytes: u64, filesize_mb: Option<f64>) -> f64 {
-        let Some(fs) = filesize_mb else { return 0.0 };
-        if fs == 0.0 {
+    /// Calculates download percentage from raw byte counts.
+    ///
+    /// Uses the unrounded total so a fully-downloaded file is exactly
+    /// 100%; the display-rounded filesize previously made sizes that
+    /// rounded up (e.g. 3.15 MiB -> 3.2) finish at 99%.
+    fn calculate_percentage(downloaded_bytes: u64, total_bytes: Option<u64>) -> f64 {
+        let Some(total) = total_bytes else { return 0.0 };
+        if total == 0 {
             return 0.0;
         }
-        let downloaded_mb = downloaded_bytes as f64 / (1024.0 * 1024.0);
-        (downloaded_mb / fs) * 100.0
+        (downloaded_bytes as f64 / total as f64) * 100.0
     }
 }
 
@@ -415,22 +436,41 @@ mod tests {
     use super::*;
 
     #[test]
-    fn calculate_percentage_uses_mb_denominator() {
-        // 5 MiB downloaded against 10 MiB total -> 50% (both sides are
-        // 1024-based despite the filesize_mb naming; see bytes_to_mb)
+    fn calculate_percentage_uses_raw_byte_denominator() {
+        // 5 MiB downloaded against 10 MiB total -> 50%
         assert_eq!(
-            Emits::calculate_percentage(5 * 1024 * 1024, Some(10.0)),
+            Emits::calculate_percentage(5 * 1024 * 1024, Some(10 * 1024 * 1024)),
             50.0
         );
         // Zero progress stays 0
-        assert_eq!(Emits::calculate_percentage(0, Some(10.0)), 0.0);
+        assert_eq!(Emits::calculate_percentage(0, Some(10 * 1024 * 1024)), 0.0);
     }
 
     #[test]
     fn calculate_percentage_unknown_size_is_zero() {
-        // Unknown filesize (None) or zero filesize must not divide by zero.
+        // Unknown total (None) or zero total must not divide by zero.
         assert_eq!(Emits::calculate_percentage(12345, None), 0.0);
-        assert_eq!(Emits::calculate_percentage(12345, Some(0.0)), 0.0);
+        assert_eq!(Emits::calculate_percentage(12345, Some(0)), 0.0);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn full_download_reaches_exactly_hundred_percent() {
+        // Regression: a total that rounds UP for display (3308660 bytes =
+        // 3.15 MiB -> filesize 3.2) used to finish at 99% because the
+        // percentage denominator was the rounded value.
+        let app = tauri::test::mock_app();
+        let total = 3_308_660u64;
+        let mut inner = EmitsInner {
+            total_bytes: Some(total),
+            ..Default::default()
+        };
+        inner.progress.filesize = Some(round_to(total as f64 / (1024.0 * 1024.0), 1));
+        inner.last_downloaded_bytes = total - 1;
+
+        Emits::send_progress_locked(app.handle(), &mut inner, total);
+
+        assert_eq!(inner.progress.percentage, 100.0);
+        assert_eq!(inner.progress.downloaded, Some(3.2));
     }
 
     #[test]
@@ -486,6 +526,7 @@ mod tests {
         let app = tauri::test::mock_app();
         let mut inner = EmitsInner::default();
         inner.progress.filesize = Some(4.0); // 4 MiB total
+        inner.total_bytes = Some(4 * 1024 * 1024);
         let baseline = 1024 * 1024u64;
         inner.last_downloaded_bytes = baseline;
         inner.last_speed_calc_bytes = baseline;
@@ -520,6 +561,7 @@ mod tests {
         let app = tauri::test::mock_app();
         let mut inner = EmitsInner::default();
         inner.progress.filesize = Some(1.0); // 1 MiB total
+        inner.total_bytes = Some(1024 * 1024);
         inner.last_downloaded_bytes = 0;
 
         // Server reports more bytes than the announced size (shouldn't happen,
