@@ -145,6 +145,9 @@ pub fn generate_wbi_signature(
 /// # Arguments
 ///
 /// * `client` - HTTP client for making the request
+/// * `base` - API origin, e.g. "https://api.bilibili.com" (wiremock URL in
+///   tests; keeps the nav request testable alongside the signed request it
+///   keys)
 /// * `cookie` - Optional cookie header value for authenticated requests.
 ///   Providing a valid session cookie improves reliability since some
 ///   Bilibili account tiers require authentication to return `wbi_img`.
@@ -159,10 +162,14 @@ pub fn generate_wbi_signature(
 /// - HTTP request fails
 /// - Response JSON cannot be parsed
 /// - wbi_img field is missing or invalid
-pub async fn fetch_mixin_key(client: &Client, cookie: Option<&str>) -> Result<String, String> {
+pub async fn fetch_mixin_key(
+    client: &Client,
+    base: &str,
+    cookie: Option<&str>,
+) -> Result<String, String> {
     log::debug!("[BE] fetch_mixin_key: fetching WBI mixin key");
     let mut req = client
-        .get("https://api.bilibili.com/x/web-interface/nav")
+        .get(format!("{base}/x/web-interface/nav"))
         .header(reqwest::header::REFERER, "https://www.bilibili.com");
     if let Some(c) = cookie {
         req = req.header(reqwest::header::COOKIE, c);

@@ -32,7 +32,8 @@ pub struct UserApiResponseDataImg {
 
 /// Web interface view API response.
 ///
-/// Endpoint: `https://api.bilibili.com/x/web-interface/view?bvid={id}`
+/// Endpoint: `https://api.bilibili.com/x/web-interface/wbi/view?bvid={id}`
+/// (WBI-signed; the unsigned `view` endpoint 412-blocks cookie-less requests)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WebInterfaceApiResponse {
     pub code: i64,

@@ -1930,12 +1930,12 @@ mod tests {
             .mount(&server)
             .await;
 
-        // Same transport shape fetch_video_title_by_build builds via
+        // Same transport shape fetch_video_title_by_bvid builds via
         // from_cookies; constructed manually so `base` targets the mock
         // server while the validator path stays under test.
         let api = BiliApi::new(Client::new(), server.uri(), "SESSDATA=stale");
         let body: WebInterfaceApiResponse = api
-            .get("/x/web-interface/view?bvid=x")
+            .get("/x/web-interface/wbi/view?bvid=x")
             .await
             .unwrap()
             .json()
@@ -1945,6 +1945,97 @@ mod tests {
             validate_api_response(body.code, body.data.as_ref()),
             Err("ERR::UNAUTHORIZED".to_string())
         );
+    }
+
+    // ---- fetch_wbi_view (shared by metadata / history view fetches) ----
+
+    /// Nav mock body serving a fixed wbi_img (anonymous shape: code -101
+    /// still carries the key URLs).
+    fn nav_wbi_mock_body() -> serde_json::Value {
+        serde_json::json!({
+            "code": -101, "message": "account not logged in",
+            "data": {
+                "wbi_img": {
+                    "img_url": "https://mockHost/hello-world-img_key.png",
+                    "sub_url": "https://mockHost/hello-world-sub_key.png"
+                }
+            }
+        })
+    }
+
+    #[tokio::test]
+    async fn fetch_wbi_view_works_logged_out() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/nav"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(nav_wbi_mock_body()))
+            .expect(1)
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/wbi/view"))
+            .and(wiremock::matchers::query_param("bvid", "BV1guest"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": { "title": "guest video", "pic": "p", "cid": 1, "pages": [] }
+                })),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        // Empty cookie header = logged out (the reported bug scenario).
+        let api = bili_api_mock(&server.uri(), "");
+        let body = fetch_wbi_view(&api, "BV1guest").await.unwrap();
+        assert_eq!(body.data.unwrap().title, "guest video");
+
+        let requests = server.received_requests().await.unwrap();
+        let view_req = requests
+            .iter()
+            .find(|r| r.url.path() == "/x/web-interface/wbi/view")
+            .expect("wbi/view request");
+        assert!(
+            view_req.headers.get("cookie").is_none(),
+            "logged-out view request must not carry a Cookie header"
+        );
+        // w_rid / wts presence is asserted via the query string (wiremock
+        // 0.6 has no param-exists matcher and w_rid is a dynamic digest).
+        let query = view_req.url.query().unwrap_or_default();
+        assert!(query.contains("w_rid="), "query missing w_rid: {query}");
+        assert!(query.contains("wts="), "query missing wts: {query}");
+        server.verify().await;
+    }
+
+    #[tokio::test]
+    async fn fetch_wbi_view_sends_cookie_when_logged_in() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/nav"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(nav_wbi_mock_body()))
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/wbi/view"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": { "title": "t", "pic": "p", "cid": 1, "pages": [] }
+                })),
+            )
+            .mount(&server)
+            .await;
+
+        let api = bili_api_mock(&server.uri(), "SESSDATA=abc");
+        let body = fetch_wbi_view(&api, "BV1user").await.unwrap();
+        assert_eq!(body.data.unwrap().title, "t");
+
+        let requests = server.received_requests().await.unwrap();
+        let view_req = requests
+            .iter()
+            .find(|r| r.url.path() == "/x/web-interface/wbi/view")
+            .expect("wbi/view request");
+        assert_eq!(view_req.headers.get("cookie").unwrap(), "SESSDATA=abc");
     }
 
     #[tokio::test]
@@ -2188,14 +2279,11 @@ pub(crate) async fn fetch_video_info_for_history(
     bvid: &str,
     cookies: &[CookieEntry],
 ) -> Option<(String, Option<String>)> {
+    // Why: shared wbi/view path — the unsigned endpoint 412-blocks
+    // cookie-less requests, which used to strip the title/thumbnail from
+    // history entries for logged-out users.
     let api = BiliApi::from_cookies(cookies).ok()?;
-    let body: WebInterfaceApiResponse = api
-        .get(&format!("/x/web-interface/view?bvid={bvid}"))
-        .await
-        .ok()?
-        .json()
-        .await
-        .ok()?;
+    let body = fetch_wbi_view(&api, bvid).await.ok()?;
 
     let data = body.data?;
     let thumbnail_url = (!data.pic.is_empty()).then_some(data.pic);
@@ -2846,8 +2934,39 @@ async fn fetch_video_title_by_bvid(
     cookies: &[CookieEntry],
 ) -> Result<WebInterfaceApiResponse, String> {
     let api = BiliApi::from_cookies(cookies)?;
+    fetch_wbi_view(&api, bvid).await
+}
+
+/// WBI-signed view-API fetch shared by metadata and history saving.
+///
+/// Why: the unsigned `/x/web-interface/view` endpoint is rejected by
+/// Bilibili's risk control with HTTP 412 for cookie-less (logged-out)
+/// requests, so guest metadata fetches always failed with ERR::API_ERROR.
+/// The WBI-signed variant accepts anonymous requests (guests then get the
+/// 480p-capped playurl manifest), matching what the web player sends.
+///
+/// Takes a pre-built [`BiliApi`] (instead of cookie entries) so wiremock
+/// tests can point `base` at a local server.
+async fn fetch_wbi_view(api: &BiliApi, bvid: &str) -> Result<WebInterfaceApiResponse, String> {
+    let mixin_key = crate::utils::wbi::fetch_mixin_key(
+        &api.http,
+        &api.base,
+        (!api.cookie_header.is_empty()).then_some(&api.cookie_header),
+    )
+    .await?;
+
+    let mut params = BTreeMap::from([("bvid".to_string(), bvid.to_string())]);
+    let signature = crate::utils::wbi::generate_wbi_signature(&mut params, &mixin_key);
+
+    let mut query: Vec<(&str, String)> = params
+        .iter()
+        .map(|(k, v)| (k.as_str(), v.clone()))
+        .collect();
+    query.push(("w_rid", signature.w_rid));
+    query.push(("wts", signature.wts));
+
     let body: WebInterfaceApiResponse = api
-        .get(&format!("/x/web-interface/view?bvid={bvid}"))
+        .get_q("/x/web-interface/wbi/view", &query)
         .await?
         .json()
         .await
@@ -2892,6 +3011,7 @@ async fn fetch_video_details(
     let api = BiliApi::from_cookies(cookies)?;
     let mixin_key = crate::utils::wbi::fetch_mixin_key(
         &api.http,
+        &api.base,
         (!api.cookie_header.is_empty()).then_some(&api.cookie_header),
     )
     .await?;
@@ -3749,13 +3869,14 @@ pub async fn fetch_subtitles(
     // unreliable: Bilibili's CDN returns stale cached responses that
     // contain only a partial AI subtitle set. The signed `/wbi/v2`
     // endpoint returns the full set in a single request.
-    let mixin_key = match crate::utils::wbi::fetch_mixin_key(client, Some(&cookie_header)).await {
-        Ok(k) => k,
-        Err(e) => {
-            log::error!("[BE] fetch_subtitles: failed to fetch WBI mixin key: {}", e);
-            return Vec::new();
-        }
-    };
+    let mixin_key =
+        match crate::utils::wbi::fetch_mixin_key(client, API_BASE, Some(&cookie_header)).await {
+            Ok(k) => k,
+            Err(e) => {
+                log::error!("[BE] fetch_subtitles: failed to fetch WBI mixin key: {}", e);
+                return Vec::new();
+            }
+        };
 
     let mut params = BTreeMap::from([
         ("bvid".to_string(), bvid.to_string()),
