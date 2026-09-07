@@ -2003,7 +2003,16 @@ mod tests {
         // 0.6 has no param-exists matcher and w_rid is a dynamic digest).
         let query = view_req.url.query().unwrap_or_default();
         assert!(query.contains("w_rid="), "query missing w_rid: {query}");
-        assert!(query.contains("wts="), "query missing wts: {query}");
+        // Why: exactly one wts pair — generate_wbi_signature already inserts
+        // wts into `params` (src-tauri/src/utils/wbi.rs), so an extra
+        // query.push would put the pair on the wire twice; wbi endpoints
+        // return v_voucher when wts/w_rid are missing or wrong
+        // (references/bilibili-API-collect/docs/misc/sign/wbi.md)
+        assert_eq!(
+            query.split('&').filter(|p| p.starts_with("wts=")).count(),
+            1,
+            "wts pair must appear exactly once (0 = missing, 2 = duplicated): {query}"
+        );
         server.verify().await;
     }
 
@@ -2958,12 +2967,16 @@ async fn fetch_wbi_view(api: &BiliApi, bvid: &str) -> Result<WebInterfaceApiResp
     let mut params = BTreeMap::from([("bvid".to_string(), bvid.to_string())]);
     let signature = crate::utils::wbi::generate_wbi_signature(&mut params, &mixin_key);
 
+    // Why: generate_wbi_signature already inserts wts into `params`
+    // (src-tauri/src/utils/wbi.rs) and this query is built from `params`, so
+    // pushing wts again would send the pair twice; wbi endpoints return
+    // v_voucher when wts/w_rid are missing or wrong
+    // (references/bilibili-API-collect/docs/misc/sign/wbi.md)
     let mut query: Vec<(&str, String)> = params
         .iter()
         .map(|(k, v)| (k.as_str(), v.clone()))
         .collect();
     query.push(("w_rid", signature.w_rid));
-    query.push(("wts", signature.wts));
 
     let body: WebInterfaceApiResponse = api
         .get_q("/x/web-interface/wbi/view", &query)
@@ -3027,12 +3040,16 @@ async fn fetch_video_details(
 
     let signature = crate::utils::wbi::generate_wbi_signature(&mut params, &mixin_key);
 
+    // Why: generate_wbi_signature already inserts wts into `params`
+    // (src-tauri/src/utils/wbi.rs) and this query is built from `params`, so
+    // pushing wts again would send the pair twice; wbi endpoints return
+    // v_voucher when wts/w_rid are missing or wrong
+    // (references/bilibili-API-collect/docs/misc/sign/wbi.md)
     let mut query: Vec<(&str, String)> = params
         .iter()
         .map(|(k, v)| (k.as_str(), v.clone()))
         .collect();
-    query.push(("w_rid", signature.w_rid.clone()));
-    query.push(("wts", signature.wts.clone()));
+    query.push(("w_rid", signature.w_rid));
 
     let body: XPlayerApiResponse = api
         .get_q("/x/player/wbi/playurl", &query)
@@ -3884,12 +3901,16 @@ pub async fn fetch_subtitles(
     ]);
     let signature = crate::utils::wbi::generate_wbi_signature(&mut params, &mixin_key);
 
+    // Why: generate_wbi_signature already inserts wts into `params`
+    // (src-tauri/src/utils/wbi.rs) and this query is built from `params`, so
+    // pushing wts again would send the pair twice; wbi endpoints return
+    // v_voucher when wts/w_rid are missing or wrong
+    // (references/bilibili-API-collect/docs/misc/sign/wbi.md)
     let mut query: Vec<(&str, String)> = params
         .iter()
         .map(|(k, v)| (k.as_str(), v.clone()))
         .collect();
     query.push(("w_rid", signature.w_rid));
-    query.push(("wts", signature.wts));
 
     // Transport errors (send failure or non-2xx status) both soft-fail here.
     let response = match BiliApi::new(Client::clone(client), API_BASE, cookie_header)
