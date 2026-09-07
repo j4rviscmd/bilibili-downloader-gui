@@ -74,7 +74,7 @@ describe('AppBar', () => {
     expect(screen.getByText('someu***')).toBeInTheDocument()
     expect(screen.queryByText('user.not_logged_in')).not.toBeInTheDocument()
     expect(
-      screen.queryByRole('button', { name: 'login.qrCodeLogin' }),
+      screen.queryByRole('button', { name: 'login.loginButton' }),
     ).not.toBeInTheDocument()
   })
 
@@ -89,7 +89,7 @@ describe('AppBar', () => {
 
     expect(screen.getByText('user.not_logged_in')).toBeInTheDocument()
 
-    await actor.click(screen.getByRole('button', { name: 'login.qrCodeLogin' }))
+    await actor.click(screen.getByRole('button', { name: 'login.loginButton' }))
     expect(screen.getByText('qr-login-dialog')).toBeInTheDocument()
   })
 

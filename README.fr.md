@@ -62,7 +62,8 @@ Pas de publicités, pas de suivi. 100 % gratuit.
 
 - **Détection automatique des cookies Firefox** - Détecte les cookies Firefox pour des téléchargements haute qualité sans connexion manuelle
 - **Connexion par code QR** - Scannez le code QR dans l'application pour vous connecter
-  - Basculez entre Cookie et connexion QR à tout moment
+- **Collage manuel de cookie** - Collez un en-tête `Cookie` copié depuis les DevTools de votre navigateur ; il est vérifié et stocké comme une session QR
+  - Basculez entre Cookie, code QR et connexion manuelle à tout moment
 
 ### Confidentialité et sécurité
 

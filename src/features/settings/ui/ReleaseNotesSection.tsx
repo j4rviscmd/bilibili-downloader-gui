@@ -1,3 +1,4 @@
+import { Spinner } from '@/components/ui/spinner'
 import { fetchAllReleaseNotes } from '@/features/updater'
 import {
   Dialog,
@@ -98,6 +99,10 @@ export function ReleaseNotesSection() {
    * opens. Sets an error message if the fetch fails.
    */
   const handleOpen = useCallback(async () => {
+    // Guard re-entry: the button also blocks clicks via pointer-events-none,
+    // but keyboard activation (Enter on focus) still reaches here.
+    if (loading) return
+
     if (notes !== null) {
       setOpen(true)
       return
@@ -116,21 +121,35 @@ export function ReleaseNotesSection() {
     } finally {
       setLoading(false)
     }
-  }, [notes, t])
+  }, [loading, notes, t])
 
   return (
     <>
+      {/* CAUTION: while loading, do NOT use the `disabled` attribute.
+          `disabled:opacity-50` promotes the translucent outline button
+          into an opacity compositing layer and WKWebView paints it as an
+          opaque (non-transparent) box for the whole fetch. Instead:
+          pointer-events-none + aria-disabled + the handler guard, which
+          keep the normal translucent look. */}
       <Button
         type="button"
         variant="outline"
         onClick={handleOpen}
-        disabled={loading}
+        aria-disabled={loading || undefined}
         aria-label={t('settings.release_notes.button_aria')}
+        className={loading ? 'pointer-events-none' : undefined}
       >
-        <FileText className="mr-2 size-4" />
-        {loading
-          ? t('settings.release_notes.loading')
-          : t('settings.release_notes.button')}
+        {/* CAUTION: keep the label constant while loading. Swapping the
+            label next to the animated icon makes WKWebView double-paint
+            the text (ghost copy ~1px offset). Spinner + disabled state
+            alone convey progress. Uses the official shadcn Spinner
+            (lucide Loader spokes) for style consistency. */}
+        {loading ? (
+          <Spinner className="mr-2" />
+        ) : (
+          <FileText className="mr-2 size-4" />
+        )}
+        {t('settings.release_notes.button')}
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>

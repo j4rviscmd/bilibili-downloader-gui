@@ -113,7 +113,7 @@ fn bilibili_cookie(name: &str, value: String) -> CookieEntry {
 /// global `CookieCache`. Used for temporary verification of a freshly
 /// extracted QR session (review P2: avoid polluting the global cache on
 /// failure and avoid deleting Firefox cookies on `clear_cookie_cache`).
-fn build_cookie_header_from_session(session: &Session) -> String {
+pub(crate) fn build_cookie_header_from_session(session: &Session) -> String {
     let mut parts = vec![
         format!("SESSDATA={}", session.sessdata),
         format!("bili_jct={}", session.bili_jct),
@@ -133,7 +133,7 @@ fn build_cookie_header_from_session(session: &Session) -> String {
 ///
 /// Does not read or write the global `CookieCache`, so a failed
 /// verification never clobbers existing Firefox cookies.
-async fn verify_session_with_header(
+pub(crate) async fn verify_session_with_header(
     cookie_header: &str,
 ) -> Result<crate::models::frontend_dto::User, String> {
     use crate::handlers::bilibili::BiliApi;
@@ -508,7 +508,7 @@ pub async fn poll_qr_status(app: &AppHandle, qrcode_key: &str) -> Result<QrPollR
                 }
                 // Verification succeeded: commit to global cache and storage.
                 update_cookie_cache(app, &session);
-                save_session(app, &session).await?;
+                save_session(app, &session, LoginMethod::QrCode).await?;
             }
             Err(e) => {
                 // Nav API failure is likely transient (network). Keep the
@@ -523,7 +523,7 @@ pub async fn poll_qr_status(app: &AppHandle, qrcode_key: &str) -> Result<QrPollR
                     session.bili_jct.len()
                 );
                 update_cookie_cache(app, &session);
-                save_session(app, &session).await?;
+                save_session(app, &session, LoginMethod::QrCode).await?;
             }
         }
     }
@@ -547,7 +547,7 @@ pub async fn poll_qr_status(app: &AppHandle, qrcode_key: &str) -> Result<QrPollR
 /// # Errors
 ///
 /// Returns an error if the API request fails or returns invalid data.
-async fn fetch_buvid() -> Result<(String, String), String> {
+pub(crate) async fn fetch_buvid() -> Result<(String, String), String> {
     log::info!("[BE] fetch_buvid: fetching buvid3/buvid4 from API");
     let client = build_client()?;
 
@@ -672,19 +672,40 @@ fn extract_session_from_url(
 ///
 /// The session tokens are encrypted and stored in the app data directory,
 /// while only the login method preference is stored in the regular store.
-async fn save_session(app: &AppHandle, session: &Session) -> Result<(), String> {
+/// `method` records which flow produced the session (QR code scan or manual
+/// paste) so startup restore picks the right branch.
+async fn save_session(
+    app: &AppHandle,
+    session: &Session,
+    method: LoginMethod,
+) -> Result<(), String> {
     // Save session to encrypted file storage
     save_session_to_store(app, session)?;
 
     // Save only the login method to store (non-sensitive)
     let login_state = LoginState {
-        method: LoginMethod::QrCode,
+        method,
         session: None, // Don't store session in store
     };
 
     write_login_state(app, &login_state)?;
 
     Ok(())
+}
+
+/// Commits a verified session for non-QR login flows (manual cookie paste).
+///
+/// Updates the in-memory cookie cache and persists the session to encrypted
+/// storage tagged with the given login method. QR login keeps its own inline
+/// commit logic in `poll_qr_status` (it has extra fallback semantics for
+/// transient nav failures that manual paste must not inherit).
+pub(crate) async fn commit_session(
+    app: &AppHandle,
+    session: &Session,
+    method: LoginMethod,
+) -> Result<(), String> {
+    update_cookie_cache(app, session);
+    save_session(app, session, method).await
 }
 
 /// Updates the in-memory cookie cache with QR session cookies.
@@ -721,11 +742,12 @@ fn update_cookie_cache(app: &AppHandle, session: &Session) {
 
 /// Loads the stored session from encrypted file and updates cookie cache.
 ///
-/// This should be called on app startup to restore login state.
+/// This should be called on app startup to restore login state. Both
+/// session-backed methods (QR code, manual paste) restore through this path.
 ///
 /// # Returns
 ///
-/// Returns `Ok(true)` if a QR session was restored, `Ok(false)` if no session exists.
+/// Returns `Ok(true)` if a stored session was restored, `Ok(false)` if no session exists.
 ///
 /// # Errors
 ///
@@ -734,7 +756,10 @@ pub async fn load_stored_session(app: &AppHandle) -> Result<bool, String> {
     // Check login method preference
     let login_state = get_login_state_from_store(app).await?;
 
-    if login_state.method != LoginMethod::QrCode {
+    if !matches!(
+        login_state.method,
+        LoginMethod::QrCode | LoginMethod::Manual
+    ) {
         return Ok(false);
     }
 
@@ -790,9 +815,17 @@ pub async fn logout(app: &AppHandle) -> Result<(), String> {
 
 /// Sets the preferred login method.
 ///
-/// When switching to `Firefox`, any QR session artifacts (encrypted session
-/// file and in-memory cookie cache) are cleared. This prevents a stale QR
-/// session from overriding Firefox cookies on the next app startup.
+/// The in-memory cookie cache is always cleared on a switch: cookies from
+/// the previous method must not keep authenticating requests under the new
+/// method (e.g. stale Firefox cookies made `fetch_user` report a live login
+/// right after switching to Manual/QR, which looked like a successful
+/// login without any scan or paste). The new method becomes truly active
+/// on the next login action or restart.
+///
+/// When switching to `Firefox`, the stored session artifacts (encrypted
+/// session file) are also deleted. Switching between the session-backed
+/// methods (`QrCode` / `Manual`) keeps the stored session file: the next
+/// QR scan or cookie paste overwrites it.
 ///
 /// # Arguments
 ///
@@ -807,8 +840,8 @@ pub async fn set_login_method(app: &AppHandle, method: LoginMethod) -> Result<()
         if let Err(e) = delete_session_from_store(app) {
             log::warn!("[BE] set_login_method: failed to delete session: {}", e);
         }
-        clear_cookie_cache(app);
     }
+    clear_cookie_cache(app);
 
     // Only store the method, not the session (session is in encrypted file)
     let login_state = LoginState {
@@ -875,8 +908,12 @@ async fn get_login_state_from_store(app: &AppHandle) -> Result<LoginState, Strin
 pub async fn get_login_state(app: &AppHandle) -> Result<LoginState, String> {
     let store_state = get_login_state_from_store(app).await?;
 
-    // Load session from encrypted file if using QR code method
-    let session = if store_state.method == LoginMethod::QrCode {
+    // Load session from encrypted file for session-backed methods (QR,
+    // manual paste)
+    let session = if matches!(
+        store_state.method,
+        LoginMethod::QrCode | LoginMethod::Manual
+    ) {
         load_session_from_store(app)?
     } else {
         None
@@ -1258,7 +1295,14 @@ pub async fn refresh_cookie(app: &AppHandle) -> Result<Session, String> {
     update_cookie_cache(app, &new_session);
 
     // Save new session
-    save_session(app, &new_session).await?;
+    // Why: always re-tag as QrCode instead of the current login_state.method:
+    // only QR-origin sessions carry a refresh_token, so a refresh that reaches
+    // this point necessarily started from a QR session (a manual paste stores
+    // an empty refresh_token and fails in the refresh API before saving — see
+    // handlers/manual_login.rs and the Manual branch of handlers/init.rs).
+    // Tagging with the live method would relabel a QR-origin session after the
+    // user merely switched the preferred method without logging in again.
+    save_session(app, &new_session, LoginMethod::QrCode).await?;
 
     log::debug!(
         "[BE] Session saved successfully. New SESSDATA: {} bytes, timestamp: {}",

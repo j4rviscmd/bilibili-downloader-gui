@@ -132,6 +132,16 @@ pub async fn initialize(app: AppHandle) -> Result<(), String> {
             emit_step(&app, "init.reading_cookies");
             let _ = cookie::get_cookie(&app).await;
         }
+        LoginMethod::Manual => {
+            // Same restore path as QR, but no refresh attempt: a manual
+            // paste never carries a refresh_token, so renewal is a re-paste.
+            // Reuses the QR restore label since the user-facing meaning
+            // ("login session restored") is identical.
+            let loaded = qr_login::load_stored_session(&app).await.unwrap_or(false);
+            if loaded {
+                emit_step(&app, "init.qr_session_restored");
+            }
+        }
     }
 
     // 4. User info. Capture the error string (if any) so the main window can

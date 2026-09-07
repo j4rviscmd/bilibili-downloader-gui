@@ -160,6 +160,8 @@ pub enum LoginMethod {
     Firefox,
     /// Use QR code login
     QrCode,
+    /// Use manually pasted cookies
+    Manual,
 }
 
 /// Stored login state for persistence.

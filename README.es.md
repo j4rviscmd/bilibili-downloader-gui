@@ -62,7 +62,8 @@ Sin anuncios, sin seguimiento. 100% gratis.
 
 - **Detección automática de cookies de Firefox** - Detecta las cookies de Firefox para descargas de alta calidad sin inicio de sesión manual
 - **Inicio de sesión con código QR** - Escanea el código QR en la aplicación para iniciar sesión
-  - Alterna entre Cookie e inicio de sesión QR en cualquier momento
+- **Pegado manual de cookies** - Pega un encabezado `Cookie` copiado de las DevTools de tu navegador; se verifica y guarda igual que una sesión QR
+  - Alterna entre Cookie, código QR y inicio de sesión manual en cualquier momento
 
 ### Privacidad y seguridad
 
