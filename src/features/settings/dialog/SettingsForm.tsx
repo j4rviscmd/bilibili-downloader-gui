@@ -113,7 +113,9 @@ function getLoginStatusText(
   if (!user.hasCookie || !user.data.isLogin) {
     return 'login.session_expired'
   }
-  return loginMethod === 'manual' ? 'login.manualCookieLoggedIn' : 'login.qrCodeLoggedIn'
+  return loginMethod === 'manual'
+    ? 'login.manualCookieLoggedIn'
+    : 'login.qrCodeLoggedIn'
 }
 
 /**
@@ -1073,9 +1075,7 @@ function SettingsForm() {
             <div className="flex items-center space-x-3">
               <RadioGroupItem value="qrCode" id="login-method-qrcode" />
               <div className="space-y-0.5">
-                <Label htmlFor="login-method-qrcode">
-                  {t('login.qrCode')}
-                </Label>
+                <Label htmlFor="login-method-qrcode">{t('login.qrCode')}</Label>
                 <p className="text-muted-foreground text-xs">
                   {t('login.qrCodeDescription')}
                 </p>
@@ -1110,15 +1110,16 @@ function SettingsForm() {
             <span className="text-muted-foreground text-sm">
               {t(getLoginStatusText(session, loginMethod, user))}
             </span>
-            {(loginMethod === 'qrCode' || loginMethod === 'manual') && session && (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => setShowLogoutDialog(true)}
-              >
-                {t('login.logout')}
-              </Button>
-            )}
+            {(loginMethod === 'qrCode' || loginMethod === 'manual') &&
+              session && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setShowLogoutDialog(true)}
+                >
+                  {t('login.logout')}
+                </Button>
+              )}
           </div>
         </div>
         <Separator />

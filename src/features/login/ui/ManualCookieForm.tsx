@@ -12,8 +12,8 @@
 
 import { Spinner } from '@/components/ui/spinner'
 import { useUser } from '@/features/user'
-import { mapBackendError } from '@/shared/lib/mapBackendError'
 import { logger } from '@/shared/lib/logger'
+import { mapBackendError } from '@/shared/lib/mapBackendError'
 import { Button } from '@/shared/ui/button'
 import { Textarea } from '@/shared/ui/textarea'
 import { ClipboardPaste } from 'lucide-react'

@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/shared/animate-ui/radix/dialog'
-import { QrCode, ClipboardPaste } from 'lucide-react'
+import { ClipboardPaste, QrCode } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { ManualCookieForm } from './ManualCookieForm'
 import { QRCodeDisplay } from './QRCodeDisplay'

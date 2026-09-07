@@ -19,7 +19,9 @@ describe('ManualCookieForm', () => {
   it('disables the apply button until text is entered', async () => {
     const { user } = renderWithProviders(<ManualCookieForm />)
 
-    const apply = screen.getByRole('button', { name: 'login.manualCookieApply' })
+    const apply = screen.getByRole('button', {
+      name: 'login.manualCookieApply',
+    })
     expect(apply).toBeDisabled()
 
     await user.type(screen.getByLabelText('login.manualCookie'), 'SESSDATA=abc')
@@ -46,7 +48,9 @@ describe('ManualCookieForm', () => {
 
     const textarea = screen.getByLabelText('login.manualCookie')
     await user.type(textarea, 'SESSDATA=abc; bili_jct=jct')
-    await user.click(screen.getByRole('button', { name: 'login.manualCookieApply' }))
+    await user.click(
+      screen.getByRole('button', { name: 'login.manualCookieApply' }),
+    )
 
     await waitFor(() => {
       expect(mockInvoke).toHaveBeenCalledWith('apply_manual_cookie', {
@@ -71,7 +75,9 @@ describe('ManualCookieForm', () => {
       screen.getByLabelText('login.manualCookie'),
       'SESSDATA=stale',
     )
-    await user.click(screen.getByRole('button', { name: 'login.manualCookieApply' }))
+    await user.click(
+      screen.getByRole('button', { name: 'login.manualCookieApply' }),
+    )
 
     await waitFor(() => {
       expect(screen.getByText('login.manualCookieInvalid')).toBeInTheDocument()
