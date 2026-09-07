@@ -272,18 +272,39 @@ describe('SettingsForm', () => {
     expect(store.getState().user.hasCookie).toBe(false)
   })
 
-  it('switching login method persists it, refreshes state and toasts', async () => {
+  it('switching to firefox persists it, refreshes state and toasts restart', async () => {
+    // Mount as QR (the shared mock defaults to firefox), then switch to
+    // firefox so the restart toasts fire.
+    loginApi.getLoginState.mockResolvedValueOnce({
+      method: 'qrCode',
+      session: null,
+    })
     const { user } = renderWithProviders(<SettingsForm />)
 
-    await user.click(screen.getByLabelText('login.qrCode'))
+    await user.click(screen.getByLabelText('login.firefoxCookie'))
 
+    await waitFor(() =>
+      expect(loginApi.setLoginMethod).toHaveBeenCalledWith('firefox'),
+    )
+    expect(toastSuccess).toHaveBeenCalledWith('login.loginMethodChanged')
+    expect(toastInfo).toHaveBeenCalledWith('login.restartRequired')
+  })
+
+  it('switching to manual or QR stays silent; the login action itself is the feedback', async () => {
+    const { user } = renderWithProviders(<SettingsForm />)
+
+    await user.click(screen.getByLabelText('login.manualCookie'))
+    await waitFor(() =>
+      expect(loginApi.setLoginMethod).toHaveBeenCalledWith('manual'),
+    )
+    await user.click(screen.getByLabelText('login.qrCode'))
     await waitFor(() =>
       expect(loginApi.setLoginMethod).toHaveBeenCalledWith('qrCode'),
     )
-    // mount fetch + refresh after the switch
-    await waitFor(() => expect(loginApi.getLoginState).toHaveBeenCalledTimes(2))
-    expect(toastSuccess).toHaveBeenCalledWith('login.loginMethodChanged')
-    expect(toastInfo).toHaveBeenCalledWith('login.restartRequired')
+    // No "method changed"/"restart required" toasts for QR/Manual: QR scan
+    // and cookie paste both log in live without a restart.
+    expect(toastSuccess).not.toHaveBeenCalledWith('login.loginMethodChanged')
+    expect(toastInfo).not.toHaveBeenCalledWith('login.restartRequired')
   })
 
   it('adding a title replacement rule persists the expanded list', async () => {

@@ -26,6 +26,7 @@ export { useLogin } from './model/useLogin'
 // Components
 export { QRCodeDisplay } from './ui/QRCodeDisplay'
 export { QRCodeLoginDialog } from './ui/QRCodeLoginDialog'
+export { ManualCookieForm } from './ui/ManualCookieForm'
 
 // State
 export { default as loginReducer, setSession } from './model/loginSlice'

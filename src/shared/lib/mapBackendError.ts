@@ -37,6 +37,10 @@ const VIDEO_ERROR_MAP: Record<string, string> = {
   'ERR::QR_COOKIE_REJECTED': 'login.qrVerifyFailed',
   'ERR::QR_SESSDATA_MISSING': 'login.qrSessdataMissing',
   'ERR::QR_VERIFY_FAILED': 'login.qrVerifyFailed',
+  // Manual cookie login error codes
+  'ERR::MANUAL_COOKIE_INVALID': 'login.manualCookieInvalid',
+  'ERR::MANUAL_COOKIE_MISSING_SESSDATA': 'login.manualCookieMissingSessdata',
+  'ERR::MANUAL_COOKIE_FORMAT_INVALID': 'login.manualCookieFormatInvalid',
   // Why: trailing "::" matches the "ERR::NETWORK::<detail>" shape produced
   // by retry_download (it appends segment-failure details after the code),
   // so the dynamic suffix is discarded and the fixed key is returned.

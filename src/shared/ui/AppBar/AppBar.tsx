@@ -12,7 +12,7 @@ import {
 import { Button } from '@/shared/ui/button'
 import { GitHubStars } from '@/shared/ui/GitHubStars'
 import { Separator } from '@/shared/ui/separator'
-import { QrCode, UserRound } from 'lucide-react'
+import { LogIn, UserRound } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -84,13 +84,13 @@ function AppBar({ user, theme, setTheme }: Props) {
             <>
               <span className="text-sm">{t('user.not_logged_in')}</span>
               <Button
-                variant="outline"
+                variant="default"
                 size="sm"
                 className="h-6 gap-1 px-2 text-xs"
                 onClick={() => setIsQrLoginDialogOpen(true)}
               >
-                <QrCode className="size-3" />
-                {t('login.qrCodeLogin')}
+                <LogIn className="size-3" />
+                {t('login.loginButton')}
               </Button>
             </>
           )}

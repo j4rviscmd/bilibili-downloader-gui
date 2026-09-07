@@ -2,6 +2,7 @@ import { store } from '@/app/store'
 import { AboutDialog } from '@/features/about'
 import {
   getLoginState,
+  ManualCookieForm,
   qrLogout,
   setLoginMethod as setLoginMethodApi,
   type LoginMethod,
@@ -85,13 +86,13 @@ import { Info } from 'lucide-react'
  * written), so we fall back to the user info fetched from the nav API to
  * decide whether the user is actually logged in.
  *
- * @param session - QR session payload, or `null` when no QR session is
+ * @param session - Stored session payload, or `null` when no session is
  *   stored. Ignored for the Firefox method.
  * @param loginMethod - The currently selected login method.
  * @param user - The user object from Redux, used to detect whether the
  *   Firefox cookie actually authenticates the user.
  * @returns An i18n key (`login.qrCodeLoggedIn`, `login.firefoxCookieLoggedIn`,
- *   or `login.notLoggedIn`) suitable for `t()`.
+ *   `login.manualCookieLoggedIn`, or `login.notLoggedIn`) suitable for `t()`.
  */
 function getLoginStatusText(
   session: Session | null,
@@ -104,14 +105,15 @@ function getLoginStatusText(
       : 'login.notLoggedIn'
   }
   if (session === null) return 'login.notLoggedIn'
-  // QR method with a stored session: the file existing does not guarantee
-  // the cookies are still valid (e.g. refresh failed, wind-control issued an
-  // empty SESSDATA). Check the live user state as well so the Settings UI
-  // stays consistent with the AppBar, which is driven by the nav API.
+  // Session-backed methods (QR / manual) with a stored session: the file
+  // existing does not guarantee the cookies are still valid (e.g. refresh
+  // failed, wind-control issued an empty SESSDATA, pasted cookie expired).
+  // Check the live user state as well so the Settings UI stays consistent
+  // with the AppBar, which is driven by the nav API.
   if (!user.hasCookie || !user.data.isLogin) {
     return 'login.session_expired'
   }
-  return 'login.qrCodeLoggedIn'
+  return loginMethod === 'manual' ? 'login.manualCookieLoggedIn' : 'login.qrCodeLoggedIn'
 }
 
 /**
@@ -318,10 +320,12 @@ function SettingsForm() {
   /**
    * Switches the preferred login method.
    *
-   * Persists the new method via `set_login_method` (the backend also clears any
-   * QR session artifacts when switching to Firefox). A restart is required for
-   * the change to take effect because the cookie cache is populated during the
-   * init sequence.
+   * Persists the new method via `set_login_method` (the backend always
+   * clears the in-memory cookie cache on a switch). Only switching to
+   * Firefox needs a restart — Firefox cookies are read exclusively during
+   * app init. QR and Manual log in live (scan/paste commits to the cache
+   * immediately), so those switches stay silent and the login action itself
+   * is the feedback.
    */
   const handleLoginMethodChange = async (value: string) => {
     const next = value as LoginMethod
@@ -330,8 +334,10 @@ function SettingsForm() {
       await setLoginMethodApi(next)
       setLoginMethod(next)
       await refreshLoginState()
-      toast.success(t('login.loginMethodChanged'))
-      toast.info(t('login.restartRequired'))
+      if (next === 'firefox') {
+        toast.success(t('login.loginMethodChanged'))
+        toast.info(t('login.restartRequired'))
+      }
     } catch (error) {
       logger.error('Failed to change login method', error)
     }
@@ -1055,15 +1061,46 @@ function SettingsForm() {
           >
             <div className="flex items-center space-x-3">
               <RadioGroupItem value="firefox" id="login-method-firefox" />
-              <Label htmlFor="login-method-firefox">
-                {t('login.firefoxCookie')}
-              </Label>
+              <div className="space-y-0.5">
+                <Label htmlFor="login-method-firefox">
+                  {t('login.firefoxCookie')}
+                </Label>
+                <p className="text-muted-foreground text-xs">
+                  {t('login.firefoxCookieDescription')}
+                </p>
+              </div>
             </div>
             <div className="flex items-center space-x-3">
               <RadioGroupItem value="qrCode" id="login-method-qrcode" />
-              <Label htmlFor="login-method-qrcode">{t('login.qrCode')}</Label>
+              <div className="space-y-0.5">
+                <Label htmlFor="login-method-qrcode">
+                  {t('login.qrCode')}
+                </Label>
+                <p className="text-muted-foreground text-xs">
+                  {t('login.qrCodeDescription')}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-3">
+              <RadioGroupItem value="manual" id="login-method-manual" />
+              <div className="space-y-0.5">
+                <Label htmlFor="login-method-manual">
+                  {t('login.manualCookie')}
+                </Label>
+                <p className="text-muted-foreground text-xs">
+                  {t('login.manualCookieDescription')}
+                </p>
+              </div>
             </div>
           </RadioGroup>
+          {loginMethod === 'manual' && (
+            <ManualCookieForm
+              onApplied={async () => {
+                toast.success(t('login.manualCookieApplied'))
+                await refreshLoginState()
+              }}
+            />
+          )}
         </div>
         <Separator />
         {/* Login Status Section */}
@@ -1073,7 +1110,7 @@ function SettingsForm() {
             <span className="text-muted-foreground text-sm">
               {t(getLoginStatusText(session, loginMethod, user))}
             </span>
-            {loginMethod === 'qrCode' && session && (
+            {(loginMethod === 'qrCode' || loginMethod === 'manual') && session && (
               <Button
                 variant="destructive"
                 size="sm"

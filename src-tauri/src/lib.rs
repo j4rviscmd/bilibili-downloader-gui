@@ -214,6 +214,7 @@ pub fn run() {
             generate_qr_code,
             poll_qr_status,
             qr_logout,
+            apply_manual_cookie,
             set_login_method,
             get_login_method,
             get_login_state,
@@ -1689,11 +1690,33 @@ async fn qr_logout(app: AppHandle) -> Result<(), String> {
     qr_login::logout(&app).await
 }
 
+/// Applies manually pasted cookie text and logs in when it verifies.
+///
+/// # Arguments
+///
+/// * `text` - Raw Cookie header string (`SESSDATA=...; bili_jct=...`) or a
+///   JSON object of cookie name/value pairs
+///
+/// # Returns
+///
+/// Returns `Ok(())` when the cookie was parsed, verified via the nav API,
+/// and committed to the encrypted session storage.
+///
+/// # Errors
+///
+/// Returns `ERR::MANUAL_COOKIE_FORMAT_INVALID`,
+/// `ERR::MANUAL_COOKIE_MISSING_SESSDATA`, `ERR::MANUAL_COOKIE_INVALID`, or
+/// a raw network error string.
+#[tauri::command]
+async fn apply_manual_cookie(app: AppHandle, text: String) -> Result<(), String> {
+    handlers::manual_login::apply_manual_cookie(&app, &text).await
+}
+
 /// Sets the preferred login method.
 ///
 /// # Arguments
 ///
-/// * `method` - Login method: "firefox" or "qrCode"
+/// * `method` - Login method: "firefox", "qrCode", or "manual"
 ///
 /// # Returns
 ///
@@ -1703,6 +1726,7 @@ async fn set_login_method(app: AppHandle, method: String) -> Result<(), String> 
     let login_method = match method.to_lowercase().as_str() {
         "firefox" => LoginMethod::Firefox,
         "qrcode" => LoginMethod::QrCode,
+        "manual" => LoginMethod::Manual,
         _ => return Err(format!("Invalid login method: {}", method)),
     };
     qr_login::set_login_method(&app, login_method).await
@@ -1712,13 +1736,14 @@ async fn set_login_method(app: AppHandle, method: String) -> Result<(), String> 
 ///
 /// # Returns
 ///
-/// Returns the login method: "firefox" or "qrCode".
+/// Returns the login method: "firefox", "qrCode", or "manual".
 #[tauri::command]
 async fn get_login_method(app: AppHandle) -> Result<String, String> {
     let method = qr_login::get_login_method(&app).await?;
     Ok(match method {
         LoginMethod::Firefox => "firefox".to_string(),
         LoginMethod::QrCode => "qrCode".to_string(),
+        LoginMethod::Manual => "manual".to_string(),
     })
 }
 

@@ -61,7 +61,7 @@ export interface Session {
 export type QrSession = Session
 
 /** Available login methods. */
-export type LoginMethod = 'firefox' | 'qrCode'
+export type LoginMethod = 'firefox' | 'qrCode' | 'manual'
 
 /** Current login state. */
 export interface LoginState {
@@ -107,6 +107,25 @@ export async function qrLogout(): Promise<void> {
     logger.info('qrLogout: Logged out successfully')
   } catch (error) {
     logger.error('qrLogout: Failed to logout', error)
+    throw error
+  }
+}
+
+/**
+ * Applies manually pasted cookie text.
+ *
+ * Accepts a raw Cookie header string (`SESSDATA=...; bili_jct=...`, leading
+ * `cookie:` prefix tolerated) or a JSON object. The backend verifies the
+ * cookie against the nav API before committing it to the encrypted session
+ * storage; a rejected paste throws with an `ERR::MANUAL_COOKIE_*` code.
+ */
+export async function applyManualCookie(text: string): Promise<void> {
+  logger.info('applyManualCookie: applying pasted cookie')
+  try {
+    await invoke('apply_manual_cookie', { text })
+    logger.info('applyManualCookie: cookie applied and verified')
+  } catch (error) {
+    logger.error('applyManualCookie: Failed to apply manual cookie', error)
     throw error
   }
 }

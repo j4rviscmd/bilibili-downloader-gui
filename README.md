@@ -62,7 +62,8 @@ No ads, no tracking. 100% free.
 
 - **Firefox Cookie Auto-detection** - Detects Firefox cookies for high-quality downloads without manual login
 - **QR Code Login** - Scan the QR code in the app to log in
-  - Switch between Cookie and QR login at any time
+- **Manual Cookie Paste** - Paste a `Cookie` header copied from your browser's DevTools; it is verified and stored like a QR session
+  - Switch between Cookie, QR, and manual login at any time
 
 ### Privacy & Security
 
