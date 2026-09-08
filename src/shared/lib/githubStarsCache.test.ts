@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   clearCachedStars,
@@ -42,7 +42,21 @@ describe('githubStarsCache', () => {
   })
 
   describe('cache expiry', () => {
-    it('returns the count within the 1-hour TTL', () => {
+    // Why: freeze the clock — these tests pin the exact TTL boundary, and
+    // with the real clock a millisecond can elapse between seeding the
+    // cache and the expiry check, flipping "exactly at TTL" to expired
+    // (getCachedStars uses a strict `>` comparison, so TTL+1ms is expired;
+    // CI-only flake on slow runners: failed main-merge run 34171787200,
+    // 2026-09-08).
+    beforeEach(() => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
+    })
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('returns the count at exactly the TTL boundary', () => {
       localStorage.setItem(
         KEY,
         JSON.stringify({ count: 7, timestamp: Date.now() - 60 * 60 * 1000 }),
