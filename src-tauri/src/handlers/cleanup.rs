@@ -368,6 +368,9 @@ mod tests {
     fn hold_flock(path: &Path) -> fs::File {
         let file = OpenOptions::new()
             .create(true)
+            // truncate(false): the holder only fakes a live lock owner; it
+            // must not zero an existing file's contents.
+            .truncate(false)
             .write(true)
             .read(true)
             .open(path)
