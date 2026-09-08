@@ -67,8 +67,9 @@ pub async fn initialize(app: AppHandle) -> Result<(), String> {
     // 1. Clean up orphaned temp files from previous sessions.
     emit_step(&app, "init.cleanup_in_progress");
     let _ = cleanup::cleanup_temp_files(&app, None);
-    // Also sweep abandoned *.part.* staging files from the download
-    // output directory (crashed downloads, issue #560).
+    // Also sweep abandoned *.part.* staging files and orphaned sidecar
+    // locks from the download output directory (crashed downloads,
+    // issues #560/#595).
     let _ = cleanup::cleanup_part_files(&app).await;
     // Mark in_progress history entries whose owning process is gone as
     // failed (crash recovery, issue #511). Live downloads in another app
