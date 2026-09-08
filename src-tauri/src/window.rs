@@ -29,6 +29,16 @@ const MIN_HEIGHT: f64 = 609.0;
 const WINDOW_TITLE: &str = "Bilibili Downloader";
 const GEOMETRY_STORE_KEY: &str = "windowGeometry";
 
+/// Composes the native window title: fixed app name + version (issue #598).
+///
+/// The version is always included so it is visible from the first frame,
+/// before the frontend runs. When an update is available, the frontend
+/// appends an " (update available)" suffix via `setTitle` — see
+/// `useWindowTitle.ts` on the frontend side.
+fn window_title(version: &str) -> String {
+    format!("{WINDOW_TITLE} v{version}")
+}
+
 // Splash window dimensions (logical). Square on all platforms for a consistent
 // Discord-style splash. Tunable; the frontend splash route fills this area.
 const SPLASH_WIDTH: f64 = 480.0;
@@ -83,7 +93,7 @@ pub fn create_splash_window(
         None => "splashscreen".to_string(),
     };
     let _splash = WebviewWindowBuilder::new(app, "splash", WebviewUrl::App(url.into()))
-        .title(WINDOW_TITLE)
+        .title(window_title(&app.package_info().version.to_string()))
         .theme(theme.or(Some(Theme::Light)))
         .inner_size(SPLASH_WIDTH, SPLASH_HEIGHT)
         .min_inner_size(SPLASH_WIDTH, SPLASH_HEIGHT)
@@ -126,7 +136,7 @@ pub fn create_main_window(
     let should_maximize = geometry.as_ref().map(|g| g.maximized).unwrap_or(false);
 
     let mut builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
-        .title(WINDOW_TITLE)
+        .title(window_title(&app.package_info().version.to_string()))
         .theme(theme.or(Some(Theme::Light)))
         .min_inner_size(MIN_WIDTH, MIN_HEIGHT);
 
@@ -583,6 +593,11 @@ mod tests {
             work_w,
             work_h,
         }
+    }
+
+    #[test]
+    fn window_title_includes_version() {
+        assert_eq!(window_title("1.57.0"), "Bilibili Downloader v1.57.0");
     }
 
     #[test]
