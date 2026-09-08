@@ -431,6 +431,8 @@
       "title": "개발자 옵션",
       "open_devtools_on_startup": "시작 시 DevTools 열기",
       "open_devtools_on_startup_description": "활성화하면 앱 시작 시 브라우저 DevTools 콘솔이 자동으로 열립니다. 다음 재시작 시 적용됩니다.",
+      "enable_dev_updater": "업데이트 흐름 활성화",
+      "enable_dev_updater_description": "활성화하면 개발 빌드에서도 시작 시 업데이트 확인과 설정의 \"업데이트 확인\" 버튼이 동작합니다(업데이트 대화상자 디버깅용).",
       "simulate_logout": "비로그인 상태 시뮬레이션",
       "simulate_logout_description": "활성화하면 앱이 로그인하지 않은 상태로 실행됩니다(테스트용)."
     },
@@ -580,6 +582,7 @@
   },
   "updater": {
     "title": "업데이트 가능 ({{version}})",
+    "update_available": "업데이트가 있습니다",
     "description": "새 버전을 사용할 수 있습니다!",
     "current_label": "현재",
     "latest_label": "최신",
@@ -589,7 +592,7 @@
     "no_release_notes": "릴리스 노트 없음",
     "actions": {
       "update_now": "지금 업데이트",
-      "later": "나중에",
+      "skip_version": "이 버전 건너뛰기",
       "restart": "재시작",
       "downloading": "다운로드 중...",
       "cancel": "취소",

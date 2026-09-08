@@ -2,6 +2,7 @@ import { useSelector } from '@/app/store'
 import { QRCodeLoginDialog } from '@/features/login'
 import LanguageSwitcher from '@/features/preference/ui/LanguageSwitcher'
 import ToggleThemeButton from '@/features/preference/ui/ToggleThemeButton'
+import { UpdateAvailableButton } from '@/features/updater'
 import type { User } from '@/features/user'
 import {
   Tooltip,
@@ -96,6 +97,9 @@ function AppBar({ user, theme, setTheme }: Props) {
           )}
         </div>
         <div className="flex items-center gap-3">
+          {/* Grouping: app/repo status (update offer, GitHub stars) left of
+              the separator, preference controls (language, theme) right. */}
+          <UpdateAvailableButton />
           {showGithubStars && (
             <>
               <GitHubStars owner="j4rviscmd" repo="bilibili-downloader-gui" />

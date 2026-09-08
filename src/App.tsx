@@ -6,7 +6,7 @@ import {
 } from '@/features/notifications'
 import { useFontSizeShortcuts } from '@/features/settings/hooks/useFontSizeShortcuts'
 import { useThemeEffect } from '@/features/settings/hooks/useThemeEffect'
-import { UpdateNotification, useWindowTitle } from '@/features/updater'
+import { UpdateNotification } from '@/features/updater'
 import IndexPage from '@/pages'
 import ErrorPage from '@/pages/error'
 import InitPage from '@/pages/init'
@@ -22,7 +22,6 @@ function App() {
   useFontSizeShortcuts()
   useTaskbarProgress()
   useDownloadCompletionNotifications()
-  useWindowTitle()
 
   useEffect(() => {
     if (import.meta.env.DEV) return

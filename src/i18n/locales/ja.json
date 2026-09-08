@@ -431,6 +431,8 @@
       "title": "開発者オプション",
       "open_devtools_on_startup": "起動時にDevToolsを開く",
       "open_devtools_on_startup_description": "有効にすると、アプリ起動時にブラウザのDevToolsコンソールが自動的に開きます。次回起動時に反映されます。",
+      "enable_dev_updater": "アップデート導線を有効化",
+      "enable_dev_updater_description": "有効にすると、開発ビルドでも起動時のアップデート確認と設定の「更新を確認」ボタンが動作します（アプデダイアログのデバッグ用）。",
       "simulate_logout": "非ログイン状態をシミュレート",
       "simulate_logout_description": "有効にすると、アプリはログインしていない状態として動作します（テスト用）。"
     },
@@ -580,6 +582,7 @@
   },
   "updater": {
     "title": "アップデートが利用可能です ({{version}})",
+    "update_available": "アップデートがあります",
     "description": "新しいバージョンが利用可能です！",
     "current_label": "現在",
     "latest_label": "最新",
@@ -589,7 +592,7 @@
     "no_release_notes": "リリースノートはありません",
     "actions": {
       "update_now": "今すぐアップデート",
-      "later": "後で",
+      "skip_version": "このバージョンをスキップ",
       "restart": "再起動",
       "downloading": "ダウンロード中...",
       "cancel": "キャンセル",

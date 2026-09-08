@@ -134,4 +134,19 @@ describe('DevOptions', () => {
       patch: { openDevtoolsOnStartup: false },
     })
   })
+
+  it('renders the dev-updater switch off by default and persists the toggle', async () => {
+    const { user } = renderWithProviders(<DevOptions />)
+    await user.click(screen.getByText('settings.dev_options.title'))
+
+    const devUpdater = switchById('enable-dev-updater')
+    expect(devUpdater.getAttribute('data-state')).toBe('unchecked')
+
+    await user.click(devUpdater)
+
+    const call = mockInvoke.mock.calls.find((c) => c[0] === 'patch_settings')
+    expect(call?.[1]).toMatchObject({
+      patch: { enableDevUpdater: true },
+    })
+  })
 })

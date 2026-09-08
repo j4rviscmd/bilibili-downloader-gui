@@ -1,9 +1,11 @@
 import { useAppDispatch } from '@/app/store'
+import { useSettings } from '@/features/settings'
 import {
   setDownloadProgress,
   setError,
   setIsDownloading,
   setIsUpdateReady,
+  setShowDialog,
 } from '@/features/updater/model/updaterSlice'
 import { logger } from '@/shared/lib/logger'
 import { invoke } from '@tauri-apps/api/core'
@@ -26,10 +28,13 @@ import { useTranslation } from 'react-i18next'
  *   the download.
  * @returns handleRestart - Relaunches the application to complete
  *   a pending update installation.
+ * @returns handleSkipVersion - Persists the "skip this version"
+ *   choice (issue #599) and closes the dialog.
  */
 export function useUpdateDownload() {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
+  const { updateSettings } = useSettings()
 
   /**
    * Downloads the latest update and installs it.
@@ -131,5 +136,28 @@ export function useUpdateDownload() {
     }
   }, [dispatch, t])
 
-  return { handleUpdate, handleRetry, handleRestart }
+  /**
+   * Persists the "skip this version" choice (issue #599) and closes
+   * the update dialog.
+   *
+   * Saves the exact latest-version string through the settings
+   * field-patch flow so the startup auto-check suppresses the dialog
+   * for this version only. Closes the dialog before persisting — the
+   * patch only affects the next launch, so it must never delay the
+   * close. Persistence failure is logged, never thrown.
+   */
+  const handleSkipVersion = useCallback(
+    (version: string | null) => {
+      dispatch(setShowDialog(false))
+      if (!version) {
+        return
+      }
+      updateSettings({ skippedUpdateVersion: version }).catch((e) => {
+        logger.warn(`Failed to persist skipped update version: ${String(e)}`)
+      })
+    },
+    [dispatch, updateSettings],
+  )
+
+  return { handleUpdate, handleRetry, handleRestart, handleSkipVersion }
 }

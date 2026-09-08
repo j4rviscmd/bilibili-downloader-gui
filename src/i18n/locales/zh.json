@@ -431,6 +431,8 @@
       "title": "开发者选项",
       "open_devtools_on_startup": "启动时打开开发者工具",
       "open_devtools_on_startup_description": "启用后，应用启动时会自动打开浏览器开发者工具控制台。下次启动时生效。",
+      "enable_dev_updater": "启用更新流程",
+      "enable_dev_updater_description": "启用后，开发构建中也会执行启动时的更新检查和设置中的“检查更新”按钮（用于调试更新对话框）。",
       "simulate_logout": "模拟未登录状态",
       "simulate_logout_description": "启用后，应用将以未登录状态运行（用于测试）。"
     },
@@ -580,6 +582,7 @@
   },
   "updater": {
     "title": "有可用更新 ({{version}})",
+    "update_available": "有可用更新",
     "description": "有新版本可用！",
     "current_label": "当前",
     "latest_label": "最新",
@@ -589,7 +592,7 @@
     "no_release_notes": "暂无发布说明",
     "actions": {
       "update_now": "立即更新",
-      "later": "稍后",
+      "skip_version": "跳过此版本",
       "restart": "重启",
       "downloading": "下载中...",
       "cancel": "取消",

@@ -1,8 +1,10 @@
 import { useAppDispatch, useSelector } from '@/app/store'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { fetchReleaseNotes } from '@/features/updater/api/updaterApi'
 import {
   setError,
+  setReleaseNotes,
   setUpdateAvailable,
 } from '@/features/updater/model/updaterSlice'
 import { logger } from '@/shared/lib/logger'
@@ -52,6 +54,11 @@ export function UpdateCheckButton() {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const updater = useSelector((s) => s.updater)
+  // Developer option (default off): keeps the manual check usable in dev
+  // builds for debugging the updater flow.
+  const enableDevUpdater = useSelector(
+    (s) => s.settings.enableDevUpdater ?? false,
+  )
 
   const [status, setStatus] = useState<'idle' | 'checking' | 'done'>('idle')
   const [appVersion, setAppVersion] = useState<string>('')
@@ -89,7 +96,7 @@ export function UpdateCheckButton() {
    *            Updates appVersion from updater API response when available
    */
   const handleCheck = useCallback(async () => {
-    if (isDevMode) {
+    if (isDevMode && !enableDevUpdater) {
       return
     }
 
@@ -108,10 +115,25 @@ export function UpdateCheckButton() {
             available: true,
             latestVersion: update.version || null,
             currentVersion: update.currentVersion || null,
+            showDialog: true,
           }),
         )
         if (update.currentVersion && !appVersion) {
           setAppVersion(update.currentVersion)
+        }
+        // The dialog opens with a spinner until notes arrive; fetch them
+        // here (the startup provider skips the fetch for skipped versions,
+        // so a stale/failed fetch must not leave the dialog noteless).
+        try {
+          const notes = await fetchReleaseNotes(
+            'j4rviscmd',
+            'bilibili-downloader-gui',
+            update.currentVersion || '',
+          )
+          dispatch(setReleaseNotes(notes))
+        } catch (e) {
+          logger.error('Failed to fetch release notes', e)
+          dispatch(setReleaseNotes(t('updater.no_release_notes')))
         }
       } else {
         logger.info('UpdateCheckButton: No update available')
@@ -125,7 +147,7 @@ export function UpdateCheckButton() {
       dispatch(setError(t('settings.update_check.error')))
       setStatus('idle')
     }
-  }, [dispatch, t, appVersion])
+  }, [dispatch, t, appVersion, enableDevUpdater])
 
   /**
    * Renders the appropriate status badge based on current state and update availability.
@@ -184,7 +206,7 @@ export function UpdateCheckButton() {
           type="button"
           variant="outline"
           onClick={handleCheck}
-          disabled={status === 'checking' || isDevMode}
+          disabled={status === 'checking' || (isDevMode && !enableDevUpdater)}
           aria-describedby="update-status"
           aria-busy={status === 'checking'}
         >

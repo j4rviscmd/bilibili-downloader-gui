@@ -71,6 +71,7 @@ pub async fn fetch_all_release_notes(
             break;
         }
 
+        let mut any_newer = false;
         for release in &page_releases.items {
             let version_str = release
                 .tag_name
@@ -80,8 +81,19 @@ pub async fn fetch_all_release_notes(
             if let Ok(version) = Version::parse(version_str) {
                 if version > current_version {
                     releases.push(release.clone());
+                    any_newer = true;
                 }
             }
+        }
+
+        // Why early-exit: GitHub returns releases newest-first, so once a
+        // full page contains nothing newer than the current version, every
+        // later page is older. Without this, a repo with hundreds of
+        // releases paginates ~20 requests per check and exhausts the
+        // unauthenticated 60 req/h rate limit (observed as "no release
+        // notes" fallbacks).
+        if !any_newer {
+            break;
         }
 
         if page_releases.items.len() < PER_PAGE as usize {

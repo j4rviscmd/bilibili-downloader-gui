@@ -75,9 +75,8 @@ vi.mock('@tauri-apps/plugin-shell', () => ({
 
 // Mock @tauri-apps/api/window. useTaskbarProgress and
 // useDownloadCompletionNotifications call getCurrentWindow().setProgressBar /
-// requestUserAttention; useWindowTitle calls setTitle. A single hoisted
-// instance is returned so tests can grab the same vi.fn references and
-// assert on them.
+// requestUserAttention. A single hoisted instance is returned so tests can
+// grab the same vi.fn references and assert on them.
 const { mockCurrentWindow } = vi.hoisted(() => ({
   mockCurrentWindow: {
     setProgressBar: vi.fn().mockResolvedValue(undefined),

@@ -67,6 +67,10 @@ export function DevOptions() {
     saveByForm({ openDevtoolsOnStartup: checked })
   }
 
+  const handleToggleDevUpdater = (checked: boolean) => {
+    saveByForm({ enableDevUpdater: checked })
+  }
+
   // Only show in development mode
   if (!import.meta.env.DEV) {
     return null
@@ -99,6 +103,24 @@ export function DevOptions() {
             id="open-devtools-on-startup"
             checked={settings.openDevtoolsOnStartup ?? true}
             onCheckedChange={handleToggleDevtools}
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label
+              htmlFor="enable-dev-updater"
+              className="text-sm font-medium text-amber-800 dark:text-amber-300"
+            >
+              {t('settings.dev_options.enable_dev_updater')}
+            </Label>
+            <p className="text-xs text-amber-600 dark:text-amber-400/80">
+              {t('settings.dev_options.enable_dev_updater_description')}
+            </p>
+          </div>
+          <Switch
+            id="enable-dev-updater"
+            checked={settings.enableDevUpdater ?? false}
+            onCheckedChange={handleToggleDevUpdater}
           />
         </div>
         <div className="flex items-center justify-between">

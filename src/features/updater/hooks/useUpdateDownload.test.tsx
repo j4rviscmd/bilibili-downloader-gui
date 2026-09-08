@@ -4,7 +4,10 @@
  */
 
 import { store } from '@/app/store'
-import { resetUpdater } from '@/features/updater/model/updaterSlice'
+import {
+  resetUpdater,
+  setUpdateAvailable,
+} from '@/features/updater/model/updaterSlice'
 import { mockInvoke, renderHookWithStore } from '@/test/test-utils'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { check } from '@tauri-apps/plugin-updater'
@@ -188,5 +191,72 @@ describe('useUpdateDownload', () => {
     expect(updater().error).toBe('updater.error.update_in_progress')
     expect(updater().isDownloading).toBe(false)
     expect(updater().downloadProgress).toBe(0)
+  })
+
+  it('handleSkipVersion closes the dialog and persists the version (issue #599)', async () => {
+    store.dispatch(
+      setUpdateAvailable({
+        available: true,
+        latestVersion: '1.2.0',
+        currentVersion: '1.1.0',
+      }),
+    )
+    const { result } = renderHookWithStore(() => useUpdateDownload())
+
+    await act(async () => {
+      result.current.handleSkipVersion('1.2.0')
+    })
+
+    expect(updater().showDialog).toBe(false)
+    expect(updater().updateAvailable).toBe(true)
+    await waitFor(() =>
+      expect(mockInvoke).toHaveBeenCalledWith('patch_settings', {
+        patch: { skippedUpdateVersion: '1.2.0' },
+      }),
+    )
+    expect(store.getState().settings.skippedUpdateVersion).toBe('1.2.0')
+  })
+
+  it('handleSkipVersion with null version closes without persisting', async () => {
+    store.dispatch(
+      setUpdateAvailable({
+        available: true,
+        latestVersion: null,
+        currentVersion: '1.1.0',
+      }),
+    )
+    const { result } = renderHookWithStore(() => useUpdateDownload())
+
+    await act(async () => {
+      result.current.handleSkipVersion(null)
+    })
+
+    expect(updater().showDialog).toBe(false)
+    expect(mockInvoke).not.toHaveBeenCalledWith('patch_settings', {
+      patch: { skippedUpdateVersion: null },
+    })
+  })
+
+  it('handleSkipVersion swallows persistence failure (dialog still closes)', async () => {
+    mockInvoke.mockRejectedValue(new Error('disk full'))
+    store.dispatch(
+      setUpdateAvailable({
+        available: true,
+        latestVersion: '1.2.0',
+        currentVersion: '1.1.0',
+      }),
+    )
+    const { result } = renderHookWithStore(() => useUpdateDownload())
+
+    await act(async () => {
+      result.current.handleSkipVersion('1.2.0')
+    })
+    // The rejection is handled asynchronously (fire-and-forget); give the
+    // microtask queue a turn so an unhandled rejection would surface here.
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(updater().showDialog).toBe(false)
   })
 })
