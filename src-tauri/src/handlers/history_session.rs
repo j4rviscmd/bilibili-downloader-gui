@@ -361,8 +361,12 @@ async fn fetch_thumbnail(app: &AppHandle, bvid: &str) -> Option<String> {
 ///
 /// Reclaims a dead holder first: an existing file whose flock can be taken
 /// has no live owner (its process died; the OS released the lock), so it is
-/// removed and re-created — the same rule as `try_claim` (issue #560).
-fn acquire_session_lock(path: &Path) -> Result<File, String> {
+/// removed and re-created.
+///
+/// Shared with `bilibili::try_claim` (issue #595): the download output
+/// reservation claims its sidecar lock file with this exact rule (the rule
+/// the former `bilibili::try_claim` body duplicated, issue #560).
+pub(crate) fn acquire_session_lock(path: &Path) -> Result<File, String> {
     let try_create = || -> Result<File, std::io::Error> {
         let file = OpenOptions::new()
             .create_new(true)

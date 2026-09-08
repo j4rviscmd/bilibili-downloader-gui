@@ -101,7 +101,7 @@ pub struct DownloadCancelRegistry {
 /// id return `true` and emit a spurious `download_cancelled` event, and the
 /// map grows without bound in long sessions. The guard deregisters on every
 /// scope exit — early return, panic unwind, or normal completion — exactly
-/// like `OutputReservation` covers the staging file.
+/// like `OutputReservation` covers its claimed output name.
 ///
 /// Hold the guard for the whole download; dropping it performs
 /// `remove` + `clear_cancelled` (both idempotent, so double cleanup with

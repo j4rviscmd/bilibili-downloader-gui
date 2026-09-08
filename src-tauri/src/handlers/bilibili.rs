@@ -680,10 +680,11 @@ async fn download_video_impl(app: &AppHandle, options: &DownloadOptions) -> Resu
     let host_health = Arc::new(crate::utils::cdn_selector::HostHealth::new());
 
     // 1. Determine output file path + reserve it (multi-process safe,
-    //    issue #560). All bytes are written to the reserved staging name
-    //    (`{stem}.part.{ext}`) and renamed to the final name on success;
-    //    `OutputReservation`'s Drop removes the staging file on every early
-    //    return below.
+    //    issue #560/#595). The name claim + liveness lock live on a sidecar
+    //    `video.mp4.lock`; all bytes are written to the reserved staging name
+    //    (`{stem}.part.{ext}`) — created lazily by the writers — and renamed
+    //    to the final name on success; `OutputReservation`'s Drop removes
+    //    staging + sidecar on every early return below.
     let reservation = reserve_output_path(&build_output_path(app, &options.filename).await?)?;
 
     // 2. Get cookies (WBI signing enables non-logged-in usage)
@@ -974,13 +975,15 @@ async fn download_video_impl(app: &AppHandle, options: &DownloadOptions) -> Resu
     let temp_video_path = lib_path.join(format!("temp_video_{}.m4s", options.download_id));
     let temp_audio_path = lib_path.join(format!("temp_audio_{}.m4s", options.download_id));
 
-    // Hold an exclusive flock on both temp files for the whole download
-    // (issue #560): startup cleanup treats a temp file whose flock is free as
-    // an orphan (owner crashed) and deletes it immediately regardless of age,
-    // so a second app instance must never see an in-flight temp as garbage.
-    // The lock lives on the inode the download writes to (created once by
-    // preallocate/single-stream open, never deleted-and-recreated mid-flight),
-    // and advisory locking never blocks our own writers.
+    // Hold an exclusive flock on both temp files' sidecar locks for the whole
+    // download (issue #560/#595): startup cleanup treats a temp file whose
+    // sidecar flock is free as an orphan (owner crashed) and deletes it
+    // immediately regardless of age, so a second app instance must never see
+    // an in-flight temp as garbage. The lock lives on a sidecar
+    // (`temp_*.m4s.lock`), never on the payload: `download_url`'s
+    // is_override entry unlinks and re-creates the payload, which would
+    // orphan a payload-bound flock, and on Windows a mandatory LockFileEx on
+    // the payload would block our own writers outright.
     // Note: keep the named binding — `let _ = lock_temp_paths(...)` would drop
     // the locks immediately, and startup cleanup would then delete these
     // in-flight temps as orphans.
@@ -1223,6 +1226,15 @@ async fn download_video_impl(app: &AppHandle, options: &DownloadOptions) -> Resu
 
     // Registry cleanup (token removal + pre-cancel flag clear) is handled by
     // the CancelTokenGuard acquired at register() above (issue #561).
+
+    // Release the temp sidecar locks before removing them (required on
+    // Windows: a held LockFileEx must be released before remove_file).
+    drop(_temp_locks);
+    // Remove the temp sidecars eagerly so zero-byte `.m4s.lock` files do not
+    // linger in the lib dir until the next startup sweep (issue #595).
+    for temp_path in [&temp_video_path, &temp_audio_path] {
+        let _ = tokio::fs::remove_file(lock_sidecar_path(temp_path)).await;
+    }
 
     // On error, clean up temp files
     if result.is_err() {
@@ -1667,6 +1679,65 @@ mod tests {
             reservation.reserved_path().file_name().unwrap(),
             "never_written.part.mp4"
         );
+        // The claim + liveness lock live on the sidecar, not the payload
+        // (issue #595): the sidecar exists from the moment of reservation,
+        // while the staging payload is only created by writers.
+        assert!(reservation_exists(dir.path(), "never_written.mp4.lock"));
+        assert!(!reservation_exists(dir.path(), "never_written.part.mp4"));
+    }
+
+    #[test]
+    fn reservation_locks_sidecar_not_payload() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("video.mp4");
+        let reservation = reserve_output_path(&path).unwrap();
+
+        // The sidecar flock is held: a try_lock from a second handle fails.
+        let sidecar = dir.path().join("video.mp4.lock");
+        assert!(
+            flock_is_held(&sidecar),
+            "live reservation must hold the sidecar flock"
+        );
+        drop(reservation);
+    }
+
+    #[test]
+    fn staging_is_writable_while_reservation_held() {
+        // The #595 invariant: nothing the download writes is ever locked.
+        // On Windows the old payload-bound flock made this write fail with
+        // os error 33 (LockFileEx mandatory lock) — the exact failure behind
+        // "Permission denied" in the ffmpeg merge.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("video.mp4");
+        let reservation = reserve_output_path(&path).unwrap();
+
+        use std::io::Write;
+        let mut writer = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(reservation.reserved_path())
+            .unwrap();
+        writer.write_all(b"payload bytes").unwrap();
+
+        drop(reservation);
+    }
+
+    #[test]
+    fn orphan_sidecar_is_reclaimed_on_next_reserve() {
+        // Simulate a crashed process: an unlocked sidecar with no payload.
+        // The next reserve for the same name reclaims it instead of jumping
+        // to " (1)".
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("video.mp4");
+        std::fs::write(lock_sidecar_path(&path), b"").unwrap();
+
+        let reservation = reserve_output_path(&path).unwrap();
+        assert_eq!(
+            reservation.reserved_path().file_name().unwrap(),
+            "video.part.mp4",
+            "dead sidecar is reclaimed, not skipped"
+        );
     }
 
     #[test]
@@ -1691,6 +1762,24 @@ mod tests {
         assert_eq!(final_path, path);
         assert_eq!(std::fs::read(&path).unwrap(), b"payload");
         assert!(!reservation_exists(dir.path(), "done.part.mp4"));
+        assert!(
+            !reservation_exists(dir.path(), "done.mp4.lock"),
+            "completing must release and remove the sidecar claim"
+        );
+    }
+
+    #[test]
+    fn complete_without_staging_fails_and_releases_claim() {
+        // Writers never ran (early failure before any bytes). complete()
+        // fails loudly on the missing rename source and Drop still releases
+        // the claimed name.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("never_started.mp4");
+        let reservation = reserve_output_path(&path).unwrap();
+        assert!(reservation.complete().is_err());
+        // complete() consumes the reservation; Drop ran inside it.
+        assert!(!reservation_exists(dir.path(), "never_started.mp4.lock"));
+        assert!(!reservation_exists(dir.path(), "never_started.part.mp4"));
     }
 
     #[test]
@@ -1701,14 +1790,19 @@ mod tests {
         std::fs::write(reservation.reserved_path(), b"partial").unwrap();
         drop(reservation);
         assert!(!reservation_exists(dir.path(), "abandoned.part.mp4"));
+        assert!(
+            !reservation_exists(dir.path(), "abandoned.mp4.lock"),
+            "dropping must release and remove the sidecar claim"
+        );
         assert!(!path.exists(), "final name must stay untouched on failure");
     }
 
     #[test]
     fn dead_reservation_is_reclaimed_on_next_reserve() {
-        // Simulate a crashed process: a staging file exists but nobody holds
-        // its flock. The next reserve for the same name must reclaim it
-        // instead of jumping to " (1)".
+        // Simulate pre-#595 crash debris: a staging file exists with no
+        // sidecar, so the name is claimable. The next reserve reuses the
+        // name (writers overwrite the stale staging bytes) instead of
+        // jumping to " (1)".
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("video.mp4");
         std::fs::write(part_path(&path), b"orphan").unwrap();
@@ -1724,6 +1818,17 @@ mod tests {
     /// Test helper: does `name` exist in `dir`?
     fn reservation_exists(dir: &std::path::Path, name: &str) -> bool {
         dir.join(name).exists()
+    }
+
+    /// Test helper: is an exclusive flock currently held on `path` by
+    /// someone else?
+    fn flock_is_held(path: &std::path::Path) -> bool {
+        let probe = OpenOptions::new()
+            .write(true)
+            .read(true)
+            .open(path)
+            .unwrap();
+        probe.try_lock_exclusive().is_err()
     }
 
     #[test]
@@ -1745,6 +1850,38 @@ mod tests {
             "finished file must not be overwritten"
         );
         assert_eq!(std::fs::read(&final_path).unwrap(), b"ours");
+        // The sidecar is named after the CLAIMED candidate (video.mp4), so
+        // shifting the rename target does not change which claim is removed.
+        assert!(!reservation_exists(dir.path(), "video.mp4.lock"));
+    }
+
+    #[test]
+    fn lock_temp_paths_locks_sidecars_not_payloads() {
+        let dir = tempfile::tempdir().unwrap();
+        let temp = dir.path().join("temp_video_dl-1.m4s");
+        let guards = lock_temp_paths(&[&temp]);
+
+        // Sidecar exists and is locked for the guard's lifetime; the payload
+        // is neither created nor locked (issue #595).
+        let sidecar = dir.path().join("temp_video_dl-1.m4s.lock");
+        assert!(sidecar.exists());
+        assert!(
+            !temp.exists(),
+            "lock_temp_paths must not create the payload"
+        );
+        assert!(
+            flock_is_held(&sidecar),
+            "temp sidecar must be flock-held while the download lives"
+        );
+
+        // Payload writes (download_url's second handle) work unimpeded.
+        std::fs::write(&temp, b"segment bytes").unwrap();
+
+        drop(guards);
+        assert!(
+            !flock_is_held(&sidecar),
+            "dropping the guards releases the sidecar flock"
+        );
     }
 
     // ---- ensure_free_space (fs, tempfile) ----
@@ -3062,7 +3199,7 @@ async fn fetch_video_details(
     Ok(body)
 }
 
-/// Multi-process safe output-file reservation (issue #560).
+/// Multi-process safe output-file reservation (issue #560, issue #595).
 ///
 /// Two app instances downloading to the same output filename used to race:
 /// the old `auto_rename` checked `path.exists()` once at download start
@@ -3070,34 +3207,44 @@ async fn fetch_video_details(
 /// would overwrite each other. This reservation closes that window with two
 /// OS-level primitives:
 ///
-/// - `File::create_new` (O_EXCL) — exactly one process can create the
-///   reservation file; creation is atomic, so there is no check-then-create
-///   gap to slip through.
-/// - an exclusive `flock` held on it for the download's lifetime — if the
-///   owning process dies, the OS releases the lock, so the leftover
+/// - `File::create_new` (O_EXCL) on the sidecar lock file — exactly one
+///   process can create it; creation is atomic, so there is no
+///   check-then-create gap to slip through.
+/// - an exclusive `flock` held on the sidecar for the download's lifetime —
+///   if the owning process dies, the OS releases the lock, so the leftover
 ///   reservation is detectably dead and the next download reclaims it.
+///
+/// The lock lives on a sidecar file named after the FINAL path
+/// (`video.mp4` -> `video.mp4.lock`), never on the payload (issue #595):
+/// on Windows fs2 maps `lock_exclusive` to `LockFileEx`, a mandatory
+/// whole-file byte-range lock, so a flock held on the staging
+/// `video.part.mp4` blocked the ffmpeg child process from writing the merge
+/// output (os error 33 -> "Permission denied" -> `ERR::MERGE_FAILED`).
+/// On Unix it also keeps the liveness signal intact when `download_url`
+/// unlinks and re-creates the payload mid-flight (flock follows the inode).
 ///
 /// All output (direct durl downloads, ffmpeg merges) is written to the
 /// reserved staging name (`{stem}.part.{ext}`) and only renamed to the
 /// final user-visible name on success, so a crashed download can never leave
-/// a half-written `video.mp4` behind — only a `.part` staging file,
-/// which startup cleanup removes.
+/// a half-written `video.mp4` behind — only a `.part` staging file plus the
+/// sidecar, which startup cleanup removes.
 struct OutputReservation {
     /// Final user-visible path (e.g. `video.mp4`).
     final_path: PathBuf,
     /// Staging path all bytes are written to (e.g. `video.part.mp4`).
     reserved_path: PathBuf,
-    /// Holds the exclusive flock for the download's lifetime. Releasing it
-    /// (drop / process death) is what marks this reservation as reclaimable.
+    /// Holds the exclusive flock on the sidecar lock file for the download's
+    /// lifetime. Releasing it (drop / process death) is what marks this
+    /// reservation as reclaimable.
     lock_file: Option<File>,
     completed: bool,
 }
 
 impl OutputReservation {
-    fn new(final_path: PathBuf, reserved_path: PathBuf, lock_file: File) -> Self {
+    fn new(final_path: PathBuf, lock_file: File) -> Self {
         Self {
+            reserved_path: part_path(&final_path),
             final_path,
-            reserved_path,
             lock_file: Some(lock_file),
             completed: false,
         }
@@ -3127,6 +3274,12 @@ impl OutputReservation {
         fs::rename(&self.reserved_path, &target)
             .map_err(|e| format!("Failed to finalize output file: {}", e))?;
         self.completed = true;
+        // Release the flock BEFORE removing the sidecar (required on
+        // Windows; same rule as HistorySession's Drop). The sidecar is named
+        // after the claimed candidate, so shifting the rename target to a
+        // " (N)" variant never changes which lock file to remove.
+        self.lock_file = None;
+        let _ = fs::remove_file(lock_sidecar_path(&self.final_path));
         Ok(target)
     }
 }
@@ -3141,31 +3294,38 @@ impl Drop for OutputReservation {
         if !self.completed {
             let _ = fs::remove_file(&self.reserved_path);
         }
-        self.lock_file = None; // release the flock
+        self.lock_file = None; // release the flock before removing (Windows)
+        let _ = fs::remove_file(lock_sidecar_path(&self.final_path));
     }
 }
 
-/// Opens each temp path (creating it if absent) and holds an exclusive flock
-/// for the caller's lifetime. Best-effort: an unpersistable path logs and is
-/// skipped rather than failing the download (cleanup then falls back to the
-/// age-based rule for that file).
+/// Holds an exclusive flock on each temp file's SIDE CAR lock file
+/// (`temp_video_X.m4s` -> `temp_video_X.m4s.lock`) for the caller's
+/// lifetime. The payload temp itself is never locked (issue #595): on
+/// Windows `LockFileEx` is a mandatory lock that would block our own
+/// writers, and on every platform `download_url(is_override=true)` unlinks
+/// and re-creates the payload, which would orphan a payload-bound flock.
+/// Best-effort: an unpersistable path logs and is skipped rather than
+/// failing the download (cleanup then falls back to probing the payload's
+/// own flock, same as a pre-#595 leftover).
 fn lock_temp_paths(paths: &[&Path]) -> Vec<File> {
     let mut locked = Vec::with_capacity(paths.len());
     for path in paths {
+        let lock_path = lock_sidecar_path(path);
         let file = match OpenOptions::new()
             .create(true)
-            // truncate(false): opening an existing temp must never zero it —
-            // the download continues into the same inode the flock lives on.
+            // truncate(false): a leftover sidecar from a dead run is reused
+            // as-is; it holds no payload bytes, so zeroing never matters.
             .truncate(false)
             .write(true)
             .read(true)
-            .open(path)
+            .open(&lock_path)
         {
             Ok(file) => file,
             Err(e) => {
                 log::warn!(
                     "[BE] lock_temp_paths: open failed for {}: {}",
-                    path.display(),
+                    lock_path.display(),
                     e
                 );
                 continue;
@@ -3174,7 +3334,7 @@ fn lock_temp_paths(paths: &[&Path]) -> Vec<File> {
         if let Err(e) = file.lock_exclusive() {
             log::warn!(
                 "[BE] lock_temp_paths: lock failed for {}: {}",
-                path.display(),
+                lock_path.display(),
                 e
             );
             continue;
@@ -3201,6 +3361,19 @@ fn part_path(candidate: &Path) -> PathBuf {
     candidate.with_file_name(format!("{}.part.{}", stem, ext))
 }
 
+/// Appends `.lock` to the file name (`video.mp4` -> `video.mp4.lock`,
+/// `temp_video_X.m4s` -> `temp_video_X.m4s.lock`).
+///
+/// The download-sidecar is named after the FINAL path (not the staging
+/// `video.part.mp4`), so it survives the staging->final rename semantics
+/// unchanged and mirrors the `{path}.lock` convention of `locked_json.rs`
+/// (issue #595).
+pub(crate) fn lock_sidecar_path(path: &Path) -> PathBuf {
+    let mut name = path.file_name().unwrap_or_default().to_os_string();
+    name.push(".lock");
+    path.with_file_name(name)
+}
+
 /// Yields candidate final paths: the desired name first, then `" (N)"`
 /// variants for N in 1..=10_000 (mirrors the historical auto_rename scheme).
 fn candidate_output_paths(path: &Path) -> Vec<PathBuf> {
@@ -3214,50 +3387,27 @@ fn candidate_output_paths(path: &Path) -> Vec<PathBuf> {
     candidates
 }
 
-/// Tries to claim `candidate` by atomically creating its staging file.
+/// Tries to claim `candidate` by atomically creating its sidecar lock file
+/// (`video.mp4` -> `video.mp4.lock`) and holding an exclusive flock on it
+/// (issue #595). The staging payload itself is NOT created here — every
+/// writer (ffmpeg `-y`, `download_url`'s preallocate/single-stream paths)
+/// creates it on first write, and locking the payload is exactly what broke
+/// the Windows merge.
 ///
-/// Returns `Some((locked_file, staging_path))` on success. On
-/// `AlreadyExists`, checks whether the existing reservation is dead (its
-/// holder crashed: flock gone) and if so reclaims it, so a crashed download
-/// never blocks its filename for 24h. Returns `None` when the name is taken
-/// by a live reservation or cannot be claimed.
-fn try_claim(candidate: &Path) -> Option<(File, PathBuf)> {
-    let reserved = part_path(candidate);
-    match OpenOptions::new()
-        .create_new(true)
-        .write(true)
-        .read(true)
-        .open(&reserved)
-    {
-        Ok(file) => match file.lock_exclusive() {
-            Ok(()) => Some((file, reserved)),
-            // Locking a file only we just created should never fail; treat it
-            // as claim failure rather than panicking.
-            Err(_) => {
-                let _ = fs::remove_file(&reserved);
-                None
-            }
-        },
-        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
-            // Dead-holder reclamation: an exclusive try_lock on the existing
-            // staging file succeeds only when no live process holds it.
-            if let Ok(existing) = OpenOptions::new().write(true).read(true).open(&reserved) {
-                if existing.try_lock_exclusive().is_ok() {
-                    drop(existing);
-                    let _ = fs::remove_file(&reserved);
-                }
-            }
-            None
-        }
-        Err(_) => None,
-    }
+/// Reuses [`crate::handlers::history_session::acquire_session_lock`], which
+/// also performs dead-holder reclamation: an existing sidecar whose flock
+/// can be taken has no live owner (its process died), so it is removed and
+/// re-created, and a crashed download never blocks its filename. Returns
+/// `None` when the name is taken by a live reservation or cannot be claimed.
+fn try_claim(candidate: &Path) -> Option<File> {
+    crate::handlers::history_session::acquire_session_lock(&lock_sidecar_path(candidate)).ok()
 }
 
 /// Reserves a unique output path for a download (issue #560).
 ///
-/// Walks `desired`, `desired (1)`, ... until a staging file can be claimed
-/// atomically. Falls back to a timestamp-based name if all 10,000 variants
-/// are taken (mirrors the historical auto_rename behavior).
+/// Walks `desired`, `desired (1)`, ... until a sidecar lock file can be
+/// claimed atomically. Falls back to a timestamp-based name if all 10,000
+/// variants are taken (mirrors the historical auto_rename behavior).
 fn reserve_output_path(desired: &Path) -> Result<OutputReservation, String> {
     for candidate in candidate_output_paths(desired) {
         // Preserve the historical auto_rename contract: never target a name
@@ -3265,12 +3415,8 @@ fn reserve_output_path(desired: &Path) -> Result<OutputReservation, String> {
         if candidate.exists() {
             continue;
         }
-        // Two passes per candidate: the first pass may reclaim a dead
-        // reservation, the second can then create_new it ourselves.
-        for _ in 0..2 {
-            if let Some((lock_file, reserved_path)) = try_claim(&candidate) {
-                return Ok(OutputReservation::new(candidate, reserved_path, lock_file));
-            }
+        if let Some(lock_file) = try_claim(&candidate) {
+            return Ok(OutputReservation::new(candidate, lock_file));
         }
     }
 
@@ -3289,10 +3435,10 @@ fn reserve_output_path(desired: &Path) -> Result<OutputReservation, String> {
         .map(|d| d.as_millis())
         .unwrap_or(0);
     let fallback = parent.join(format!("{}_{}.{}", stem, timestamp, ext));
-    let Some((lock_file, reserved_path)) = try_claim(&fallback) else {
+    let Some(lock_file) = try_claim(&fallback) else {
         return Err("ERR::OUTPUT_RESERVE_FAILED".to_string());
     };
-    Ok(OutputReservation::new(fallback, reserved_path, lock_file))
+    Ok(OutputReservation::new(fallback, lock_file))
 }
 
 /// Builds the full output path for a download file.
