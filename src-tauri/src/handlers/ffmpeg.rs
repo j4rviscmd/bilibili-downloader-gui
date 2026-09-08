@@ -795,21 +795,37 @@ pub async fn merge_avs(
             //   the async worker would stall other tasks (progress events,
             //   concurrent segment downloads) for the whole check.
             let out = tokio::task::spawn_blocking(move || {
-                std::process::Command::new(&ffmpeg_path_chk)
-                    .args([
-                        "-v",
-                        "error",
-                        "-i",
-                        &video_str_chk,
-                        "-map",
-                        "0:v",
-                        "-c",
-                        "copy",
-                        "-f",
-                        "null",
-                        "-",
-                    ])
-                    .output()
+                let mut cmd = std::process::Command::new(&ffmpeg_path_chk);
+                cmd.args([
+                    "-v",
+                    "error",
+                    "-i",
+                    &video_str_chk,
+                    "-map",
+                    "0:v",
+                    "-c",
+                    "copy",
+                    "-f",
+                    "null",
+                    "-",
+                ]);
+                // Why: without CREATE_NO_WINDOW this fire-and-forget probe
+                // pops a console window on every DASH download's merge start
+                // in release builds (the GUI parent has no console, so
+                // Windows allocates a new conhost for the console-subsystem
+                // ffmpeg.exe).
+                #[cfg(target_os = "windows")]
+                {
+                    use std::os::windows::process::CommandExt;
+                    // Note: 0x0800_0000 is the Win32 CREATE_NO_WINDOW value
+                    // from CreateProcess's dwCreationFlags (Microsoft Learn,
+                    // Process Creation Flags). CommandExt::creation_flags
+                    // takes a raw u32 and std exports no constant for it, so
+                    // the value is defined locally here.
+                    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+                    cmd.creation_flags(CREATE_NO_WINDOW);
+                }
+                cmd.output()
             })
             .await;
             if let Ok(Ok(out)) = out {
