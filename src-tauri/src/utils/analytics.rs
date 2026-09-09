@@ -13,7 +13,6 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use once_cell::sync::Lazy;
 use reqwest::Client;
 use serde_json::{json, Map, Value};
-use tauri::AppHandle;
 
 /// Global tracking of download start times for duration calculation.
 static DOWNLOAD_STARTS: Lazy<Mutex<HashMap<String, Instant>>> =
@@ -41,7 +40,8 @@ static GA_API_SECRET: Option<&'static str> = option_env!("GA_API_SECRET");
 /// # Arguments
 ///
 /// * `app` - Tauri application handle for accessing application paths
-pub async fn init_analytics(app: &AppHandle) {
+// Why generic over R: same mock_app test pattern as emits.rs / init.rs
+pub async fn init_analytics<R: tauri::Runtime>(app: &impl tauri::Manager<R>) {
     // If secrets are missing (empty), skip (build-time embedding should set them)
     if GA_MEASUREMENT_ID.unwrap_or("").is_empty() || GA_API_SECRET.unwrap_or("").is_empty() {
         log::debug!("[BE] init_analytics: missing GA_MEASUREMENT_ID/GA_API_SECRET, skipping");
@@ -56,37 +56,38 @@ pub async fn init_analytics(app: &AppHandle) {
 
     let version_current = env!("CARGO_PKG_VERSION");
     let last_version_path = analytics_dir.join("last_version");
-    let mut is_first_install = false;
-    let mut is_update = false;
-    let prev_version_opt = if last_version_path.exists() {
+    // Why the match: an existing-but-unreadable last_version file must fall
+    // through to a plain app_start (neither first_install nor update) — the
+    // pre-refactor inline logic treated it that way, and treating it as a
+    // first install would re-send that event on every startup of a machine
+    // with a broken marker file.
+    let startup = if last_version_path.exists() {
         match fs::read_to_string(&last_version_path) {
-            Ok(prev) => {
-                if prev.trim() != version_current {
-                    is_update = true;
-                }
-                Some(prev.trim().to_string())
-            }
-            Err(_) => None,
+            Ok(prev) => classify_startup(Some(prev.trim()), version_current),
+            Err(_) => StartupClassification {
+                is_first_install: false,
+                is_update: false,
+                prev_version: None,
+            },
         }
     } else {
-        is_first_install = true;
-        None
+        classify_startup(None, version_current)
     };
 
     // Persist current version
     let _ = fs::write(&last_version_path, version_current);
 
     // Events
-    if is_first_install {
+    if startup.is_first_install {
         let mut p = Map::new();
         p.insert("app_version".into(), Value::from(version_current));
         p.insert("os".into(), Value::from(std::env::consts::OS));
         let _ = send_event_internal(&client_id, "first_install", p).await;
-    } else if is_update {
+    } else if startup.is_update {
         let mut p = Map::new();
         p.insert(
             "prev_version".into(),
-            Value::from(prev_version_opt.unwrap_or_default()),
+            Value::from(startup.prev_version.unwrap_or_default()),
         );
         p.insert("new_version".into(), Value::from(version_current));
         p.insert("os".into(), Value::from(std::env::consts::OS));
@@ -108,7 +109,10 @@ pub async fn init_analytics(app: &AppHandle) {
 ///
 /// * `app` - Tauri application handle
 /// * `download_id` - Unique identifier for the download
-pub async fn record_download_click(app: &AppHandle, download_id: &str) {
+pub async fn record_download_click<R: tauri::Runtime>(
+    app: &impl tauri::Manager<R>,
+    download_id: &str,
+) {
     if GA_MEASUREMENT_ID.unwrap_or("").is_empty() || GA_API_SECRET.unwrap_or("").is_empty() {
         log::debug!("[BE] record_download_click: skipped (missing GA secrets)");
         return;
@@ -149,8 +153,8 @@ pub fn mark_download_start(download_id: &str) {
 /// * `download_id` - Unique identifier for the download
 /// * `success` - Whether the download completed successfully
 /// * `err_code` - Optional error code if the download failed
-pub async fn finish_download(
-    app: &AppHandle,
+pub async fn finish_download<R: tauri::Runtime>(
+    app: &impl tauri::Manager<R>,
     download_id: &str,
     success: bool,
     err_code: Option<&str>,
@@ -187,6 +191,31 @@ pub async fn finish_download(
         }
     }
     let _ = send_event_internal(&client_id, "download_result", p).await;
+}
+
+/// Startup classification for the install/update/start event decision.
+///
+/// Split out of `init_analytics` (pure decision over the previous stored
+/// version) so the event branching is testable without an AppHandle.
+struct StartupClassification {
+    is_first_install: bool,
+    is_update: bool,
+    prev_version: Option<String>,
+}
+
+fn classify_startup(prev_version: Option<&str>, current: &str) -> StartupClassification {
+    match prev_version {
+        None => StartupClassification {
+            is_first_install: true,
+            is_update: false,
+            prev_version: None,
+        },
+        Some(prev) => StartupClassification {
+            is_first_install: false,
+            is_update: prev != current,
+            prev_version: Some(prev.to_string()),
+        },
+    }
 }
 
 /// Extracts the error category from an error string.
@@ -309,18 +338,7 @@ async fn send_event_internal(
     name: &str,
     mut params: Map<String, Value>,
 ) -> Result<(), String> {
-    params.insert("app_version".into(), Value::from(env!("CARGO_PKG_VERSION")));
-    params.insert("os".into(), Value::from(std::env::consts::OS));
-    params.insert("timestamp_ms".into(), Value::from(current_time_ms() as i64));
-
-    let mut event_obj = Map::new();
-    event_obj.insert("name".into(), Value::from(name));
-    event_obj.insert("params".into(), Value::Object(params));
-
-    let body = json!({
-        "client_id": client_id,
-        "events": [Value::Object(event_obj)],
-    });
+    let body = build_event_body(client_id, name, &mut params);
 
     // Debug mode: GA_DEBUG=1 has no effect in release builds (cfg guard)
     #[cfg(debug_assertions)]
@@ -383,6 +401,25 @@ async fn send_event_internal(
     }
 }
 
+/// Builds the GA4 Measurement Protocol request body for one event.
+///
+/// Split out of `send_event_internal` (pure JSON construction) so the
+/// body shape is testable without network access.
+fn build_event_body(client_id: &str, name: &str, params: &mut Map<String, Value>) -> Value {
+    params.insert("app_version".into(), Value::from(env!("CARGO_PKG_VERSION")));
+    params.insert("os".into(), Value::from(std::env::consts::OS));
+    params.insert("timestamp_ms".into(), Value::from(current_time_ms() as i64));
+
+    let mut event_obj = Map::new();
+    event_obj.insert("name".into(), Value::from(name));
+    event_obj.insert("params".into(), Value::Object(params.clone()));
+
+    json!({
+        "client_id": client_id,
+        "events": [Value::Object(event_obj)],
+    })
+}
+
 /// Gets the current Unix timestamp in milliseconds.
 ///
 /// # Returns
@@ -437,5 +474,98 @@ mod tests {
         assert_eq!(first.len(), 36, "UUID v4 textual length");
         // Persisted: a second call returns the same id
         assert_eq!(get_or_create_client_id(dir.path()), first);
+    }
+
+    #[test]
+    fn uuid_v4_has_rfc4122_shape_and_unique() {
+        let a = uuid_v4();
+        let b = uuid_v4();
+        assert_eq!(a.len(), 36);
+        let parts: Vec<&str> = a.split('-').collect();
+        assert_eq!(
+            parts.iter().map(|p| p.len()).collect::<Vec<_>>(),
+            vec![8, 4, 4, 4, 12],
+            "dash positions per UUID textual format"
+        );
+        // version nibble is 4; variant nibble is 8/9/a/b
+        assert!(parts[2].starts_with('4'), "version 4");
+        let variant = parts[3].chars().next().unwrap();
+        assert!(['8', '9', 'a', 'b'].contains(&variant), "variant 2");
+        assert_ne!(a, b, "two generated ids differ");
+    }
+
+    #[test]
+    fn classify_startup_branches() {
+        let first = classify_startup(None, "1.2.3");
+        assert!(first.is_first_install);
+        assert!(!first.is_update);
+        assert!(first.prev_version.is_none());
+
+        let same = classify_startup(Some("1.2.3"), "1.2.3");
+        assert!(!same.is_first_install);
+        assert!(!same.is_update, "same version is a plain app_start");
+        assert_eq!(same.prev_version.as_deref(), Some("1.2.3"));
+
+        let updated = classify_startup(Some("1.0.0"), "1.2.3");
+        assert!(!updated.is_first_install);
+        assert!(updated.is_update);
+        assert_eq!(updated.prev_version.as_deref(), Some("1.0.0"));
+    }
+
+    #[test]
+    fn build_event_body_wraps_params_with_common_fields() {
+        let mut params = Map::new();
+        params.insert("download_id".into(), Value::from("dl-1"));
+        let body = build_event_body("client-1", "download_click", &mut params);
+
+        assert_eq!(body["client_id"], "client-1");
+        let events = body["events"].as_array().unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0]["name"], "download_click");
+        let p = &events[0]["params"];
+        assert_eq!(p["download_id"], "dl-1");
+        // Auto-injected common fields
+        assert_eq!(p["app_version"], env!("CARGO_PKG_VERSION"));
+        assert!(p["os"].is_string());
+        assert!(p["timestamp_ms"].as_i64().unwrap() > 0);
+    }
+
+    #[test]
+    fn current_time_ms_is_plausible_epoch() {
+        // Any sane clock is past 2020-01-01 (~1.58e12 ms)
+        assert!(current_time_ms() > 1_580_000_000_000);
+    }
+
+    #[test]
+    fn mark_download_start_registers_id() {
+        mark_download_start("iter-download");
+        let map = DOWNLOAD_STARTS.lock().unwrap();
+        assert!(map.contains_key("iter-download"), "start time recorded");
+        drop(map);
+        // Cleanup so other tests see a clean map
+        DOWNLOAD_STARTS.lock().unwrap().remove("iter-download");
+    }
+    // GA credentials are compile-time (option_env!) and absent in test
+    // builds, so the AppHandle entry points take their early-return path.
+    // That still exercises the guard + signature, and pins the contract
+    // "no credentials -> no filesystem/network access".
+    #[tokio::test]
+    async fn init_analytics_without_credentials_is_a_noop() {
+        let app = tauri::test::mock_app();
+        init_analytics(app.handle()).await;
+    }
+
+    #[tokio::test]
+    async fn record_download_click_without_credentials_is_a_noop() {
+        let app = tauri::test::mock_app();
+        record_download_click(app.handle(), "dl-1").await;
+    }
+
+    #[tokio::test]
+    async fn finish_download_without_credentials_is_a_noop() {
+        mark_download_start("dl-noop");
+        let app = tauri::test::mock_app();
+        finish_download(app.handle(), "dl-noop", false, Some("ERR::X::y")).await;
+        DOWNLOAD_STARTS.lock().unwrap().remove("dl-noop");
     }
 }

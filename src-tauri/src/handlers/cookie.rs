@@ -41,7 +41,13 @@ use crate::models::cookie::SimulateLogoutFlag;
 /// # Errors
 ///
 /// Returns an error if the cache state cannot be accessed (should not normally occur).
-pub fn read_cookie(app: &AppHandle) -> Result<Option<Vec<CookieEntry>>, String> {
+// Why: generic over R — production callers pass AppHandle (= AppHandle<Wry>)
+// while tests pass tauri::test::mock_app()'s AppHandle<MockRuntime>
+// (tauri "test" dev-dependency feature, src-tauri/Cargo.toml); Manager<R> is
+// the minimal bound covering both.
+pub fn read_cookie<R: tauri::Runtime>(
+    app: &impl Manager<R>,
+) -> Result<Option<Vec<CookieEntry>>, String> {
     // Development mode: check if simulate logout is enabled
     #[cfg(debug_assertions)]
     {
@@ -397,5 +403,106 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         write_ini(root.path(), "not an ini file at all\n[broken\n");
         assert_eq!(find_active_firefox_profile(root.path()), None);
+    }
+
+    /// Creates a SQLite db with a moz_cookies table and the given
+    /// (host, name, value) rows.
+    fn make_cookie_db(path: &Path, rows: &[(&str, &str, &str)]) {
+        let conn = Connection::open(path).unwrap();
+        conn.execute(
+            "CREATE TABLE moz_cookies (host TEXT, name TEXT, value TEXT)",
+            [],
+        )
+        .unwrap();
+        for (host, name, value) in rows {
+            conn.execute(
+                "INSERT INTO moz_cookies (host, name, value) VALUES (?1, ?2, ?3)",
+                rusqlite::params![host, name, value],
+            )
+            .unwrap();
+        }
+    }
+
+    #[test]
+    fn read_bilibili_cookies_filters_by_host() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("cookies.sqlite");
+        make_cookie_db(
+            &db,
+            &[
+                (".bilibili.com", "SESSDATA", "sess-val"),
+                ("bilibili.com", "bili_jct", "jct-val"),
+                ("www.example.com", "other", "ignored"),
+                ("evilbilibili.com", "lookalike", "ignored"),
+            ],
+        );
+
+        let mut cookies = HashMap::new();
+        let has_any = read_bilibili_cookies(&db, &mut cookies).unwrap();
+        assert!(has_any);
+        assert_eq!(cookies.len(), 2, "non-bilibili hosts filtered out");
+        assert_eq!(cookies.get("SESSDATA").unwrap(), "sess-val");
+        assert_eq!(cookies.get("bili_jct").unwrap(), "jct-val");
+        assert!(
+            !cookies.contains_key("lookalike"),
+            "suffix must not match mid-label"
+        );
+    }
+
+    #[test]
+    fn read_bilibili_cookies_empty_db_reports_no_cookies() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("cookies.sqlite");
+        make_cookie_db(&db, &[]);
+
+        let mut cookies = HashMap::new();
+        assert!(!read_bilibili_cookies(&db, &mut cookies).unwrap());
+        assert!(cookies.is_empty());
+    }
+
+    #[test]
+    fn read_cookie_returns_cached_entries_via_mock_app() {
+        use crate::models::cookie::CookieCache;
+        use tauri::Manager;
+
+        let app = tauri::test::mock_app();
+        app.manage(CookieCache::default());
+        app.state::<CookieCache>()
+            .cookies
+            .lock()
+            .unwrap()
+            .push(CookieEntry {
+                host: ".bilibili.com".into(),
+                name: "SESSDATA".into(),
+                value: "v".into(),
+            });
+
+        let cached = read_cookie(app.handle()).unwrap().expect("Some cache");
+        assert_eq!(cached.len(), 1);
+        assert_eq!(cached[0].name, "SESSDATA");
+    }
+
+    #[test]
+    fn read_cookie_without_cache_state_returns_none() {
+        // No CookieCache managed: falls through to Ok(None) instead of erroring
+        let app = tauri::test::mock_app();
+        assert!(read_cookie(app.handle()).unwrap().is_none());
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn read_cookie_simulate_logout_returns_empty_list() {
+        use crate::models::cookie::{CookieCache, SimulateLogoutFlag};
+        use tauri::Manager;
+
+        let app = tauri::test::mock_app();
+        app.manage(CookieCache::default());
+        app.manage(SimulateLogoutFlag::default());
+        *app.state::<SimulateLogoutFlag>().enabled.lock().unwrap() = true;
+
+        let cached = read_cookie(app.handle())
+            .unwrap()
+            .expect("Some(empty) in dev mode");
+        assert!(cached.is_empty(), "simulated logout reports no cookies");
     }
 }
