@@ -1,0 +1,58 @@
+# Codecov configuration for issue #606 (PR coverage comments).
+# Policy: coverage is report-only — statuses are informational and never
+# gate merges (the coverage job stays outside the required ci-status check).
+codecov:
+  # Why: the coverage job can be red on threshold breach; codecov must
+  # still post statuses/comments instead of waiting for CI to be green
+  require_ci_to_pass: false
+
+coverage:
+  status:
+    # Report-only: always-passing checks, never to be added to branch
+    # protection. Threshold enforcement lives in the tools themselves
+    # (cargo-llvm-cov --fail-under-lines / vitest thresholds).
+    project:
+      default:
+        informational: true
+        target: auto
+    patch:
+      default:
+        informational: true
+        target: auto
+
+flags:
+  rust:
+    paths:
+      - src-tauri/src/
+    # Single upload per flag per commit; both uploading jobs always run
+    carryforward: false
+  frontend:
+    paths:
+      - src/
+    carryforward: false
+
+comment:
+  # Layout includes the `flags` component; per-flag tables show automatically
+  layout: condensed_header, diff, flags
+  # No comment noise when coverage is unchanged
+  require_changes: true
+  # One rust + one frontend upload per commit before commenting
+  after_n_builds: 2
+
+ignore:
+  # Frontend: mirrors vitest coverage excludes (vitest already omits these
+  # from lcov; this is defense in depth against future reporter drift)
+  - 'src/components/**'
+  - 'src/shared/animate-ui/**'
+  - 'src/hooks/**'
+  - 'src/lib/**'
+  - 'src/features/splash/lib/createScene.ts'
+  - 'src/features/splash/hooks/useThreeScene.ts'
+  - 'src/main.tsx'
+  - 'src/i18n/**'
+  - 'src/**/*.test.*'
+  - 'src/test/**'
+  # Rust: mirrors cargo-llvm-cov --ignore-filename-regex
+  - 'src-tauri/src/main.rs'
+  - 'src-tauri/src/lib.rs'
+  - 'src-tauri/src/menu.rs'
