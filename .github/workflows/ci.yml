@@ -163,17 +163,18 @@ jobs:
           shared-key: rust-ci
 
       - name: Install dependencies (Ubuntu only)
-        # Why sourceparts=-: the runner image ships third-party apt sources
+        # Why the || warning: the runner image ships third-party apt sources
         # (dl.google.com chrome, packages.microsoft.com) whose indexes
         # intermittently fail hash verification while the publisher is
-        # mid-sync, failing every Rust job at this step with exit 100 even
-        # though the Ubuntu archives are healthy (observed 3 consecutive PR
-        # runs on 2026-09-09; a plain retry did not help). Ignoring the
-        # sourceparts directory updates ONLY the official Ubuntu archives,
-        # which is all these jobs install from — the third-party repos are
-        # irrelevant to the webkit build deps.
+        # mid-sync, failing every Rust job here with exit 100 even though
+        # the Ubuntu archives are healthy (4 consecutive PR runs,
+        # 2026-09-09; retry and sourceparts= both failed — sourceparts= also
+        # drops noble's deb822 ubuntu.sources, so no packages resolve).
+        # Tolerating a partial update is safe: the install below hard-fails
+        # if the UBUNTU indexes are unusable, which is the only failure we
+        # care about; a broken chrome/microsoft index is irrelevant here.
         run: |
-          sudo apt-get update -o Dir::Etc::sourceparts=-
+          sudo apt-get update || echo "::warning::apt-get update partially failed; relying on whichever indexes resolved"
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libdbus-1-dev libglib2.0-dev
 
       - name: Check Rust code
@@ -198,17 +199,18 @@ jobs:
           shared-key: rust-ci
 
       - name: Install dependencies (Ubuntu only)
-        # Why sourceparts=-: the runner image ships third-party apt sources
+        # Why the || warning: the runner image ships third-party apt sources
         # (dl.google.com chrome, packages.microsoft.com) whose indexes
         # intermittently fail hash verification while the publisher is
-        # mid-sync, failing every Rust job at this step with exit 100 even
-        # though the Ubuntu archives are healthy (observed 3 consecutive PR
-        # runs on 2026-09-09; a plain retry did not help). Ignoring the
-        # sourceparts directory updates ONLY the official Ubuntu archives,
-        # which is all these jobs install from — the third-party repos are
-        # irrelevant to the webkit build deps.
+        # mid-sync, failing every Rust job here with exit 100 even though
+        # the Ubuntu archives are healthy (4 consecutive PR runs,
+        # 2026-09-09; retry and sourceparts= both failed — sourceparts= also
+        # drops noble's deb822 ubuntu.sources, so no packages resolve).
+        # Tolerating a partial update is safe: the install below hard-fails
+        # if the UBUNTU indexes are unusable, which is the only failure we
+        # care about; a broken chrome/microsoft index is irrelevant here.
         run: |
-          sudo apt-get update -o Dir::Etc::sourceparts=-
+          sudo apt-get update || echo "::warning::apt-get update partially failed; relying on whichever indexes resolved"
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libdbus-1-dev libglib2.0-dev
 
       - name: Run Clippy
@@ -238,17 +240,18 @@ jobs:
           shared-key: rust-ci
 
       - name: Install dependencies (Ubuntu only)
-        # Why sourceparts=-: the runner image ships third-party apt sources
+        # Why the || warning: the runner image ships third-party apt sources
         # (dl.google.com chrome, packages.microsoft.com) whose indexes
         # intermittently fail hash verification while the publisher is
-        # mid-sync, failing every Rust job at this step with exit 100 even
-        # though the Ubuntu archives are healthy (observed 3 consecutive PR
-        # runs on 2026-09-09; a plain retry did not help). Ignoring the
-        # sourceparts directory updates ONLY the official Ubuntu archives,
-        # which is all these jobs install from — the third-party repos are
-        # irrelevant to the webkit build deps.
+        # mid-sync, failing every Rust job here with exit 100 even though
+        # the Ubuntu archives are healthy (4 consecutive PR runs,
+        # 2026-09-09; retry and sourceparts= both failed — sourceparts= also
+        # drops noble's deb822 ubuntu.sources, so no packages resolve).
+        # Tolerating a partial update is safe: the install below hard-fails
+        # if the UBUNTU indexes are unusable, which is the only failure we
+        # care about; a broken chrome/microsoft index is irrelevant here.
         run: |
-          sudo apt-get update -o Dir::Etc::sourceparts=-
+          sudo apt-get update || echo "::warning::apt-get update partially failed; relying on whichever indexes resolved"
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libdbus-1-dev libglib2.0-dev
 
       - name: Run Rust tests
@@ -273,17 +276,18 @@ jobs:
           shared-key: rust-ci
 
       - name: Install dependencies (Ubuntu only)
-        # Why sourceparts=-: the runner image ships third-party apt sources
+        # Why the || warning: the runner image ships third-party apt sources
         # (dl.google.com chrome, packages.microsoft.com) whose indexes
         # intermittently fail hash verification while the publisher is
-        # mid-sync, failing every Rust job at this step with exit 100 even
-        # though the Ubuntu archives are healthy (observed 3 consecutive PR
-        # runs on 2026-09-09; a plain retry did not help). Ignoring the
-        # sourceparts directory updates ONLY the official Ubuntu archives,
-        # which is all these jobs install from — the third-party repos are
-        # irrelevant to the webkit build deps.
+        # mid-sync, failing every Rust job here with exit 100 even though
+        # the Ubuntu archives are healthy (4 consecutive PR runs,
+        # 2026-09-09; retry and sourceparts= both failed — sourceparts= also
+        # drops noble's deb822 ubuntu.sources, so no packages resolve).
+        # Tolerating a partial update is safe: the install below hard-fails
+        # if the UBUNTU indexes are unusable, which is the only failure we
+        # care about; a broken chrome/microsoft index is irrelevant here.
         run: |
-          sudo apt-get update -o Dir::Etc::sourceparts=-
+          sudo apt-get update || echo "::warning::apt-get update partially failed; relying on whichever indexes resolved"
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libdbus-1-dev libglib2.0-dev
 
       - name: Check Rust formatting
@@ -322,17 +326,18 @@ jobs:
           shared-key: rust-ci-nightly
 
       - name: Install dependencies (Ubuntu only)
-        # Why sourceparts=-: the runner image ships third-party apt sources
+        # Why the || warning: the runner image ships third-party apt sources
         # (dl.google.com chrome, packages.microsoft.com) whose indexes
         # intermittently fail hash verification while the publisher is
-        # mid-sync, failing every Rust job at this step with exit 100 even
-        # though the Ubuntu archives are healthy (observed 3 consecutive PR
-        # runs on 2026-09-09; a plain retry did not help). Ignoring the
-        # sourceparts directory updates ONLY the official Ubuntu archives,
-        # which is all these jobs install from — the third-party repos are
-        # irrelevant to the webkit build deps.
+        # mid-sync, failing every Rust job here with exit 100 even though
+        # the Ubuntu archives are healthy (4 consecutive PR runs,
+        # 2026-09-09; retry and sourceparts= both failed — sourceparts= also
+        # drops noble's deb822 ubuntu.sources, so no packages resolve).
+        # Tolerating a partial update is safe: the install below hard-fails
+        # if the UBUNTU indexes are unusable, which is the only failure we
+        # care about; a broken chrome/microsoft index is irrelevant here.
         run: |
-          sudo apt-get update -o Dir::Etc::sourceparts=-
+          sudo apt-get update || echo "::warning::apt-get update partially failed; relying on whichever indexes resolved"
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libdbus-1-dev libglib2.0-dev
 
       - name: Generate Codecov report
