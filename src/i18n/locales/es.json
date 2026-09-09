@@ -431,6 +431,8 @@
       "title": "Opciones de desarrollo",
       "open_devtools_on_startup": "Abrir DevTools al iniciar",
       "open_devtools_on_startup_description": "Cuando está habilitado, la consola DevTools del navegador se abre automáticamente al iniciar la aplicación. Se aplica en el próximo reinicio.",
+      "enable_dev_updater": "Activar flujo de actualización",
+      "enable_dev_updater_description": "Cuando está habilitado, la comprobación de actualizaciones al iniciar y el botón \"Comprobar actualizaciones\" funcionan también en esta build de desarrollo (para depurar el diálogo de actualización).",
       "simulate_logout": "Simular estado sin sesión iniciada",
       "simulate_logout_description": "Cuando está habilitado, la aplicación funciona como si no hubieras iniciado sesión (para pruebas)."
     },
@@ -580,6 +582,7 @@
   },
   "updater": {
     "title": "Actualización disponible ({{version}})",
+    "update_available": "Actualización disponible",
     "description": "¡Hay una nueva versión disponible!",
     "current_label": "Actual",
     "latest_label": "Última",
@@ -589,7 +592,7 @@
     "no_release_notes": "No hay notas de la versión",
     "actions": {
       "update_now": "Actualizar ahora",
-      "later": "Más tarde",
+      "skip_version": "Omitir esta versión",
       "restart": "Reiniciar",
       "downloading": "Descargando...",
       "cancel": "Cancelar",

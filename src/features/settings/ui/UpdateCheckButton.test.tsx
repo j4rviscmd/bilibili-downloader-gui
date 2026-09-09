@@ -79,6 +79,29 @@ describe('UpdateCheckButton', () => {
     expect(updater.currentVersion).toBe('1.2.3')
   })
 
+  it('fetches and stores release notes for the opened dialog', async () => {
+    mockCheck.mockResolvedValue({ version: '2.0.0', currentVersion: '1.2.3' })
+    mockInvoke.mockImplementation((cmd: string) =>
+      cmd === 'get_release_notes'
+        ? Promise.resolve('## v2.0.0 notes')
+        : Promise.resolve(undefined),
+    )
+    const { user } = renderWithProviders(<UpdateCheckButton />)
+
+    await user.click(
+      screen.getByRole('button', { name: 'settings.update_check.button_idle' }),
+    )
+
+    await waitFor(() =>
+      expect(store.getState().updater.releaseNotes).toBe('## v2.0.0 notes'),
+    )
+    expect(mockInvoke).toHaveBeenCalledWith('get_release_notes', {
+      owner: 'j4rviscmd',
+      repo: 'bilibili-downloader-gui',
+      currentVersion: '1.2.3',
+    })
+  })
+
   it('falls back to the unknown-version label when getVersion rejects', async () => {
     mockGetVersion.mockRejectedValue(new Error('no app'))
     renderWithProviders(<UpdateCheckButton />)

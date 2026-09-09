@@ -68,6 +68,25 @@ describe('setUpdateAvailable', () => {
       showDialog: false,
     })
   })
+
+  it('showDialog: false suppresses the dialog while keeping availability (issue #599)', () => {
+    // The startup auto-check passes showDialog: false for a version the
+    // user skipped; updateAvailable stays true for the AppBar update
+    // button and the settings badge.
+    store.dispatch(
+      setUpdateAvailable({
+        available: true,
+        latestVersion: 'v1.2.1',
+        currentVersion: 'v1.2.0',
+        showDialog: false,
+      }),
+    )
+    expect(updater()).toMatchObject({
+      updateAvailable: true,
+      latestVersion: 'v1.2.1',
+      showDialog: false,
+    })
+  })
 })
 
 describe('update lifecycle setters', () => {

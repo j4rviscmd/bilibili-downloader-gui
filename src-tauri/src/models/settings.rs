@@ -217,6 +217,26 @@ pub struct Settings {
         skip_serializing_if = "Option::is_none"
     )]
     pub download_parallelism: Option<u8>,
+    /// Latest version string the user chose to skip via "Skip this version"
+    /// (issue #599). The startup auto-check does not auto-open the update
+    /// dialog when its latest version equals this value; manual checks
+    /// ignore it. Never cleared — exact-equality matching makes stale values
+    /// harmless (a newer release never matches).
+    #[serde(
+        rename = "skippedUpdateVersion",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub skipped_update_version: Option<String>,
+    /// Whether the updater flow (auto-check, manual check, update dialog)
+    /// runs in development builds. Developer option (default off);
+    /// release builds always run the updater flow regardless of this flag.
+    #[serde(
+        rename = "enableDevUpdater",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub enable_dev_updater: Option<bool>,
 }
 
 /// Trim mode for the MP4 trimming feature.
@@ -437,5 +457,14 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(Settings::resolve_segment_concurrency(&Some(settings)), 8);
+    }
+
+    #[test]
+    fn test_skipped_update_version_defaults_to_none_for_pre_existing_settings() {
+        // Why: settings.json written before issue #599 lacks the key; serde
+        //   `default` must deserialize it as None (no dialog regression).
+        let s: Settings =
+            serde_json::from_str(r#"{"dlOutputPath": "/tmp/a", "language": "en"}"#).unwrap();
+        assert_eq!(s.skipped_update_version, None);
     }
 }

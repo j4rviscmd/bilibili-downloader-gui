@@ -1,15 +1,15 @@
 import { useAppDispatch, useSelector } from '@/app/store'
-import {
-  AlertDialog,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { setShowDialog, useUpdateDownload } from '@/features/updater'
 import {
   Progress,
@@ -91,21 +91,44 @@ export const UpdateNotification = React.memo(() => {
   const dispatch = useAppDispatch()
 
   const updater = useSelector((state) => state.updater)
-  const { handleUpdate, handleRetry, handleRestart } = useUpdateDownload()
+  const { handleUpdate, handleRetry, handleRestart, handleSkipVersion } =
+    useUpdateDownload()
 
-  const closeDialog = () => dispatch(setShowDialog(false))
+  const handleOpenChange = (open: boolean) => {
+    if (!open) dispatch(setShowDialog(false))
+  }
+  const updateButtonRef = React.useRef<HTMLButtonElement>(null)
+
+  const handleOpenAutoFocus = (event: Event) => {
+    // Focus the primary action ("Update Now"): skip is the opt-out
+    // secondary and must not receive the default first-focusable spot.
+    // Guarded so a disabled button (mid-download reopen) falls back to
+    // Radix's default focus behavior.
+    if (updateButtonRef.current && !updateButtonRef.current.disabled) {
+      event.preventDefault()
+      updateButtonRef.current.focus()
+    }
+  }
 
   return (
-    <AlertDialog
-      open={updater.showDialog}
-      onOpenChange={(open) => !open && dispatch(setShowDialog(false))}
-    >
-      <AlertDialogContent className="flex max-h-[90vh] !max-w-4xl flex-col">
-        <AlertDialogHeader className="place-items-start text-left">
-          <AlertDialogTitle>
+    // Why Dialog instead of the previous AlertDialog: #599 removed the
+    // "Later" button, so closing relies on ESC / the header X / overlay
+    // click — AlertDialog has no X and never dismisses on overlay click,
+    // while Dialog routes every close path through onOpenChange.
+    <Dialog open={updater.showDialog} onOpenChange={handleOpenChange}>
+      {/* Height policy: only the notes-related branches (spinner while
+          fetching vs. the markdown scroller) get a fixed height so the
+          dialog does not resize when the fetch resolves. The compact
+          states (progress bar, ready, error) size to their content. */}
+      <DialogContent
+        className="flex max-h-[90vh] !max-w-4xl flex-col"
+        onOpenAutoFocus={handleOpenAutoFocus}
+      >
+        <DialogHeader className="place-items-start text-left">
+          <DialogTitle>
             {t('updater.title', { version: `v${updater.latestVersion}` })}
-          </AlertDialogTitle>
-          <AlertDialogDescription>
+          </DialogTitle>
+          <DialogDescription>
             <span className="flex flex-wrap items-center gap-2">
               <span>{t('updater.description')}</span>
               <span className="text-muted-foreground">
@@ -118,8 +141,8 @@ export const UpdateNotification = React.memo(() => {
               </span>
               <Badge variant="default">v{updater.latestVersion}</Badge>
             </span>
-          </AlertDialogDescription>
-        </AlertDialogHeader>
+          </DialogDescription>
+        </DialogHeader>
 
         <div className="my-4 flex min-h-0 flex-1 flex-col">
           {updater.isDownloading ? (
@@ -162,7 +185,7 @@ export const UpdateNotification = React.memo(() => {
               </div>
             </div>
           ) : updater.releaseNotes ? (
-            <div className="border-border flex min-h-0 flex-1 flex-col rounded-md border">
+            <div className="border-border flex h-[70vh] min-h-0 flex-col rounded-md border">
               <div className="overflow-y-auto p-4">
                 <div className="markdown-body text-sm">
                   <ReactMarkdown
@@ -175,28 +198,30 @@ export const UpdateNotification = React.memo(() => {
               </div>
             </div>
           ) : (
-            <div className="flex items-center justify-center py-8">
+            // Same fixed height as the notes branch so the spinner→notes
+            // transition does not resize the dialog; centers both axes.
+            <div className="flex h-[70vh] items-center justify-center">
               <RefreshCw className="text-muted-foreground size-6 animate-spin" />
             </div>
           )}
         </div>
 
-        <AlertDialogFooter>
+        <DialogFooter>
           {updater.isUpdateReady ? (
-            <>
-              <AlertDialogCancel onClick={closeDialog}>
-                {t('updater.actions.later')}
-              </AlertDialogCancel>
-              <Button onClick={handleRestart}>
-                <RefreshCw className="mr-2 size-4" />
-                {t('updater.actions.restart')}
-              </Button>
-            </>
+            // Why no close button here: the update is already staged, so
+            // the only meaningful action is restart; the X button, overlay
+            // click, and ESC still close (issue #599 removed "Later").
+            <Button onClick={handleRestart}>
+              <RefreshCw className="mr-2 size-4" />
+              {t('updater.actions.restart')}
+            </Button>
           ) : updater.error ? (
             <>
-              <AlertDialogCancel onClick={closeDialog}>
-                {t('updater.actions.cancel')}
-              </AlertDialogCancel>
+              {/* DialogClose routes the cancel through onOpenChange —
+                  the single close path (ESC/X/overlay use it too). */}
+              <DialogClose asChild>
+                <Button variant="outline">{t('updater.actions.cancel')}</Button>
+              </DialogClose>
               <Button onClick={handleRetry} variant="default">
                 <RefreshCw className="mr-2 size-4" />
                 {t('updater.actions.retry')}
@@ -204,13 +229,20 @@ export const UpdateNotification = React.memo(() => {
             </>
           ) : (
             <>
-              <AlertDialogCancel
-                onClick={closeDialog}
+              <DialogClose asChild>
+                <Button
+                  variant="outline"
+                  onClick={() => handleSkipVersion(updater.latestVersion)}
+                  disabled={updater.isDownloading}
+                >
+                  {t('updater.actions.skip_version')}
+                </Button>
+              </DialogClose>
+              <Button
+                ref={updateButtonRef}
+                onClick={handleUpdate}
                 disabled={updater.isDownloading}
               >
-                {t('updater.actions.later')}
-              </AlertDialogCancel>
-              <Button onClick={handleUpdate} disabled={updater.isDownloading}>
                 {updater.isDownloading ? (
                   <>
                     <RefreshCw className="mr-2 size-4 animate-spin" />
@@ -225,9 +257,9 @@ export const UpdateNotification = React.memo(() => {
               </Button>
             </>
           )}
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 })
 

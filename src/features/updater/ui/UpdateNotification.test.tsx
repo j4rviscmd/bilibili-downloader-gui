@@ -17,6 +17,7 @@ const downloadHook = vi.hoisted(() => ({
   handleUpdate: vi.fn(),
   handleRetry: vi.fn(),
   handleRestart: vi.fn(),
+  handleSkipVersion: vi.fn(),
 }))
 
 vi.mock('@/features/updater', async (importActual) => {
@@ -62,17 +63,27 @@ describe('UpdateNotification', () => {
   it('renders nothing while the dialog is closed', () => {
     renderDialog()
 
-    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 
   it('shows both versions in the header when an update is available', async () => {
     openWithUpdate()
     renderDialog()
 
-    expect(await screen.findByRole('alertdialog')).toBeInTheDocument()
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
     expect(screen.getByText('v1.51.0')).toBeInTheDocument()
     // Title heading + latest badge both carry it
     expect(screen.getAllByText('v1.52.0').length).toBeGreaterThan(0)
+  })
+
+  it('focuses the primary Update Now button on open (not the skip secondary)', async () => {
+    openWithUpdate()
+    renderDialog()
+
+    await screen.findByRole('dialog')
+    expect(
+      screen.getByRole('button', { name: 'updater.actions.update_now' }),
+    ).toHaveFocus()
   })
 
   it('renders markdown release notes through the custom components', async () => {
@@ -91,7 +102,7 @@ describe('UpdateNotification', () => {
     openWithUpdate()
     renderDialog()
 
-    expect(await screen.findByRole('alertdialog')).toBeInTheDocument()
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
     // Waiting branch: animated spinner, no notes container, no progress label
     expect(document.querySelector('.animate-spin')).not.toBeNull()
     expect(screen.queryByText('updater.downloading')).toBeNull()
@@ -103,11 +114,13 @@ describe('UpdateNotification', () => {
     renderDialog()
 
     expect(screen.getByText('updater.actions.downloading')).toBeInTheDocument()
-    const later = screen.getByRole('button', { name: 'updater.actions.later' })
+    const skip = screen.getByRole('button', {
+      name: 'updater.actions.skip_version',
+    })
     const update = screen.getByRole('button', {
       name: 'updater.actions.downloading',
     })
-    expect(later).toBeDisabled()
+    expect(skip).toBeDisabled()
     expect(update).toBeDisabled()
   })
 
@@ -115,6 +128,12 @@ describe('UpdateNotification', () => {
     openWithUpdate()
     store.dispatch(setIsUpdateReady(true))
     const { user } = renderDialog()
+
+    // Issue #599: no "Later"/skip cancel in the ready state — restart is
+    // the only footer action; ESC still closes via onOpenChange.
+    expect(
+      screen.queryByRole('button', { name: 'updater.actions.skip_version' }),
+    ).toBeNull()
 
     await user.click(
       screen.getByRole('button', { name: 'updater.actions.restart' }),
@@ -136,16 +155,29 @@ describe('UpdateNotification', () => {
     expect(downloadHook.handleRetry).toHaveBeenCalledTimes(1)
   })
 
-  it('closing the dialog hides it again', async () => {
+  it('skip button closes the dialog and skips the latest version (issue #599)', async () => {
     openWithUpdate()
     const { user } = renderDialog()
-    await screen.findByRole('alertdialog')
+    await screen.findByRole('dialog')
 
     await user.click(
-      screen.getByRole('button', { name: 'updater.actions.later' }),
+      screen.getByRole('button', { name: 'updater.actions.skip_version' }),
     )
 
-    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect(downloadHook.handleSkipVersion).toHaveBeenCalledWith('1.52.0')
+    expect(screen.queryByRole('dialog')).toBeNull()
     expect(store.getState().updater.showDialog).toBe(false)
+  })
+
+  it('closes via the header X button without recording a skip', async () => {
+    openWithUpdate()
+    const { user } = renderDialog()
+    await screen.findByRole('dialog')
+
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(store.getState().updater.showDialog).toBe(false)
+    expect(downloadHook.handleSkipVersion).not.toHaveBeenCalled()
   })
 })

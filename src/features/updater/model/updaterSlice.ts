@@ -23,22 +23,33 @@ export const updaterSlice = createSlice({
   name: 'updater',
   initialState,
   reducers: {
-    /** Sets the update availability status and shows dialog if available. */
+    /**
+     * Sets the update availability status and shows dialog if available.
+     *
+     * `showDialog` overrides the default `available` coupling: the startup
+     * auto-check passes false for a version the user skipped (issue #599)
+     * while keeping `updateAvailable` true for the AppBar update button
+     * and the settings badge.
+     */
     setUpdateAvailable(
       state,
       action: PayloadAction<{
         available: boolean
         latestVersion: string | null
         currentVersion: string | null
+        showDialog?: boolean
       }>,
     ) {
       state.updateAvailable = action.payload.available
       state.latestVersion = action.payload.latestVersion
       state.currentVersion = action.payload.currentVersion
-      state.showDialog = action.payload.available
+      state.showDialog = action.payload.showDialog ?? action.payload.available
     },
-    /** Sets the release notes content. */
-    setReleaseNotes(state, action: PayloadAction<string>) {
+    /**
+     * Sets the release notes content. Null clears them (the dialog body
+     * falls back to its loading spinner while a fetch is in flight).
+     */
+    setReleaseNotes(state, action: PayloadAction<string | null>) {
       state.releaseNotes = action.payload
     },
     /** Updates the download progress percentage (0-100). */

@@ -32,9 +32,9 @@ const GEOMETRY_STORE_KEY: &str = "windowGeometry";
 /// Composes the native window title: fixed app name + version (issue #598).
 ///
 /// The version is always included so it is visible from the first frame,
-/// before the frontend runs. When an update is available, the frontend
-/// appends an " (update available)" suffix via `setTitle` — see
-/// `useWindowTitle.ts` on the frontend side.
+/// before the frontend runs. Update availability is NOT reflected here —
+/// the frontend shows the AppBar "update available" button instead
+/// (issue #599).
 fn window_title(version: &str) -> String {
     format!("{WINDOW_TITLE} v{version}")
 }

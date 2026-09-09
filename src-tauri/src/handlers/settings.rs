@@ -259,6 +259,30 @@ mod tests {
     }
 
     #[test]
+    fn patch_persists_skipped_update_version_via_serde_rename_key() {
+        // Pins the contract used by the updater's "Skip this version"
+        // (issue #599): the frontend patches the camelCase serde rename
+        // `skippedUpdateVersion`. If the sent key ever diverges from the
+        // rename, the patch silently no-ops and the dialog would re-appear
+        // on every launch.
+        let dir = tempdir();
+        write_settings(dir.path(), json!({"language": "en"}));
+
+        patch_settings_at(
+            &settings_file(dir.path()),
+            &json!({"skippedUpdateVersion": "1.58.0"}),
+        )
+        .unwrap();
+
+        assert_eq!(
+            read_settings(dir.path())["skippedUpdateVersion"],
+            json!("1.58.0")
+        );
+        let merged: Settings = serde_json::from_value(read_settings(dir.path())).unwrap();
+        assert_eq!(merged.skipped_update_version.as_deref(), Some("1.58.0"));
+    }
+
+    #[test]
     fn patch_on_missing_file_creates_it_with_patch_only() {
         let dir = tempdir();
         patch_settings_at(&settings_file(dir.path()), &json!({"fontSize": 16})).unwrap();

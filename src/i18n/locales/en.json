@@ -431,6 +431,8 @@
       "title": "Developer Options",
       "open_devtools_on_startup": "Open DevTools on startup",
       "open_devtools_on_startup_description": "When enabled, the browser DevTools console opens automatically when the app starts. Takes effect on next restart.",
+      "enable_dev_updater": "Enable updater flow",
+      "enable_dev_updater_description": "When enabled, the startup update check and the manual \"Check for updates\" button run in this development build (for debugging the update dialog).",
       "simulate_logout": "Simulate non-logged-in state",
       "simulate_logout_description": "When enabled, the app behaves as if you are not logged in (for testing purposes)."
     },
@@ -580,6 +582,7 @@
   },
   "updater": {
     "title": "Update Available ({{version}})",
+    "update_available": "Update available",
     "description": "A new version is available!",
     "current_label": "Current",
     "latest_label": "Latest",
@@ -589,7 +592,7 @@
     "no_release_notes": "No release notes available",
     "actions": {
       "update_now": "Update Now",
-      "later": "Later",
+      "skip_version": "Skip This Version",
       "restart": "Restart",
       "downloading": "Downloading...",
       "cancel": "Cancel",

@@ -131,6 +131,21 @@ export interface Settings {
    * Defaults to 8 if not specified.
    */
   downloadParallelism?: number
+  /**
+   * Latest version string the user chose to skip via "Skip this version"
+   * in the update dialog (issue #599).
+   *
+   * The startup auto-check does not auto-open the dialog when the latest
+   * version equals this value; manual checks (Settings) ignore it.
+   * Defaults to undefined (nothing skipped).
+   */
+  skippedUpdateVersion?: string
+  /**
+   * Whether the updater flow (auto-check, manual check, update dialog)
+   * runs in development builds. Developer option — defaults to false.
+   * Release builds always run the updater flow regardless of this flag.
+   */
+  enableDevUpdater?: boolean
 }
 
 /**

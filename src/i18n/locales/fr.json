@@ -431,6 +431,8 @@
       "title": "Options de développement",
       "open_devtools_on_startup": "Ouvrir DevTools au démarrage",
       "open_devtools_on_startup_description": "Lorsqu'activé, la console DevTools du navigateur s'ouvre automatiquement au démarrage de l'application. Prend effet au prochain redémarrage.",
+      "enable_dev_updater": "Activer le flux de mise à jour",
+      "enable_dev_updater_description": "Lorsqu'activé, la vérification de mise à jour au démarrage et le bouton \"Vérifier les mises à jour\" fonctionnent aussi dans cette build de développement (pour déboguer la boîte de dialogue de mise à jour).",
       "simulate_logout": "Simuler l'état non connecté",
       "simulate_logout_description": "Lorsqu'activé, l'application se comporte comme si vous n'étiez pas connecté (à des fins de test)."
     },
@@ -580,6 +582,7 @@
   },
   "updater": {
     "title": "Mise à jour disponible ({{version}})",
+    "update_available": "Mise à jour disponible",
     "description": "Une nouvelle version est disponible !",
     "current_label": "Actuel",
     "latest_label": "Dernière",
@@ -589,7 +592,7 @@
     "no_release_notes": "Aucune note de version disponible",
     "actions": {
       "update_now": "Mettre à jour maintenant",
-      "later": "Plus tard",
+      "skip_version": "Ignorer cette version",
       "restart": "Redémarrer",
       "downloading": "Téléchargement...",
       "cancel": "Annuler",
