@@ -320,4 +320,18 @@ mod tests {
         let mode = fs::metadata(&path).unwrap().permissions().mode();
         assert_eq!(mode & 0o777, 0o600, "session file must be 0o600");
     }
+    #[test]
+    fn derive_key_from_env_reads_machine_identity() {
+        // Exercise the production entry point end-to-end: hostname + USER/USERNAME
+        // env must yield a usable 32-byte key on any CI runner.
+        let key = derive_key().expect("hostname and env available on runners");
+        assert_eq!(key.len(), 32);
+    }
+
+    #[test]
+    fn derive_key_is_user_sensitive() {
+        let u1 = derive_key_from("host", "user-a").unwrap();
+        let u2 = derive_key_from("host", "user-b").unwrap();
+        assert_ne!(u1, u2, "different user derives a different key");
+    }
 }

@@ -122,6 +122,53 @@ fn is_same_file(input: &Path, output: &Path) -> bool {
     }
 }
 
+/// Pure pre-flight validation: format, extension-match and bitrate rules
+/// that need no filesystem access. Split out of `extract_audio` so the
+/// `ERR::AUDIO_*` branches are testable without spawning ffmpeg.
+fn validate_formats(options: &AudioOptions) -> Result<(), String> {
+    let input_path = Path::new(&options.input_path);
+    let output_path = Path::new(&options.output_path);
+
+    if !is_mp4(input_path) {
+        return Err("ERR::AUDIO_UNSUPPORTED_FORMAT".to_string());
+    }
+    let expected_ext = match options.format {
+        AudioFormat::Mp3 => "mp3",
+        AudioFormat::M4a => "m4a",
+    };
+    if !has_extension(output_path, expected_ext) {
+        return Err("ERR::AUDIO_UNSUPPORTED_OUTPUT_FORMAT".to_string());
+    }
+    Ok(())
+}
+
+/// Value checks that run AFTER the same-path guard, matching the original
+/// inline validation order exactly (SAME_PATH wins over INVALID_BITRATE
+/// when both are wrong).
+fn validate_value(options: &AudioOptions) -> Result<(), String> {
+    if options.bitrate_kbps == 0 {
+        return Err("ERR::AUDIO_INVALID_BITRATE".to_string());
+    }
+    Ok(())
+}
+
+/// Computes the progress payload for one ffmpeg stderr line.
+///
+/// Split out of the stderr pump task in `extract_audio` so the
+/// out_time -> percentage mapping is testable without a running process.
+fn compute_progress(line: &str, total_duration_sec: f64) -> Option<AudioProgressPayload> {
+    if total_duration_sec <= 0.0 {
+        return None;
+    }
+    let current = parse_out_time(line)?;
+    let progress = (current / total_duration_sec * 100.0).clamp(0.0, 100.0);
+    Some(AudioProgressPayload {
+        progress,
+        current_time_sec: current,
+        total_duration_sec,
+    })
+}
+
 /// Validates inputs and runs ffmpeg to produce the extracted audio file.
 ///
 /// # Errors
@@ -140,22 +187,11 @@ pub async fn extract_audio(app: &AppHandle, options: &AudioOptions) -> Result<Au
     if !input_path.exists() {
         return Err("ERR::AUDIO_INPUT_NOT_FOUND".to_string());
     }
-    if !is_mp4(input_path) {
-        return Err("ERR::AUDIO_UNSUPPORTED_FORMAT".to_string());
-    }
-    let expected_ext = match options.format {
-        AudioFormat::Mp3 => "mp3",
-        AudioFormat::M4a => "m4a",
-    };
-    if !has_extension(output_path, expected_ext) {
-        return Err("ERR::AUDIO_UNSUPPORTED_OUTPUT_FORMAT".to_string());
-    }
+    validate_formats(options)?;
     if is_same_file(input_path, output_path) {
         return Err("ERR::AUDIO_SAME_PATH".to_string());
     }
-    if options.bitrate_kbps == 0 {
-        return Err("ERR::AUDIO_INVALID_BITRATE".to_string());
-    }
+    validate_value(options)?;
 
     let ffmpeg_path = get_ffmpeg_path(app);
     let args = build_ffmpeg_args(options);
@@ -190,20 +226,10 @@ pub async fn extract_audio(app: &AppHandle, options: &AudioOptions) -> Result<Au
         while stderr_reader.read_line(&mut line).await.unwrap_or(0) > 0 {
             stderr_lines.push_str(&line);
 
-            if let Some(total) = total_duration_sec {
-                if total > 0.0 {
-                    if let Some(current) = parse_out_time(&line) {
-                        let progress = (current / total * 100.0).clamp(0.0, 100.0);
-                        let _ = app_for_progress.emit(
-                            AUDIO_PROGRESS_EVENT,
-                            AudioProgressPayload {
-                                progress,
-                                current_time_sec: current,
-                                total_duration_sec: total,
-                            },
-                        );
-                    }
-                }
+            if let Some(payload) =
+                total_duration_sec.and_then(|total| compute_progress(&line, total))
+            {
+                let _ = app_for_progress.emit(AUDIO_PROGRESS_EVENT, payload);
             }
 
             line.clear();
@@ -283,5 +309,94 @@ mod tests {
         assert!(is_mp4(Path::new("video.mp4")));
         assert!(is_mp4(Path::new("VIDEO.MP4")));
         assert!(!is_mp4(Path::new("video.mkv")));
+    }
+    #[test]
+    fn validate_formats_rejects_non_mp4_input() {
+        let options = AudioOptions {
+            input_path: "video.mkv".to_string(),
+            output_path: "out.mp3".to_string(),
+            format: AudioFormat::Mp3,
+            bitrate_kbps: 192,
+        };
+        assert_eq!(
+            validate_formats(&options).unwrap_err(),
+            "ERR::AUDIO_UNSUPPORTED_FORMAT"
+        );
+    }
+
+    #[test]
+    fn validate_formats_output_extension_must_match_format() {
+        let mismatched = AudioOptions {
+            input_path: "video.mp4".to_string(),
+            output_path: "out.mp3".to_string(),
+            format: AudioFormat::M4a,
+            bitrate_kbps: 192,
+        };
+        assert_eq!(
+            validate_formats(&mismatched).unwrap_err(),
+            "ERR::AUDIO_UNSUPPORTED_OUTPUT_FORMAT"
+        );
+
+        let matched = AudioOptions {
+            output_path: "out.m4a".to_string(),
+            ..mismatched
+        };
+        assert!(validate_formats(&matched).is_ok());
+    }
+
+    #[test]
+    fn validate_value_rejects_zero_bitrate() {
+        let options = AudioOptions {
+            input_path: "video.mp4".to_string(),
+            output_path: "out.mp3".to_string(),
+            format: AudioFormat::Mp3,
+            bitrate_kbps: 0,
+        };
+        assert_eq!(
+            validate_value(&options).unwrap_err(),
+            "ERR::AUDIO_INVALID_BITRATE"
+        );
+    }
+
+    #[test]
+    fn is_same_file_detects_identity_and_difference() {
+        let dir = tempfile::tempdir().unwrap();
+        let a = dir.path().join("a.mp4");
+        std::fs::write(&a, b"x").unwrap();
+        let b = dir.path().join("b.mp3");
+
+        assert!(is_same_file(&a, &a));
+        assert!(
+            is_same_file(&a, &dir.path().join("a.mp4")),
+            "via parent join"
+        );
+        assert!(!is_same_file(&a, &b));
+    }
+
+    #[test]
+    fn compute_progress_maps_and_clamps() {
+        let p = compute_progress("out_time=00:00:15.000000", 60.0).unwrap();
+        assert_eq!(p.progress, 25.0);
+        assert_eq!(p.current_time_sec, 15.0);
+
+        let overrun = compute_progress("out_time=00:02:00.000000", 60.0).unwrap();
+        assert_eq!(overrun.progress, 100.0, "overrun clamps");
+
+        assert!(compute_progress("out_time=00:00:15.000000", 0.0).is_none());
+        assert!(compute_progress("frame=  10 fps=25", 60.0).is_none());
+    }
+
+    #[test]
+    fn progress_payload_serializes_camel_case() {
+        let json = serde_json::to_value(AudioProgressPayload {
+            progress: 10.0,
+            current_time_sec: 6.0,
+            total_duration_sec: 60.0,
+        })
+        .unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({"progress": 10.0, "currentTimeSec": 6.0, "totalDurationSec": 60.0})
+        );
     }
 }

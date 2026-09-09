@@ -55,7 +55,7 @@ fn ensure_dir_exists(path: &Path) {
 /// # Returns
 ///
 /// Returns the path to the default lib directory.
-pub fn get_default_lib_path(app: &AppHandle) -> PathBuf {
+pub fn get_default_lib_path<R: tauri::Runtime>(app: &impl Manager<R>) -> PathBuf {
     app.path()
         .app_data_dir()
         .unwrap_or_else(|_| PathBuf::from("."))
@@ -77,7 +77,7 @@ pub fn get_default_lib_path(app: &AppHandle) -> PathBuf {
 /// # Returns
 ///
 /// Returns the configured library path or the default path.
-pub fn get_lib_path(app: &AppHandle) -> PathBuf {
+pub fn get_lib_path<R: tauri::Runtime>(app: &impl Manager<R>) -> PathBuf {
     resolve_lib_path(&get_settings_path(app), &get_default_lib_path(app))
 }
 
@@ -163,7 +163,7 @@ pub fn get_ffmpeg_root_path(app: &AppHandle) -> PathBuf {
 /// # Returns
 ///
 /// Returns the absolute path to `settings.json`.
-pub fn get_settings_path(app: &AppHandle) -> PathBuf {
+pub fn get_settings_path<R: tauri::Runtime>(app: &impl Manager<R>) -> PathBuf {
     app.path()
         .app_data_dir()
         .unwrap_or_else(|_| PathBuf::from("."))
