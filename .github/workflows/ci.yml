@@ -163,8 +163,18 @@ jobs:
           shared-key: rust-ci
 
       - name: Install dependencies (Ubuntu only)
+        # Why the || warning: the runner image ships third-party apt sources
+        # (dl.google.com chrome, packages.microsoft.com) whose indexes
+        # intermittently fail hash verification while the publisher is
+        # mid-sync, failing every Rust job here with exit 100 even though
+        # the Ubuntu archives are healthy (4 consecutive PR runs,
+        # 2026-09-09; retry and sourceparts= both failed — sourceparts= also
+        # drops noble's deb822 ubuntu.sources, so no packages resolve).
+        # Tolerating a partial update is safe: the install below hard-fails
+        # if the UBUNTU indexes are unusable, which is the only failure we
+        # care about; a broken chrome/microsoft index is irrelevant here.
         run: |
-          sudo apt-get update
+          sudo apt-get update || echo "::warning::apt-get update partially failed; relying on whichever indexes resolved"
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libdbus-1-dev libglib2.0-dev
 
       - name: Check Rust code
@@ -189,8 +199,18 @@ jobs:
           shared-key: rust-ci
 
       - name: Install dependencies (Ubuntu only)
+        # Why the || warning: the runner image ships third-party apt sources
+        # (dl.google.com chrome, packages.microsoft.com) whose indexes
+        # intermittently fail hash verification while the publisher is
+        # mid-sync, failing every Rust job here with exit 100 even though
+        # the Ubuntu archives are healthy (4 consecutive PR runs,
+        # 2026-09-09; retry and sourceparts= both failed — sourceparts= also
+        # drops noble's deb822 ubuntu.sources, so no packages resolve).
+        # Tolerating a partial update is safe: the install below hard-fails
+        # if the UBUNTU indexes are unusable, which is the only failure we
+        # care about; a broken chrome/microsoft index is irrelevant here.
         run: |
-          sudo apt-get update
+          sudo apt-get update || echo "::warning::apt-get update partially failed; relying on whichever indexes resolved"
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libdbus-1-dev libglib2.0-dev
 
       - name: Run Clippy
@@ -220,8 +240,18 @@ jobs:
           shared-key: rust-ci
 
       - name: Install dependencies (Ubuntu only)
+        # Why the || warning: the runner image ships third-party apt sources
+        # (dl.google.com chrome, packages.microsoft.com) whose indexes
+        # intermittently fail hash verification while the publisher is
+        # mid-sync, failing every Rust job here with exit 100 even though
+        # the Ubuntu archives are healthy (4 consecutive PR runs,
+        # 2026-09-09; retry and sourceparts= both failed — sourceparts= also
+        # drops noble's deb822 ubuntu.sources, so no packages resolve).
+        # Tolerating a partial update is safe: the install below hard-fails
+        # if the UBUNTU indexes are unusable, which is the only failure we
+        # care about; a broken chrome/microsoft index is irrelevant here.
         run: |
-          sudo apt-get update
+          sudo apt-get update || echo "::warning::apt-get update partially failed; relying on whichever indexes resolved"
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libdbus-1-dev libglib2.0-dev
 
       - name: Run Rust tests
@@ -246,8 +276,18 @@ jobs:
           shared-key: rust-ci
 
       - name: Install dependencies (Ubuntu only)
+        # Why the || warning: the runner image ships third-party apt sources
+        # (dl.google.com chrome, packages.microsoft.com) whose indexes
+        # intermittently fail hash verification while the publisher is
+        # mid-sync, failing every Rust job here with exit 100 even though
+        # the Ubuntu archives are healthy (4 consecutive PR runs,
+        # 2026-09-09; retry and sourceparts= both failed — sourceparts= also
+        # drops noble's deb822 ubuntu.sources, so no packages resolve).
+        # Tolerating a partial update is safe: the install below hard-fails
+        # if the UBUNTU indexes are unusable, which is the only failure we
+        # care about; a broken chrome/microsoft index is irrelevant here.
         run: |
-          sudo apt-get update
+          sudo apt-get update || echo "::warning::apt-get update partially failed; relying on whichever indexes resolved"
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libdbus-1-dev libglib2.0-dev
 
       - name: Check Rust formatting
@@ -286,8 +326,18 @@ jobs:
           shared-key: rust-ci-nightly
 
       - name: Install dependencies (Ubuntu only)
+        # Why the || warning: the runner image ships third-party apt sources
+        # (dl.google.com chrome, packages.microsoft.com) whose indexes
+        # intermittently fail hash verification while the publisher is
+        # mid-sync, failing every Rust job here with exit 100 even though
+        # the Ubuntu archives are healthy (4 consecutive PR runs,
+        # 2026-09-09; retry and sourceparts= both failed — sourceparts= also
+        # drops noble's deb822 ubuntu.sources, so no packages resolve).
+        # Tolerating a partial update is safe: the install below hard-fails
+        # if the UBUNTU indexes are unusable, which is the only failure we
+        # care about; a broken chrome/microsoft index is irrelevant here.
         run: |
-          sudo apt-get update
+          sudo apt-get update || echo "::warning::apt-get update partially failed; relying on whichever indexes resolved"
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libdbus-1-dev libglib2.0-dev
 
       - name: Generate Codecov report
@@ -322,8 +372,8 @@ jobs:
         # silently masking a threshold breach as a green, half-empty report
         # Why `report` (not a fresh run): reuses the profdata written by the
         # generate step above — tests run once per job
-        # Why 55: ratchet measured at 56.89% lines on this Ubuntu runner
-        # (issues #606/#609, after R2 PR #617), floor minus one following the
+        # Why 58: ratchet measured at 59.29% lines on this Ubuntu runner
+        # (issues #606/#609, after R3 PR #619), floor minus one following the
         # vitest.config.ts convention; bump per PR as coverage grows, never
         # lower it.
         # CAUTION: baseline must be measured on CI, not locally — macOS/nightly
@@ -339,7 +389,7 @@ jobs:
           rc=0
           cargo llvm-cov report --summary-only --show-missing-lines \
             --ignore-filename-regex 'src/(main|lib|menu)\.rs' \
-            --fail-under-lines 55 \
+            --fail-under-lines 58 \
             | tee -a "$GITHUB_STEP_SUMMARY" || rc=$?
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           exit $rc

@@ -393,8 +393,13 @@ fn to_segment_disk_error(e: std::io::Error) -> SegmentError {
 /// * `req` - Request builder to attach the header to
 /// * `cookie` - Optional cookie header value
 pub(crate) fn apply_cookie(mut req: RequestBuilder, cookie: &Option<String>) -> RequestBuilder {
+    // Why the is_empty guard: the doc contract says None OR empty is a
+    // no-op, but the original impl set an empty Cookie header for Some("")
+    // — harmless for Bilibili but a needless header; aligned to the doc.
     if let Some(c) = cookie {
-        req = req.header(header::COOKIE, c);
+        if !c.is_empty() {
+            req = req.header(header::COOKIE, c);
+        }
     }
     req
 }
@@ -2077,5 +2082,277 @@ mod tests {
         let result = segment_stream_against_mock(body.clone(), None, &path).await;
         assert_eq!(result.unwrap(), body.len() as u64);
         assert_eq!(std::fs::read(&path).unwrap(), body);
+    }
+    // ---- verify_resume_tail (same-CDN resume guard, PR #558) ----
+
+    /// Mounts a 206 response serving `body` with a Content-Range starting at
+    /// `start`, mirroring a same-stream CDN edge.
+    async fn resume_mock(content_range_start: Option<u64>, body: Vec<u8>) -> wiremock::MockServer {
+        let server = wiremock::MockServer::start().await;
+        let mut resp = wiremock::ResponseTemplate::new(206).set_body_bytes(body);
+        if let Some(start) = content_range_start {
+            resp = resp.insert_header(
+                "Content-Range",
+                format!("bytes {}-{}/{}", start, start + 1023, 4096),
+            );
+        }
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(resp)
+            .mount(&server)
+            .await;
+        server
+    }
+
+    #[tokio::test]
+    async fn resume_tail_matching_bytes_allows_resume() {
+        // 64 KiB on disk; the edge re-serves the identical tail bytes.
+        let on_disk: Vec<u8> = (0..64 * 1024u32).map(|i| (i % 251) as u8).collect();
+        let start = on_disk.len() as u64 - SAME_STREAM_VERIFY_BYTES;
+        let tail = on_disk[(on_disk.len() - SAME_STREAM_VERIFY_BYTES as usize)..].to_vec();
+        let server = resume_mock(Some(start), tail).await;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("seg.bin");
+        std::fs::write(&path, &on_disk).unwrap();
+
+        assert!(
+            verify_resume_tail(
+                &reqwest::Client::new(),
+                &server.uri(),
+                &None,
+                &path,
+                0,
+                on_disk.len() as u64,
+            )
+            .await
+        );
+    }
+
+    #[tokio::test]
+    async fn resume_tail_rejects_when_edge_serves_different_bytes() {
+        let on_disk = vec![0x11u8; 64 * 1024];
+        // Same length, different content: the edge switched byte streams.
+        let different = vec![0x22u8; 64 * 1024];
+        let server = resume_mock(Some(0), different).await;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("seg.bin");
+        std::fs::write(&path, &on_disk).unwrap();
+
+        assert!(
+            !verify_resume_tail(
+                &reqwest::Client::new(),
+                &server.uri(),
+                &None,
+                &path,
+                0,
+                on_disk.len() as u64,
+            )
+            .await
+        );
+    }
+
+    #[tokio::test]
+    async fn resume_tail_rejects_non_206_or_wrong_range_start() {
+        let body = vec![0u8; 1024];
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("seg.bin");
+        std::fs::write(&path, &body).unwrap();
+        let client = reqwest::Client::new();
+
+        // 200 instead of 206: a Range-ignoring edge is not a resume-safe 206.
+        let plain = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_bytes(body.clone()))
+            .mount(&plain)
+            .await;
+        assert!(!verify_resume_tail(&client, &plain.uri(), &None, &path, 0, 1024).await);
+
+        // 206 but Content-Range start disagrees with the verify window.
+        let wrong = resume_mock(Some(999), body.clone()).await;
+        assert!(!verify_resume_tail(&client, &wrong.uri(), &None, &path, 0, 1024).await);
+    }
+
+    #[tokio::test]
+    async fn resume_tail_no_progress_is_trivially_safe() {
+        // on_disk_end == seg_base: no stitch point, must return true without
+        // requiring any HTTP interaction.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("seg.bin");
+        std::fs::write(&path, [0u8; 0]).unwrap();
+        assert!(
+            verify_resume_tail(
+                &reqwest::Client::new(),
+                "http://127.0.0.1:1/never-hit",
+                &None,
+                &path,
+                4096,
+                4096
+            )
+            .await
+        );
+    }
+
+    // ---- error mapping / cookie / cancel helpers ----
+
+    #[test]
+    fn map_io_error_translates_enospc_to_disk_full() {
+        let err = map_io_error(std::io::Error::from_raw_os_error(28));
+        assert_eq!(err.to_string(), "ERR::DISK_FULL");
+
+        let other = map_io_error(std::io::Error::from_raw_os_error(13));
+        assert_eq!(other.to_string(), "Permission denied (os error 13)");
+    }
+
+    #[test]
+    fn to_segment_disk_error_wraps_as_disk_error() {
+        let SegmentError::DiskError(inner) =
+            to_segment_disk_error(std::io::Error::from_raw_os_error(28))
+        else {
+            panic!("ENOSPC must map to SegmentError::DiskError");
+        };
+        assert_eq!(inner.to_string(), "ERR::DISK_FULL");
+    }
+
+    #[test]
+    fn apply_cookie_sets_header_only_when_present() {
+        let client = reqwest::Client::new();
+        let with = apply_cookie(client.get("http://x/"), &Some("SESSDATA=y".into()))
+            .build()
+            .unwrap();
+        assert_eq!(with.headers().get(header::COOKIE).unwrap(), "SESSDATA=y");
+
+        let without = apply_cookie(client.get("http://x/"), &None)
+            .build()
+            .unwrap();
+        assert!(without.headers().get(header::COOKIE).is_none());
+
+        let empty = apply_cookie(client.get("http://x/"), &Some(String::new()))
+            .build()
+            .unwrap();
+        assert!(empty.headers().get(header::COOKIE).is_none());
+    }
+
+    #[test]
+    fn check_cancelled_flags_only_triggered_tokens() {
+        assert!(check_cancelled(&None).is_ok());
+
+        let live = CancellationToken::new();
+        assert!(check_cancelled(&Some(live)).is_ok());
+
+        let dead = CancellationToken::new();
+        dead.cancel();
+        let err = check_cancelled(&Some(dead)).unwrap_err();
+        assert_eq!(err.to_string(), "ERR::CANCELLED");
+    }
+
+    #[tokio::test]
+    async fn resolve_cancel_token_covers_registry_states() {
+        let none = resolve_cancel_token("t", &None).await.unwrap();
+        assert!(none.is_none());
+
+        let unknown = resolve_cancel_token("t", &Some("r4-never-registered".into()))
+            .await
+            .unwrap();
+        assert!(
+            unknown.is_none(),
+            "unregistered id without pre-cancel -> Ok(None)"
+        );
+
+        let (token, _guard) = DOWNLOAD_CANCEL_REGISTRY.register("r4-live");
+        let resolved = resolve_cancel_token("t", &Some("r4-live".into()))
+            .await
+            .unwrap();
+        assert!(resolved.is_some());
+        assert!(!token.is_cancelled());
+        drop(_guard);
+
+        // Cancel drops the registry's token but records the id: resolve must
+        // surface ERR::CANCELLED instead of returning Ok(None) and
+        // re-downloading a user-cancelled file.
+        let (_tok, _guard2) = DOWNLOAD_CANCEL_REGISTRY.register("r4-cancelled");
+        DOWNLOAD_CANCEL_REGISTRY.cancel("r4-cancelled");
+        let err = resolve_cancel_token("t", &Some("r4-cancelled".into()))
+            .await
+            .unwrap_err();
+        assert_eq!(err.to_string(), "ERR::CANCELLED");
+    }
+
+    #[tokio::test]
+    async fn flush_before_resume_passes_error_through_on_success() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut file = tokio::fs::File::create(dir.path().join("f")).await.unwrap();
+        let out = flush_before_resume(&mut file, SegmentError::Reconnect(42)).await;
+        assert!(matches!(out, SegmentError::Reconnect(42)));
+    }
+
+    #[tokio::test]
+    async fn preallocate_file_creates_exact_size_and_truncates() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("out.bin");
+        preallocate_file(&path, 4096).await.unwrap();
+        assert_eq!(std::fs::metadata(&path).unwrap().len(), 4096);
+
+        std::fs::write(&path, [0u8; 8192]).unwrap();
+        preallocate_file(&path, 4096).await.unwrap();
+        assert_eq!(
+            std::fs::metadata(&path).unwrap().len(),
+            4096,
+            "second preallocation truncates"
+        );
+    }
+
+    #[test]
+    fn is_media_content_type_filters_error_bodies() {
+        let h = |s: &str| Some(header::HeaderValue::from_str(s).unwrap());
+        assert!(is_media_content_type(None), "missing header stays valid");
+        assert!(is_media_content_type(
+            h("application/octet-stream").as_ref()
+        ));
+        assert!(is_media_content_type(h("video/mp4").as_ref()));
+        assert!(!is_media_content_type(h("application/json").as_ref()));
+        assert!(!is_media_content_type(
+            h("application/json; charset=utf-8").as_ref()
+        ));
+        assert!(!is_media_content_type(h("text/html").as_ref()));
+        assert!(!is_media_content_type(h("TEXT/plain").as_ref()));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn backoff_sleep_doubles_then_caps_at_1500ms() {
+        for (attempt, expected_ms) in [(1u8, 200u64), (2, 400), (3, 800), (4, 1500), (9, 1500)] {
+            let before = tokio::time::Instant::now();
+            backoff_sleep(attempt).await;
+            assert_eq!(
+                before.elapsed().as_millis() as u64,
+                expected_ms,
+                "attempt {attempt}"
+            );
+        }
+    }
+
+    #[test]
+    fn segment_stats_starts_clean_and_flips_flags() {
+        let stats = SegmentStats::new();
+        assert_eq!(stats.bytes.load(Ordering::Relaxed), 0);
+        assert!(!stats.started.load(Ordering::Relaxed));
+        assert!(!stats.finished.load(Ordering::Relaxed));
+        assert!(!stats.slow_budget_exhausted.load(Ordering::Relaxed));
+        assert!(!stats.rotate_requested.load(Ordering::Relaxed));
+
+        stats.bytes.store(123, Ordering::Relaxed);
+        stats.started.store(true, Ordering::Relaxed);
+        stats.finished.store(true, Ordering::Relaxed);
+        stats.rotate_requested.store(true, Ordering::Relaxed);
+        assert_eq!(stats.bytes.load(Ordering::Relaxed), 123);
+        assert!(stats.started.load(Ordering::Relaxed));
+        assert!(stats.finished.load(Ordering::Relaxed));
+        assert!(stats.rotate_requested.load(Ordering::Relaxed));
+    }
+
+    #[test]
+    fn build_download_client_constructs() {
+        // Smoke: the shared client must build with the tuned pool options.
+        let _client = build_download_client();
     }
 }
