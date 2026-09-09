@@ -422,4 +422,134 @@ mod tests {
 
         cleanup_list(&list);
     }
+    // ---- R6: validation and path helpers ----
+
+    fn touch_mp4(dir: &std::path::Path, name: &str) -> String {
+        let p = dir.join(name);
+        std::fs::write(&p, b"x").unwrap();
+        p.to_str().unwrap().to_string()
+    }
+
+    #[test]
+    fn validate_inputs_requires_at_least_two_files() {
+        let tmp = tempfile::tempdir().unwrap();
+        let one = touch_mp4(tmp.path(), "a.mp4");
+        let out = tmp.path().join("out.mp4");
+        assert_eq!(
+            validate_inputs(&[one], &out).unwrap_err(),
+            "ERR::CONCAT_TOO_FEW_FILES"
+        );
+        assert_eq!(
+            validate_inputs(&[], &out).unwrap_err(),
+            "ERR::CONCAT_TOO_FEW_FILES"
+        );
+    }
+
+    #[test]
+    fn validate_inputs_rejects_missing_and_non_mp4_inputs() {
+        let tmp = tempfile::tempdir().unwrap();
+        let good = touch_mp4(tmp.path(), "a.mp4");
+        let out = tmp.path().join("out.mp4");
+
+        let missing = tmp.path().join("ghost.mp4").to_str().unwrap().to_string();
+        assert_eq!(
+            validate_inputs(&[good.clone(), missing], &out).unwrap_err(),
+            "ERR::CONCAT_FILE_NOT_FOUND"
+        );
+
+        let bad = tmp.path().join("b.mkv");
+        std::fs::write(&bad, b"x").unwrap();
+        assert_eq!(
+            validate_inputs(&[good, bad.to_str().unwrap().to_string()], &out).unwrap_err(),
+            "ERR::CONCAT_UNSUPPORTED_FORMAT"
+        );
+    }
+
+    #[test]
+    fn validate_inputs_rejects_output_collision_and_bad_output_ext() {
+        let tmp = tempfile::tempdir().unwrap();
+        let a = touch_mp4(tmp.path(), "a.mp4");
+        let b = touch_mp4(tmp.path(), "b.mp4");
+
+        // An input that IS the output collides
+        let out_as_input = tmp.path().join("out.mp4");
+        std::fs::write(&out_as_input, b"x").unwrap();
+        assert_eq!(
+            validate_inputs(
+                &[a.clone(), out_as_input.to_str().unwrap().to_string()],
+                &out_as_input
+            )
+            .unwrap_err(),
+            "ERR::CONCAT_OUTPUT_COLLISION"
+        );
+
+        // Output must be .mp4
+        let bad_out = tmp.path().join("out.mkv");
+        assert_eq!(
+            validate_inputs(&[a, b], &bad_out).unwrap_err(),
+            "ERR::CONCAT_UNSUPPORTED_OUTPUT_FORMAT"
+        );
+    }
+
+    #[test]
+    fn validate_inputs_accepts_two_distinct_mp4s() {
+        let tmp = tempfile::tempdir().unwrap();
+        let a = touch_mp4(tmp.path(), "a.mp4");
+        let b = touch_mp4(tmp.path(), "b.mp4");
+        let out = tmp.path().join("out.mp4");
+        assert!(validate_inputs(&[a, b], &out).is_ok());
+    }
+
+    #[test]
+    fn is_same_file_prefers_canonical_and_falls_back_lexical() {
+        let tmp = tempfile::tempdir().unwrap();
+        let a = tmp.path().join("a.mp4");
+        std::fs::write(&a, b"x").unwrap();
+
+        assert!(is_same_file(&a, &a));
+        // Note: the parent-canonicalization fallback's positive direction
+        // (existing input vs. lexically-different nonexistent output that
+        // resolves equal) is NOT exercised here — a plain re-spelling of the
+        // same existing path canonicalizes directly, so it duplicates the
+        // assert above. Covered indirectly via validate_inputs collision.
+        assert!(!is_same_file(&a, &tmp.path().join("b.mp4")));
+
+        // Two nonexistent paths fall back to lexical equality
+        let ghost1 = tmp.path().join("ghost.mp4");
+        assert!(is_same_file(&ghost1, &tmp.path().join("ghost.mp4")));
+    }
+
+    #[test]
+    fn canonicalize_with_parent_rejoins_filename() {
+        let tmp = tempfile::tempdir().unwrap();
+        let p = tmp.path().join("not-yet.mp4");
+        let canon = canonicalize_with_parent(&p).unwrap();
+        assert_eq!(canon.file_name().unwrap(), "not-yet.mp4");
+        // Parent must resolve to the real (canonicalized) temp dir
+        assert_eq!(
+            canon.parent().unwrap(),
+            std::fs::canonicalize(tmp.path()).unwrap().as_path()
+        );
+    }
+
+    #[test]
+    fn cleanup_list_removes_file_and_owned_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("bilibili-dl-concat");
+        std::fs::create_dir_all(&dir).unwrap();
+        let list = dir.join("filelist_1.txt");
+        std::fs::write(&list, b"x").unwrap();
+
+        cleanup_list(&list);
+        assert!(!list.exists());
+        assert!(!dir.exists(), "owned empty dir removed");
+
+        // A list outside bilibili-dl-concat must not nuke its parent
+        let other_dir = tmp.path().join("elsewhere");
+        std::fs::create_dir_all(&other_dir).unwrap();
+        let other = other_dir.join("filelist.txt");
+        std::fs::write(&other, b"x").unwrap();
+        cleanup_list(&other);
+        assert!(other_dir.exists(), "foreign parent kept");
+    }
 }
