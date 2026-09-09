@@ -1153,4 +1153,158 @@ mod tests {
         .unwrap();
         assert_audio_codec_pair(&args, "aac");
     }
+    // ---- R6: merge args builder, install path helpers ----
+
+    fn sub(path: &str, lang: &str, title: &str) -> SubtitleMergeOptions {
+        SubtitleMergeOptions {
+            path: std::path::PathBuf::from(path),
+            language: lang.to_string(),
+            title: title.to_string(),
+        }
+    }
+
+    #[test]
+    fn merge_args_none_mode_is_stream_copy() {
+        let args = build_merge_args(
+            "v.m4s",
+            "a.m4s",
+            "out.mp4",
+            &MergeMode::None,
+            AudioCodec::Copy,
+        )
+        .unwrap();
+        let joined = args.join(" ");
+        assert!(joined.contains("-c:v copy"));
+        assert!(joined.contains("-c:a copy"));
+        assert!(!joined.contains("-vf"));
+        assert!(joined.contains("-progress pipe:1"));
+        assert_eq!(args.last().unwrap(), "out.mp4");
+    }
+
+    #[test]
+    fn merge_args_aac_fallback_only_changes_audio_codec() {
+        let copy = build_merge_args("v", "a", "o", &MergeMode::None, AudioCodec::Copy).unwrap();
+        let aac = build_merge_args("v", "a", "o", &MergeMode::None, AudioCodec::Aac).unwrap();
+        assert!(copy.contains(&"-c:a".to_string()) && copy.contains(&"copy".to_string()));
+        assert!(aac.contains(&"-c:a".to_string()) && aac.contains(&"aac".to_string()));
+        // Only the codec token differs: identical arg count and layout
+        assert_eq!(copy.len(), aac.len());
+    }
+
+    #[test]
+    fn merge_args_softsub_maps_and_tags_each_track() {
+        let mode = MergeMode::SoftSub(vec![
+            sub("/s/eng.ass", "eng", "English"),
+            sub("/s/chi.ass", "chi", "Chinese"),
+        ]);
+        let args = build_merge_args("v", "a", "out.mp4", &mode, AudioCodec::Copy).unwrap();
+        let joined = args.join(" ");
+
+        // two extra inputs after video+audio
+        assert!(joined.contains("-i /s/eng.ass"));
+        assert!(joined.contains("-i /s/chi.ass"));
+        // maps: 0:v, 1:a, then one per subtitle starting at stream 2
+        assert!(joined.contains("-map 0:v"));
+        assert!(joined.contains("-map 1:a"));
+        assert!(joined.contains("-map 2:0"));
+        assert!(joined.contains("-map 3:0"));
+        // per-track mov_text metadata
+        assert!(joined.contains("-metadata:s:s:0 language=eng"));
+        assert!(joined.contains("-metadata:s:s:0 title=English"));
+        assert!(joined.contains("-metadata:s:s:1 language=chi"));
+        assert!(joined.contains("-metadata:s:s:1 title=Chinese"));
+        assert!(joined.contains("-c:s mov_text"));
+    }
+
+    #[test]
+    fn merge_args_hardsub_escapes_filter_specials() {
+        let mode = MergeMode::HardSub(sub(r"/tmp/C:\subs'x.ass", "eng", "English"));
+        let args = build_merge_args("v", "a", "o", &mode, AudioCodec::Aac).unwrap();
+
+        // Exact filter assertion: loose contains-checks pass even when the
+        // escape ORDER regresses (colon-before-backslash still contains
+        // "\:"), so pin the full expected filter grammar instead:
+        // backslash doubled first, then ':' escaped, then single quotes.
+        let vf_index = args.iter().position(|a| a == "-vf").unwrap();
+        assert_eq!(
+            args[vf_index + 1],
+            "subtitles='/tmp/C\\:\\\\subs'\\''x.ass'"
+        );
+        assert!(args.contains(&"libx264".to_string()));
+        assert!(args.contains(&"-preset".to_string()) && args.contains(&"fast".to_string()));
+    }
+
+    #[test]
+    fn build_ffmpeg_bin_path_matches_platform_layout() {
+        let base = std::path::Path::new("/lib");
+        let bin = build_ffmpeg_bin_path(base);
+        if cfg!(target_os = "windows") {
+            assert_eq!(
+                bin,
+                base.join("ffmpeg-master-latest-win64-gpl")
+                    .join("bin")
+                    .join("ffmpeg.exe")
+            );
+        } else if cfg!(target_os = "linux") {
+            assert_eq!(
+                bin,
+                base.join("ffmpeg-master-latest-linux64-gpl")
+                    .join("bin")
+                    .join("ffmpeg")
+            );
+        } else {
+            assert_eq!(bin, base.join("ffmpeg"));
+        }
+    }
+
+    #[test]
+    fn cleanup_ffmpeg_dir_removes_dir_file_or_nothing() {
+        let tmp = tempfile::tempdir().unwrap();
+
+        let dir = tmp.path().join("dir-root");
+        std::fs::create_dir_all(dir.join("nested")).unwrap();
+        std::fs::write(dir.join("nested").join("x.bin"), b"x").unwrap();
+        cleanup_ffmpeg_dir(&dir);
+        assert!(!dir.exists(), "directory tree removed");
+
+        let file = tmp.path().join("file-root");
+        std::fs::write(&file, b"x").unwrap();
+        cleanup_ffmpeg_dir(&file);
+        assert!(!file.exists(), "single file removed");
+
+        // Missing path must not panic
+        cleanup_ffmpeg_dir(&tmp.path().join("absent"));
+    }
+
+    #[test]
+    fn copy_dir_recursive_copies_nested_tree() {
+        let tmp = tempfile::tempdir().unwrap();
+        let from = tmp.path().join("src");
+        std::fs::create_dir_all(from.join("a").join("b")).unwrap();
+        std::fs::write(from.join("top.txt"), b"top").unwrap();
+        std::fs::write(from.join("a").join("mid.txt"), b"mid").unwrap();
+        std::fs::write(from.join("a").join("b").join("leaf.txt"), b"leaf").unwrap();
+
+        let to = tmp.path().join("dst");
+        copy_dir_recursive(&from, &to).unwrap();
+
+        assert_eq!(std::fs::read(to.join("top.txt")).unwrap(), b"top");
+        assert_eq!(std::fs::read(to.join("a").join("mid.txt")).unwrap(), b"mid");
+        assert_eq!(
+            std::fs::read(to.join("a").join("b").join("leaf.txt")).unwrap(),
+            b"leaf"
+        );
+    }
+
+    #[test]
+    fn copy_dir_recursive_empty_source_is_ok_without_creating_dest() {
+        // Pins actual behavior: dest directories are created lazily per
+        // entry, so an empty source copies nothing and creates no dest.
+        let tmp = tempfile::tempdir().unwrap();
+        let empty_src = tmp.path().join("empty");
+        std::fs::create_dir_all(&empty_src).unwrap();
+        let to = tmp.path().join("dst");
+        copy_dir_recursive(&empty_src, &to).unwrap();
+        assert!(!to.exists(), "empty source must not create the dest");
+    }
 }
