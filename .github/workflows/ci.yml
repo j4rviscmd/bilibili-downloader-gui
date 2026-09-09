@@ -163,8 +163,13 @@ jobs:
           shared-key: rust-ci
 
       - name: Install dependencies (Ubuntu only)
+        # Why the retry: the runner image ships third-party apt sources
+        # (e.g. dl.google.com chrome) whose indexes intermittently fail hash
+        # verification while the publisher is mid-sync, failing every Rust
+        # job at this step with exit 100 even though the Ubuntu archives are
+        # healthy. One retry after a short wait rides out the sync window.
         run: |
-          sudo apt-get update
+          sudo apt-get update || (sleep 15 && sudo apt-get update)
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libdbus-1-dev libglib2.0-dev
 
       - name: Check Rust code
@@ -189,8 +194,13 @@ jobs:
           shared-key: rust-ci
 
       - name: Install dependencies (Ubuntu only)
+        # Why the retry: the runner image ships third-party apt sources
+        # (e.g. dl.google.com chrome) whose indexes intermittently fail hash
+        # verification while the publisher is mid-sync, failing every Rust
+        # job at this step with exit 100 even though the Ubuntu archives are
+        # healthy. One retry after a short wait rides out the sync window.
         run: |
-          sudo apt-get update
+          sudo apt-get update || (sleep 15 && sudo apt-get update)
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libdbus-1-dev libglib2.0-dev
 
       - name: Run Clippy
@@ -220,8 +230,13 @@ jobs:
           shared-key: rust-ci
 
       - name: Install dependencies (Ubuntu only)
+        # Why the retry: the runner image ships third-party apt sources
+        # (e.g. dl.google.com chrome) whose indexes intermittently fail hash
+        # verification while the publisher is mid-sync, failing every Rust
+        # job at this step with exit 100 even though the Ubuntu archives are
+        # healthy. One retry after a short wait rides out the sync window.
         run: |
-          sudo apt-get update
+          sudo apt-get update || (sleep 15 && sudo apt-get update)
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libdbus-1-dev libglib2.0-dev
 
       - name: Run Rust tests
@@ -246,8 +261,13 @@ jobs:
           shared-key: rust-ci
 
       - name: Install dependencies (Ubuntu only)
+        # Why the retry: the runner image ships third-party apt sources
+        # (e.g. dl.google.com chrome) whose indexes intermittently fail hash
+        # verification while the publisher is mid-sync, failing every Rust
+        # job at this step with exit 100 even though the Ubuntu archives are
+        # healthy. One retry after a short wait rides out the sync window.
         run: |
-          sudo apt-get update
+          sudo apt-get update || (sleep 15 && sudo apt-get update)
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libdbus-1-dev libglib2.0-dev
 
       - name: Check Rust formatting
@@ -286,8 +306,13 @@ jobs:
           shared-key: rust-ci-nightly
 
       - name: Install dependencies (Ubuntu only)
+        # Why the retry: the runner image ships third-party apt sources
+        # (e.g. dl.google.com chrome) whose indexes intermittently fail hash
+        # verification while the publisher is mid-sync, failing every Rust
+        # job at this step with exit 100 even though the Ubuntu archives are
+        # healthy. One retry after a short wait rides out the sync window.
         run: |
-          sudo apt-get update
+          sudo apt-get update || (sleep 15 && sudo apt-get update)
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libdbus-1-dev libglib2.0-dev
 
       - name: Generate Codecov report
