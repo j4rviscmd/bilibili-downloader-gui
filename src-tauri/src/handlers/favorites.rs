@@ -75,6 +75,15 @@ pub async fn fetch_favorite_folders(
     // and surface as a parse error instead of an ERR:: code the frontend can map
     // (src/shared/lib/mapBackendError.ts).
     let api = BiliApi::from_cookie_header(cookie_header)?;
+    fetch_favorite_folders_via(&api, mid).await
+}
+
+/// Transport-injectable variant of [`fetch_favorite_folders`] (test seam:
+/// wiremock tests pass a BiliApi whose base URL points at a local server).
+async fn fetch_favorite_folders_via(
+    api: &BiliApi,
+    mid: i64,
+) -> Result<Vec<FavoriteFolder>, String> {
     let raw_text = api
         .get(&format!(
             "/x/v3/fav/folder/created/list-all?up_mid={}&type=2",
@@ -191,6 +200,17 @@ pub async fn fetch_favorite_videos(
     // and surface as a parse error instead of an ERR:: code the frontend can map
     // (src/shared/lib/mapBackendError.ts).
     let api = BiliApi::from_cookie_header(cookie_header)?;
+    fetch_favorite_videos_via(&api, media_id, page_num, page_size).await
+}
+
+/// Transport-injectable variant of [`fetch_favorite_videos`] (test seam:
+/// wiremock tests pass a BiliApi whose base URL points at a local server).
+async fn fetch_favorite_videos_via(
+    api: &BiliApi,
+    media_id: i64,
+    page_num: i32,
+    page_size: i32,
+) -> Result<FavoriteVideoListResponse, String> {
     let response = api
         .get(&format!(
             "/x/v3/fav/resource/list?media_id={}&pn={}&ps={}&order=mtime&type=0&platform=web",
@@ -246,4 +266,181 @@ pub async fn fetch_favorite_videos(
         has_more: data.has_more,
         total_count,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::handlers::bilibili::{build_client, BiliApi};
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    fn api_at(base: &str) -> BiliApi {
+        BiliApi::new(build_client().unwrap(), base, "SESSDATA=x")
+    }
+
+    #[tokio::test]
+    async fn folders_maps_api_response_to_dto() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/x/v3/fav/folder/created/list-all"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "code": 0,
+                "message": "0",
+                "data": {
+                    "count": 2,
+                    "list": [
+                        {
+                            "id": 11, "fid": 11, "mid": 1, "attr": 0,
+                            "title": "Default", "media_count": 3,
+                            "upper": {"mid": 1, "name": "u1", "face": "https://face/1"}
+                        },
+                        { "id": 22, "fid": 22, "mid": 1, "attr": 0, "title": "NoUpper", "media_count": 0 }
+                    ]
+                }
+            })))
+            .mount(&server)
+            .await;
+
+        let folders = fetch_favorite_folders_via(&api_at(&server.uri()), 1)
+            .await
+            .unwrap();
+        assert_eq!(folders.len(), 2);
+        assert_eq!(folders[0].id, 11);
+        assert_eq!(folders[0].title, "Default");
+        assert_eq!(folders[0].media_count, 3);
+        let upper = folders[0].upper.as_ref().expect("upper present");
+        assert_eq!(upper.mid, 1);
+        assert_eq!(upper.name, "u1");
+        assert!(folders[1].upper.is_none(), "missing upper maps to None");
+    }
+
+    #[tokio::test]
+    async fn folders_without_data_list_returns_empty() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/x/v3/fav/folder/created/list-all"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "code": 0, "message": "0"
+            })))
+            .mount(&server)
+            .await;
+
+        let folders = fetch_favorite_folders_via(&api_at(&server.uri()), 1)
+            .await
+            .unwrap();
+        assert!(
+            folders.is_empty(),
+            "missing data.list must map to empty vec"
+        );
+    }
+
+    #[tokio::test]
+    async fn folders_unauthorized_maps_to_err_code() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/x/v3/fav/folder/created/list-all"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "code": -101, "message": "账号未登录"
+            })))
+            .mount(&server)
+            .await;
+
+        let err = fetch_favorite_folders_via(&api_at(&server.uri()), 1)
+            .await
+            .unwrap_err();
+        assert_eq!(err, "ERR::UNAUTHORIZED");
+    }
+
+    #[tokio::test]
+    async fn folders_nonzero_code_is_an_error() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/x/v3/fav/folder/created/list-all"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "code": -400, "message": "请求错误"
+            })))
+            .mount(&server)
+            .await;
+
+        let err = fetch_favorite_folders_via(&api_at(&server.uri()), 1)
+            .await
+            .unwrap_err();
+        assert!(err.contains("API error (code -400)"), "got: {err}");
+    }
+
+    #[tokio::test]
+    async fn videos_maps_api_response_to_dto() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/x/v3/fav/resource/list"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "code": 0,
+                "message": "0",
+                "data": {
+                    "has_more": true,
+                    "info": {"id": 98765, "fid": 98765, "mid": 1, "attr": 0, "title": "Fav", "cover": "https://c/f", "upper": {"mid": 1, "name": "u1", "face": "https://face/1"}, "cover_type": 0, "cnt_info": {"collect": 0, "play": 0, "thumb_up": 0, "share": 0}, "type": 0, "intro": "", "ctime": 0, "mtime": 0, "state": 0, "fav_state": 0, "media_count": 7},
+                    "medias": [
+                        {
+                            "id": 5, "type": 2, "title": "Video", "cover": "https://c/1",
+                            "intro": "", "page": 1, "duration": 60,
+                            "upper": {"mid": 2, "name": "upper2", "face": "https://face/2"},
+                            "attr": 0,
+                            "cnt_info": {"collect": 10, "play": 100, "danmaku": 5},
+                            "link": "https://b23.tv/x",
+                            "ctime": 0, "pubtime": 0, "fav_time": 0,
+                            "bv_id": "BV1xx", "bvid": "BV1xx"
+                        }
+                    ]
+                }
+            })))
+            .mount(&server)
+            .await;
+
+        let resp = fetch_favorite_videos_via(&api_at(&server.uri()), 98765, 1, 20)
+            .await
+            .unwrap();
+        assert!(resp.has_more);
+        assert_eq!(resp.total_count, 7);
+        assert_eq!(resp.videos.len(), 1);
+        let v = &resp.videos[0];
+        assert_eq!(v.bvid, "BV1xx");
+        assert_eq!(v.play_count, 100);
+        assert_eq!(v.collect_count, 10);
+        assert_eq!(v.upper.name, "upper2");
+    }
+
+    #[tokio::test]
+    async fn videos_missing_data_is_an_error() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/x/v3/fav/resource/list"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "code": 0, "message": "0"
+            })))
+            .mount(&server)
+            .await;
+
+        let err = fetch_favorite_videos_via(&api_at(&server.uri()), 1, 1, 20)
+            .await
+            .unwrap_err();
+        assert_eq!(err, "No data in response");
+    }
+
+    #[tokio::test]
+    async fn videos_unauthorized_maps_to_err_code() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/x/v3/fav/resource/list"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "code": -101, "message": "账号未登录"
+            })))
+            .mount(&server)
+            .await;
+
+        let err = fetch_favorite_videos_via(&api_at(&server.uri()), 1, 1, 20)
+            .await
+            .unwrap_err();
+        assert_eq!(err, "ERR::UNAUTHORIZED");
+    }
 }
