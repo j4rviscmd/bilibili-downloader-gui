@@ -322,8 +322,8 @@ jobs:
         # silently masking a threshold breach as a green, half-empty report
         # Why `report` (not a fresh run): reuses the profdata written by the
         # generate step above — tests run once per job
-        # Why 55: ratchet measured at 56.89% lines on this Ubuntu runner
-        # (issues #606/#609, after R2 PR #617), floor minus one following the
+        # Why 58: ratchet measured at 59.29% lines on this Ubuntu runner
+        # (issues #606/#609, after R3 PR #619), floor minus one following the
         # vitest.config.ts convention; bump per PR as coverage grows, never
         # lower it.
         # CAUTION: baseline must be measured on CI, not locally — macOS/nightly
@@ -339,7 +339,7 @@ jobs:
           rc=0
           cargo llvm-cov report --summary-only --show-missing-lines \
             --ignore-filename-regex 'src/(main|lib|menu)\.rs' \
-            --fail-under-lines 55 \
+            --fail-under-lines 58 \
             | tee -a "$GITHUB_STEP_SUMMARY" || rc=$?
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           exit $rc
