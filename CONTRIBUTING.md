@@ -1,107 +1,47 @@
 # Contributing to Bilibili Downloader GUI
 
-Thank you for your interest in contributing to Bilibili Downloader GUI! This
-document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to Bilibili Downloader GUI!
+This document covers workflow conventions, project architecture, and
+code rules.
 
 ## Table of Contents
 
-- [Development Environment Setup](#development-environment-setup)
-- [Branch Strategy](#branch-strategy)
-- [Commit Message Convention](#commit-message-convention)
-- [Code Style Guidelines](#code-style-guidelines)
-- [Submitting Issues](#submitting-issues)
-- [Submitting Pull Requests](#submitting-pull-requests)
+- [Getting Started](#getting-started)
+- [Development Workflow](#development-workflow)
+- [Project Structure](#project-structure)
+- [Code Style](#code-style)
+- [Testing](#testing)
 
-## Development Environment Setup
+## Getting Started
 
-### Prerequisites
+Requires **Node.js 20+**, **Rust (stable)**, and the platform-specific
+[Tauri prerequisites](https://tauri.app/start/prerequisites/) (Xcode CLT
+on macOS, MSVC Build Tools + WebView2 on Windows).
 
-- **Node.js** 18+ (LTS recommended)
-- **Rust** (stable)
-- **Tauri Prerequisites** - Platform-specific dependencies required by Tauri:
-  - **macOS**: Xcode Command Line Tools
-  - **Windows**: Microsoft Visual Studio C++ Build Tools, WebView2
-  - See [Tauri Prerequisites](https://tauri.app/start/prerequisites/) for
-    details
+```bash
+npm install && npm run tauri dev
+```
 
-### Installation
+See `package.json` scripts for all available commands.
 
-1. Clone the repository:
+## Development Workflow
 
-   ```bash
-   git clone https://github.com/j4rviscmd/bilibili-downloader-gui.git
-   cd bilibili-downloader-gui
-   ```
+This project follows **GitHub Flow**. All changes go through feature
+branches and pull requests — never commit directly to `main`.
 
-2. Install dependencies:
-
-   ```bash
-   npm install
-   ```
-
-3. Start the development server:
-
-   ```bash
-   npm run tauri dev
-   ```
-
-   This launches the Tauri app with hot module replacement (HMR) enabled.
-
-### Useful Commands
-
-| Command               | Description                       |
-| --------------------- | --------------------------------- |
-| `npm run tauri dev`   | Start development server with HMR |
-| `npm run tauri build` | Build distributable binaries      |
-| `npm run typecheck`   | Run TypeScript type checking      |
-| `npm run lint`        | Run ESLint                        |
-
-## Branch Strategy
-
-This project follows **GitHub Flow**. All changes must go through feature
-branches and pull requests.
-
-### Rules
-
-1. **Never commit directly to the `main` branch**
-2. Always create a feature branch from `main`
-3. Submit a Pull Request for review
-4. Merge to `main` only after approval
-
-### Branch Naming Convention
+### Branch Naming
 
 Use descriptive branch names with prefixes:
 
-- `feature/` - New features (e.g., `feature/add-download-queue`)
-- `fix/` - Bug fixes (e.g., `fix/cookie-parsing-error`)
-- `docs/` - Documentation changes (e.g., `docs/update-readme`)
-- `refactor/` - Code refactoring (e.g., `refactor/simplify-api-calls`)
+- `feature/` — new features (e.g., `feature/add-download-queue`)
+- `fix/` — bug fixes (e.g., `fix/cookie-parsing-error`)
+- `docs/` — documentation changes (e.g., `docs/update-readme`)
+- `refactor/` — code refactoring (e.g., `refactor/simplify-api-calls`)
 
-### Workflow
+### Commit Message Convention
 
-```bash
-# 1. Ensure you're on main and up to date
-git checkout main
-git pull origin main
-
-# 2. Create a feature branch
-git checkout -b feature/your-feature-name
-
-# 3. Make your changes and commit
-git add .
-git commit -m "feat: add your feature"
-
-# 4. Push to remote
-git push -u origin feature/your-feature-name
-
-# 5. Open a Pull Request on GitHub
-```
-
-## Commit Message Convention
-
-This project uses [Conventional Commits](https://www.conventionalcommits.org/).
-
-### Format
+This project uses
+[Conventional Commits](https://www.conventionalcommits.org/).
 
 ```text
 <type>(<scope>): <description>
@@ -110,8 +50,6 @@ This project uses [Conventional Commits](https://www.conventionalcommits.org/).
 
 [optional footer(s)]
 ```
-
-### Types
 
 | Type       | Description                                      |
 | ---------- | ------------------------------------------------ |
@@ -124,246 +62,118 @@ This project uses [Conventional Commits](https://www.conventionalcommits.org/).
 | `chore`    | Maintenance tasks (deps, configs, etc.)          |
 | `ci`       | CI/CD configuration changes                      |
 
-### Examples
+Examples:
 
 ```bash
 feat(video): add batch download support
 fix(cookie): handle Firefox cookie encryption on macOS
 docs(readme): update installation instructions
-refactor(handlers): simplify error handling logic
 ```
 
-## Code Style Guidelines
+### Submitting Pull Requests
 
-### TypeScript / JavaScript
-
-- **Indentation**: 2 spaces
-- **Naming**: camelCase for variables/functions, PascalCase for
-  classes/components
-- **Formatting**: Prettier (configured in the project)
-- **Linting**: ESLint
-
-### Rust
-
-- **Formatting**: `cargo fmt` (default settings)
-- **Linting**: `cargo clippy`
-
-### General
-
-- Maximum line length: 80 characters (where practical)
-- Add comments for complex logic
-- All user-facing text must use i18n (`react-i18next`)
-
-## Submitting Issues
-
-Before creating an issue:
-
-1. Search existing issues to avoid duplicates
-2. Use the appropriate issue template if available
-
-When creating an issue, include:
-
-- **Clear title** describing the problem or feature
-- **Steps to reproduce** (for bugs)
-- **Expected vs actual behavior** (for bugs)
-- **Environment details** (OS, app version)
-- **Screenshots** if applicable
-
-## Submitting Pull Requests
-
-### Before Submitting
+Before submitting:
 
 1. Ensure your branch is up to date with `main`
 2. Run type checking: `npm run typecheck`
 3. Run linting: `npm run lint`
-4. Test your changes locally with `npm run tauri dev`
+4. Run tests: `npm test` (and `cargo test` in `src-tauri/` for Rust
+   changes)
+5. Test your changes locally with `npm run tauri dev`
 
-### PR Guidelines
+PR guidelines:
 
-- **One PR per feature/fix** - Keep PRs focused and reviewable
-- **Write a clear description** - Explain what and why
-- **Reference related issues** - Use `Fixes #123` or `Closes #123`
-- **Keep commits clean** - Squash or rebase if needed before merging
+- **One PR per feature/fix** — keep PRs focused and reviewable
+- **Write a clear description** — explain what and why
+- **Reference related issues** — use `Fixes #123` or `Closes #123`
+- **Keep commits clean** — squash or rebase if needed before merging
+- **Write in English** — PR titles/descriptions, commit messages, and
+  code comments
+- **CI must be green before review** — PRs are reviewed only after all
+  required checks (the `ci-status` aggregate) pass
 
-### PR Title Format
+## Project Structure
 
-Follow the same convention as commit messages:
+### Frontend (co-location)
 
-```text
-feat(video): add batch download support
-fix(cookie): handle Firefox cookie encryption on macOS
-```
-
-## Project Architecture
-
-### Directory Structure (Co-location)
-
-We use a **feature-based, co-located** folder strategy.
+The frontend uses a **feature-based, co-located** folder strategy:
 
 ```txt
 src/
-  ├── app/                      # Application wiring
-  │   ├── providers/            # Global providers (Theme, Listener)
-  │   └── store/                # Redux store configuration
-  ├── pages/                    # Route-level screens
-  │   ├── home/
-  │   │   └── index.tsx
-  │   ├── init/
-  │   │   └── index.tsx
-  │   └── error/
-  │       └── index.tsx
-  ├── features/                 # Feature modules
-  │   ├── video/
-  │   │   ├── ui/               # VideoForm1, VideoForm2, DownloadButton, etc.
-  │   │   ├── model/            # videoSlice, inputSlice, selectors
-  │   │   ├── hooks/            # useVideoInfo
-  │   │   ├── api/              # fetchVideoInfo, downloadVideo
-  │   │   ├── lib/              # utils, formSchema, constants
-  │   │   ├── types.ts
-  │   │   └── index.ts          # Public API
-  │   ├── init/
-  │   │   ├── model/            # initSlice
-  │   │   ├── hooks/            # useInit
-  │   │   └── index.ts
-  │   ├── settings/
-  │   │   ├── ui/               # SettingsDialog, LanguagesDropdown
-  │   │   ├── model/            # settingsSlice
-  │   │   ├── api/              # settingApi
-  │   │   └── index.ts
-  │   ├── user/
-  │   │   ├── model/            # userSlice
-  │   │   ├── hooks/            # useUser
-  │   │   ├── api/              # fetchUser
-  │   │   └── index.ts
-  │   └── preference/
-  │       ├── ui/               # ToggleThemeButton
-  │       └── index.ts
-  ├── shared/                   # Shared resources
-  │   ├── ui/                   # shadcn/ui components, AppBar, Progress
-  │   ├── animate-ui/           # Animated UI components
-  │   ├── hooks/                # useIsMobile, etc.
-  │   ├── lib/                  # cn(), utilities
-  │   ├── progress/             # Progress state management
-  │   ├── downloadStatus/       # Download status state
-  │   ├── queue/                # Queue state
-  │   └── os/                   # OS detection API
-  ├── i18n/                     # Internationalization
-  │   └── locales/              # Translation files
-  ├── styles/                   # Global styles
-  └── assets/                   # Static assets
+  ├── app/          # Application wiring (providers, store)
+  ├── pages/        # Route-level screens (one folder per route)
+  ├── features/     # Feature modules (video, settings, history, ...)
+  ├── shared/       # Cross-feature building blocks (ui, layout, hooks, ...)
+  ├── components/   # shadcn/ui components (install target)
+  ├── lib/          # shadcn utilities like cn() (install target)
+  ├── hooks/        # shadcn hooks (install target)
+  ├── i18n/         # react-i18next setup + locales/
+  ├── styles/       # Global styles (Tailwind CSS)
+  └── assets/       # Static assets
 ```
 
-### Directory Responsibilities
+> `src/components`, `src/lib`, and `src/hooks` are the install targets
+> configured in `components.json`. Install shadcn/ui components with
+> `npx shadcn@latest add <component>` instead of creating files by hand.
 
-#### `src/app/`
+Each feature in `src/features/` co-locates everything it needs:
 
-Application wiring at the root level. This is where the application is assembled:
-global providers and store setup.
-
-#### `src/pages/`
-
-Route-level screens. Pages should mainly **compose** features and shared UI.
-Keep business logic/state inside `features/`.
-
-#### `src/features/`
-
-Reusable product features (user-facing behavior). Each feature co-locates its
-Redux logic, API calls, and UI.
-
-A typical feature folder contains:
-
-- `ui/` — feature-specific UI components
-- `model/` — Redux Toolkit slice, selectors
-- `hooks/` — feature hooks
-- `api/` — feature-specific API functions
-- `lib/` — internal utilities for the feature
-- `types.ts` — feature-local types
-- `index.ts` — feature **public API** (recommended entry point for imports)
-
-#### `src/shared/`
-
-Reusable, non-domain-specific building blocks used across the app.
-
-- `shared/ui/` — App-wide reusable UI primitives (shadcn/ui, custom components)
-- `shared/animate-ui/` — Animated UI components
-- `shared/lib/` — Generic utilities (e.g., `cn()`)
-- `shared/hooks/` — Reusable React hooks
+```txt
+features/video/
+  ├── ui/          # Feature-specific UI components
+  ├── model/       # Redux Toolkit slice, selectors
+  ├── hooks/       # Feature hooks
+  ├── api/         # Feature-specific API functions
+  ├── lib/         # Internal utilities for the feature
+  ├── types.ts     # Feature-local types
+  └── index.ts     # Public API (recommended import entry point)
+```
 
 ### Import Rules
 
-- `pages` may import from `features` and `shared`.
-- `features` must not import from `pages`.
-- Avoid importing directly from other `features`. Prefer composition in `pages`.
-- Prefer importing from a feature's `index.ts` (public API) instead of deep paths.
-
-### Path Aliases
-
-- `@/app/*`
-- `@/pages/*`
-- `@/features/*`
-- `@/shared/*`
+- `pages` may import from `features` and `shared`
+- `features` must not import from `pages`
+- Avoid importing directly from other `features`. Prefer composition in
+  `pages`
+- Prefer importing from a feature's `index.ts` (public API) instead of
+  deep paths
 
 ### Backend (Tauri / Rust)
 
 ```txt
 src-tauri/src/
-  main.rs            ← Entry point (kept thin)
-  lib.rs             ← App root module / command definitions
-  handlers/          ← Implementations of commands
-  models/            ← Data structures (requests/responses, etc.)
-  utils/             ← Utilities
+  ├── main.rs       # Entry point (kept thin)
+  ├── lib.rs        # App root module / command definitions
+  ├── handlers/     # Implementations of Tauri commands
+  ├── models/       # Data structures (requests/responses, etc.)
+  ├── utils/        # Utilities (downloads, ffmpeg, cdn_selector, ...)
+  ├── store/        # Persistent stores
+  └── ...           # menu.rs, window.rs, emits.rs, constants.rs
 ```
 
-### Tech Stack
+- The Rust command name must match the string passed to `invoke()` on
+  the TypeScript side (snake_case)
+- New commands must be registered in the `invoke_handler`
+  (`generate_handler!`) in `src-tauri/src/lib.rs`
+- Dev-only features are gated behind `#[cfg(debug_assertions)]`
 
-- Frontend: React, Vite, TypeScript, Redux Toolkit, shadcn/ui, animate‑ui
-- Desktop: Tauri (Rust)
+## Code Style
+
+One rule beyond what CI enforces:
+
+- All user-facing text must use i18n (`react-i18next`)
 
 ## Testing
 
-### Running tests
-
 ```bash
-# Frontend (Vitest)
-npm test -- --run
-
-# Rust (unit tests + doctests)
-cd src-tauri && cargo test
+npm test && cd src-tauri && cargo test
 ```
 
-### Rust coverage
+Two policies to know:
 
-CI runs a **report-only** `coverage` job (nightly toolchain +
-`cargo-llvm-cov`) on every PR; the summary and missing-line list appear in
-the job's Step Summary. It is not part of the required `ci-status` check.
-
-To run it locally:
-
-```bash
-cd src-tauri
-cargo llvm-cov --summary-only --show-missing-lines \
-  --ignore-filename-regex 'src/(main|lib|menu)\.rs'
-```
-
-Requires `cargo install cargo-llvm-cov` and a nightly toolchain
-(`rustup toolchain install nightly`).
-
-#### Coverage exclusions and why
-
-`main.rs`, `lib.rs`, and `menu.rs` are excluded from coverage:
-
-- **`main.rs`** — 3-line entry point that only calls the library `run()`
-- **`lib.rs`** — `run()` (full Tauri app bootstrap: plugins, windows,
-  event wiring — not unit-testable without a running app) plus ~54 thin
-  `#[tauri::command]` wrappers that delegate one-to-one to `handlers/`
-  functions; all logic lives in the handlers, which are covered
-- **`menu.rs`** — declarative menu builder (Tauri `Menu` API chains) with
-  no branching logic
-
-Everything else — handlers, models, utils, store — is in scope. Network
-fetchers go through the `BiliApi` transport, which is tested against a
-local [wiremock](https://crates.io/crates/wiremock) server (no live
-Bilibili calls in tests).
+- Every new or changed testable logic ships with unit tests
+- Tests never hit live Bilibili APIs — network code is tested against
+  a local [wiremock](https://crates.io/crates/wiremock) server
 
 ---
 
