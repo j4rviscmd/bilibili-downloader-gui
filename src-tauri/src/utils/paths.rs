@@ -78,9 +78,13 @@ pub fn get_default_lib_path(app: &AppHandle) -> PathBuf {
 ///
 /// Returns the configured library path or the default path.
 pub fn get_lib_path(app: &AppHandle) -> PathBuf {
-    let settings_path = get_settings_path(app);
+    resolve_lib_path(&get_settings_path(app), &get_default_lib_path(app))
+}
 
-    if let Ok(settings_str) = fs::read_to_string(&settings_path) {
+/// Pure variant of [`get_lib_path`] over explicit paths (test seam:
+/// runs against a tempfile-backed settings file without an AppHandle).
+fn resolve_lib_path(settings_path: &Path, default_path: &Path) -> PathBuf {
+    if let Ok(settings_str) = fs::read_to_string(settings_path) {
         if let Ok(settings) = serde_json::from_str::<Settings>(&settings_str) {
             if let Some(custom_path) = settings.lib_path {
                 let path = PathBuf::from(custom_path);
@@ -90,9 +94,8 @@ pub fn get_lib_path(app: &AppHandle) -> PathBuf {
         }
     }
 
-    let default_path = get_default_lib_path(app);
-    ensure_dir_exists(&default_path);
-    default_path
+    ensure_dir_exists(default_path);
+    default_path.to_path_buf()
 }
 
 /// Returns the platform-specific path to the ffmpeg binary.
@@ -109,7 +112,11 @@ pub fn get_lib_path(app: &AppHandle) -> PathBuf {
 ///
 /// Returns the absolute path to the ffmpeg executable.
 pub fn get_ffmpeg_path(app: &AppHandle) -> PathBuf {
-    let lib = get_lib_path(app);
+    ffmpeg_path_in_lib(&get_lib_path(app))
+}
+
+/// Pure variant of [`get_ffmpeg_path`] over an explicit lib dir (test seam).
+fn ffmpeg_path_in_lib(lib: &Path) -> PathBuf {
     let subdir = ffmpeg_subdir();
 
     if cfg!(target_os = "windows") {
@@ -165,9 +172,112 @@ pub fn get_settings_path(app: &AppHandle) -> PathBuf {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    /// Writes a settings file with the given `libPath` into `dir` and
+    /// returns its path.
+    fn write_settings(dir: &Path, lib_path: Option<&str>) -> PathBuf {
+        let settings = crate::models::settings::Settings {
+            lib_path: lib_path.map(String::from),
+            ..Default::default()
+        };
+        let path = dir.join("settings.json");
+        std::fs::write(&path, serde_json::to_string(&settings).unwrap()).unwrap();
+        path
+    }
+
     #[test]
-    fn test_get_settings_path_returns_app_data_dir() {
-        // This test verifies that settings are stored in app_data_dir
-        // Actual implementation requires Tauri test context
+    fn ffmpeg_subdir_matches_platform() {
+        let subdir = ffmpeg_subdir();
+        if cfg!(target_os = "windows") {
+            assert_eq!(subdir, "ffmpeg-master-latest-win64-gpl");
+        } else if cfg!(target_os = "linux") {
+            assert_eq!(subdir, "ffmpeg-master-latest-linux64-gpl");
+        } else {
+            assert_eq!(subdir, "ffmpeg");
+        }
+    }
+
+    #[test]
+    fn resolve_lib_path_uses_custom_path_when_configured() {
+        let tmp = tempfile::tempdir().unwrap();
+        let custom = tmp.path().join("custom-lib");
+        // The custom dir does not exist yet; resolve must create it
+        let settings = write_settings(tmp.path(), custom.to_str());
+        let default = tmp.path().join("lib");
+
+        let resolved = resolve_lib_path(&settings, &default);
+
+        assert_eq!(resolved, custom);
+        assert!(custom.is_dir(), "custom lib dir must be created on use");
+        assert!(
+            !default.exists(),
+            "default dir must not be created when unused"
+        );
+    }
+
+    #[test]
+    fn resolve_lib_path_falls_back_when_lib_path_absent() {
+        let tmp = tempfile::tempdir().unwrap();
+        let settings = write_settings(tmp.path(), None);
+        let default = tmp.path().join("lib");
+
+        let resolved = resolve_lib_path(&settings, &default);
+
+        assert_eq!(resolved, default);
+        assert!(default.is_dir(), "default lib dir must be created on use");
+    }
+
+    #[test]
+    fn resolve_lib_path_falls_back_when_settings_missing_or_invalid() {
+        let tmp = tempfile::tempdir().unwrap();
+        let missing = tmp.path().join("nonexistent-settings.json");
+        let default = tmp.path().join("lib");
+        assert_eq!(
+            resolve_lib_path(&missing, &default),
+            default,
+            "missing settings file must fall back to default"
+        );
+
+        let invalid = tmp.path().join("invalid.json");
+        std::fs::write(&invalid, "not json{").unwrap();
+        assert_eq!(
+            resolve_lib_path(&invalid, &default),
+            default,
+            "unparseable settings file must fall back to default"
+        );
+    }
+
+    #[test]
+    fn ffmpeg_paths_under_lib_match_platform_layout() {
+        let lib = Path::new("/fake/lib");
+        let bin = ffmpeg_path_in_lib(lib);
+
+        // Why: the doubled join(ffmpeg_subdir()) is not a bug — BtbN win64/linux
+        // archives contain a top-level folder named after the archive and are
+        // extracted into {lib}/{subdir} (get_ffmpeg_root_path), so the binary
+        // lands at {lib}/{subdir}/{subdir}/bin/ffmpeg; only the macOS archive is
+        // flat (commit 17e0db3 "Fix FFmpeg path double-nesting").
+        if cfg!(target_os = "windows") {
+            assert_eq!(
+                bin,
+                lib.join(ffmpeg_subdir())
+                    .join(ffmpeg_subdir())
+                    .join("bin")
+                    .join("ffmpeg")
+                    .with_extension("exe")
+            );
+        } else if cfg!(target_os = "linux") {
+            assert_eq!(
+                bin,
+                lib.join(ffmpeg_subdir())
+                    .join(ffmpeg_subdir())
+                    .join("bin")
+                    .join("ffmpeg")
+            );
+        } else {
+            // macOS: flat layout {lib}/ffmpeg/ffmpeg
+            assert_eq!(bin, lib.join(ffmpeg_subdir()).join("ffmpeg"));
+        }
     }
 }

@@ -176,7 +176,11 @@ pub fn get_init_result(state: State<'_, Mutex<InitResult>>) -> InitResult {
 }
 
 /// Emits a synchronous init step (label only) to the splash window.
-fn emit_step(app: &AppHandle, label_key: &str) {
+// Why: generic over R — production callers pass AppHandle (= AppHandle<Wry>)
+// while tests pass tauri::test::mock_app()'s AppHandle<MockRuntime>
+// (tauri "test" dev-dependency feature, src-tauri/Cargo.toml); Emitter<R> is
+// the minimal bound covering both.
+fn emit_step<R: tauri::Runtime>(app: &impl Emitter<R>, label_key: &str) {
     let _ = app.emit_to(
         "splash",
         "init_step",
@@ -188,7 +192,11 @@ fn emit_step(app: &AppHandle, label_key: &str) {
 
 /// Emits an asynchronous init step (label + percentage) to the splash window.
 #[allow(dead_code)]
-fn emit_progress(app: &AppHandle, label_key: &str, percentage: Option<f64>) {
+fn emit_progress<R: tauri::Runtime>(
+    app: &impl Emitter<R>,
+    label_key: &str,
+    percentage: Option<f64>,
+) {
     let _ = app.emit_to(
         "splash",
         "init_progress",
@@ -197,4 +205,95 @@ fn emit_progress(app: &AppHandle, label_key: &str, percentage: Option<f64>) {
             percentage,
         },
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn init_step_serializes_camel_case() {
+        let json = serde_json::to_value(InitStep {
+            label_key: "init.cleanup_in_progress".into(),
+        })
+        .unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({"labelKey": "init.cleanup_in_progress"})
+        );
+    }
+
+    #[test]
+    fn init_progress_serializes_camel_case_with_optional_percentage() {
+        let with_pct = serde_json::to_value(InitProgress {
+            label_key: "init.x".into(),
+            percentage: Some(42.5),
+        })
+        .unwrap();
+        assert_eq!(
+            with_pct,
+            serde_json::json!({"labelKey": "init.x", "percentage": 42.5})
+        );
+
+        let without_pct = serde_json::to_value(InitProgress {
+            label_key: "init.x".into(),
+            percentage: None,
+        })
+        .unwrap();
+        assert_eq!(
+            without_pct,
+            serde_json::json!({"labelKey": "init.x", "percentage": null})
+        );
+    }
+
+    #[test]
+    fn init_result_default_is_empty_and_serializes_camel_case() {
+        let default = InitResult::default();
+        assert!(default.settings.is_none());
+        assert!(default.user.is_none());
+        assert!(default.user_error.is_none());
+        assert!(!default.ffmpeg_success);
+
+        let json = serde_json::to_value(InitResult {
+            user_error: Some("ERR::UNAUTHORIZED".into()),
+            ffmpeg_success: true,
+            ..Default::default()
+        })
+        .unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({
+                "settings": null,
+                "user": null,
+                "userError": "ERR::UNAUTHORIZED",
+                "ffmpegSuccess": true
+            })
+        );
+    }
+
+    #[test]
+    fn get_init_result_returns_managed_state() {
+        // mock_app lets State<T> resolution run without a real window/app;
+        // initialize() itself is NOT invoked (it would run the full network
+        // init — cleanup/ffmpeg/user fetch — against the mock runtime).
+        let app = tauri::test::mock_app();
+        let stored = InitResult {
+            ffmpeg_success: true,
+            ..Default::default()
+        };
+        app.manage(Mutex::new(stored));
+
+        let state: State<'_, Mutex<InitResult>> = app.state();
+        let result = get_init_result(state);
+        assert!(result.ffmpeg_success);
+        assert!(result.user.is_none());
+    }
+
+    #[test]
+    fn emit_step_to_missing_splash_window_is_swallowed() {
+        // The mock app has no "splash" window, so emit_to errors; emit_step
+        // must swallow it instead of panicking.
+        let app = tauri::test::mock_app();
+        emit_step(app.handle(), "init.cleanup_in_progress");
+    }
 }
