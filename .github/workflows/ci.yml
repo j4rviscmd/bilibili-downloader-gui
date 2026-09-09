@@ -132,6 +132,19 @@ jobs:
             echo "No test script defined in package.json, skipping tests."
           fi
 
+      - name: Upload frontend coverage to Codecov
+        # Why the guard: upload only when the test step actually produced
+        # lcov, mirroring the step above
+        if: hashFiles('coverage/lcov.info') != ''
+        uses: codecov/codecov-action@v7
+        with:
+          files: coverage/lcov.info
+          flags: frontend
+          token: ${{ secrets.CODECOV_TOKEN }}
+          # Why false: threshold enforcement lives in vitest; codecov
+          # outages must not fail this required job
+          fail_ci_if_error: false
+
   rust-check:
     name: Rust Check
     runs-on: ubuntu-latest
@@ -277,17 +290,58 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libdbus-1-dev libglib2.0-dev
 
-      - name: Run coverage
+      - name: Generate Codecov report
+        working-directory: src-tauri
+        # Why --codecov: codecov-native JSON (region coverage included);
+        # --ignore-filename-regex also applies to the exported file
+        # Why the jq rewrite: llvm-cov emits absolute file paths, but codecov
+        # needs repo-relative ones to match flags.rust.paths and the ignore
+        # list in codecov.yml — normalize "/…/src-tauri/src/x.rs" to
+        # "src-tauri/src/x.rs" (frontend lcov is already repo-relative)
+        run: |
+          cargo llvm-cov --codecov --output-path codecov.json \
+            --ignore-filename-regex 'src/(main|lib|menu)\.rs'
+          jq '.coverage |= with_entries(.key |= sub("^.*src-tauri/"; "src-tauri/"))' \
+            codecov.json > codecov-normalized.json
+
+      - name: Upload rust coverage to Codecov
+        # Why before the threshold step: the report is uploaded even when
+        # coverage is below target, so codecov shows the regression
+        uses: codecov/codecov-action@v7
+        with:
+          files: src-tauri/codecov-normalized.json
+          flags: rust
+          token: ${{ secrets.CODECOV_TOKEN }}
+          # Why false: report-only policy — codecov outages must not turn
+          # this job red; only the local threshold step may fail it
+          fail_ci_if_error: false
+
+      - name: Enforce threshold and write summary
         working-directory: src-tauri
         # Why pipefail: without it the step exit code comes from tee (always 0),
-        # silently masking cargo-llvm-cov failures as a green, half-empty report
+        # silently masking a threshold breach as a green, half-empty report
+        # Why `report` (not a fresh run): reuses the profdata written by the
+        # generate step above — tests run once per job
+        # Why 53: ratchet baseline measured at 54.50% lines on this Ubuntu
+        # runner (issue #606), floor minus one following the vitest.config.ts
+        # convention; bump per PR as coverage grows, never lower it.
+        # CAUTION: baseline must be measured on CI, not locally — macOS/nightly
+        # measured 56.62% over 20174 lines while CI counts 12056 lines
+        # (nightly rustc coverage mapping differs per platform)
         run: |
           set -o pipefail
-          echo '```text' >> $GITHUB_STEP_SUMMARY
-          cargo llvm-cov --summary-only --show-missing-lines \
+          echo '```text' >> "$GITHUB_STEP_SUMMARY"
+          # Why `|| rc=$?`: on a threshold breach the pipeline must still
+          # write the closing code fence below; without the || guard, bash -e
+          # would abort here and leave the summary with an unclosed fence
+          # that renders the page as code
+          rc=0
+          cargo llvm-cov report --summary-only --show-missing-lines \
             --ignore-filename-regex 'src/(main|lib|menu)\.rs' \
-            | tee -a $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
+            --fail-under-lines 53 \
+            | tee -a "$GITHUB_STEP_SUMMARY" || rc=$?
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          exit $rc
 
   docs-format:
     name: Docs Format
