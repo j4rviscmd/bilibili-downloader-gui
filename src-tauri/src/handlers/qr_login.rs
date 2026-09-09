@@ -714,7 +714,10 @@ pub(crate) async fn commit_session(
 /// cookies so that subsequent Bilibili requests are authenticated.
 /// Includes `buvid3`/`buvid4` only when present, since they are required
 /// for WBI signing but may not have been fetched yet.
-fn update_cookie_cache(app: &AppHandle, session: &Session) {
+// Why generic over R: production callers pass AppHandle (= AppHandle<Wry>)
+// while tests pass tauri::test::mock_app()'s AppHandle<MockRuntime>
+// (tauri "test" dev-dependency feature, src-tauri/Cargo.toml).
+fn update_cookie_cache<R: tauri::Runtime>(app: &impl Manager<R>, session: &Session) {
     let Some(cache) = app.try_state::<CookieCache>() else {
         return;
     };
@@ -784,7 +787,7 @@ pub async fn load_stored_session(app: &AppHandle) -> Result<bool, String> {
 /// Empties the [`CookieCache`] vector in place. Used during logout and
 /// when switching to the Firefox login method so stale QR cookies do not
 /// leak into subsequent requests.
-fn clear_cookie_cache(app: &AppHandle) {
+fn clear_cookie_cache<R: tauri::Runtime>(app: &impl Manager<R>) {
     if let Some(cache) = app.try_state::<CookieCache>() {
         if let Ok(mut guard) = cache.cookies.lock() {
             guard.clear();
@@ -1108,18 +1111,26 @@ async fn fetch_refresh_csrf(app: &AppHandle, correspond_path: &str) -> Result<St
     let start_tag = r#"<div id="1-name">"#;
     let end_tag = "</div>";
 
+    extract_refresh_csrf(&html, start_tag, end_tag)
+}
+
+/// Scans `html` for `start_tag`...`end_tag` and returns the enclosed token.
+///
+/// Split out of `fetch_refresh_csrf` as a pure helper so the markup scan
+/// (including both missing-tag branches) is testable without HTTP.
+fn extract_refresh_csrf(html: &str, start_tag: &str, end_tag: &str) -> Result<String, String> {
     let start = html.find(start_tag).ok_or_else(|| {
-        log::debug!("[BE] fetch_refresh_csrf: Could not find start tag");
+        log::debug!("[BE] extract_refresh_csrf: Could not find start tag");
         "Could not find 1-name div in response".to_string()
     })? + start_tag.len();
     let end = html[start..].find(end_tag).ok_or_else(|| {
-        log::debug!("[BE] fetch_refresh_csrf: Could not find end tag");
+        log::debug!("[BE] extract_refresh_csrf: Could not find end tag");
         "Could not find closing div tag".to_string()
     })? + start;
 
     let refresh_csrf = &html[start..end];
     log::debug!(
-        "[BE] fetch_refresh_csrf: Found token: {} bytes",
+        "[BE] extract_refresh_csrf: Found token: {} bytes",
         refresh_csrf.len()
     );
     Ok(refresh_csrf.to_string())
@@ -1511,5 +1522,144 @@ mod tests {
             "base16ct lower-case encoding"
         );
         assert_ne!(a, b, "randomized OAEP padding");
+    }
+    // ---- R5: header builders, cookie cache, correspond path ----
+
+    fn r5_session(buvid3: &str, buvid4: &str) -> Session {
+        Session {
+            sessdata: "sess".into(),
+            bili_jct: "jct".into(),
+            dede_user_id: "42".into(),
+            dede_user_id_ck_md5: "md5".into(),
+            refresh_token: "rt".into(),
+            timestamp: 1,
+            uname: "u".into(),
+            buvid3: buvid3.into(),
+            buvid4: buvid4.into(),
+        }
+    }
+
+    #[test]
+    fn cookie_header_from_session_includes_buvids_only_when_present() {
+        let full = build_cookie_header_from_session(&r5_session("b3", "b4"));
+        assert!(full.contains("SESSDATA=sess"));
+        assert!(full.contains("bili_jct=jct"));
+        assert!(full.contains("DedeUserID=42"));
+        assert!(full.contains("DedeUserID__ckMd5=md5"));
+        assert!(full.contains("buvid3=b3"));
+        assert!(full.contains("buvid4=b4"));
+
+        let bare = build_cookie_header_from_session(&r5_session("", ""));
+        assert!(!bare.contains("buvid3"));
+        assert!(!bare.contains("buvid4"));
+        assert_eq!(
+            bare,
+            "SESSDATA=sess; bili_jct=jct; DedeUserID=42; DedeUserID__ckMd5=md5"
+        );
+    }
+
+    #[tokio::test]
+    async fn verify_session_with_empty_header_reports_not_logged_in() {
+        // Empty header short-circuits to a synthetic logged-out User without
+        // any HTTP call (the API path cannot be exercised without transport
+        // injection; the guard itself is the contract).
+        let user = verify_session_with_header("").await.unwrap();
+        assert_eq!(user.code, 0);
+        assert!(!user.data.is_login);
+        assert!(!user.has_cookie);
+        assert!(user.data.mid.is_none());
+    }
+
+    #[test]
+    fn is_e2e_testing_defaults_false_in_unit_tests() {
+        // Unit CI never sets E2E_TESTING; asserting only the unset case keeps
+        // the test safe under parallel env mutation.
+        if std::env::var("E2E_TESTING").is_err() {
+            assert!(!is_e2e_testing());
+        }
+    }
+
+    #[test]
+    fn cache_lock_err_formats_message() {
+        assert_eq!(
+            cache_lock_err("poisoned"),
+            "Failed to access session cache: poisoned"
+        );
+    }
+
+    #[test]
+    fn bilibili_cookie_uses_standard_host() {
+        let c = bilibili_cookie("SESSDATA", "v".into());
+        assert_eq!(c.host, ".bilibili.com");
+        assert_eq!(c.name, "SESSDATA");
+        assert_eq!(c.value, "v");
+    }
+
+    #[test]
+    fn update_and_clear_cookie_cache_via_mock_app() {
+        use crate::models::cookie::CookieCache;
+        use tauri::Manager;
+
+        let app = tauri::test::mock_app();
+        app.manage(CookieCache::default());
+
+        update_cookie_cache(app.handle(), &r5_session("b3", ""));
+        let cache = app.state::<CookieCache>();
+        let guard = cache.cookies.lock().unwrap();
+        assert_eq!(guard.len(), 5, "4 standard cookies + buvid3 only");
+        assert!(guard.iter().any(|c| c.name == "buvid3"));
+        assert!(!guard.iter().any(|c| c.name == "buvid4"));
+        assert!(guard.iter().all(|c| c.host == ".bilibili.com"));
+        drop(guard);
+
+        update_cookie_cache(app.handle(), &r5_session("", ""));
+        let cache2 = app.state::<CookieCache>();
+        let guard = cache2.cookies.lock().unwrap();
+        assert_eq!(guard.len(), 4, "second update replaces, not appends");
+        drop(guard);
+
+        clear_cookie_cache(app.handle());
+        assert!(app
+            .state::<CookieCache>()
+            .cookies
+            .lock()
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
+    fn update_cookie_cache_without_state_is_a_noop() {
+        let app = tauri::test::mock_app();
+        // No CookieCache managed: must not panic.
+        update_cookie_cache(app.handle(), &r5_session("", ""));
+        clear_cookie_cache(app.handle());
+    }
+
+    #[test]
+    fn parse_set_cookie_values_takes_first_attribute_pair() {
+        let values = vec![
+            "SESSDATA=abc%2Cdef; Path=/; Domain=.bilibili.com; HttpOnly".to_string(),
+            " bili_jct = jct ; Path=/".to_string(),
+            "novalue".to_string(),
+        ];
+        let map = parse_set_cookie_values(&values);
+        assert_eq!(map.get("SESSDATA").unwrap(), "abc%2Cdef");
+        assert_eq!(map.get("bili_jct").unwrap(), "jct");
+        assert_eq!(map.len(), 2, "entries without '=' are skipped");
+    }
+
+    #[test]
+    fn extract_refresh_csrf_scans_token_between_tags() {
+        let html = r#"<html><body><div id="1-name">TOKEN123</div></body></html>"#;
+        assert_eq!(
+            extract_refresh_csrf(html, r#"<div id="1-name">"#, "</div>").unwrap(),
+            "TOKEN123"
+        );
+
+        let no_start = "<html>no marker</html>";
+        assert!(extract_refresh_csrf(no_start, r#"<div id="1-name">"#, "</div>").is_err());
+
+        let no_end = r#"<div id="1-name">TOKEN but never closes"#;
+        assert!(extract_refresh_csrf(no_end, r#"<div id="1-name">"#, "</div>").is_err());
     }
 }
