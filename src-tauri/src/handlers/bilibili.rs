@@ -1072,6 +1072,8 @@ async fn download_video_impl(app: &AppHandle, options: &DownloadOptions) -> Resu
         let v_video_backups = video_backup_urls.clone();
         let v_temp_video_path = temp_video_path.clone();
         let v_cookie = cookie.clone();
+        // Subtitle prep runs after the video closure moves ; keep a clone.
+        let sub_api = api.clone();
         let video_download = retry_download(
             app,
             &options.download_id,
@@ -1147,8 +1149,8 @@ async fn download_video_impl(app: &AppHandle, options: &DownloadOptions) -> Resu
         let (subtitle_mode, subtitle_language_labels, subtitle_failed_labels) =
             prepare_subtitle_mode(
                 app,
+                &sub_api,
                 &options.subtitle,
-                &cookies,
                 &options.bvid,
                 options.cid,
                 &options.download_id,
@@ -1327,6 +1329,304 @@ fn cleanup_subtitle_files(lib_path: &std::path::Path, download_id: &str) {
 
 #[cfg(test)]
 mod tests {
+
+    // ---- PR④: metadata fetchers via injected transport ----
+
+    #[tokio::test]
+    async fn fetch_user_info_with_maps_nav_response() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/nav"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0", "ttl": 1,
+                    "data": {"mid": 42, "uname": "tester", "isLogin": true,
+                             "wbi_img": {"img_url": "i", "sub_url": "s"}}
+                })),
+            )
+            .mount(&server)
+            .await;
+
+        let user = fetch_user_info_with(&bili_api_mock(&server.uri(), "SESSDATA=x"))
+            .await
+            .unwrap();
+        assert_eq!(user.code, 0);
+        assert!(user.has_cookie);
+        assert!(user.data.is_login);
+        assert_eq!(user.data.uname.as_deref(), Some("tester"));
+        assert_eq!(user.data.mid, Some(42));
+    }
+
+    #[tokio::test]
+    async fn fetch_user_info_with_maps_logged_out_nav() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/nav"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": -101, "message": "not logged in", "ttl": 1,
+                    "data": {"isLogin": false, "wbi_img": {"img_url": "i", "sub_url": "s"}}
+                })),
+            )
+            .mount(&server)
+            .await;
+
+        let user = fetch_user_info_with(&bili_api_mock(&server.uri(), "SESSDATA=stale"))
+            .await
+            .unwrap();
+        assert!(!user.data.is_login);
+        assert!(user.has_cookie, "has_cookie reflects transport, not login");
+    }
+
+    #[tokio::test]
+    async fn fetch_watch_history_with_maps_items_and_cursor() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/history/cursor"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": {
+                        "list": [{
+                            "title": "Crossing the Alpha", "cover": "https://c/1.png",
+                            "history": {"bvid": "BV1xx", "cid": 7, "page": 1},
+                            "view_at": 1700000000, "duration": 120
+                        }],
+                        "cursor": {"view_at": 1700000000, "max": 1, "is_end": true}
+                    }
+                })),
+            )
+            .mount(&server)
+            .await;
+
+        let resp = fetch_watch_history_with(&bili_api_mock(&server.uri(), "SESSDATA=x"), 0, 0)
+            .await
+            .unwrap();
+        assert_eq!(resp.entries.len(), 1);
+        assert_eq!(resp.entries[0].bvid, "BV1xx");
+        assert_eq!(resp.entries[0].title, "Crossing the Alpha");
+        assert!(resp.cursor.is_end);
+        assert_eq!(resp.cursor.max, 1);
+    }
+
+    #[tokio::test]
+    async fn fetch_watch_history_with_unauthorized_and_first_page_query() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/history/cursor"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": -101, "message": "not logged in",
+                    "data": {"list": [], "cursor": {"view_at": 0, "max": 0}}
+                })),
+            )
+            .mount(&server)
+            .await;
+
+        let err = fetch_watch_history_with(&bili_api_mock(&server.uri(), "SESSDATA=stale"), 0, 0)
+            .await
+            .unwrap_err();
+        assert_eq!(err, "ERR::UNAUTHORIZED");
+
+        // First page omits max/view_at; subsequent pages carry them
+        let requests = server.received_requests().await.unwrap();
+        let query = requests[0].url.query().unwrap_or("");
+        assert!(!query.contains("max="), "first page query was: {query}");
+
+        let server2 = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/history/cursor"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": {"list": [], "cursor": {"view_at": 1, "max": 2}}
+                })),
+            )
+            .mount(&server2)
+            .await;
+        fetch_watch_history_with(&bili_api_mock(&server2.uri(), "SESSDATA=x"), 5, 99)
+            .await
+            .unwrap();
+        let reqs2 = server2.received_requests().await.unwrap();
+        let q = reqs2[0].url.query().unwrap_or("");
+        assert!(
+            q.contains("max=5") && q.contains("view_at=99"),
+            "query was: {q}"
+        );
+    }
+
+    #[tokio::test]
+    async fn fetch_subtitles_via_api_returns_dto_list() {
+        let server = wiremock::MockServer::start().await;
+        // nav (mixin key) + player v2
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/nav"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(nav_wbi_mock_body()))
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/player/wbi/v2"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": {"subtitle": {"subtitles": [
+                        {"lan": "zh-CN", "lan_doc": "中文",
+                         "subtitle_url": "//cdn/ai_subtitle/zh.json", "ai_type": 1},
+                        {"lan": "en", "lan_doc": "English", "subtitle_url": "https://cdn/en.json"}
+                    ]}}
+                })),
+            )
+            .mount(&server)
+            .await;
+
+        let subs = fetch_subtitles(&bili_api_mock(&server.uri(), "SESSDATA=x"), "BV1s", 1).await;
+        assert_eq!(subs.len(), 2);
+        assert_eq!(subs[0].lan, "zh-CN");
+        assert!(subs[0].is_ai, "ai_type marks AI subtitles");
+        assert!(!subs[1].is_ai);
+        // DTO keeps the protocol-relative form; normalization to https is
+        // deferred to download_subtitle
+        assert!(subs[0].subtitle_url.starts_with("//"));
+    }
+
+    #[tokio::test]
+    async fn fetch_subtitles_without_cookie_is_empty() {
+        let subs = fetch_subtitles(&bili_api_mock("http://127.0.0.1:1", ""), "BV1s", 1).await;
+        assert!(subs.is_empty(), "no cookie -> no HTTP, empty list");
+    }
+
+    #[tokio::test]
+    async fn fetch_part_qualities_with_dash_lists_both() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/nav"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(nav_wbi_mock_body()))
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/player/wbi/playurl"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": {"quality": 80, "dash": {
+                        "video": [
+                            {"id": 80, "codecid": 7, "bandwidth": 1, "width": 1920, "height": 1080,
+                             "baseUrl": "http://127.0.0.1:1/v.m4s"},
+                            {"id": 64, "codecid": 7, "bandwidth": 1, "width": 1280, "height": 720,
+                             "baseUrl": "http://127.0.0.1:1/v64.m4s"}
+                        ],
+                        "audio": [
+                            {"id": 30280, "codecid": 0, "bandwidth": 1, "width": 0, "height": 0,
+                             "baseUrl": "http://127.0.0.1:1/a.m4s"}
+                        ]
+                    }}
+                })),
+            )
+            .mount(&server)
+            .await;
+
+        let (video, audio) =
+            fetch_part_qualities_with(&bili_api_mock(&server.uri(), "SESSDATA=x"), "BV1q", 1)
+                .await
+                .unwrap();
+        assert_eq!(video.len(), 2);
+        assert_eq!(audio.len(), 1);
+        assert!(video[0].id >= video[1].id, "qualities sorted desc");
+    }
+
+    #[tokio::test]
+    async fn fetch_bangumi_part_qualities_with_dash_and_preview() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/pgc/player/web/playurl"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "result": {
+                        "is_preview": 1,
+                        "dash": {
+                            "video": [{"id": 80, "codecid": 7, "bandwidth": 1,
+                                        "width": 1920, "height": 1080,
+                                        "baseUrl": "http://127.0.0.1:1/v.m4s"}],
+                            "audio": [{"id": 30216, "codecid": 0, "bandwidth": 1,
+                                        "width": 0, "height": 0,
+                                        "baseUrl": "http://127.0.0.1:1/a.m4s"}]
+                        }
+                    }
+                })),
+            )
+            .mount(&server)
+            .await;
+
+        let (video, audio, is_preview) =
+            fetch_bangumi_part_qualities_with(&bili_api_mock(&server.uri(), ""), 999, 1)
+                .await
+                .unwrap();
+        assert_eq!(video.len(), 1);
+        assert_eq!(audio.len(), 1);
+        assert_eq!(is_preview, Some(true), "is_preview=1 maps to Some(true)");
+    }
+
+    #[tokio::test]
+    async fn download_subtitle_writes_srt_from_bcc() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "body": [
+                        {"from": 0.0, "to": 2.5, "content": "hello"},
+                        {"from": 3.0, "to": 4.0, "content": "world"}
+                    ]
+                })),
+            )
+            .mount(&server)
+            .await;
+
+        let dir = tempfile::tempdir().unwrap();
+        let out = dir.path().join("zh.srt");
+        download_subtitle(&Client::new(), &server.uri(), &out, None)
+            .await
+            .unwrap();
+
+        let srt = std::fs::read_to_string(&out).unwrap();
+        assert!(
+            srt.contains("1\n00:00:00,000 --> 00:00:02,500\nhello"),
+            "got:\n{srt}"
+        );
+        assert!(srt.contains("2\n00:00:03,000 --> 00:00:04,000\nworld"));
+    }
+
+    #[tokio::test]
+    async fn download_subtitle_max_duration_skips_long_entries() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "body": [
+                        {"from": 60.0, "to": 90.0, "content": "too long"},
+                        {"from": 0.0, "to": 4.0, "content": "fits"}
+                    ]
+                })),
+            )
+            .mount(&server)
+            .await;
+
+        let dir = tempfile::tempdir().unwrap();
+        let out = dir.path().join("zh.srt");
+        // Cap semantics (utils/subtitle.rs): cues STARTING after max are
+        // dropped; cues starting before max but ending after it are clamped.
+        download_subtitle(&Client::new(), &server.uri(), &out, Some(50.0))
+            .await
+            .unwrap();
+
+        let srt = std::fs::read_to_string(&out).unwrap();
+        assert!(
+            !srt.contains("too long"),
+            "cue starting at 60s > 50s cap is dropped; got:\n{srt}"
+        );
+        assert!(srt.contains("fits"), "cue within cap survives");
+    }
+
     // ---- PR③: pure seams ----
 
     #[test]
@@ -3172,6 +3472,11 @@ pub async fn fetch_user_info(app: &AppHandle) -> Result<User, String> {
     }
 
     let api = BiliApi::from_cookie_header(cookie_header)?;
+    fetch_user_info_with(&api).await
+}
+
+/// Transport-injectable core of [`fetch_user_info`] (test seam).
+async fn fetch_user_info_with(api: &BiliApi) -> Result<User, String> {
     let body = api
         .get("/x/web-interface/nav")
         .await?
@@ -4350,9 +4655,17 @@ pub async fn fetch_watch_history(
 
     let cookie_header = build_cookie_header(&cookies);
 
-    // 2. API call
-    // Omit parameters on first request; use max/view_at for subsequent pages
     let api = BiliApi::from_cookie_header(cookie_header)?;
+    fetch_watch_history_with(&api, max, view_at).await
+}
+
+/// Transport-injectable core of [`fetch_watch_history`] (test seam).
+async fn fetch_watch_history_with(
+    api: &BiliApi,
+    max: i64,
+    view_at: i64,
+) -> Result<WatchHistoryResponse, String> {
+    // Omit parameters on first request; use max/view_at for subsequent pages
     let path = if max == 0 && view_at == 0 {
         "/x/web-interface/history/cursor?business=archive".to_string()
     } else {
@@ -4462,20 +4775,14 @@ pub async fn fetch_watch_history(
 ///   in one request.
 /// - Requires login (SESSDATA cookie) to retrieve subtitle data
 /// - Determines if subtitle is AI-generated via the URL path containing `/ai_subtitle/`
-pub async fn fetch_subtitles(
-    client: &Client,
-    cookies: &[CookieEntry],
-    bvid: &str,
-    cid: i64,
-) -> Vec<SubtitleDto> {
+pub(crate) async fn fetch_subtitles(api: &BiliApi, bvid: &str, cid: i64) -> Vec<SubtitleDto> {
     log::info!(
         "[BE] fetch_subtitles: starting for bvid={}, cid={}",
         bvid,
         cid
     );
 
-    let cookie_header = build_cookie_header(cookies);
-    if cookie_header.is_empty() {
+    if api.cookie_header.is_empty() {
         log::warn!(
             "[BE] fetch_subtitles: no cookies available, \
              subtitles require login"
@@ -4483,12 +4790,15 @@ pub async fn fetch_subtitles(
         return Vec::new();
     }
 
+    let client = &api.http;
+    let cookie_header = api.cookie_header.clone();
+
     // WBI-signed access. The unsigned `/x/player/v2` endpoint is
     // unreliable: Bilibili's CDN returns stale cached responses that
     // contain only a partial AI subtitle set. The signed `/wbi/v2`
     // endpoint returns the full set in a single request.
     let mixin_key =
-        match crate::utils::wbi::fetch_mixin_key(client, API_BASE, Some(&cookie_header)).await {
+        match crate::utils::wbi::fetch_mixin_key(client, &api.base, Some(&cookie_header)).await {
             Ok(k) => k,
             Err(e) => {
                 log::error!("[BE] fetch_subtitles: failed to fetch WBI mixin key: {}", e);
@@ -4514,10 +4824,7 @@ pub async fn fetch_subtitles(
     query.push(("w_rid", signature.w_rid));
 
     // Transport errors (send failure or non-2xx status) both soft-fail here.
-    let response = match BiliApi::new(Client::clone(client), API_BASE, cookie_header)
-        .get_q("/x/player/wbi/v2", &query)
-        .await
-    {
+    let response = match api.get_q("/x/player/wbi/v2", &query).await {
         Ok(resp) => resp,
         Err(e) => {
             log::error!("[BE] fetch_subtitles: request failed: {e}");
@@ -4601,8 +4908,8 @@ pub async fn fetch_subtitles_for_part(
         cid
     );
     let cookies = read_cookie(app)?.unwrap_or_default();
-    let client = build_client()?;
-    let subtitles = fetch_subtitles(&client, &cookies, bvid, cid).await;
+    let api = BiliApi::from_cookies(&cookies)?;
+    let subtitles = fetch_subtitles(&api, bvid, cid).await;
 
     log::info!(
         "[BE] fetch_subtitles_for_part: received {} subtitles",
@@ -4644,7 +4951,16 @@ pub async fn fetch_part_qualities(
     );
     let cookies = read_cookie(app)?.unwrap_or_default();
     let api = BiliApi::from_cookies(&cookies)?;
-    let details = fetch_video_details(&api, bvid, cid).await?;
+    fetch_part_qualities_with(&api, bvid, cid).await
+}
+
+/// Transport-injectable core of [`fetch_part_qualities`] (test seam).
+async fn fetch_part_qualities_with(
+    api: &BiliApi,
+    bvid: &str,
+    cid: i64,
+) -> Result<(Vec<Quality>, Vec<Quality>), String> {
+    let details = fetch_video_details(api, bvid, cid).await?;
     let data = details.data.ok_or("ERR::NO_STREAM")?;
 
     // DASH format: separate video and audio streams
@@ -4874,12 +5190,13 @@ async fn download_subtitle_with_retry(
 ///
 /// # Errors
 ///
-/// Returns an error if the HTTP client cannot be constructed.
+/// Client construction happens in `download_video_impl` before this is
+/// called, so no orphan "subtitle" emit is possible.
 #[allow(clippy::too_many_arguments)]
-async fn prepare_subtitle_mode(
-    app: &AppHandle,
+async fn prepare_subtitle_mode<R: tauri::Runtime>(
+    app: &AppHandle<R>,
+    api: &BiliApi,
     subtitle_opts: &Option<SubtitleOptions>,
-    cookies: &[CookieEntry],
     bvid: &str,
     cid: i64,
     download_id: &str,
@@ -4894,8 +5211,6 @@ async fn prepare_subtitle_mode(
         _ => return Ok((MergeMode::None, vec![], vec![])),
     };
 
-    let client = build_client()?;
-
     // Emit a "subtitle" progress stage so the frontend can surface that the
     // subtitle download is running. Without this, the UI stays frozen at
     // audio/video 100% for the whole fetch + retry loop and looks hung.
@@ -4903,8 +5218,9 @@ async fn prepare_subtitle_mode(
     // and fetched in parallel per language, so there is no meaningful
     // byte-level progress to stream — the frontend renders this as an
     // indeterminate "downloading..." state.
-    // Why after build_client: on client construction failure we return early
-    // without emitting, so no orphan "subtitle" entry is left in the
+    // Why this placement: the caller constructs the transport before
+    // spawning this step, so any construction failure returns before
+    // emitting and no orphan "subtitle" entry is left in the
     // frontend's progress slice bound to this download_id.
     let _ = app.emit(
         "progress",
@@ -4933,7 +5249,7 @@ async fn prepare_subtitle_mode(
             })
             .collect()
     } else {
-        let subs = fetch_subtitles(&client, cookies, bvid, cid).await;
+        let subs = fetch_subtitles(api, bvid, cid).await;
         log::info!(
             "[BE] prepare_subtitle_mode: fetched {} subtitles from API",
             subs.len()
@@ -4966,7 +5282,7 @@ async fn prepare_subtitle_mode(
                 MAX_OUTER_ATTEMPTS,
                 remaining_lans.len(),
             );
-            let fresh = fetch_subtitles(&client, cookies, bvid, cid).await;
+            let fresh = fetch_subtitles(api, bvid, cid).await;
             fresh
                 .into_iter()
                 .filter(|s| remaining_lans.contains(&s.lan))
@@ -4986,7 +5302,7 @@ async fn prepare_subtitle_mode(
             .into_iter()
             .map(|sub| {
                 let srt_path = lib_path.join(format!("temp_sub_{download_id}_{}.srt", sub.lan));
-                let client = client.clone();
+                let client = api.http.clone();
                 async move {
                     let result = download_subtitle_with_retry(
                         &client,
@@ -5515,7 +5831,16 @@ pub async fn fetch_bangumi_part_qualities(
     );
     let cookies = read_cookie(app)?.unwrap_or_default();
     let api = BiliApi::from_cookies(&cookies)?;
-    let result = fetch_bangumi_player_result(&api, ep_id, cid).await?;
+    fetch_bangumi_part_qualities_with(&api, ep_id, cid).await
+}
+
+/// Transport-injectable core of [`fetch_bangumi_part_qualities`] (test seam).
+async fn fetch_bangumi_part_qualities_with(
+    api: &BiliApi,
+    ep_id: i64,
+    cid: i64,
+) -> Result<(Vec<Quality>, Vec<Quality>, Option<bool>), String> {
+    let result = fetch_bangumi_player_result(api, ep_id, cid).await?;
 
     let is_preview = result.is_preview.map(|v| v == 1);
 
