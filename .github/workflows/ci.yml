@@ -372,10 +372,10 @@ jobs:
         # silently masking a threshold breach as a green, half-empty report
         # Why `report` (not a fresh run): reuses the profdata written by the
         # generate step above — tests run once per job
-        # Why 67: ratchet measured at 68.48% lines locally after the PR②
-        # QR-login e2e batch (issue #626); CI tracks local within ~0.3pt at
-        # this size, floor minus one per the vitest.config.ts convention;
-        # bump as coverage grows, never lower.
+        # Why 69: ratchet measured at 70.66% lines locally after the PR③
+        # download-pipeline batch (issue #626) — the 70% milestone; CI tracks
+        # local within ~0.3pt at this size, floor minus one per the
+        # vitest.config.ts convention; bump as coverage grows, never lower.
         # CAUTION: baseline must be measured on CI, not locally — macOS/nightly
         # measured 56.62% over 20174 lines while CI counts 12056 lines
         # (nightly rustc coverage mapping differs per platform)
@@ -389,7 +389,7 @@ jobs:
           rc=0
           cargo llvm-cov report --summary-only --show-missing-lines \
             --ignore-filename-regex 'src/(main|lib|menu)\.rs' \
-            --fail-under-lines 67 \
+            --fail-under-lines 69 \
             | tee -a "$GITHUB_STEP_SUMMARY" || rc=$?
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           exit $rc
