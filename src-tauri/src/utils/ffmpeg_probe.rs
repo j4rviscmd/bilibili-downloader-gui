@@ -148,6 +148,51 @@ fn parse_trailing_kbps(line: &str) -> Option<u32> {
     token.parse::<u32>().ok()
 }
 
+/// Fake "ffmpeg" executable for the tool-handler E2E tests (issue #646).
+///
+/// Behavior contract, mirroring the parts of real ffmpeg the handlers rely
+/// on (asserts target the output FILE, never stderr text — PR #619/#624
+/// flake lesson):
+/// - Probe invocations (`ffmpeg -i <file>`): print a `Duration:` line to
+///   stderr and exit 1, like real ffmpeg without an output target.
+/// - Encode invocations: write a sentinel to the LAST argument (the output
+///   path) and exit `exit_code`.
+/// - `fail_on_copy`: any invocation whose args contain `copy` exits 1,
+///   which drives concat's copy→re-encode fallback.
+#[cfg(all(test, unix))]
+pub(crate) fn write_fake_ffmpeg_executor(
+    dir: &std::path::Path,
+    exit_code: i32,
+    fail_on_copy: bool,
+) -> std::path::PathBuf {
+    let copy_guard = if fail_on_copy {
+        "case \" $* \" in *\" copy \"*) exit 1;; esac\n"
+    } else {
+        ""
+    };
+    // Note: `for last do :; done` (below) is the POSIX-sh way to grab the last
+    // positional arg — bash's `${@: -1}` is a "Bad substitution" under dash
+    // (/bin/sh on the ubuntu-latest CI job running `cargo test`,
+    // .github/workflows/ci.yml), so the portable loop keeps the fake
+    // executable interpreter-agnostic.
+    let script = format!(
+        "#!/bin/sh
+if [ \"$1\" = \"-i\" ]; then
+    echo \"  Duration: 00:01:00.00, start: 0.000000\" 1>&2
+    exit 1
+fi
+{copy_guard}for last do :; done
+echo fake-ffmpeg-output > \"$last\"
+exit {exit_code}
+"
+    );
+    let path = dir.join("fake-ffmpeg");
+    std::fs::write(&path, script).unwrap();
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    path
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

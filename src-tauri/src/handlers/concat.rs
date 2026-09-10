@@ -183,8 +183,8 @@ fn cleanup_list(path: &std::path::Path) {
 
 /// Runs ffmpeg with the given args, emitting progress events.
 /// Returns the full stderr output on success, or an error string on failure.
-async fn run_ffmpeg_with_progress(
-    app: &AppHandle,
+async fn run_ffmpeg_with_progress<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
     ffmpeg_path: &Path,
     args: &[String],
     total_duration_sec: Option<f64>,
@@ -305,16 +305,29 @@ pub async fn concat_videos(
     app: &AppHandle,
     options: &ConcatOptions,
 ) -> Result<ConcatResult, String> {
+    concat_videos_with_ffmpeg(&get_ffmpeg_path(app), app, options).await
+}
+
+/// Path-injected split of [`concat_videos`] (test seam, issue #646): runs
+/// the same probe→list→copy→fallback-reencode flow against an explicit
+/// ffmpeg binary so tests drive it with a fake script in a tempdir.
+// Why: generic over R, not the default-Wry `&AppHandle`, because the E2E tests
+// below pass `tauri::test::mock_app().handle()` (`AppHandle<MockRuntime>`,
+// tauri "test" feature in src-tauri/Cargo.toml), which only type-checks
+// against a generic Runtime param (issue #646).
+pub(crate) async fn concat_videos_with_ffmpeg<R: tauri::Runtime>(
+    ffmpeg_path: &Path,
+    app: &tauri::AppHandle<R>,
+    options: &ConcatOptions,
+) -> Result<ConcatResult, String> {
     let output_path = Path::new(&options.output_path);
 
     validate_inputs(&options.input_paths, output_path)?;
 
-    let ffmpeg_path = get_ffmpeg_path(app);
-
     // Probe total duration across all input files
     let mut total_duration: f64 = 0.0;
     for p in &options.input_paths {
-        if let Some(d) = probe_duration_sec(&ffmpeg_path, p).await {
+        if let Some(d) = probe_duration_sec(ffmpeg_path, p).await {
             total_duration += d;
         }
     }
@@ -328,7 +341,7 @@ pub async fn concat_videos(
     let copy_args = build_concat_copy_args(&list_str, &output_str);
     let copy_result = run_ffmpeg_with_progress(
         app,
-        &ffmpeg_path,
+        ffmpeg_path,
         &copy_args,
         total_duration,
         "ERR::CONCAT_FFMPEG_FAILED",
@@ -356,7 +369,7 @@ pub async fn concat_videos(
     let reencode_args = build_concat_reencode_args(&list_str, &output_str);
     let reencode_result = run_ffmpeg_with_progress(
         app,
-        &ffmpeg_path,
+        ffmpeg_path,
         &reencode_args,
         total_duration,
         "ERR::CONCAT_REENCODE_FAILED",
@@ -551,5 +564,96 @@ mod tests {
         std::fs::write(&other, b"x").unwrap();
         cleanup_list(&other);
         assert!(other_dir.exists(), "foreign parent kept");
+    }
+
+    // ---- PR⑧: executor E2E (issue #646) ----
+    //
+    // The fake ffmpeg writes a sentinel to the output path on success and
+    // `fail_on_copy` makes stream-copy invocations exit 1, driving the
+    // re-encode fallback. Assertions target the output file, never stderr
+    // (PR #619/#624 flake lesson).
+
+    #[cfg(unix)]
+    use crate::utils::ffmpeg_probe::write_fake_ffmpeg_executor;
+
+    fn concat_fixture(dir: &std::path::Path, count: usize) -> Vec<String> {
+        (0..count)
+            .map(|i| {
+                let p = dir.join(format!("in{i}.mp4"));
+                std::fs::write(&p, b"input").unwrap();
+                p.to_string_lossy().into_owned()
+            })
+            .collect()
+    }
+
+    fn concat_options(inputs: &[String], output: &str) -> ConcatOptions {
+        ConcatOptions {
+            input_paths: inputs.to_vec(),
+            output_path: output.to_string(),
+        }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn concat_videos_with_ffmpeg_copy_success_writes_output() {
+        let dir = tempfile::tempdir().unwrap();
+        let ffmpeg = write_fake_ffmpeg_executor(dir.path(), 0, false);
+        let inputs = concat_fixture(dir.path(), 2);
+        let output = dir.path().join("out.mp4");
+
+        let app = tauri::test::mock_app();
+        let result = concat_videos_with_ffmpeg(
+            &ffmpeg,
+            app.handle(),
+            &concat_options(&inputs, &output.to_string_lossy()),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result.output_path, output.to_string_lossy());
+        assert_eq!(std::fs::read(&output).unwrap(), b"fake-ffmpeg-output\n");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn concat_videos_with_ffmpeg_falls_back_to_reencode() {
+        // copy fails -> fallback event + re-encode attempt (which succeeds
+        // because its args carry -c:v, not " copy ").
+        let dir = tempfile::tempdir().unwrap();
+        let ffmpeg = write_fake_ffmpeg_executor(dir.path(), 0, true);
+        let inputs = concat_fixture(dir.path(), 2);
+        let output = dir.path().join("out.mp4");
+
+        let app = tauri::test::mock_app();
+        let result = concat_videos_with_ffmpeg(
+            &ffmpeg,
+            app.handle(),
+            &concat_options(&inputs, &output.to_string_lossy()),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result.output_path, output.to_string_lossy());
+        assert!(output.exists(), "re-encode wrote the output");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn concat_videos_with_ffmpeg_both_attempts_failing_errors() {
+        let dir = tempfile::tempdir().unwrap();
+        // copy fails (fail_on_copy) and re-encode fails (exit 1).
+        let ffmpeg = write_fake_ffmpeg_executor(dir.path(), 1, true);
+        let inputs = concat_fixture(dir.path(), 2);
+        let output = dir.path().join("out.mp4");
+
+        let app = tauri::test::mock_app();
+        let err = concat_videos_with_ffmpeg(
+            &ffmpeg,
+            app.handle(),
+            &concat_options(&inputs, &output.to_string_lossy()),
+        )
+        .await
+        .unwrap_err();
+        assert!(err.starts_with("ERR::CONCAT_REENCODE_FAILED"), "got: {err}");
     }
 }

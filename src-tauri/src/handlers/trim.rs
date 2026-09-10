@@ -236,6 +236,21 @@ fn compute_total_duration(start: Option<f64>, end: Option<f64>) -> Option<f64> {
 /// - `ERR::TRIM_NO_RANGE` (both start and end are `None`)
 /// - `ERR::TRIM_FFMPEG_FAILED`
 pub async fn trim_video(app: &AppHandle, options: &TrimOptions) -> Result<TrimResult, String> {
+    trim_video_with_ffmpeg(&get_ffmpeg_path(app), app, options).await
+}
+
+/// Path-injected split of [`trim_video`] (test seam, issue #646): runs the
+/// same validation→args→spawn→progress flow against an explicit ffmpeg
+/// binary so tests drive it with a fake script in a tempdir.
+// Why: generic over R, not the default-Wry `&AppHandle`, because the E2E tests
+// below pass `tauri::test::mock_app().handle()` (`AppHandle<MockRuntime>`,
+// tauri "test" feature in src-tauri/Cargo.toml), which only type-checks
+// against a generic Runtime param (issue #646).
+pub(crate) async fn trim_video_with_ffmpeg<R: tauri::Runtime>(
+    ffmpeg_path: &Path,
+    app: &tauri::AppHandle<R>,
+    options: &TrimOptions,
+) -> Result<TrimResult, String> {
     let input_path = Path::new(&options.input_path);
     let output_path = Path::new(&options.output_path);
 
@@ -263,7 +278,6 @@ pub async fn trim_video(app: &AppHandle, options: &TrimOptions) -> Result<TrimRe
         }
     }
 
-    let ffmpeg_path = get_ffmpeg_path(app);
     let input_str = options.input_path.clone();
     let output_str = options.output_path.clone();
     let args = build_ffmpeg_args(
@@ -280,7 +294,7 @@ pub async fn trim_video(app: &AppHandle, options: &TrimOptions) -> Result<TrimRe
             // start-only case: probe input duration, then subtract start
             // so the bar reflects the actual trim length.
             if let Some(start) = options.start_time {
-                probe_duration_sec(&ffmpeg_path, &input_str)
+                probe_duration_sec(ffmpeg_path, &input_str)
                     .await
                     .map(|d| (d - start).max(0.0))
             } else {
@@ -289,7 +303,7 @@ pub async fn trim_video(app: &AppHandle, options: &TrimOptions) -> Result<TrimRe
         }
     };
 
-    let mut cmd = AsyncCommand::new(&ffmpeg_path);
+    let mut cmd = AsyncCommand::new(ffmpeg_path);
     cmd.args(&args);
 
     #[cfg(target_os = "windows")]
@@ -510,5 +524,111 @@ mod tests {
     #[test]
     fn compute_total_duration_clamps_negative() {
         assert_eq!(compute_total_duration(Some(100.0), Some(50.0)), Some(0.0));
+    }
+
+    // ---- PR⑧: executor E2E (issue #646) ----
+    //
+    // The fake ffmpeg writes a sentinel to the output path on success, so
+    // assertions target the file, never stderr (PR #619/#624 flake lesson).
+
+    #[cfg(unix)]
+    use crate::utils::ffmpeg_probe::write_fake_ffmpeg_executor;
+
+    fn trim_fixture(dir: &std::path::Path, name: &str) -> String {
+        let input = dir.join(name);
+        std::fs::write(&input, b"input").unwrap();
+        input.to_string_lossy().into_owned()
+    }
+
+    fn trim_options(input: &str, output: &str) -> TrimOptions {
+        TrimOptions {
+            input_path: input.to_string(),
+            start_time: Some(1.0),
+            end_time: Some(10.0),
+            output_path: output.to_string(),
+            mode: TrimMode::Copy,
+        }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn trim_video_with_ffmpeg_writes_output_on_success() {
+        let dir = tempfile::tempdir().unwrap();
+        let ffmpeg = write_fake_ffmpeg_executor(dir.path(), 0, false);
+        let input = trim_fixture(dir.path(), "in.mp4");
+        let output = dir.path().join("out.mp4");
+
+        let app = tauri::test::mock_app();
+        let result = trim_video_with_ffmpeg(
+            &ffmpeg,
+            app.handle(),
+            &trim_options(&input, &output.to_string_lossy()),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result.output_path, output.to_string_lossy());
+        assert_eq!(
+            std::fs::read(&output).unwrap(),
+            b"fake-ffmpeg-output\n",
+            "fake wrote the sentinel"
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn trim_video_with_ffmpeg_start_only_probes_duration() {
+        // start-only range: the flow probes input duration for the progress
+        // bar before spawning the encode.
+        let dir = tempfile::tempdir().unwrap();
+        let ffmpeg = write_fake_ffmpeg_executor(dir.path(), 0, false);
+        let input = trim_fixture(dir.path(), "in.mp4");
+        let output = dir.path().join("out.mp4");
+        let mut options = trim_options(&input, &output.to_string_lossy());
+        options.end_time = None;
+
+        let app = tauri::test::mock_app();
+        trim_video_with_ffmpeg(&ffmpeg, app.handle(), &options)
+            .await
+            .unwrap();
+        assert!(output.exists(), "probe branch still encodes");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn trim_video_with_ffmpeg_maps_failure_to_err_code() {
+        let dir = tempfile::tempdir().unwrap();
+        let ffmpeg = write_fake_ffmpeg_executor(dir.path(), 1, false);
+        let input = trim_fixture(dir.path(), "in.mp4");
+        let output = dir.path().join("out.mp4");
+
+        let app = tauri::test::mock_app();
+        let err = trim_video_with_ffmpeg(
+            &ffmpeg,
+            app.handle(),
+            &trim_options(&input, &output.to_string_lossy()),
+        )
+        .await
+        .unwrap_err();
+        assert!(err.starts_with("ERR::TRIM_FFMPEG_FAILED"), "got: {err}");
+    }
+
+    #[tokio::test]
+    async fn trim_video_with_ffmpeg_spawn_failure_maps_to_err_code() {
+        let dir = tempfile::tempdir().unwrap();
+        let input = trim_fixture(dir.path(), "in.mp4");
+        let output = dir.path().join("out.mp4");
+        let app = tauri::test::mock_app();
+        let err = trim_video_with_ffmpeg(
+            &dir.path().join("nonexistent-ffmpeg"),
+            app.handle(),
+            &trim_options(&input, &output.to_string_lossy()),
+        )
+        .await
+        .unwrap_err();
+        assert!(
+            err.starts_with("ERR::TRIM_FFMPEG_FAILED: spawn"),
+            "got: {err}"
+        );
     }
 }
