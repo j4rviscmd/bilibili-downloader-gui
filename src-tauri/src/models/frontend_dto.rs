@@ -241,8 +241,10 @@ pub struct SubtitleDto {
 /// frontend. This avoids side effects where re-sending a full `Progress`
 /// payload would reset `filesize`/`downloaded` to `None`.
 ///
-/// CDN rotation inside `download_url` does NOT use this event; it sets
-/// `is_retrying` directly on the `Progress` payload via `Emits::set_retrying`.
+/// CDN rotation inside `download_url` does NOT use this event; the
+/// `is_retrying` field of the `Progress` payload stays `None` there (the
+/// `Emits::set_retrying` helper was removed along with the EMA speed
+/// smoothing in #491).
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DownloadRetrying {
