@@ -310,4 +310,78 @@ describe('HomeContent', () => {
       expect(screen.getByTestId('search-echo').textContent).toBe('?foo=1'),
     )
   })
+  // ---- F-series: pagination ellipsis, confirm dialog, stale page sync ----
+
+  it('collapses page numbers to ellipsis when there are more than 7 pages', async () => {
+    seedVideo(PARTS_PER_PAGE * 8 + 1) // 9 pages
+
+    const { user } = renderWithProviders(<HomeContent />, {
+      route: '/home',
+    })
+
+    const footer = screen.getByText('video.pagination_next').closest('ul')!
+    // Edge pages always visible; middle pages collapsed
+    expect(within(footer).getByText('1')).toBeTruthy()
+    expect(within(footer).getByText('2')).toBeTruthy()
+    expect(within(footer).getByText('9')).toBeTruthy()
+    expect(within(footer).queryByText('5')).toBeNull()
+    // Middle page collapsed behind an ellipsis marker (MoreHorizontal icon)
+    expect(within(footer).queryByText('3')).toBeNull()
+
+    // Next advances to page 2
+    await user.click(within(footer).getByText('video.pagination_next'))
+    expect(store.getState().input.homePage).toBe(2)
+  })
+
+  it('asks for confirmation before navigating away from a selection', async () => {
+    seedVideo(PARTS_PER_PAGE + 2) // 2 pages
+
+    const { user } = renderWithProviders(<HomeContent />, {
+      route: '/home',
+    })
+
+    // Select everything on page 1, then try to leave
+    await user.click(screen.getByText('video.select_all_page'))
+    const footer = screen.getByText('video.pagination_next').closest('ul')!
+    await user.click(within(footer).getByText('2'))
+
+    // Dialog appears; page has not changed yet
+    expect(screen.getByText('video.confirm_navigation_title')).toBeTruthy()
+    expect(store.getState().input.homePage).toBe(1)
+
+    // Confirm: selection cleared and navigation proceeds
+    await user.click(screen.getByText('video.confirm_navigation_ok'))
+    expect(store.getState().input.homePage).toBe(2)
+    expect(store.getState().input.partInputs.some((p) => p.selected)).toBe(
+      false,
+    )
+  })
+
+  it('cancelling the navigation dialog keeps the selection and page', async () => {
+    seedVideo(PARTS_PER_PAGE + 2)
+
+    const { user } = renderWithProviders(<HomeContent />, {
+      route: '/home',
+    })
+
+    await user.click(screen.getByText('video.select_all_page'))
+    const footer = screen.getByText('video.pagination_next').closest('ul')!
+    await user.click(within(footer).getByText('2'))
+
+    await user.click(screen.getByText('video.confirm_navigation_cancel'))
+
+    expect(store.getState().input.homePage).toBe(1)
+    // Page-1 parts keep their selection (page-2 parts were never selected)
+    expect(store.getState().input.partInputs.some((p) => p.selected)).toBe(true)
+  })
+
+  it('syncs a stale URL page param down to the last page when parts shrink', () => {
+    seedVideo(3) // single page
+
+    renderWithProviders(<HomeContent />, { route: '/home?page=9' })
+
+    // Effect clamps the out-of-range page to totalPages (1)
+    expect(store.getState().input.homePage).toBe(1)
+    expect(screen.getAllByTestId('video-part-card')).toHaveLength(3)
+  })
 })
