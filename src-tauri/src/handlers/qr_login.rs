@@ -37,10 +37,14 @@ use crate::models::qr_login::{
 use crate::utils::locked_json;
 use crate::utils::secure_storage::{EncryptedFileStorage, SecureStorage};
 
-/// Bilibili QR code generation API endpoint.
-const QR_GENERATE_URL: &str = "https://passport.bilibili.com/x/passport-login/web/qrcode/generate";
-/// Bilibili QR code login polling API endpoint.
-const QR_POLL_URL: &str = "https://passport.bilibili.com/x/passport-login/web/qrcode/poll";
+/// Host of the QR login endpoints (generate/poll). They are NOT served on
+/// api.bilibili.com (404 there) — see
+/// references/bilibili-API-collect/docs/login/login_action/QR.md.
+const PASSPORT_BASE: &str = "https://passport.bilibili.com";
+/// Bilibili QR code generation API path on [`PASSPORT_BASE`].
+const QR_GENERATE_PATH: &str = "/x/passport-login/web/qrcode/generate";
+/// Bilibili QR code login polling API path on [`PASSPORT_BASE`].
+const QR_POLL_PATH: &str = "/x/passport-login/web/qrcode/poll";
 /// Store file name for login method preference (non-sensitive data only).
 const STORE_FILE_NAME: &str = "login_state.json";
 /// Key used within the store file for login state persistence.
@@ -48,8 +52,8 @@ const LOGIN_STATE_KEY: &str = "loginState";
 
 /// Writes `state` to `app_data_dir/login_state.json` under the inter-process
 /// lock with an atomic rename (issue #560), preserving any other keys.
-fn write_login_state(
-    app: &AppHandle,
+fn write_login_state<R: tauri::Runtime>(
+    app: &impl Manager<R>,
     state: &crate::models::qr_login::LoginState,
 ) -> Result<(), String> {
     let path = app
@@ -136,7 +140,17 @@ pub(crate) fn build_cookie_header_from_session(session: &Session) -> String {
 pub(crate) async fn verify_session_with_header(
     cookie_header: &str,
 ) -> Result<crate::models::frontend_dto::User, String> {
-    use crate::handlers::bilibili::BiliApi;
+    let api = crate::handlers::bilibili::BiliApi::from_cookie_header("")?;
+    verify_session_with_header_in(&api, cookie_header).await
+}
+
+/// Transport-injectable variant of [`verify_session_with_header`] (test
+/// seam: wiremock tests pass a BiliApi whose base URL points at a local
+/// server; the header swap reuses the same client/origin).
+async fn verify_session_with_header_in(
+    api: &crate::handlers::bilibili::BiliApi,
+    cookie_header: &str,
+) -> Result<crate::models::frontend_dto::User, String> {
     use crate::models::bilibili_api::UserApiResponse;
     use crate::models::frontend_dto::{User, UserData};
 
@@ -153,8 +167,8 @@ pub(crate) async fn verify_session_with_header(
         });
     }
 
-    let api = BiliApi::from_cookie_header(cookie_header.to_string())?;
     let body = api
+        .with_cookie(cookie_header.to_string())
         .get("/x/web-interface/nav")
         .await?
         .json::<UserApiResponse>()
@@ -178,7 +192,10 @@ pub(crate) async fn verify_session_with_header(
 /// # Errors
 ///
 /// Returns an error if encryption or file write fails.
-fn save_session_to_store(app: &AppHandle, session: &Session) -> Result<(), String> {
+fn save_session_to_store<R: tauri::Runtime>(
+    app: &impl Manager<R>,
+    session: &Session,
+) -> Result<(), String> {
     if is_e2e_testing() {
         log::info!("[BE] save_session_to_store: skipped (E2E_TESTING)");
         return Ok(());
@@ -209,7 +226,9 @@ fn save_session_to_store(app: &AppHandle, session: &Session) -> Result<(), Strin
 /// # Errors
 ///
 /// Returns an error if file read or decryption fails.
-fn load_session_from_store(app: &AppHandle) -> Result<Option<Session>, String> {
+fn load_session_from_store<R: tauri::Runtime>(
+    app: &impl Manager<R>,
+) -> Result<Option<Session>, String> {
     if is_e2e_testing() {
         log::info!("[BE] load_session_from_store: skipped (E2E_TESTING)");
         return Ok(None);
@@ -251,7 +270,7 @@ fn load_session_from_store(app: &AppHandle) -> Result<Option<Session>, String> {
 /// # Errors
 ///
 /// Returns an error if file deletion fails.
-fn delete_session_from_store(app: &AppHandle) -> Result<(), String> {
+fn delete_session_from_store<R: tauri::Runtime>(app: &impl Manager<R>) -> Result<(), String> {
     if is_e2e_testing() {
         log::info!("[BE] delete_session_from_store: skipped (E2E_TESTING)");
         return Ok(());
@@ -291,7 +310,18 @@ fn delete_session_from_store(app: &AppHandle) -> Result<(), String> {
 /// - QR code generation fails
 pub async fn generate_qr_code(_app: &AppHandle) -> Result<QrCodeResult, String> {
     log::info!("[BE] generate_qr_code: generating QR code");
+    let api = crate::handlers::bilibili::BiliApi::from_cookie_header("")?;
+    let passport = api.with_base(PASSPORT_BASE);
+    generate_qr_code_with(&api, &passport).await
+}
 
+/// Transport-injectable core of [`generate_qr_code`]: `base` is the
+/// anonymous transport; the buvid pre-fetch and the generate request both
+/// ride it (the generate call swaps in the buvid Cookie via with_cookie).
+async fn generate_qr_code_with(
+    base: &crate::handlers::bilibili::BiliApi,
+    gen_api: &crate::handlers::bilibili::BiliApi,
+) -> Result<QrCodeResult, String> {
     // Pre-fetch buvid3/buvid4 to activate device fingerprint before QR
     // generation. Bilibili passport risk control may require a valid device
     // fingerprint. The returned buvid values are forwarded as `Cookie`
@@ -299,7 +329,7 @@ pub async fn generate_qr_code(_app: &AppHandle) -> Result<QrCodeResult, String> 
     // fingerprint (previous code fetched but discarded them, so the next
     // request used a fresh client without cookies).
     // Best-effort: failure is logged but does not block QR generation.
-    let buvid_cookie = match fetch_buvid().await {
+    let buvid_cookie = match fetch_buvid_via(base).await {
         Ok((b3, b4)) => {
             log::info!(
                 "[BE] generate_qr_code: pre-fetched buvid3 ({} bytes), buvid4 ({} bytes) to activate fingerprint",
@@ -318,17 +348,11 @@ pub async fn generate_qr_code(_app: &AppHandle) -> Result<QrCodeResult, String> 
         }
     };
 
-    let client = build_client()?;
-
-    // Call Bilibili QR generate API (with UA/Referer to match other Bilibili requests)
-    let mut request = client
-        .get(QR_GENERATE_URL)
-        .header(reqwest::header::REFERER, constants::REFERER);
-    if !buvid_cookie.is_empty() {
-        request = request.header(reqwest::header::COOKIE, buvid_cookie);
-    }
-    let response = request
-        .send()
+    // Call Bilibili QR generate API via the passport transport (Referer
+    // always, buvid Cookie only when the pre-fetch succeeded)
+    let response = gen_api
+        .with_cookie(&buvid_cookie)
+        .get(QR_GENERATE_PATH)
         .await
         .map_err(|e| format!("Failed to request QR code: {}", e))?;
 
@@ -390,20 +414,37 @@ pub async fn generate_qr_code(_app: &AppHandle) -> Result<QrCodeResult, String> 
 /// - API request fails
 /// - Response parsing fails
 pub async fn poll_qr_status(app: &AppHandle, qrcode_key: &str) -> Result<QrPollResult, String> {
+    let api = crate::handlers::bilibili::BiliApi::from_cookie_header("")?;
+    let passport = api.with_base(PASSPORT_BASE);
+    poll_qr_status_with(app, &api, &passport, qrcode_key).await
+}
+
+/// Transport-injectable core of [`poll_qr_status`] (test seam: wiremock
+/// tests pass a BiliApi whose base URL points at a local server; the poll,
+/// buvid and nav endpoints all resolve against it by path).
+async fn poll_qr_status_with<R: tauri::Runtime>(
+    app: &impl Manager<R>,
+    api: &crate::handlers::bilibili::BiliApi,
+    poll_api: &crate::handlers::bilibili::BiliApi,
+    qrcode_key: &str,
+) -> Result<QrPollResult, String> {
     log::debug!(
         "[BE] poll_qr_status: polling with qrcode_key={}",
         qrcode_key
     );
-    let client = build_client()?;
 
-    // Call Bilibili QR poll API (with UA/Referer to match other Bilibili requests).
+    // Call Bilibili QR poll API via the passport transport.
     // `source=main-fe-header` matches the web header login widget; without it
-    // some responses omit Set-Cookie headers.
-    let response = client
-        .get(QR_POLL_URL)
-        .header(reqwest::header::REFERER, constants::REFERER)
-        .query(&[("qrcode_key", qrcode_key), ("source", "main-fe-header")])
-        .send()
+    // some responses omit Set-Cookie headers. get_q percent-encodes the
+    // query (the transport's documented invariant for user-visible values).
+    let response = poll_api
+        .get_q(
+            QR_POLL_PATH,
+            &[
+                ("qrcode_key", qrcode_key.to_string()),
+                ("source", "main-fe-header".to_string()),
+            ],
+        )
         .await
         .map_err(|e| format!("Failed to poll QR status: {}", e))?;
 
@@ -461,7 +502,7 @@ pub async fn poll_qr_status(app: &AppHandle, qrcode_key: &str) -> Result<QrPollR
         );
 
         // Fetch buvid3/buvid4 for WBI authentication
-        match fetch_buvid().await {
+        match fetch_buvid_via(api).await {
             Ok((buvid3, buvid4)) => {
                 session.buvid3 = buvid3;
                 session.buvid4 = buvid4;
@@ -479,7 +520,7 @@ pub async fn poll_qr_status(app: &AppHandle, qrcode_key: &str) -> Result<QrPollR
         // the new cookies to the global cache and persistent storage (review
         // P2).
         let temp_cookie_header = build_cookie_header_from_session(&session);
-        match verify_session_with_header(&temp_cookie_header).await {
+        match verify_session_with_header_in(api, &temp_cookie_header).await {
             Ok(user) => {
                 log::info!(
                     "[BE] poll_qr_status: verification is_login={}, has_cookie={}, uname={:?}, sessdata_len={}, bili_jct_len={}",
@@ -548,13 +589,18 @@ pub async fn poll_qr_status(app: &AppHandle, qrcode_key: &str) -> Result<QrPollR
 ///
 /// Returns an error if the API request fails or returns invalid data.
 pub(crate) async fn fetch_buvid() -> Result<(String, String), String> {
-    log::info!("[BE] fetch_buvid: fetching buvid3/buvid4 from API");
-    let client = build_client()?;
+    let api = crate::handlers::bilibili::BiliApi::from_cookie_header("")?;
+    fetch_buvid_via(&api).await
+}
 
-    let response = client
-        .get("https://api.bilibili.com/x/frontend/finger/spi")
-        .header(reqwest::header::REFERER, constants::REFERER)
-        .send()
+/// Transport-injectable variant of [`fetch_buvid`] (test seam).
+pub(crate) async fn fetch_buvid_via(
+    api: &crate::handlers::bilibili::BiliApi,
+) -> Result<(String, String), String> {
+    log::info!("[BE] fetch_buvid: fetching buvid3/buvid4 from API");
+
+    let response = api
+        .get("/x/frontend/finger/spi")
         .await
         .map_err(|e| format!("Failed to fetch buvid: {}", e))?;
 
@@ -674,11 +720,18 @@ fn extract_session_from_url(
 /// while only the login method preference is stored in the regular store.
 /// `method` records which flow produced the session (QR code scan or manual
 /// paste) so startup restore picks the right branch.
-async fn save_session(
-    app: &AppHandle,
+async fn save_session<R: tauri::Runtime>(
+    app: &impl Manager<R>,
     session: &Session,
     method: LoginMethod,
 ) -> Result<(), String> {
+    // E2E mode: skip BOTH the encrypted store and the login_state.json
+    // write — mock_app's app_data_dir resolves to the real home directory,
+    // so an ungated write litters the machine running the tests.
+    if is_e2e_testing() {
+        log::info!("[BE] save_session: skipped (E2E_TESTING)");
+        return Ok(());
+    }
     // Save session to encrypted file storage
     save_session_to_store(app, session)?;
 
@@ -873,7 +926,9 @@ pub async fn get_login_method(app: &AppHandle) -> Result<LoginMethod, String> {
 /// Gets the current login state from store (method only, no session).
 ///
 /// Session data is loaded from encrypted file separately.
-async fn get_login_state_from_store(app: &AppHandle) -> Result<LoginState, String> {
+async fn get_login_state_from_store<R: tauri::Runtime>(
+    app: &impl Manager<R>,
+) -> Result<LoginState, String> {
     let path = app
         .path()
         .app_data_dir()
@@ -1384,6 +1439,379 @@ fn build_cookie_header(cookies: &std::collections::HashMap<String, String>) -> S
 
 #[cfg(test)]
 mod tests {
+    // ---- PR② e2e: QR login flow via injected transport ----
+
+    use crate::handlers::bilibili::BiliApi;
+
+    /// Sets E2E_TESTING once for this process so the encrypted-session store
+    /// becomes a no-op for tests that drive the full poll success path
+    /// (save_session would otherwise write to the real app-data path).
+    /// Only qr_login's store helpers consult this flag; other modules'
+    /// tests are unaffected. edition 2021 -> set_var is a safe fn.
+    fn enable_e2e_store_stub() {
+        use std::sync::Once;
+        static ONCE: Once = Once::new();
+        ONCE.call_once(|| std::env::set_var("E2E_TESTING", "true"));
+    }
+
+    fn wiremock_api(server: &wiremock::MockServer) -> BiliApi {
+        BiliApi::new(reqwest::Client::new(), server.uri(), "")
+    }
+
+    async fn mount_json(
+        server: &wiremock::MockServer,
+        path: &str,
+        status: u16,
+        body: serde_json::Value,
+    ) {
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path(path))
+            .respond_with(wiremock::ResponseTemplate::new(status).set_body_json(body))
+            .mount(server)
+            .await;
+    }
+
+    #[tokio::test]
+    async fn fetch_buvid_via_parses_values() {
+        let server = wiremock::MockServer::start().await;
+        mount_json(
+            &server,
+            "/x/frontend/finger/spi",
+            200,
+            serde_json::json!({"code": 0, "message": "0", "data": {"b_3": "b3-value", "b_4": "b4-value"}}),
+        )
+        .await;
+
+        assert_eq!(
+            fetch_buvid_via(&wiremock_api(&server)).await.unwrap(),
+            ("b3-value".to_string(), "b4-value".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn fetch_buvid_via_maps_api_error_and_missing_data() {
+        let server = wiremock::MockServer::start().await;
+        mount_json(
+            &server,
+            "/x/frontend/finger/spi",
+            200,
+            serde_json::json!({"code": -400, "message": "bad request"}),
+        )
+        .await;
+        let err = fetch_buvid_via(&wiremock_api(&server)).await.unwrap_err();
+        assert!(err.contains("Buvid API error"), "got: {err}");
+
+        let server2 = wiremock::MockServer::start().await;
+        mount_json(
+            &server2,
+            "/x/frontend/finger/spi",
+            200,
+            serde_json::json!({"code": 0, "message": "0"}),
+        )
+        .await;
+        let err = fetch_buvid_via(&wiremock_api(&server2)).await.unwrap_err();
+        assert!(err.contains("No data"), "got: {err}");
+    }
+
+    #[tokio::test]
+    async fn generate_qr_code_with_produces_png_data_url() {
+        let server = wiremock::MockServer::start().await;
+        // buvid pre-fetch + generate on the same origin
+        mount_json(
+            &server,
+            "/x/frontend/finger/spi",
+            200,
+            serde_json::json!({"code": 0, "message": "0", "data": {"b_3": "b3", "b_4": "b4"}}),
+        )
+        .await;
+        mount_json(
+            &server,
+            "/x/passport-login/web/qrcode/generate",
+            200,
+            serde_json::json!({"code": 0, "message": "0", "data": {
+                "url": "https://passport.bilibili.com/h5-lg/passportLogin/qr/login?navhidden=1&qrcode_key=key-123",
+                "qrcode_key": "key-123",
+            }}),
+        )
+        .await;
+
+        let result = generate_qr_code_with(&wiremock_api(&server), &wiremock_api(&server))
+            .await
+            .unwrap();
+        assert!(result.qr_code_image.starts_with("data:image/png;base64,"));
+        assert_eq!(result.qrcode_key, "key-123");
+
+        // The generate request must carry the pre-fetched buvid cookie
+        let requests = server.received_requests().await.unwrap();
+        let generate_req = requests
+            .iter()
+            .find(|r| r.url.path().contains("qrcode/generate"))
+            .expect("generate request seen");
+        let cookie = generate_req
+            .headers
+            .get("cookie")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+        assert!(cookie.contains("buvid3=b3"), "cookie was: {cookie:?}");
+    }
+
+    #[tokio::test]
+    async fn generate_qr_code_survives_buvid_prefetch_failure() {
+        let server = wiremock::MockServer::start().await;
+        // spi returns non-2xx -> BiliApi status check fails -> buvid skipped
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/frontend/finger/spi"))
+            .respond_with(wiremock::ResponseTemplate::new(500))
+            .mount(&server)
+            .await;
+        mount_json(
+            &server,
+            "/x/passport-login/web/qrcode/generate",
+            200,
+            serde_json::json!({"code": 0, "message": "0", "data": {
+                "url": "https://passport.bilibili.com/x?key-456",
+                "qrcode_key": "key-456",
+            }}),
+        )
+        .await;
+
+        // Best-effort contract: QR generation proceeds without the fingerprint
+        let result = generate_qr_code_with(&wiremock_api(&server), &wiremock_api(&server))
+            .await
+            .unwrap();
+        assert_eq!(result.qrcode_key, "key-456");
+
+        // ...and the generate request went out WITHOUT a cookie
+        let requests = server.received_requests().await.unwrap();
+        let generate_req = requests
+            .iter()
+            .find(|r| r.url.path().contains("qrcode/generate"))
+            .unwrap();
+        assert!(generate_req.headers.get("cookie").is_none());
+    }
+
+    #[tokio::test]
+    async fn generate_qr_code_maps_api_error_code() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/frontend/finger/spi"))
+            .respond_with(wiremock::ResponseTemplate::new(500))
+            .mount(&server)
+            .await;
+        mount_json(
+            &server,
+            "/x/passport-login/web/qrcode/generate",
+            200,
+            serde_json::json!({"code": 860003, "message": "no qr"}),
+        )
+        .await;
+
+        let err = generate_qr_code_with(&wiremock_api(&server), &wiremock_api(&server))
+            .await
+            .unwrap_err();
+        assert!(err.contains("QR generate API error"), "got: {err}");
+    }
+
+    /// Mounts the poll endpoint returning the given status_code and data.url.
+    async fn mount_poll(server: &wiremock::MockServer, status_code: i32, data_url: &str) {
+        mount_json(
+            server,
+            "/x/passport-login/web/qrcode/poll",
+            200,
+            serde_json::json!({"code": 0, "message": "0", "data": {
+                "url": data_url,
+                "refresh_token": "rt-1",
+                "timestamp": 1_700_000_000i64,
+                "code": status_code,
+                "message": "",
+            }}),
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn poll_reports_waiting_and_expired_statuses() {
+        let app = tauri::test::mock_app();
+
+        let waiting = wiremock::MockServer::start().await;
+        mount_poll(&waiting, 86101, "").await;
+        let result = poll_qr_status_with(
+            app.handle(),
+            &wiremock_api(&waiting),
+            &wiremock_api(&waiting),
+            "k",
+        )
+        .await
+        .unwrap();
+        assert!(matches!(
+            result.status,
+            crate::models::qr_login::QrCodeStatus::WaitingForScan
+        ));
+
+        let expired = wiremock::MockServer::start().await;
+        mount_poll(&expired, 86038, "").await;
+        let result = poll_qr_status_with(
+            app.handle(),
+            &wiremock_api(&expired),
+            &wiremock_api(&expired),
+            "k",
+        )
+        .await
+        .unwrap();
+        assert!(matches!(
+            result.status,
+            crate::models::qr_login::QrCodeStatus::Expired
+        ));
+    }
+
+    #[tokio::test]
+    async fn poll_success_commits_cookies_to_cache() {
+        enable_e2e_store_stub();
+        use crate::models::cookie::CookieCache;
+        use tauri::Manager;
+
+        let app = tauri::test::mock_app();
+        app.manage(CookieCache::default());
+
+        let server = wiremock::MockServer::start().await;
+        mount_poll(
+            &server,
+            0,
+            "https://passport.bilibili.com/crossDomain?SESSDATA=s%2Cd&bili_jct=jct&DedeUserID=42&DedeUserID__ckMd5=md5",
+        )
+        .await;
+        mount_json(
+            &server,
+            "/x/frontend/finger/spi",
+            200,
+            serde_json::json!({"code": 0, "message": "0", "data": {"b_3": "b3", "b_4": "b4"}}),
+        )
+        .await;
+        mount_json(
+            &server,
+            "/x/web-interface/nav",
+            200,
+            serde_json::json!({"code": 0, "message": "0", "ttl": 1, "data": {
+                "mid": 42, "uname": "tester", "isLogin": true, "wbi_img": {"img_url": "", "sub_url": ""},
+            }}),
+        )
+        .await;
+
+        let result = poll_qr_status_with(
+            app.handle(),
+            &wiremock_api(&server),
+            &wiremock_api(&server),
+            "k",
+        )
+        .await
+        .unwrap();
+        assert!(matches!(
+            result.status,
+            crate::models::qr_login::QrCodeStatus::Success
+        ));
+
+        let cache = app.state::<CookieCache>();
+        let guard = cache.cookies.lock().unwrap();
+        assert!(guard
+            .iter()
+            .any(|c| c.name == "SESSDATA" && c.value == "s,d"));
+        assert!(guard.iter().any(|c| c.name == "buvid3" && c.value == "b3"));
+    }
+
+    #[tokio::test]
+    async fn poll_rejected_session_reports_cookie_rejected() {
+        enable_e2e_store_stub();
+
+        let app = tauri::test::mock_app();
+        let server = wiremock::MockServer::start().await;
+        mount_poll(
+            &server,
+            0,
+            "https://passport.bilibili.com/crossDomain?SESSDATA=dead&bili_jct=jct",
+        )
+        .await;
+        mount_json(
+            &server,
+            "/x/frontend/finger/spi",
+            200,
+            serde_json::json!({"code": 0, "message": "0", "data": {"b_3": "b3", "b_4": "b4"}}),
+        )
+        .await;
+        mount_json(
+            &server,
+            "/x/web-interface/nav",
+            200,
+            serde_json::json!({"code": -101, "message": "not logged in", "ttl": 1, "data": {
+                "mid": 0, "uname": "", "isLogin": false, "wbi_img": {"img_url": "", "sub_url": ""},
+            }}),
+        )
+        .await;
+
+        let result = poll_qr_status_with(
+            app.handle(),
+            &wiremock_api(&server),
+            &wiremock_api(&server),
+            "k",
+        )
+        .await
+        .unwrap();
+        assert!(matches!(
+            result.status,
+            crate::models::qr_login::QrCodeStatus::Error
+        ));
+        assert_eq!(result.message, "ERR::QR_COOKIE_REJECTED");
+    }
+
+    #[tokio::test]
+    async fn poll_api_error_is_returned_as_err() {
+        let app = tauri::test::mock_app();
+        let server = wiremock::MockServer::start().await;
+        mount_json(
+            &server,
+            "/x/passport-login/web/qrcode/poll",
+            200,
+            serde_json::json!({"code": 860003, "message": "key invalid"}),
+        )
+        .await;
+
+        let err = poll_qr_status_with(
+            app.handle(),
+            &wiremock_api(&server),
+            &wiremock_api(&server),
+            "k",
+        )
+        .await
+        .unwrap_err();
+        assert!(err.contains("Poll API error"), "got: {err}");
+    }
+
+    #[tokio::test]
+    async fn poll_success_without_credentials_reports_extract_error() {
+        let app = tauri::test::mock_app();
+        let server = wiremock::MockServer::start().await;
+        // Success status but the payload carries no SESSDATA anywhere
+        mount_poll(&server, 0, "https://passport.bilibili.com/crossDomain?x=1").await;
+
+        let result = poll_qr_status_with(
+            app.handle(),
+            &wiremock_api(&server),
+            &wiremock_api(&server),
+            "k",
+        )
+        .await
+        .unwrap();
+        assert!(matches!(
+            result.status,
+            crate::models::qr_login::QrCodeStatus::Error
+        ));
+        assert!(
+            result.message.contains("SESSDATA"),
+            "got: {status:?} {msg}",
+            status = result.status,
+            msg = result.message
+        );
+    }
+
     use super::*;
 
     #[test]

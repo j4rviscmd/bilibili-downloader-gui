@@ -246,6 +246,32 @@ impl BiliApi {
         Ok(Self::new(build_client()?, API_BASE, cookie_header))
     }
 
+    /// Same transport (client + origin) with a different Cookie header.
+    ///
+    /// Used by callers that hit several endpoints in one flow and need to
+    /// switch authentication per request (e.g. QR login verifies the fresh
+    /// session against nav while polling stays anonymous).
+    pub(crate) fn with_cookie(&self, cookie_header: impl Into<String>) -> Self {
+        Self {
+            http: self.http.clone(),
+            base: self.base.clone(),
+            cookie_header: cookie_header.into(),
+        }
+    }
+
+    /// Same client + cookie with a different API origin.
+    ///
+    /// QR login endpoints live on passport.bilibili.com while everything
+    /// else rides api.bilibili.com; callers share one HTTP client across
+    /// both (see handlers/qr_login.rs).
+    pub(crate) fn with_base(&self, base: impl Into<String>) -> Self {
+        Self {
+            http: self.http.clone(),
+            base: base.into(),
+            cookie_header: self.cookie_header.clone(),
+        }
+    }
+
     /// Production constructor from raw cookie entries.
     fn from_cookies(cookies: &[CookieEntry]) -> Result<Self, String> {
         Self::from_cookie_header(build_cookie_header(cookies))
