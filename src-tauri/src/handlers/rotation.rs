@@ -253,6 +253,21 @@ pub async fn rotate_video(
     app: &AppHandle,
     options: &RotationOptions,
 ) -> Result<RotationResult, String> {
+    rotate_video_with_ffmpeg(&get_ffmpeg_path(app), app, options).await
+}
+
+/// Path-injected split of [`rotate_video`] (test seam, issue #646): runs the
+/// same validation→args→spawn→progress flow against an explicit ffmpeg
+/// binary so tests drive it with a fake script in a tempdir.
+// Why: generic over R, not the default-Wry `&AppHandle`, because the E2E tests
+// below pass `tauri::test::mock_app().handle()` (`AppHandle<MockRuntime>`,
+// tauri "test" feature in src-tauri/Cargo.toml), which only type-checks
+// against a generic Runtime param (issue #646).
+pub(crate) async fn rotate_video_with_ffmpeg<R: tauri::Runtime>(
+    ffmpeg_path: &Path,
+    app: &tauri::AppHandle<R>,
+    options: &RotationOptions,
+) -> Result<RotationResult, String> {
     let input_path = Path::new(&options.input_path);
     let output_path = Path::new(&options.output_path);
 
@@ -270,7 +285,6 @@ pub async fn rotate_video(
     }
     let angle = resolve_angle(options.angle)?;
 
-    let ffmpeg_path = get_ffmpeg_path(app);
     let input_str = options.input_path.clone();
     let output_str = options.output_path.clone();
     let args = build_ffmpeg_args(&input_str, angle, &output_str, options.mode);
@@ -278,9 +292,9 @@ pub async fn rotate_video(
     // Probe input duration for progress tracking. In copy mode this is unused
     // (ffmpeg finishes near-instantly), but probing is cheap and keeps the
     // progress loop below uniform with the other tool handlers.
-    let total_duration_sec = probe_duration_sec(&ffmpeg_path, &input_str).await;
+    let total_duration_sec = probe_duration_sec(ffmpeg_path, &input_str).await;
 
-    let mut cmd = AsyncCommand::new(&ffmpeg_path);
+    let mut cmd = AsyncCommand::new(ffmpeg_path);
     cmd.args(&args);
 
     #[cfg(target_os = "windows")]
@@ -544,5 +558,84 @@ mod tests {
         assert!(args.contains(&"-stats_period".to_string()));
         assert!(args.contains(&"-progress".to_string()));
         assert!(args.contains(&"pipe:2".to_string()));
+    }
+
+    // ---- PR⑧: executor E2E (issue #646) ----
+    //
+    // The fake ffmpeg writes a sentinel to the output path on success, so
+    // assertions target the file, never stderr (PR #619/#624 flake lesson).
+
+    #[cfg(unix)]
+    use crate::utils::ffmpeg_probe::write_fake_ffmpeg_executor;
+
+    fn rotation_options(input: &str, output: &str) -> RotationOptions {
+        RotationOptions {
+            input_path: input.to_string(),
+            output_path: output.to_string(),
+            angle: 90,
+            mode: RotationMode::Copy,
+        }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn rotate_video_with_ffmpeg_writes_output_on_success() {
+        let dir = tempfile::tempdir().unwrap();
+        let ffmpeg = write_fake_ffmpeg_executor(dir.path(), 0, false);
+        let input = dir.path().join("in.mp4");
+        std::fs::write(&input, b"input").unwrap();
+        let output = dir.path().join("out.mp4");
+
+        let app = tauri::test::mock_app();
+        let result = rotate_video_with_ffmpeg(
+            &ffmpeg,
+            app.handle(),
+            &rotation_options(&input.to_string_lossy(), &output.to_string_lossy()),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result.output_path, output.to_string_lossy());
+        assert_eq!(std::fs::read(&output).unwrap(), b"fake-ffmpeg-output\n");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn rotate_video_with_ffmpeg_maps_failure_to_err_code() {
+        let dir = tempfile::tempdir().unwrap();
+        let ffmpeg = write_fake_ffmpeg_executor(dir.path(), 1, false);
+        let input = dir.path().join("in.mp4");
+        std::fs::write(&input, b"input").unwrap();
+        let output = dir.path().join("out.mp4");
+
+        let app = tauri::test::mock_app();
+        let err = rotate_video_with_ffmpeg(
+            &ffmpeg,
+            app.handle(),
+            &rotation_options(&input.to_string_lossy(), &output.to_string_lossy()),
+        )
+        .await
+        .unwrap_err();
+        assert!(err.starts_with("ERR::ROTATION_FFMPEG_FAILED"), "got: {err}");
+    }
+
+    #[tokio::test]
+    async fn rotate_video_with_ffmpeg_spawn_failure_maps_to_err_code() {
+        let dir = tempfile::tempdir().unwrap();
+        let input = dir.path().join("in.mp4");
+        std::fs::write(&input, b"input").unwrap();
+        let output = dir.path().join("out.mp4");
+        let app = tauri::test::mock_app();
+        let err = rotate_video_with_ffmpeg(
+            &dir.path().join("nonexistent-ffmpeg"),
+            app.handle(),
+            &rotation_options(&input.to_string_lossy(), &output.to_string_lossy()),
+        )
+        .await
+        .unwrap_err();
+        assert!(
+            err.starts_with("ERR::ROTATION_FFMPEG_FAILED: spawn"),
+            "got: {err}"
+        );
     }
 }

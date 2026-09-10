@@ -181,6 +181,21 @@ fn compute_progress(line: &str, total_duration_sec: f64) -> Option<AudioProgress
 /// - `ERR::AUDIO_INVALID_BITRATE`
 /// - `ERR::AUDIO_FFMPEG_FAILED`
 pub async fn extract_audio(app: &AppHandle, options: &AudioOptions) -> Result<AudioResult, String> {
+    extract_audio_with_ffmpeg(&get_ffmpeg_path(app), app, options).await
+}
+
+/// Path-injected split of [`extract_audio`] (test seam, issue #646): runs the
+/// same validation→args→spawn→progress flow against an explicit ffmpeg
+/// binary so tests drive it with a fake script in a tempdir.
+// Why: generic over R, not the default-Wry `&AppHandle`, because the E2E tests
+// below pass `tauri::test::mock_app().handle()` (`AppHandle<MockRuntime>`,
+// tauri "test" feature in src-tauri/Cargo.toml), which only type-checks
+// against a generic Runtime param (issue #646).
+pub(crate) async fn extract_audio_with_ffmpeg<R: tauri::Runtime>(
+    ffmpeg_path: &Path,
+    app: &tauri::AppHandle<R>,
+    options: &AudioOptions,
+) -> Result<AudioResult, String> {
     let input_path = Path::new(&options.input_path);
     let output_path = Path::new(&options.output_path);
 
@@ -193,12 +208,11 @@ pub async fn extract_audio(app: &AppHandle, options: &AudioOptions) -> Result<Au
     }
     validate_value(options)?;
 
-    let ffmpeg_path = get_ffmpeg_path(app);
     let args = build_ffmpeg_args(options);
 
-    let total_duration_sec = probe_duration_sec(&ffmpeg_path, &options.input_path).await;
+    let total_duration_sec = probe_duration_sec(ffmpeg_path, &options.input_path).await;
 
-    let mut cmd = AsyncCommand::new(&ffmpeg_path);
+    let mut cmd = AsyncCommand::new(ffmpeg_path);
     cmd.args(&args);
 
     #[cfg(target_os = "windows")]
@@ -398,5 +412,64 @@ mod tests {
             json,
             serde_json::json!({"progress": 10.0, "currentTimeSec": 6.0, "totalDurationSec": 60.0})
         );
+    }
+
+    // ---- PR⑧: executor E2E (issue #646) ----
+    //
+    // The fake ffmpeg writes a sentinel to the output path on success, so
+    // assertions target the file, never stderr (PR #619/#624 flake lesson).
+
+    #[cfg(unix)]
+    use crate::utils::ffmpeg_probe::write_fake_ffmpeg_executor;
+
+    fn audio_options(input: &str, output: &str) -> AudioOptions {
+        AudioOptions {
+            input_path: input.to_string(),
+            output_path: output.to_string(),
+            format: AudioFormat::Mp3,
+            bitrate_kbps: 192,
+        }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn extract_audio_with_ffmpeg_writes_output_on_success() {
+        let dir = tempfile::tempdir().unwrap();
+        let ffmpeg = write_fake_ffmpeg_executor(dir.path(), 0, false);
+        let input = dir.path().join("in.mp4");
+        std::fs::write(&input, b"input").unwrap();
+        let output = dir.path().join("out.mp3");
+
+        let app = tauri::test::mock_app();
+        let result = extract_audio_with_ffmpeg(
+            &ffmpeg,
+            app.handle(),
+            &audio_options(&input.to_string_lossy(), &output.to_string_lossy()),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result.output_path, output.to_string_lossy());
+        assert_eq!(std::fs::read(&output).unwrap(), b"fake-ffmpeg-output\n");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn extract_audio_with_ffmpeg_maps_failure_to_err_code() {
+        let dir = tempfile::tempdir().unwrap();
+        let ffmpeg = write_fake_ffmpeg_executor(dir.path(), 1, false);
+        let input = dir.path().join("in.mp4");
+        std::fs::write(&input, b"input").unwrap();
+        let output = dir.path().join("out.mp3");
+
+        let app = tauri::test::mock_app();
+        let err = extract_audio_with_ffmpeg(
+            &ffmpeg,
+            app.handle(),
+            &audio_options(&input.to_string_lossy(), &output.to_string_lossy()),
+        )
+        .await
+        .unwrap_err();
+        assert!(err.starts_with("ERR::AUDIO_FFMPEG_FAILED"), "got: {err}");
     }
 }
