@@ -2,10 +2,10 @@
 #
 # Dependabot-triggered pull_request workflows receive a read-only
 # GITHUB_TOKEN, so this workflow uses workflow_run (which runs on the
-# default branch with normal permissions) to enable GitHub auto-merge.
+# default branch with normal permissions) to merge directly.
 # The PR ruleset lists Dependabot (integration 29110) as a bypass actor,
-# so no review is required; GitHub merges once all required checks
-# (ci-status) pass.
+# so no review is required. The workflow only runs after CI concluded
+# successfully, so required checks have already passed at merge time.
 name: Dependabot auto-merge
 
 on:
@@ -28,19 +28,26 @@ jobs:
       github.event.workflow_run.actor.login == 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
-      - name: Enable auto-merge on the Dependabot PR
+      - name: Merge the Dependabot PR
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
+          # Why: match the PR by head SHA as well as branch name — GitHub's auto-merge
+          # (enabled via --auto by a non-exempt actor such as GITHUB_TOKEN) never fired
+          # in practice, so we merge directly here. The SHA check also guards against a
+          # stale workflow_run racing a Dependabot rebase/force-push.
+          # Note: gh's --jq does not support jq's --arg, so the SHA (a server-generated
+          # hex string from the workflow_run payload) is interpolated into the expression
+          PR_NUMBER=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$HEAD_BRANCH" --state open --json number,headRefOid --jq ".[0] | select(.headRefOid == \"${HEAD_SHA}\") | .number")
           # Note: an empty result is expected, not an error — workflow_run fires on every CI
           # completion, including re-runs and runs whose PR was already merged or closed
-          PR_NUMBER=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$HEAD_BRANCH" --state open --json number --jq '.[0].number // empty')
           if [ -z "$PR_NUMBER" ]; then
-            echo "No open PR for branch $HEAD_BRANCH; skipping"
+            echo "No open PR at $HEAD_SHA for branch $HEAD_BRANCH; skipping"
             exit 0
           fi
-          # Why: --auto requires an explicit merge strategy outside a merge queue (gh pr merge --help);
-          # --merge matches the repo's merge-commit history (main consists of "Merge pull request" commits)
-          gh pr merge --auto --merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY"
-          echo "Auto-merge enabled for PR #$PR_NUMBER"
+          # Why: --merge matches the repo's merge-commit history (main consists of
+          # "Merge pull request" commits); squash is not allowed here
+          gh pr merge --merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY"
+          echo "Merged PR #$PR_NUMBER"
