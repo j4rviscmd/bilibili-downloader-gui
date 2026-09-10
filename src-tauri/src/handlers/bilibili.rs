@@ -1283,6 +1283,43 @@ fn cleanup_subtitle_files(lib_path: &std::path::Path, download_id: &str) {
 
 #[cfg(test)]
 mod tests {
+
+    // ---- R7: output path naming helpers ----
+
+    #[test]
+    fn part_path_appends_part_suffix() {
+        assert_eq!(
+            part_path(Path::new("/dl/video.mp4")),
+            PathBuf::from("/dl/video.part.mp4")
+        );
+        // No extension: defaults to mp4
+        assert_eq!(
+            part_path(Path::new("/dl/video")),
+            PathBuf::from("/dl/video.part.mp4")
+        );
+    }
+
+    #[test]
+    fn lock_sidecar_path_appends_lock() {
+        assert_eq!(
+            lock_sidecar_path(Path::new("/dl/video.mp4")),
+            PathBuf::from("/dl/video.mp4.lock")
+        );
+        assert_eq!(
+            lock_sidecar_path(Path::new("/dl/temp_video_0.m4s")),
+            PathBuf::from("/dl/temp_video_0.m4s.lock")
+        );
+    }
+
+    #[test]
+    fn candidate_output_paths_start_with_desired_then_parenthesized() {
+        let candidates = candidate_output_paths(Path::new("/dl/v.mp4"));
+        assert_eq!(candidates[0], PathBuf::from("/dl/v.mp4"));
+        assert_eq!(candidates[1], PathBuf::from("/dl/v (1).mp4"));
+        assert_eq!(candidates[2], PathBuf::from("/dl/v (2).mp4"));
+        assert_eq!(candidates.len(), 10_001);
+    }
+
     use super::*;
 
     /// Tests the E2E fixture `Video` mapping used under E2E_TESTING.
@@ -1927,6 +1964,8 @@ mod tests {
         assert!(keep_other_id.exists(), "other download ids untouched");
         assert!(!drop_en.exists());
         assert!(!drop_ja.exists());
+        let subtitle_ass = dir.path().join("temp_sub_dl-1_zh.ass");
+        std::fs::write(&subtitle_ass, b"s").unwrap();
     }
 
     #[test]
