@@ -16,7 +16,7 @@ use aes_gcm::Nonce;
 use argon2::{Algorithm, Argon2, Params, Version};
 use std::fs;
 use std::path::{Path, PathBuf};
-use tauri::{AppHandle, Manager};
+use tauri::Manager;
 
 use crate::models::qr_login::Session;
 
@@ -27,10 +27,13 @@ const NONCE_SIZE: usize = 12;
 pub type Result<T> = std::result::Result<T, String>;
 
 /// Trait for secure session storage operations.
+// Why generic over R: production callers pass AppHandle (= AppHandle<Wry>)
+// while qr_login's e2e tests pass tauri::test::mock_app()'s handle through
+// the poll-success commit path (tauri "test" dev-dependency feature).
 pub trait SecureStorage: Send + Sync {
-    fn save(&self, app: &AppHandle, session: &Session) -> Result<()>;
-    fn load(&self, app: &AppHandle) -> Result<Option<Session>>;
-    fn delete(&self, app: &AppHandle) -> Result<()>;
+    fn save<R: tauri::Runtime>(&self, app: &impl Manager<R>, session: &Session) -> Result<()>;
+    fn load<R: tauri::Runtime>(&self, app: &impl Manager<R>) -> Result<Option<Session>>;
+    fn delete<R: tauri::Runtime>(&self, app: &impl Manager<R>) -> Result<()>;
 }
 
 /// AES-256-GCM encrypted file storage.
@@ -56,13 +59,13 @@ impl Default for EncryptedFileStorage {
 }
 
 impl SecureStorage for EncryptedFileStorage {
-    fn save(&self, app: &AppHandle, session: &Session) -> Result<()> {
+    fn save<R: tauri::Runtime>(&self, app: &impl Manager<R>, session: &Session) -> Result<()> {
         let path = session_file_path(app);
         let key = derive_key()?;
         save_at(&path, session, &key)
     }
 
-    fn load(&self, app: &AppHandle) -> Result<Option<Session>> {
+    fn load<R: tauri::Runtime>(&self, app: &impl Manager<R>) -> Result<Option<Session>> {
         let path = session_file_path(app);
         // Why: check existence BEFORE deriving the key — argon2id costs
         // ~64 MiB / hundreds of ms, and most launches (logged-out or fresh
@@ -75,7 +78,7 @@ impl SecureStorage for EncryptedFileStorage {
         load_at(&path, &key)
     }
 
-    fn delete(&self, app: &AppHandle) -> Result<()> {
+    fn delete<R: tauri::Runtime>(&self, app: &impl Manager<R>) -> Result<()> {
         let path = session_file_path(app);
         if path.exists() {
             fs::remove_file(&path).map_err(|e| format!("Failed to delete session file: {}", e))?;
@@ -207,7 +210,7 @@ fn derive_key_from(host: &str, user: &str) -> Result<[u8; 32]> {
 ///
 /// Falls back to the current directory if the app data directory is
 /// unavailable.
-fn session_file_path(app: &AppHandle) -> PathBuf {
+fn session_file_path<R: tauri::Runtime>(app: &impl Manager<R>) -> PathBuf {
     app.path()
         .app_data_dir()
         .unwrap_or_else(|_| PathBuf::from("."))
