@@ -2625,4 +2625,57 @@ mod tests {
         assert!(err.to_string().contains("ERR::CANCELLED"), "got: {err}");
         assert!(!path.exists());
     }
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn download_url_fallback_open_failure_stops_emitter() {
+        // Drives the error funnel's Err arm (open failure inside the async
+        // block): the emitter must be stopped and nothing written.
+        let app = tauri::test::mock_app();
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::header_exists("range"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .insert_header("Content-Type", "text/html")
+                    .set_body_string("x"),
+            )
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .insert_header("Content-Type", "application/octet-stream")
+                    .set_body_bytes(e2e_body()),
+            )
+            .mount(&server)
+            .await;
+
+        let dir = tempfile::tempdir().unwrap();
+        // Read-only parent: OpenOptions create fails with EACCES
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o555)).unwrap();
+        let path = dir.path().join("out.bin");
+
+        let result = download_url(
+            app.handle(),
+            server.uri(),
+            None,
+            path.clone(),
+            None,
+            false,
+            None,
+            None,
+            false,
+            1,
+            Arc::new(cdn_selector::HostHealth::new()),
+        )
+        .await;
+
+        std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o755)).unwrap();
+        let err = result.unwrap_err();
+        assert!(!path.exists());
+        // The error is the raw io error (EACCES), not a cancel — and the
+        // emitter's ticker was stopped by the funnel before returning.
+        assert!(!err.to_string().contains("CANCELLED"), "got: {err}");
+    }
 }
