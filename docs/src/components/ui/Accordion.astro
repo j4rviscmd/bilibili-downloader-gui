@@ -27,7 +27,7 @@ const { items, class: className = "" } = Astro.props;
   {
     items.map((item) => (
       <details class="group">
-        <summary class="flex cursor-pointer items-center justify-between rounded-lg border bg-card p-4 text-card-foreground transition-colors hover:bg-accent [&::-webkit-details-marker]:hidden">
+        <summary class="bg-card text-card-foreground hover:bg-accent flex cursor-pointer items-center justify-between rounded-lg border p-4 transition-colors [&::-webkit-details-marker]:hidden">
           <span class="font-medium">{item.title}</span>
           <svg
             class="h-5 w-5 transition-transform group-open:rotate-180"
@@ -43,8 +43,8 @@ const { items, class: className = "" } = Astro.props;
             />
           </svg>
         </summary>
-        <div class="mt-2 rounded-lg border bg-card p-4 text-card-foreground">
-          <p class="whitespace-pre-line text-muted-foreground">
+        <div class="bg-card text-card-foreground mt-2 rounded-lg border p-4">
+          <p class="text-muted-foreground whitespace-pre-line">
             {item.content}
           </p>
         </div>
