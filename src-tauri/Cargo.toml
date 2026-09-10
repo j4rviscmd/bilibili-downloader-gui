@@ -50,7 +50,7 @@ once_cell = "1.18.0"
 # safe JSON stores and download reservation files (issue #560).
 fs2 = "0.4"
 libc = "0.2"
-rand = "0.8"
+rand = "0.9"
 chrono = "0.4"
 md5 = "0.7"
 qrcode = "0.14"
