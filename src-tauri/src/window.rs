@@ -437,8 +437,23 @@ fn read_raw_geometry(app: &AppHandle) -> Option<WindowGeometry> {
 ///
 /// Returns `None` otherwise, causing the caller to fall back to defaults.
 fn read_saved_geometry(app: &AppHandle) -> Option<WindowGeometry> {
-    let mut geo: WindowGeometry = serde_json::from_value(read_geometry_value(app)?).ok()?;
+    let geo: WindowGeometry = serde_json::from_value(read_geometry_value(app)?).ok()?;
+    validate_geometry(
+        geo,
+        &monitor_rects(app),
+        primary_monitor_work_area_logical(app),
+    )
+}
 
+/// Pure decision core of [`read_saved_geometry`] over an explicit monitor
+/// set: min-size clamp, the maximized+work-area-sized self-heal, and the
+/// on-screen/fit validation. Split out so the rules are testable without
+/// a live window manager (mock_app has no monitors).
+fn validate_geometry(
+    mut geo: WindowGeometry,
+    monitors: &[MonitorRect],
+    primary_work_area: Option<(f64, f64, f64, f64)>,
+) -> Option<WindowGeometry> {
     geo.width = geo.width.max(MIN_WIDTH);
     geo.height = geo.height.max(MIN_HEIGHT);
 
@@ -448,10 +463,14 @@ fn read_saved_geometry(app: &AppHandle) -> Option<WindowGeometry> {
     // screen during the splash. Since the window is re-maximized on launch
     // anyway, fall back to a centered default normal geometry as the
     // un-maximize restore target.
-    if geo.maximized && is_maximize_sized(app, geo.width, geo.height) {
+    if geo.maximized
+        && monitors
+            .iter()
+            .any(|m| m.maximize_sized(geo.width, geo.height))
+    {
         geo.width = DEFAULT_WIDTH;
         geo.height = DEFAULT_HEIGHT;
-        if let Some((mw, mh, _, _)) = primary_monitor_work_area_logical(app) {
+        if let Some((mw, mh, _, _)) = primary_work_area {
             geo.x = ((mw - DEFAULT_WIDTH) / 2.0).max(0.0);
             geo.y = ((mh - DEFAULT_HEIGHT) / 2.0).max(0.0);
         } else {
@@ -460,7 +479,9 @@ fn read_saved_geometry(app: &AppHandle) -> Option<WindowGeometry> {
         }
     }
 
-    if is_position_on_screen(app, geo.x, geo.y) && fits_on_any_monitor(app, geo.width, geo.height) {
+    let on_screen = monitors.iter().any(|m| m.contains_point(geo.x, geo.y));
+    let fits = monitors.iter().any(|m| m.fits(geo.width, geo.height));
+    if on_screen && fits {
         Some(geo)
     } else {
         None
@@ -490,11 +511,14 @@ struct MonitorRect {
     /// Work-area (menu-bar/taskbar excluded) size in logical coordinates
     work_w: f64,
     work_h: f64,
+    /// Monitor scale factor, for physical->logical conversions
+    /// (see [`MonitorRect::contains_point`]).
+    scale: f64,
 }
 
 impl MonitorRect {
-    /// Physical-px tolerance for window-manager borders (see
-    /// `position_on_screen`); converted to logical per monitor scale.
+    /// Physical-px tolerance for window-manager borders; converted to
+    /// logical per monitor scale (see [`MonitorRect::contains_point`]).
     const OFFSCREEN_MARGIN_PHYSICAL_PX: f64 = 16.0;
 
     fn from_tauri(m: &tauri::Monitor) -> Self {
@@ -503,6 +527,7 @@ impl MonitorRect {
         let size = m.size();
         let work = m.work_area();
         Self {
+            scale,
             x: pos.x as f64 / scale,
             y: pos.y as f64 / scale,
             w: size.width as f64 / scale,
@@ -527,7 +552,7 @@ impl MonitorRect {
 
     /// True when the given logical coordinates fall within this monitor,
     /// allowing a small negative-direction margin.
-    fn contains_point(&self, scale: f64, x: f64, y: f64) -> bool {
+    fn contains_point(&self, x: f64, y: f64) -> bool {
         // Why: Windows has an invisible resize border (~7 physical px), so a
         // window snapped to the screen's left/top edge reports a slightly
         // negative outer_position. Strictly rejecting that marks the saved
@@ -535,7 +560,7 @@ impl MonitorRect {
         // size and position restore (surfaces after Win+arrow snap or
         // un-maximize). Allow a small physical-px margin in the negative
         // direction to tolerate this.
-        let margin = Self::OFFSCREEN_MARGIN_PHYSICAL_PX / scale;
+        let margin = Self::OFFSCREEN_MARGIN_PHYSICAL_PX / self.scale;
         x >= self.x - margin && x < self.x + self.w && y >= self.y - margin && y < self.y + self.h
     }
 
@@ -561,25 +586,6 @@ fn is_maximize_sized(app: &AppHandle, width: f64, height: f64) -> bool {
         .any(|m| m.maximize_sized(width, height))
 }
 
-/// Checks whether the given logical coordinates fall within any monitor's bounds.
-fn is_position_on_screen(app: &AppHandle, x: f64, y: f64) -> bool {
-    // The margin conversion needs the per-monitor scale; approximating with
-    // the rect's own scale keeps the math pure (scale is only used for the
-    // border-tolerance conversion, not for the stored logical bounds).
-    available_monitors(app).iter().any(|m| {
-        let rect = MonitorRect::from_tauri(m);
-        rect.contains_point(m.scale_factor(), x, y)
-    })
-}
-
-/// Checks whether the given logical dimensions fit within any single monitor.
-///
-/// Used to prevent restoring a window size that would be larger than
-/// all connected monitors (e.g., after disconnecting an external display).
-fn fits_on_any_monitor(app: &AppHandle, width: f64, height: f64) -> bool {
-    monitor_rects(app).iter().any(|m| m.fits(width, height))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -592,6 +598,7 @@ mod tests {
             h,
             work_w,
             work_h,
+            scale: 1.0,
         }
     }
 
@@ -613,25 +620,27 @@ mod tests {
 
     #[test]
     fn contains_point_allows_negative_border_margin() {
-        let scale = 2.0;
-        let m = monitor(0.0, 0.0, 1920.0, 1080.0, 1920.0, 1040.0);
+        let mut m = monitor(0.0, 0.0, 1920.0, 1080.0, 1920.0, 1040.0);
+        m.scale = 2.0;
         // 16 physical px at scale 2 -> 8 logical px of tolerance
-        assert!(m.contains_point(scale, -7.9, 0.0), "snap border tolerated");
-        assert!(
-            !m.contains_point(scale, -8.1, 0.0),
-            "beyond margin rejected"
-        );
-        assert!(m.contains_point(scale, 100.0, 100.0));
-        assert!(!m.contains_point(scale, 2000.0, 100.0));
+        assert!(m.contains_point(-7.9, 0.0), "snap border tolerated");
+        assert!(!m.contains_point(-8.1, 0.0), "beyond margin rejected");
+        assert!(m.contains_point(100.0, 100.0));
+        assert!(!m.contains_point(2000.0, 100.0));
+
+        // Scale 1.0 widens the logical tolerance to the full 16 px
+        let base = monitor(0.0, 0.0, 1920.0, 1080.0, 1920.0, 1040.0);
+        assert!(base.contains_point(-15.9, 0.0));
+        assert!(!base.contains_point(-16.1, 0.0));
     }
 
     #[test]
     fn contains_point_uses_strict_upper_bound() {
         let m = monitor(0.0, 0.0, 100.0, 100.0, 100.0, 100.0);
         // Right/bottom edges are exclusive
-        assert!(!m.contains_point(1.0, 100.0, 0.0));
-        assert!(!m.contains_point(1.0, 0.0, 100.0));
-        assert!(m.contains_point(1.0, 99.9, 99.9));
+        assert!(!m.contains_point(100.0, 0.0));
+        assert!(!m.contains_point(0.0, 100.0));
+        assert!(m.contains_point(99.9, 99.9));
     }
 
     #[test]
@@ -641,5 +650,90 @@ mod tests {
         assert!(m.fits(800.0, 600.0));
         assert!(!m.fits(1921.0, 1080.0));
         assert!(!m.fits(1920.0, 1081.0));
+    }
+    // ---- R7: validate_geometry decision core ----
+
+    fn geo(x: f64, y: f64, w: f64, h: f64, maximized: bool) -> WindowGeometry {
+        WindowGeometry {
+            x,
+            y,
+            width: w,
+            height: h,
+            maximized,
+        }
+    }
+
+    fn one_monitor() -> Vec<MonitorRect> {
+        vec![monitor(0.0, 0.0, 1920.0, 1080.0, 1920.0, 1040.0)]
+    }
+
+    #[test]
+    fn validate_geometry_clamps_to_minimum_size() {
+        let out =
+            validate_geometry(geo(10.0, 10.0, 100.0, 80.0, false), &one_monitor(), None).unwrap();
+        assert_eq!(out.width, MIN_WIDTH);
+        assert_eq!(out.height, MIN_HEIGHT);
+    }
+
+    #[test]
+    fn validate_geometry_self_heals_maximized_work_area_sized_bounds() {
+        // maximized:true + work-area-sized: restore target becomes the
+        // centered default, not a taskbar-covering "normal" window.
+        let out = validate_geometry(
+            geo(0.0, 0.0, 1920.0, 1040.0, true),
+            &one_monitor(),
+            Some((1920.0, 1040.0, 0.0, 0.0)),
+        )
+        .unwrap();
+        assert_eq!(out.width, DEFAULT_WIDTH);
+        assert_eq!(out.height, DEFAULT_HEIGHT);
+        assert_eq!(out.x, (1920.0 - DEFAULT_WIDTH) / 2.0);
+        assert_eq!(out.y, (1040.0 - DEFAULT_HEIGHT) / 2.0);
+    }
+
+    #[test]
+    fn validate_geometry_maximized_normal_size_keeps_bounds() {
+        // maximized but a normal user size: nothing to self-heal.
+        let out = validate_geometry(
+            geo(100.0, 50.0, 1200.0, 800.0, true),
+            &one_monitor(),
+            Some((1920.0, 1040.0, 0.0, 0.0)),
+        )
+        .unwrap();
+        assert_eq!(out.width, 1200.0);
+        assert_eq!(out.x, 100.0);
+    }
+
+    #[test]
+    fn validate_geometry_offscreen_position_rejected() {
+        // Position not on any monitor -> None (caller falls back to default).
+        assert!(validate_geometry(
+            geo(-5000.0, 100.0, 800.0, 600.0, false),
+            &one_monitor(),
+            None
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn validate_geometry_oversized_rejected_after_monitor_disconnect() {
+        // No monitor fits 5000px wide -> None.
+        assert!(
+            validate_geometry(geo(0.0, 0.0, 5000.0, 4000.0, false), &one_monitor(), None).is_none()
+        );
+    }
+
+    #[test]
+    fn validate_geometry_no_monitors_rejects() {
+        assert!(validate_geometry(geo(0.0, 0.0, 800.0, 600.0, false), &[], None).is_none());
+    }
+
+    #[test]
+    fn validate_geometry_valid_round_trips() {
+        let input = geo(120.0, 80.0, 1280.0, 720.0, false);
+        let out = validate_geometry(input.clone(), &one_monitor(), None).unwrap();
+        assert_eq!(out.x, 120.0);
+        assert_eq!(out.width, 1280.0);
+        assert!(!out.maximized);
     }
 }
