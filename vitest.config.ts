@@ -37,13 +37,11 @@ export default defineConfig({
       ],
       // Ratchet baseline; bump per PR, 100 at the end of the F-series.
       // Lines only: v8 branch/function metrics on TSX are noisy.
-      // Why: 69 sits just under the measured lines coverage of this batch
-      // (70.09% via `npx vitest run --coverage`), so the gate passes today
-      // and only a real regression fails. One full point below rather than
-      // 70, since 70.09% leaves only ~3 covered lines of margin and v8
-      // counts drift slightly across platforms (macOS local vs Ubuntu CI);
-      // on a mismatch re-measure rather than lowering.
-      thresholds: { lines: 92 },
+      // Why 95: F-series target (issue #616), measured at 95.81% after the
+      // home-page pagination/dialog tests (macOS). ~0.8pt (~33 lines) of
+      // margin absorbs v8 cross-platform drift (macOS vs Ubuntu CI); on a
+      // mismatch re-measure rather than lowering.
+      thresholds: { lines: 95 },
     },
   },
   resolve: {
