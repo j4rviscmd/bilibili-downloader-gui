@@ -49,7 +49,7 @@ Examples:
 
 ## Checklist
 
-- [ ] `/review-all` executed (format → code-reviewer → code-simplifier → doc-generator)
 - [ ] Conventional Commits format followed in commit messages
+- [ ] PR title/body written in English
 - [ ] Tests added/updated (or N/A for docs/chore)
 - [ ] i18n files synced (all 6 languages: en, ja, zh, ko, es, fr)
