@@ -96,3 +96,9 @@ tempfile = "3"
 wiremock = "0.6"
 tokio = { version = "1", features = ["test-util"] }
 tauri = { version = "2", features = ["test"] }
+
+# Why: `coverage` cfg is set only by the ci.yml coverage job's
+# --cfg-coverage flag (see the cfg_attr in lib.rs); registering it here
+# silences rustc's unexpected_cfgs lint for stable -D warnings builds.
+[lints.rust]
+unexpected_cfgs = { level = "deny", check-cfg = ['cfg(coverage)'] }

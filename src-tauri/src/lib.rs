@@ -4,6 +4,13 @@
 //! that downloads videos from Bilibili. It handles video information retrieval,
 //! downloads, cookie management, ffmpeg integration, and user settings.
 
+// Why: enables `#[coverage(off)]` on OS-native glue that cannot run
+// headlessly (window creation, monitor queries — see src/window.rs). The
+// `coverage` cfg is set by cargo-llvm-cov itself (on by default since
+// 0.1.2; see its --no-cfg-coverage opt-out) in the ci.yml coverage job;
+// stable builds never see the feature gate (issue #646 policy 4).
+#![cfg_attr(coverage, feature(coverage_attribute))]
+
 use std::path::PathBuf;
 use std::sync::Arc;
 
