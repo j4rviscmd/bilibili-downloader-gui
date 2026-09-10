@@ -461,14 +461,16 @@ fn extract_bangumi_ep_id(url: &str) -> Option<i64> {
 /// - `ERR::DISK_FULL` - Insufficient disk space
 /// - `ERR::NETWORK` - Network error
 /// - `ERR::CANCELLED` - Cancelled by user
-async fn download_bangumi_durl(
-    app: &AppHandle,
+#[allow(clippy::too_many_arguments)]
+async fn download_bangumi_durl<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
     options: &DownloadOptions,
     output_path: &Path,
     cookie_header: &str,
     api: &BiliApi,
     player_result: BangumiPlayerResult,
     host_health: Arc<crate::utils::cdn_selector::HostHealth>,
+    segment_concurrency: usize,
 ) -> Result<String, String> {
     use crate::handlers::concurrency::DOWNLOAD_CANCEL_REGISTRY;
 
@@ -526,10 +528,6 @@ async fn download_bangumi_durl(
         },
     )
     .ok();
-
-    // Get segment concurrency from settings
-    let settings = settings::get_settings(app).await.ok();
-    let segment_concurrency = Settings::resolve_segment_concurrency(&settings);
 
     // Capacity check
     if let Some(vs) = head_content_length(video_url, Some(cookie_header)).await {
@@ -667,8 +665,120 @@ pub async fn download_video(app: &AppHandle, options: &DownloadOptions) -> Resul
 
 /// Download body behind [`download_video`]; the wrapper owns the history
 /// session so no early return inside can bypass the final settle.
+///
+/// This layer only resolves the app-coupled dependencies (settings, cookies,
+/// output/lib paths, the real ffmpeg merge); the download flow itself lives in
+/// [`download_video_impl_with`] so tests can drive it end-to-end with
+/// wiremock + tempdir inputs (issue #646).
 async fn download_video_impl(app: &AppHandle, options: &DownloadOptions) -> Result<String, String> {
     use crate::handlers::concurrency::DOWNLOAD_CANCEL_REGISTRY;
+
+    // Codec priority is resolved once at download start and reused by every
+    // refetch, so retries cannot switch codecs mid-download (previously each
+    // refetch re-read the settings file).
+    let settings = settings::get_settings(app).await.ok();
+    let segment_concurrency = Settings::resolve_segment_concurrency(&settings);
+    let codec_priority = settings
+        .as_ref()
+        .and_then(|s| s.video_codec_priority)
+        .unwrap_or_default();
+
+    // Pre-cancel guard mirrors the one inside `_with` but runs BEFORE the
+    // app-coupled dependency resolution below: a download cancelled before
+    // start must surface ERR::CANCELLED (and settle its history entry as
+    // cancelled) even when cookies/output-path resolution would fail first.
+    if DOWNLOAD_CANCEL_REGISTRY.is_cancelled(&options.download_id) {
+        DOWNLOAD_CANCEL_REGISTRY.clear_cancelled(&options.download_id);
+        return Err("ERR::CANCELLED".to_string());
+    }
+
+    // Get cookies (WBI signing enables non-logged-in usage)
+    let cookies = read_cookie(app)?.unwrap_or_default();
+    let cookie_header = build_cookie_header(&cookies);
+    // Single transport for the whole download (playurl fetch, refetches on
+    // retry); threading it keeps every HTTP hop on one injectable seam.
+    let api = BiliApi::from_cookie_header(cookie_header)?;
+
+    let output_path = build_output_path(app, &options.filename).await?;
+    let lib_path = get_lib_path(app);
+
+    let download_id = options.download_id.clone();
+    let duration_ms = (options.duration_seconds * 1000) as u64;
+    download_video_impl_with(
+        app,
+        options,
+        &api,
+        &lib_path,
+        &output_path,
+        segment_concurrency,
+        codec_priority,
+        &move |video_path: &Path,
+               audio_path: &Path,
+               output_path: &Path,
+               subtitle_mode,
+               cancel_token| {
+            // Own the handle/id per call: the returned future may only borrow
+            // the path args (MergeFuture<'a>), so captured state must be moved
+            // into the async block rather than borrowed from this closure.
+            let app = app.clone();
+            let download_id = download_id.clone();
+            Box::pin(async move {
+                crate::handlers::ffmpeg::merge_avs(
+                    &app,
+                    video_path,
+                    audio_path,
+                    output_path,
+                    Some(download_id),
+                    Some(duration_ms),
+                    subtitle_mode,
+                    Some(cancel_token),
+                )
+                .await
+            })
+        },
+    )
+    .await
+}
+
+/// Future returned by an injected merge fn. Boxed because the merge borrows
+/// its path arguments across an await, which a named generic `Fut` param
+/// cannot express (HRTB limitation); `Send` because Tauri command futures
+/// must stay `Send`.
+type MergeFuture<'a> =
+    std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>> + Send + 'a>>;
+
+/// Dependency-injected download flow (test seam, issue #646): runs the real
+/// staging→download→subtitle→merge→finalize pipeline against explicit inputs
+/// so E2E tests never touch the real-home settings store, lib dir, or ffmpeg
+/// binary. `merge` stands in for `ffmpeg::merge_avs` (which needs the
+/// concrete Wry handle and spawns the real binary).
+#[allow(clippy::too_many_arguments)]
+// Why: generic over Runtime, not the default-Wry `&AppHandle`, because the E2E
+// tests below pass `tauri::test::mock_app().handle()` (`AppHandle<MockRuntime>`,
+// see the "test" dev-feature note in Cargo.toml), which only type-checks
+// against a generic Runtime param (issue #646).
+async fn download_video_impl_with<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    options: &DownloadOptions,
+    api: &BiliApi,
+    lib_path: &Path,
+    output_path: &Path,
+    segment_concurrency: usize,
+    codec_priority: crate::utils::codec::VideoCodecPriority,
+    merge: &(dyn for<'a> Fn(
+        &'a Path,
+        &'a Path,
+        &'a Path,
+        crate::handlers::ffmpeg::MergeMode,
+        tokio_util::sync::CancellationToken,
+    ) -> MergeFuture<'a>
+          + Sync),
+) -> Result<String, String> {
+    use crate::handlers::concurrency::DOWNLOAD_CANCEL_REGISTRY;
+
+    // The transport already carries the cookie header; read it once instead
+    // of threading a duplicate parameter that could drift out of sync.
+    let cookie_header = api.cookie_header.as_str();
 
     log::info!(
         "[BE] download_video: starting download id={}, bvid={}, cid={}",
@@ -676,10 +786,6 @@ async fn download_video_impl(app: &AppHandle, options: &DownloadOptions) -> Resu
         options.bvid,
         options.cid
     );
-
-    // Get segment concurrency from settings
-    let settings = settings::get_settings(app).await.ok();
-    let segment_concurrency = Settings::resolve_segment_concurrency(&settings);
 
     // If this part was cancelled (via cancel_all_downloads) before
     // download_video started, reject immediately so it never runs. The flag
@@ -706,34 +812,20 @@ async fn download_video_impl(app: &AppHandle, options: &DownloadOptions) -> Resu
     // last Arc when this download ends clears the state (issue #527).
     let host_health = Arc::new(crate::utils::cdn_selector::HostHealth::new());
 
-    // 1. Determine output file path + reserve it (multi-process safe,
+    // 1. The output path is reserved here (multi-process safe,
     //    issue #560/#595). The name claim + liveness lock live on a sidecar
     //    `video.mp4.lock`; all bytes are written to the reserved staging name
     //    (`{stem}.part.{ext}`) — created lazily by the writers — and renamed
     //    to the final name on success; `OutputReservation`'s Drop removes
     //    staging + sidecar on every early return below.
-    let reservation = reserve_output_path(&build_output_path(app, &options.filename).await?)?;
-
-    // 2. Get cookies (WBI signing enables non-logged-in usage)
-    let cookies = read_cookie(app)?.unwrap_or_default();
-    let cookie_header = build_cookie_header(&cookies);
-    // Single transport for the whole download (playurl fetch, refetches on
-    // retry); threading it keeps every HTTP hop on one injectable seam.
-    let api = BiliApi::from_cookie_header(cookie_header.clone())?;
-    // Codec priority is resolved once at download start and reused by every
-    // refetch, so retries cannot switch codecs mid-download (previously each
-    // refetch re-read the settings file).
-    let codec_priority = settings
-        .as_ref()
-        .and_then(|s| s.video_codec_priority)
-        .unwrap_or_default();
+    let reservation = reserve_output_path(output_path)?;
 
     // 3. For bangumi, fetch player result to check is_preview and durl format.
     //    The DASH result is reused in step 4 to avoid a duplicate playurl request.
     //    CAUTION: the durl branch moves `player_result` into `download_bangumi_durl`
     //    and returns early, so only the DASH path reaches step 4. See issue #485.
     let (bangumi_preview_info, cached_bangumi_details) = if let Some(ep_id) = options.ep_id {
-        let player_result = fetch_bangumi_player_result(&api, ep_id, options.cid).await?;
+        let player_result = fetch_bangumi_player_result(api, ep_id, options.cid).await?;
         let is_preview = player_result.is_preview.map(|v| v == 1);
 
         // durl format (direct MP4 URL): consume player_result and return early.
@@ -744,10 +836,11 @@ async fn download_video_impl(app: &AppHandle, options: &DownloadOptions) -> Resu
                 app,
                 options,
                 reservation.reserved_path(),
-                &cookie_header,
-                &api,
+                cookie_header,
+                api,
                 player_result,
                 host_health,
+                segment_concurrency,
             )
             .await
             .and_then(|_| reservation.complete())
@@ -768,7 +861,7 @@ async fn download_video_impl(app: &AppHandle, options: &DownloadOptions) -> Resu
     let details = if let Some(cached) = cached_bangumi_details {
         cached
     } else {
-        fetch_video_details(&api, &options.bvid, options.cid).await?
+        fetch_video_details(api, &options.bvid, options.cid).await?
     };
 
     let data = details.data.ok_or_else(|| {
@@ -820,7 +913,7 @@ async fn download_video_impl(app: &AppHandle, options: &DownloadOptions) -> Resu
             )
             .ok();
 
-            if let Some(vs) = head_content_length(&video_url, Some(&cookie_header)).await {
+            if let Some(vs) = head_content_length(&video_url, Some(cookie_header)).await {
                 ensure_free_space(reservation.reserved_path(), vs + 5 * 1024 * 1024)?;
             }
 
@@ -1000,15 +1093,15 @@ async fn download_video_impl(app: &AppHandle, options: &DownloadOptions) -> Resu
     .ok();
 
     // 5. Pre-check disk space (skip if size cannot be determined)
-    let video_size = head_content_length(&video_url, Some(&cookie_header)).await;
-    let audio_size = head_content_length(&audio_url, Some(&cookie_header)).await;
+    let video_size = head_content_length(&video_url, Some(cookie_header)).await;
+    let audio_size = head_content_length(&audio_url, Some(cookie_header)).await;
     if let (Some(vs), Some(asz)) = (video_size, audio_size) {
         let total_needed = vs + asz + (5 * 1024 * 1024); // 5MB buffer
         ensure_free_space(reservation.reserved_path(), total_needed)?;
     }
 
     // 6. Generate temp file paths
-    let lib_path = get_lib_path(app);
+    let lib_path = lib_path.to_path_buf();
     let temp_video_path = lib_path.join(format!("temp_video_{}.m4s", options.download_id));
     let temp_audio_path = lib_path.join(format!("temp_audio_{}.m4s", options.download_id));
 
@@ -1036,7 +1129,7 @@ async fn download_video_impl(app: &AppHandle, options: &DownloadOptions) -> Resu
             .await
             .map_err(|e| format!("Failed to acquire video semaphore permit: {}", e))?;
 
-        let cookie = Some(cookie_header);
+        let cookie = Some(cookie_header.to_string());
 
         // Download audio with fallback and video in parallel (cancel immediately if either fails)
         // Audio uses fallback to handle invalid media responses from VIP-specific CDN edges
@@ -1212,15 +1305,12 @@ async fn download_video_impl(app: &AppHandle, options: &DownloadOptions) -> Resu
             "[BE] download_video: starting ffmpeg merge id={}",
             options.download_id
         );
-        crate::handlers::ffmpeg::merge_avs(
-            app,
+        merge(
             &temp_video_path,
             &temp_audio_path,
             reservation.reserved_path(),
-            Some(options.download_id.clone()),
-            Some((options.duration_seconds * 1000) as u64),
             subtitle_mode,
-            Some(cancel_token.clone()),
+            cancel_token.clone(),
         )
         .await
         .map_err(|e| {
@@ -1982,6 +2072,322 @@ mod tests {
             server.received_requests().await.unwrap().is_empty(),
             "no HTTP before the cancel guard"
         );
+    }
+
+    // ---- PR⑤: download_video_impl E2E (issue #646) ----
+    //
+    // Full staging→download→subtitle→merge→finalize pipeline against wiremock
+    // + tempdir. `download_video_impl_with` receives the transport, paths,
+    // settings-derived knobs, and a merge stand-in explicitly, so no real-home
+    // state (settings.json, lib dir, ffmpeg binary) is touched.
+
+    use crate::handlers::ffmpeg::MergeMode;
+    use tokio_util::sync::CancellationToken;
+
+    fn pr5_options(download_id: &str, ep_id: Option<i64>) -> DownloadOptions {
+        DownloadOptions {
+            bvid: "BV1pr5".into(),
+            cid: 1,
+            filename: "video".into(),
+            quality: Some(80),
+            audio_quality: Some(30280),
+            download_id: download_id.into(),
+            parent_id: None,
+            duration_seconds: 10,
+            thumbnail_url: None,
+            page: Some(1),
+            subtitle: None,
+            ep_id,
+        }
+    }
+
+    /// Mounts nav (mixin key) + a DASH playurl manifest whose video/audio
+    /// baseUrls point at the given media URLs.
+    async fn mount_dash_playurl(server: &wiremock::MockServer, video_url: &str, audio_url: &str) {
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/nav"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(nav_wbi_mock_body()))
+            .mount(server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/player/wbi/playurl"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": {"quality": 80, "dash": {
+                        "video": [
+                            {"id": 80, "codecid": 7, "bandwidth": 1, "width": 1920, "height": 1080,
+                             "baseUrl": video_url}
+                        ],
+                        "audio": [
+                            {"id": 30280, "codecid": 0, "bandwidth": 1, "width": 0, "height": 0,
+                             "baseUrl": audio_url}
+                        ]
+                    }}
+                })),
+            )
+            .mount(server)
+            .await;
+    }
+
+    /// Merge stand-in: concatenates the two staged streams into the output,
+    /// mirroring what the real ffmpeg merge produces.
+    fn fake_merge<'a>(
+        video_path: &'a Path,
+        audio_path: &'a Path,
+        output_path: &'a Path,
+        _mode: MergeMode,
+        _cancel: CancellationToken,
+    ) -> MergeFuture<'a> {
+        Box::pin(async move {
+            let video = std::fs::read(video_path).map_err(|e| e.to_string())?;
+            let audio = std::fs::read(audio_path).map_err(|e| e.to_string())?;
+            let mut merged = video;
+            merged.extend_from_slice(&audio);
+            std::fs::write(output_path, merged).map_err(|e| e.to_string())
+        })
+    }
+
+    /// Merge stand-in that must never run (durl bypasses the merge step).
+    fn unused_merge<'a>(
+        _video_path: &'a Path,
+        _audio_path: &'a Path,
+        _output_path: &'a Path,
+        _mode: MergeMode,
+        _cancel: CancellationToken,
+    ) -> MergeFuture<'a> {
+        Box::pin(async { panic!("durl format must not reach the merge step") })
+    }
+
+    /// Merge stand-in simulating an ffmpeg failure.
+    fn failing_merge<'a>(
+        _video_path: &'a Path,
+        _audio_path: &'a Path,
+        _output_path: &'a Path,
+        _mode: MergeMode,
+        _cancel: CancellationToken,
+    ) -> MergeFuture<'a> {
+        Box::pin(async { Err("ffmpeg exploded".to_string()) })
+    }
+
+    #[tokio::test]
+    async fn download_video_impl_dash_happy_path_merges_and_finalizes() {
+        let server = wiremock::MockServer::start().await;
+        let video_body: Vec<u8> = (0..4096u32).map(|i| (i % 251) as u8).collect();
+        let audio_body: Vec<u8> = (1..4097u32).map(|i| (i % 241) as u8).collect();
+        mount_good_media(&server, "/media/v", video_body.clone()).await;
+        mount_good_media(&server, "/media/a", audio_body.clone()).await;
+        mount_dash_playurl(
+            &server,
+            &format!("{}/media/v", server.uri()),
+            &format!("{}/media/a", server.uri()),
+        )
+        .await;
+
+        let lib = tempfile::tempdir().unwrap();
+        let out_dir = tempfile::tempdir().unwrap();
+        let app = tauri::test::mock_app();
+        let final_path = download_video_impl_with(
+            app.handle(),
+            &pr5_options("pr5-dash", None),
+            &bili_api_mock(&server.uri(), ""),
+            lib.path(),
+            &out_dir.path().join("video.mp4"),
+            1,
+            crate::utils::codec::VideoCodecPriority::default(),
+            &fake_merge,
+        )
+        .await
+        .unwrap();
+
+        let expected_final = out_dir.path().join("video.mp4");
+        assert_eq!(PathBuf::from(&final_path), expected_final);
+        let mut expected = video_body;
+        expected.extend_from_slice(&audio_body);
+        assert_eq!(std::fs::read(&expected_final).unwrap(), expected);
+
+        // Staging name, temp streams, and every flock sidecar are cleaned up.
+        assert!(!out_dir.path().join("video.part.mp4").exists());
+        assert!(!out_dir.path().join("video.mp4.lock").exists());
+        assert!(!lib.path().join("temp_video_pr5-dash.m4s").exists());
+        assert!(!lib.path().join("temp_audio_pr5-dash.m4s").exists());
+        assert!(!lib.path().join("temp_video_pr5-dash.m4s.lock").exists());
+        assert!(!lib.path().join("temp_audio_pr5-dash.m4s.lock").exists());
+    }
+
+    #[tokio::test]
+    async fn download_video_impl_durl_writes_muxed_bytes_without_merge() {
+        let server = wiremock::MockServer::start().await;
+        let body: Vec<u8> = (0..4096u32).map(|i| (i % 251) as u8).collect();
+        mount_good_media(&server, "/media/mux", body.clone()).await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/nav"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(nav_wbi_mock_body()))
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/player/wbi/playurl"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": {"quality": 64, "durl": [
+                        {"order": 1, "length": 1000, "size": body.len() as i64,
+                         "url": format!("{}/media/mux", server.uri())}
+                    ]}
+                })),
+            )
+            .mount(&server)
+            .await;
+
+        let lib = tempfile::tempdir().unwrap();
+        let out_dir = tempfile::tempdir().unwrap();
+        let app = tauri::test::mock_app();
+        let final_path = download_video_impl_with(
+            app.handle(),
+            &pr5_options("pr5-durl", None),
+            &bili_api_mock(&server.uri(), ""),
+            lib.path(),
+            &out_dir.path().join("video.mp4"),
+            1,
+            crate::utils::codec::VideoCodecPriority::default(),
+            &unused_merge,
+        )
+        .await
+        .unwrap();
+
+        let expected_final = out_dir.path().join("video.mp4");
+        assert_eq!(PathBuf::from(&final_path), expected_final);
+        assert_eq!(std::fs::read(&expected_final).unwrap(), body);
+        assert!(!out_dir.path().join("video.part.mp4").exists());
+        assert!(!out_dir.path().join("video.mp4.lock").exists());
+    }
+
+    #[tokio::test]
+    async fn download_video_impl_merge_failure_maps_to_merge_failed_and_cleans_up() {
+        let server = wiremock::MockServer::start().await;
+        let video_body: Vec<u8> = (0..4096u32).map(|i| (i % 251) as u8).collect();
+        let audio_body: Vec<u8> = (1..4097u32).map(|i| (i % 241) as u8).collect();
+        mount_good_media(&server, "/media/v", video_body).await;
+        mount_good_media(&server, "/media/a", audio_body).await;
+        mount_dash_playurl(
+            &server,
+            &format!("{}/media/v", server.uri()),
+            &format!("{}/media/a", server.uri()),
+        )
+        .await;
+
+        let lib = tempfile::tempdir().unwrap();
+        let out_dir = tempfile::tempdir().unwrap();
+        let app = tauri::test::mock_app();
+        let err = download_video_impl_with(
+            app.handle(),
+            &pr5_options("pr5-mergefail", None),
+            &bili_api_mock(&server.uri(), ""),
+            lib.path(),
+            &out_dir.path().join("video.mp4"),
+            1,
+            crate::utils::codec::VideoCodecPriority::default(),
+            &failing_merge,
+        )
+        .await
+        .unwrap_err();
+
+        assert_eq!(err, "ERR::MERGE_FAILED");
+        // Reservation Drop removed staging + sidecar; error cleanup removed
+        // the temp streams; the final name never appeared.
+        assert!(!out_dir.path().join("video.mp4").exists());
+        assert!(!out_dir.path().join("video.part.mp4").exists());
+        assert!(!out_dir.path().join("video.mp4.lock").exists());
+        assert!(!lib.path().join("temp_video_pr5-mergefail.m4s").exists());
+        assert!(!lib.path().join("temp_audio_pr5-mergefail.m4s").exists());
+    }
+
+    #[tokio::test]
+    async fn download_video_impl_pre_cancelled_rejects_without_http() {
+        use crate::handlers::concurrency::DOWNLOAD_CANCEL_REGISTRY;
+        let id = "pr5-cancel";
+        let (_token, guard) = DOWNLOAD_CANCEL_REGISTRY.register(id);
+        DOWNLOAD_CANCEL_REGISTRY.cancel(id);
+
+        // No mocks mounted: any request would 404 and (worse) prove HTTP ran.
+        let server = wiremock::MockServer::start().await;
+        let lib = tempfile::tempdir().unwrap();
+        let out_dir = tempfile::tempdir().unwrap();
+        let app = tauri::test::mock_app();
+        let err = download_video_impl_with(
+            app.handle(),
+            &pr5_options(id, None),
+            &bili_api_mock(&server.uri(), ""),
+            lib.path(),
+            &out_dir.path().join("video.mp4"),
+            1,
+            crate::utils::codec::VideoCodecPriority::default(),
+            &fake_merge,
+        )
+        .await
+        .unwrap_err();
+
+        assert_eq!(err, "ERR::CANCELLED");
+        assert!(
+            server.received_requests().await.unwrap().is_empty(),
+            "no HTTP before the cancel guard"
+        );
+        // The pre-cancel flag is consumed so a retry of the same id runs.
+        assert!(!DOWNLOAD_CANCEL_REGISTRY.is_cancelled(id));
+        drop(guard);
+    }
+
+    #[tokio::test]
+    async fn download_video_impl_bangumi_dash_merges_and_finalizes() {
+        let server = wiremock::MockServer::start().await;
+        let video_body: Vec<u8> = (0..4096u32).map(|i| (i % 251) as u8).collect();
+        let audio_body: Vec<u8> = (1..4097u32).map(|i| (i % 241) as u8).collect();
+        mount_good_media(&server, "/media/v", video_body.clone()).await;
+        mount_good_media(&server, "/media/a", audio_body.clone()).await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/pgc/player/web/playurl"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "result": {"is_preview": 0, "dash": {
+                        "video": [
+                            {"id": 80, "codecid": 7, "bandwidth": 1, "width": 1920, "height": 1080,
+                             "baseUrl": format!("{}/media/v", server.uri())}
+                        ],
+                        "audio": [
+                            {"id": 30216, "codecid": 0, "bandwidth": 1, "width": 0, "height": 0,
+                             "baseUrl": format!("{}/media/a", server.uri())}
+                        ]
+                    }}
+                })),
+            )
+            .mount(&server)
+            .await;
+
+        let lib = tempfile::tempdir().unwrap();
+        let out_dir = tempfile::tempdir().unwrap();
+        let app = tauri::test::mock_app();
+        let mut options = pr5_options("pr5-bangumi", Some(999));
+        options.audio_quality = Some(30216);
+        let final_path = download_video_impl_with(
+            app.handle(),
+            &options,
+            &bili_api_mock(&server.uri(), ""),
+            lib.path(),
+            &out_dir.path().join("video.mp4"),
+            1,
+            crate::utils::codec::VideoCodecPriority::default(),
+            &fake_merge,
+        )
+        .await
+        .unwrap();
+
+        let expected_final = out_dir.path().join("video.mp4");
+        assert_eq!(PathBuf::from(&final_path), expected_final);
+        let mut expected = video_body;
+        expected.extend_from_slice(&audio_body);
+        assert_eq!(std::fs::read(&expected_final).unwrap(), expected);
+        assert!(!out_dir.path().join("video.part.mp4").exists());
     }
 
     // ---- R7: output path naming helpers ----
