@@ -26,7 +26,8 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # Why: Astro v7 requires Node.js >= 22.12
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: docs/package-lock.json
 

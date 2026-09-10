@@ -31,10 +31,11 @@ const url = Astro.url;
 const lang = Astro.props.lang || getLangFromUrl(url);
 const t = useTranslations(lang);
 const basePath = import.meta.env.BASE_URL;
-const isProd = import.meta.env.PROD;
 
-// In development, the base path is not simulated, so use empty string
-const prefix = isProd ? basePath : "";
+// Why: modern Astro (v6+) serves `astro dev` under the configured base path
+// too, so the prefix is now unconditional. The old empty-string escape hatch
+// made the language switcher navigate to /ja (404) in dev.
+const prefix = basePath;
 
 const { title, description = t("hero.description") } = Astro.props;
 const canonicalURL = new URL(Astro.url.pathname, Astro.site);
@@ -200,10 +201,10 @@ const pathWithoutLang =
       }
     </script>
   </head>
-  <body class="min-h-screen bg-background text-foreground antialiased">
+  <body class="bg-background text-foreground min-h-screen antialiased">
     <!-- Header -->
     <header
-      class="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+      class="bg-background/95 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50 border-b backdrop-blur"
     >
       <nav
         class="container mx-auto flex h-14 items-center justify-between px-4"
@@ -218,7 +219,7 @@ const pathWithoutLang =
         <div class="flex items-center gap-4">
           <a
             href={lang === "en" ? `${prefix}/faq` : `${prefix}/${lang}/faq`}
-            class="text-sm text-muted-foreground hover:text-foreground"
+            class="text-muted-foreground hover:text-foreground text-sm"
             >{t("nav.faq")}</a
           >
 
@@ -230,7 +231,7 @@ const pathWithoutLang =
           -->
           <select
             id="lang-switcher"
-            class="rounded-md border bg-background px-2 py-1 text-sm"
+            class="bg-background rounded-md border px-2 py-1 text-sm"
           >
             {
               Object.entries(languages).map(([code, name]) => (
@@ -249,7 +250,7 @@ const pathWithoutLang =
           </select>
 
           <!-- Dark Mode Toggle -->
-          <button id="theme-toggle" class="rounded-md p-2 hover:bg-accent">
+          <button id="theme-toggle" class="hover:bg-accent rounded-md p-2">
             <svg
               class="h-5 w-5 dark:hidden"
               fill="none"

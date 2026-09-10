@@ -142,7 +142,7 @@ export function FeatureCard({
     <HoverCard openDelay={200} closeDelay={100} {...touchProps}>
       <HoverCardTrigger asChild>
         <div
-          className="cursor-pointer rounded-lg border bg-card p-6 text-center text-card-foreground shadow-sm transition-all hover:border-primary/50 hover:shadow-md"
+          className="bg-card text-card-foreground hover:border-primary/50 cursor-pointer rounded-lg border p-6 text-center shadow-sm transition-all hover:shadow-md"
           onClick={isTouch ? handleTap : undefined}
         >
           <div className="text-4xl">{icon}</div>
@@ -153,7 +153,7 @@ export function FeatureCard({
               comingSoon={comingSoon}
             />
           </div>
-          <p className="mt-2 text-xs text-muted-foreground">{hoverHint}</p>
+          <p className="text-muted-foreground mt-2 text-xs">{hoverHint}</p>
         </div>
       </HoverCardTrigger>
       <HoverCardContent className="w-72" sideOffset={8}>
@@ -165,7 +165,7 @@ export function FeatureCard({
               comingSoon={comingSoon}
               as="h4"
             />
-            <p className="whitespace-pre-line text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm whitespace-pre-line">
               {description}
             </p>
           </div>

@@ -66,7 +66,7 @@ const platforms = [
           class={`w-48 p-6 text-center ${platform.disabled ? "opacity-60" : ""}`}
         >
           <div
-            class="flex justify-center text-muted-foreground"
+            class="text-muted-foreground flex justify-center"
             set:html={platform.svg}
           />
           {/* Why: macOS cards render a second line ("Apple Silicon"/"Intel")
@@ -76,13 +76,13 @@ const platforms = [
           <h3 class="mt-4 flex min-h-[3rem] flex-col justify-center font-semibold">
             {platform.name}
             {platform.arch && (
-              <span class="text-xs font-normal text-muted-foreground">
+              <span class="text-muted-foreground text-xs font-normal">
                 ({platform.arch})
               </span>
             )}
           </h3>
           {platform.disabled ? (
-            <p class="mt-4 text-sm text-muted-foreground">
+            <p class="text-muted-foreground mt-4 text-sm">
               {t("download.comingSoon")}
             </p>
           ) : (

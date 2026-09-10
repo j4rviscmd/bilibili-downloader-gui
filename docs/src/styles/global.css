@@ -1,6 +1,8 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+/* Why: dark mode is toggled by adding a class to <html> (see BaseLayout),
+   which must be re-declared for Tailwind v4 (default is prefers-color-scheme). */
+@custom-variant dark (&:is(.dark *));
 
 @keyframes highlight-pulse {
   0% {
@@ -12,6 +14,33 @@
   100% {
     box-shadow: 0 0 0 0 hsl(var(--primary) / 0);
   }
+}
+
+@theme inline {
+  /* Why: Tailwind v4 replaces tailwind.config.mjs color/radius mapping with
+     CSS-first tokens. Values mirror the old config's hsl(var(--x)) wrappers. */
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
 }
 
 @layer base {
