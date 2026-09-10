@@ -16,6 +16,8 @@
 //! Splitting the splash into its own window removes that conflict entirely —
 //! the main window is built resizable and maximizes correctly from the start.
 
+use std::path::Path;
+
 use crate::models::settings::{Settings, UiTheme};
 use crate::utils::locked_json;
 use serde::{Deserialize, Serialize};
@@ -81,6 +83,8 @@ impl WindowGeometry {
 /// the area outside the rounded corners would be filled by the opaque window
 /// background and the rounded shape wouldn't be visible. The native window
 /// shadow still follows the rounded outline via the default `shadow(true)`.
+// Why coverage(off): OS window creation via WebviewWindowBuilder; needs a real event loop and display — injection cost outweighs value (issue #646 policy 4).
+#[cfg_attr(coverage, coverage(off))]
 pub fn create_splash_window(
     app: &AppHandle,
     theme: Option<Theme>,
@@ -115,6 +119,8 @@ pub fn create_splash_window(
 /// `show_splash` from SplashScreen's first effect to avoid a black frame
 /// while the webview loads the splash route.
 #[tauri::command]
+// Why coverage(off): directly drives the OS window (show/focus); no headless equivalent — injection cost outweighs value (issue #646 policy 4).
+#[cfg_attr(coverage, coverage(off))]
 pub fn show_splash(app: AppHandle) -> Result<(), String> {
     if let Some(splash) = app.get_webview_window("splash") {
         splash.show().map_err(|e| format!("{e}"))?;
@@ -128,6 +134,8 @@ pub fn show_splash(app: AppHandle) -> Result<(), String> {
 /// Built resizable (no splash-time lock) so the OS-native maximize clamps to
 /// the work area on Windows. Call this from `finish_splash` after the splash
 /// window is done.
+// Why coverage(off): OS window creation with platform-specific maximize branches — injection cost outweighs value (issue #646 policy 4).
+#[cfg_attr(coverage, coverage(off))]
 pub fn create_main_window(
     app: &AppHandle,
     theme: Option<Theme>,
@@ -211,6 +219,8 @@ pub fn create_main_window(
 /// built resizable so the OS-native maximize clamps to the work area (no
 /// taskbar occlusion during restore).
 #[tauri::command]
+// Why coverage(off): orchestrates real window close/create on the event loop — injection cost outweighs value (issue #646 policy 4).
+#[cfg_attr(coverage, coverage(off))]
 pub async fn finish_splash(app: AppHandle) -> Result<(), String> {
     log::info!("[BE] finish_splash: called");
     let theme = read_window_theme(&app);
@@ -238,6 +248,8 @@ pub async fn finish_splash(app: AppHandle) -> Result<(), String> {
 /// is called from `finish_splash` (after the splash creates the main window);
 /// in E2E mode it is called directly from `setup` because the splash window is
 /// skipped.
+// Why coverage(off): registers OS event-loop handlers on a live window — injection cost outweighs value (issue #646 policy 4).
+#[cfg_attr(coverage, coverage(off))]
 pub(crate) fn register_main_window_events(app: &AppHandle) {
     let Some(window) = app.get_webview_window("main") else {
         return;
@@ -287,10 +299,17 @@ pub(crate) fn register_main_window_events(app: &AppHandle) {
 /// Reads the saved UI theme (if any) to apply to windows. Shared by lib::setup
 /// (splash) and finish_splash (main) so both windows match the user theme.
 pub fn read_window_theme(app: &AppHandle) -> Option<Theme> {
-    crate::utils::paths::get_settings_path(app)
+    read_window_theme_at(&crate::utils::paths::get_settings_path(app))
+}
+
+/// Path-injected split of [`read_window_theme`] (test seam, issue #646): the
+/// settings-file read/parse against an explicit path so tests run against a
+/// tempdir instead of the real-home settings store.
+fn read_window_theme_at(settings_path: &Path) -> Option<Theme> {
+    settings_path
         .exists()
         .then(|| {
-            std::fs::read_to_string(crate::utils::paths::get_settings_path(app))
+            std::fs::read_to_string(settings_path)
                 .ok()
                 .and_then(|content| serde_json::from_str::<Settings>(&content).ok())
                 .and_then(|s| s.theme)
@@ -316,6 +335,8 @@ pub fn read_window_theme(app: &AppHandle) -> Option<Theme> {
 ///   saved normal geometry so un-maximizing on next launch restores the real
 ///   size instead of the full-screen bounds.
 /// - Normal windows persist their current bounds with `maximized: false`.
+// Why coverage(off): reads the live window state and writes the real app-data store — injection cost outweighs value (issue #646 policy 4).
+#[cfg_attr(coverage, coverage(off))]
 pub fn save_window_geometry(app: &AppHandle) {
     let Some(window) = app.get_webview_window("main") else {
         return;
@@ -397,6 +418,8 @@ pub fn save_window_geometry(app: &AppHandle) {
 ///
 /// Used by the macOS/Linux pseudo-maximize restore in create_main_window and
 /// by the maximize-size self-heal in read_saved_geometry.
+// Why coverage(off): queries the OS monitor configuration — injection cost outweighs value (issue #646 policy 4).
+#[cfg_attr(coverage, coverage(off))]
 fn primary_monitor_work_area_logical(app: &AppHandle) -> Option<(f64, f64, f64, f64)> {
     let monitor = app.primary_monitor().ok().flatten()?;
     let scale = monitor.scale_factor();
@@ -411,6 +434,8 @@ fn primary_monitor_work_area_logical(app: &AppHandle) -> Option<(f64, f64, f64, 
 
 /// Reads the raw persisted geometry value from the window-state store,
 /// if present.
+// Why coverage(off): reads window-state.json from the real app-data dir (mock_app resolves the real home) — injection cost outweighs value (issue #646 policy 4).
+#[cfg_attr(coverage, coverage(off))]
 fn read_geometry_value(app: &AppHandle) -> Option<serde_json::Value> {
     let path = app.path().app_data_dir().ok()?.join(WINDOW_STATE_FILE);
     locked_json::with_json(&path, |value| Ok(value.get(GEOMETRY_STORE_KEY).cloned()))
@@ -423,6 +448,8 @@ fn read_geometry_value(app: &AppHandle) -> Option<serde_json::Value> {
 /// Unlike `read_saved_geometry`, this performs no position/size validation and
 /// is used only to preserve the last normal geometry when persisting the
 /// `maximized` flag alone (maximized windows report full-screen bounds).
+// Why coverage(off): reads window-state.json from the real app-data dir (mock_app resolves the real home) — injection cost outweighs value (issue #646 policy 4).
+#[cfg_attr(coverage, coverage(off))]
 fn read_raw_geometry(app: &AppHandle) -> Option<WindowGeometry> {
     serde_json::from_value(read_geometry_value(app)?).ok()
 }
@@ -436,6 +463,8 @@ fn read_raw_geometry(app: &AppHandle) -> Option<WindowGeometry> {
 /// 4. At least one monitor can accommodate the saved size
 ///
 /// Returns `None` otherwise, causing the caller to fall back to defaults.
+// Why coverage(off): reads window-state.json from the real app-data dir; its validation logic is covered via validate_geometry tests — injection cost outweighs value (issue #646 policy 4).
+#[cfg_attr(coverage, coverage(off))]
 fn read_saved_geometry(app: &AppHandle) -> Option<WindowGeometry> {
     let geo: WindowGeometry = serde_json::from_value(read_geometry_value(app)?).ok()?;
     validate_geometry(
@@ -492,6 +521,8 @@ fn validate_geometry(
 ///
 /// Silently returns an empty list if the monitor query fails,
 /// which causes position/size validation checks to fail safely.
+// Why coverage(off): queries the OS monitor configuration — injection cost outweighs value (issue #646 policy 4).
+#[cfg_attr(coverage, coverage(off))]
 fn available_monitors(app: &AppHandle) -> Vec<tauri::Monitor> {
     app.available_monitors().unwrap_or_default()
 }
@@ -571,6 +602,8 @@ impl MonitorRect {
 }
 
 /// Converts the app's monitors into logical-coordinate rects.
+// Why coverage(off): queries the OS monitor configuration — injection cost outweighs value (issue #646 policy 4).
+#[cfg_attr(coverage, coverage(off))]
 fn monitor_rects(app: &AppHandle) -> Vec<MonitorRect> {
     available_monitors(app)
         .iter()
@@ -580,6 +613,8 @@ fn monitor_rects(app: &AppHandle) -> Vec<MonitorRect> {
 
 /// Returns true if the given logical dimensions are at least as large as some
 /// monitor's work area — see [`MonitorRect::maximize_sized`] for the rationale.
+// Why coverage(off): compares against live OS monitor rects — injection cost outweighs value (issue #646 policy 4).
+#[cfg_attr(coverage, coverage(off))]
 fn is_maximize_sized(app: &AppHandle, width: f64, height: f64) -> bool {
     monitor_rects(app)
         .iter()
@@ -735,5 +770,44 @@ mod tests {
         assert_eq!(out.x, 120.0);
         assert_eq!(out.width, 1280.0);
         assert!(!out.maximized);
+    }
+
+    // ---- PR⑩: settings-backed theme read (issue #646) ----
+
+    #[test]
+    fn read_window_theme_at_reads_saved_theme() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(
+            &path,
+            // language is a required Settings field — without it the whole
+            // file fails to deserialize and the theme read yields None.
+            serde_json::json!({"language": "en", "theme": "dark"}).to_string(),
+        )
+        .unwrap();
+        assert_eq!(read_window_theme_at(&path), Some(Theme::Dark));
+
+        std::fs::write(
+            &path,
+            serde_json::json!({"language": "en", "theme": "light"}).to_string(),
+        )
+        .unwrap();
+        assert_eq!(read_window_theme_at(&path), Some(Theme::Light));
+    }
+
+    #[test]
+    fn read_window_theme_at_missing_file_or_unset_theme_is_none() {
+        let dir = tempfile::tempdir().unwrap();
+        // Absent settings file.
+        assert_eq!(
+            read_window_theme_at(&dir.path().join("absent.json")),
+            None,
+            "no settings file -> no theme"
+        );
+
+        // File without a theme key.
+        let path = dir.path().join("settings.json");
+        std::fs::write(&path, r#"{"language": "en"}"#).unwrap();
+        assert_eq!(read_window_theme_at(&path), None, "unset theme -> None");
     }
 }
