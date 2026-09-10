@@ -74,21 +74,29 @@ pub enum MergeMode {
 /// Returns `true` if ffmpeg is valid and executable, `false` otherwise.
 pub async fn validate_ffmpeg(app: &AppHandle) -> bool {
     log::info!("[BE] validate_ffmpeg: checking ffmpeg installation");
-    let ffmpeg_root = get_ffmpeg_root_path(app);
-    let ffmpeg_path = get_ffmpeg_path(app);
+    validate_ffmpeg_in_dir(&get_ffmpeg_root_path(app)).await
+}
+
+/// Path-injected split of [`validate_ffmpeg`] (test seam, issue #646): runs
+/// the same root/bin/probe checks against an explicit ffmpeg root so tests
+/// never touch the real-home lib dir. The bin path derives from the root via
+/// [`build_ffmpeg_bin_path`] — for the production anchors this equals
+/// `get_ffmpeg_path(app)` (the equivalence `move_ffmpeg` already relies on).
+async fn validate_ffmpeg_in_dir(ffmpeg_root: &Path) -> bool {
+    let ffmpeg_path = build_ffmpeg_bin_path(ffmpeg_root);
     if !ffmpeg_root.exists() {
         log::info!("[BE] validate_ffmpeg: ffmpeg root directory not found");
         return false;
     }
     if !ffmpeg_path.exists() {
         log::warn!("[BE] validate_ffmpeg: ffmpeg binary not found, cleaning up");
-        cleanup_ffmpeg_dir(&ffmpeg_root);
+        cleanup_ffmpeg_dir(ffmpeg_root);
         return false;
     }
 
     if !validate_command(&ffmpeg_path).await {
         log::warn!("[BE] validate_ffmpeg: ffmpeg binary validation failed, cleaning up");
-        cleanup_ffmpeg_dir(&ffmpeg_root);
+        cleanup_ffmpeg_dir(ffmpeg_root);
         return false;
     }
 
@@ -137,34 +145,55 @@ pub async fn install_ffmpeg(app: &AppHandle) -> Result<bool> {
     let segment_concurrency =
         crate::models::settings::Settings::resolve_segment_concurrency(&settings);
 
-    // Download ffmpeg binary
-    // let ffmpeg_path = get_ffmpeg_path(app);
-    let ffmpeg_root = get_ffmpeg_root_path(app);
+    // Download URL and filename based on platform
+    // Windows GPL is available only as .zip; Linux GPL as .tar.xz
+    let Some((url, filename)) = (if cfg!(target_os = "windows") {
+        Some((
+            "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip",
+            "ffmpeg-master-latest-win64-gpl.zip",
+        ))
+    } else if cfg!(target_os = "macos") {
+        Some(("https://evermeet.cx/ffmpeg/getrelease/zip", "ffmpeg.zip"))
+    } else if cfg!(target_os = "linux") {
+        Some((
+            "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz",
+            "ffmpeg-master-latest-linux64-gpl.tar.xz",
+        ))
+    } else {
+        None
+    }) else {
+        return Ok(false);
+    };
 
+    install_ffmpeg_in_dir(
+        app,
+        &get_ffmpeg_root_path(app),
+        url,
+        filename,
+        segment_concurrency,
+    )
+    .await
+}
+
+/// Path-injected split of [`install_ffmpeg`] (test seam, issue #646): runs
+/// the download→unpack→chmod→validate flow against an explicit ffmpeg root
+/// and archive URL/filename so tests can serve the archive from wiremock and
+/// land everything in a tempdir. Bin paths derive from the root via
+/// [`build_ffmpeg_bin_path`] (equals `get_ffmpeg_path(app)` for production
+/// anchors, the equivalence `move_ffmpeg` already relies on).
+async fn install_ffmpeg_in_dir<R: Runtime>(
+    app: &tauri::AppHandle<R>,
+    ffmpeg_root: &Path,
+    url: &str,
+    filename: &str,
+    segment_concurrency: usize,
+) -> Result<bool> {
     // Create ffmpeg_root if it doesn't exist
     if !ffmpeg_root.exists() {
-        fs::create_dir_all(&ffmpeg_root)
+        fs::create_dir_all(ffmpeg_root)
             .map_err(|e| anyhow::anyhow!("Failed to create ffmpeg directory: {}", e))?;
     }
 
-    // Download URL and filename based on platform
-    // Windows GPL is available only as .zip; Linux GPL as .tar.xz
-    let (url, filename) = if cfg!(target_os = "windows") {
-        (
-            "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip",
-            "ffmpeg-master-latest-win64-gpl.zip",
-        )
-    } else if cfg!(target_os = "macos") {
-        ("https://evermeet.cx/ffmpeg/getrelease/zip", "ffmpeg.zip")
-    } else if cfg!(target_os = "linux") {
-        (
-            "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz",
-            "ffmpeg-master-latest-linux64-gpl.tar.xz",
-        )
-    } else {
-        return Ok(false);
-    };
-    // ~/bilibili-downloader-gui/src-tauri/target/debug/lib/ffmpeg
     let archive_path = ffmpeg_root.join(filename);
     if download_url(
         app,
@@ -190,7 +219,7 @@ pub async fn install_ffmpeg(app: &AppHandle) -> Result<bool> {
         return Ok(false);
     }
 
-    let is_unpacked = unpack_archive(&archive_path, &ffmpeg_root)
+    let is_unpacked = unpack_archive(&archive_path, ffmpeg_root)
         .await
         .unwrap_or(false);
     if !is_unpacked {
@@ -200,10 +229,11 @@ pub async fn install_ffmpeg(app: &AppHandle) -> Result<bool> {
     // Remove archive file after successful extraction
     let _ = fs::remove_file(&archive_path);
 
+    let ffmpeg_bin = build_ffmpeg_bin_path(ffmpeg_root);
+
     // Grant execute permission on Unix (macOS and Linux)
     #[cfg(unix)]
     {
-        let ffmpeg_bin = get_ffmpeg_path(app);
         let Some(ffmpeg_path_str) = ffmpeg_bin.to_str() else {
             return Err(anyhow::anyhow!("Invalid ffmpeg path"));
         };
@@ -222,10 +252,9 @@ pub async fn install_ffmpeg(app: &AppHandle) -> Result<bool> {
     // partially corrupted binary would otherwise be accepted and only
     // surface later as broken merges (issue #440). On failure, remove
     // the corrupt tree so the next launch re-downloads from scratch.
-    let ffmpeg_bin = get_ffmpeg_path(app);
     if !validate_command(&ffmpeg_bin).await {
         log::warn!("[BE] install_ffmpeg: post-install validation failed, removing ffmpeg");
-        let _ = fs::remove_dir_all(&ffmpeg_root);
+        let _ = fs::remove_dir_all(ffmpeg_root);
         return Ok(false);
     }
 
@@ -1306,5 +1335,245 @@ mod tests {
         let to = tmp.path().join("dst");
         copy_dir_recursive(&empty_src, &to).unwrap();
         assert!(!to.exists(), "empty source must not create the dest");
+    }
+
+    // ---- PR⑥: install/validate/move E2E (issue #646) ----
+    //
+    // The fakes below are shell scripts standing in for the ffmpeg binary:
+    // `validate_command` judges only the exit status of its AAC-encode probe,
+    // so a script exiting 0 (or 1) reproduces a healthy (or corrupt) binary
+    // without the real ~80 MB download.
+
+    /// Archive-member path of the ffmpeg binary for the current platform
+    /// (mirrors `build_ffmpeg_bin_path` relative to the archive root).
+    fn platform_bin_rel_path() -> &'static str {
+        if cfg!(target_os = "windows") {
+            "ffmpeg-master-latest-win64-gpl/bin/ffmpeg.exe"
+        } else if cfg!(target_os = "linux") {
+            "ffmpeg-master-latest-linux64-gpl/bin/ffmpeg"
+        } else {
+            "ffmpeg"
+        }
+    }
+
+    /// Writes a fake executable (script) at the platform bin path under
+    /// `root`, creating parent dirs, and marks it executable.
+    #[cfg(unix)]
+    fn write_fake_ffmpeg_bin(root: &Path, exit_code: i32) {
+        let bin = build_ffmpeg_bin_path(root);
+        std::fs::create_dir_all(bin.parent().unwrap()).unwrap();
+        std::fs::write(&bin, format!("#!/bin/sh\nexit {exit_code}\n")).unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    /// Builds an in-memory zip archive containing the fake ffmpeg binary at
+    /// the platform layout path. `unpack_archive` dispatches on extension, so
+    /// the zip route works on every OS (Linux CI included, no xz encoder
+    /// needed). The padding member keeps the archive above MIN_MEDIA_BYTES
+    /// (1 KiB), below which `download_url` rejects the payload as invalid
+    /// media — a real ffmpeg zip is tens of MB.
+    fn fake_ffmpeg_zip(exit_code: i32) -> Vec<u8> {
+        use std::io::Write;
+        let mut w = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+        let opts: zip::write::SimpleFileOptions = zip::write::SimpleFileOptions::default();
+        w.start_file(platform_bin_rel_path(), opts).unwrap();
+        w.write_all(format!("#!/bin/sh\nexit {exit_code}\n").as_bytes())
+            .unwrap();
+        // Stored (uncompressed): deflating 4 KiB of zeros shrinks the
+        // archive below MIN_MEDIA_BYTES and download_url rejects it as
+        // invalid media.
+        w.start_file(
+            "padding.bin",
+            opts.compression_method(zip::CompressionMethod::Stored),
+        )
+        .unwrap();
+        let padding: Vec<u8> = (0..4096u32).map(|i| (i % 251) as u8).collect();
+        w.write_all(&padding).unwrap();
+        w.finish().unwrap().into_inner()
+    }
+
+    /// Serves `body` at `/ffmpeg.zip` in the 206 + Content-Range shape that
+    /// satisfies both the CDN probe and the segment GET inside `download_url`
+    /// (same contract as `mount_good_media` in handlers/bilibili.rs).
+    async fn mount_archive(server: &wiremock::MockServer, body: Vec<u8>) {
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/ffmpeg.zip"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(206)
+                    .insert_header(
+                        "Content-Range",
+                        format!("bytes 0-{}/{}", body.len() - 1, body.len()),
+                    )
+                    .insert_header("Content-Type", "application/zip")
+                    .set_body_bytes(body),
+            )
+            .mount(server)
+            .await;
+    }
+
+    /// Drives `install_ffmpeg_in_dir` against a wiremock server serving
+    /// `/ffmpeg.zip`, landing the install in `root`.
+    async fn install_from_mock(server: &wiremock::MockServer, root: &Path) -> anyhow::Result<bool> {
+        let app = tauri::test::mock_app();
+        install_ffmpeg_in_dir(
+            app.handle(),
+            root,
+            &format!("{}/ffmpeg.zip", server.uri()),
+            "ffmpeg.zip",
+            1,
+        )
+        .await
+    }
+
+    #[tokio::test]
+    async fn validate_ffmpeg_in_dir_missing_root_is_false_without_side_effects() {
+        let tmp = tempfile::tempdir().unwrap();
+        assert!(!validate_ffmpeg_in_dir(&tmp.path().join("ffmpeg")).await);
+    }
+
+    #[tokio::test]
+    async fn validate_ffmpeg_in_dir_missing_binary_cleans_root() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().join("ffmpeg");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("stray.txt"), b"partial install").unwrap();
+
+        assert!(!validate_ffmpeg_in_dir(&root).await);
+        assert!(!root.exists(), "partial install tree is removed");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn validate_ffmpeg_in_dir_failing_probe_cleans_root() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().join("ffmpeg");
+        write_fake_ffmpeg_bin(&root, 1);
+
+        assert!(!validate_ffmpeg_in_dir(&root).await);
+        assert!(!root.exists(), "corrupt binary tree is removed");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn validate_ffmpeg_in_dir_passing_probe_keeps_tree() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().join("ffmpeg");
+        write_fake_ffmpeg_bin(&root, 0);
+        std::fs::write(root.join("stray.txt"), b"keep me").unwrap();
+
+        assert!(validate_ffmpeg_in_dir(&root).await);
+        assert!(root.join("stray.txt").exists(), "valid tree is kept");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn install_ffmpeg_in_dir_downloads_unpacks_and_validates() {
+        let server = wiremock::MockServer::start().await;
+        mount_archive(&server, fake_ffmpeg_zip(0)).await;
+
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().join("ffmpeg");
+        let ok = install_from_mock(&server, &root).await.unwrap();
+
+        assert!(ok);
+        let bin = build_ffmpeg_bin_path(&root);
+        assert!(bin.exists(), "binary lands at the platform layout path");
+        use std::os::unix::fs::PermissionsExt;
+        let mode = std::fs::metadata(&bin).unwrap().permissions().mode();
+        assert_ne!(mode & 0o111, 0, "chmod +x ran on the binary");
+        assert!(!root.join("ffmpeg.zip").exists(), "archive removed");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn install_ffmpeg_in_dir_invalid_binary_removes_root() {
+        let server = wiremock::MockServer::start().await;
+        mount_archive(&server, fake_ffmpeg_zip(1)).await;
+
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().join("ffmpeg");
+        let ok = install_from_mock(&server, &root).await.unwrap();
+
+        // Post-install validation failed: the whole tree is removed so the
+        // next launch re-downloads from scratch (issue #440).
+        assert!(!ok);
+        assert!(!root.exists(), "corrupt install tree is removed");
+    }
+
+    #[tokio::test]
+    async fn install_ffmpeg_in_dir_download_failure_returns_false() {
+        // No mocks mounted: the download 404s.
+        let server = wiremock::MockServer::start().await;
+
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().join("ffmpeg");
+        let ok = install_from_mock(&server, &root).await.unwrap();
+
+        assert!(!ok);
+        assert!(
+            !build_ffmpeg_bin_path(&root).exists(),
+            "no binary after a failed download"
+        );
+    }
+
+    #[tokio::test]
+    async fn unpack_archive_zip_extracts_nested_paths() {
+        use std::io::Write;
+        let tmp = tempfile::tempdir().unwrap();
+        let zip_path = tmp.path().join("payload.zip");
+        let mut w = zip::ZipWriter::new(File::create(&zip_path).unwrap());
+        let opts: zip::write::SimpleFileOptions = zip::write::SimpleFileOptions::default();
+        w.start_file("nested/dir/file.txt", opts).unwrap();
+        w.write_all(b"payload").unwrap();
+        w.finish().unwrap();
+
+        let dest = tmp.path().join("out");
+        assert!(unpack_archive(&zip_path, &dest).await.unwrap());
+        assert_eq!(
+            std::fs::read(dest.join("nested/dir/file.txt")).unwrap(),
+            b"payload"
+        );
+    }
+
+    #[tokio::test]
+    async fn unpack_archive_unsupported_extension_returns_false() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("payload.txt");
+        std::fs::write(&path, b"not an archive").unwrap();
+
+        let dest = tmp.path().join("out");
+        assert!(!unpack_archive(&path, &dest).await.unwrap());
+        assert!(!dest.join("payload.txt").exists(), "nothing extracted");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn move_ffmpeg_copies_validates_and_removes_source() {
+        let tmp = tempfile::tempdir().unwrap();
+        let from = tmp.path().join("old-ffmpeg");
+        write_fake_ffmpeg_bin(&from, 0);
+        std::fs::write(from.join("extra.txt"), b"part of the install").unwrap();
+        let to = tmp.path().join("new-ffmpeg");
+
+        move_ffmpeg(from.clone(), to.clone()).await.unwrap();
+
+        assert!(build_ffmpeg_bin_path(&to).exists(), "binary copied over");
+        assert!(to.join("extra.txt").exists(), "whole tree copied");
+        assert!(!from.exists(), "source removed after validation");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn move_ffmpeg_missing_source_bin_errors() {
+        let tmp = tempfile::tempdir().unwrap();
+        let from = tmp.path().join("old-ffmpeg");
+        std::fs::create_dir_all(&from).unwrap();
+
+        let err = move_ffmpeg(from.clone(), tmp.path().join("new-ffmpeg"))
+            .await
+            .unwrap_err();
+        assert!(err.contains("Source ffmpeg binary not found"), "got: {err}");
+        assert!(from.exists(), "source kept on failure");
     }
 }
