@@ -219,6 +219,7 @@ pub fn build_client() -> Result<Client, String> {
 /// `base` at a local server. Error strings from the transport are the
 /// unified `"BiliApi request failed: ..."` form (non-`ERR::` freeform
 /// messages; only `ERR::` codes are mapped by the frontend).
+#[derive(Clone)]
 pub(crate) struct BiliApi {
     http: Client,
     /// API origin, e.g. "https://api.bilibili.com" (wiremock URL in tests)
@@ -465,7 +466,7 @@ async fn download_bangumi_durl(
     options: &DownloadOptions,
     output_path: &Path,
     cookie_header: &str,
-    cookies: &[CookieEntry],
+    api: &BiliApi,
     player_result: BangumiPlayerResult,
     host_health: Arc<crate::utils::cdn_selector::HostHealth>,
 ) -> Result<String, String> {
@@ -537,7 +538,7 @@ async fn download_bangumi_durl(
     }
 
     // Refetch inputs for attempt > 1 (bilibili signed URLs expire after 120 min).
-    let bd_refetch_cookies = cookies.to_vec();
+    let bd_refetch_api = api.clone();
     let bd_refetch_bvid = options.bvid.clone();
     let bd_cid = options.cid;
     let bd_ep_id = options.ep_id;
@@ -557,7 +558,7 @@ async fn download_bangumi_durl(
         move |attempt: u8| {
             // Re-clone per call: async move consumes captured values, but
             // FnMut may invoke the closure up to MAX_ATTEMPTS times.
-            let cookies = bd_refetch_cookies.clone();
+            let bd_api = bd_refetch_api.clone();
             let bvid = bd_refetch_bvid.clone();
             let video_url = bd_video_url.clone();
             let backup_urls = bd_backup_urls.clone();
@@ -573,7 +574,7 @@ async fn download_bangumi_durl(
                         "[BE] download_bangumi_durl: playurl refetch attempt={} for bangumi durl",
                         attempt
                     );
-                    match refetch_durl_url(&cookies, &bvid, bd_cid, bd_ep_id).await {
+                    match refetch_durl_url(&bd_api, &bvid, bd_cid, bd_ep_id).await {
                         Ok(fresh) => fresh,
                         Err(e) => {
                             log::warn!(
@@ -716,13 +717,23 @@ async fn download_video_impl(app: &AppHandle, options: &DownloadOptions) -> Resu
     // 2. Get cookies (WBI signing enables non-logged-in usage)
     let cookies = read_cookie(app)?.unwrap_or_default();
     let cookie_header = build_cookie_header(&cookies);
+    // Single transport for the whole download (playurl fetch, refetches on
+    // retry); threading it keeps every HTTP hop on one injectable seam.
+    let api = BiliApi::from_cookie_header(cookie_header.clone())?;
+    // Codec priority is resolved once at download start and reused by every
+    // refetch, so retries cannot switch codecs mid-download (previously each
+    // refetch re-read the settings file).
+    let codec_priority = settings
+        .as_ref()
+        .and_then(|s| s.video_codec_priority)
+        .unwrap_or_default();
 
     // 3. For bangumi, fetch player result to check is_preview and durl format.
     //    The DASH result is reused in step 4 to avoid a duplicate playurl request.
     //    CAUTION: the durl branch moves `player_result` into `download_bangumi_durl`
     //    and returns early, so only the DASH path reaches step 4. See issue #485.
     let (bangumi_preview_info, cached_bangumi_details) = if let Some(ep_id) = options.ep_id {
-        let player_result = fetch_bangumi_player_result(&cookies, ep_id, options.cid).await?;
+        let player_result = fetch_bangumi_player_result(&api, ep_id, options.cid).await?;
         let is_preview = player_result.is_preview.map(|v| v == 1);
 
         // durl format (direct MP4 URL): consume player_result and return early.
@@ -734,7 +745,7 @@ async fn download_video_impl(app: &AppHandle, options: &DownloadOptions) -> Resu
                 options,
                 reservation.reserved_path(),
                 &cookie_header,
-                &cookies,
+                &api,
                 player_result,
                 host_health,
             )
@@ -757,7 +768,7 @@ async fn download_video_impl(app: &AppHandle, options: &DownloadOptions) -> Resu
     let details = if let Some(cached) = cached_bangumi_details {
         cached
     } else {
-        fetch_video_details(&cookies, &options.bvid, options.cid).await?
+        fetch_video_details(&api, &options.bvid, options.cid).await?
     };
 
     let data = details.data.ok_or_else(|| {
@@ -813,7 +824,7 @@ async fn download_video_impl(app: &AppHandle, options: &DownloadOptions) -> Resu
                 ensure_free_space(reservation.reserved_path(), vs + 5 * 1024 * 1024)?;
             }
 
-            let d_refetch_cookies = cookies.clone();
+            let d_refetch_api = api.clone();
             let d_refetch_bvid = options.bvid.clone();
             let d_cid = options.cid;
             let d_ep_id = options.ep_id;
@@ -825,7 +836,7 @@ async fn download_video_impl(app: &AppHandle, options: &DownloadOptions) -> Resu
                 move |attempt: u8| {
                     // Re-clone per call: async move consumes captured values, but
                     // FnMut may invoke the closure up to MAX_ATTEMPTS times.
-                    let cookies = d_refetch_cookies.clone();
+                    let d_api = d_refetch_api.clone();
                     let bvid = d_refetch_bvid.clone();
                     let video_url = video_url.clone();
                     let backup_urls = backup_urls.clone();
@@ -841,7 +852,7 @@ async fn download_video_impl(app: &AppHandle, options: &DownloadOptions) -> Resu
                                 "[BE] download_video: playurl refetch attempt={} for durl video",
                                 attempt
                             );
-                            match refetch_durl_url(&cookies, &bvid, d_cid, d_ep_id).await {
+                            match refetch_durl_url(&d_api, &bvid, d_cid, d_ep_id).await {
                                 Ok(fresh) => fresh,
                                 Err(e) => {
                                     log::warn!(
@@ -920,7 +931,7 @@ async fn download_video_impl(app: &AppHandle, options: &DownloadOptions) -> Resu
     // to all streams when the preferred codec is unavailable so the download
     // never fails.
     let (streams_for_selection, codec_selection) =
-        select_streams_by_codec_priority(app, &dash_data.video, options.quality).await;
+        select_streams_by_codec_priority_with(codec_priority, &dash_data.video, options.quality);
 
     // Fallback if selected quality is unavailable (first = highest quality)
     // None means best available → -1 won't match any real quality ID.
@@ -1030,7 +1041,7 @@ async fn download_video_impl(app: &AppHandle, options: &DownloadOptions) -> Resu
         // Download audio with fallback and video in parallel (cancel immediately if either fails)
         // Audio uses fallback to handle invalid media responses from VIP-specific CDN edges
         let audio_refetch_ctx = AudioRefetchCtx {
-            cookies: cookies.clone(),
+            api: api.clone(),
             bvid: options.bvid.clone(),
             cid: options.cid,
             ep_id: options.ep_id,
@@ -1038,6 +1049,8 @@ async fn download_video_impl(app: &AppHandle, options: &DownloadOptions) -> Resu
         };
         let audio_download = download_audio_with_fallback(
             app,
+            codec_priority,
+            segment_concurrency,
             &options.download_id,
             audio_url.clone(),
             audio_backup_urls.clone(),
@@ -1050,7 +1063,6 @@ async fn download_video_impl(app: &AppHandle, options: &DownloadOptions) -> Resu
         // Refetch inputs for attempt > 1 (bilibili signed URLs expire after
         // 120 min). Cloned here because the move closure must own them, while
         // `cookie` is shared with audio_download and `cookies` with subtitle prep.
-        let v_refetch_cookies = cookies.clone();
         let v_refetch_bvid = options.bvid.clone();
         let v_cid = options.cid;
         let v_ep_id = options.ep_id;
@@ -1067,11 +1079,11 @@ async fn download_video_impl(app: &AppHandle, options: &DownloadOptions) -> Resu
             move |attempt: u8| {
                 // Re-clone per call: async move consumes captured values, but
                 // FnMut may invoke the closure up to MAX_ATTEMPTS times.
-                let cookies = v_refetch_cookies.clone();
                 let bvid = v_refetch_bvid.clone();
                 let video_url = v_video_url.clone();
                 let video_backup_urls = v_video_backups.clone();
                 let temp_video_path = v_temp_video_path.clone();
+                let v_api = api.clone();
                 let cookie = v_cookie.clone();
                 let download_id = v_download_id.clone();
                 let host_health = host_health.clone();
@@ -1084,7 +1096,13 @@ async fn download_video_impl(app: &AppHandle, options: &DownloadOptions) -> Resu
                             attempt
                         );
                         match refetch_dash_urls(
-                            app, &cookies, &bvid, v_cid, v_ep_id, v_quality, None,
+                            &v_api,
+                            codec_priority,
+                            &bvid,
+                            v_cid,
+                            v_ep_id,
+                            v_quality,
+                            None,
                         )
                         .await
                         {
@@ -1309,6 +1327,362 @@ fn cleanup_subtitle_files(lib_path: &std::path::Path, download_id: &str) {
 
 #[cfg(test)]
 mod tests {
+    // ---- PR③: pure seams ----
+
+    #[test]
+    fn build_output_path_in_appends_mp4_and_joins_dir() {
+        let p = build_output_path_in(Some("/dl"), "video.MP4").unwrap();
+        assert_eq!(p, PathBuf::from("/dl/video.MP4"));
+        let p = build_output_path_in(Some("/dl"), "video").unwrap();
+        assert_eq!(p, PathBuf::from("/dl/video.mp4"));
+        let p = build_output_path_in(Some("/dl"), "clip.mp4").unwrap();
+        assert_eq!(p, PathBuf::from("/dl/clip.mp4"));
+    }
+
+    #[test]
+    fn build_output_path_in_requires_configured_path() {
+        assert_eq!(
+            build_output_path_in(None, "v.mp4").unwrap_err(),
+            "Download output path is not configured"
+        );
+    }
+
+    #[test]
+    fn select_priority_scopes_quality_then_filters_codec() {
+        use crate::utils::codec::VideoCodecPriority;
+        // quality 80 has hevc+avc; priority AVC picks the avc entry only
+        let streams = vec![stream(80, 12), stream(80, 7), stream(64, 7)];
+        let (filtered, sel) =
+            select_streams_by_codec_priority_with(VideoCodecPriority::AvcOnly, &streams, Some(80));
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].codecid, 7);
+        assert!(sel.is_some());
+    }
+
+    #[test]
+    fn select_priority_falls_back_to_all_when_codec_missing() {
+        use crate::utils::codec::VideoCodecPriority;
+        // Only hevc available; avc-first keeps every stream
+        let streams = vec![stream(80, 12)];
+        let (filtered, sel) =
+            select_streams_by_codec_priority_with(VideoCodecPriority::AvcOnly, &streams, None);
+        assert_eq!(filtered.len(), 1);
+        assert!(sel.is_none(), "no codec selection when preferred missing");
+    }
+
+    #[tokio::test]
+    async fn head_content_length_with_parses_content_length() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("HEAD"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).insert_header("Content-Length", "4096"),
+            )
+            .mount(&server)
+            .await;
+        assert_eq!(
+            head_content_length_with(&Client::new(), &server.uri(), None).await,
+            Some(4096)
+        );
+    }
+
+    #[tokio::test]
+    async fn head_content_length_with_none_on_error_or_missing_header() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("HEAD"))
+            .respond_with(wiremock::ResponseTemplate::new(404))
+            .mount(&server)
+            .await;
+        assert_eq!(
+            head_content_length_with(&Client::new(), &server.uri(), None).await,
+            None
+        );
+
+        let server2 = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("HEAD"))
+            .respond_with(wiremock::ResponseTemplate::new(200))
+            .mount(&server2)
+            .await;
+        assert_eq!(
+            head_content_length_with(&Client::new(), &server2.uri(), None).await,
+            None,
+            "200 without Content-Length is unknown size"
+        );
+    }
+
+    // ---- PR③: retry_download loop (start_paused advances the backoff) ----
+
+    /// Scripted closure: pops the next result per call.
+    type ScriptedQueue =
+        std::sync::Arc<std::sync::Mutex<std::vec::IntoIter<Result<(), anyhow::Error>>>>;
+    type ScriptedFut = std::pin::Pin<
+        std::boxed::Box<dyn std::future::Future<Output = Result<(), anyhow::Error>> + Send>,
+    >;
+
+    fn scripted(
+        results: Vec<Result<(), anyhow::Error>>,
+    ) -> (ScriptedQueue, impl FnMut(u8) -> ScriptedFut) {
+        let queue: ScriptedQueue = std::sync::Arc::new(std::sync::Mutex::new(results.into_iter()));
+        let q2 = queue.clone();
+        (queue, move |_attempt| {
+            let q = q2.clone();
+            Box::pin(async move { q.lock().unwrap().next().unwrap_or(Ok(())) })
+        })
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn retry_download_retries_transient_then_succeeds() {
+        let app = tauri::test::mock_app();
+        let (queue, f) = scripted(vec![
+            Err(anyhow::anyhow!("boom")),
+            Err(anyhow::anyhow!("boom")),
+            Ok(()),
+        ]);
+        retry_download(app.handle(), "pr3-a", None, f)
+            .await
+            .unwrap();
+        assert!(queue.lock().unwrap().as_slice().is_empty());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn retry_download_passes_non_retryable_err_immediately() {
+        let app = tauri::test::mock_app();
+        let (queue, f) = scripted(vec![Err(anyhow::anyhow!("ERR::DISK_FULL"))]);
+        let err = retry_download(app.handle(), "pr3-b", None, f)
+            .await
+            .unwrap_err();
+        assert!(err.contains("ERR::DISK_FULL"));
+        drop(queue);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn retry_download_retries_whitelisted_invalid_media_then_succeeds() {
+        let app = tauri::test::mock_app();
+        let (_queue, f) = scripted(vec![
+            Err(anyhow::anyhow!("ERR::INVALID_MEDIA_RESPONSE")),
+            Ok(()),
+        ]);
+        retry_download(app.handle(), "pr3-c", None, f)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn retry_download_wraps_exhausted_transient_as_network() {
+        let app = tauri::test::mock_app();
+        let (_, f) = scripted(vec![
+            Err(anyhow::anyhow!("reset")),
+            Err(anyhow::anyhow!("reset")),
+            Err(anyhow::anyhow!("reset")),
+        ]);
+        let err = retry_download(app.handle(), "pr3-d", None, f)
+            .await
+            .unwrap_err();
+        assert_eq!(err, "ERR::NETWORK::reset");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn retry_download_keeps_whitelisted_code_on_exhaustion() {
+        let app = tauri::test::mock_app();
+        let (_, f) = scripted(vec![
+            Err(anyhow::anyhow!("ERR::INVALID_MEDIA_RESPONSE")),
+            Err(anyhow::anyhow!("ERR::INVALID_MEDIA_RESPONSE")),
+            Err(anyhow::anyhow!("ERR::INVALID_MEDIA_RESPONSE")),
+        ]);
+        let err = retry_download(app.handle(), "pr3-e", None, f)
+            .await
+            .unwrap_err();
+        assert_eq!(err, "ERR::INVALID_MEDIA_RESPONSE");
+    }
+
+    // ---- PR③: audio fallback E2E (mock_app + wiremock, real download_url) ----
+
+    use crate::models::bilibili_api::XPlayerApiResponseVideo;
+    use crate::utils::cdn_selector::HostHealth;
+
+    fn pr3_audio_stream(id: i32, url: &str) -> XPlayerApiResponseVideo {
+        XPlayerApiResponseVideo {
+            id,
+            codecid: 0,
+            bandwidth: 1,
+            width: 0,
+            height: 0,
+            base_url: url.to_string(),
+            backup_urls: None,
+        }
+    }
+
+    /// Mounts the good-URL media mock: probe + segment GET both satisfied.
+    async fn mount_good_media(server: &wiremock::MockServer, path: &str, body: Vec<u8>) {
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path(path))
+            .respond_with(
+                wiremock::ResponseTemplate::new(206)
+                    .insert_header(
+                        "Content-Range",
+                        format!("bytes 0-{}/{}", body.len() - 1, body.len()),
+                    )
+                    .insert_header("Content-Type", "application/octet-stream")
+                    .set_body_bytes(body),
+            )
+            .mount(server)
+            .await;
+    }
+
+    /// Mounts the bad-URL mock: media-typed 200 to Range-bearing probes and a
+    /// JSON body (invalid media) to the Range-less fallback GET.
+    async fn mount_bad_media(server: &wiremock::MockServer, path: &str) {
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path(path))
+            .and(wiremock::matchers::header_exists("range"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .insert_header("Content-Type", "application/json")
+                    .set_body_string("{\"code\":-404}"),
+            )
+            .mount(server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path(path))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .insert_header("Content-Type", "application/json")
+                    .set_body_string("error"),
+            )
+            .mount(server)
+            .await;
+    }
+
+    #[tokio::test]
+    async fn audio_fallback_primary_success_writes_exact_bytes() {
+        let server = wiremock::MockServer::start().await;
+        let body: Vec<u8> = (0..4096u32).map(|i| (i % 251) as u8).collect();
+        mount_good_media(&server, "/media/primary", body.clone()).await;
+
+        let url = format!("{}/media/primary", server.uri());
+        let dir = tempfile::tempdir().unwrap();
+        let streams = vec![pr3_audio_stream(30280, &url)];
+
+        let app = tauri::test::mock_app();
+        let api = bili_api_mock(&server.uri(), "");
+        let ctx = AudioRefetchCtx {
+            api,
+            bvid: "BV1pr3".into(),
+            cid: 1,
+            ep_id: None,
+            audio_quality: Some(30280),
+        };
+        let out = dir.path().join("out.m4s");
+        download_audio_with_fallback(
+            app.handle(),
+            crate::utils::codec::VideoCodecPriority::default(),
+            1,
+            "pr3-p1",
+            url,
+            None,
+            out.clone(),
+            None,
+            &streams,
+            &ctx,
+            Arc::new(HostHealth::new()),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(std::fs::read(&out).unwrap(), body);
+    }
+
+    #[tokio::test]
+    async fn audio_fallback_switches_stream_on_invalid_media() {
+        let server = wiremock::MockServer::start().await;
+        mount_bad_media(&server, "/media/primary").await;
+        let alt_body: Vec<u8> = (1..4097u32).map(|i| (i % 241) as u8).collect();
+        mount_good_media(&server, "/media/alt", alt_body.clone()).await;
+
+        let primary = format!("{}/media/primary", server.uri());
+        let alt = format!("{}/media/alt", server.uri());
+        let streams = vec![
+            pr3_audio_stream(30280, &primary),
+            pr3_audio_stream(30216, &alt),
+        ];
+
+        let dir = tempfile::tempdir().unwrap();
+        let app = tauri::test::mock_app();
+        let api = bili_api_mock(&server.uri(), "");
+        let ctx = AudioRefetchCtx {
+            api,
+            bvid: "BV1pr3".into(),
+            cid: 1,
+            ep_id: None,
+            audio_quality: Some(30280),
+        };
+        let out = dir.path().join("out.m4s");
+        download_audio_with_fallback(
+            app.handle(),
+            crate::utils::codec::VideoCodecPriority::default(),
+            1,
+            "pr3-p2",
+            primary,
+            None,
+            out.clone(),
+            None,
+            &streams,
+            &ctx,
+            Arc::new(HostHealth::new()),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            std::fs::read(&out).unwrap(),
+            alt_body,
+            "fallback stream content wins"
+        );
+    }
+
+    #[tokio::test]
+    async fn audio_fallback_pre_cancelled_aborts_without_http() {
+        use crate::handlers::concurrency::DOWNLOAD_CANCEL_REGISTRY;
+        let id = "pr3-cancel";
+        let (_token, _guard) = DOWNLOAD_CANCEL_REGISTRY.register(id);
+        DOWNLOAD_CANCEL_REGISTRY.cancel(id);
+
+        let server = wiremock::MockServer::start().await;
+        // No mocks mounted: any request would 404 and (worse) prove HTTP ran.
+        let primary = format!("{}/media/primary", server.uri());
+        let streams = vec![pr3_audio_stream(30280, &primary)];
+
+        let dir = tempfile::tempdir().unwrap();
+        let app = tauri::test::mock_app();
+        let api = bili_api_mock(&server.uri(), "");
+        let ctx = AudioRefetchCtx {
+            api,
+            bvid: "BV1pr3".into(),
+            cid: 1,
+            ep_id: None,
+            audio_quality: Some(30280),
+        };
+        let err = download_audio_with_fallback(
+            app.handle(),
+            crate::utils::codec::VideoCodecPriority::default(),
+            1,
+            id,
+            primary,
+            None,
+            dir.path().join("out.m4s"),
+            None,
+            &streams,
+            &ctx,
+            Arc::new(HostHealth::new()),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(err.contains("ERR::CANCELLED"), "got: {err}");
+        assert!(
+            server.received_requests().await.unwrap().is_empty(),
+            "no HTTP before the cancel guard"
+        );
+    }
 
     // ---- R7: output path naming helpers ----
 
@@ -2536,8 +2910,10 @@ fn url_host(url: &str) -> String {
 ///
 /// Returns `ERR::AUDIO_DOWNLOAD_FAILED` if all attempts fail.
 #[allow(clippy::too_many_arguments)]
-async fn download_audio_with_fallback(
-    app: &AppHandle,
+async fn download_audio_with_fallback<R: tauri::Runtime>(
+    app: &AppHandle<R>,
+    codec_priority: crate::utils::codec::VideoCodecPriority,
+    segment_concurrency: usize,
     download_id: &str,
     primary_url: String,
     backup_urls: Option<Vec<String>>,
@@ -2562,12 +2938,8 @@ async fn download_audio_with_fallback(
         url_host(&primary_url)
     );
 
-    // Get segment concurrency from settings
-    let settings = settings::get_settings(app).await.ok();
-    let segment_concurrency = Settings::resolve_segment_concurrency(&settings);
-
     // Refetch inputs for attempt > 1 (bilibili signed URLs expire after 120 min).
-    let a_refetch_cookies = refetch_ctx.cookies.clone();
+    let a_refetch_api = refetch_ctx.api.clone();
     let a_refetch_bvid = refetch_ctx.bvid.clone();
     let a_cid = refetch_ctx.cid;
     let a_ep_id = refetch_ctx.ep_id;
@@ -2585,7 +2957,8 @@ async fn download_audio_with_fallback(
     let primary_result = retry_download(app, download_id, Some("audio"), move |attempt: u8| {
         // Re-clone per call: async move consumes captured values, but FnMut may
         // invoke the closure up to MAX_ATTEMPTS times.
-        let cookies = a_refetch_cookies.clone();
+        let a_api = a_refetch_api.clone();
+        let a_codec_priority = codec_priority;
         let bvid = a_refetch_bvid.clone();
         let primary_url = a_primary_url.clone();
         let backup_urls = a_backup_urls.clone();
@@ -2602,7 +2975,17 @@ async fn download_audio_with_fallback(
                     attempt
                 );
                 // video_quality = -1 (best) is unused; only the audio slot matters.
-                match refetch_dash_urls(app, &cookies, &bvid, a_cid, a_ep_id, -1, a_quality).await {
+                match refetch_dash_urls(
+                    &a_api,
+                    a_codec_priority,
+                    &bvid,
+                    a_cid,
+                    a_ep_id,
+                    -1,
+                    a_quality,
+                )
+                .await
+                {
                     Ok(fresh) => (fresh.audio_url, fresh.audio_backup_urls),
                     Err(e) => {
                         log::warn!("[BE] audio refetch failed, retrying with stale URL: {}", e);
@@ -3214,7 +3597,7 @@ async fn fetch_wbi_view(api: &BiliApi, bvid: &str) -> Result<WebInterfaceApiResp
 /// - Network request fails
 /// - API returns non-zero code
 async fn fetch_video_details(
-    cookies: &[CookieEntry],
+    api: &BiliApi,
     bvid: &str,
     cid: i64,
 ) -> Result<XPlayerApiResponse, String> {
@@ -3223,7 +3606,6 @@ async fn fetch_video_details(
         bvid,
         cid
     );
-    let api = BiliApi::from_cookies(cookies)?;
     let mixin_key = crate::utils::wbi::fetch_mixin_key(
         &api.http,
         &api.base,
@@ -3527,12 +3909,19 @@ fn reserve_output_path(desired: &Path) -> Result<OutputReservation, String> {
 /// - Cannot retrieve settings
 /// - Download output path is not configured
 async fn build_output_path(app: &AppHandle, filename: &str) -> Result<PathBuf, String> {
-    let settings = settings::get_settings(app)
+    let dl_output_path = settings::get_settings(app)
         .await
-        .map_err(|e| format!("Failed to get settings: {e}"))?;
-    let output_path = settings
-        .dl_output_path
-        .ok_or_else(|| "Download output path is not configured".to_string())?;
+        .map_err(|e| format!("Failed to get settings: {e}"))?
+        .dl_output_path;
+    build_output_path_in(dl_output_path.as_deref(), filename)
+}
+
+/// Pure split of [`build_output_path`] over an explicit output dir so tests
+/// never touch the (real-home) settings store. `None` mirrors the
+/// unconfigured case.
+fn build_output_path_in(dl_output_path: Option<&str>, filename: &str) -> Result<PathBuf, String> {
+    let output_path =
+        dl_output_path.ok_or_else(|| "Download output path is not configured".to_string())?;
 
     let filename_with_ext = if filename.to_lowercase().ends_with(".mp4") {
         filename.to_string()
@@ -3540,7 +3929,7 @@ async fn build_output_path(app: &AppHandle, filename: &str) -> Result<PathBuf, S
         format!("{filename}.mp4")
     };
 
-    Ok(PathBuf::from(&output_path).join(filename_with_ext))
+    Ok(PathBuf::from(output_path).join(filename_with_ext))
 }
 
 /// Gets the Content-Length of a resource via HEAD request.
@@ -3558,7 +3947,11 @@ async fn build_output_path(app: &AppHandle, filename: &str) -> Result<PathBuf, S
 /// Returns `Some(content_length)` on success.
 /// Returns `None` on failure.
 async fn head_content_length(url: &str, cookie: Option<&str>) -> Option<u64> {
-    let client = build_client().ok()?;
+    head_content_length_with(&build_client().ok()?, url, cookie).await
+}
+
+/// Client-injected split of [`head_content_length`] (test seam: wiremock).
+async fn head_content_length_with(client: &Client, url: &str, cookie: Option<&str>) -> Option<u64> {
     let mut req = client.head(url);
     if let Some(c) = cookie {
         req = req.header(reqwest::header::COOKIE, c);
@@ -3683,8 +4076,8 @@ fn ensure_free_space(target_path: &Path, needed_bytes: u64) -> Result<(), String
 ///
 /// See also: `is_retryable_err_code` / `exhausted_retry_error` for the
 /// whitelist and exhaustion-wrapping decisions (issue #484).
-async fn retry_download<F, Fut>(
-    app: &AppHandle,
+async fn retry_download<R: tauri::Runtime, F, Fut>(
+    app: &AppHandle<R>,
     download_id: &str,
     stage: Option<&str>,
     mut f: F,
@@ -3852,17 +4245,14 @@ fn scope_streams_to_quality(
 ///
 /// Shared by `download_video` and `refetch_dash_urls` to keep the codec
 /// selection logic in a single place.
-async fn select_streams_by_codec_priority(
-    app: &AppHandle,
+/// Pure codec-priority-aware selection over an explicit codec
+/// priority (the caller resolves it once per download — settings store is
+/// Wry-coupled and lives in the real app-data dir, unreachable from tests).
+fn select_streams_by_codec_priority_with(
+    codec_priority: crate::utils::codec::VideoCodecPriority,
     video_streams: &[XPlayerApiResponseVideo],
     requested_quality: Option<i32>,
 ) -> (Vec<XPlayerApiResponseVideo>, Option<VideoStreamSelection>) {
-    let codec_priority = settings::get_settings(app)
-        .await
-        .ok()
-        .and_then(|s| s.video_codec_priority)
-        .unwrap_or_default();
-
     let quality_scoped = scope_streams_to_quality(video_streams, requested_quality);
 
     let available_codecs: Vec<i16> = quality_scoped.iter().map(|v| v.codecid).collect();
@@ -4253,7 +4643,8 @@ pub async fn fetch_part_qualities(
         cid
     );
     let cookies = read_cookie(app)?.unwrap_or_default();
-    let details = fetch_video_details(&cookies, bvid, cid).await?;
+    let api = BiliApi::from_cookies(&cookies)?;
+    let details = fetch_video_details(&api, bvid, cid).await?;
     let data = details.data.ok_or("ERR::NO_STREAM")?;
 
     // DASH format: separate video and audio streams
@@ -4850,13 +5241,10 @@ pub async fn fetch_bangumi_info(app: &AppHandle, ep_id: i64) -> Result<Video, St
 /// - API errors (`ERR::BANGUMI_NOT_FOUND`, `ERR::BANGUMI_ACCESS_DENIED`, etc.)
 /// - Neither DASH nor durl available (`ERR::BANGUMI_NO_DASH`)
 async fn fetch_bangumi_player_result(
-    cookies: &[CookieEntry],
+    api: &BiliApi,
     ep_id: i64,
     cid: i64,
 ) -> Result<BangumiPlayerResult, String> {
-    let cookie_header = build_cookie_header(cookies);
-    let api = BiliApi::from_cookie_header(cookie_header)?;
-
     let response = api
         .get(&format!(
             "/pgc/player/web/playurl?ep_id={}&cid={}&qn={}&fnval={}&fnver=0&fourk=1",
@@ -4939,11 +5327,11 @@ fn bangumi_player_result_to_xplayer(
 /// - Failed to fetch player result
 /// - Only durl format available (`ERR::BANGUMI_DURL_NOT_SUPPORTED`)
 async fn fetch_bangumi_details_for_download(
-    cookies: &[CookieEntry],
+    api: &BiliApi,
     ep_id: i64,
     cid: i64,
 ) -> Result<XPlayerApiResponse, String> {
-    let result = fetch_bangumi_player_result(cookies, ep_id, cid).await?;
+    let result = fetch_bangumi_player_result(api, ep_id, cid).await?;
     bangumi_player_result_to_xplayer(result)
 }
 
@@ -4967,8 +5355,9 @@ struct FreshDashUrls {
 /// the user did not pick one and best-available was used). `video_quality` is
 /// not needed for an audio-only refetch, so it is omitted; `refetch_dash_urls`
 /// is called with -1 (best) for the video slot, whose result is discarded.
+/// `api` carries the transport (client + origin + cookie) for refetches.
 struct AudioRefetchCtx {
-    cookies: Vec<CookieEntry>,
+    api: BiliApi,
     bvid: String,
     cid: i64,
     ep_id: Option<i64>,
@@ -4985,8 +5374,8 @@ struct AudioRefetchCtx {
 /// audio quality). On error, callers fall back to the stale captured URL
 /// (see the retry closures) rather than aborting the retry loop.
 async fn refetch_dash_urls(
-    app: &AppHandle,
-    cookies: &[CookieEntry],
+    api: &BiliApi,
+    codec_priority: crate::utils::codec::VideoCodecPriority,
     bvid: &str,
     cid: i64,
     ep_id: Option<i64>,
@@ -5001,9 +5390,9 @@ async fn refetch_dash_urls(
         audio_quality
     );
     let details = if let Some(ep) = ep_id {
-        fetch_bangumi_details_for_download(cookies, ep, cid).await?
+        fetch_bangumi_details_for_download(api, ep, cid).await?
     } else {
-        fetch_video_details(cookies, bvid, cid).await?
+        fetch_video_details(api, bvid, cid).await?
     };
     let data = details
         .data
@@ -5017,7 +5406,7 @@ async fn refetch_dash_urls(
     // `video_quality` is the resolved quality, so scoping to it mirrors the
     // initial download's per-quality codec selection.
     let (streams_for_selection, _) =
-        select_streams_by_codec_priority(app, &dash.video, Some(video_quality)).await;
+        select_streams_by_codec_priority_with(codec_priority, &dash.video, Some(video_quality));
     let (video_url, video_backup_urls, _) =
         select_stream_url(&streams_for_selection, video_quality)?;
     let resolved_audio_quality =
@@ -5040,7 +5429,7 @@ async fn refetch_dash_urls(
 ///
 /// Re-selects the first segment (durl format has a single combined stream).
 async fn refetch_durl_url(
-    cookies: &[CookieEntry],
+    api: &BiliApi,
     bvid: &str,
     cid: i64,
     ep_id: Option<i64>,
@@ -5051,7 +5440,7 @@ async fn refetch_durl_url(
         cid
     );
     if let Some(ep) = ep_id {
-        let result = fetch_bangumi_player_result(cookies, ep, cid).await?;
+        let result = fetch_bangumi_player_result(api, ep, cid).await?;
         let durls = result
             .durls
             .as_ref()
@@ -5070,7 +5459,7 @@ async fn refetch_durl_url(
             .map(|u| u.iter().map(|s| s.to_string()).collect());
         Ok((seg.url.clone(), backup))
     } else {
-        let details = fetch_video_details(cookies, bvid, cid).await?;
+        let details = fetch_video_details(api, bvid, cid).await?;
         let data = details
             .data
             .ok_or_else(|| "refetch_durl_url: no data".to_string())?;
@@ -5125,7 +5514,8 @@ pub async fn fetch_bangumi_part_qualities(
         cid
     );
     let cookies = read_cookie(app)?.unwrap_or_default();
-    let result = fetch_bangumi_player_result(&cookies, ep_id, cid).await?;
+    let api = BiliApi::from_cookies(&cookies)?;
+    let result = fetch_bangumi_player_result(&api, ep_id, cid).await?;
 
     let is_preview = result.is_preview.map(|v| v == 1);
 
