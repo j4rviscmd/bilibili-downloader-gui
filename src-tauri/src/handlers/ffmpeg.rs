@@ -16,7 +16,7 @@ use std::{
     path::{Path, PathBuf},
     process::{Command, Stdio},
 };
-use tauri::AppHandle;
+use tauri::{AppHandle, Runtime};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command as AsyncCommand;
 use tokio::time::timeout;
@@ -924,12 +924,12 @@ pub async fn merge_avs(
 /// Runs ffmpeg with the given args for merge operations.
 ///
 /// Handles progress parsing, cancellation, and stderr collection.
-async fn run_merge_ffmpeg(
+async fn run_merge_ffmpeg<R: Runtime>(
     ffmpeg_path: &Path,
     args: &[String],
     output_path: &Path,
     duration_ms: Option<u64>,
-    emits: &Emits,
+    emits: &Emits<R>,
     cancel_token: &Option<CancellationToken>,
 ) -> Result<(), String> {
     let mut cmd = AsyncCommand::new(ffmpeg_path);

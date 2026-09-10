@@ -82,7 +82,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, Runtime};
 use tokio::sync::Semaphore;
 use tokio::{fs, io::AsyncSeekExt, io::AsyncWriteExt};
 use tokio_util::sync::CancellationToken;
@@ -334,7 +334,7 @@ pub fn build_download_client() -> reqwest::Client {
 /// Files starting with "temp_audio" are marked as "audio" stage,
 /// and files starting with "temp_video" are marked as "video" stage.
 /// This allows the frontend to display which part of the download process is active.
-async fn set_stage_from_filename(emits: &Emits, filename: &str) {
+async fn set_stage_from_filename<R: Runtime>(emits: &Emits<R>, filename: &str) {
     let stage = if filename.starts_with("temp_audio") {
         Some("audio")
     } else if filename.starts_with("temp_video") {
@@ -605,8 +605,8 @@ fn content_range_start(value: &header::HeaderValue) -> Option<u64> {
 /// - Segment or final size mismatch after exhausting retries
 /// - Disk I/O failure (mapped to `ERR::DISK_FULL` for ENOSPC)
 #[allow(clippy::too_many_arguments)]
-pub async fn download_url(
-    app: &AppHandle,
+pub async fn download_url<R: Runtime>(
+    app: &AppHandle<R>,
     url: String,
     backup_urls: Option<Vec<String>>,
     output_path: PathBuf,
@@ -1664,11 +1664,13 @@ async fn download_segment_stream(
 /// Returns an anyhow error in the following cases:
 /// - `ERR::FILE_EXISTS` - File already exists and `is_override` is `false`
 /// - `ERR::CANCELLED` - Download was cancelled via the registry
+/// - `ERR::INVALID_MEDIA_RESPONSE` - Non-success HTTP status or non-media
+///   content type (so playurl-refetch retry can engage)
 /// - Disk I/O failure (mapped to `ERR::DISK_FULL` for ENOSPC)
 /// - HTTP/streaming failure from the underlying reqwest response
 #[allow(clippy::too_many_arguments)]
-async fn single_stream_fallback(
-    app: &AppHandle,
+async fn single_stream_fallback<R: Runtime>(
+    app: &AppHandle<R>,
     url: String,
     _backup_urls: Option<Vec<String>>, // Unused in fallback mode
     output_path: PathBuf,
@@ -1697,6 +1699,17 @@ async fn single_stream_fallback(
     // Build and send request using the shared client
     let req = apply_cookie(client.get(&url).header(header::REFERER, REFERER), &cookie);
     let mut resp = req.send().await?;
+    // Reject non-success statuses before streaming to disk. CAUTION: the
+    // media guard below cannot catch bare 4xx/5xx — is_media_content_type
+    // treats a MISSING Content-Type header as media, so a 404 with no
+    // content-type was persisted as a 0-byte "download".
+    if !resp.status().is_success() {
+        log::error!(
+            "[BE] download_url: single-stream invalid status {}, not streaming to disk",
+            resp.status()
+        );
+        return Err(anyhow::anyhow!("ERR::INVALID_MEDIA_RESPONSE"));
+    }
     // Reject non-media error responses before streaming to disk (see
     // is_media_content_type). Mirrors the segmented path's guard so the
     // fallback path cannot silently persist a JSON/text error payload.
@@ -1721,38 +1734,47 @@ async fn single_stream_fallback(
         let _ = emits.set_stage(stage).await;
     }
 
-    // Open file and download
-    let mut file = tokio::fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(true)
-        .open(&output_path)
-        .await
-        .map_err(map_io_error)?;
-
     let mut downloaded: u64 = 0;
-    let emits_for_callback = emits.clone();
-    while let Some(chunk) = resp.chunk().await? {
-        // Check cancellation on each chunk
-        if let Err(e) = check_cancelled(&cancel_token) {
-            let _ = emits.stop().await;
-            return Err(e);
+    // Stream to disk; on ANY failure (open, stream error, cancel, disk
+    // error) stop the emitter first — its ticker task only exits once
+    // is_complete is set, so returning without stop()/complete() leaks a
+    // 500ms progress loop.
+    let result: Result<()> = async {
+        let mut file = tokio::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(&output_path)
+            .await
+            .map_err(map_io_error)?;
+
+        while let Some(chunk) = resp.chunk().await? {
+            check_cancelled(&cancel_token)?;
+            file.write_all(&chunk).await.map_err(map_io_error)?;
+            downloaded += chunk.len() as u64;
+            // Emit progress update via watch channel (non-blocking)
+            emits.update_progress(downloaded);
         }
-
-        file.write_all(&chunk).await.map_err(map_io_error)?;
-        downloaded += chunk.len() as u64;
-        // Emit progress update via watch channel (non-blocking)
-        emits_for_callback.update_progress(downloaded);
+        file.flush().await.map_err(map_io_error)?;
+        Ok(())
     }
+    .await;
 
-    file.flush().await.map_err(map_io_error)?;
-    if emit_complete {
-        emits.complete().await;
-    } else {
-        // Stop background task without emitting complete event
-        emits.stop().await;
+    match result {
+        Ok(()) => {
+            if emit_complete {
+                emits.complete().await;
+            } else {
+                // Stop background task without emitting complete event
+                emits.stop().await;
+            }
+            Ok(())
+        }
+        Err(e) => {
+            emits.stop().await;
+            Err(e)
+        }
     }
-    Ok(())
 }
 
 /// Implements capped exponential backoff sleep for retry logic.
@@ -2354,5 +2376,253 @@ mod tests {
     fn build_download_client_constructs() {
         // Smoke: the shared client must build with the tuned pool options.
         let _client = build_download_client();
+    }
+    // ---- PR① e2e: download_url / single_stream_fallback via mock_app ----
+
+    /// 4096 bytes (251-value cycle): > MIN_MEDIA_BYTES (1 KiB) so the final
+    /// size floor passes, < 32 MiB segment size so one segment covers it.
+    fn e2e_body() -> Vec<u8> {
+        (0..4096u32).map(|i| (i % 251) as u8).collect()
+    }
+
+    /// Mounts the 206 mock that satisfies BOTH the CDN probe and the segment
+    /// GET (both carry a Range header).
+    async fn segmented_206_mock(server: &wiremock::MockServer, body: &[u8]) {
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(206)
+                    .insert_header(
+                        "Content-Range",
+                        format!("bytes 0-{}/{}", body.len() - 1, body.len()),
+                    )
+                    .insert_header("Content-Type", "application/octet-stream")
+                    .set_body_bytes(body.to_vec()),
+            )
+            .mount(server)
+            .await;
+    }
+
+    #[tokio::test]
+    async fn download_url_segmented_path_writes_exact_bytes() {
+        // Proves the Emits<R> generic refactor end-to-end: the whole
+        // download pipeline runs against AppHandle<MockRuntime>.
+        let app = tauri::test::mock_app();
+        let server = wiremock::MockServer::start().await;
+        let body = e2e_body();
+        segmented_206_mock(&server, &body).await;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("out.bin");
+
+        download_url(
+            app.handle(),
+            server.uri(),
+            None,
+            path.clone(),
+            None,
+            false,
+            None,
+            None,
+            false,
+            2,
+            Arc::new(cdn_selector::HostHealth::new()),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(std::fs::read(&path).unwrap(), body, "byte-exact output");
+    }
+
+    #[tokio::test]
+    async fn download_url_falls_back_when_probe_serves_html() {
+        let app = tauri::test::mock_app();
+        let server = wiremock::MockServer::start().await;
+        // Mount order is load-bearing: equal-priority mocks match in
+        // registration order, so the Range-header mock must come first to
+        // answer the probe; the Range-less mock answers the fallback GET.
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::header_exists("range"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .insert_header("Content-Type", "text/html")
+                    .set_body_string("<html>error</html>"),
+            )
+            .mount(&server)
+            .await;
+        let body = e2e_body();
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .insert_header("Content-Type", "application/octet-stream")
+                    .set_body_bytes(body.clone()),
+            )
+            .mount(&server)
+            .await;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("out.bin");
+        download_url(
+            app.handle(),
+            server.uri(),
+            None,
+            path.clone(),
+            None,
+            false,
+            None,
+            None,
+            false,
+            2,
+            Arc::new(cdn_selector::HostHealth::new()),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(std::fs::read(&path).unwrap(), body);
+        let requests = server.received_requests().await.unwrap();
+        assert_eq!(requests.len(), 2);
+        assert!(
+            requests[0].headers.contains_key("range"),
+            "probe request carries Range"
+        );
+        assert!(
+            !requests[1].headers.contains_key("range"),
+            "fallback GET has no Range"
+        );
+    }
+
+    #[tokio::test]
+    async fn download_url_fallback_rejects_404_with_media_content_type() {
+        // Regression for the status guard: a 404 with a media-looking (or
+        // absent) Content-Type used to be streamed to disk as a 0-byte
+        // "successful" download.
+        let app = tauri::test::mock_app();
+        let server = wiremock::MockServer::start().await;
+        // Probe mock: Range-bearing GET gets a media-typed 404, so the probe
+        // fails the size lookup and download_url routes to the fallback.
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::header_exists("range"))
+            .respond_with(wiremock::ResponseTemplate::new(404))
+            .mount(&server)
+            .await;
+        // Fallback mock: Range-less GET gets the same 404 (with a media
+        // content-type so only the status guard can reject it).
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(404)
+                    .insert_header("Content-Type", "application/octet-stream"),
+            )
+            .mount(&server)
+            .await;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("out.bin");
+        let err = download_url(
+            app.handle(),
+            server.uri(),
+            None,
+            path.clone(),
+            None,
+            false,
+            None,
+            None,
+            false,
+            2,
+            Arc::new(cdn_selector::HostHealth::new()),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(
+            err.to_string().contains("ERR::INVALID_MEDIA_RESPONSE"),
+            "got: {err}"
+        );
+        assert!(!path.exists(), "nothing written to disk");
+    }
+
+    #[tokio::test]
+    async fn download_url_errors_when_file_exists() {
+        let app = tauri::test::mock_app();
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("out.bin");
+        std::fs::write(&path, b"existing").unwrap();
+
+        let err = download_url(
+            app.handle(),
+            // Unroutable: the existence check precedes any HTTP call.
+            "http://127.0.0.1:9/x".to_string(),
+            None,
+            path.clone(),
+            None,
+            false,
+            None,
+            None,
+            false,
+            1,
+            Arc::new(cdn_selector::HostHealth::new()),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(err.to_string().contains("ERR::FILE_EXISTS"), "got: {err}");
+        assert_eq!(std::fs::read(&path).unwrap(), b"existing");
+    }
+
+    #[tokio::test]
+    async fn download_url_override_replaces_existing_file() {
+        let app = tauri::test::mock_app();
+        let server = wiremock::MockServer::start().await;
+        let body = e2e_body();
+        segmented_206_mock(&server, &body).await;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("out.bin");
+        std::fs::write(&path, b"stale junk").unwrap();
+
+        download_url(
+            app.handle(),
+            server.uri(),
+            None,
+            path.clone(),
+            None,
+            true,
+            None,
+            None,
+            false,
+            2,
+            Arc::new(cdn_selector::HostHealth::new()),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(std::fs::read(&path).unwrap(), body);
+    }
+
+    #[tokio::test]
+    async fn download_url_pre_cancelled_id_errors_immediately() {
+        // register -> cancel drops the token but flags the id, so
+        // resolve_cancel_token's is_cancelled fallback fires before any HTTP.
+        let id = "e2e-precancel";
+        let (_token, _guard) = DOWNLOAD_CANCEL_REGISTRY.register(id);
+        DOWNLOAD_CANCEL_REGISTRY.cancel(id);
+
+        let app = tauri::test::mock_app();
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("out.bin");
+        let err = download_url(
+            app.handle(),
+            "http://127.0.0.1:9/x".to_string(),
+            None,
+            path.clone(),
+            None,
+            false,
+            Some(id.to_string()),
+            None,
+            false,
+            1,
+            Arc::new(cdn_selector::HostHealth::new()),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(err.to_string().contains("ERR::CANCELLED"), "got: {err}");
+        assert!(!path.exists());
     }
 }

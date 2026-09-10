@@ -7,7 +7,7 @@
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Runtime};
 // Why: tokio's Instant, not std, so the paused-clock tests below work:
 // with the test-util feature (dev-dependency only, src-tauri/Cargo.toml)
 // Instant::now() follows tokio::time::advance(); without it tokio
@@ -119,13 +119,17 @@ impl Default for EmitsInner {
 ///
 /// Uses watch::Sender for lock-free progress updates from download thread,
 /// avoiding contention with the background emission task.
-pub struct Emits {
-    app: AppHandle,
+// Why generic over R: production constructs Emits<Wry> from AppHandle<Wry>,
+// while tests construct Emits<MockRuntime> from tauri::test::mock_app()
+// (tauri "test" dev-dependency feature, src-tauri/Cargo.toml) — the same
+// seam as handlers/cookie.rs read_cookie and handlers/init.rs emits.
+pub struct Emits<R: Runtime> {
+    app: AppHandle<R>,
     inner: Arc<Mutex<EmitsInner>>,
     progress_tx: watch::Sender<u64>,
 }
 
-impl Emits {
+impl<R: Runtime> Emits<R> {
     /// Creates a new progress emitter and starts automatic updates.
     ///
     /// This function initializes the progress tracker, emits an initial progress
@@ -141,7 +145,7 @@ impl Emits {
     /// # Returns
     ///
     /// Returns a new `Emits` instance with an active background update task.
-    pub fn new(app: AppHandle, download_id: String, filesize_bytes: Option<u64>) -> Self {
+    pub fn new(app: AppHandle<R>, download_id: String, filesize_bytes: Option<u64>) -> Self {
         fn bytes_to_mb(bytes: u64) -> f64 {
             bytes as f64 / (1024.0 * 1024.0)
         }
@@ -323,15 +327,9 @@ impl Emits {
     ///
     /// * `app` - Tauri application handle for event emission
     /// * `inner` - Mutable reference to the locked inner state
-    // Why: generic over R — production callers pass AppHandle
-    // (= AppHandle<Wry>) while the tests pass tauri::test::mock_app()'s
-    // AppHandle<MockRuntime> (tauri "test" dev-dependency feature,
-    // src-tauri/Cargo.toml); Emitter<R> is the minimal bound covering both.
-    fn send_progress_locked<R: tauri::Runtime>(
-        app: &impl Emitter<R>,
-        inner: &mut EmitsInner,
-        current_bytes: u64,
-    ) {
+    // Rationale for the generic parameter: see the struct definition.
+    // Emitter<R> is the minimal bound covering both production and tests.
+    fn send_progress_locked(app: &impl Emitter<R>, inner: &mut EmitsInner, current_bytes: u64) {
         let now = Instant::now();
         let delta_time = now.duration_since(inner.last_instant).as_secs_f64();
         let elapsed_time = now.duration_since(inner.start_instant).as_secs_f64();
@@ -439,18 +437,24 @@ mod tests {
     fn calculate_percentage_uses_raw_byte_denominator() {
         // 5 MiB downloaded against 10 MiB total -> 50%
         assert_eq!(
-            Emits::calculate_percentage(5 * 1024 * 1024, Some(10 * 1024 * 1024)),
+            Emits::<tauri::Wry>::calculate_percentage(5 * 1024 * 1024, Some(10 * 1024 * 1024)),
             50.0
         );
         // Zero progress stays 0
-        assert_eq!(Emits::calculate_percentage(0, Some(10 * 1024 * 1024)), 0.0);
+        assert_eq!(
+            Emits::<tauri::Wry>::calculate_percentage(0, Some(10 * 1024 * 1024)),
+            0.0
+        );
     }
 
     #[test]
     fn calculate_percentage_unknown_size_is_zero() {
         // Unknown total (None) or zero total must not divide by zero.
-        assert_eq!(Emits::calculate_percentage(12345, None), 0.0);
-        assert_eq!(Emits::calculate_percentage(12345, Some(0)), 0.0);
+        assert_eq!(Emits::<tauri::Wry>::calculate_percentage(12345, None), 0.0);
+        assert_eq!(
+            Emits::<tauri::Wry>::calculate_percentage(12345, Some(0)),
+            0.0
+        );
     }
 
     #[tokio::test(start_paused = true)]
