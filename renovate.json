@@ -1,0 +1,28 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "timezone": "Asia/Tokyo",
+  "schedule": ["before 6am on Monday"],
+  "lockFileMaintenance": {
+    "enabled": true
+  },
+  "packageRules": [
+    {
+      "description": "Group @tauri-apps npm packages (api, cli, plugins) so JS-side versions stay in sync",
+      "matchManagers": ["npm"],
+      "matchPackagePatterns": ["^@tauri-apps/"],
+      "groupName": "tauri-npm"
+    },
+    {
+      "description": "Group tauri crates (tauri, tauri-build, tauri-plugin-*) so Rust-side versions stay in sync",
+      "matchManagers": ["cargo"],
+      "matchPackagePatterns": ["^tauri"],
+      "groupName": "tauri-cargo"
+    },
+    {
+      "description": "Automerge non-major updates once CI passes; majors stay manual",
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true
+    }
+  ]
+}
