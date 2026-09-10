@@ -47,12 +47,24 @@ pub async fn fetch_all_release_notes(
         repo,
         current_version_str
     );
+    let github = Octocrab::builder().build()?;
+    fetch_all_release_notes_with(&github, owner, repo, current_version_str).await
+}
+
+/// Transport-injected split of [`fetch_all_release_notes`] (test seam, issue
+/// #646): rides the given octocrab client, so wiremock tests substitute the
+/// GitHub origin (same pattern as `fetch_repo_stars_with` in handlers/github.rs).
+async fn fetch_all_release_notes_with(
+    github: &Octocrab,
+    owner: &str,
+    repo: &str,
+    current_version_str: &str,
+) -> Result<String> {
     use semver::Version;
 
     let current_version = Version::parse(current_version_str)
         .map_err(|e| anyhow::anyhow!("Failed to parse current version: {}", e))?;
 
-    let github = Octocrab::builder().build()?;
     const PER_PAGE: u8 = 30;
     let mut releases = Vec::new();
 
@@ -119,8 +131,17 @@ pub async fn fetch_all_releases_markdown(owner: &str, repo: &str) -> Result<Stri
         owner,
         repo
     );
-
     let github = Octocrab::builder().build()?;
+    fetch_all_releases_markdown_with(&github, owner, repo).await
+}
+
+/// Transport-injected split of [`fetch_all_releases_markdown`] (test seam,
+/// issue #646): rides the given octocrab client.
+async fn fetch_all_releases_markdown_with(
+    github: &Octocrab,
+    owner: &str,
+    repo: &str,
+) -> Result<String> {
     const PER_PAGE: u8 = 30;
     let mut releases = Vec::new();
 
@@ -152,6 +173,35 @@ pub async fn fetch_all_releases_markdown(owner: &str, repo: &str) -> Result<Stri
         "all releases",
         "No releases found.",
     ))
+}
+
+// Why: issue #560 requires a single updater path per machine — with parallel
+// download instances, two sessions racing the check->download window would
+// double-install or downgrade each other; this flock is that serialization point.
+/// Opens `update.lock` and claims its exclusive flock (test seam, issue
+/// #646): split out of lib.rs's `begin_update_session` (lib.rs is excluded
+/// from coverage measurement) so the open/lock/error-mapping logic is both
+/// measurable and runnable against an explicit tempdir path. The caller
+/// keeps the returned file alive — dropping it releases the flock.
+pub(crate) fn try_acquire_update_lock(
+    lock_path: &std::path::Path,
+) -> Result<std::fs::File, String> {
+    use fs2::FileExt;
+
+    let file = std::fs::OpenOptions::new()
+        .create(true)
+        // truncate(false): re-opening an existing update.lock must not zero it.
+        .truncate(false)
+        .write(true)
+        .read(true)
+        .open(lock_path)
+        .map_err(|e| format!("Failed to open update.lock: {}", e))?;
+
+    // Non-blocking: another live instance holds it right now.
+    file.try_lock_exclusive()
+        .map_err(|_| "ERR::UPDATE_IN_PROGRESS".to_string())?;
+
+    Ok(file)
 }
 
 /// Pure Markdown assembly shared by both fetchers: sort releases
@@ -291,5 +341,190 @@ mod tests {
             format_releases_markdown(vec![], "u", "l", "No releases found."),
             "No releases found."
         );
+    }
+
+    // ---- PR⑨: fetcher + update-lock E2E (issue #646) ----
+    //
+    // Octocrab rides a wiremock origin (same pattern as handlers/github.rs);
+    // pages are disambiguated by the `page` query param.
+
+    use wiremock::matchers::{method, path, query_param};
+
+    fn mock_client(base: &str) -> Octocrab {
+        Octocrab::builder().base_uri(base).unwrap().build().unwrap()
+    }
+
+    // Owned tags: pages built by format! loops (range-generated semver
+    // fixtures) mount directly, no &str borrow-dance at call sites.
+    fn releases_body(tags_bodies: &[(String, Option<&str>)]) -> serde_json::Value {
+        serde_json::json!(tags_bodies
+            .iter()
+            .map(|(tag, body)| {
+                let r = release(tag, *body);
+                serde_json::to_value(&r).unwrap()
+            })
+            .collect::<Vec<_>>())
+    }
+
+    async fn mount_releases_page(
+        server: &wiremock::MockServer,
+        page: u32,
+        tags_bodies: &[(String, Option<&str>)],
+    ) {
+        wiremock::Mock::given(method("GET"))
+            .and(path("/repos/j4rviscmd/bilibili-downloader-gui/releases"))
+            .and(query_param("page", page.to_string()))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(releases_body(tags_bodies)),
+            )
+            .mount(server)
+            .await;
+    }
+
+    async fn count_release_requests(server: &wiremock::MockServer) -> usize {
+        server
+            .received_requests()
+            .await
+            .unwrap()
+            .iter()
+            .filter(|r| r.url.path().ends_with("/releases"))
+            .count()
+    }
+
+    #[tokio::test]
+    async fn release_notes_merges_newer_versions_and_stops_on_short_page() {
+        let server = wiremock::MockServer::start().await;
+        // Short page (< PER_PAGE) ends the loop after page 1.
+        mount_releases_page(
+            &server,
+            1,
+            &[
+                ("v1.3.0".to_string(), Some("third")),
+                ("v1.2.0".to_string(), Some("second")),
+            ],
+        )
+        .await;
+
+        let notes = fetch_all_release_notes_with(
+            &mock_client(&server.uri()),
+            "j4rviscmd",
+            "bilibili-downloader-gui",
+            "1.1.0",
+        )
+        .await
+        .unwrap();
+
+        assert!(notes.contains("## v1.3.0"), "{notes}");
+        assert!(notes.contains("## v1.2.0"), "{notes}");
+        assert_eq!(
+            count_release_requests(&server).await,
+            1,
+            "short page stops pagination"
+        );
+    }
+
+    #[tokio::test]
+    async fn release_notes_early_exits_when_full_page_has_nothing_newer() {
+        let server = wiremock::MockServer::start().await;
+        // Page 1 must be FULL (PER_PAGE items, all newer) so pagination
+        // continues; page 2 is full but all-older -> any_newer early-exit.
+        // Why 70..=99: every tag must parse as valid semver — leading-zero
+        // patches (v1.2.01) are invalid and would be silently skipped.
+        let newer: Vec<_> = (70..=99)
+            .map(|i| (format!("v1.2.{i}"), Some("newer")))
+            .collect();
+        mount_releases_page(&server, 1, &newer).await;
+        let older: Vec<_> = (70..=99)
+            .map(|i| (format!("v1.0.{i}"), Some("older")))
+            .collect();
+        mount_releases_page(&server, 2, &older).await;
+
+        let notes = fetch_all_release_notes_with(
+            &mock_client(&server.uri()),
+            "j4rviscmd",
+            "bilibili-downloader-gui",
+            "1.1.0",
+        )
+        .await
+        .unwrap();
+
+        assert!(notes.contains("v1.2.99"), "{notes}");
+        assert!(!notes.contains("v1.0."), "all-older page excluded: {notes}");
+        assert_eq!(
+            count_release_requests(&server).await,
+            2,
+            "early-exit after an all-older full page; page 3 never requested"
+        );
+    }
+
+    #[tokio::test]
+    async fn release_notes_empty_page_breaks_immediately() {
+        let server = wiremock::MockServer::start().await;
+        mount_releases_page(&server, 1, &[]).await;
+
+        let notes = fetch_all_release_notes_with(
+            &mock_client(&server.uri()),
+            "j4rviscmd",
+            "bilibili-downloader-gui",
+            "1.2.0",
+        )
+        .await
+        .unwrap();
+        assert_eq!(notes, "No new releases available");
+    }
+
+    #[tokio::test]
+    async fn release_notes_rejects_unparsable_current_version() {
+        let server = wiremock::MockServer::start().await;
+        let err = fetch_all_release_notes_with(
+            &mock_client(&server.uri()),
+            "j4rviscmd",
+            "bilibili-downloader-gui",
+            "not-semver",
+        )
+        .await
+        .unwrap_err();
+        assert!(err.to_string().contains("parse current version"));
+        assert!(
+            server.received_requests().await.unwrap().is_empty(),
+            "no HTTP before the version parse"
+        );
+    }
+
+    #[tokio::test]
+    async fn releases_markdown_paginates_until_empty_page() {
+        let server = wiremock::MockServer::start().await;
+        mount_releases_page(&server, 1, &[("v1.2.0".to_string(), Some("second"))]).await;
+        mount_releases_page(&server, 2, &[("v1.0.0".to_string(), Some("first"))]).await;
+        // Markdown pagination only stops on an EMPTY page or >= PER_PAGE
+        // accumulated releases, so an empty page 3 terminates the loop.
+        mount_releases_page(&server, 3, &[]).await;
+
+        let notes = fetch_all_releases_markdown_with(
+            &mock_client(&server.uri()),
+            "j4rviscmd",
+            "bilibili-downloader-gui",
+        )
+        .await
+        .unwrap();
+
+        assert!(notes.contains("## v1.2.0"), "{notes}");
+        assert!(notes.contains("## v1.0.0"), "{notes}");
+        assert!(notes.contains("*View [all releases]"), "{notes}");
+    }
+
+    #[test]
+    fn try_acquire_update_lock_excludes_second_holder() {
+        let dir = tempfile::tempdir().unwrap();
+        let lock_path = dir.path().join("update.lock");
+
+        let first = try_acquire_update_lock(&lock_path).unwrap();
+        // A second descriptor in the same process must not steal the flock.
+        let err = try_acquire_update_lock(&lock_path).unwrap_err();
+        assert_eq!(err, "ERR::UPDATE_IN_PROGRESS");
+        drop(first);
+        // Released: the next attempt succeeds.
+        let second = try_acquire_update_lock(&lock_path);
+        assert!(second.is_ok(), "lock is reusable after release");
     }
 }

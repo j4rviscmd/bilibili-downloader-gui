@@ -1178,8 +1178,6 @@ static UPDATE_SESSION_LOCK: std::sync::Mutex<Option<std::fs::File>> = std::sync:
 /// the install and this one picks the new version up on its next check.
 #[tauri::command]
 async fn begin_update_session(app: AppHandle) -> Result<(), String> {
-    use fs2::FileExt;
-
     let mut guard = UPDATE_SESSION_LOCK
         .lock()
         .map_err(|_| "ERR::UPDATE_LOCK_POISONED".to_string())?;
@@ -1193,18 +1191,7 @@ async fn begin_update_session(app: AppHandle) -> Result<(), String> {
         .app_data_dir()
         .map_err(|e| format!("Failed to resolve app data dir: {}", e))?
         .join("update.lock");
-    let file = std::fs::OpenOptions::new()
-        .create(true)
-        // truncate(false): re-opening an existing update.lock must not zero it.
-        .truncate(false)
-        .write(true)
-        .read(true)
-        .open(&lock_path)
-        .map_err(|e| format!("Failed to open update.lock: {}", e))?;
-
-    // Non-blocking: another live instance holds it right now.
-    file.try_lock_exclusive()
-        .map_err(|_| "ERR::UPDATE_IN_PROGRESS".to_string())?;
+    let file = updater::try_acquire_update_lock(&lock_path)?;
 
     *guard = Some(file);
     log::info!("[BE] begin_update_session: acquired update.lock");
