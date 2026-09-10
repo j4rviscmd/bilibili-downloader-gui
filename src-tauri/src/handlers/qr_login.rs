@@ -1104,8 +1104,12 @@ fn generate_correspond_path(timestamp: i64) -> Result<String, String> {
 
     let padding = Oaep::new::<Sha256>();
 
+    // Why: rsa 0.9 implements its Rng argument against rand_core 0.6, while
+    // our direct rand dependency is 0.9 (rand_core 0.9). OsRng from rand_core
+    // 0.6 satisfies rsa directly and is the recommended entropy source for
+    // RSA padding anyway.
     let encrypted = public_key
-        .encrypt(&mut rand::thread_rng(), padding, message.as_bytes())
+        .encrypt(&mut rand_core::OsRng, padding, message.as_bytes())
         .map_err(|e| format!("Failed to encrypt: {}", e))?;
 
     Ok(encode_string(&encrypted))

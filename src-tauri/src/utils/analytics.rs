@@ -284,7 +284,8 @@ fn get_or_create_client_id(dir: &Path) -> String {
 fn uuid_v4() -> String {
     use rand::rngs::StdRng;
     use rand::{RngCore, SeedableRng};
-    let mut rng = StdRng::from_entropy();
+    // Why: rand 0.9 renamed SeedableRng::from_entropy to from_os_rng.
+    let mut rng = StdRng::from_os_rng();
     let mut bytes = [0u8; 16];
     rng.fill_bytes(&mut bytes);
     // Set variant and version bits
