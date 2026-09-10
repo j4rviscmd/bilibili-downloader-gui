@@ -25,8 +25,6 @@ use reqwest::Url;
 use tauri::AppHandle;
 use tauri::Manager;
 
-use crate::constants;
-use crate::handlers::bilibili::build_client;
 use crate::models::cookie::CookieCache;
 use crate::models::cookie::CookieEntry;
 use crate::models::qr_login::{
@@ -61,8 +59,17 @@ fn write_login_state<R: tauri::Runtime>(
         .app_data_dir()
         .map_err(|e| format!("Failed to resolve app data dir: {}", e))?
         .join(STORE_FILE_NAME);
+    write_login_state_at(&path, state)
+}
 
-    locked_json::with_json_mut(&path, |value| {
+/// Path-injected split of [`write_login_state`] (test seam, issue #646): the
+/// locked-json mutation against an explicit file so tests run against a
+/// tempdir instead of the real-home app data dir.
+fn write_login_state_at(
+    path: &std::path::Path,
+    state: &crate::models::qr_login::LoginState,
+) -> Result<(), String> {
+    locked_json::with_json_mut(path, |value| {
         value[LOGIN_STATE_KEY] = serde_json::to_value(state)
             .map_err(|e| format!("Failed to serialize login state: {}", e))?;
         Ok(())
@@ -934,8 +941,13 @@ async fn get_login_state_from_store<R: tauri::Runtime>(
         .app_data_dir()
         .map_err(|e| format!("Failed to resolve app data dir: {}", e))?
         .join(STORE_FILE_NAME);
+    get_login_state_at(&path).await
+}
 
-    let mut state: LoginState = locked_json::with_json(&path, |value| {
+/// Path-injected split of [`get_login_state_from_store`] (test seam, issue
+/// #646): reads and deserializes the login state from an explicit file.
+async fn get_login_state_at(path: &std::path::Path) -> Result<LoginState, String> {
+    let mut state: LoginState = locked_json::with_json(path, |value| {
         let raw = match value.get(LOGIN_STATE_KEY) {
             Some(v) => v.clone(),
             None => return Ok(LoginState::default()),
@@ -985,16 +997,15 @@ pub async fn get_login_state(app: &AppHandle) -> Result<LoginState, String> {
 
 // Cookie Refresh API
 
-/// Bilibili cookie info API endpoint for checking if refresh is needed.
-const COOKIE_INFO_URL: &str = "https://passport.bilibili.com/x/passport-login/web/cookie/info";
-/// Bilibili cookie refresh API endpoint for exchanging refresh tokens.
-const COOKIE_REFRESH_URL: &str =
-    "https://passport.bilibili.com/x/passport-login/web/cookie/refresh";
-/// Bilibili confirm refresh endpoint to invalidate the old refresh token.
-const CONFIRM_REFRESH_URL: &str =
-    "https://passport.bilibili.com/x/passport-login/web/confirm/refresh";
-/// URL prefix for fetching the CorrespondPath page that contains refresh_csrf.
-const CORRESPOND_URL_PREFIX: &str = "https://www.bilibili.com/correspond/1/";
+/// Origin of the CorrespondPath page that carries refresh_csrf (different
+/// from both PASSPORT_BASE and the API origin).
+const WEB_BASE: &str = "https://www.bilibili.com";
+/// Bilibili cookie info API path for checking if refresh is needed.
+const COOKIE_INFO_PATH: &str = "/x/passport-login/web/cookie/info";
+/// Bilibili cookie refresh API path for exchanging refresh tokens.
+const COOKIE_REFRESH_PATH: &str = "/x/passport-login/web/cookie/refresh";
+/// Bilibili confirm refresh path to invalidate the old refresh token.
+const CONFIRM_REFRESH_PATH: &str = "/x/passport-login/web/confirm/refresh";
 
 /// Checks if cookie refresh is needed.
 ///
@@ -1020,17 +1031,20 @@ const CORRESPOND_URL_PREFIX: &str = "https://www.bilibili.com/correspond/1/";
 /// Returns an error if the HTTP request fails, the response cannot be
 /// parsed, or the API returns a non-zero code other than `-101`.
 pub async fn check_cookie_refresh(app: &AppHandle) -> Result<CookieRefreshInfo, String> {
-    let cookies = get_cookie_header(app);
-    log::debug!("[BE] Checking with cookies: {} bytes", cookies.len());
+    // Passport origin: the cookie-info endpoint is not on api.bilibili.com.
+    let api = crate::handlers::bilibili::BiliApi::from_cookie_header(get_cookie_header(app))?
+        .with_base(PASSPORT_BASE);
+    check_cookie_refresh_with(&api).await
+}
 
-    // UA/Referer to match other Bilibili requests: bare clients trip passport
-    // risk control, which misreads valid sessions as expired (-101).
-    let client = build_client()?;
-    let response = client
-        .get(COOKIE_INFO_URL)
-        .header("Cookie", &cookies)
-        .header(reqwest::header::REFERER, constants::REFERER)
-        .send()
+/// Transport-injected split of [`check_cookie_refresh`] (test seam, issue
+/// #646): rides the given [`BiliApi`] as-is, so wiremock tests pass an api
+/// whose origin is the mock server (the wrapper owns the passport base).
+pub(crate) async fn check_cookie_refresh_with(
+    api: &crate::handlers::bilibili::BiliApi,
+) -> Result<CookieRefreshInfo, String> {
+    let response = api
+        .get(COOKIE_INFO_PATH)
         .await
         .map_err(|e| format!("Failed to check cookie refresh: {}", e))?;
 
@@ -1070,7 +1084,8 @@ pub async fn check_cookie_refresh(app: &AppHandle) -> Result<CookieRefreshInfo, 
 ///
 /// The path is generated by encrypting `refresh_{timestamp}` with Bilibili's
 /// public key and hex-encoding the resulting ciphertext. The encrypted path
-/// is later appended to [`CORRESPOND_URL_PREFIX`] to fetch `refresh_csrf`.
+/// is later appended to the `/correspond/1/` path on [`WEB_BASE`] to fetch
+/// `refresh_csrf` (see [`fetch_refresh_csrf_with`]).
 ///
 /// # Arguments
 ///
@@ -1133,24 +1148,15 @@ fn generate_correspond_path(timestamp: i64) -> Result<String, String> {
 ///
 /// Returns an error if the request fails, the response body cannot be
 /// read, or the expected `<div id="1-name">...</div>` element is absent.
-async fn fetch_refresh_csrf(app: &AppHandle, correspond_path: &str) -> Result<String, String> {
-    let cookies = get_cookie_header(app);
-    let url = format!("{}{}", CORRESPOND_URL_PREFIX, correspond_path);
-    log::debug!("[BE] fetch_refresh_csrf: URL: {}", url);
+async fn fetch_refresh_csrf_with(
+    api: &crate::handlers::bilibili::BiliApi,
+    correspond_path: &str,
+) -> Result<String, String> {
+    let path = format!("/correspond/1/{}", correspond_path);
+    log::debug!("[BE] fetch_refresh_csrf: path: {}", path);
 
-    // build_client() supplies the canonical USER_AGENT; the previous inline
-    // Chrome/120 string went stale as fingerprinting material.
-    let client = build_client()?;
-    let response = client
-        .get(&url)
-        .header("Cookie", &cookies)
-        .header(
-            "Accept",
-            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        )
-        .header("Accept-Language", "en-US,en;q=0.5")
-        .header("Accept-Encoding", "identity")
-        .send()
+    let response = api
+        .get(&path)
         .await
         .map_err(|e| format!("Failed to fetch refresh_csrf: {}", e))?;
 
@@ -1224,10 +1230,6 @@ fn extract_refresh_csrf(html: &str, start_tag: &str, end_tag: &str) -> Result<St
 pub async fn refresh_cookie(app: &AppHandle) -> Result<Session, String> {
     log::info!("[BE] Starting cookie refresh process...");
 
-    // Generate timestamp for CorrespondPath
-    let timestamp = chrono::Utc::now().timestamp_millis();
-    log::debug!("[BE] Using timestamp: {}", timestamp);
-
     // Get current session for refresh_token and csrf
     let login_state = get_login_state(app).await?;
     let session = login_state
@@ -1240,6 +1242,32 @@ pub async fn refresh_cookie(app: &AppHandle) -> Result<Session, String> {
         session.refresh_token.len()
     );
 
+    let api = crate::handlers::bilibili::BiliApi::from_cookie_header(get_cookie_header(app))?;
+    refresh_cookie_with(
+        app,
+        &api.with_base(PASSPORT_BASE),
+        &api.with_base(WEB_BASE),
+        &session,
+    )
+    .await
+}
+
+/// Transport-and-session-injected split of [`refresh_cookie`] (test seam,
+/// issue #646): the current session and both origins (passport for the
+/// refresh/confirm posts, www for the correspond page) are passed explicitly
+/// so wiremock tests drive the full correspond→refresh→confirm→persist flow
+/// without the encrypted store (whose load path no-ops under the E2E stub).
+/// Tests pass the same mock-server origin for both apis.
+pub(crate) async fn refresh_cookie_with<R: tauri::Runtime>(
+    app: &impl Manager<R>,
+    api: &crate::handlers::bilibili::BiliApi,
+    web_api: &crate::handlers::bilibili::BiliApi,
+    session: &Session,
+) -> Result<Session, String> {
+    // Generate timestamp for CorrespondPath
+    let timestamp = chrono::Utc::now().timestamp_millis();
+    log::debug!("[BE] Using timestamp: {}", timestamp);
+
     // Step 1: Generate CorrespondPath
     let correspond_path = generate_correspond_path(timestamp)?;
     log::debug!(
@@ -1247,16 +1275,12 @@ pub async fn refresh_cookie(app: &AppHandle) -> Result<Session, String> {
         correspond_path.len()
     );
 
-    // Step 2: Fetch refresh_csrf
+    // Step 2: Fetch refresh_csrf via the www-origin transport.
     log::debug!("[BE] Fetching refresh_csrf...");
-    let refresh_csrf = fetch_refresh_csrf(app, &correspond_path).await?;
+    let refresh_csrf = fetch_refresh_csrf_with(web_api, &correspond_path).await?;
     log::debug!("[BE] Got refresh_csrf: {}", refresh_csrf);
 
     // Step 3: Call cookie refresh API
-    let cookies = get_cookie_header(app);
-    // UA/Referer to match other Bilibili requests (passport risk control).
-    let client = build_client()?;
-
     let params = [
         ("csrf", session.bili_jct.clone()),
         ("refresh_csrf", refresh_csrf),
@@ -1265,12 +1289,8 @@ pub async fn refresh_cookie(app: &AppHandle) -> Result<Session, String> {
     ];
 
     log::debug!("[BE] Calling refresh API...");
-    let response = client
-        .post(COOKIE_REFRESH_URL)
-        .header("Cookie", &cookies)
-        .header(reqwest::header::REFERER, constants::REFERER)
-        .form(&params)
-        .send()
+    let response = api
+        .post_form(COOKIE_REFRESH_PATH, &params)
         .await
         .map_err(|e| format!("Failed to refresh cookie: {}", e))?;
 
@@ -1328,11 +1348,11 @@ pub async fn refresh_cookie(app: &AppHandle) -> Result<Session, String> {
     ];
 
     log::debug!("[BE] Confirming refresh...");
-    let confirm_response: ConfirmRefreshResponse = client
-        .post(CONFIRM_REFRESH_URL)
-        .header("Cookie", &new_cookies_header)
-        .form(&confirm_params)
-        .send()
+    // Why: with_cookie — the confirm endpoint must authenticate with the
+    // freshly issued cookies, not the (now rotated) ones on `api`.
+    let confirm_response: ConfirmRefreshResponse = api
+        .with_cookie(new_cookies_header)
+        .post_form(CONFIRM_REFRESH_PATH, &confirm_params)
         .await
         .map_err(|e| format!("Failed to confirm refresh: {}", e))?
         .json()
@@ -1356,9 +1376,9 @@ pub async fn refresh_cookie(app: &AppHandle) -> Result<Session, String> {
             .unwrap_or_default(),
         refresh_token: new_refresh_token,
         timestamp: chrono::Utc::now().timestamp_millis(),
-        uname: session.uname,   // Preserve username from old session
-        buvid3: session.buvid3, // Preserve buvid3 from old session
-        buvid4: session.buvid4, // Preserve buvid4 from old session
+        uname: session.uname.clone(), // Preserve username from old session
+        buvid3: session.buvid3.clone(), // Preserve buvid3 from old session
+        buvid4: session.buvid4.clone(), // Preserve buvid4 from old session
     };
 
     // Update cookie cache
@@ -2093,5 +2113,341 @@ mod tests {
 
         let no_end = r#"<div id="1-name">TOKEN but never closes"#;
         assert!(extract_refresh_csrf(no_end, r#"<div id="1-name">"#, "</div>").is_err());
+    }
+
+    // ---- PR⑦: cookie-refresh machinery E2E (issue #646) ----
+    //
+    // The refresh flow rides a BiliApi whose origin points at wiremock: the
+    // correspond page, the refresh POST, and the confirm POST are all mounted
+    // on one server. The session under refresh is passed explicitly, so the
+    // encrypted store (a no-op under enable_e2e_store_stub) never gates the
+    // flow.
+
+    /// A pre-refresh QR session: old cookies + refresh_token that the mocks
+    /// expect in the outgoing form bodies.
+    fn pr7_session() -> Session {
+        Session {
+            sessdata: "old_sess".into(),
+            bili_jct: "old_jct".into(),
+            dede_user_id: "42".into(),
+            dede_user_id_ck_md5: "old_md5".into(),
+            refresh_token: "old_rt".into(),
+            timestamp: 1_700_000_000_000,
+            uname: "tester".into(),
+            buvid3: "b3".into(),
+            buvid4: "b4".into(),
+        }
+    }
+
+    fn pr7_api(server: &wiremock::MockServer) -> BiliApi {
+        BiliApi::new(
+            reqwest::Client::new(),
+            server.uri(),
+            "SESSDATA=old_sess; bili_jct=old_jct",
+        )
+    }
+
+    /// Mounts the correspond page carrying refresh_csrf under the 1-name div.
+    /// The encrypted path segment is RSA-random per call, so the matcher
+    /// takes any hex suffix.
+    async fn mount_correspond(server: &wiremock::MockServer, refresh_csrf: &str) {
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path_regex(r"/correspond/1/[0-9a-f]+"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .insert_header("Content-Type", "text/html")
+                    .set_body_string(format!(
+                        "<html><body><div id=\"1-name\">{refresh_csrf}</div></body></html>"
+                    )),
+            )
+            .mount(server)
+            .await;
+    }
+
+    /// Mounts the refresh POST: replies with `body` plus one Set-Cookie per
+    /// entry in `set_cookies` (name=value pairs the flow parses into the new
+    /// session).
+    async fn mount_refresh_post(
+        server: &wiremock::MockServer,
+        body: serde_json::Value,
+        set_cookies: &[(&str, &str)],
+    ) {
+        let mut template = wiremock::ResponseTemplate::new(200).set_body_json(body);
+        for (name, value) in set_cookies {
+            template = template.append_header(
+                "set-cookie",
+                &format!("{name}={value}; Path=/; Domain=.bilibili.com"),
+            );
+        }
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::path(
+                "/x/passport-login/web/cookie/refresh",
+            ))
+            .respond_with(template)
+            .mount(server)
+            .await;
+    }
+
+    async fn mount_confirm_post(server: &wiremock::MockServer, body: serde_json::Value) {
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::path(
+                "/x/passport-login/web/confirm/refresh",
+            ))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(body))
+            .mount(server)
+            .await;
+    }
+
+    #[tokio::test]
+    async fn check_cookie_refresh_with_reports_refresh_flag() {
+        let server = wiremock::MockServer::start().await;
+        mount_json(
+            &server,
+            "/x/passport-login/web/cookie/info",
+            200,
+            serde_json::json!({"code": 0, "message": "0", "data": {"refresh": false, "timestamp": 123456}}),
+        )
+        .await;
+
+        let info = check_cookie_refresh_with(&pr7_api(&server)).await.unwrap();
+        assert!(!info.refresh);
+        assert_eq!(info.timestamp, 123456);
+    }
+
+    #[tokio::test]
+    async fn check_cookie_refresh_with_expired_session_forces_refresh() {
+        let server = wiremock::MockServer::start().await;
+        mount_json(
+            &server,
+            "/x/passport-login/web/cookie/info",
+            200,
+            serde_json::json!({"code": -101, "message": "not logged in"}),
+        )
+        .await;
+
+        let info = check_cookie_refresh_with(&pr7_api(&server)).await.unwrap();
+        assert!(info.refresh, "-101 synthesizes a refresh request");
+        assert!(info.timestamp > 0);
+    }
+
+    #[tokio::test]
+    async fn check_cookie_refresh_with_maps_api_error() {
+        let server = wiremock::MockServer::start().await;
+        mount_json(
+            &server,
+            "/x/passport-login/web/cookie/info",
+            200,
+            serde_json::json!({"code": -400, "message": "bad request"}),
+        )
+        .await;
+        let err = check_cookie_refresh_with(&pr7_api(&server))
+            .await
+            .unwrap_err();
+        assert!(err.contains("Cookie info API error"), "got: {err}");
+    }
+
+    #[tokio::test]
+    async fn fetch_refresh_csrf_with_extracts_token() {
+        let server = wiremock::MockServer::start().await;
+        mount_correspond(&server, "csrf_from_page").await;
+
+        let token = fetch_refresh_csrf_with(&pr7_api(&server), "deadbeef")
+            .await
+            .unwrap();
+        assert_eq!(token, "csrf_from_page");
+    }
+
+    #[tokio::test]
+    async fn fetch_refresh_csrf_with_missing_div_errors() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path_regex(r"/correspond/1/[0-9a-f]+"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_string("<html>no marker here</html>"),
+            )
+            .mount(&server)
+            .await;
+
+        let err = fetch_refresh_csrf_with(&pr7_api(&server), "deadbeef")
+            .await
+            .unwrap_err();
+        assert!(err.contains("1-name"), "got: {err}");
+    }
+
+    #[tokio::test]
+    async fn refresh_cookie_with_rotates_session_end_to_end() {
+        enable_e2e_store_stub();
+        let server = wiremock::MockServer::start().await;
+        mount_correspond(&server, "page_csrf").await;
+        mount_refresh_post(
+            &server,
+            serde_json::json!({"code": 0, "message": "0", "data": {"status": 0, "message": "0", "refresh_token": "new_rt"}}),
+            &[
+                ("SESSDATA", "new_sess"),
+                ("bili_jct", "new_jct"),
+                ("DedeUserID", "42"),
+                ("DedeUserID__ckMd5", "new_md5"),
+            ],
+        )
+        .await;
+        mount_confirm_post(&server, serde_json::json!({"code": 0, "message": "0"})).await;
+
+        let app = tauri::test::mock_app();
+        app.manage(CookieCache::default());
+        let old_session = pr7_session();
+        let new_session = refresh_cookie_with(
+            app.handle(),
+            &pr7_api(&server),
+            &pr7_api(&server),
+            &old_session,
+        )
+        .await
+        .unwrap();
+
+        // New session carries the Set-Cookie values + new refresh_token,
+        // preserving the identity fields from the old session.
+        assert_eq!(new_session.sessdata, "new_sess");
+        assert_eq!(new_session.bili_jct, "new_jct");
+        assert_eq!(new_session.dede_user_id, "42");
+        assert_eq!(new_session.refresh_token, "new_rt");
+        assert_eq!(new_session.uname, "tester");
+        assert_eq!(new_session.buvid3, "b3");
+        assert!(new_session.timestamp >= old_session.timestamp);
+
+        // The in-memory cookie cache was rotated to the new cookies.
+        {
+            let cache = app.state::<CookieCache>();
+            let guard = cache.cookies.lock().unwrap();
+            let names: Vec<&str> = guard.iter().map(|c| c.name.as_str()).collect();
+            assert!(names.contains(&"SESSDATA"), "cache rotated: {names:?}");
+        }
+
+        // Outgoing refresh POST carried the old csrf/refresh_token and the
+        // page-sourced refresh_csrf in its form body.
+        let requests = server.received_requests().await.unwrap();
+        let refresh_req = requests
+            .iter()
+            .find(|r| r.method == "POST" && r.url.path().ends_with("/cookie/refresh"))
+            .expect("refresh POST happened");
+        let body = String::from_utf8(refresh_req.body.clone()).unwrap();
+        assert!(body.contains("csrf=old_jct"), "body: {body}");
+        assert!(body.contains("refresh_csrf=page_csrf"), "body: {body}");
+        assert!(body.contains("refresh_token=old_rt"), "body: {body}");
+        assert!(body.contains("source=main_web"), "body: {body}");
+
+        // The confirm POST authenticated with the NEW cookies and csrf.
+        let confirm_req = requests
+            .iter()
+            .find(|r| r.method == "POST" && r.url.path().ends_with("/confirm/refresh"))
+            .expect("confirm POST happened");
+        let confirm_cookie = confirm_req
+            .headers
+            .get("cookie")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default();
+        assert!(
+            confirm_cookie.contains("SESSDATA=new_sess"),
+            "cookie: {confirm_cookie}"
+        );
+        let confirm_body = String::from_utf8(confirm_req.body.clone()).unwrap();
+        assert!(
+            confirm_body.contains("csrf=new_jct"),
+            "body: {confirm_body}"
+        );
+        assert!(
+            confirm_body.contains("refresh_token=old_rt"),
+            "body: {confirm_body}"
+        );
+    }
+
+    #[tokio::test]
+    async fn refresh_cookie_with_api_error_propagates() {
+        enable_e2e_store_stub();
+        let server = wiremock::MockServer::start().await;
+        mount_correspond(&server, "page_csrf").await;
+        mount_refresh_post(
+            &server,
+            serde_json::json!({"code": 86095, "message": "refresh failed"}),
+            &[],
+        )
+        .await;
+
+        let app = tauri::test::mock_app();
+        let err = refresh_cookie_with(
+            app.handle(),
+            &pr7_api(&server),
+            &pr7_api(&server),
+            &pr7_session(),
+        )
+        .await
+        .unwrap_err();
+        assert!(err.contains("Cookie refresh API error"), "got: {err}");
+        // No confirm call happened after the failed refresh.
+        let requests = server.received_requests().await.unwrap();
+        assert!(
+            !requests
+                .iter()
+                .any(|r| r.url.path().ends_with("/confirm/refresh")),
+            "confirm must not run after a failed refresh"
+        );
+    }
+
+    #[tokio::test]
+    async fn refresh_cookie_with_missing_refresh_token_errors() {
+        enable_e2e_store_stub();
+        let server = wiremock::MockServer::start().await;
+        mount_correspond(&server, "page_csrf").await;
+        // code 0 but no data -> the flow must reject before confirming.
+        mount_refresh_post(&server, serde_json::json!({"code": 0, "message": "0"}), &[]).await;
+
+        let app = tauri::test::mock_app();
+        let err = refresh_cookie_with(
+            app.handle(),
+            &pr7_api(&server),
+            &pr7_api(&server),
+            &pr7_session(),
+        )
+        .await
+        .unwrap_err();
+        assert!(err.contains("No refresh_token"), "got: {err}");
+    }
+
+    #[tokio::test]
+    async fn write_login_state_at_roundtrips_method() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("login_state.json");
+        let state = LoginState {
+            method: LoginMethod::QrCode,
+            session: None,
+        };
+        write_login_state_at(&path, &state).unwrap();
+
+        let read = get_login_state_at(&path).await.unwrap();
+        assert_eq!(read.method, LoginMethod::QrCode);
+        assert!(
+            read.session.is_none(),
+            "legacy session field is cleared on read"
+        );
+    }
+
+    #[tokio::test]
+    async fn get_login_state_at_missing_file_returns_default() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = get_login_state_at(&dir.path().join("absent.json"))
+            .await
+            .unwrap();
+        assert_eq!(state.method, LoginMethod::default());
+    }
+
+    #[tokio::test]
+    async fn get_login_state_at_corrupt_value_errors() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("login_state.json");
+        std::fs::write(
+            &path,
+            serde_json::json!({ "loginState": "not-an-object" }).to_string(),
+        )
+        .unwrap();
+        assert!(get_login_state_at(&path).await.is_err());
     }
 }

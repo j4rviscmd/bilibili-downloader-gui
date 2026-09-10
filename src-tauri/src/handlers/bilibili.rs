@@ -310,6 +310,34 @@ impl BiliApi {
         check_http_status(response.status())?;
         Ok(response)
     }
+
+    /// POST `{base}{path}` as an urlencoded form with Cookie/Referer headers.
+    ///
+    /// Serves the passport cookie-refresh endpoints used by QR login
+    /// (handlers/qr_login.rs), which take form bodies instead of queries.
+    /// Callers that need a different Cookie per hop (e.g. confirming a
+    /// refresh with the freshly issued cookies) chain [`with_cookie`]
+    /// before this.
+    pub(crate) async fn post_form(
+        &self,
+        path: &str,
+        form: &[(&str, String)],
+    ) -> Result<reqwest::Response, String> {
+        let mut req = self
+            .http
+            .post(format!("{}{}", self.base, path))
+            .header(header::REFERER, REFERER);
+        if !self.cookie_header.is_empty() {
+            req = req.header(header::COOKIE, &self.cookie_header);
+        }
+        let response = req
+            .form(form)
+            .send()
+            .await
+            .map_err(|e| format!("BiliApi request failed: {e}"))?;
+        check_http_status(response.status())?;
+        Ok(response)
+    }
 }
 
 /// Validates Bilibili API response and returns appropriate error codes.
