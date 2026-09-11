@@ -103,12 +103,19 @@ comments.
   (nightly cargo-llvm-cov) IS part of ci-status: its
   `--fail-under-lines` ratchet fails the PR on a coverage regression
   (only the codecov upload inside is report-only).
+- **gitleaks** (`.github/workflows/gitleaks.yml`) scans for leaked
+  secrets: PR/push events scan the event's commits, and a daily
+  scheduled run scans the full git history. Its `Secret Scan` check is
+  separate from `ci-status` and must be kept **required** in the main
+  branch ruleset. Reviewed false-positive baselines live in
+  `.gitleaksignore` — extend it only after confirming a finding is a
+  dummy/test value, never for a real secret.
 - **E2E Tests** (`.github/workflows/e2e.yml`) runs separately on macOS
   and is **NOT a required** status check.
 - When monitoring CI (e.g. during `worktree-finish`), do **not** wait
-  for the E2E workflow to finish — `ci-status` passing is sufficient to
-  treat CI as green. Treat E2E as informational (screenshots are still
-  useful for visual review).
+  for the E2E workflow to finish — `ci-status` and `Secret Scan`
+  passing is sufficient to treat CI as green. Treat E2E as
+  informational (screenshots are still useful for visual review).
 
 ## Pre-verification Checklist
 

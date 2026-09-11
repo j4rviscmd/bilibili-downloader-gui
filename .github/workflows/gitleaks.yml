@@ -1,0 +1,43 @@
+# Secret scanning for leaked tokens/keys (issue #629)
+name: gitleaks
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  # Why schedule + workflow_dispatch: gitleaks-action only scans the event
+  # range (PR/push commits) on those triggers — the full-history scan that
+  # issue #629 requires runs exclusively on schedule/dispatch events
+  schedule:
+    - cron: '13 15 * * *' # daily at 00:13 JST
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  # Why pull-requests write: lets the action comment on the PR when a leak
+  # is found (job failure alone would gate the merge either way).
+  # GITLEAKS_LICENSE is not needed for personal accounts (orgs only)
+  pull-requests: write
+
+jobs:
+  gitleaks:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout (full history)
+        # Why fetch-depth 0: the scheduled scan walks every commit, so
+        # secrets that were removed in past commits are still detected
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan for secrets
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
