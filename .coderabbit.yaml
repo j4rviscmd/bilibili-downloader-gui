@@ -17,6 +17,12 @@ reviews:
   auto_review:
     enabled: true
     drafts: false
+    # Why: dependency-update PRs are lockfile/manifest churn already validated
+    # by CI (and automerged) — reviewing them wastes quota and posts noise
+    ignore_usernames:
+      - 'dependabot[bot]'
+      - 'renovate[bot]'
+      - 'github-actions[bot]'
   path_filters:
     # Lockfiles are machine-managed (Renovate/Dependabot churn) — no review value
     - '!**/package-lock.json'
