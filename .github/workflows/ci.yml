@@ -294,9 +294,11 @@ jobs:
         working-directory: src-tauri
         run: cargo fmt --check
 
-  # Why report-only (not in ci-status needs): coverage visibility disciplines
-  # the test-coverage push without failing PRs on flaky nightly/toolchain
-  # drift; rust-test remains the required green gate.
+  # Why in ci-status needs (required): a coverage regression must fail the
+  # PR, not just report — early detection beats post-hoc triage (user
+  # decision 2026-09-11, issue #646 maintenance phase). The codecov upload
+  # step inside stays fail_ci_if_error: false so codecov outages don't gate
+  # PRs; only the local llvm-cov threshold may fail this job.
   coverage:
     name: Rust Coverage
     runs-on: ubuntu-latest
@@ -372,10 +374,10 @@ jobs:
         # silently masking a threshold breach as a green, half-empty report
         # Why `report` (not a fresh run): reuses the profdata written by the
         # generate step above — tests run once per job
-        # Why 79: ratchet measured at 81.12% lines on CI after the PR⑧
-        # trim-executor batch (issue #646) — floor keeps ~2pt
-        # headroom per the vitest.config.ts convention; bump as coverage
-        # grows, never lower.
+        # Why 81: ratchet measured at 82.44% lines on CI after the PR⑩
+        # coverage(off) batch (issue #646 closed at that line) — floor
+        # keeps ~1.4pt headroom per the vitest.config.ts convention; bump
+        # as coverage grows, never lower.
         # CAUTION: baseline must be measured on CI, not locally — macOS/nightly
         # measured 56.62% over 20174 lines while CI counts 12056 lines
         # (nightly rustc coverage mapping differs per platform)
@@ -389,7 +391,7 @@ jobs:
           rc=0
           cargo llvm-cov report --summary-only --show-missing-lines \
             --ignore-filename-regex 'src/(main|lib|menu)\.rs' \
-            --fail-under-lines 79 \
+            --fail-under-lines 81 \
             | tee -a "$GITHUB_STEP_SUMMARY" || rc=$?
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           exit $rc
@@ -436,6 +438,7 @@ jobs:
         rust-clippy,
         rust-test,
         rust-format,
+        coverage,
         docs-format,
       ]
     if: always()
