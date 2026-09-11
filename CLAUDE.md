@@ -110,6 +110,11 @@ comments.
   branch ruleset. Reviewed false-positive baselines live in
   `.gitleaksignore` — extend it only after confirming a finding is a
   dummy/test value, never for a real secret.
+- **CodeQL** (`.github/workflows/codeql.yml`) statically analyzes
+  JavaScript/TypeScript, Actions, and Rust (build-mode: none) for
+  vulnerability patterns. Advanced setup because default setup does
+  not support Rust. **NOT a required** status check — triage alerts in
+  the Security tab instead of gating merges.
 - **E2E Tests** (`.github/workflows/e2e.yml`) runs separately on macOS
   and is **NOT a required** status check.
 - When monitoring CI (e.g. during `worktree-finish`), do **not** wait
