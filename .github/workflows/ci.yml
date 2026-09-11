@@ -1,10 +1,16 @@
 # CI workflow for PRs to main branch
 name: CI
 
+# Why: pull_request-only — post-merge push runs re-ran the same jobs at
+# ~60min of runner time per merge and never caught a failure the PR run
+# had missed, so merges are validated at PR time instead (user decision
+# 2026-09-11)
+# Note: reviewdog's github-pr-review reporter and action-suggester only
+# work on pull_request events, so re-adding a push trigger requires
+# restoring the event-name guards these steps lost when the trigger was
+# removed
 on:
   pull_request:
-    branches: [main]
-  push:
     branches: [main]
 
 concurrency:
@@ -45,17 +51,13 @@ jobs:
         if: steps.cache-nm-format.outputs.cache-hit != 'true'
         run: npm ci
 
-      # Why the PR/push split: reviewdog reporters only work on
-      # pull_request events; push to main keeps the plain check
       - name: Apply Prettier
-        if: github.event_name == 'pull_request'
         run: npx prettier --write .
 
       - name: Suggest formatting changes
         # Why cleanup:false: keeps the formatted state so the gate step
         # below sees the full diff (filter-mode only limits which hunks
         # get suggestion cards, not which violations fail the job)
-        if: github.event_name == 'pull_request'
         uses: reviewdog/action-suggester@v1
         with:
           tool_name: prettier
@@ -64,12 +66,7 @@ jobs:
           cleanup: false
 
       - name: Fail on unformatted files
-        if: github.event_name == 'pull_request'
         run: git diff --exit-code
-
-      - name: Check formatting
-        if: github.event_name != 'pull_request'
-        run: npm run format:check
 
   lint:
     name: Lint
@@ -95,10 +92,7 @@ jobs:
         if: steps.cache-nm-lint.outputs.cache-hit != 'true'
         run: npm ci
 
-      # Why the PR/push split: reviewdog reporters only work on
-      # pull_request events; push to main keeps the plain lint
       - name: Setup reviewdog
-        if: github.event_name == 'pull_request'
         uses: reviewdog/action-setup@v1
 
       # Why pipefail: eslint's exit code must survive the pipe so the
@@ -109,7 +103,6 @@ jobs:
       # shape as the clippy job). env.PWD strips the absolute filePath
       # prefix reviewdog cannot match against the repo-relative diff
       - name: Run ESLint
-        if: github.event_name == 'pull_request'
         env:
           REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -130,10 +123,6 @@ jobs:
             | reviewdog -f=rdjsonl -name=eslint \
                 -reporter=github-pr-review -filter-mode=added \
                 -fail-level=error -tee
-
-      - name: Run ESLint
-        if: github.event_name != 'pull_request'
-        run: npm run lint
 
   frontend-build:
     name: Frontend Build
@@ -278,10 +267,7 @@ jobs:
           sudo apt-get update || echo "::warning::apt-get update partially failed; relying on whichever indexes resolved"
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libdbus-1-dev libglib2.0-dev
 
-      # Why the PR/push split: reviewdog reporters only work on
-      # pull_request events; push to main keeps the plain clippy
       - name: Setup reviewdog
-        if: github.event_name == 'pull_request'
         uses: reviewdog/action-setup@v1
 
       # Why pipefail: cargo's exit code must survive the pipes so the
@@ -290,8 +276,9 @@ jobs:
       # Why 2>/dev/null: cargo writes progress to stderr; diagnostics
       # arrive as JSON on stdout. -tee echoes parsed findings back to
       # the log so hard compile errors stay debuggable
+      # Why --all-targets: also lints test targets; plain clippy covers
+      # lib/bins only, and the unit tests must stay warning-free
       - name: Run Clippy
-        if: github.event_name == 'pull_request'
         working-directory: src-tauri
         env:
           REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -322,14 +309,6 @@ jobs:
             | reviewdog -f=rdjsonl -name=clippy \
                 -reporter=github-pr-review -filter-mode=added \
                 -fail-level=error -tee
-
-      - name: Run Clippy
-        if: github.event_name != 'pull_request'
-        working-directory: src-tauri
-        # Why: --all-targets also lints test targets; plain clippy covers lib/bins only, and
-        # the test-coverage plan (see dev-dependencies note in src-tauri/Cargo.toml) adds
-        # unit tests that must stay warning-free
-        run: cargo clippy --all-targets -- -D warnings
 
   # Why: cargo test also compiles and runs doctests — this job enforces them and is what
   # surfaced the 19 failing doc examples fixed in this PR
@@ -401,10 +380,7 @@ jobs:
           sudo apt-get update || echo "::warning::apt-get update partially failed; relying on whichever indexes resolved"
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libdbus-1-dev libglib2.0-dev
 
-      # Why the PR/push split: action-suggester only supports
-      # pull_request events; push to main keeps the plain check
       - name: Apply rustfmt
-        if: github.event_name == 'pull_request'
         working-directory: src-tauri
         run: cargo fmt
 
@@ -412,7 +388,6 @@ jobs:
         # Why cleanup:false: keeps the formatted state so the gate step
         # below sees the full diff (filter-mode only limits which hunks
         # get suggestion cards, not which violations fail the job)
-        if: github.event_name == 'pull_request'
         uses: reviewdog/action-suggester@v1
         with:
           tool_name: rustfmt
@@ -421,13 +396,7 @@ jobs:
           cleanup: false
 
       - name: Fail on unformatted files
-        if: github.event_name == 'pull_request'
         run: git diff --exit-code
-
-      - name: Check Rust formatting
-        if: github.event_name != 'pull_request'
-        working-directory: src-tauri
-        run: cargo fmt --check
 
   # Why in ci-status needs (required): a coverage regression must fail the
   # PR, not just report — early detection beats post-hoc triage (user
@@ -556,10 +525,7 @@ jobs:
         working-directory: docs
         run: npm ci
 
-      # Why the PR/push split: action-suggester only supports
-      # pull_request events; push to main keeps the plain check
       - name: Apply Prettier
-        if: github.event_name == 'pull_request'
         working-directory: docs
         run: npx prettier --write .
 
@@ -567,7 +533,6 @@ jobs:
         # Why cleanup:false: keeps the formatted state so the gate step
         # below sees the full diff (filter-mode only limits which hunks
         # get suggestion cards, not which violations fail the job)
-        if: github.event_name == 'pull_request'
         uses: reviewdog/action-suggester@v1
         with:
           tool_name: prettier-docs
@@ -576,13 +541,7 @@ jobs:
           cleanup: false
 
       - name: Fail on unformatted files
-        if: github.event_name == 'pull_request'
         run: git diff --exit-code
-
-      - name: Check formatting
-        if: github.event_name != 'pull_request'
-        working-directory: docs
-        run: npm run format:check
 
   ci-status:
     name: CI status check
