@@ -103,6 +103,10 @@ comments.
   (nightly cargo-llvm-cov) IS part of ci-status: its
   `--fail-under-lines` ratchet fails the PR on a coverage regression
   (only the codecov upload inside is report-only).
+- **reviewdog** posts eslint/clippy findings as PR inline comments and
+  formatter fixes as suggested changes (one-click apply) — PR events
+  only; push to main keeps the plain checks. Local format-on-commit
+  hook lives in `.githooks/` (activated by the `prepare` npm script).
 - **gitleaks** (`.github/workflows/gitleaks.yml`) scans for leaked
   secrets: PR/push events scan the event's commits, and a daily
   scheduled run scans the full git history. Its `Secret Scan` check is

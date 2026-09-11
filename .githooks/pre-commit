@@ -1,0 +1,38 @@
+#!/bin/sh
+# Format staged files before commit and re-stage them so commits are
+# always formatted. rustfmt runs on the whole src-tauri workspace, so
+# unstaged .rs files may also get formatted (left unstaged). CI
+# (ci.yml format jobs + reviewdog suggester) stays the fail-safe gate
+# when this hook is bypassed (e.g. --no-verify).
+
+# CAUTION: re-staging is whole-file. If you partially staged a file
+# (git add -p), unstaged edits in formatted files get committed too.
+# ponytail: no stash dance for partial staging; this repo's flow stages
+# whole files via worktree-finish.
+
+set -e
+
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR)
+RS_FILES=$(printf '%s\n' "$STAGED" | grep '\.rs$' || true)
+
+# rustfmt when any staged .rs file
+if [ -n "$RS_FILES" ]; then
+  if command -v cargo >/dev/null 2>&1; then
+    cargo fmt --manifest-path src-tauri/Cargo.toml
+    printf '%s\n' "$RS_FILES" | xargs git add --
+  else
+    echo "warning: cargo not found; skipping rustfmt (CI will catch it)" >&2
+  fi
+fi
+
+# prettier for the rest; --ignore-unknown lets prettier itself decide
+# which staged files it supports (honors .prettierignore)
+PRETTIER_FILES=$(printf '%s\n' "$STAGED" | grep -v '\.rs$' || true)
+if [ -n "$PRETTIER_FILES" ]; then
+  if command -v npx >/dev/null 2>&1; then
+    printf '%s\n' "$PRETTIER_FILES" | xargs npx prettier --write --ignore-unknown
+    printf '%s\n' "$PRETTIER_FILES" | xargs git add --
+  else
+    echo "warning: npx not found; skipping prettier (CI will catch it)" >&2
+  fi
+fi

@@ -13,6 +13,7 @@
     "typecheck": "tsc -b --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
+    "prepare": "git config core.hooksPath .githooks || true",
     "format:check": "prettier --check .",
     "test": "vitest",
     "preview": "vite preview",

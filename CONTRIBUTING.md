@@ -22,6 +22,11 @@ on macOS, MSVC Build Tools + WebView2 on Windows).
 npm install && npm run tauri dev
 ```
 
+`npm install` also activates the format-on-commit hook (`.githooks/`
+via `core.hooksPath`, see the `prepare` script). It runs `cargo fmt`
+and `prettier --write` on staged files and re-stages them; CI remains
+the fail-safe gate if the hook is bypassed (e.g. `--no-verify`).
+
 See `package.json` scripts for all available commands.
 
 ## Development Workflow
