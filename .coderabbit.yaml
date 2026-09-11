@@ -1,0 +1,59 @@
+# CodeRabbit AI code review configuration (issue #631).
+# Requires the CodeRabbit GitHub App installed on this repository:
+# https://github.com/apps/coderabbitai
+#
+# Policy: CodeRabbit is advisory only — its checks must NOT be added to the
+# required branch protection checks (ci-status / Secret Scan stay the gates).
+language: 'en-US'
+
+reviews:
+  profile: 'chill'
+  # Why: complements the advisory-only policy (see header, issue #631) — bot
+  # reviews must never submit a blocking "Request Changes" verdict
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  auto_review:
+    enabled: true
+    drafts: false
+  path_filters:
+    # Lockfiles are machine-managed (Renovate/Dependabot churn) — no review value
+    - '!**/package-lock.json'
+    - '!**/Cargo.lock'
+    # tsc incremental build artifact
+    - '!**/*.tsbuildinfo'
+    # UI components installed via shadcn CLI / animate-ui registry, never hand-edited
+    - '!src/components/ui/**'
+    - '!src/shared/animate-ui/**'
+    # Binary assets
+    - '!**/*.{png,jpg,jpeg,webp,gif,ico,icns,mp4,m4s}'
+    # Gitignored dirs — defense in depth, never expected in PR diffs
+    - '!references/**'
+    - '!coverage/**'
+    - '!dist/**'
+    - '!node_modules/**'
+    - '!src-tauri/target/**'
+    - '!src-tauri/gen/schemas/**'
+  path_instructions:
+    # TODO(issue #631): all translation files are currently in review scope.
+    # If per-PR review noise turns out too high, narrow the scope to README
+    # translations only by adding path_filters excludes for
+    # src/i18n/locales/{ja,zh,ko,es,fr}.json and
+    # docs/src/content/faq/{ja,zh,ko,es,fr}.yaml.
+    - path: 'README.{ja,zh,ko,es,fr}.md'
+      instructions: |
+        - These are translations of README.md, the English source of truth.
+        - Compare against README.md changes in the same PR and flag
+          mistranslations, unnatural phrasing, and terminology inconsistent
+          with the English source.
+    - path: 'src/i18n/locales/{ja,zh,ko,es,fr}.json'
+      instructions: |
+        - Focus on translation values, NOT key structure — key parity across
+          all 6 locales is machine-enforced by src/i18n/locales.test.ts.
+        - en.json is the source of truth. Flag mistranslations, broken
+          interpolation placeholders ({{...}}), and inconsistent terminology.
+    - path: 'docs/src/content/faq/{ja,zh,ko,es,fr}.yaml'
+      instructions: |
+        - en.yaml is the source of truth. Flag mistranslations and terminology
+          drift, and missing/untranslated entries.
