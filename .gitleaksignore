@@ -1,0 +1,18 @@
+# Note: the fingerprint ignore mechanism is experimental upstream and its
+# format may change across gitleaks/gitleaks-action upgrades, which would
+# void every entry here at once (gitleaks README, .gitleaksignore section)
+# Baseline of gitleaks false positives reviewed on 2026-09-11 (issue #629).
+# All findings below are dummy test fixtures or i18n key lists, not real
+# secrets. Remove a fingerprint only when the underlying code disappears.
+# qr_login.rs: dummy qrcode_key test fixture (abcdef0123456789...)
+6a23fbc8e0e493f5f1bf61216d9af6e10e5b94d1:src-tauri/src/models/qr_login.rs:generic-api-key:332
+# RotationForm.tsx: i18n labelKey/hintKey arrays misread as key-value pairs
+1f39a90cf8b8fa473f7fc5f0885c601f44465f83:src/features/rotation/ui/RotationForm.tsx:generic-api-key:49
+1f39a90cf8b8fa473f7fc5f0885c601f44465f83:src/features/rotation/ui/RotationForm.tsx:generic-api-key:50
+1f39a90cf8b8fa473f7fc5f0885c601f44465f83:src/features/rotation/ui/RotationForm.tsx:generic-api-key:54
+1f39a90cf8b8fa473f7fc5f0885c601f44465f83:src/features/rotation/ui/RotationForm.tsx:generic-api-key:55
+# wbi.rs: dummy mixin_key fixtures in doctest/unit tests (the real mixin
+# key is fetched from the bilibili API at runtime)
+1edb8a52d1336ae6995a23ad2c54cbf8a9b08658:src-tauri/src/utils/wbi.rs:generic-api-key:72
+1edb8a52d1336ae6995a23ad2c54cbf8a9b08658:src-tauri/src/utils/wbi.rs:generic-api-key:206
+1edb8a52d1336ae6995a23ad2c54cbf8a9b08658:src-tauri/src/utils/wbi.rs:generic-api-key:223
