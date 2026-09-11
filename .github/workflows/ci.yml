@@ -104,14 +104,30 @@ jobs:
       # Why pipefail: eslint's exit code must survive the pipe so the
       # gate semantics match `npm run lint` (fail on any error anywhere,
       # not just errors on added lines that reviewdog reports)
+      # Why --format=json + jq: ESLint 9 dropped the built-in checkstyle
+      # formatter, so JSON is converted to RDFormat here instead (same
+      # shape as the clippy job). env.PWD strips the absolute filePath
+      # prefix reviewdog cannot match against the repo-relative diff
       - name: Run ESLint
         if: github.event_name == 'pull_request'
         env:
           REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -o pipefail
-          npx eslint . --format=checkstyle \
-            | reviewdog -f=checkstyle -name=eslint \
+          npx eslint . --format=json \
+            | jq -c '.[] | .filePath as $f | .messages[] | {
+                code: (if .ruleId then { value: .ruleId } else null end),
+                message: .message,
+                severity: (if .severity == 2 then "ERROR" else "WARNING" end),
+                location: {
+                  path: ($f | sub("^" + env.PWD + "/"; "")),
+                  range: {
+                    start: { line: .line, column: .column },
+                    end: { line: (.endLine // .line), column: (.endColumn // .column) }
+                  }
+                }
+              }' \
+            | reviewdog -f=rdjsonl -name=eslint \
                 -reporter=github-pr-review -filter-mode=added \
                 -fail-level=error -tee
 
