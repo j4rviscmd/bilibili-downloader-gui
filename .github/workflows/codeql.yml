@@ -1,0 +1,47 @@
+# CodeQL static analysis for code-level vulnerability patterns (issue #628)
+# Why advanced setup (not default setup): Rust is not selectable in default
+# setup yet, and this repo's argon2/aes-gcm cookie encryption lives in Rust
+name: CodeQL
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  # Why schedule: catch newly-published CodeQL queries between pushes
+  schedule:
+    - cron: '34 5 * * 1' # weekly, Monday 14:34 JST
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      # Why these permissions: minimum set required by codeql-action to
+      # upload results to code scanning (docs: advanced setup security hardening)
+      security-events: write
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, actions, rust]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          # Why build-mode none for every language: JS/TS and Actions extract
+          # without building; Rust GA analysis requires build-mode none
+          build-mode: none
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:${{ matrix.language }}

@@ -91,6 +91,9 @@ PR guidelines:
   code comments
 - **CI must be green before review** — PRs are reviewed only after all
   required checks (the `ci-status` aggregate) pass
+- **CodeQL scans every PR** (JavaScript/TypeScript, Actions, Rust) —
+  informational, not required; triage any alerts it raises in the
+  Security tab
 
 ## Project Structure
 
