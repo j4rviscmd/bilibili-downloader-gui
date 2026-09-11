@@ -99,13 +99,17 @@ comments.
 ## CI & E2E Workflows
 
 - **CI** (`.github/workflows/ci.yml`) runs on Ubuntu and is aggregated
-  into the **required** `ci-status` status check. The `coverage` job
-  (nightly cargo-llvm-cov) IS part of ci-status: its
-  `--fail-under-lines` ratchet fails the PR on a coverage regression
-  (only the codecov upload inside is report-only).
+into the **required** `ci-status` status check. The `coverage` job
+(nightly cargo-llvm-cov) IS part of ci-status: its
+`--fail-under-lines` ratchet fails the PR on a coverage regression
+(only the codecov upload inside is report-only).
+<!-- Why: pull_request-only trigger because post-merge push runs cost
+     ~60min of runner time per merge and never caught a failure the PR
+     run had missed (user decision 2026-09-11) — merged commits on main
+     are not re-validated by this workflow -->
 - **reviewdog** posts eslint/clippy findings as PR inline comments and
-  formatter fixes as suggested changes (one-click apply) — PR events
-  only; push to main keeps the plain checks. Local format-on-commit
+  formatter fixes as suggested changes (one-click apply). ci.yml runs
+  on pull_request only (no push-to-main trigger). Local format-on-commit
   hook lives in `.githooks/` (activated by the `prepare` npm script).
 - **gitleaks** (`.github/workflows/gitleaks.yml`) scans for leaked
   secrets: PR/push events scan the event's commits, and a daily
