@@ -11,8 +11,13 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Why checks/issues write: reviewdog github-pr-review needs them for
+# review comments and its Check-annotation fallback for findings outside
+# the PR diff (per reviewdog/action-suggester upstream requirements)
 permissions:
   contents: write
+  checks: write
+  issues: write
   pull-requests: write
 
 jobs:
@@ -40,7 +45,30 @@ jobs:
         if: steps.cache-nm-format.outputs.cache-hit != 'true'
         run: npm ci
 
+      # Why the PR/push split: reviewdog reporters only work on
+      # pull_request events; push to main keeps the plain check
+      - name: Apply Prettier
+        if: github.event_name == 'pull_request'
+        run: npx prettier --write .
+
+      - name: Suggest formatting changes
+        # Why cleanup:false: keeps the formatted state so the gate step
+        # below sees the full diff (filter-mode only limits which hunks
+        # get suggestion cards, not which violations fail the job)
+        if: github.event_name == 'pull_request'
+        uses: reviewdog/action-suggester@v1
+        with:
+          tool_name: prettier
+          level: error
+          filter_mode: added
+          cleanup: false
+
+      - name: Fail on unformatted files
+        if: github.event_name == 'pull_request'
+        run: git diff --exit-code
+
       - name: Check formatting
+        if: github.event_name != 'pull_request'
         run: npm run format:check
 
   lint:
@@ -67,7 +95,44 @@ jobs:
         if: steps.cache-nm-lint.outputs.cache-hit != 'true'
         run: npm ci
 
+      # Why the PR/push split: reviewdog reporters only work on
+      # pull_request events; push to main keeps the plain lint
+      - name: Setup reviewdog
+        if: github.event_name == 'pull_request'
+        uses: reviewdog/action-setup@v1
+
+      # Why pipefail: eslint's exit code must survive the pipe so the
+      # gate semantics match `npm run lint` (fail on any error anywhere,
+      # not just errors on added lines that reviewdog reports)
+      # Why --format=json + jq: ESLint 9 dropped the built-in checkstyle
+      # formatter, so JSON is converted to RDFormat here instead (same
+      # shape as the clippy job). env.PWD strips the absolute filePath
+      # prefix reviewdog cannot match against the repo-relative diff
       - name: Run ESLint
+        if: github.event_name == 'pull_request'
+        env:
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -o pipefail
+          npx eslint . --format=json \
+            | jq -c '.[] | .filePath as $f | .messages[] | {
+                code: (if .ruleId then { value: .ruleId } else null end),
+                message: .message,
+                severity: (if .severity == 2 then "ERROR" else "WARNING" end),
+                location: {
+                  path: ($f | sub("^" + env.PWD + "/"; "")),
+                  range: {
+                    start: { line: .line, column: .column },
+                    end: { line: (.endLine // .line), column: (.endColumn // .column) }
+                  }
+                }
+              }' \
+            | reviewdog -f=rdjsonl -name=eslint \
+                -reporter=github-pr-review -filter-mode=added \
+                -fail-level=error -tee
+
+      - name: Run ESLint
+        if: github.event_name != 'pull_request'
         run: npm run lint
 
   frontend-build:
@@ -213,7 +278,53 @@ jobs:
           sudo apt-get update || echo "::warning::apt-get update partially failed; relying on whichever indexes resolved"
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libdbus-1-dev libglib2.0-dev
 
+      # Why the PR/push split: reviewdog reporters only work on
+      # pull_request events; push to main keeps the plain clippy
+      - name: Setup reviewdog
+        if: github.event_name == 'pull_request'
+        uses: reviewdog/action-setup@v1
+
+      # Why pipefail: cargo's exit code must survive the pipes so the
+      # gate matches plain `cargo clippy -- -D warnings` (any denied lint
+      # fails the job even when outside the PR's added lines)
+      # Why 2>/dev/null: cargo writes progress to stderr; diagnostics
+      # arrive as JSON on stdout. -tee echoes parsed findings back to
+      # the log so hard compile errors stay debuggable
       - name: Run Clippy
+        if: github.event_name == 'pull_request'
+        working-directory: src-tauri
+        env:
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -o pipefail
+          cargo clippy --all-targets --message-format=json -- -D warnings 2>/dev/null \
+            | jq -c 'select(.reason == "compiler-message")
+                | .message.spans as $sp
+                | (($sp | map(select(.is_primary)) | first) // $sp[0]) as $s
+                | select($s != null and .message.code != null)
+                # Why RDFormat field names (code/message/severity/range):
+                # reviewdog -f=rdjsonl silently discards unknown fields, so
+                # Code Climate-style keys (check_name/description/lines) or
+                # lowercase severity would post nothing (verified against
+                # reviewdog v0.21.0)
+                | {
+                    code: { value: .message.code.code },
+                    message: .message.message,
+                    severity: (if .message.level == "error" then "ERROR" else "WARNING" end),
+                    location: {
+                      path: ("src-tauri/" + $s.file_name),
+                      range: {
+                        start: { line: $s.line_start, column: $s.column_start },
+                        end: { line: $s.line_end, column: $s.column_end }
+                      }
+                    }
+                  }' \
+            | reviewdog -f=rdjsonl -name=clippy \
+                -reporter=github-pr-review -filter-mode=added \
+                -fail-level=error -tee
+
+      - name: Run Clippy
+        if: github.event_name != 'pull_request'
         working-directory: src-tauri
         # Why: --all-targets also lints test targets; plain clippy covers lib/bins only, and
         # the test-coverage plan (see dev-dependencies note in src-tauri/Cargo.toml) adds
@@ -290,7 +401,31 @@ jobs:
           sudo apt-get update || echo "::warning::apt-get update partially failed; relying on whichever indexes resolved"
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libdbus-1-dev libglib2.0-dev
 
+      # Why the PR/push split: action-suggester only supports
+      # pull_request events; push to main keeps the plain check
+      - name: Apply rustfmt
+        if: github.event_name == 'pull_request'
+        working-directory: src-tauri
+        run: cargo fmt
+
+      - name: Suggest formatting changes
+        # Why cleanup:false: keeps the formatted state so the gate step
+        # below sees the full diff (filter-mode only limits which hunks
+        # get suggestion cards, not which violations fail the job)
+        if: github.event_name == 'pull_request'
+        uses: reviewdog/action-suggester@v1
+        with:
+          tool_name: rustfmt
+          level: error
+          filter_mode: added
+          cleanup: false
+
+      - name: Fail on unformatted files
+        if: github.event_name == 'pull_request'
+        run: git diff --exit-code
+
       - name: Check Rust formatting
+        if: github.event_name != 'pull_request'
         working-directory: src-tauri
         run: cargo fmt --check
 
@@ -421,7 +556,31 @@ jobs:
         working-directory: docs
         run: npm ci
 
+      # Why the PR/push split: action-suggester only supports
+      # pull_request events; push to main keeps the plain check
+      - name: Apply Prettier
+        if: github.event_name == 'pull_request'
+        working-directory: docs
+        run: npx prettier --write .
+
+      - name: Suggest formatting changes
+        # Why cleanup:false: keeps the formatted state so the gate step
+        # below sees the full diff (filter-mode only limits which hunks
+        # get suggestion cards, not which violations fail the job)
+        if: github.event_name == 'pull_request'
+        uses: reviewdog/action-suggester@v1
+        with:
+          tool_name: prettier-docs
+          level: error
+          filter_mode: added
+          cleanup: false
+
+      - name: Fail on unformatted files
+        if: github.event_name == 'pull_request'
+        run: git diff --exit-code
+
       - name: Check formatting
+        if: github.event_name != 'pull_request'
         working-directory: docs
         run: npm run format:check
 
