@@ -19,8 +19,9 @@
 [![Last Commit](https://img.shields.io/github/last-commit/j4rviscmd/bilibili-downloader-gui/main?style=for-the-badge&color=1F6FEB&label=Last%20Update&logo=git&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/commits/main)
 [![CI](https://img.shields.io/github/actions/workflow/status/j4rviscmd/bilibili-downloader-gui/ci.yml?style=for-the-badge&label=CI&color=brightgreen&logo=githubactions&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/actions/workflows/ci.yml)
 [![CodeQL](https://img.shields.io/github/actions/workflow/status/j4rviscmd/bilibili-downloader-gui/codeql.yml?style=for-the-badge&label=CodeQL&color=brightgreen&logo=githubactions&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/actions/workflows/codeql.yml)
-[![CodeRabbit](https://img.shields.io/coderabbit/prs/github/j4rviscmd/bilibili-downloader-gui?style=for-the-badge&label=CodeRabbit%20Reviews)](https://coderabbit.ai)
+[![CodeRabbit](https://img.shields.io/coderabbit/prs/github/j4rviscmd/bilibili-downloader-gui?style=for-the-badge&label=CodeRabbit%20Reviews&logo=coderabbit&logoColor=white)](https://coderabbit.ai)
 [![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/j4rviscmd/bilibili-downloader-gui?style=for-the-badge&label=OpenSSF%20Scorecard)](https://scorecard.dev/viewer/?uri=github.com/j4rviscmd/bilibili-downloader-gui)
+[![Codecov](https://img.shields.io/codecov/c/github/j4rviscmd/bilibili-downloader-gui?style=for-the-badge&label=Codecov&logo=codecov&logoColor=white)](https://codecov.io/gh/j4rviscmd/bilibili-downloader-gui)
 [![License](https://img.shields.io/badge/License-MIT-018FF5?style=for-the-badge&logo=opensourceinitiative&logoColor=white)](LICENSE)
 
 ## Descargador de videos de Bilibili para Windows, macOS y Linux
