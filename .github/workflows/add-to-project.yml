@@ -2,6 +2,9 @@ name: Add to Project
 on:
   issues:
     types: [opened]
+# Least privilege: the job authenticates with PROJECT_TOKEN, not GITHUB_TOKEN
+permissions:
+  contents: read
 jobs:
   add-to-project:
     runs-on: ubuntu-latest
