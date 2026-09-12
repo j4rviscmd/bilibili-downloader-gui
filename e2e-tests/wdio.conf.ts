@@ -17,9 +17,27 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(__dirname, '..')
 
+const IS_WINDOWS = process.platform === 'win32'
+
 let viteProcess: ChildProcess | undefined
 let tauriWebdriverProcess: ChildProcess | undefined
 let fixtureServer: FixtureServer | undefined
+
+/**
+ * Terminate a spawned process and (on Windows) its whole child tree.
+ *
+ * `kill('SIGTERM')` on Windows only terminates the immediate process, so a
+ * plain kill on the `npm run dev` wrapper would orphan the vite node
+ * process. `taskkill /T` walks the tree instead.
+ */
+function killTree(proc: ChildProcess | undefined): void {
+  if (!proc || proc.pid === undefined) return
+  if (IS_WINDOWS) {
+    spawn('taskkill', ['/pid', String(proc.pid), '/T', '/F'])
+  } else {
+    proc.kill('SIGTERM')
+  }
+}
 
 /**
  * Spawn a child process and pipe stdout/stderr with a label prefix.
@@ -27,19 +45,25 @@ let fixtureServer: FixtureServer | undefined
  * @param command - The executable to spawn
  * @param args - Arguments passed to the executable
  * @param label - Prefix used when logging process output
- * @param options - Optional cwd and additional env variables
+ * @param options - Optional cwd, additional env variables, and shell mode
  * @returns The spawned ChildProcess instance
  */
 function spawnWithLogging(
   command: string,
   args: string[],
   label: string,
-  options?: { cwd?: string; env?: Record<string, string> },
+  options?: {
+    cwd?: string
+    env?: Record<string, string>
+    shell?: boolean
+  },
 ): ChildProcess {
   const proc = spawn(command, args, {
     stdio: ['ignore', 'pipe', 'pipe'],
     cwd: options?.cwd,
     env: { ...process.env, ...options?.env },
+    // Windows: `npm` is npm.cmd and cannot be spawned without a shell
+    shell: options?.shell,
   })
   const logLines = (data: Buffer, logFn: (msg: string) => void) => {
     for (const line of data.toString().split('\n')) {
@@ -133,25 +157,30 @@ export const config = {
   capabilities: [
     {
       'tauri:options': {
-        application: path.resolve(
-          __dirname,
-          '../src-tauri/target/debug/bilibili-downloader-gui',
-        ),
+        // Windows debug binary carries the .exe suffix
+        application:
+          path.resolve(
+            __dirname,
+            '../src-tauri/target/debug/bilibili-downloader-gui',
+          ) + (IS_WINDOWS ? '.exe' : ''),
       },
     },
   ],
 
-  hostname: 'localhost',
+  // 127.0.0.1 literal — on Windows `localhost` may resolve to ::1 first and
+  // miss listeners bound to IPv4 only
+  hostname: '127.0.0.1',
   port: 4444,
   path: '/',
 
   // wdio hooks
   async onPrepare() {
-    // 1. Start Vite dev server
+    // 1. Start Vite dev server (shell on Windows — npm is npm.cmd)
     viteProcess = spawnWithLogging('npm', ['run', 'dev'], 'vite', {
       cwd: projectRoot,
+      shell: IS_WINDOWS,
     })
-    await waitForReady('http://localhost:1420', 'Vite dev server', 30_000)
+    await waitForReady('http://127.0.0.1:1420', 'Vite dev server', 30_000)
 
     // 2. Start the fixture API/media server. Must be up before the app
     // spawns: the app's BiliApi redirects to it via E2E_API_BASE (see
@@ -176,12 +205,12 @@ export const config = {
         },
       },
     )
-    await waitForTcpReady('localhost', 4444, 'tauri-webdriver', 15_000)
+    await waitForTcpReady('127.0.0.1', 4444, 'tauri-webdriver', 15_000)
   },
 
   async onComplete() {
-    tauriWebdriverProcess?.kill('SIGTERM')
-    viteProcess?.kill('SIGTERM')
+    killTree(tauriWebdriverProcess)
+    killTree(viteProcess)
     await fixtureServer?.close()
   },
 
@@ -189,7 +218,9 @@ export const config = {
   framework: 'mocha',
   mochaOpts: {
     ui: 'bdd',
-    timeout: 90_000,
+    // Init downloads ffmpeg on every CI run (runners are disposable) — the
+    // Windows BtbN zip (~100MB) needs headroom beyond the macOS case
+    timeout: 180_000,
   },
 
   // Reporter
