@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next'
 
 import { selectOverallSummary } from '../model/downloadProgress'
 import { AnimatedSection } from './AnimatedSection'
+import { SpeedLimitLink } from './SpeedLimitLink'
 
 /**
  * Formats seconds as M:SS or H:MM:SS.
@@ -76,6 +77,11 @@ export function DownloadStatusBar() {
               {t('downloadStatus.elapsed')}{' '}
               {formatElapsed(summary.elapsedSeconds)}
             </span>
+            {/* Speed-limit link left of the cancel button (issue #421): the
+                bar exists exactly while downloads run — the only moment a
+                limit change can take effect live. Renders an enable entry
+                point while unlimited, the current value while limited. */}
+            <SpeedLimitLink />
             {/*
               @why: Disabling on isMerging is because the merge stage spawns an
                 ffmpeg CLI child process — cancelling in the brief window right

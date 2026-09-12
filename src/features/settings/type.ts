@@ -132,6 +132,20 @@ export interface Settings {
    */
   downloadParallelism?: number
   /**
+   * Whether to cap the aggregate download speed (issue #421).
+   * Applies live to running downloads (per app instance).
+   * Defaults to false if not specified.
+   */
+  downloadSpeedLimitEnabled?: boolean
+  /**
+   * Aggregate download speed cap in KB/s while
+   * `downloadSpeedLimitEnabled` is true (issue #421).
+   * Decimal units: 1000 kb/s = 1 mb/s.
+   * Constraint: clamped to [100, 10_000_000] by the backend resolver
+   * (SPEED_LIMIT_MIN_KBPS / SPEED_LIMIT_MAX_KBPS in constants.rs).
+   */
+  downloadSpeedLimitKbps?: number
+  /**
    * Latest version string the user chose to skip via "Skip this version"
    * in the update dialog (issue #599).
    *

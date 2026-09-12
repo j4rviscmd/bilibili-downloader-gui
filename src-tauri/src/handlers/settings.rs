@@ -46,7 +46,22 @@ use tauri::{AppHandle, Manager};
 /// - The locked read-merge-write fails
 pub async fn patch_settings(app: &AppHandle, patch: Value) -> Result<(), String> {
     let filepath = paths::get_settings_path(app);
-    patch_settings_at(&filepath, &patch)
+    patch_settings_at(&filepath, &patch)?;
+
+    // Issue #421: push the merged result into the runtime speed limiter so
+    // RUNNING downloads pick up the new cap on their next chunk/request —
+    // this is the live-adjustment path (no separate command, the persisted
+    // settings stay the single source of truth).
+    // Why re-read instead of deriving from the patch: the patch may carry
+    // only one of the two speed-limit keys; the merged disk document is
+    // authoritative, and the extra locked read on a user-rate action is
+    // noise. Stays in this AppHandle layer (not patch_settings_at) so the
+    // test seam remains AppHandle-free.
+    if let Ok(merged) = get_settings(app).await {
+        crate::handlers::concurrency::DOWNLOAD_SPEED_LIMITER
+            .set_bps(Settings::resolve_download_speed_limit_bps(&Some(merged)));
+    }
+    Ok(())
 }
 
 /// Directory-scoped core of [`patch_settings`] (test seam).

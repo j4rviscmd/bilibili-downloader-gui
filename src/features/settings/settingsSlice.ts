@@ -27,6 +27,10 @@ const initialState: Settings = {
   //   (8) so the initial UI selection agrees with the resolved concurrency
   //   before the persisted setting is loaded (issue #491).
   downloadParallelism: 8,
+  // Issue #421: unlimited by default (backend resolve returns 0 when the
+  // switch is off, so the kbps seed only feeds the input's initial draft).
+  downloadSpeedLimitEnabled: false,
+  downloadSpeedLimitKbps: 1000,
 }
 
 export const settingsSlice = createSlice({
