@@ -8,6 +8,7 @@
 //! - Fallback to single-stream download when Range is not supported
 //! - Download cancellation support
 
+use crate::handlers::concurrency::{SpeedLimiter, DOWNLOAD_SPEED_LIMITER};
 use crate::{
     constants::{
         MAX_CDN_LOOPS, MIN_MEDIA_BYTES, MIN_SPEED_THRESHOLD, REFERER, SEGMENT_STALL_TIMEOUT_SECS,
@@ -327,6 +328,32 @@ pub fn build_download_client() -> reqwest::Client {
         .tcp_keepalive(Duration::from_secs(60))
         .build()
         .expect("Failed to build HTTP client")
+}
+
+/// Per-request timeout override while a speed limit is active (issue #421).
+///
+/// Why a fixed large cap instead of `bytes / limit` arithmetic: the
+/// aggregate limit is shared by up to `concurrency` parallel segments, so
+/// ONE segment's wall time spans up to the WHOLE download's paced duration
+/// (e.g. 8 x 32 MiB at 100 KB/s total ≈ 45 min per segment). Any
+/// per-segment formula underestimates that and reintroduces the
+/// timeout-reconnect churn this override exists to remove. A large fixed
+/// cap is safe because liveness is owned by the 10s per-chunk stall
+/// detector (SEGMENT_STALL_TIMEOUT_SECS), which a paced-but-flowing stream
+/// never trips — chunks keep arriving from kernel/hyper buffers during
+/// other tasks' pacing sleeps.
+const LIMITED_REQUEST_TIMEOUT: Duration = Duration::from_secs(24 * 60 * 60);
+
+/// Applies [`LIMITED_REQUEST_TIMEOUT`] to a request while a speed limit is
+/// active (issue #421). Why read the limiter live per call: the cap can be
+/// reconfigured mid-download, and the next request build must pick up the
+/// current state.
+fn with_limited_request_timeout(builder: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
+    if DOWNLOAD_SPEED_LIMITER.limit_bps() > 0 {
+        builder.timeout(LIMITED_REQUEST_TIMEOUT)
+    } else {
+        builder
+    }
 }
 
 /// Sets the download stage based on filename pattern.
@@ -850,13 +877,16 @@ pub async fn download_url<R: Runtime>(
                 }
                 let current_url = &effective_url;
 
-                let req = apply_cookie(
+                // Issue #421: while a limit paces this transfer below the
+                // 120s client timeout's assumed throughput, extend this
+                // request's budget (see with_limited_request_timeout).
+                let req_builder = with_limited_request_timeout(
                     client_c
                         .get(current_url)
                         .header(header::RANGE, format!("bytes={}-{}", seg_start, e))
                         .header(header::REFERER, REFERER),
-                    &cookie_c,
                 );
+                let req = apply_cookie(req_builder, &cookie_c);
                 match req.send().await {
                     Ok(mut resp) => {
                         // Validate response status
@@ -961,6 +991,12 @@ pub async fn download_url<R: Runtime>(
                             &path_c,
                             &cancel_token_c,
                             &stats_cb,
+                            // Why a fresh reference from the static: the
+                            // limiter is process-global (one aggregate
+                            // budget shared by every running download), so
+                            // segments read it live instead of snapshotting
+                            // at download start (issue #421).
+                            &DOWNLOAD_SPEED_LIMITER,
                             |chunk_len| {
                                 seg_bytes_cb.fetch_add(chunk_len, Ordering::Relaxed);
                                 stats_cb.bytes.fetch_add(chunk_len, Ordering::Relaxed);
@@ -1336,11 +1372,30 @@ pub async fn download_url<R: Runtime>(
                 deltas.push(d);
             }
             let bps = total_delta / elapsed;
+            // Read per sample (not captured at spawn) so a mid-download
+            // limit change applies to the verdict immediately (issue #421).
+            let limit_bps = DOWNLOAD_SPEED_LIMITER.limit_bps();
             log::info!(
-                "[BE] download_url: aggregate speed {} KiB/s over {}s",
+                "[BE] download_url: aggregate speed {} KiB/s over {}s{}",
                 bps / 1024,
-                elapsed
+                elapsed,
+                if limit_bps > 0 {
+                    format!(" (speed limit {} KiB/s active)", limit_bps / 1024)
+                } else {
+                    String::new()
+                }
             );
+
+            if limit_bps > 0 {
+                // Issue #421: a user-set limit intentionally holds total
+                // throughput below MIN_SPEED_THRESHOLD — throttled slowness
+                // is policy, not a bad CDN edge, so rotating the slowest
+                // segment would churn connections forever. RESET (not just
+                // skip) consecutive_slow so a pre-limit slow sample cannot
+                // fire a rotation on the first post-limit tick.
+                consecutive_slow = 0;
+                continue;
+            }
 
             if bps >= MIN_SPEED_THRESHOLD {
                 consecutive_slow = 0;
@@ -1481,6 +1536,8 @@ pub async fn download_url<R: Runtime>(
 ///   (issue #562): a flag read, so the per-chunk cost is negligible
 /// * `stats` - This segment's shared stats: receives byte counts, rotation
 ///   requests
+/// * `limiter` - Aggregate speed limiter consulted per chunk (issue #421);
+///   one shared per-process budget across all segments and downloads
 /// * `on_chunk_received` - Callback invoked when each chunk is received
 ///
 /// # Returns
@@ -1510,6 +1567,7 @@ async fn download_segment_stream(
     path: &Path,
     cancel_token: &Option<CancellationToken>,
     stats: &SegmentStats,
+    limiter: &SpeedLimiter,
     on_chunk_received: impl Fn(u64),
 ) -> Result<u64, SegmentError> {
     // Stream chunks straight to the pre-allocated file at `pos` instead of
@@ -1604,6 +1662,15 @@ async fn download_segment_stream(
                     );
                     return Err(flush_before_resume(&mut file, SegmentError::Slow(received)).await);
                 }
+
+                // Issue #421: pace aggregate consumption AFTER the
+                // cancel/rotate checks so control flags are never delayed
+                // by the sleep, and OUTSIDE the stall-timeout wrapper
+                // above (it only guards resp.chunk()). Unlimited is a
+                // flag-read fast path; a sleep is bounded by the current
+                // aggregate slot debt (concurrent consumers × chunk send
+                // time — see SpeedLimiter::acquire).
+                limiter.acquire(chunk_len).await;
             }
             Ok(None) => break,
             Err(e) => {
@@ -1696,8 +1763,14 @@ async fn single_stream_fallback<R: Runtime>(
         }
     }
 
-    // Build and send request using the shared client
-    let req = apply_cookie(client.get(&url).header(header::REFERER, REFERER), &cookie);
+    // Build and send request using the shared client. Issue #421: extend
+    // this request's budget while a limit paces the transfer below the 120s
+    // client timeout's assumed throughput (see
+    // with_limited_request_timeout); liveness stays with the stall wrapper
+    // in the chunk loop below.
+    let req_builder =
+        with_limited_request_timeout(client.get(&url).header(header::REFERER, REFERER));
+    let req = apply_cookie(req_builder, &cookie);
     let mut resp = req.send().await?;
     // Reject non-success statuses before streaming to disk. CAUTION: the
     // media guard below cannot catch bare 4xx/5xx — is_media_content_type
@@ -1748,12 +1821,44 @@ async fn single_stream_fallback<R: Runtime>(
             .await
             .map_err(map_io_error)?;
 
-        while let Some(chunk) = resp.chunk().await? {
+        loop {
+            // Issue #421: give the fallback the same per-chunk stall
+            // liveness the segment path has — it is unconditional (a
+            // strict improvement over waiting out the 120s whole-request
+            // timeout on a dead connection) and REQUIRED once a speed
+            // limit extends that whole-request budget to 24h.
+            let chunk = match tokio::time::timeout(
+                Duration::from_secs(SEGMENT_STALL_TIMEOUT_SECS),
+                resp.chunk(),
+            )
+            .await
+            {
+                Ok(c) => c?,
+                Err(_) => {
+                    log::warn!(
+                        "[BE] download_url: single-stream stalled: no chunk for {}s after {} bytes",
+                        SEGMENT_STALL_TIMEOUT_SECS,
+                        downloaded
+                    );
+                    // No ERR:: prefix — the caller treats it as a
+                    // transient failure and retries, like any mid-stream
+                    // chunk error today.
+                    return Err(anyhow::anyhow!(
+                        "single-stream stalled: no chunk for {}s after {} bytes",
+                        SEGMENT_STALL_TIMEOUT_SECS,
+                        downloaded
+                    ));
+                }
+            };
+            let Some(chunk) = chunk else { break };
             check_cancelled(&cancel_token)?;
             file.write_all(&chunk).await.map_err(map_io_error)?;
             downloaded += chunk.len() as u64;
             // Emit progress update via watch channel (non-blocking)
             emits.update_progress(downloaded);
+            // Issue #421: pace aggregate consumption from the shared
+            // per-process budget; unlimited is a flag-read fast path.
+            DOWNLOAD_SPEED_LIMITER.acquire(chunk.len() as u64).await;
         }
         file.flush().await.map_err(map_io_error)?;
         Ok(())
@@ -2055,11 +2160,15 @@ mod tests {
     // ---- download_segment_stream cancellation (issue #562) ----
 
     /// Drives download_segment_stream against a wiremock server streaming
-    /// `body`, writing into a pre-created file at `path`.
+    /// `body`, writing into a pre-created file at `path`. The limiter is
+    /// injected so pacing tests run on a FRESH SpeedLimiter instead of the
+    /// process-global DOWNLOAD_SPEED_LIMITER (parallel tests share that
+    /// static and would race on set_bps).
     async fn segment_stream_against_mock(
         body: Vec<u8>,
         cancel_token: Option<CancellationToken>,
         path: &std::path::Path,
+        limiter: &crate::handlers::concurrency::SpeedLimiter,
     ) -> Result<u64, SegmentError> {
         let server = wiremock::MockServer::start().await;
         wiremock::Mock::given(wiremock::matchers::method("GET"))
@@ -2072,7 +2181,18 @@ mod tests {
             .await
             .unwrap();
         let stats = SegmentStats::new();
-        download_segment_stream(&mut resp, 0, 0, 0, path, &cancel_token, &stats, |_| {}).await
+        download_segment_stream(
+            &mut resp,
+            0,
+            0,
+            0,
+            path,
+            &cancel_token,
+            &stats,
+            limiter,
+            |_| {},
+        )
+        .await
     }
 
     #[tokio::test]
@@ -2088,7 +2208,13 @@ mod tests {
         let token = CancellationToken::new();
         token.cancel();
 
-        let result = segment_stream_against_mock(vec![0xAB; 64 * 1024], Some(token), &path).await;
+        let result = segment_stream_against_mock(
+            vec![0xAB; 64 * 1024],
+            Some(token),
+            &path,
+            &SpeedLimiter::unlimited(),
+        )
+        .await;
         assert!(matches!(result, Err(SegmentError::Cancelled)));
     }
 
@@ -2101,9 +2227,41 @@ mod tests {
         std::fs::write(&path, []).unwrap();
 
         let body = vec![0xCD; 64 * 1024];
-        let result = segment_stream_against_mock(body.clone(), None, &path).await;
+        let result =
+            segment_stream_against_mock(body.clone(), None, &path, &SpeedLimiter::unlimited())
+                .await;
         assert_eq!(result.unwrap(), body.len() as u64);
         assert_eq!(std::fs::read(&path).unwrap(), body);
+    }
+
+    // ---- download_segment_stream speed limiting (issue #421) ----
+
+    #[tokio::test]
+    async fn segment_stream_paces_under_speed_limit() {
+        // 64 KiB at 256 KiB/s: the slot schedule must space consumption so
+        // the whole body spans ≈ 250 ms of pacing (the first chunk's slot
+        // starts at `now`, every later chunk waits). Loose lower bound to
+        // stay CI-stable; the unlimited sibling test below guards the
+        // upper direction by byte correctness.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("seg.bin");
+        std::fs::write(&path, []).unwrap();
+
+        let limiter = SpeedLimiter::unlimited();
+        limiter.set_bps(256 * 1024);
+
+        let body = vec![0xEF; 64 * 1024];
+        let started = std::time::Instant::now();
+        let result = segment_stream_against_mock(body.clone(), None, &path, &limiter).await;
+        let elapsed = started.elapsed();
+
+        assert_eq!(result.unwrap(), body.len() as u64);
+        assert_eq!(std::fs::read(&path).unwrap(), body);
+        assert!(
+            elapsed >= std::time::Duration::from_millis(150),
+            "limited stream must be paced: elapsed {:?} for 64KiB at 256KiB/s",
+            elapsed
+        );
     }
     // ---- verify_resume_tail (same-CDN resume guard, PR #558) ----
 

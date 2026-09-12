@@ -1,6 +1,11 @@
 import { store } from '@/app/store'
 import { openDirectoryDialog } from '@/features/settings/lib/directoryDialog'
 import { validateOutputPath } from '@/features/settings/lib/pathValidation'
+import {
+  SPEED_LIMIT_MAX_KBPS,
+  SPEED_LIMIT_MIN_KBPS,
+  useSpeedLimitKbps,
+} from '@/features/settings/lib/useSpeedLimitKbps'
 import { SettingChoiceCards } from '@/features/settings/ui/SettingChoiceCards'
 import { SettingField, SettingRow } from '@/features/settings/ui/SettingRow'
 import { SettingToggleGroup } from '@/features/settings/ui/SettingToggleGroup'
@@ -57,6 +62,7 @@ export function DownloadSection() {
   const { settings, saveByForm } = useSettings()
   const [isUpdatingDlOutputPath, setIsUpdatingDlOutputPath] = useState(false)
   const [pathError, setPathError] = useState<string | null>(null)
+  const speedLimit = useSpeedLimitKbps()
 
   /** Handles download output path selection. */
   const handleDlOutputPathChange = async () => {
@@ -168,6 +174,49 @@ export function DownloadSection() {
           }}
         />
       </SettingRow>
+      {/* id is the deep-link anchor for /settings?category=download&anchor=
+          speed-limit (the download status bar's limit link, issue #421). */}
+      <div id="setting-speed-limit">
+        <SettingRow
+          label={t('settings.download_speed_limit_label')}
+          description={t('settings.download_speed_limit_description')}
+        >
+          {/* Constraint: `speedLimit.enabled` mirrors the backend default
+              (resolve_download_speed_limit_bps treats a missing/off switch
+              as unlimited); a divergence would make the toggle display a
+              state the backend does not implement. */}
+          <Switch
+            checked={speedLimit.enabled}
+            onCheckedChange={speedLimit.handleLimitToggle}
+          />
+        </SettingRow>
+      </div>
+      {speedLimit.enabled && (
+        <SettingField
+          label={t('settings.download_speed_limit_kbps_label')}
+          description={t('settings.download_speed_limit_kbps_description')}
+        >
+          <Input
+            type="number"
+            inputMode="numeric"
+            min={SPEED_LIMIT_MIN_KBPS}
+            max={SPEED_LIMIT_MAX_KBPS}
+            step={100}
+            className="w-40"
+            value={speedLimit.kbpsDraft}
+            // The hook's setKbpsDraft also clears a shown error.
+            onChange={(e) => speedLimit.setKbpsDraft(e.target.value)}
+            onBlur={speedLimit.commitKbps}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') speedLimit.commitKbps()
+            }}
+            data-testid="speed-limit-kbps-input"
+          />
+          {speedLimit.kbpsError !== null && (
+            <p className="text-destructive text-sm">{speedLimit.kbpsError}</p>
+          )}
+        </SettingField>
+      )}
       <TitleReplacementSettings />
       <SettingField
         label={t('settings.video_codec_priority_label')}

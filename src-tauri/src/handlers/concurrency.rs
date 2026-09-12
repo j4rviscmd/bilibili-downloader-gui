@@ -3,11 +3,15 @@
 //! This module manages:
 //! - Maximum concurrent video downloads (semaphore)
 //! - Download cancellation tokens for aborting in-progress downloads
+//! - Aggregate download speed limiting (issue #421)
 
 use once_cell::sync::Lazy;
 use std::collections::{HashMap, HashSet};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use tokio::sync::Semaphore;
+use tokio::time::Instant;
 use tokio_util::sync::CancellationToken;
 
 /// Default maximum number of concurrent video downloads.
@@ -70,6 +74,107 @@ pub static VIDEO_SEMAPHORE: Lazy<Arc<Semaphore>> =
 /// 3. **Remove**: Call `remove()` when download completes or is cancelled
 pub static DOWNLOAD_CANCEL_REGISTRY: Lazy<Arc<DownloadCancelRegistry>> =
     Lazy::new(|| Arc::new(DownloadCancelRegistry::new()));
+
+/// Global aggregate download speed limiter (issue #421).
+///
+/// One shared per-process bucket: every active media transfer (parallel
+/// segments within a `download_url` call, concurrent audio+video streams,
+/// sequential parts) consumes from the same budget, so the app-wide total
+/// stays at the configured cap. A static (not managed state) for the same
+/// reason as [`DOWNLOAD_CANCEL_REGISTRY`]: spawned segment/monitor tasks
+/// reach it directly without `Arc` threading through `download_url`'s
+/// signature, and per-process scope is exactly the per-app-instance limiting
+/// semantics locked in issue #421 (double-launched instances each limit
+/// themselves).
+pub static DOWNLOAD_SPEED_LIMITER: Lazy<Arc<SpeedLimiter>> =
+    Lazy::new(|| Arc::new(SpeedLimiter::unlimited()));
+
+/// Aggregate download speed limiter using a shared send-slot schedule.
+///
+/// Each consumed chunk reserves the earliest available time slot on one
+/// shared schedule and sleeps until that slot. This paces the aggregate
+/// rate exactly (no burst tolerance, no refill task) while segment tasks
+/// keep streaming: chunks continue arriving from kernel/hyper buffers
+/// during another task's sleep, so the per-chunk stall detector in
+/// `download_segment_stream` never sees a stalled wire.
+pub struct SpeedLimiter {
+    /// Cap in bytes per second; 0 = unlimited (fast path, no scheduling).
+    limit_bps: AtomicU64,
+    /// Earliest instant at which the next byte slot may begin. Shared by
+    /// all consumers; `max(now, next_slot)` on each acquire self-heals any
+    /// debt after idle periods.
+    ///
+    /// Why std::sync::Mutex (not tokio::sync::Mutex): the critical section
+    /// is two-`Instant` arithmetic with no `.await` inside — the guard is
+    /// dropped before the pacing sleep, following the same rule as
+    /// `DownloadCancelRegistry` (tokio's guidance: std mutex when guards
+    /// are never held across an await point).
+    next_slot: Mutex<Instant>,
+}
+
+impl SpeedLimiter {
+    /// Creates a limiter with no cap.
+    pub fn unlimited() -> Self {
+        Self {
+            limit_bps: AtomicU64::new(0),
+            next_slot: Mutex::new(Instant::now()),
+        }
+    }
+
+    /// Current cap in bytes per second; 0 = unlimited.
+    pub fn limit_bps(&self) -> u64 {
+        self.limit_bps.load(Ordering::Relaxed)
+    }
+
+    /// Updates the cap and clears any accumulated slot debt.
+    ///
+    /// Why the slot reset: without it, lowering the limit banks far-future
+    /// slots; raising it back would then stall every download until the old
+    /// debt drains (e.g. 1 KB/s for a minute creates a 60 s backlog that a
+    /// later 10 MB/s limit would still pay off). Resetting to `now` makes a
+    /// limit change apply cleanly from the current instant.
+    pub fn set_bps(&self, limit_bps: u64) {
+        self.limit_bps.store(limit_bps, Ordering::Relaxed);
+        *self.next_slot.lock().unwrap() = Instant::now();
+    }
+
+    /// Consumes `bytes` of the aggregate budget, sleeping until the
+    /// reserved slot. Returns immediately when unlimited.
+    ///
+    /// Called once per received chunk in the transfer loops; the lock is
+    /// held only for the slot arithmetic and the sleep happens outside it,
+    /// so parallel segment tasks serialize briefly instead of blocking each
+    /// other's sleeps. Tasks already sleeping when the limit is raised or
+    /// removed finish their current bounded sleep and pick up the new value
+    /// on the next chunk — no cancellation plumbing needed. Bound: each
+    /// sleep is appended to the end of the shared schedule, so it can span
+    /// the current aggregate slot debt (≈ concurrent consumers × one
+    /// chunk's send time — e.g. ~5 s for 8 segments at the 100 KB/s floor),
+    /// not just one chunk's send time. Bounded and self-healing either way.
+    ///
+    /// Why tokio::time::Instant (not std): the slot schedule shares the
+    /// tokio clock with `sleep_until`, so paused-clock tests are fully
+    /// deterministic (std Instant ignores the tokio test clock). In
+    /// production both clocks are the same monotonic time source.
+    pub async fn acquire(&self, bytes: u64) {
+        let bps = self.limit_bps();
+        if bps == 0 || bytes == 0 {
+            return;
+        }
+        let slot = {
+            let mut next = self.next_slot.lock().unwrap();
+            let start = (*next).max(Instant::now());
+            // ns per byte = 1e9 / bps; u128 intermediate so a large chunk
+            // never overflows before the truncating cast back to u64.
+            *next = start
+                + Duration::from_nanos((bytes as u128 * 1_000_000_000u128 / bps as u128) as u64);
+            start
+        };
+        // sleep_until on an already-past instant returns immediately (the
+        // fast path after idle periods), so no branch is needed here.
+        tokio::time::sleep_until(slot).await;
+    }
+}
 
 /// Registry for managing download cancellation tokens.
 ///
@@ -432,6 +537,121 @@ mod tests {
         assert!(
             !registry.is_cancelled(id),
             "guard drop must clear the stale cancelled flag"
+        );
+    }
+}
+
+#[cfg(test)]
+mod speed_limiter_tests {
+    use super::*;
+
+    /// Unlimited limiter must be a pure fast path: no sleep is scheduled,
+    /// so with paused time the clock does not advance at all.
+    #[tokio::test(start_paused = true)]
+    async fn unlimited_acquire_does_not_advance_time() {
+        let limiter = SpeedLimiter::unlimited();
+        let start = Instant::now();
+        limiter.acquire(64 * 1024).await;
+        limiter.acquire(64 * 1024).await;
+        assert_eq!(
+            start.elapsed(),
+            Duration::ZERO,
+            "unlimited fast path must not schedule any pacing sleep"
+        );
+        assert_eq!(limiter.limit_bps(), 0);
+    }
+
+    /// Sequential acquires pace exactly: two 64 KiB chunks at 256 KiB/s
+    /// (262_144 B/s) reserve 250 ms slots each. The first acquire's slot
+    /// starts at `now` (no debt), so its sleep is zero and only the second
+    /// one sleeps.
+    #[tokio::test(start_paused = true)]
+    async fn sequential_acquires_pace_by_slot_schedule() {
+        let limiter = SpeedLimiter::unlimited();
+        limiter.set_bps(256 * 1024);
+        let start = Instant::now();
+
+        limiter.acquire(64 * 1024).await; // slot [0, 250ms) — no sleep
+        assert_eq!(start.elapsed(), Duration::ZERO);
+
+        limiter.acquire(64 * 1024).await; // slot [250ms, 500ms) — sleeps 250ms
+        assert!(
+            start.elapsed() >= Duration::from_millis(250),
+            "second acquire must wait for its reserved slot"
+        );
+    }
+
+    /// The aggregate guarantee: concurrent consumers share one budget. The
+    /// FIRST chunk's slot starts at `now` (no sleep), so the second must
+    /// wait its full 250 ms slot — steady-state rate is one 64 KiB chunk
+    /// per 250 ms = 256 KiB/s aggregate. Discriminator: with per-task
+    /// (non-shared) schedules both slots would start at `now` and the join
+    /// would complete in zero time.
+    #[tokio::test(start_paused = true)]
+    async fn concurrent_acquires_share_aggregate_budget() {
+        let limiter = Arc::new(SpeedLimiter::unlimited());
+        limiter.set_bps(256 * 1024);
+        let start = Instant::now();
+
+        let a = limiter.clone();
+        let b = limiter.clone();
+        tokio::join!(a.acquire(64 * 1024), b.acquire(64 * 1024));
+
+        assert!(
+            start.elapsed() >= Duration::from_millis(250)
+                && start.elapsed() < Duration::from_millis(500),
+            "two concurrent 64KiB acquires at 256KiB/s aggregate: second must pay a full 250ms slot"
+        );
+    }
+
+    /// The issue #421 hardening: raising the limit must not pay off the
+    /// previous low limit's slot debt. 1 B/s banks a 100 s slot; switching
+    /// to 1 MiB/s must start fresh from `now`.
+    #[tokio::test(start_paused = true)]
+    async fn set_bps_clears_accumulated_slot_debt() {
+        let limiter = SpeedLimiter::unlimited();
+        limiter.set_bps(1); // 100 bytes → slot 100 s in the future
+        limiter.acquire(100).await;
+        let start = Instant::now();
+
+        limiter.set_bps(1024 * 1024); // reset: debt must be gone
+        limiter.acquire(64 * 1024).await; // slot at `now` → no sleep
+        assert_eq!(
+            start.elapsed(),
+            Duration::ZERO,
+            "set_bps must reset next_slot so a raised limit applies immediately"
+        );
+    }
+
+    /// Idle self-heal: `max(now, next_slot)` re-anchors the schedule to
+    /// the present after an idle gap. Discriminator: the acquire right
+    /// after the gap must NOT wait (no stale debt), but the one after it
+    /// must pay a full slot — without the `max`, the schedule would drift
+    /// into the past and every subsequent acquire would be free.
+    #[tokio::test(start_paused = true)]
+    async fn idle_period_self_heals_slot_debt() {
+        let limiter = SpeedLimiter::unlimited();
+        limiter.set_bps(100); // 1s per 100 bytes
+        limiter.acquire(100).await; // slot [t0, t0+1s) — no sleep
+        let start = Instant::now();
+
+        // Simulate a long idle gap past the banked slot (the limiter reads
+        // the tokio clock, so the virtual advance is visible to it).
+        tokio::time::advance(Duration::from_secs(600)).await;
+
+        limiter.acquire(100).await; // must start at `now`, not the stale slot
+        assert!(
+            start.elapsed() >= Duration::from_secs(600)
+                && start.elapsed() < Duration::from_secs(601),
+            "acquire after an idle gap must not pay stale debt (elapsed should be ~600s, not 601s)"
+        );
+
+        // The schedule must now be anchored at now+1s, so this acquire
+        // pays a full 1s slot. Without max() it would be free.
+        limiter.acquire(100).await;
+        assert!(
+            start.elapsed() >= Duration::from_secs(601),
+            "post-idle acquire must re-anchor the schedule (next acquire pays a full slot)"
         );
     }
 }

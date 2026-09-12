@@ -34,6 +34,11 @@ const baseline: Settings = {
   trimMode: 'copy',
   audioFormat: 'mp3',
   theme: 'light',
+  // Why explicit: setSettings shallow-merges, so a speed-limit test that
+  // enabled the switch would leak `true` into later tests via the
+  // singleton store unless the baseline resets it.
+  downloadSpeedLimitEnabled: false,
+  downloadSpeedLimitKbps: 1000,
 }
 
 /** Returns the latest patch_settings payload (changed fields), or undefined. */
@@ -47,6 +52,14 @@ function lastSetSettings(): Partial<Settings> | undefined {
 
 function seedSettings(partial: Partial<Settings> = {}) {
   store.dispatch(setSettings({ ...baseline, ...partial }))
+}
+
+/** Returns the speed-limit SettingRow's toggle switch. */
+function getLimitSwitch(): HTMLElement {
+  return screen
+    .getByText('settings.download_speed_limit_label')
+    .closest('div.flex.items-center.justify-between')!
+    .querySelector('button[role="switch"]') as HTMLElement
 }
 
 describe('DownloadSection', () => {
@@ -204,6 +217,113 @@ describe('DownloadSection', () => {
         ...defaultRules(),
         { from: '', to: '', enabled: true },
       ]),
+    )
+  })
+
+  // --- Speed limit (issue #421) ----------------------------------------------
+
+  it('hides the kbps input while the limit switch is off', () => {
+    renderWithProviders(<DownloadSection />)
+
+    expect(
+      screen.queryByTestId('speed-limit-kbps-input'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('enabling the limit saves BOTH fields atomically', async () => {
+    const { user } = renderWithProviders(<DownloadSection />)
+
+    await user.click(getLimitSwitch())
+
+    // Both fields in ONE patch: the backend must never observe
+    // enabled-without-kbps (resolve_download_speed_limit_bps treats that
+    // as unlimited).
+    await waitFor(() =>
+      expect(lastSetSettings()).toEqual({
+        downloadSpeedLimitEnabled: true,
+        downloadSpeedLimitKbps: 1000,
+      }),
+    )
+    expect(screen.getByTestId('speed-limit-kbps-input')).toBeInTheDocument()
+  })
+
+  it('committing a valid kbps on blur persists only the kbps field', async () => {
+    seedSettings({
+      downloadSpeedLimitEnabled: true,
+      downloadSpeedLimitKbps: 1000,
+    })
+    const { user } = renderWithProviders(<DownloadSection />)
+
+    const input = screen.getByTestId('speed-limit-kbps-input')
+    await user.clear(input)
+    await user.type(input, '2500')
+    await user.tab() // blur → commit
+
+    await waitFor(() =>
+      expect(lastSetSettings()).toEqual({ downloadSpeedLimitKbps: 2500 }),
+    )
+  })
+
+  it('shows the range error and saves nothing for an out-of-range kbps', async () => {
+    seedSettings({
+      downloadSpeedLimitEnabled: true,
+      downloadSpeedLimitKbps: 1000,
+    })
+    const { user } = renderWithProviders(<DownloadSection />)
+
+    const input = screen.getByTestId('speed-limit-kbps-input')
+    await user.clear(input)
+    await user.type(input, '50') // below the 100 KB/s floor
+    await user.tab()
+
+    expect(
+      await screen.findByText('settings.download_speed_limit_invalid'),
+    ).toBeInTheDocument()
+    expect(lastSetSettings()).toBeUndefined()
+  })
+
+  it('rejects a non-integer kbps draft without saving', async () => {
+    seedSettings({
+      downloadSpeedLimitEnabled: true,
+      downloadSpeedLimitKbps: 1000,
+    })
+    const { user } = renderWithProviders(<DownloadSection />)
+
+    const input = screen.getByTestId('speed-limit-kbps-input')
+    await user.clear(input)
+    await user.type(input, '1.5')
+    await user.tab()
+
+    expect(
+      await screen.findByText('settings.download_speed_limit_invalid'),
+    ).toBeInTheDocument()
+    expect(lastSetSettings()).toBeUndefined()
+  })
+
+  it('enabling with a garbage draft resets to the default and saves both fields', async () => {
+    seedSettings({ downloadSpeedLimitKbps: 1000 })
+    const { user } = renderWithProviders(<DownloadSection />)
+
+    // Typing garbage is only reachable while enabled, so drive the reset
+    // branch by enabling, typing garbage, disabling (patch only the
+    // switch), then re-enabling — the reset must save the default pair.
+    await user.click(getLimitSwitch())
+    const input = await screen.findByTestId('speed-limit-kbps-input')
+    await user.clear(input)
+    await user.type(input, 'abc')
+    await user.tab()
+    // Disabling with an invalid draft patches only the switch (never NaN).
+    await user.click(getLimitSwitch())
+    await waitFor(() =>
+      expect(lastSetSettings()).toEqual({ downloadSpeedLimitEnabled: false }),
+    )
+    // Re-enabling: the draft is still garbage, so the default pair is saved.
+    await user.click(getLimitSwitch())
+    await waitFor(() =>
+      expect(lastSetSettings()).toEqual({
+        downloadSpeedLimitEnabled: true,
+        downloadSpeedLimitKbps: 1000,
+      }),
     )
   })
 })
