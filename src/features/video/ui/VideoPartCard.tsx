@@ -22,7 +22,10 @@ import {
 } from '@/features/video/lib/constants'
 import { buildVideoFormSchema2 } from '@/features/video/lib/formSchema'
 import { buildVideoUrl } from '@/features/video/lib/utils'
-import { selectActivePartIndex } from '@/features/video/model/downloadProgress'
+import {
+  selectActivePartIndex,
+  stageExpectations,
+} from '@/features/video/model/downloadProgress'
 import {
   defaultSubtitleConfig,
   setAccordionOpen,
@@ -48,6 +51,7 @@ import {
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
 import { logger } from '@/shared/lib/logger'
+import { mapBackendError } from '@/shared/lib/mapBackendError'
 import { cn } from '@/shared/lib/utils'
 import {
   cancelDownload,
@@ -135,6 +139,38 @@ function UnavailableEpisodeWarning({ status }: UnavailableEpisodeWarningProps) {
   )
 }
 
+/** Props for the QualitiesFetchErrorWarning component. */
+type QualitiesFetchErrorWarningProps = {
+  /** Raw backend error message (real cause) */
+  error: string
+}
+
+/**
+ * Warning shown when quality fetching itself failed (network, risk control,
+ * parse errors) — distinct from genuinely unavailable streams, which render
+ * UnavailableEpisodeWarning. Displays the real cause instead of guessing
+ * "VIP-only episode" (issue #446).
+ */
+function QualitiesFetchErrorWarning({
+  error,
+}: QualitiesFetchErrorWarningProps) {
+  const { t } = useTranslation()
+  // ERR::* codes map to translation keys; only unmapped messages (e.g. raw
+  // parse/network errors) show verbatim as the detail.
+  const mappedKey = mapBackendError(error)
+  const detail = mappedKey ? t(mappedKey) : error
+  return (
+    <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm dark:border-red-800 dark:bg-red-950">
+      <div className="flex items-center gap-2">
+        <Info className="h-4 w-4 flex-shrink-0 text-red-600 dark:text-red-400" />
+        <p className="font-medium text-red-900 dark:text-red-100">
+          {t('video.qualities_fetch_failed', { detail })}
+        </p>
+      </div>
+    </div>
+  )
+}
+
 /**
  * Video part configuration card component.
  *
@@ -207,15 +243,27 @@ const VideoPartCard = memo(function VideoPartCard({
   const videoQualities = partInput?.videoQualities
   const audioQualities = partInput?.audioQualities
   const qualitiesLoading = partInput?.qualitiesLoading ?? false
+  const qualitiesError = partInput?.qualitiesError
   const isPreview = partInput?.isPreview ?? false
   const resolvedQuality = partInput?.resolvedQuality
   const resolvedSubtitle = partInput?.resolvedSubtitle
 
   // Shared by both the compact card and the full-mode progress block so the
   // two can never disagree about which stages to render.
+  // hasEmbeddedAudio: durl sources (audio muxed into the file) hide the audio
+  // stage. isSilentVideo: no audio track exists at all (issue #446) — same
+  // stage hiding, different banner text.
+  // Before resolution the qualities fetch is the only signal: an empty audio
+  // list separates durl (embedded audio) from silent (audioAbsent flag).
+  const audioAbsentFlag = partInput?.audioAbsent ?? false
+  const emptyAudioList =
+    audioQualities !== undefined && audioQualities.length === 0
+  const isSilentVideo = resolvedQuality
+    ? resolvedQuality.audioAbsent
+    : audioAbsentFlag && emptyAudioList
   const hasEmbeddedAudio = resolvedQuality
-    ? resolvedQuality.audioQuality === null
-    : audioQualities !== undefined && audioQualities.length === 0
+    ? resolvedQuality.audioQuality === null && !resolvedQuality.audioAbsent
+    : emptyAudioList && !audioAbsentFlag
 
   /**
    * Builds the summary label for the accordion trigger.
@@ -362,7 +410,9 @@ const VideoPartCard = memo(function VideoPartCard({
   const doFetchQualities = useCallback(
     async (partIndex: number, isBangumi: boolean, epId: number | undefined) => {
       try {
-        const [vq, aq, isPreview] =
+        // Regular videos: [vq, aq, audioAbsent]; bangumi: [vq, aq, isPreview]
+        // (bangumi manifests always carry audio when downloadable).
+        const [vq, aq, third] =
           isBangumi && epId
             ? await fetchBangumiPartQualities(epId, videoPart.cid)
             : await fetchPartQualities(video.bvid, videoPart.cid)
@@ -371,7 +421,9 @@ const VideoPartCard = memo(function VideoPartCard({
             index: partIndex,
             videoQualities: vq,
             audioQualities: aq,
-            isPreview: isPreview ?? undefined,
+            // Bangumi's null isPreview normalizes to undefined
+            isPreview: isBangumi ? (third ?? undefined) : undefined,
+            audioAbsent: !isBangumi && third === true,
           }),
         )
       } catch (e) {
@@ -384,6 +436,11 @@ const VideoPartCard = memo(function VideoPartCard({
             index: partIndex,
             videoQualities: [],
             audioQualities: [],
+            // Keep the real cause so the card can show why streams are
+            // empty instead of the misleading VIP-only guess (issue #446).
+            // Unauthorized session expiry already toasted; still mark the
+            // card so the banner reflects the fetch failure.
+            qualitiesError: message ?? String(e),
           }),
         )
       }
@@ -849,9 +906,15 @@ const VideoPartCard = memo(function VideoPartCard({
                           <>
                             {/* Video Quality */}
                             {videoQualities.length === 0 ? (
-                              <UnavailableEpisodeWarning
-                                status={videoPart.status ?? 0}
-                              />
+                              qualitiesError ? (
+                                <QualitiesFetchErrorWarning
+                                  error={qualitiesError}
+                                />
+                              ) : (
+                                <UnavailableEpisodeWarning
+                                  status={videoPart.status ?? 0}
+                                />
+                              )
                             ) : (
                               <FormField
                                 control={form.control}
@@ -975,7 +1038,9 @@ const VideoPartCard = memo(function VideoPartCard({
                                 <div className="flex items-center gap-2">
                                   <Info className="h-4 w-4 flex-shrink-0 text-blue-600 dark:text-blue-400" />
                                   <p className="text-blue-900 dark:text-blue-100">
-                                    {t('video.bangumi_audio_embedded')}
+                                    {isSilentVideo
+                                      ? t('video.no_audio_track')
+                                      : t('video.bangumi_audio_embedded')}
                                   </p>
                                 </div>
                               </div>
@@ -1053,7 +1118,8 @@ const VideoPartCard = memo(function VideoPartCard({
             status={downloadStatus}
             isQueued={Boolean(downloadStatus.downloadId) || isWaitingForTurn}
             isActive={isActive}
-            hasEmbeddedAudio={hasEmbeddedAudio}
+            hasEmbeddedAudio={hasEmbeddedAudio || isSilentVideo}
+            expectations={stageExpectations(partInput)}
             onThumbnailClick={handleThumbnailClick}
             onCancel={handleCancel}
           />
@@ -1067,7 +1133,7 @@ const VideoPartCard = memo(function VideoPartCard({
             status={downloadStatus}
             isWaitingForTurn={isWaitingForTurn}
             onCancel={handleCancel}
-            hasEmbeddedAudio={hasEmbeddedAudio}
+            hasEmbeddedAudio={hasEmbeddedAudio || isSilentVideo}
           />
         )}
       </Form>

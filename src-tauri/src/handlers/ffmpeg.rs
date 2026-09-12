@@ -571,7 +571,7 @@ pub async fn merge_av(
     merge_avs(
         app,
         video_path,
-        audio_path,
+        Some(audio_path),
         output_path,
         download_id,
         duration_ms,
@@ -608,14 +608,24 @@ impl AudioCodec {
 /// stream-copy attempt and the AAC re-encode fallback — only the `-c:a` value
 /// differs; everything else (inputs, mappings, metadata, video codec) is
 /// identical for a given [`MergeMode`].
+///
+/// `audio_path: None` builds a video-only invocation (silent sources,
+/// issue #446): a single input, no `-c:a`, and mappings without `1:a`.
 fn build_merge_args(
     video_path: &str,
-    audio_path: &str,
+    audio_path: Option<&str>,
     output_path: &str,
     subtitle_mode: &MergeMode,
     audio_codec: AudioCodec,
 ) -> Result<Vec<String>, String> {
     let to_str_err = || "Invalid path".to_string();
+
+    // Video-only (silent source) invocations never carry an audio input or
+    // `-c:a`, so the copy→AAC codec distinction collapses — reuse the copy
+    // shape for both attempts in that case.
+    let Some(audio_path) = audio_path else {
+        return build_video_only_args(video_path, output_path, subtitle_mode);
+    };
     let audio = audio_codec.as_str();
 
     let mut args = Vec::new();
@@ -732,6 +742,95 @@ fn build_merge_args(
     Ok(args)
 }
 
+/// Builds the video-only ffmpeg invocation (silent source, issue #446).
+///
+/// Single input, `-c:v copy` (except HardSub which must re-encode), no
+/// `-c:a`, subtitle mappings shifted by one input.
+fn build_video_only_args(
+    video_path: &str,
+    output_path: &str,
+    subtitle_mode: &MergeMode,
+) -> Result<Vec<String>, String> {
+    let to_str_err = || "Invalid path".to_string();
+    let mut args: Vec<String> = vec!["-i".to_string(), video_path.to_string()];
+
+    match subtitle_mode {
+        MergeMode::None => {
+            args.extend(
+                ["-c:v", "copy", "-progress", "pipe:1", "-y", output_path]
+                    .iter()
+                    .map(|s| s.to_string()),
+            );
+        }
+        MergeMode::SoftSub(subtitles) => {
+            for sub in subtitles {
+                let sub_str = sub.path.to_str().ok_or_else(to_str_err)?;
+                args.push("-i".to_string());
+                args.push(sub_str.to_string());
+            }
+
+            // Subtitle inputs start at index 1 (no audio input).
+            args.push("-map".to_string());
+            args.push("0:v".to_string());
+            for i in 0..subtitles.len() {
+                args.push("-map".to_string());
+                args.push(format!("{}:0", i + 1));
+            }
+
+            for (i, sub) in subtitles.iter().enumerate() {
+                args.push(format!("-metadata:s:s:{}", i));
+                args.push(format!("language={}", sub.language));
+                args.push(format!("-metadata:s:s:{}", i));
+                args.push(format!("title={}", sub.title));
+            }
+
+            args.extend(
+                [
+                    "-c:v",
+                    "copy",
+                    "-c:s",
+                    "mov_text",
+                    "-progress",
+                    "pipe:1",
+                    "-y",
+                    output_path,
+                ]
+                .iter()
+                .map(|s| s.to_string()),
+            );
+        }
+        MergeMode::HardSub(subtitle) => {
+            let sub_str = subtitle.path.to_str().ok_or_else(to_str_err)?;
+
+            let escaped_sub = sub_str
+                .replace('\\', "\\\\")
+                .replace(':', "\\:")
+                .replace('\'', "'\\''");
+
+            let filter = format!("subtitles='{}'", escaped_sub);
+
+            args.extend(
+                [
+                    "-vf",
+                    &filter,
+                    "-c:v",
+                    "libx264",
+                    "-preset",
+                    "fast",
+                    "-progress",
+                    "pipe:1",
+                    "-y",
+                    output_path,
+                ]
+                .iter()
+                .map(|s| s.to_string()),
+            );
+        }
+    }
+
+    Ok(args)
+}
+
 /// Merges video, audio, and optional subtitles into a single MP4 file.
 ///
 /// This is an extended version of [`merge_av`] that supports subtitle handling
@@ -774,7 +873,7 @@ fn build_merge_args(
 pub async fn merge_avs(
     app: &AppHandle,
     video_path: &std::path::Path,
-    audio_path: &std::path::Path,
+    audio_path: Option<&std::path::Path>,
     output_path: &std::path::Path,
     download_id: Option<String>,
     duration_ms: Option<u64>,
@@ -782,10 +881,11 @@ pub async fn merge_avs(
     cancel_token: Option<CancellationToken>,
 ) -> Result<(), String> {
     log::info!(
-        "[BE] merge_avs: starting merge download_id={:?}, output={:?}, subtitle_mode={:?}",
+        "[BE] merge_avs: starting merge download_id={:?}, output={:?}, subtitle_mode={:?}, audio={:?}",
         download_id,
         output_path,
-        subtitle_mode
+        subtitle_mode,
+        audio_path
     );
     let filename = output_path
         .file_stem()
@@ -803,7 +903,9 @@ pub async fn merge_avs(
 
     let to_str_err = || "Invalid path".to_string();
     let video_str = video_path.to_str().ok_or_else(to_str_err)?;
-    let audio_str = audio_path.to_str().ok_or_else(to_str_err)?;
+    let audio_str = audio_path
+        .map(|p| p.to_str().ok_or_else(to_str_err))
+        .transpose()?;
     let output_str = output_path.to_str().ok_or_else(to_str_err)?;
 
     // Post-download integrity check for the video m4s: separates a corrupted
@@ -883,6 +985,8 @@ pub async fn merge_avs(
     }
 
     // Try audio stream copy first; fall back to AAC re-encoding on failure.
+    // For video-only (silent source) merges the copy/AAC distinction does not
+    // exist — build_merge_args already returned the single-shot invocation.
     let copy_args = build_merge_args(
         video_str,
         audio_str,
@@ -905,6 +1009,11 @@ pub async fn merge_avs(
         let _ = emits.set_stage("complete").await;
         emits.complete().await;
         return Ok(());
+    }
+
+    // Video-only failure is final: there is no AAC fallback shape to try.
+    if audio_str.is_none() {
+        return Err(copy_result.unwrap_err());
     }
 
     // Cancellation must propagate immediately — it is a user action, not a
@@ -1083,7 +1192,7 @@ mod tests {
     fn none_mode_copy_uses_audio_copy() {
         let args = build_merge_args(
             "v.m4s",
-            "a.m4s",
+            Some("a.m4s"),
             "out.mp4",
             &MergeMode::None,
             AudioCodec::Copy,
@@ -1096,7 +1205,7 @@ mod tests {
     fn none_mode_aac_uses_audio_aac() {
         let args = build_merge_args(
             "v.m4s",
-            "a.m4s",
+            Some("a.m4s"),
             "out.mp4",
             &MergeMode::None,
             AudioCodec::Aac,
@@ -1114,7 +1223,7 @@ mod tests {
         }];
         let args = build_merge_args(
             "v.m4s",
-            "a.m4s",
+            Some("a.m4s"),
             "out.mp4",
             &MergeMode::SoftSub(subtitles),
             AudioCodec::Copy,
@@ -1135,7 +1244,7 @@ mod tests {
         }];
         let args = build_merge_args(
             "v.m4s",
-            "a.m4s",
+            Some("a.m4s"),
             "out.mp4",
             &MergeMode::SoftSub(subtitles),
             AudioCodec::Aac,
@@ -1153,7 +1262,7 @@ mod tests {
         };
         let args = build_merge_args(
             "v.m4s",
-            "a.m4s",
+            Some("a.m4s"),
             "out.mp4",
             &MergeMode::HardSub(subtitle),
             AudioCodec::Copy,
@@ -1174,7 +1283,7 @@ mod tests {
         };
         let args = build_merge_args(
             "v.m4s",
-            "a.m4s",
+            Some("a.m4s"),
             "out.mp4",
             &MergeMode::HardSub(subtitle),
             AudioCodec::Aac,
@@ -1196,7 +1305,7 @@ mod tests {
     fn merge_args_none_mode_is_stream_copy() {
         let args = build_merge_args(
             "v.m4s",
-            "a.m4s",
+            Some("a.m4s"),
             "out.mp4",
             &MergeMode::None,
             AudioCodec::Copy,
@@ -1212,8 +1321,9 @@ mod tests {
 
     #[test]
     fn merge_args_aac_fallback_only_changes_audio_codec() {
-        let copy = build_merge_args("v", "a", "o", &MergeMode::None, AudioCodec::Copy).unwrap();
-        let aac = build_merge_args("v", "a", "o", &MergeMode::None, AudioCodec::Aac).unwrap();
+        let copy =
+            build_merge_args("v", Some("a"), "o", &MergeMode::None, AudioCodec::Copy).unwrap();
+        let aac = build_merge_args("v", Some("a"), "o", &MergeMode::None, AudioCodec::Aac).unwrap();
         assert!(copy.contains(&"-c:a".to_string()) && copy.contains(&"copy".to_string()));
         assert!(aac.contains(&"-c:a".to_string()) && aac.contains(&"aac".to_string()));
         // Only the codec token differs: identical arg count and layout
@@ -1226,7 +1336,7 @@ mod tests {
             sub("/s/eng.ass", "eng", "English"),
             sub("/s/chi.ass", "chi", "Chinese"),
         ]);
-        let args = build_merge_args("v", "a", "out.mp4", &mode, AudioCodec::Copy).unwrap();
+        let args = build_merge_args("v", Some("a"), "out.mp4", &mode, AudioCodec::Copy).unwrap();
         let joined = args.join(" ");
 
         // two extra inputs after video+audio
@@ -1246,9 +1356,32 @@ mod tests {
     }
 
     #[test]
+    fn merge_args_video_only_none_mode_is_single_input_stream_copy() {
+        // Silent source (issue #446): no audio input, no -c:a.
+        let args =
+            build_merge_args("v.m4s", None, "out.mp4", &MergeMode::None, AudioCodec::Copy).unwrap();
+        let joined = args.join(" ");
+        assert!(joined.contains("-c:v copy"));
+        assert!(!joined.contains("-c:a"));
+        assert_eq!(joined.matches("-i").count(), 1, "single input only");
+        assert_eq!(args.last().unwrap(), "out.mp4");
+    }
+
+    #[test]
+    fn merge_args_video_only_softsub_maps_subtitles_from_index_one() {
+        let mode = MergeMode::SoftSub(vec![sub("/s/eng.ass", "eng", "English")]);
+        let args = build_merge_args("v", None, "out.mp4", &mode, AudioCodec::Copy).unwrap();
+        let joined = args.join(" ");
+        assert!(!joined.contains("-map 1:a"));
+        assert!(joined.contains("-map 0:v"));
+        assert!(joined.contains("-map 1:0"));
+        assert!(joined.contains("-c:s mov_text"));
+    }
+
+    #[test]
     fn merge_args_hardsub_escapes_filter_specials() {
         let mode = MergeMode::HardSub(sub(r"/tmp/C:\subs'x.ass", "eng", "English"));
-        let args = build_merge_args("v", "a", "o", &mode, AudioCodec::Aac).unwrap();
+        let args = build_merge_args("v", Some("a"), "o", &mode, AudioCodec::Aac).unwrap();
 
         // Exact filter assertion: loose contains-checks pass even when the
         // escape ORDER regresses (colon-before-backslash still contains

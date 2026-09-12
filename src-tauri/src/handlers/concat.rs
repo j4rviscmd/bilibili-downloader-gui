@@ -144,12 +144,19 @@ fn write_concat_list(input_paths: &[String]) -> Result<std::path::PathBuf, Strin
     std::fs::create_dir_all(&dir)
         .map_err(|e| format!("ERR::CONCAT_FFMPEG_FAILED: create temp dir {e}"))?;
 
+    // Why pid + atomic counter: the millisecond timestamp alone collided when
+    // parallel callers (cargo test threads, or two app instances using the
+    // multi-process parallel download feature) wrote a list in the same
+    // millisecond — one overwrote the other's content.
+    static LIST_SEQ: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let seq = LIST_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let list_path = dir.join(format!(
-        "filelist_{}.txt",
+        "filelist_{}_{}_{seq}.txt",
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
-            .as_millis()
+            .as_millis(),
+        std::process::id()
     ));
 
     let content = input_paths

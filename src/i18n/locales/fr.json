@@ -294,6 +294,8 @@
     "bangumi_copyright_restricted": "Cet épisode n'est pas disponible en raison de restrictions de droits d'auteur.",
     "bangumi_access_denied": "Accès refusé à cet épisode.",
     "bangumi_no_dash": "Flux non disponible. Il s'agit peut-être d'un épisode VIP.",
+    "qualities_fetch_failed": "Échec du chargement des flux disponibles : {{detail}}",
+    "no_audio_track": "Cette vidéo n'a pas de piste audio (elle sera enregistrée sans son).",
     "bangumi_vip_badge": "VIP",
     "bangumi_audio_embedded": "L'audio est intégré à la vidéo, aucune sélection de qualité audio nécessaire.",
     "bangumi_preview_badge": "Aperçu",

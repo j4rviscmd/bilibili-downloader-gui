@@ -289,15 +289,26 @@ export const inputSlice = createSlice({
         videoQualities: VideoQuality[]
         audioQualities: AudioQuality[]
         isPreview?: boolean
+        qualitiesError?: string
+        audioAbsent?: boolean
       }>,
     ) => {
-      const { index, videoQualities, audioQualities, isPreview } =
-        action.payload
+      const {
+        index,
+        videoQualities,
+        audioQualities,
+        isPreview,
+        qualitiesError,
+        audioAbsent,
+      } = action.payload
       const target = state.partInputs[index]
       if (target) {
         target.videoQualities = videoQualities
         target.audioQualities = audioQualities
         target.qualitiesLoading = false
+        // Undefined on the success path, which clears a previous error
+        target.qualitiesError = qualitiesError
+        target.audioAbsent = audioAbsent
         if (videoQualities.length > 0 && !target.videoQuality) {
           target.videoQuality = String(videoQualities[0].id)
         }
@@ -344,6 +355,7 @@ export const inputSlice = createSlice({
         videoCodecFallback: boolean
         audioQuality: number | null
         audioQualityFallback: boolean
+        audioAbsent: boolean
         isPreview: boolean | null
       }>,
     ) => {

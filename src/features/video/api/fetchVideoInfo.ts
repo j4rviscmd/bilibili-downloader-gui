@@ -88,7 +88,9 @@ export const fetchSubtitlesForPart = async (
  *
  * @param bvid - Bilibili video ID (BV identifier)
  * @param cid - Content ID for the specific video part
- * @returns A promise resolving to a tuple of [videoQualities, audioQualities]
+ * @returns A promise resolving to a tuple of
+ * [videoQualities, audioQualities, audioAbsent]. `audioAbsent` is true when
+ * the source video has no audio track at all (issue #446).
  *
  * @example
  * ```typescript
@@ -99,10 +101,10 @@ export const fetchSubtitlesForPart = async (
 export const fetchPartQualities = async (
   bvid: string,
   cid: number,
-): Promise<[VideoQuality[], AudioQuality[]]> => {
+): Promise<[VideoQuality[], AudioQuality[], boolean]> => {
   logger.debug(`fetchPartQualities: bvid=${bvid}, cid=${cid}`)
   try {
-    const result = await invoke<[VideoQuality[], AudioQuality[]]>(
+    const result = await invoke<[VideoQuality[], AudioQuality[], boolean]>(
       'fetch_part_qualities',
       { bvid, cid },
     )

@@ -245,6 +245,7 @@ describe('resolved info reducers', () => {
         videoCodecFallback: false,
         audioQuality: 30216,
         audioQualityFallback: false,
+        audioAbsent: false,
         isPreview: null,
       }),
     )
@@ -256,6 +257,7 @@ describe('resolved info reducers', () => {
       videoCodecFallback: false,
       audioQuality: 30216,
       audioQualityFallback: false,
+      audioAbsent: false,
       isPreview: null,
     })
     expect(input().partInputs[1].isPreview).toBeUndefined()
@@ -272,6 +274,7 @@ describe('resolved info reducers', () => {
         videoCodecFallback: false,
         audioQuality: null,
         audioQualityFallback: false,
+        audioAbsent: false,
         isPreview: true,
       }),
     )
@@ -289,6 +292,7 @@ describe('resolved info reducers', () => {
         videoCodecFallback: false,
         audioQuality: null,
         audioQualityFallback: false,
+        audioAbsent: false,
         isPreview: false,
       }),
     )

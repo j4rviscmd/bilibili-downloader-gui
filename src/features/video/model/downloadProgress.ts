@@ -1,6 +1,7 @@
 import { createSelector } from '@reduxjs/toolkit'
 
 import type { RootState } from '@/app/store'
+import type { PartInput } from '@/features/video/types'
 import type { QueueItem } from '@/shared/queue/queueSlice'
 import type { Progress } from '@/shared/ui/Progress'
 
@@ -130,8 +131,53 @@ function extractPartIndex(downloadId: string): number | null {
   return m ? parseInt(m[1], 10) : null
 }
 
+/** Which download stages a part actually runs (issue #446). */
+export type StageExpectations = {
+  /** Audio stream download runs (false: silent source or durl muxed file) */
+  audioStage: boolean
+  /** ffmpeg merge/remux runs (false: durl saves bytes directly) */
+  mergeStage: boolean
+}
+
+/** Default expectation: a normal DASH download runs all three stages. */
+export const ALL_STAGES: StageExpectations = {
+  audioStage: true,
+  mergeStage: true,
+}
+
+/**
+ * Derives the stage expectations from a part's input state.
+ *
+ * - Silent source (`audioAbsent`, issue #446): video + merge only.
+ * - durl (embedded audio — resolved `audioQuality: null`, or a qualities
+ *   fetch that returned an empty audio list): single muxed download, no
+ *   merge.
+ * - Unknown shape (qualities not loaded yet): assume all stages so the
+ *   percentage never over-reports before the shape is known.
+ */
+export function stageExpectations(
+  part: PartInput | undefined,
+): StageExpectations {
+  if (!part) return ALL_STAGES
+  const silent = part.audioAbsent === true
+  // Why: silent sources also resolve `audioQuality: null` (the backend has no
+  // audio id to report), so `!audioAbsent` is what separates them from durl —
+  // misclassifying silent as durl would drop the merge stage from the divisor
+  // and pin the bar at 100% while the remux runs (issue #446).
+  const durl = part.resolvedQuality
+    ? part.resolvedQuality.audioQuality === null &&
+      !part.resolvedQuality.audioAbsent
+    : part.audioQualities !== undefined &&
+      part.audioQualities.length === 0 &&
+      !silent
+  return { audioStage: !silent && !durl, mergeStage: !durl }
+}
+
 /** 1ダウンロードの progress を audio/video/merge 個別に返す。 */
-export function pickStageData(entries: Progress[]): {
+export function pickStageData(
+  entries: Progress[],
+  expected: StageExpectations = ALL_STAGES,
+): {
   percentage: number
   audio: StageProgress
   video: StageProgress
@@ -171,8 +217,17 @@ export function pickStageData(entries: Progress[]): {
   const audioPct = audio?.percentage ?? (merge ? 100 : 0)
   const videoPct = video?.percentage ?? (merge ? 100 : 0)
   const mergePct = merge?.percentage ?? 0
+  // Divide by the stages this download actually runs (issue #446): silent
+  // sources skip the audio download, durl downloads skip both audio and
+  // merge — a fixed /3 capped them at 33% until completion.
+  const divisor =
+    1 + (expected.audioStage ? 1 : 0) + (expected.mergeStage ? 1 : 0)
   return {
-    percentage: (audioPct + videoPct + mergePct) / 3,
+    percentage:
+      ((expected.audioStage ? audioPct : 0) +
+        videoPct +
+        (expected.mergeStage ? mergePct : 0)) /
+      divisor,
     audio: audio
       ? { percentage: audio.percentage, transferRate: audio.transferRate }
       : null,
@@ -219,9 +274,10 @@ export const selectPartStatusRows = createSelector(
         const progressEntries = progress.filter(
           (p) => p.downloadId === child.downloadId,
         )
-        const rep = pickStageData(progressEntries)
         // partInputs is 0-based; partIndex is 1-based
-        const title = partInputs[partIndex - 1]?.title ?? `Part ${partIndex}`
+        const partInput = partInputs[partIndex - 1]
+        const rep = pickStageData(progressEntries, stageExpectations(partInput))
+        const title = partInput?.title ?? `Part ${partIndex}`
         // @why: When cancel-all lands right after a merge finishes, child.status
         //   becomes 'cancelled' even though the file is actually complete. Override
         //   to 'done' when isComplete so the display matches the real artifact —

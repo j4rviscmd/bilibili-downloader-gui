@@ -549,6 +549,7 @@ describe('VideoPartCard', () => {
     vi.mocked(fetchPartQualities).mockResolvedValue([
       [{ id: 80, quality: '1080p' }],
       [{ id: 30280, quality: '192K' }],
+      false,
     ])
     vi.mocked(fetchSubtitlesForPart).mockResolvedValue([
       {
@@ -612,6 +613,48 @@ describe('VideoPartCard', () => {
     })
   })
 
+  it('labels silent videos with the no-audio-track banner', async () => {
+    // Issue #446: audio-absent videos (empty audio list + audioAbsent flag)
+    // must say "no audio track", not "audio is embedded".
+    vi.mocked(fetchPartQualities).mockResolvedValue([
+      [{ id: 80, quality: '1080p' }],
+      [],
+      true,
+    ])
+    vi.mocked(fetchSubtitlesForPart).mockResolvedValue([])
+    const { user } = setup()
+
+    await user.click(screen.getByRole('button', { name: /video.options/ }))
+
+    await vi.waitFor(() =>
+      expect(store.getState().input.partInputs[0]!.audioAbsent).toBe(true),
+    )
+    expect(screen.getByText('video.no_audio_track')).toBeInTheDocument()
+    expect(
+      screen.queryByText('video.bangumi_audio_embedded'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows the fetch-failure warning with the real cause instead of the VIP guess', async () => {
+    // Issue #446: an empty qualities list used to render the misleading
+    // "may be a VIP-only episode" banner even when the real cause was a
+    // failed playurl fetch.
+    vi.mocked(fetchPartQualities).mockRejectedValue(
+      new Error('XPlayerApi Failed to parse response JSON'),
+    )
+    vi.mocked(fetchSubtitlesForPart).mockResolvedValue([])
+    const { user } = setup()
+
+    await user.click(screen.getByRole('button', { name: /video.options/ }))
+
+    await vi.waitFor(() => {
+      const p = store.getState().input.partInputs[0]!
+      expect(p.qualitiesError).toBe('XPlayerApi Failed to parse response JSON')
+    })
+    expect(screen.getByText('video.qualities_fetch_failed')).toBeInTheDocument()
+    expect(screen.queryByText('video.bangumi_no_dash')).not.toBeInTheDocument()
+  })
+
   it('fetches bangumi qualities through the episode endpoint', async () => {
     vi.mocked(fetchBangumiPartQualities).mockResolvedValue([
       [{ id: 80, quality: '1080p' }],
@@ -660,6 +703,7 @@ describe('VideoPartCard', () => {
     vi.mocked(fetchPartQualities).mockResolvedValue([
       [{ id: 80, quality: '1080p' }],
       [],
+      false,
     ])
     vi.mocked(fetchSubtitlesForPart).mockRejectedValue(new Error('boom'))
     const { user } = setup()
@@ -681,6 +725,7 @@ describe('VideoPartCard', () => {
     vi.mocked(fetchPartQualities).mockResolvedValue([
       [{ id: 80, quality: '1080p' }],
       [],
+      false,
     ])
     vi.mocked(fetchSubtitlesForPart).mockResolvedValue([])
     const scrollTo = vi.fn()
