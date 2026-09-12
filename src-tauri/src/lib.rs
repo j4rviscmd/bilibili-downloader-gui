@@ -601,13 +601,15 @@ async fn fetch_subtitles_for_part(
 ///
 /// # Returns
 ///
-/// Returns a tuple of (video_qualities, audio_qualities).
+/// Returns a tuple of (video_qualities, audio_qualities, audio_absent).
+/// `audio_absent` is true when the source video has no audio track at all
+/// (issue #446) — distinct from durl format where audio is embedded.
 #[tauri::command]
 async fn fetch_part_qualities(
     app: AppHandle,
     bvid: String,
     cid: i64,
-) -> Result<(Vec<Quality>, Vec<Quality>), String> {
+) -> Result<(Vec<Quality>, Vec<Quality>, bool), String> {
     bilibili::fetch_part_qualities(&app, &bvid, cid)
         .await
         .map_err(|e| e.to_string())

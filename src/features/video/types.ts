@@ -37,6 +37,10 @@ export type PartInput = {
   audioQualities?: AudioQuality[]
   /** Whether qualities are currently loading */
   qualitiesLoading?: boolean
+  /** Error message when quality fetching failed (real cause for display) */
+  qualitiesError?: string
+  /** True when the source video has no audio track at all (issue #446) */
+  audioAbsent?: boolean
   /** Whether the "other options" accordion is open (persisted for virtual scroll) */
   accordionOpen?: boolean
   /** Preview mode flag (only first 6 minutes available) for bangumi */
@@ -206,10 +210,12 @@ export type ResolvedQuality = {
   videoCodecid: number
   /** Whether video codec was fallen back from user selection */
   videoCodecFallback: boolean
-  /** Resolved audio quality ID (null for durl format) */
+  /** Resolved audio quality ID (null for durl format or silent sources) */
   audioQuality: number | null
   /** Whether audio quality was fallen back from user selection */
   audioQualityFallback: boolean
+  /** True when the source has no audio track at all (issue #446) */
+  audioAbsent: boolean
   /** Whether this is a preview (only first 6 minutes available) */
   isPreview: boolean | null
 }

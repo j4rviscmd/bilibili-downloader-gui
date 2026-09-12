@@ -294,6 +294,8 @@
     "bangumi_copyright_restricted": "著作権の制限によりこのエピソードは利用できません。",
     "bangumi_access_denied": "このエピソードへのアクセスが拒否されました。",
     "bangumi_no_dash": "ストリームが取得できません。VIP限定エピソードの可能性があります。",
+    "qualities_fetch_failed": "利用可能なストリームの取得に失敗しました: {{detail}}",
+    "no_audio_track": "この動画には音声トラックがありません（無音のまま保存されます）。",
     "bangumi_vip_badge": "VIP",
     "bangumi_audio_embedded": "音声は動画に埋め込まれているため、音質選択は不要です。",
     "bangumi_preview_badge": "予告",

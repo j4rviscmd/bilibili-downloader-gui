@@ -15,7 +15,11 @@ import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { PartDownloadStatus } from '../hooks/usePartDownloadStatus'
-import { pickStageData } from '../model/downloadProgress'
+import {
+  ALL_STAGES,
+  pickStageData,
+  type StageExpectations,
+} from '../model/downloadProgress'
 import { AnimatedSection } from './AnimatedSection'
 import { PartDownloadProgress } from './PartDownloadProgress'
 
@@ -34,6 +38,9 @@ type Props = {
   isActive: boolean
   /** True if audio is embedded (durl format), forwarded to the detail view */
   hasEmbeddedAudio: boolean
+  /** Which stages this download runs — drives the overall percentage divisor
+   * (optional: tests render the card without a download shape) */
+  expectations?: StageExpectations
   /** Opens the part in the browser — same behavior as the full card */
   onThumbnailClick: () => void
   /** cancelDownload + deselect wiring from VideoPartCard */
@@ -60,6 +67,7 @@ export function PartCompactCard({
   isQueued,
   isActive,
   hasEmbeddedAudio,
+  expectations = ALL_STAGES,
   onThumbnailClick,
   onCancel,
 }: Props) {
@@ -97,7 +105,7 @@ export function PartCompactCard({
   // included there). Cancelling/cancelled/done rows are not.
   const canCancel = isPending && isQueued
 
-  const rep = pickStageData(status.progressEntries)
+  const rep = pickStageData(status.progressEntries, expectations)
   const pct = Math.min(100, Math.round(rep.percentage))
 
   // Only queued parts show a known backend error message; fall back to the

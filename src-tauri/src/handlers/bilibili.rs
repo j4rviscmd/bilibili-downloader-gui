@@ -91,10 +91,13 @@ pub struct QualityResolvedPayload {
     pub video_codecid: i16,
     /// Whether video codec was fallen back from user selection
     pub video_codec_fallback: bool,
-    /// Resolved audio quality ID (null for durl format)
+    /// Resolved audio quality ID (null for durl format or silent sources)
     pub audio_quality: Option<i32>,
     /// Whether audio quality was fallen back from user selection
     pub audio_quality_fallback: bool,
+    /// True when the source has no audio track at all (issue #446) —
+    /// distinguishes silent DASH downloads from durl (audio embedded)
+    pub audio_absent: bool,
     /// Whether this is a preview (only first 6 minutes available)
     pub is_preview: Option<bool>,
 }
@@ -572,6 +575,7 @@ async fn download_bangumi_durl<R: tauri::Runtime>(
             video_codec_fallback: false,
             audio_quality: None, // durl format has no separate audio
             audio_quality_fallback: false,
+            audio_absent: false, // durl muxes the (existing) audio track in
             is_preview,
         },
     )
@@ -761,7 +765,7 @@ async fn download_video_impl(app: &AppHandle, options: &DownloadOptions) -> Resu
         segment_concurrency,
         codec_priority,
         &move |video_path: &Path,
-               audio_path: &Path,
+               audio_path: Option<&Path>,
                output_path: &Path,
                subtitle_mode,
                cancel_token| {
@@ -800,7 +804,7 @@ type MergeFuture<'a> =
 /// so E2E tests never touch the real-home settings store, lib dir, or ffmpeg
 /// binary. `merge` stands in for `ffmpeg::merge_avs` (which needs the
 /// concrete Wry handle and spawns the real binary).
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
 // Why: generic over Runtime, not the default-Wry `&AppHandle`, because the E2E
 // tests below pass `tauri::test::mock_app().handle()` (`AppHandle<MockRuntime>`,
 // see the "test" dev-feature note in Cargo.toml), which only type-checks
@@ -815,7 +819,7 @@ async fn download_video_impl_with<R: tauri::Runtime>(
     codec_priority: crate::utils::codec::VideoCodecPriority,
     merge: &(dyn for<'a> Fn(
         &'a Path,
-        &'a Path,
+        Option<&'a Path>,
         &'a Path,
         crate::handlers::ffmpeg::MergeMode,
         tokio_util::sync::CancellationToken,
@@ -956,6 +960,7 @@ async fn download_video_impl_with<R: tauri::Runtime>(
                     video_codec_fallback: false,
                     audio_quality: None, // durl format has no separate audio
                     audio_quality_fallback: false,
+                    audio_absent: false, // durl muxes the (existing) audio in
                     is_preview: None,
                 },
             )
@@ -1101,11 +1106,20 @@ async fn download_video_impl_with<R: tauri::Runtime>(
         .map(|sel| sel.fallback)
         .unwrap_or(true);
 
-    let audio_quality = options
-        .audio_quality
-        .unwrap_or(dash_data.audio.first().map(|a| a.id).unwrap_or(30280));
-    let (audio_url, audio_backup_urls, raw_audio_fallback) =
-        select_stream_url(&dash_data.audio, audio_quality)?;
+    // Silent source (issue #446): the DASH manifest carries video streams but
+    // no audio track (uploader recorded without sound). There is nothing to
+    // select, download, or merge on the audio side — the merge step remuxes
+    // the video stream alone.
+    let audio_absent = dash_data.audio.is_empty();
+
+    let (audio_url, audio_backup_urls, raw_audio_fallback) = if audio_absent {
+        (String::new(), None, false)
+    } else {
+        let audio_quality = options
+            .audio_quality
+            .unwrap_or(dash_data.audio.first().map(|a| a.id).unwrap_or(30280));
+        select_stream_url(&dash_data.audio, audio_quality)?
+    };
     // Same logic: only warn when the user explicitly chose an audio quality.
     let audio_quality_fallback = options.audio_quality.is_some() && raw_audio_fallback;
     // Get the actual resolved audio quality ID
@@ -1116,9 +1130,10 @@ async fn download_video_impl_with<R: tauri::Runtime>(
         .map(|a| a.id);
 
     log::info!(
-        "[BE] download_video: resolved audio quality id={:?} (requested {:?}) for id={}",
+        "[BE] download_video: resolved audio quality id={:?} (requested {:?}, audio_absent={}) for id={}",
         resolved_audio_quality,
         options.audio_quality,
+        audio_absent,
         options.download_id,
     );
 
@@ -1135,6 +1150,7 @@ async fn download_video_impl_with<R: tauri::Runtime>(
             video_codec_fallback,
             audio_quality: resolved_audio_quality,
             audio_quality_fallback,
+            audio_absent,
             is_preview: bangumi_preview_info,
         },
     )
@@ -1142,9 +1158,17 @@ async fn download_video_impl_with<R: tauri::Runtime>(
 
     // 5. Pre-check disk space (skip if size cannot be determined)
     let video_size = head_content_length(&video_url, Some(cookie_header)).await;
-    let audio_size = head_content_length(&audio_url, Some(cookie_header)).await;
-    if let (Some(vs), Some(asz)) = (video_size, audio_size) {
-        let total_needed = vs + asz + (5 * 1024 * 1024); // 5MB buffer
+    let audio_size = if audio_absent {
+        None
+    } else {
+        head_content_length(&audio_url, Some(cookie_header)).await
+    };
+    // Why: gated on the video size alone — silent sources (#446) never have
+    // an audio size, so a both-sizes gate would skip the space check for
+    // every silent download.
+    if let Some(vs) = video_size {
+        // Audio size may be unknown (silent source / HEAD failure) — count 0
+        let total_needed = vs + audio_size.unwrap_or(0) + (5 * 1024 * 1024); // 5MB buffer
         ensure_free_space(reservation.reserved_path(), total_needed)?;
     }
 
@@ -1165,7 +1189,11 @@ async fn download_video_impl_with<R: tauri::Runtime>(
     // Note: keep the named binding — `let _ = lock_temp_paths(...)` would drop
     // the locks immediately, and startup cleanup would then delete these
     // in-flight temps as orphans.
-    let _temp_locks = lock_temp_paths(&[&temp_video_path, &temp_audio_path]);
+    let _temp_locks = if audio_absent {
+        lock_temp_paths(&[&temp_video_path])
+    } else {
+        lock_temp_paths(&[&temp_video_path, &temp_audio_path])
+    };
 
     // Result to track success/failure for cleanup
     let result = async {
@@ -1180,7 +1208,10 @@ async fn download_video_impl_with<R: tauri::Runtime>(
         let cookie = Some(cookie_header.to_string());
 
         // Download audio with fallback and video in parallel (cancel immediately if either fails)
-        // Audio uses fallback to handle invalid media responses from VIP-specific CDN edges
+        // Audio uses fallback to handle invalid media responses from VIP-specific CDN edges.
+        // Skipped entirely for silent sources (issue #446): no audio exists.
+        // Built unconditionally (cheap struct) so the returned future can keep
+        // borrowing it for its whole lifetime.
         let audio_refetch_ctx = AudioRefetchCtx {
             api: api.clone(),
             bvid: options.bvid.clone(),
@@ -1188,19 +1219,23 @@ async fn download_video_impl_with<R: tauri::Runtime>(
             ep_id: options.ep_id,
             audio_quality: resolved_audio_quality,
         };
-        let audio_download = download_audio_with_fallback(
-            app,
-            codec_priority,
-            segment_concurrency,
-            &options.download_id,
-            audio_url.clone(),
-            audio_backup_urls.clone(),
-            temp_audio_path.clone(),
-            cookie.clone(),
-            &dash_data.audio,
-            &audio_refetch_ctx,
-            host_health.clone(),
-        );
+        let audio_download = if audio_absent {
+            None
+        } else {
+            Some(download_audio_with_fallback(
+                app,
+                codec_priority,
+                segment_concurrency,
+                &options.download_id,
+                audio_url.clone(),
+                audio_backup_urls.clone(),
+                temp_audio_path.clone(),
+                cookie.clone(),
+                &dash_data.audio,
+                &audio_refetch_ctx,
+                host_health.clone(),
+            ))
+        };
         // Refetch inputs for attempt > 1 (bilibili signed URLs expire after
         // 120 min). Cloned here because the move closure must own them, while
         // `cookie` is shared with audio_download and `cookies` with subtitle prep.
@@ -1277,7 +1312,15 @@ async fn download_video_impl_with<R: tauri::Runtime>(
             },
         );
 
-        tokio::try_join!(audio_download, video_download)?;
+        match audio_download {
+            Some(audio) => {
+                tokio::try_join!(audio, video_download)?;
+            }
+            // Silent source: no audio future was created
+            None => {
+                video_download.await?;
+            }
+        }
 
         // Check for cancellation after download completes but before merge starts.
         // This TOCTOU fix prevents wasted ffmpeg launches when the user cancels
@@ -1355,7 +1398,12 @@ async fn download_video_impl_with<R: tauri::Runtime>(
         );
         merge(
             &temp_video_path,
-            &temp_audio_path,
+            // None for silent sources: the remux copies the video stream alone
+            if audio_absent {
+                None
+            } else {
+                Some(&temp_audio_path)
+            },
             reservation.reserved_path(),
             subtitle_mode,
             cancel_token.clone(),
@@ -1663,13 +1711,30 @@ mod tests {
             .mount(&server)
             .await;
 
-        let (video, audio) =
+        let (video, audio, audio_absent) =
             fetch_part_qualities_with(&bili_api_mock(&server.uri(), "SESSDATA=x"), "BV1q", 1)
                 .await
                 .unwrap();
         assert_eq!(video.len(), 2);
         assert_eq!(audio.len(), 1);
+        assert!(!audio_absent);
         assert!(video[0].id >= video[1].id, "qualities sorted desc");
+    }
+
+    #[tokio::test]
+    async fn fetch_part_qualities_with_dash_no_audio_marks_absent() {
+        // Issue #446: silent sources send "audio": null with video streams
+        // intact; the response must parse and flag audio_absent.
+        let server = wiremock::MockServer::start().await;
+        mount_audio_stripped_playurl(&server).await;
+
+        let (video, audio, audio_absent) =
+            fetch_part_qualities_with(&bili_api_mock(&server.uri(), "SESSDATA=x"), "BV1q", 1)
+                .await
+                .unwrap();
+        assert_eq!(video.len(), 2, "both dash video qualities listed");
+        assert!(audio.is_empty());
+        assert!(audio_absent);
     }
 
     #[tokio::test]
@@ -2178,20 +2243,53 @@ mod tests {
             .await;
     }
 
+    /// Mounts nav + the issue-#446 playurl shape: the DASH manifest carries
+    /// video streams but `audio: null` (silent source).
+    async fn mount_audio_stripped_playurl(server: &wiremock::MockServer) {
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/nav"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(nav_wbi_mock_body()))
+            .mount(server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/player/wbi/playurl"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": {"quality": 80, "dash": {
+                        "video": [
+                            {"id": 80, "codecid": 7, "bandwidth": 1,
+                             "width": 1920, "height": 1080,
+                             "baseUrl": format!("{}/media/v", server.uri())},
+                            {"id": 64, "codecid": 7, "bandwidth": 1,
+                             "width": 1280, "height": 720,
+                             "baseUrl": format!("{}/media/v64", server.uri())}
+                        ],
+                        "audio": null
+                    }}
+                })),
+            )
+            .mount(server)
+            .await;
+    }
+
     /// Merge stand-in: concatenates the two staged streams into the output,
-    /// mirroring what the real ffmpeg merge produces.
+    /// mirroring what the real ffmpeg merge produces. With no audio (silent
+    /// source) it copies the video bytes alone, matching the video-only remux.
     fn fake_merge<'a>(
         video_path: &'a Path,
-        audio_path: &'a Path,
+        audio_path: Option<&'a Path>,
         output_path: &'a Path,
         _mode: MergeMode,
         _cancel: CancellationToken,
     ) -> MergeFuture<'a> {
         Box::pin(async move {
             let video = std::fs::read(video_path).map_err(|e| e.to_string())?;
-            let audio = std::fs::read(audio_path).map_err(|e| e.to_string())?;
             let mut merged = video;
-            merged.extend_from_slice(&audio);
+            if let Some(audio_path) = audio_path {
+                let audio = std::fs::read(audio_path).map_err(|e| e.to_string())?;
+                merged.extend_from_slice(&audio);
+            }
             std::fs::write(output_path, merged).map_err(|e| e.to_string())
         })
     }
@@ -2199,7 +2297,7 @@ mod tests {
     /// Merge stand-in that must never run (durl bypasses the merge step).
     fn unused_merge<'a>(
         _video_path: &'a Path,
-        _audio_path: &'a Path,
+        _audio_path: Option<&'a Path>,
         _output_path: &'a Path,
         _mode: MergeMode,
         _cancel: CancellationToken,
@@ -2210,7 +2308,7 @@ mod tests {
     /// Merge stand-in simulating an ffmpeg failure.
     fn failing_merge<'a>(
         _video_path: &'a Path,
-        _audio_path: &'a Path,
+        _audio_path: Option<&'a Path>,
         _output_path: &'a Path,
         _mode: MergeMode,
         _cancel: CancellationToken,
@@ -2308,6 +2406,41 @@ mod tests {
         assert_eq!(std::fs::read(&expected_final).unwrap(), body);
         assert!(!out_dir.path().join("video.part.mp4").exists());
         assert!(!out_dir.path().join("video.mp4.lock").exists());
+    }
+
+    #[tokio::test]
+    async fn download_video_impl_dash_no_audio_remuxes_video_only() {
+        // Issue #446: silent source downloads the DASH video stream alone
+        // and remuxes it without an audio input (fake_merge writes the video
+        // bytes unchanged when audio is None).
+        let server = wiremock::MockServer::start().await;
+        let body: Vec<u8> = (0..4096u32).map(|i| (i % 251) as u8).collect();
+        mount_good_media(&server, "/media/v", body.clone()).await;
+        mount_audio_stripped_playurl(&server).await;
+
+        let lib = tempfile::tempdir().unwrap();
+        let out_dir = tempfile::tempdir().unwrap();
+        let app = tauri::test::mock_app();
+        let final_path = download_video_impl_with(
+            app.handle(),
+            &pr5_options("pr5-nosnd", None),
+            &bili_api_mock(&server.uri(), ""),
+            lib.path(),
+            &out_dir.path().join("video.mp4"),
+            1,
+            crate::utils::codec::VideoCodecPriority::default(),
+            &fake_merge,
+        )
+        .await
+        .unwrap();
+
+        let expected_final = out_dir.path().join("video.mp4");
+        assert_eq!(PathBuf::from(&final_path), expected_final);
+        assert_eq!(std::fs::read(&expected_final).unwrap(), body);
+        assert!(!out_dir.path().join("video.part.mp4").exists());
+        assert!(!out_dir.path().join("video.mp4.lock").exists());
+        // No audio stream was downloaded, so no audio temp exists either.
+        assert!(!lib.path().join("temp_audio_pr5-nosnd.m4s").exists());
     }
 
     #[tokio::test]
@@ -4507,10 +4640,24 @@ async fn fetch_video_details(
     bvid: &str,
     cid: i64,
 ) -> Result<XPlayerApiResponse, String> {
+    fetch_video_details_with_fnval(api, bvid, cid, PLAYURL_FNVAL).await
+}
+
+/// Playurl fetch with an explicit `fnval` (format negotiation) value.
+///
+/// `PLAYURL_FNVAL` requests the DASH manifest; `0` requests the legacy
+/// `durl` muxed stream (audio embedded in the container).
+async fn fetch_video_details_with_fnval(
+    api: &BiliApi,
+    bvid: &str,
+    cid: i64,
+    fnval: i32,
+) -> Result<XPlayerApiResponse, String> {
     log::info!(
-        "[BE] fetch_video_details: requesting bvid={}, cid={}",
+        "[BE] fetch_video_details: requesting bvid={}, cid={}, fnval={}",
         bvid,
-        cid
+        cid,
+        fnval
     );
     let mixin_key = crate::utils::wbi::fetch_mixin_key(
         &api.http,
@@ -4524,7 +4671,7 @@ async fn fetch_video_details(
         (id_key.to_string(), id_val),
         ("cid".to_string(), cid.to_string()),
         ("qn".to_string(), PLAYURL_QN.to_string()),
-        ("fnval".to_string(), PLAYURL_FNVAL.to_string()),
+        ("fnval".to_string(), fnval.to_string()),
         ("fnver".to_string(), "0".to_string()),
         ("fourk".to_string(), "1".to_string()),
     ]);
@@ -5539,14 +5686,17 @@ pub async fn fetch_subtitles_for_part(
 ///
 /// # Returns
 ///
-/// Returns `(video_qualities, audio_qualities)` tuple:
+/// Returns `(video_qualities, audio_qualities, audio_absent)` tuple:
 /// - `video_qualities` - List of available video qualities
 /// - `audio_qualities` - List of available audio qualities (empty for durl format)
+/// - `audio_absent` - True when the source video has no audio track at all
+///   (DASH manifest with video streams but `audio: null`, issue #446) —
+///   distinct from durl format where audio is embedded in the file
 pub async fn fetch_part_qualities(
     app: &AppHandle,
     bvid: &str,
     cid: i64,
-) -> Result<(Vec<Quality>, Vec<Quality>), String> {
+) -> Result<(Vec<Quality>, Vec<Quality>, bool), String> {
     log::info!(
         "[BE] fetch_part_qualities: requesting qualities for bvid={}, cid={}",
         bvid,
@@ -5562,7 +5712,7 @@ async fn fetch_part_qualities_with(
     api: &BiliApi,
     bvid: &str,
     cid: i64,
-) -> Result<(Vec<Quality>, Vec<Quality>), String> {
+) -> Result<(Vec<Quality>, Vec<Quality>, bool), String> {
     let details = fetch_video_details(api, bvid, cid).await?;
     let data = details.data.ok_or("ERR::NO_STREAM")?;
 
@@ -5570,12 +5720,16 @@ async fn fetch_part_qualities_with(
     if let Some(dash) = data.dash {
         let video_qualities = convert_qualities(&dash.video);
         let audio_qualities = convert_qualities(&dash.audio);
+        // Silent source (issue #446): video streams exist but the manifest
+        // carries no audio track at all.
+        let audio_absent = !dash.video.is_empty() && dash.audio.is_empty();
         log::info!(
-            "[BE] fetch_part_qualities: received {} video qualities, {} audio qualities",
+            "[BE] fetch_part_qualities: received {} video qualities, {} audio qualities (audio_absent={})",
             video_qualities.len(),
-            audio_qualities.len()
+            audio_qualities.len(),
+            audio_absent
         );
-        return Ok((video_qualities, audio_qualities));
+        return Ok((video_qualities, audio_qualities, audio_absent));
     }
 
     // durl format: audio is embedded in video, derive qualities from
@@ -5590,8 +5744,8 @@ async fn fetch_part_qualities_with(
                     .unwrap_or_else(|| quality_to_string(&f.quality)),
             })
             .collect();
-        // durl format has no separate audio stream
-        return Ok((video_qualities, vec![]));
+        // durl format has no separate audio stream (it is embedded)
+        return Ok((video_qualities, vec![], false));
     }
 
     Err("ERR::NO_STREAM".to_string())
@@ -6328,9 +6482,17 @@ async fn refetch_dash_urls(
         select_streams_by_codec_priority_with(codec_priority, &dash.video, Some(video_quality));
     let (video_url, video_backup_urls, _) =
         select_stream_url(&streams_for_selection, video_quality)?;
-    let resolved_audio_quality =
-        audio_quality.unwrap_or_else(|| dash.audio.first().map(|a| a.id).unwrap_or(30280));
-    let (audio_url, audio_backup_urls, _) = select_stream_url(&dash.audio, resolved_audio_quality)?;
+    // Silent sources carry no audio list — selecting would fail the whole
+    // refetch and cost the video side its fresh URL (issue #446). The audio
+    // fields are simply unused by the silent download path.
+    let (audio_url, audio_backup_urls) = if dash.audio.is_empty() {
+        (String::new(), None)
+    } else {
+        let resolved_audio_quality =
+            audio_quality.unwrap_or_else(|| dash.audio.first().map(|a| a.id).unwrap_or(30280));
+        let (url, backups, _) = select_stream_url(&dash.audio, resolved_audio_quality)?;
+        (url, backups)
+    };
     Ok(FreshDashUrls {
         video_url,
         video_backup_urls,
@@ -6378,7 +6540,10 @@ async fn refetch_durl_url(
             .map(|u| u.iter().map(|s| s.to_string()).collect());
         Ok((seg.url.clone(), backup))
     } else {
-        let details = fetch_video_details(api, bvid, cid).await?;
+        // fnval=0 keeps the response on the durl format even for
+        // audio-stripped DASH videos (issue #446), so a fresh muxed URL is
+        // always available here.
+        let details = fetch_video_details_with_fnval(api, bvid, cid, 0).await?;
         let data = details
             .data
             .ok_or_else(|| "refetch_durl_url: no data".to_string())?;

@@ -12,7 +12,11 @@
 import { store } from '@/app/store'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { initPartInputs, resetInput } from '@/features/video/model/inputSlice'
+import {
+  initPartInputs,
+  resetInput,
+  setPartQualities,
+} from '@/features/video/model/inputSlice'
 import { clearProgress, setProgress } from '@/shared/progress/progressSlice'
 import type { QueueItem } from '@/shared/queue/queueSlice'
 import { clearQueue, enqueue } from '@/shared/queue/queueSlice'
@@ -57,6 +61,23 @@ const baseProgress: Progress = {
 
 function seedProgress(overrides: Partial<Progress>) {
   store.dispatch(setProgress({ ...baseProgress, ...overrides }))
+}
+
+/** Seeds one part input at index 0 (page 1). */
+function seedPart() {
+  store.dispatch(
+    initPartInputs([
+      {
+        cid: 1,
+        page: 1,
+        title: 'Part 1',
+        videoQuality: '80',
+        audioQuality: '',
+        selected: true,
+        duration: 60,
+      },
+    ]),
+  )
 }
 
 beforeEach(() => {
@@ -181,6 +202,44 @@ describe('selectPartStatusRows', () => {
     expect(row.merge).toEqual({ percentage: 80, transferRate: 0 })
     expect(row.stage).toBe('merge')
     expect(row.isComplete).toBe(false)
+  })
+
+  it('divides by two stages for a silent source (video + merge, issue #446)', () => {
+    seedFamily('parent-1', [{ id: 'parent-1-p1', status: 'running' }])
+    seedPart()
+    // Silent flag set via the qualities fetch result.
+    store.dispatch(
+      setPartQualities({
+        index: 0,
+        videoQualities: [{ id: 80, quality: '1080p' }],
+        audioQualities: [],
+        audioAbsent: true,
+      }),
+    )
+    // Video done (no live entry), merge at 60: divisor is 2, not 3.
+    seedProgress({ downloadId: 'parent-1-p1', stage: 'merge', percentage: 60 })
+
+    const [row] = selectPartStatusRows(store.getState())
+
+    expect(row.percentage).toBeCloseTo((100 + 60) / 2)
+  })
+
+  it('divides by one stage for a durl download (video only)', () => {
+    seedFamily('parent-1', [{ id: 'parent-1-p1', status: 'running' }])
+    seedPart()
+    // durl shape: empty audio list without the audioAbsent flag.
+    store.dispatch(
+      setPartQualities({
+        index: 0,
+        videoQualities: [{ id: 64, quality: '720p' }],
+        audioQualities: [],
+      }),
+    )
+    seedProgress({ downloadId: 'parent-1-p1', stage: 'video', percentage: 40 })
+
+    const [row] = selectPartStatusRows(store.getState())
+
+    expect(row.percentage).toBeCloseTo(40)
   })
 
   it('ORs isRetrying across the audio/video/merge stages', () => {

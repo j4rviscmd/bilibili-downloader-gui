@@ -294,6 +294,8 @@
     "bangumi_copyright_restricted": "This episode is not available due to copyright restrictions.",
     "bangumi_access_denied": "Access denied to this episode.",
     "bangumi_no_dash": "Stream not available. This may be a VIP-only episode.",
+    "qualities_fetch_failed": "Failed to load available streams: {{detail}}",
+    "no_audio_track": "This video has no audio track (it will be saved silent).",
     "bangumi_vip_badge": "VIP",
     "bangumi_audio_embedded": "Audio is embedded in the video, no separate quality selection needed.",
     "bangumi_preview_badge": "Preview",

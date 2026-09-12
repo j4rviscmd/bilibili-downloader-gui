@@ -103,7 +103,11 @@ describe('fetchVideoInfo', () => {
         { quality: '64K', id: 30216 },
         { quality: '128K', id: 30232 },
       ]
-      mockInvoke.mockResolvedValue([mockVideoQualities, mockAudioQualities])
+      mockInvoke.mockResolvedValue([
+        mockVideoQualities,
+        mockAudioQualities,
+        false,
+      ])
 
       const [vq, aq] = await fetchPartQualities('BV1234567890', 123456)
 
@@ -116,7 +120,7 @@ describe('fetchVideoInfo', () => {
     })
 
     it('should return empty arrays when no qualities available', async () => {
-      mockInvoke.mockResolvedValue([[], []])
+      mockInvoke.mockResolvedValue([[], [], false])
 
       const [vq, aq] = await fetchPartQualities('BV1234567890', 123456)
 

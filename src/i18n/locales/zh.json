@@ -294,6 +294,8 @@
     "bangumi_copyright_restricted": "由于版权限制，该番剧不可用。",
     "bangumi_access_denied": "访问该番剧被拒绝。",
     "bangumi_no_dash": "无法获取视频流。可能是VIP专享剧集。",
+    "qualities_fetch_failed": "获取可用视频流失败：{{detail}}",
+    "no_audio_track": "该视频没有音轨（将保存为无声视频）。",
     "bangumi_vip_badge": "VIP",
     "bangumi_audio_embedded": "音频已嵌入视频中，无需单独选择音质。",
     "bangumi_preview_badge": "预告",

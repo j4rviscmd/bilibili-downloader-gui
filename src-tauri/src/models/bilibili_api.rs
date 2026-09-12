@@ -107,6 +107,19 @@ pub struct XPlayerApiResponseData {
     pub quality: Option<i32>,
 }
 
+/// Deserializes an explicit JSON `null` as `T::default()`.
+///
+/// `#[serde(default)]` only covers a *missing* field; copyright-stripped
+/// videos send `"audio": null` explicitly (issue #446), which still fails
+/// without this null-tolerant bridge.
+fn null_to_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Default + serde::Deserialize<'de>,
+{
+    Ok(Option::<T>::deserialize(deserializer)?.unwrap_or_default())
+}
+
 /// DASH video and audio streams container.
 ///
 /// Holds separate lists for video and audio streams, allowing the client
@@ -115,7 +128,9 @@ pub struct XPlayerApiResponseData {
 pub struct XPlayerApiResponseDash {
     /// Available video stream qualities
     pub video: Vec<XPlayerApiResponseVideo>,
-    /// Available audio stream qualities
+    /// Available audio stream qualities. Null (audio-stripped videos,
+    /// issue #446) deserializes to an empty list.
+    #[serde(default, deserialize_with = "null_to_default")]
     pub audio: Vec<XPlayerApiResponseVideo>,
     /// Unparsed top-level DASH fields (e.g. `dolby`, `flac`) captured for
     /// diagnostic logging only. These VIP-only audio objects are
@@ -829,6 +844,36 @@ mod tests {
         assert_eq!(formats.len(), 3);
         assert_eq!(formats[0].quality, 16);
         assert_eq!(formats[2].display_desc, "1080P 高清");
+    }
+
+    #[test]
+    fn parses_xplayer_dash_null_audio_as_empty() {
+        // Copyright-stripped videos return "audio": null with video streams
+        // intact, even for logged-in accounts (issue #446). The serde
+        // default on `audio` must swallow the null so the whole response
+        // still parses.
+        let resp: XPlayerApiResponse = serde_json::from_str(
+            r#"{
+                "code": 0, "message": "0",
+                "data": {
+                    "quality": 80,
+                    "dash": {
+                        "video": [
+                            {"id": 80, "codecid": 7, "bandwidth": 1,
+                             "width": 1920, "height": 1080,
+                             "baseUrl": "https://example.com/v80.m4s"}
+                        ],
+                        "audio": null
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let data = resp.data.unwrap();
+        let dash = data.dash.unwrap();
+        assert_eq!(dash.video.len(), 1);
+        assert!(dash.audio.is_empty(), "null audio defaults to empty vec");
     }
 
     #[test]

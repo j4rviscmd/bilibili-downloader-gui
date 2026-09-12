@@ -294,6 +294,8 @@
     "bangumi_copyright_restricted": "저작권 제한으로 이 에피소드를 이용할 수 없습니다.",
     "bangumi_access_denied": "이 에피소드에 대한 액세스가 거부되었습니다.",
     "bangumi_no_dash": "스트림을 사용할 수 없습니다. VIP 전용 에피소드일 수 있습니다.",
+    "qualities_fetch_failed": "사용 가능한 스트림을 불러오지 못했습니다: {{detail}}",
+    "no_audio_track": "이 영상에는 오디오 트랙이 없습니다(무음으로 저장됩니다).",
     "bangumi_vip_badge": "VIP",
     "bangumi_audio_embedded": "오디오가 비디오에 내장되어 있어 별도의 음질 선택이 필요하지 않습니다.",
     "bangumi_preview_badge": "예고",
