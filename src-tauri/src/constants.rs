@@ -56,6 +56,22 @@ pub const SPEED_CHECK_INTERVAL_SECS: u64 = 3;
 /// trips it.
 pub const SEGMENT_STALL_TIMEOUT_SECS: u64 = 10;
 
+/// Minimum accepted download speed limit, in KB/s (issue #421).
+///
+/// Why 100: the limiter paces by delaying chunk reads, so one chunk's
+/// pacing sleep is `chunk_len / limit` (64 KiB / 100 KB/s ≈ 0.66 s).
+/// Below this floor a single sleep grows toward the 10 s
+/// SEGMENT_STALL_TIMEOUT_SECS window and kernel/hyper buffers can drain
+/// deep enough for CDN write-idle resets to churn connections. 100 KB/s
+/// keeps every sleep sub-second and the buffers shallow by construction.
+pub const SPEED_LIMIT_MIN_KBPS: u32 = 100;
+
+/// Maximum accepted download speed limit, in KB/s (issue #421).
+///
+/// Sanity ceiling (10 GB/s) rather than a meaningful network bound; the
+/// resolver clamps hand-edited settings.json values into range.
+pub const SPEED_LIMIT_MAX_KBPS: u32 = 10_000_000;
+
 /// Maximum number of CDN rotation loops.
 ///
 /// Limits the number of times CDN nodes are rotated when slow speeds

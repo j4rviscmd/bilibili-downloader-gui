@@ -84,6 +84,41 @@ describe('SettingsContent', () => {
     expect(screen.getByTestId('active-category')).toHaveTextContent('download')
   })
 
+  it('honors a category+anchor deep link and consumes the params (issue #421)', async () => {
+    // The download status bar's limit link navigates to
+    // /settings?category=download&anchor=speed-limit — the page must mount
+    // that category directly and then strip the params so later manual
+    // category clicks behave normally. The probe observes the in-router
+    // location (MemoryRouter does not touch window.location).
+    function LocationProbe() {
+      const { pathname, search } = useLocation()
+      return (
+        <span data-testid="location-probe">
+          {pathname}
+          {search}
+        </span>
+      )
+    }
+
+    renderWithProviders(
+      <>
+        <SettingsContent />
+        <LocationProbe />
+      </>,
+      { route: '/settings?category=download&anchor=speed-limit' },
+    )
+
+    expect(screen.getByTestId('section-download')).toBeInTheDocument()
+    expect(screen.queryByTestId('section-general')).toBeNull()
+    expect(screen.getByTestId('active-category')).toHaveTextContent('download')
+    // Params consumed (replace navigation drops the query string).
+    await waitFor(() =>
+      expect(screen.getByTestId('location-probe')).toHaveTextContent(
+        '/settings',
+      ),
+    )
+  })
+
   it('re-reads settings from the backend when the page becomes visible again (issue #560)', async () => {
     // Mini-reproduction of PersistentPageLayout: the page stays mounted
     // and is merely hidden while another route is active. settings.json is

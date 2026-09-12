@@ -543,6 +543,11 @@
     "download_parallelism_label": "Paralelismo de Descarga de Segmentos",
     "download_parallelism_description": "Número de descargas paralelas de segmentos. Valores más altos (8, 6) pueden ser más rápidos pero pueden activar la limitación de CDN de Bilibili. Valores más bajos (2, 1) son más estables pero más lentos. El valor predeterminado es 8, recomendado para la mayoría de conexiones.",
     "download_parallelism_cdn_warning": "El CDN de Bilibili puede limitar las descargas paralelas. Si las descargas son inestables, prueba reducir a 4 o 2.",
+    "download_speed_limit_label": "Limitar la Velocidad de Descarga",
+    "download_speed_limit_description": "Limita la velocidad de descarga.",
+    "download_speed_limit_kbps_label": "Límite de Velocidad",
+    "download_speed_limit_kbps_description": "1000 kb/s = 1 mb/s. El límite se aplica solo a esta instancia de la app y surte efecto de inmediato en las descargas en curso.",
+    "download_speed_limit_invalid": "Introduce un número entero entre {{min}} y {{max}} kb/s.",
     "category": {
       "general": "General",
       "download": "Descargas",
@@ -772,7 +777,9 @@
     "status_waiting": "En espera",
     "status_cancelling": "Cancelando",
     "status_cancelled": "Cancelado",
-    "status_error": "Error"
+    "status_error": "Error",
+    "speed_limit_tooltip": "Límite de velocidad activo. Haz clic para abrir el ajuste: los cambios se aplican de inmediato a las descargas en curso, solo en esta instancia de la app.",
+    "speed_limit_set": "Establecer límite de velocidad"
   },
   "audio": {
     "title": "Extracción de audio",

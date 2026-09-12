@@ -543,6 +543,11 @@
     "download_parallelism_label": "세그먼트 병렬 다운로드 수",
     "download_parallelism_description": "세그먼트 병렬 다운로드 수량. 높은 값(8, 6)은 빠를 수 있지만 Bilibili CDN 스로틀링을 유발할 수 있습니다. 낮은 값(2, 1)은 안정적이지만 느립니다. 기본값은 8이며 대부분의 연결에 권장됩니다.",
     "download_parallelism_cdn_warning": "Bilibili CDN이 병렬 다운로드를 제한할 수 있습니다. 다운로드가 불안정하면 4 또는 2로 줄여보세요.",
+    "download_speed_limit_label": "다운로드 속도 제한",
+    "download_speed_limit_description": "다운로드 속도를 제한합니다.",
+    "download_speed_limit_kbps_label": "속도 제한",
+    "download_speed_limit_kbps_description": "1000 kb/s = 1 mb/s. 이 제한은 이 앱 인스턴스에만 적용되며 진행 중인 다운로드에 즉시 반영됩니다.",
+    "download_speed_limit_invalid": "{{min}}에서 {{max}} kb/s 사이의 정수를 입력하세요.",
     "category": {
       "general": "일반",
       "download": "다운로드",
@@ -772,7 +777,9 @@
     "status_waiting": "대기 중",
     "status_cancelling": "취소 중",
     "status_cancelled": "취소됨",
-    "status_error": "오류"
+    "status_error": "오류",
+    "speed_limit_tooltip": "속도 제한이 활성화되어 있습니다. 클릭하여 설정을 엽니다. 변경 사항은 진행 중인 다운로드에 즉시 반영되며 이 앱 인스턴스에만 적용됩니다.",
+    "speed_limit_set": "속도 제한 설정"
   },
   "audio": {
     "title": "오디오 추출",

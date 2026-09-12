@@ -1,5 +1,6 @@
 //! Application settings persisted to settings.json
 
+use crate::constants::{SPEED_LIMIT_MAX_KBPS, SPEED_LIMIT_MIN_KBPS};
 use crate::utils::codec::VideoCodecPriority;
 use serde::{Deserialize, Serialize};
 
@@ -221,6 +222,24 @@ pub struct Settings {
         skip_serializing_if = "Option::is_none"
     )]
     pub download_parallelism: Option<u8>,
+    /// Whether to cap the aggregate download speed (issue #421). Defaults
+    /// to false (unlimited).
+    #[serde(
+        rename = "downloadSpeedLimitEnabled",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub download_speed_limit_enabled: Option<bool>,
+    /// Aggregate download speed cap in KB/s (issue #421). Only applied
+    /// while `downloadSpeedLimitEnabled` is true. Decimal KB/s: the UI hint
+    /// "1000 kb/s = 1 mb/s" matches the resolver's ×1000 conversion.
+    /// Defaults to unlimited when absent.
+    #[serde(
+        rename = "downloadSpeedLimitKbps",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub download_speed_limit_kbps: Option<u32>,
     /// Latest version string the user chose to skip via "Skip this version"
     /// (issue #599). The startup auto-check does not auto-open the update
     /// dialog when its latest version equals this value; manual checks
@@ -369,6 +388,36 @@ impl Settings {
             _ => 8,
         }
     }
+
+    /// Resolves the aggregate download speed limit (issue #421).
+    ///
+    /// Returns the cap in **bytes per second** for
+    /// [`SpeedLimiter::set_bps`](crate::handlers::concurrency::SpeedLimiter::set_bps),
+    /// or `0` when unlimited. Fail-open semantics mirror
+    /// `resolve_segment_concurrency`: a disabled switch, a missing kbps
+    /// value, or `None` settings all mean unlimited; a stored kbps outside
+    /// `[SPEED_LIMIT_MIN_KBPS, SPEED_LIMIT_MAX_KBPS]` is clamped into
+    /// range rather than rejected (hand-edited settings.json values must
+    /// not break downloads).
+    ///
+    /// Why ×1000 (not ×1024): the settings UI hint reads
+    /// "1000 kb/s = 1 mb/s" — the decimal convention the user typed is the
+    /// one the limiter must enforce.
+    pub fn resolve_download_speed_limit_bps(settings: &Option<Settings>) -> u64 {
+        let Some(s) = settings.as_ref() else {
+            return 0;
+        };
+        if !s.download_speed_limit_enabled.unwrap_or(false) {
+            return 0;
+        }
+        // Enabled without a stored kbps (hand-edited file; the FE always
+        // saves both fields in one patch) — treat as unlimited.
+        let Some(kbps) = s.download_speed_limit_kbps else {
+            return 0;
+        };
+        let kbps = kbps.clamp(SPEED_LIMIT_MIN_KBPS, SPEED_LIMIT_MAX_KBPS);
+        u64::from(kbps) * 1000
+    }
 }
 
 #[cfg(test)]
@@ -481,5 +530,99 @@ mod tests {
         let s: Settings =
             serde_json::from_str(r#"{"dlOutputPath": "/tmp/a", "language": "en"}"#).unwrap();
         assert_eq!(s.skipped_update_version, None);
+    }
+
+    // ---- resolve_download_speed_limit_bps (issue #421) ----
+
+    #[test]
+    fn test_resolve_speed_limit_none_settings_and_disabled() {
+        // No settings object → unlimited
+        assert_eq!(Settings::resolve_download_speed_limit_bps(&None), 0);
+
+        // Switch off (even with a stored kbps) → unlimited
+        let settings = Settings {
+            download_speed_limit_enabled: Some(false),
+            download_speed_limit_kbps: Some(500),
+            ..Default::default()
+        };
+        assert_eq!(
+            Settings::resolve_download_speed_limit_bps(&Some(settings)),
+            0
+        );
+
+        // Switch absent → unlimited
+        let settings = Settings {
+            download_speed_limit_kbps: Some(500),
+            ..Default::default()
+        };
+        assert_eq!(
+            Settings::resolve_download_speed_limit_bps(&Some(settings)),
+            0
+        );
+    }
+
+    #[test]
+    fn test_resolve_speed_limit_enabled_converts_decimal_kbps() {
+        let settings = Settings {
+            download_speed_limit_enabled: Some(true),
+            download_speed_limit_kbps: Some(500),
+            ..Default::default()
+        };
+        // Why ×1000: the UI hint "1000 kb/s = 1 mb/s" commits to the
+        // decimal convention — 500 KB/s must be 500_000 B/s.
+        assert_eq!(
+            Settings::resolve_download_speed_limit_bps(&Some(settings)),
+            500_000
+        );
+    }
+
+    #[test]
+    fn test_resolve_speed_limit_enabled_without_kbps_is_unlimited() {
+        // Hand-edited settings.json can enable the switch without a stored
+        // kbps; fail open to unlimited instead of guessing a cap.
+        let settings = Settings {
+            download_speed_limit_enabled: Some(true),
+            download_speed_limit_kbps: None,
+            ..Default::default()
+        };
+        assert_eq!(
+            Settings::resolve_download_speed_limit_bps(&Some(settings)),
+            0
+        );
+    }
+
+    #[test]
+    fn test_resolve_speed_limit_clamps_out_of_range() {
+        let settings = Settings {
+            download_speed_limit_enabled: Some(true),
+            // 0 and 1 KB/s are below the 100 KB/s floor (chunk pacing
+            // sleeps would approach the stall-detection window).
+            download_speed_limit_kbps: Some(1),
+            ..Default::default()
+        };
+        assert_eq!(
+            Settings::resolve_download_speed_limit_bps(&Some(settings)),
+            u64::from(SPEED_LIMIT_MIN_KBPS) * 1000
+        );
+
+        let settings = Settings {
+            download_speed_limit_enabled: Some(true),
+            download_speed_limit_kbps: Some(999_999_999),
+            ..Default::default()
+        };
+        assert_eq!(
+            Settings::resolve_download_speed_limit_bps(&Some(settings)),
+            u64::from(SPEED_LIMIT_MAX_KBPS) * 1000
+        );
+    }
+
+    #[test]
+    fn test_speed_limit_fields_default_none_for_pre_existing_settings() {
+        // Why: settings.json written before issue #421 lacks both keys;
+        // serde `default` must deserialize them as None (unlimited).
+        let s: Settings =
+            serde_json::from_str(r#"{"dlOutputPath": "/tmp/a", "language": "en"}"#).unwrap();
+        assert_eq!(s.download_speed_limit_enabled, None);
+        assert_eq!(s.download_speed_limit_kbps, None);
     }
 }

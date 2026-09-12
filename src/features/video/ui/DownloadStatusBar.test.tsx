@@ -126,4 +126,17 @@ describe('DownloadStatusBar', () => {
     })
     expect(button).toBeDisabled()
   })
+
+  it('renders the speed-limit link inside the bar (issue #421)', async () => {
+    seedSession([{ id: 'parent-1-p1', status: 'running' }])
+
+    renderWithProviders(<DownloadStatusBar />)
+
+    expect(await screen.findByTestId('download-status-bar')).toBeInTheDocument()
+    // Unlimited while downloading → the enable entry point is the affordance
+    // (SpeedLimitLink.test covers the enabled-value variant and navigation).
+    expect(screen.getByTestId('speed-limit-link')).toHaveTextContent(
+      'downloadStatus.speed_limit_set',
+    )
+  })
 })

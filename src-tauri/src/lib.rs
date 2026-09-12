@@ -284,6 +284,13 @@ pub fn run() {
                 .to_string()
             });
 
+            // Seed the aggregate speed limiter from persisted settings
+            // (issue #421) so downloads started before the settings page is
+            // ever opened are still capped. Later saves flow through
+            // patch_settings, which re-syncs this cell live.
+            crate::handlers::concurrency::DOWNLOAD_SPEED_LIMITER
+                .set_bps(Settings::resolve_download_speed_limit_bps(&settings));
+
             // Store settings into InitResult so initialize doesn't reload them
             // (settings are already read here; initialize focuses on ffmpeg /
             // session / user which actually take time).
