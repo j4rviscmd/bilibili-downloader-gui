@@ -1,7 +1,7 @@
 /**
  * PersistentPageLayout suite.
  *
- * All nine page contents are stubbed with testid markers so the
+ * All ten page contents are stubbed with testid markers so the
  * mount-persistence strategy itself is under test: lazy mount on first
  * visit, display:none hiding, and the invalid-path redirect.
  */
@@ -37,6 +37,9 @@ vi.mock('@/pages/resolution', () => ({
 }))
 vi.mock('@/pages/rotation', () => ({
   RotationContent: () => <div data-testid="page-rotation" />,
+}))
+vi.mock('@/pages/settings', () => ({
+  SettingsContent: () => <div data-testid="page-settings" />,
 }))
 vi.mock('@/shared/ui/GitHubStars', () => ({
   GitHubStars: () => <div data-testid="github-stars" />,

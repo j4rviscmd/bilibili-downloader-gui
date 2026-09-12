@@ -1,22 +1,21 @@
-import { invoke } from '@tauri-apps/api/core'
-import { ChevronDown } from 'lucide-react'
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { useDispatch, useSelector } from 'react-redux'
-
 import type { RootState } from '@/app/store'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
+import { SettingRow } from '@/features/settings/ui/SettingRow'
 import { useSettings } from '@/features/settings/useSettings'
 import { useUser } from '@/features/user'
 import { logger } from '@/shared/lib/logger'
 
-import { Switch } from '@/shared/animate-ui/radix/switch'
-import { Label } from '@/shared/ui/label'
+import { Switch } from '@/shared/ui/switch'
+import { invoke } from '@tauri-apps/api/core'
+import { useTranslation } from 'react-i18next'
+import { useDispatch, useSelector } from 'react-redux'
 
+/**
+ * Developer options section (dev builds only).
+ *
+ * Formerly a collapsible card inside the settings dialog; now a dedicated
+ * settings-page category, so the options render flat like every other
+ * section (the category nav already provides the separation).
+ */
 export function DevOptions() {
   const { t } = useTranslation()
   const dispatch = useDispatch()
@@ -25,7 +24,6 @@ export function DevOptions() {
   const simulateLogout = useSelector(
     (state: RootState) => state.dev?.simulateLogout ?? false,
   )
-  const [isOpen, setIsOpen] = useState(false)
 
   const handleToggleSimulateLogout = async (checked: boolean) => {
     // Set backend simulate logout flag (development mode only)
@@ -77,71 +75,42 @@ export function DevOptions() {
   }
 
   return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="w-full">
-      <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg border border-dashed border-amber-500/30 bg-amber-50/50 px-4 py-3 text-sm font-medium text-amber-700 hover:bg-amber-100/50 dark:border-amber-500/20 dark:bg-amber-950/20 dark:text-amber-400 dark:hover:bg-amber-900/30">
-        <span>{t('settings.dev_options.title')}</span>
-        <ChevronDown
-          className={`h-4 w-4 transition-transform duration-200 ${
-            isOpen ? 'rotate-180' : ''
-          }`}
+    <div className="space-y-6">
+      <SettingRow
+        label={t('settings.dev_options.open_devtools_on_startup')}
+        htmlFor="open-devtools-on-startup"
+        description={t(
+          'settings.dev_options.open_devtools_on_startup_description',
+        )}
+      >
+        <Switch
+          id="open-devtools-on-startup"
+          checked={settings.openDevtoolsOnStartup ?? true}
+          onCheckedChange={handleToggleDevtools}
         />
-      </CollapsibleTrigger>
-      <CollapsibleContent className="mt-2 space-y-4 rounded-lg border border-amber-500/20 bg-amber-50/30 p-4 dark:border-amber-500/10 dark:bg-amber-950/10">
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label
-              htmlFor="open-devtools-on-startup"
-              className="text-sm font-medium text-amber-800 dark:text-amber-300"
-            >
-              {t('settings.dev_options.open_devtools_on_startup')}
-            </Label>
-            <p className="text-xs text-amber-600 dark:text-amber-400/80">
-              {t('settings.dev_options.open_devtools_on_startup_description')}
-            </p>
-          </div>
-          <Switch
-            id="open-devtools-on-startup"
-            checked={settings.openDevtoolsOnStartup ?? true}
-            onCheckedChange={handleToggleDevtools}
-          />
-        </div>
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label
-              htmlFor="enable-dev-updater"
-              className="text-sm font-medium text-amber-800 dark:text-amber-300"
-            >
-              {t('settings.dev_options.enable_dev_updater')}
-            </Label>
-            <p className="text-xs text-amber-600 dark:text-amber-400/80">
-              {t('settings.dev_options.enable_dev_updater_description')}
-            </p>
-          </div>
-          <Switch
-            id="enable-dev-updater"
-            checked={settings.enableDevUpdater ?? false}
-            onCheckedChange={handleToggleDevUpdater}
-          />
-        </div>
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label
-              htmlFor="simulate-logout"
-              className="text-sm font-medium text-amber-800 dark:text-amber-300"
-            >
-              {t('settings.dev_options.simulate_logout')}
-            </Label>
-            <p className="text-xs text-amber-600 dark:text-amber-400/80">
-              {t('settings.dev_options.simulate_logout_description')}
-            </p>
-          </div>
-          <Switch
-            id="simulate-logout"
-            checked={simulateLogout}
-            onCheckedChange={handleToggleSimulateLogout}
-          />
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
+      </SettingRow>
+      <SettingRow
+        label={t('settings.dev_options.enable_dev_updater')}
+        htmlFor="enable-dev-updater"
+        description={t('settings.dev_options.enable_dev_updater_description')}
+      >
+        <Switch
+          id="enable-dev-updater"
+          checked={settings.enableDevUpdater ?? false}
+          onCheckedChange={handleToggleDevUpdater}
+        />
+      </SettingRow>
+      <SettingRow
+        label={t('settings.dev_options.simulate_logout')}
+        htmlFor="simulate-logout"
+        description={t('settings.dev_options.simulate_logout_description')}
+      >
+        <Switch
+          id="simulate-logout"
+          checked={simulateLogout}
+          onCheckedChange={handleToggleSimulateLogout}
+        />
+      </SettingRow>
+    </div>
   )
 }

@@ -9,7 +9,7 @@
 
 import { store } from '@/app/store'
 import { languages } from '@/features/settings/language/languages'
-import { setOpenDialog, setSettings } from '@/features/settings/settingsSlice'
+import { setSettings } from '@/features/settings/settingsSlice'
 import type { Settings } from '@/features/settings/type'
 import { useSettings } from '@/features/settings/useSettings'
 import { toast } from '@/shared/ui/toast'
@@ -53,7 +53,6 @@ function mockCommands(handlers: Record<string, unknown>) {
 describe('useSettings', () => {
   beforeEach(() => {
     store.dispatch(setSettings(baseline))
-    store.dispatch(setOpenDialog(false))
     vi.clearAllMocks()
   })
 
@@ -156,18 +155,6 @@ describe('useSettings', () => {
 
       expect(toastSuccess).not.toHaveBeenCalled()
       expect(toastError).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('updateOpenDialog', () => {
-    it('dispatches setOpenDialog', () => {
-      const { result } = renderHookWithStore(() => useSettings())
-
-      result.current.updateOpenDialog(true)
-      expect(store.getState().settings.dialogOpen).toBe(true)
-
-      result.current.updateOpenDialog(false)
-      expect(store.getState().settings.dialogOpen).toBe(false)
     })
   })
 

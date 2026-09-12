@@ -1,6 +1,11 @@
 import { interceptInvokeError } from '@/app/lib/invokeErrorHandler'
 import { store, type RootState } from '@/app/store'
 import { setInitiated as setValue } from '@/features/init/model/initSlice'
+import {
+  getLoginState,
+  setLoginMethodAction,
+  setSession,
+} from '@/features/login'
 import { applyFontSize, parseFontSize } from '@/features/settings'
 import { setSettings } from '@/features/settings/settingsSlice'
 import type { Settings } from '@/features/settings/type'
@@ -122,6 +127,17 @@ export const useInit = () => {
     // User info (undefined if not logged in / fetch failed).
     if (result.user) {
       store.dispatch(setUser(result.user))
+    }
+
+    // Hydrate the login slice (method + session) so the settings Account
+    // section shows the persisted method on first render instead of the
+    // firefox default (fast local file read; failure keeps the default).
+    try {
+      const loginState = await getLoginState()
+      store.dispatch(setLoginMethodAction(loginState.method))
+      store.dispatch(setSession(loginState.session))
+    } catch (e) {
+      logger.warn(`initApp: login state hydration failed: ${String(e)}`)
     }
 
     setInitiated(true)

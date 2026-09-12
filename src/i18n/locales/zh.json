@@ -367,7 +367,6 @@
   },
   "settings": {
     "title": "设置",
-    "open_dialog": "打开设置",
     "language_label": "语言",
     "output_dir_label": "输出目录",
     "output_dir_placeholder": "例如: C:\\Users\\you\\Downloads 或 /Users/you/Downloads",
@@ -376,7 +375,6 @@
     "output_dir_changing": "选择中...",
     "output_dir_dialog_title": "选择输出目录",
     "auto_save_note": "更改会自动保存。",
-    "dialog_title": "设置",
     "save_success": "设置已保存",
     "save_failed": "保存设置失败",
     "patch_invalid": "设置更改无效。请检查 settings.json 中是否存在类型错误的值。",
@@ -400,7 +398,6 @@
     "trim_mode_description": "选择修剪MP4文件时的默认方式",
     "trim_mode_copy": "快速（复制）",
     "trim_mode_reencode": "精确（重编码）",
-    "app_section_label": "应用程序",
     "open_logs_button": "打开日志",
     "open_logs_failed": "无法打开日志",
     "show_github_stars_label": "显示 GitHub Stars",
@@ -430,7 +427,6 @@
       "error": "加载更新日志失败，请检查网络连接。"
     },
     "dev_options": {
-      "title": "开发者选项",
       "open_devtools_on_startup": "启动时打开开发者工具",
       "open_devtools_on_startup_description": "启用后，应用启动时会自动打开浏览器开发者工具控制台。下次启动时生效。",
       "enable_dev_updater": "启用更新流程",
@@ -471,8 +467,6 @@
     "rotation_mode_reencode": "精确（重编码）",
     "rotation_angle_label": "默认旋转角度",
     "rotation_angle_description": "选择默认旋转方向",
-    "notifications_section_label": "通知",
-    "notifications_section_description": "自定义下载完成时的反馈。",
     "taskbar_progress_label": "任务栏进度",
     "taskbar_progress_description": "在任务栏显示下载进度。",
     "flash_taskbar_on_complete_label": "完成时闪烁任务栏",
@@ -490,7 +484,17 @@
     "video_codec_avc_only_description": "始终使用H.264（AVC）以确保最大的设备和播放器兼容性。",
     "download_parallelism_label": "分段并行下载数",
     "download_parallelism_description": "分段并行下载数量。较高值（8、6）可能更快，但可能触发Bilibili CDN限速。较低值（2、1）更稳定但较慢。默认为8，适用于大多数连接。",
-    "download_parallelism_cdn_warning": "Bilibili CDN可能会限制并行下载。如果下载不稳定，请尝试降低至4或2。"
+    "download_parallelism_cdn_warning": "Bilibili CDN可能会限制并行下载。如果下载不稳定，请尝试降低至4或2。",
+    "category": {
+      "general": "通用",
+      "download": "下载",
+      "storage": "存储",
+      "notifications": "通知",
+      "toolDefaults": "工具默认值",
+      "account": "账户",
+      "about": "关于",
+      "dev": "开发者"
+    }
   },
   "validation": {
     "path": {
