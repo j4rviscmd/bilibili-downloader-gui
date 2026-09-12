@@ -123,8 +123,8 @@ into the **required** `ci-status` status check. The `coverage` job
   vulnerability patterns. Advanced setup because default setup does
   not support Rust. **NOT a required** status check — triage alerts in
   the Security tab instead of gating merges.
-- **E2E Tests** (`.github/workflows/e2e.yml`) runs separately on macOS
-  and is **NOT a required** status check.
+- **E2E Tests** (`.github/workflows/e2e.yml`) run in a macOS +
+  Windows matrix and are **NOT a required** status check.
 - When monitoring CI (e.g. during `worktree-finish`), do **not** wait
   for the E2E workflow to finish — `ci-status` and `Secret Scan`
   passing is sufficient to treat CI as green. Treat E2E as

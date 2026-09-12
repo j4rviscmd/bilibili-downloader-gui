@@ -62,13 +62,14 @@ export async function saveScreenshot(
 
 /**
  * Wait for the main UI (sidebar) to be visible after
- * init completes. Timeout: 90s (init may involve
- * ffmpeg download and network calls).
+ * init completes. Timeout: 180s (init downloads ffmpeg on
+ * every CI run — runners are disposable — and the Windows
+ * BtbN zip is ~100MB).
  *
  * Polls the DOM every 500 ms until a `[data-slot="sidebar"]`
- * element is found, or the 90-second timeout is reached.
+ * element is found, or the 180-second timeout is reached.
  *
- * @throws {Error} When the sidebar does not appear within 90 seconds
+ * @throws {Error} When the sidebar does not appear within 180 seconds
  */
 export async function waitForMainUI(): Promise<void> {
   await browser.waitUntil(
@@ -77,8 +78,8 @@ export async function waitForMainUI(): Promise<void> {
       return await sidebar.isExisting()
     },
     {
-      timeout: 90_000,
-      timeoutMsg: 'Main UI (sidebar) did not appear within 90s',
+      timeout: 180_000,
+      timeoutMsg: 'Main UI (sidebar) did not appear within 180s',
     },
   )
 }

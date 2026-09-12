@@ -10,9 +10,20 @@ concurrency:
 
 jobs:
   e2e:
-    name: E2E Tests
-    runs-on: macos-latest
-    timeout-minutes: 30
+    name: E2E Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    # Cold Windows runs (no Rust/tauri-webdriver cache yet) compile the full
+    # Tauri dep tree + driver and download ~100MB ffmpeg; 45min keeps the
+    # job alive past that so post-step caches save (cancellation skips them)
+    timeout-minutes: 45
+    strategy:
+      # Why: the point of the matrix is Windows coverage (issue #618 — Windows
+      # users are the majority); default fail-fast would cancel the Windows
+      # leg on a macOS failure and lose its logs/screenshots, so both legs
+      # must run to completion independently
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
     permissions:
       contents: write
       pull-requests: write
@@ -52,11 +63,12 @@ jobs:
         working-directory: e2e-tests
         run: npm ci
 
+      # Glob covers the extension-less binary (macOS/Linux) and .exe (Windows)
       - name: Cache tauri-webdriver
         id: cache-tw
         uses: actions/cache@v4
         with:
-          path: ~/.cargo/bin/tauri-webdriver
+          path: ~/.cargo/bin/tauri-webdriver*
           key: tauri-webdriver-${{ runner.os }}-v1
 
       - name: Install tauri-webdriver
@@ -77,19 +89,30 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-screenshots
+          name: e2e-screenshots-${{ matrix.os }}
           path: e2e-tests/screenshots/
           if-no-files-found: ignore
           retention-days: 7
 
       # Backend [BE] / frontend [FE] logs — the definitive record of whether
       # the real ffmpeg merge ran when a download-pipeline test fails.
-      - name: Upload app log
-        if: always()
+      # app_data_dir differs per OS: ~/Library/Application Support (macOS) vs
+      # ~/AppData/Roaming (Windows, Tauri maps app_data_dir to Roaming).
+      - name: Upload app log (macOS)
+        if: always() && runner.os == 'macOS'
         uses: actions/upload-artifact@v4
         with:
-          name: app-log
+          name: app-log-${{ matrix.os }}
           path: ~/Library/Application Support/com.bilibili-downloader-gui.app/logs/app.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload app log (Windows)
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-log-${{ matrix.os }}
+          path: ~/AppData/Roaming/com.bilibili-downloader-gui.app/logs/app.log
           if-no-files-found: ignore
           retention-days: 7
 
@@ -102,6 +125,9 @@ jobs:
           && github.event_name == 'pull_request'
           && github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/github-script@v7
+        env:
+          # Per-OS marker/comment so matrix jobs never overwrite each other
+          E2E_OS: ${{ matrix.os }}
         with:
           script: |
             const fs = require('fs');
@@ -161,6 +187,10 @@ jobs:
               parentSha = headRef.object.sha;
             }
 
+            // OS subdirectory keeps matrix jobs from overwriting each
+            // other's screenshots on the ci-screenshots branch.
+            const os = process.env.E2E_OS;
+
             // Create blobs and tree entries
             const treeEntries = [];
             for (const file of pngFiles) {
@@ -173,7 +203,7 @@ jobs:
                 encoding: 'base64',
               });
               treeEntries.push({
-                path: `e2e/${prNumber}/${file.relPath}`,
+                path: `e2e/${prNumber}/${os}/${file.relPath}`,
                 mode: '100644',
                 type: 'blob',
                 sha: blob.sha,
@@ -214,16 +244,16 @@ jobs:
 
             // Build comment body
             const baseUrl = `https://raw.githubusercontent.com/${owner}/${repo}/ci-screenshots`;
-            let body = '## E2E Test Screenshots\n\n';
+            let body = `## E2E Test Screenshots (${os})\n\n`;
             for (const file of pngFiles) {
-              const url = `${baseUrl}/e2e/${prNumber}/${file.relPath}`;
+              const url = `${baseUrl}/e2e/${prNumber}/${os}/${file.relPath}`;
               const category = path.dirname(file.relPath).replace('/', ' > ');
               const name = path.basename(file.relPath, '.png');
               body += `### ${category} > ${name}\n\n![${name}](${url})\n\n`;
             }
 
-            // Find existing comment to update
-            const marker = '<!-- e2e-screenshots -->';
+            // Find existing comment to update (per-OS marker)
+            const marker = `<!-- e2e-screenshots-${os} -->`;
             body = marker + '\n' + body;
 
             const { data: comments } = await github.rest.issues.listComments({
