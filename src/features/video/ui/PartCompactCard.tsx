@@ -107,6 +107,10 @@ export function PartCompactCard({
 
   return (
     <div
+      // E2E hook: exposes the effective queue status (the isComplete→done
+      // override included) so tests assert state instead of locale-dependent
+      // labels or Tailwind dot classes.
+      data-status={effectiveStatus}
       className={cn(
         // Uniform horizontal padding on EVERY row (active or not) so all
         // rows' content shares one x-position — the active box then sits

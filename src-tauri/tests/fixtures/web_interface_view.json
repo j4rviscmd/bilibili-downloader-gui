@@ -1,25 +1,34 @@
 {
   "code": 0,
-  "message": "0",
+  "message": "OK",
   "ttl": 1,
   "data": {
-    "bvid": "BV1GJ411x7h7",
-    "aid": 85440373,
-    "videos": 2,
+    "bvid": "BV1FV411d7u7",
+    "aid": 412935552,
+    "videos": 3,
     "tid": 21,
-    "tname": "日常",
+    "tid_v2": 2188,
+    "tname": "",
+    "tname_v2": "",
     "copyright": 1,
-    "pic": "http://i0.hdslb.com/bfs/archive/74f0d4d6ce811f65a7b8a54d0b1b1e0b.jpg",
-    "title": "【BW2019】自营 CUT",
-    "pubdate": 1564235142,
-    "ctime": 1564235142,
-    "desc": "-",
+    "pic": "http://i0.hdslb.com/bfs/archive/f995d4da2cb83d3952c1fb3ea130af2e4bf9da02.jpg",
+    "title": "bilibili献给新一代的演讲《后浪》",
+    "pubdate": 1588496455,
+    "ctime": 1588159264,
+    "desc": "请查收，B站献给新一代的青年宣言片。\n国家一级演员何冰走上舞台，以青年宣言《后浪》为词，认可、赞美与寄语年轻一代。在UP主们的青春混剪中，属于年轻人的光芒正在闪耀。“你们有幸 遇见这样的时代 但时代更有幸 遇见这样的你们”\n\n联合发布媒体：央视新闻、光明日报、中国青年报、环球时报、新京报、澎湃新闻、观察者网",
+    "desc_v2": [
+      {
+        "raw_text": "请查收，B站献给新一代的青年宣言片。\n国家一级演员何冰走上舞台，以青年宣言《后浪》为词，认可、赞美与寄语年轻一代。在UP主们的青春混剪中，属于年轻人的光芒正在闪耀。“你们有幸 遇见这样的时代 但时代更有幸 遇见这样的你们”\n\n联合发布媒体：央视新闻、光明日报、中国青年报、环球时报、新京报、澎湃新闻、观察者网",
+        "type": 1,
+        "biz_id": 0
+      }
+    ],
     "state": 0,
-    "duration": 470,
+    "duration": 589,
     "rights": {
       "bp": 0,
       "elec": 0,
-      "download": 0,
+      "download": 1,
       "movie": 0,
       "pay": 0,
       "hd5": 1,
@@ -28,63 +37,139 @@
       "ugc_pay": 0,
       "is_cooperation": 0,
       "ugc_pay_preview": 0,
-      "no_background": 0
+      "no_background": 0,
+      "clean_mode": 0,
+      "is_stein_gate": 0,
+      "is_360": 0,
+      "no_share": 0,
+      "arc_pay": 0,
+      "free_watch": 0
     },
     "owner": {
-      "mid": 320164265,
-      "name": "example_owner",
-      "face": "http://i0.hdslb.com/bfs/face/0e6b95d0.jpg"
+      "mid": 8047632,
+      "name": "哔哩哔哩弹幕网",
+      "face": "https://i0.hdslb.com/bfs/face/0c84b9f4ad546d3f20324809d45fc439a2a8ddab.jpg"
     },
     "stat": {
-      "aid": 85440373,
-      "view": 1726,
-      "danmaku": 20,
-      "reply": 11,
-      "favorite": 33,
-      "coin": 9,
-      "share": 4,
+      "aid": 412935552,
+      "view": 35585836,
+      "danmaku": 295865,
+      "reply": 68092,
+      "favorite": 879996,
+      "coin": 1746089,
+      "share": 1249966,
       "now_rank": 0,
-      "his_rank": 0,
-      "like": 48,
-      "dislike": 0
+      "his_rank": 1,
+      "like": 1872464,
+      "dislike": 0,
+      "evaluation": "",
+      "vt": 0
     },
-    "dynamic": "",
-    "cid": 146224527,
+    "argue_info": {
+      "argue_msg": "",
+      "argue_type": 0,
+      "argue_link": ""
+    },
+    "dynamic": "“向你们致敬！”B站献给新一代的青年宣言片《后浪》正式发布。带上tag#奔涌吧后浪#聊聊观后感吧～今晚18:48分CCTV1《新闻联播》前会播出特别版，和爸妈一起看B站吧~",
+    "cid": 186803402,
     "dimension": {
       "width": 1920,
       "height": 1080,
       "rotate": 0
     },
+    "premiere": null,
+    "teenage_mode": 0,
+    "is_chargeable_season": false,
+    "is_story": false,
+    "is_upower_exclusive": false,
+    "is_upower_play": false,
+    "is_upower_preview": false,
+    "enable_vt": 0,
+    "vt_display": "",
+    "is_upower_exclusive_with_qa": false,
+    "is_hua_sheng": false,
+    "no_cache": false,
     "pages": [
       {
-        "cid": 146224527,
+        "cid": 186803402,
         "page": 1,
         "from": "vupload",
-        "part": "1",
-        "duration": 265,
+        "part": "bilibili献给新一代的演讲《后浪》",
+        "duration": 233,
         "vid": "",
         "weblink": "",
         "dimension": {
           "width": 1920,
           "height": 1080,
           "rotate": 0
-        }
+        },
+        "ctime": 1588567595
       },
       {
-        "cid": 146225172,
+        "cid": 186917910,
         "page": 2,
         "from": "vupload",
-        "part": "2",
-        "duration": 205,
+        "part": "bilibili青年宣言片《后浪》央视版",
+        "duration": 121,
         "vid": "",
         "weblink": "",
-        "first_frame": "http://i0.hdslb.com/bfs/story-fn/first-frame.jpg",
         "dimension": {
           "width": 1920,
           "height": 1080,
           "rotate": 0
-        }
+        },
+        "ctime": 1588583901
+      },
+      {
+        "cid": 189702747,
+        "page": 3,
+        "from": "vupload",
+        "part": "bilibili青年宣言片《后浪》央视完整版",
+        "duration": 235,
+        "vid": "",
+        "weblink": "",
+        "dimension": {
+          "width": 1920,
+          "height": 1080,
+          "rotate": 0
+        },
+        "ctime": 1589170944
       }
-    ]
+    ],
+    "subtitle": {
+      "allow_submit": false,
+      "list": []
+    },
+    "is_season_display": false,
+    "user_garb": {
+      "url_image_ani_cut": ""
+    },
+    "honor_reply": {
+      "honor": [
+        {
+          "aid": 412935552,
+          "type": 3,
+          "desc": "全站排行榜最高第1名",
+          "weekly_recommend_num": 0
+        },
+        {
+          "aid": 412935552,
+          "type": 4,
+          "desc": "热门",
+          "weekly_recommend_num": 0
+        },
+        {
+          "aid": 412935552,
+          "type": 7,
+          "desc": "热门收录",
+          "weekly_recommend_num": 0
+        }
+      ]
+    },
+    "like_icon": "",
+    "need_jump_bv": false,
+    "disable_show_up_info": false,
+    "is_story_play": 0,
+    "is_view_self": false
   }
 }

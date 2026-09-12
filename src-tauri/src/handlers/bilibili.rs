@@ -228,6 +228,19 @@ pub(crate) struct BiliApi {
     cookie_header: String,
 }
 
+/// Resolves the BiliApi origin: E2E runs may override it via the
+/// E2E_API_BASE env var (localhost fixture server); every other case —
+/// including E2E runs without the override — keeps the production base.
+///
+/// Pure (inputs in, base out) so the override matrix is unit-testable
+/// without mutating process-global env from parallel tests.
+fn api_base_with_e2e_override(e2e_testing: bool, env_base: Option<String>) -> String {
+    match (e2e_testing, env_base) {
+        (true, Some(base)) => base,
+        _ => API_BASE.to_string(),
+    }
+}
+
 impl BiliApi {
     /// Test constructor: explicit transport parts, no AppHandle needed.
     pub(crate) fn new(
@@ -244,7 +257,14 @@ impl BiliApi {
 
     /// Production constructor from a pre-built Cookie header value.
     pub(crate) fn from_cookie_header(cookie_header: impl Into<String>) -> Result<Self, String> {
-        Ok(Self::new(build_client()?, API_BASE, cookie_header))
+        // E2E only: redirect every BiliApi hop (nav mixin key, playurl,
+        // qualities) at the localhost fixture server started by wdio.conf.ts.
+        // Gated on E2E_TESTING so production behavior is byte-identical.
+        let base = api_base_with_e2e_override(
+            crate::handlers::qr_login::is_e2e_testing(),
+            std::env::var("E2E_API_BASE").ok(),
+        );
+        Ok(Self::new(build_client()?, base, cookie_header))
     }
 
     /// Same transport (client + origin) with a different Cookie header.
@@ -2463,15 +2483,51 @@ mod tests {
     /// (part indices 0 and 1).
     #[test]
     fn test_e2e_mock_video_info() {
-        let video = e2e_mock_video_info("BV1i3411y7xB").expect("fixture maps");
-        assert_eq!(video.bvid, "BV1i3411y7xB");
+        let video = e2e_mock_video_info("BV1FV411d7u7").expect("fixture maps");
+        assert_eq!(video.bvid, "BV1FV411d7u7");
         assert_eq!(video.content_type, "video");
         assert!(!video.title.is_empty());
-        assert_eq!(video.parts.len(), 2);
-        assert_eq!(video.parts[0].cid, 146224527);
+        assert_eq!(video.parts.len(), 3);
+        assert_eq!(video.parts[0].cid, 186803402);
         assert_eq!(video.parts[0].page, 1);
-        assert_eq!(video.parts[1].cid, 146225172);
+        assert_eq!(video.parts[1].cid, 186917910);
         assert_eq!(video.parts[1].page, 2);
+        assert_eq!(video.parts[2].cid, 189702747);
+        assert_eq!(video.parts[2].page, 3);
+    }
+
+    #[test]
+    fn api_base_with_e2e_override_matrix() {
+        // Only E2E_TESTING + a set override redirects; every other case keeps
+        // the production base (including E2E runs without E2E_API_BASE).
+        assert_eq!(
+            api_base_with_e2e_override(true, Some("http://127.0.0.1:1".into())),
+            "http://127.0.0.1:1"
+        );
+        assert_eq!(api_base_with_e2e_override(true, None), API_BASE);
+        assert_eq!(
+            api_base_with_e2e_override(false, Some("http://127.0.0.1:1".into())),
+            API_BASE
+        );
+    }
+
+    #[test]
+    fn e2e_mock_video_info_swaps_pic_under_fixture_base() {
+        // Fixture server configured: the hdslb.com snapshot URLs (video pic
+        // and any page first_frame, which the part mapper prefers) are
+        // swapped for the committed localhost thumbnail on every part.
+        let video = e2e_mock_video_info_with_pic_base("BV1FV411d7u7", Some("http://127.0.0.1:2"))
+            .expect("fixture maps");
+        for part in &video.parts {
+            assert_eq!(part.thumbnail.url, "http://127.0.0.1:2/media/thumb.png");
+        }
+
+        // No fixture server (plain unit runs): the snapshot value is kept
+        // (this snapshot has no page first_frames, so every part uses pic).
+        let video = e2e_mock_video_info_with_pic_base("BV1FV411d7u7", None).expect("fixture maps");
+        for part in &video.parts {
+            assert!(part.thumbnail.url.starts_with("http://i0.hdslb.com/"));
+        }
     }
 
     /// Tests quality ID to human-readable string conversion.
@@ -3273,6 +3329,63 @@ mod tests {
         })
     }
 
+    #[test]
+    fn wbi_video_param_maps_av_ids_to_aid() {
+        assert_eq!(
+            wbi_video_param("av116141485850794"),
+            ("aid", "116141485850794".to_string())
+        );
+        assert_eq!(
+            wbi_video_param("BV1FV411d7u7"),
+            ("bvid", "BV1FV411d7u7".to_string())
+        );
+        // Non-numeric / empty suffixes are not av ids — they must stay on
+        // the bvid param rather than send a garbage aid.
+        assert_eq!(wbi_video_param("av"), ("bvid", "av".to_string()));
+        assert_eq!(wbi_video_param("avx1"), ("bvid", "avx1".to_string()));
+    }
+
+    #[test]
+    fn canonical_video_id_prefers_api_bvid_for_av_lookups() {
+        assert_eq!(canonical_video_id("av123", "BV1real"), "BV1real");
+        // BV requests keep the requested id even if the API echoes another
+        assert_eq!(canonical_video_id("BV1req", "BV1api"), "BV1req");
+    }
+
+    #[tokio::test]
+    async fn fetch_wbi_view_av_id_queries_aid_param() {
+        // Regression: an av-URL id was sent as `bvid=av…` and rejected with
+        // ERR::API_ERROR (real-world av URL, found during manual testing).
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/nav"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(nav_wbi_mock_body()))
+            .mount(&server)
+            .await;
+        // Matches ONLY the aid param; a wrong `bvid=av…` request 404s.
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/wbi/view"))
+            .and(wiremock::matchers::query_param("aid", "116141485850794"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": {
+                        "bvid": "BV1real", "title": "av video", "pic": "p",
+                        "cid": 1, "pages": []
+                    }
+                })),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let api = bili_api_mock(&server.uri(), "");
+        let body = fetch_wbi_view(&api, "av116141485850794").await.unwrap();
+        let data = body.data.unwrap();
+        assert_eq!(data.bvid, "BV1real");
+        assert_eq!(data.title, "av video");
+    }
+
     #[tokio::test]
     async fn fetch_wbi_view_works_logged_out() {
         let server = wiremock::MockServer::start().await;
@@ -3393,6 +3506,7 @@ mod tests {
         pages: Option<Vec<WebInterfaceApiResponsePage>>,
     ) -> WebInterfaceApiResponseData {
         WebInterfaceApiResponseData {
+            bvid: "BV1test".into(),
             title: title.into(),
             pic: pic.into(),
             cid,
@@ -4019,6 +4133,10 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
     let res_body = fetch_video_title_by_bvid(id, &cookies).await?;
     let data = res_body.data.as_ref().unwrap();
 
+    // av-URL lookup: map to the canonical BV the API returns so every
+    // downstream consumer (playurl, download options, history) sees a BV.
+    let canonical_id = canonical_video_id(id, &data.bvid);
+
     log::info!(
         "[BE] fetch_video_info: received video title=\"{}\", parts={}",
         data.title,
@@ -4047,7 +4165,7 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
 
     Ok(web_interface_data_to_video(
         data,
-        id,
+        canonical_id,
         replacements,
         auto_rename,
         omit_duplicate,
@@ -4061,14 +4179,36 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
 /// response) and runs it through the production `Video` mapping so the
 /// E2E flow exercises the same shaping logic as the live path.
 fn e2e_mock_video_info(id: &str) -> Result<Video, String> {
+    e2e_mock_video_info_with_pic_base(id, std::env::var("E2E_API_BASE").ok().as_deref())
+}
+
+/// Pic-override core of [`e2e_mock_video_info`]; takes the fixture-server
+/// origin explicitly so the swap matrix is unit-testable without mutating
+/// process-global env from parallel tests.
+fn e2e_mock_video_info_with_pic_base(id: &str, pic_base: Option<&str>) -> Result<Video, String> {
     // Note: The fixture JSON is pinned by assertions elsewhere — the cid/page
-    // pairs in test_e2e_mock_video_info and the 2-part assertion in
+    // pairs in test_e2e_mock_video_info and the 3-part assertion in
     // e2e-tests/test/app-launch.e2e.ts both fail if the fixture is swapped
     // for a different video, so update all three together.
     const FIXTURE: &str = include_str!("../../tests/fixtures/web_interface_view.json");
-    let body: WebInterfaceApiResponse =
+    let mut body: WebInterfaceApiResponse =
         serde_json::from_str(FIXTURE).map_err(|e| format!("E2E fixture parse failed: {e}"))?;
-    let data = body.data.as_ref().ok_or("E2E fixture has no data")?;
+    let data = body.data.as_mut().ok_or("E2E fixture has no data")?;
+    // E2E determinism: the snapshot's hdslb.com URLs are live today but
+    // reachable only from Bilibili-friendly networks (CI runners are
+    // risk-control blocked), and CDN entries get pruned over time (the
+    // previous snapshot's URLs went 404). When a fixture server is
+    // configured, swap pic — and every page's first_frame, which the part
+    // mapper prefers over pic — for the committed fixture thumbnail.
+    if let Some(base) = pic_base {
+        let thumb = format!("{base}/media/thumb.png");
+        data.pic = thumb.clone();
+        if let Some(pages) = data.pages.as_mut() {
+            for page in pages {
+                page.first_frame = Some(thumb.clone());
+            }
+        }
+    }
     // Why: is_limited_quality=true mirrors the live path's cookie-less case —
     // E2E_TESTING bypasses session storage (qr_login::is_e2e_testing), so CI
     // never has a cookie header (live path: is_limited_quality = cookie_header
@@ -4270,6 +4410,32 @@ async fn fetch_video_title_by_bvid(
     fetch_wbi_view(&api, bvid).await
 }
 
+/// Resolves a video identifier for WBI API query params.
+///
+/// `/video/av{id}` URLs carry the legacy numeric aid, which the endpoints
+/// accept via the `aid` param; anything else (BV…) goes through `bvid`.
+/// Passing an "av…" string as `bvid` is rejected by the API with
+/// ERR::API_ERROR (found while testing an av-URL by hand).
+fn wbi_video_param(id: &str) -> (&'static str, String) {
+    match id.strip_prefix("av") {
+        Some(aid) if !aid.is_empty() && aid.bytes().all(|b| b.is_ascii_digit()) => {
+            ("aid", aid.to_string())
+        }
+        _ => ("bvid", id.to_string()),
+    }
+}
+
+/// Canonical id for downstream use (playurl, download options, history):
+/// an av-URL lookup resolves to the BV the API returns; a BV request keeps
+/// the requested id.
+fn canonical_video_id<'a>(requested: &'a str, api_bvid: &'a str) -> &'a str {
+    if requested.starts_with("av") {
+        api_bvid
+    } else {
+        requested
+    }
+}
+
 /// WBI-signed view-API fetch shared by metadata and history saving.
 ///
 /// Why: the unsigned `/x/web-interface/view` endpoint is rejected by
@@ -4288,7 +4454,8 @@ async fn fetch_wbi_view(api: &BiliApi, bvid: &str) -> Result<WebInterfaceApiResp
     )
     .await?;
 
-    let mut params = BTreeMap::from([("bvid".to_string(), bvid.to_string())]);
+    let (id_key, id_val) = wbi_video_param(bvid);
+    let mut params = BTreeMap::from([(id_key.to_string(), id_val)]);
     let signature = crate::utils::wbi::generate_wbi_signature(&mut params, &mixin_key);
 
     // Why: generate_wbi_signature already inserts wts into `params`
@@ -4352,8 +4519,9 @@ async fn fetch_video_details(
     )
     .await?;
 
+    let (id_key, id_val) = wbi_video_param(bvid);
     let mut params = BTreeMap::from([
-        ("bvid".to_string(), bvid.to_string()),
+        (id_key.to_string(), id_val),
         ("cid".to_string(), cid.to_string()),
         ("qn".to_string(), PLAYURL_QN.to_string()),
         ("fnval".to_string(), PLAYURL_FNVAL.to_string()),
@@ -5240,8 +5408,9 @@ pub(crate) async fn fetch_subtitles(api: &BiliApi, bvid: &str, cid: i64) -> Vec<
             }
         };
 
+    let (id_key, id_val) = wbi_video_param(bvid);
     let mut params = BTreeMap::from([
-        ("bvid".to_string(), bvid.to_string()),
+        (id_key.to_string(), id_val),
         ("cid".to_string(), cid.to_string()),
     ]);
     let signature = crate::utils::wbi::generate_wbi_signature(&mut params, &mixin_key);

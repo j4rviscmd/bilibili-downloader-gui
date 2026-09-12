@@ -11,13 +11,20 @@
  *   under E2E_TESTING — CI runner IPs are blocked by Bilibili, issue
  *   #565; see e2e_mock_video_info in src-tauri/src/handlers/bilibili.rs)
  * - Video part cards display
+ * - Phase 4: full download pipeline through a localhost fixture server
+ *   (E2E_API_BASE) — playurl fetch, segment download, and a REAL ffmpeg
+ *   merge of committed MP4 fixtures (see e2e-tests/helpers/fixture-server.ts)
  */
 
 import { expect } from 'chai'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 
 import {
   ensureScreenshotDir,
   saveScreenshot,
+  tauriInvoke,
   waitForMainUI,
   waitForUrlInput,
 } from '../helpers/app.helpers'
@@ -28,9 +35,11 @@ import * as S from '../helpers/selectors'
  *
  * Under E2E_TESTING the backend answers fetch_video_info with a
  * bundled fixture regardless of the video ID, so any valid URL shape
- * works; this is simply a realistic one (issue #565).
+ * works; this matches the fixture video — the official bilibili CM
+ * "bilibili献给新一代的演讲《后浪》" (3 parts) — so what renders on
+ * screen corresponds to the URL (issue #565).
  */
-const TEST_VIDEO_URL = 'https://www.bilibili.com/video/BV1i3411y7xB'
+const TEST_VIDEO_URL = 'https://www.bilibili.com/video/BV1FV411d7u7'
 
 /**
  * End-to-end test suite for the bilibili-downloader-gui application.
@@ -40,6 +49,9 @@ const TEST_VIDEO_URL = 'https://www.bilibili.com/video/BV1i3411y7xB'
  * Phase 1 - Home page UI verification (URL input, alerts, sidebar)
  * Phase 2 - Settings dialog interactions (currently skipped, see notes)
  * Phase 3 - Real video info fetch and part card rendering
+ * Phase 4 - Full download pipeline: click through REAL ffmpeg merge to
+ *           completed UI + merged files on disk (localhost fixture server
+ *           via E2E_API_BASE; media fixtures are committed MP4s)
  *
  * Tests within this suite are order-dependent; each `it` builds on state
  * established by the previous one (e.g. video info loaded in Phase 3
@@ -211,9 +223,11 @@ describe('bilibili-downloader-gui E2E', () => {
     const firstPart = await browser.$(S.DATA_PART_INDEX(0))
     expect(await firstPart.isExisting()).to.be.true
 
-    // Fixture provides two parts; both should render
+    // Fixture provides three parts; all should render
     const secondPart = await browser.$(S.DATA_PART_INDEX(1))
     expect(await secondPart.isExisting()).to.be.true
+    const thirdPart = await browser.$(S.DATA_PART_INDEX(2))
+    expect(await thirdPart.isExisting()).to.be.true
 
     await saveScreenshot('video', '02-part-cards')
   })
@@ -226,5 +240,121 @@ describe('bilibili-downloader-gui E2E', () => {
     expect(await downloadBtn.isEnabled()).to.be.true
 
     await saveScreenshot('video', '03-download-enabled')
+  })
+
+  // -- Phase 4: Download Pipeline (fixture server + real ffmpeg merge) --
+
+  // Output directory patched via patch_settings; kept suite-scoped so the
+  // final file assertions read the same path.
+  let downloadOutputDir = ''
+
+  // Pre-patch dlOutputPath and history ids, restored in the suite teardown:
+  // dev and E2E share one app_data_dir (same bundle identifier), so without
+  // restoration every post-E2E manual download lands in a temp dir and the
+  // fixture entries stay in the developer's history.
+  let originalDlOutputPath: string | null = null
+  let originalHistoryIds: string[] = []
+
+  after(async () => {
+    if (!downloadOutputDir) return
+    // Restore the developer's output path (null = back to the OS default).
+    await tauriInvoke('patch_settings', {
+      patch: { dlOutputPath: originalDlOutputPath },
+    }).catch(() => {
+      // Best-effort: a settings failure must not mask test failures.
+    })
+    // Remove only the history entries this run created.
+    const history = await tauriInvoke<Array<{ id: string }>>(
+      'get_history',
+      {},
+    ).catch(() => [] as Array<{ id: string }>)
+    for (const entry of history) {
+      if (!originalHistoryIds.includes(entry.id)) {
+        await tauriInvoke('remove_history_entry', { id: entry.id }).catch(
+          () => undefined,
+        )
+      }
+    }
+    fs.rmSync(downloadOutputDir, { recursive: true, force: true })
+  })
+
+  it('should patch the download output directory to a fresh temp dir', async () => {
+    const settings = await tauriInvoke<{ dlOutputPath?: string | null }>(
+      'get_settings',
+    )
+    originalDlOutputPath = settings.dlOutputPath ?? null
+    const history = await tauriInvoke<Array<{ id: string }>>('get_history')
+    originalHistoryIds = history.map((e) => e.id)
+
+    downloadOutputDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bili-e2e-dl-'))
+    // patch_settings validates the path exists and is a directory, so a
+    // resolve here proves the backend accepted it.
+    await tauriInvoke('patch_settings', {
+      patch: { dlOutputPath: downloadOutputDir },
+    })
+  })
+
+  it('should start the download session when Download is clicked', async () => {
+    // Header instance — two DownloadButtons render (header + footer) but run
+    // the same download() handler; scoping avoids the ambiguous selector.
+    const btn = await browser.$(S.HEADER_DOWNLOAD_BUTTON)
+    await btn.waitForClickable({ timeout: 10_000 })
+    await btn.click()
+
+    // Session-active proof: the status bar exists exactly while downloads
+    // are in flight (AnimatedSection unmounts it once settled).
+    const bar = await browser.$(S.DOWNLOAD_STATUS_BAR)
+    await bar.waitForExist({ timeout: 30_000 })
+
+    await saveScreenshot('download', '00-session-started')
+  })
+
+  it('should complete all three parts (real ffmpeg merge) and dismiss the status bar', async () => {
+    // Session settle: the status bar unmounts when everything is done.
+    // NOTE: not asserting the mid-session compact "done" row — localhost
+    // fixtures finish a part in well under a second, so that DOM window is
+    // a race by design (see the session-start screenshot instead).
+    const bar = await browser.$(S.DOWNLOAD_STATUS_BAR)
+    await bar.waitForExist({ timeout: 90_000, reverse: true })
+
+    // Durable terminal signal: the full-card complete blocks persist after
+    // the compact rows revert (compact rows unmount on settle by design).
+    await browser.waitUntil(
+      async () => {
+        const blocks = await browser.$$(S.PART_COMPLETE)
+        // ElementArray.length is typed Promise<number> in wdio v9
+        return (await blocks.length) === 3
+      },
+      {
+        timeout: 30_000,
+        interval: 500,
+        timeoutMsg: 'expected 3 completed-part indicators',
+      },
+    )
+
+    await saveScreenshot('download', '02-all-complete')
+  })
+
+  it('should write the three merged mp4 files to the output directory', async () => {
+    const files = fs
+      .readdirSync(downloadOutputDir)
+      .filter((f) => f.endsWith('.mp4'))
+    expect(files.length).to.equal(3)
+
+    for (const f of files) {
+      const filePath = path.join(downloadOutputDir, f)
+      const fd = fs.openSync(filePath, 'r')
+      const head = Buffer.alloc(8)
+      fs.readSync(fd, head, 0, 8, 0)
+      fs.closeSync(fd)
+      // MP4 magic: bytes 4-8 are "ftyp" (both fixtures are +faststart).
+      expect(
+        head.subarray(4, 8).toString('ascii'),
+        `${f} is not a valid MP4`,
+      ).to.equal('ftyp')
+      expect(fs.statSync(filePath).size).to.be.greaterThan(1024)
+    }
+
+    await saveScreenshot('download', '03-files-verified')
   })
 })

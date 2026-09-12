@@ -4,15 +4,22 @@
 // E2E_TESTING=true env var bypasses OS keychain for CI.
 
 import { spawn, type ChildProcess } from 'node:child_process'
+import fs from 'node:fs'
 import net from 'node:net'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+
+import {
+  startFixtureServer,
+  type FixtureServer,
+} from './helpers/fixture-server'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(__dirname, '..')
 
 let viteProcess: ChildProcess | undefined
 let tauriWebdriverProcess: ChildProcess | undefined
+let fixtureServer: FixtureServer | undefined
 
 /**
  * Spawn a child process and pipe stdout/stderr with a label prefix.
@@ -146,12 +153,28 @@ export const config = {
     })
     await waitForReady('http://localhost:1420', 'Vite dev server', 30_000)
 
-    // 2. Start tauri-webdriver (E2E_TESTING bypasses OS keychain)
+    // 2. Start the fixture API/media server. Must be up before the app
+    // spawns: the app's BiliApi redirects to it via E2E_API_BASE (see
+    // BiliApi::from_cookie_header). Request log rides the screenshots
+    // artifact upload for failure triage.
+    const screenshotsDir = path.resolve(__dirname, 'screenshots')
+    fs.mkdirSync(screenshotsDir, { recursive: true })
+    const fixtureLog = path.join(screenshotsDir, 'fixture-server.log')
+    fs.writeFileSync(fixtureLog, '')
+    fixtureServer = await startFixtureServer(fixtureLog)
+
+    // 3. Start tauri-webdriver (E2E_TESTING bypasses OS keychain; the app
+    // inherits this env, so E2E_API_BASE reaches the backend too)
     tauriWebdriverProcess = spawnWithLogging(
       'tauri-webdriver',
       ['--port', '4444'],
       'tauri-webdriver',
-      { env: { E2E_TESTING: 'true' } },
+      {
+        env: {
+          E2E_TESTING: 'true',
+          E2E_API_BASE: `http://127.0.0.1:${fixtureServer.port}`,
+        },
+      },
     )
     await waitForTcpReady('localhost', 4444, 'tauri-webdriver', 15_000)
   },
@@ -159,6 +182,7 @@ export const config = {
   async onComplete() {
     tauriWebdriverProcess?.kill('SIGTERM')
     viteProcess?.kill('SIGTERM')
+    await fixtureServer?.close()
   },
 
   // Test framework

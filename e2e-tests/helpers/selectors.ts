@@ -108,3 +108,26 @@ export const LOGIN_ALERT_DESCRIPTION = '[data-slot="alert-description"]'
 
 /** Ripple-effect download button (enabled after video parts are loaded and selected). */
 export const DOWNLOAD_BUTTON = '[data-slot="ripple-button"]'
+
+/**
+ * The Step-2 card header DownloadButton instance.
+ *
+ * Two DownloadButtons render at once (card header + card footer) running
+ * the same download() handler; scoping to the header disambiguates.
+ */
+export const HEADER_DOWNLOAD_BUTTON =
+  '[data-slot="card-header"] [data-slot="ripple-button"]'
+
+// -- Download Session UI --
+
+/**
+ * Overall download status bar. Exists exactly while a download session is
+ * active — AnimatedSection unmounts the subtree once everything settles.
+ */
+export const DOWNLOAD_STATUS_BAR = '[data-testid="download-status-bar"]'
+
+/**
+ * Durable per-part completion block. Outlives the compact-row session UI
+ * (the full card keeps it after the session settles).
+ */
+export const PART_COMPLETE = '[data-testid="part-download-complete"]'

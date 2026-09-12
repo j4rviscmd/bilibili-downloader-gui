@@ -57,6 +57,23 @@ function VideoForm1() {
   // not fire a duplicate request.
   const silentInFlightRef = useRef<string | null>(null)
 
+  // Why refs alongside the state/selector values: the debounce timer's
+  // callback closes over the values from the render that armed it. A timer
+  // armed just before an explicit submit fires ~500ms later with a stale
+  // lastFetchedUrl ('') and a stale hasActiveDownloads (false), letting a
+  // redundant silent fetch through — which clearQueue()s the download queue
+  // mid-session and wipes the completed-part UI (found by the download E2E).
+  // The refs always hold the live values for guard checks.
+  const lastFetchedUrlRef = useRef('')
+  const hasActiveDownloadsRef = useRef(hasActiveDownloads)
+  hasActiveDownloadsRef.current = hasActiveDownloads
+
+  /** Records a fetched URL in both the state (render) and the ref (guards). */
+  const markFetched = useCallback((url: string) => {
+    lastFetchedUrlRef.current = url
+    setLastFetchedUrl(url)
+  }, [])
+
   const schema1 = buildVideoFormSchema1(t)
 
   const form = useForm<z.infer<typeof formSchema1>>({
@@ -98,7 +115,7 @@ function VideoForm1() {
         form.setValue('url', expandedUrl, { shouldValidate: true })
         // Trigger video info fetch with expanded URL
         if (expandedUrl !== lastFetchedUrl) {
-          setLastFetchedUrl(expandedUrl)
+          markFetched(expandedUrl)
           onValid1(expandedUrl)
         }
       } catch {
@@ -118,14 +135,24 @@ function VideoForm1() {
    */
   const handleSilentFetch = useCallback(
     async (url: string) => {
-      if (!url || url === lastFetchedUrl || url === silentInFlightRef.current)
+      // Guard by refs, not the lastFetchedUrl state: this runs from the
+      // debounce timer's (possibly stale) closure — see the refs' block doc.
+      // hasActiveDownloads: the input is disabled mid-session, so a firing
+      // timer here is an echo/late arm and a refetch would clearQueue() the
+      // in-flight session's queue.
+      if (hasActiveDownloadsRef.current) return
+      if (
+        !url ||
+        url === lastFetchedUrlRef.current ||
+        url === silentInFlightRef.current
+      )
         return
       if (!schema1.safeParse({ url }).success) return
 
       silentInFlightRef.current = url
       try {
         const ok = await onValid1(url, { silent: true })
-        if (ok) setLastFetchedUrl(url)
+        if (ok) markFetched(url)
       } finally {
         // Conditional release: a newer silent fetch may already own the
         // slot (user resumed typing and paused on another URL) — only the
@@ -133,7 +160,7 @@ function VideoForm1() {
         if (silentInFlightRef.current === url) silentInFlightRef.current = null
       }
     },
-    [schema1, lastFetchedUrl, onValid1],
+    [schema1, onValid1, markFetched],
   )
 
   // Cleanup debounce timer on unmount
@@ -166,7 +193,12 @@ function VideoForm1() {
     ) {
       return
     }
-    setLastFetchedUrl(trimmedUrl)
+    // An explicit submit commits this URL — a pending debounce timer (armed
+    // by the typing that led here) must not re-fetch it afterwards.
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current)
+    }
+    markFetched(trimmedUrl)
     onValid1(trimmedUrl)
   }
 
@@ -183,7 +215,7 @@ function VideoForm1() {
     }
     form.setValue('url', '', { shouldValidate: true })
     onChange('')
-    setLastFetchedUrl('')
+    markFetched('')
   }
 
   /**

@@ -380,7 +380,12 @@ export function PartDownloadProgress({
       }
     >
       {isComplete && (
-        <div className={`flex ${MIN_HEIGHT} items-center justify-between`}>
+        <div
+          // E2E hook: this block outlives the compact-row session UI, making
+          // it the durable terminal signal for completed parts.
+          data-testid="part-download-complete"
+          className={`flex ${MIN_HEIGHT} items-center justify-between`}
+        >
           <div className="flex items-center gap-2 text-sm">
             <CheckCircle2 className="h-5 w-5 text-green-500" />
             <span className="text-muted-foreground">

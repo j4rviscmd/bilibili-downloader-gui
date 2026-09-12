@@ -82,6 +82,17 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      # Backend [BE] / frontend [FE] logs — the definitive record of whether
+      # the real ffmpeg merge ran when a download-pipeline test fails.
+      - name: Upload app log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-log
+          path: ~/Library/Application Support/com.bilibili-downloader-gui.app/logs/app.log
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Comment screenshots on PR
         # Only comment (and thus notify) when E2E failed — commenting on
         # every successful run spams PR notifications (issue #565).
