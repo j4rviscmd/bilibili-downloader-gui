@@ -167,9 +167,7 @@ export const config = {
     },
   ],
 
-  // 127.0.0.1 literal — on Windows `localhost` may resolve to ::1 first and
-  // miss listeners bound to IPv4 only
-  hostname: '127.0.0.1',
+  hostname: 'localhost',
   port: 4444,
   path: '/',
 
@@ -180,7 +178,10 @@ export const config = {
       cwd: projectRoot,
       shell: IS_WINDOWS,
     })
-    await waitForReady('http://127.0.0.1:1420', 'Vite dev server', 30_000)
+    // Probe with `localhost` (not 127.0.0.1): vite's listen host resolves the
+    // same way in the same OS, and on macOS runners it binds ::1 only — an
+    // IPv4 literal probe never connects (PR #687 first attempt)
+    await waitForReady('http://localhost:1420', 'Vite dev server', 30_000)
 
     // 2. Start the fixture API/media server. Must be up before the app
     // spawns: the app's BiliApi redirects to it via E2E_API_BASE (see
@@ -205,7 +206,7 @@ export const config = {
         },
       },
     )
-    await waitForTcpReady('127.0.0.1', 4444, 'tauri-webdriver', 15_000)
+    await waitForTcpReady('localhost', 4444, 'tauri-webdriver', 15_000)
   },
 
   async onComplete() {
