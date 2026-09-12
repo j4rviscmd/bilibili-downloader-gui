@@ -1,7 +1,6 @@
 import { useSettings } from '@/features/settings'
-import OpenSettingsDialogButton from '@/features/settings/dialog/OpenSettingsDialogButton'
-import SettingsDialog from '@/features/settings/dialog/SettingsDialog'
 import { useUser } from '@/features/user'
+import { Settings } from '@/shared/animate-ui/icons/settings'
 import {
   Sidebar,
   SidebarContent,
@@ -74,9 +73,8 @@ function EnhancedSidebarTrigger({ className }: { className?: string }) {
  * Page layout shell component with sidebar and app bar.
  *
  * Provides the common layout structure including:
- * - Collapsible sidebar with navigation
+ * - Collapsible sidebar with navigation (incl. the settings page link)
  * - App bar with user info and theme toggle
- * - Settings dialog
  *
  * Children are rendered directly in the SidebarInset without any wrapper,
  * giving full control over the content layout to the parent.
@@ -128,7 +126,15 @@ export function PageLayoutShell({ children }: PageLayoutShellProps) {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <OpenSettingsDialogButton />
+                <SidebarMenuButton
+                  isActive={location.pathname === '/settings'}
+                  tooltip={t('settings.title')}
+                  onClick={() => navigate('/settings')}
+                  aria-label={t('settings.title')}
+                >
+                  <Settings className="size-4" />
+                  <span>{t('settings.title')}</span>
+                </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
           </SidebarFooter>
@@ -144,7 +150,6 @@ export function PageLayoutShell({ children }: PageLayoutShellProps) {
           </div>
         </SidebarInset>
       </SidebarProvider>
-      <SettingsDialog />
     </>
   )
 }

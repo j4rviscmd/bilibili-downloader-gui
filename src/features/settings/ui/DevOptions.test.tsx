@@ -75,14 +75,8 @@ describe('DevOptions', () => {
     store.dispatch(setSettings(baseline))
   })
 
-  it('hides options until the collapsible trigger is opened', async () => {
-    const { user } = renderWithProviders(<DevOptions />)
-
-    expect(
-      screen.queryByText('settings.dev_options.simulate_logout'),
-    ).toBeNull()
-
-    await user.click(screen.getByText('settings.dev_options.title'))
+  it('renders all three options directly (no collapsible)', () => {
+    renderWithProviders(<DevOptions />)
 
     expect(
       screen.getByText('settings.dev_options.simulate_logout'),
@@ -90,11 +84,13 @@ describe('DevOptions', () => {
     expect(
       screen.getByText('settings.dev_options.open_devtools_on_startup'),
     ).toBeInTheDocument()
+    expect(
+      screen.getByText('settings.dev_options.enable_dev_updater'),
+    ).toBeInTheDocument()
   })
 
   it('toggling simulate-logout on invokes the backend, flags dev state and replaces the user', async () => {
     const { user } = renderWithProviders(<DevOptions />)
-    await user.click(screen.getByText('settings.dev_options.title'))
 
     await user.click(switchById('simulate-logout'))
 
@@ -112,7 +108,6 @@ describe('DevOptions', () => {
   it('toggling simulate-logout off restores the real user via getUserInfo', async () => {
     store.dispatch(setSimulateLogout(true))
     const { user } = renderWithProviders(<DevOptions />)
-    await user.click(screen.getByText('settings.dev_options.title'))
 
     await user.click(switchById('simulate-logout'))
 
@@ -125,7 +120,6 @@ describe('DevOptions', () => {
 
   it('toggling devtools persists openDevtoolsOnStartup via set_settings', async () => {
     const { user } = renderWithProviders(<DevOptions />)
-    await user.click(screen.getByText('settings.dev_options.title'))
 
     await user.click(switchById('open-devtools-on-startup'))
 
@@ -137,7 +131,6 @@ describe('DevOptions', () => {
 
   it('renders the dev-updater switch off by default and persists the toggle', async () => {
     const { user } = renderWithProviders(<DevOptions />)
-    await user.click(screen.getByText('settings.dev_options.title'))
 
     const devUpdater = switchById('enable-dev-updater')
     expect(devUpdater.getAttribute('data-state')).toBe('unchecked')

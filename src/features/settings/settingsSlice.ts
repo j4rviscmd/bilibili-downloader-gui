@@ -4,17 +4,15 @@ import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 
 /**
- * Extended settings state including UI dialog open state.
+ * Redux slice for application settings management.
+ *
+ * Manages user preferences including download output path, language,
+ * and theme. Settings are persisted to the backend via API calls (not
+ * handled by this slice directly).
  */
-type SettingsState = Settings & {
-  /** Whether the settings dialog is currently open */
-  dialogOpen: boolean
-}
-
-const initialState: SettingsState = {
+const initialState: Settings = {
   dlOutputPath: '',
   language: 'en',
-  dialogOpen: false,
   autoRenameDuplicates: true,
   omitDuplicatePartTitle: true,
   showGithubStars: true,
@@ -31,40 +29,15 @@ const initialState: SettingsState = {
   downloadParallelism: 8,
 }
 
-/**
- * Redux slice for application settings management.
- *
- * Manages user preferences including download output path, language,
- * and the settings dialog open/close state. Settings are persisted
- * to the backend via API calls (not handled by this slice directly).
- */
 export const settingsSlice = createSlice({
   name: 'settings',
   initialState,
   reducers: {
     /**
-     * Updates the download output directory path.
-     *
-     * @param state - Current settings state
-     * @param action - Action containing the new path
-     */
-    setDLOutputPath: (state, action: PayloadAction<string>) => {
-      state.dlOutputPath = action.payload
-    },
-    /**
-     * Sets the settings dialog open/close state.
-     *
-     * @param state - Current settings state
-     * @param action - Action containing the new dialog state
-     */
-    setOpenDialog: (state, action: PayloadAction<boolean>) => {
-      state.dialogOpen = action.payload
-    },
-    /**
      * Applies a partial settings update (field patch, issue #563).
      *
-     * Merges the patched fields with the current state,
-     * preserving the dialogOpen state.
+     * Merges the patched fields with the current state, preserving
+     * untouched fields.
      *
      * @param state - Current settings state
      * @param action - Action containing the settings patch
@@ -75,6 +48,5 @@ export const settingsSlice = createSlice({
   },
 })
 
-export const { setSettings, setOpenDialog, setDLOutputPath } =
-  settingsSlice.actions
+export const { setSettings } = settingsSlice.actions
 export default settingsSlice.reducer

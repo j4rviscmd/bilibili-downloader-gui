@@ -365,7 +365,6 @@
   },
   "settings": {
     "title": "Settings",
-    "open_dialog": "Open Settings",
     "language_label": "Language",
     "output_dir_label": "Output Directory",
     "output_dir_placeholder": "e.g. C:\\Users\\you\\Downloads or /Users/you/Downloads",
@@ -374,7 +373,6 @@
     "output_dir_changing": "Selecting...",
     "output_dir_dialog_title": "Select Output Directory",
     "auto_save_note": "Changes are saved automatically.",
-    "dialog_title": "Settings",
     "save_success": "Settings saved",
     "save_failed": "Failed to save settings",
     "patch_invalid": "Invalid settings change. Check settings.json for ill-typed values.",
@@ -398,7 +396,6 @@
     "trim_mode_description": "Select the default trimming method for MP4 files",
     "trim_mode_copy": "Fast (Copy)",
     "trim_mode_reencode": "Accurate (Re-encode)",
-    "app_section_label": "Application",
     "open_logs_button": "Open Logs",
     "open_logs_failed": "Failed to open logs",
     "show_github_stars_label": "Show GitHub Stars",
@@ -428,7 +425,6 @@
       "error": "Failed to load release notes. Please check your internet connection."
     },
     "dev_options": {
-      "title": "Developer Options",
       "open_devtools_on_startup": "Open DevTools on startup",
       "open_devtools_on_startup_description": "When enabled, the browser DevTools console opens automatically when the app starts. Takes effect on next restart.",
       "enable_dev_updater": "Enable updater flow",
@@ -469,8 +465,6 @@
     "rotation_mode_reencode": "Accurate (Re-encode)",
     "rotation_angle_label": "Default rotation angle",
     "rotation_angle_description": "Choose the default rotation direction",
-    "notifications_section_label": "Notifications",
-    "notifications_section_description": "Customize feedback when downloads finish.",
     "taskbar_progress_label": "Taskbar Progress",
     "taskbar_progress_description": "Show download progress on the taskbar.",
     "flash_taskbar_on_complete_label": "Flash Taskbar on Completion",
@@ -488,7 +482,17 @@
     "video_codec_avc_only_description": "Always use H.264 (AVC) for maximum device and player compatibility.",
     "download_parallelism_label": "Segment Download Parallelism",
     "download_parallelism_description": "Number of parallel segment downloads. Higher values (8, 6) may be faster but can trigger Bilibili CDN throttling. Lower values (2, 1) are more stable but slower. Default is 8, which is recommended for most connections.",
-    "download_parallelism_cdn_warning": "Bilibili CDN may throttle parallel downloads. If downloads are unstable, try reducing to 4 or 2."
+    "download_parallelism_cdn_warning": "Bilibili CDN may throttle parallel downloads. If downloads are unstable, try reducing to 4 or 2.",
+    "category": {
+      "general": "General",
+      "download": "Download",
+      "storage": "Storage",
+      "notifications": "Notifications",
+      "toolDefaults": "Tool Defaults",
+      "account": "Account",
+      "about": "About",
+      "dev": "Developer"
+    }
   },
   "validation": {
     "path": {

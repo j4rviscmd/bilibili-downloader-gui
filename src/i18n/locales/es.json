@@ -365,7 +365,6 @@
   },
   "settings": {
     "title": "Configuración",
-    "open_dialog": "Abrir configuración",
     "language_label": "Idioma",
     "output_dir_label": "Directorio de salida",
     "output_dir_placeholder": "ej: C:\\Users\\you\\Downloads o /Users/you/Downloads",
@@ -374,7 +373,6 @@
     "output_dir_changing": "Seleccionando...",
     "output_dir_dialog_title": "Seleccionar directorio de salida",
     "auto_save_note": "Los cambios se guardan automáticamente.",
-    "dialog_title": "Configuración",
     "save_success": "Configuración guardada",
     "save_failed": "Error al guardar la configuración",
     "patch_invalid": "Cambio de ajustes no válido. Revisa si settings.json tiene valores con tipos incorrectos.",
@@ -398,7 +396,6 @@
     "trim_mode_description": "Selecciona el método de recorte predeterminado para archivos MP4",
     "trim_mode_copy": "Rápido (Copiar)",
     "trim_mode_reencode": "Preciso (Recodificar)",
-    "app_section_label": "Aplicación",
     "open_logs_button": "Abrir registros",
     "open_logs_failed": "No se pudieron abrir los registros",
     "show_github_stars_label": "Mostrar GitHub Stars",
@@ -428,7 +425,6 @@
       "error": "Error al cargar las notas de la versión. Verifique su conexión a internet."
     },
     "dev_options": {
-      "title": "Opciones de desarrollo",
       "open_devtools_on_startup": "Abrir DevTools al iniciar",
       "open_devtools_on_startup_description": "Cuando está habilitado, la consola DevTools del navegador se abre automáticamente al iniciar la aplicación. Se aplica en el próximo reinicio.",
       "enable_dev_updater": "Activar flujo de actualización",
@@ -469,8 +465,6 @@
     "rotation_mode_reencode": "Preciso (Recodificar)",
     "rotation_angle_label": "Ángulo de rotación predeterminado",
     "rotation_angle_description": "Elige la dirección de rotación predeterminada",
-    "notifications_section_label": "Notificaciones",
-    "notifications_section_description": "Personaliza la retroalimentación al completar descargas.",
     "taskbar_progress_label": "Progreso en la barra de tareas",
     "taskbar_progress_description": "Muestra el progreso de descarga en la barra de tareas.",
     "flash_taskbar_on_complete_label": "Parpadear barra al completar",
@@ -488,7 +482,17 @@
     "video_codec_avc_only_description": "Siempre usa H.264 (AVC) para máxima compatibilidad de dispositivos y reproductores.",
     "download_parallelism_label": "Paralelismo de Descarga de Segmentos",
     "download_parallelism_description": "Número de descargas paralelas de segmentos. Valores más altos (8, 6) pueden ser más rápidos pero pueden activar la limitación de CDN de Bilibili. Valores más bajos (2, 1) son más estables pero más lentos. El valor predeterminado es 8, recomendado para la mayoría de conexiones.",
-    "download_parallelism_cdn_warning": "El CDN de Bilibili puede limitar las descargas paralelas. Si las descargas son inestables, prueba reducir a 4 o 2."
+    "download_parallelism_cdn_warning": "El CDN de Bilibili puede limitar las descargas paralelas. Si las descargas son inestables, prueba reducir a 4 o 2.",
+    "category": {
+      "general": "General",
+      "download": "Descargas",
+      "storage": "Almacenamiento",
+      "notifications": "Notificaciones",
+      "toolDefaults": "Valores predeterminados de herramientas",
+      "account": "Cuenta",
+      "about": "Acerca de",
+      "dev": "Desarrollador"
+    }
   },
   "validation": {
     "path": {

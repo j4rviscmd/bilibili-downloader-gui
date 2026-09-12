@@ -130,17 +130,15 @@ describe('bilibili-downloader-gui E2E', () => {
     await saveScreenshot('launch', '04-sidebar')
   })
 
-  // -- Phase 2: Settings Dialog --
+  // -- Phase 2: Settings Page --
 
-  // NOTE: Both dialog tests are skipped due to tauri-webdriver + WebKit
-  // limitations in CI environment. The dialog open/close mechanism does not
-  // propagate reliably to Radix UI's handlers in the GitHub Actions macOS runner.
-  //
-  // These tests work correctly in manual testing and local development.
-  // See the "should close settings dialog" test for more details on attempted fixes.
-  //
-  // Related issue: https://github.com/j4rviscmd/bilibili-downloader-gui/pull/367
-  it.skip('should open settings dialog from sidebar', async () => {
+  // NOTE: The settings navigation test is skipped due to tauri-webdriver +
+  // WebKit limitations in the CI environment — click events on sidebar
+  // buttons do not propagate reliably to React handlers in the GitHub
+  // Actions macOS runner (the same limitation that skipped the former
+  // dialog tests, see PR #367). It works in manual testing and local
+  // development.
+  it.skip('should navigate to the settings page from sidebar', async () => {
     // Sidebar is collapsed, so click the second menu button
     // in the footer (settings button)
     const footer = await browser.$(S.SIDEBAR_FOOTER)
@@ -150,42 +148,11 @@ describe('bilibili-downloader-gui E2E', () => {
     expect(settingsBtn).to.exist
     await settingsBtn.click()
 
-    // Wait for dialog to appear
-    const dialog = await browser.$(S.DIALOG_CONTENT)
-    await dialog.waitForExist({ timeout: 10_000 })
+    // Settings page: category nav + General section render
+    const categoryNav = await browser.$('[data-category="general"]')
+    await categoryNav.waitForExist({ timeout: 10_000 })
 
-    const title = await browser.$(S.DIALOG_TITLE)
-    expect(await title.isExisting()).to.be.true
-
-    await saveScreenshot('settings', '00-dialog-open')
-  })
-
-  // NOTE: This test is consistently skipped due to tauri-webdriver + WebKit
-  // limitations in CI environment. The dialog close mechanism (Escape key,
-  // X button click, overlay click, JavaScript event dispatch) does not
-  // propagate reliably to Radix UI's handlers in the GitHub Actions macOS runner.
-  //
-  // The following approaches have all been tried without success:
-  // 1. browser.keys('Escape') - keyboard event not received by Radix
-  // 2. dialog.$('button').click() - button click not registered
-  // 3. overlay.click() - outside click not detected
-  // 4. document.dispatchEvent(new KeyboardEvent(...)) - event ignored
-  //
-  // This appears to be a fundamental limitation of the tauri-webdriver +
-  // WebKit combination in GitHub Actions. The dialog works correctly in
-  // manual testing and local development environments.
-  //
-  // Related issue: https://github.com/j4rviscmd/bilibili-downloader-gui/pull/367
-  it.skip('should close settings dialog', async () => {
-    await browser.keys('Escape')
-
-    const dialog = await browser.$(S.DIALOG_CONTENT)
-    await dialog.waitForExist({
-      timeout: 5_000,
-      reverse: true,
-    })
-
-    await saveScreenshot('settings', '01-dialog-closed')
+    await saveScreenshot('settings', '00-page-open')
   })
 
   // -- Phase 3: Video URL Input & Info Fetch (E2E fixture response) --

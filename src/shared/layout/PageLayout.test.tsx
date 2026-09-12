@@ -1,21 +1,16 @@
 /**
  * PageLayoutShell suite.
  *
- * Heavy siblings are stubbed (SettingsDialog has its own suite); the
- * sidebar/app-bar chrome, route-aware nav button and children slot are
- * asserted against the real store.
+ * Heavy siblings are stubbed; the sidebar/app-bar chrome, the route-aware
+ * nav buttons (download history + settings page) and the children slot
+ * are asserted against the real store.
  */
 
-import { store } from '@/app/store'
-import { setOpenDialog } from '@/features/settings/settingsSlice'
-import { mockInvoke, renderWithProviders } from '@/test/test-utils'
+import { renderWithProviders } from '@/test/test-utils'
 import { screen } from '@testing-library/react'
 import { Route, Routes } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/features/settings/dialog/SettingsDialog', () => ({
-  default: () => <div data-testid="settings-dialog" />,
-}))
 // AppBar chrome: GitHubStars fetches star counts (own suite in shared/ui)
 vi.mock('@/shared/ui/GitHubStars', () => ({
   GitHubStars: () => <div data-testid="github-stars" />,
@@ -36,9 +31,9 @@ function renderShell(route = '/home') {
  * The footer nav button, located via its visible span (tooltip also
  * contributes to the accessible name, so role+name is brittle).
  */
-function historyNavButton(): HTMLElement {
+function navButton(labelKey: string): HTMLElement {
   return screen
-    .getAllByText('nav.downloadHistory')
+    .getAllByText(labelKey)
     .map((el) => el.closest('button'))
     .find((btn): btn is HTMLButtonElement => btn !== null)!
 }
@@ -46,20 +41,17 @@ function historyNavButton(): HTMLElement {
 describe('PageLayoutShell', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockInvoke.mockResolvedValue(undefined)
-    store.dispatch(setOpenDialog(false))
   })
 
   it('renders the chrome and children', () => {
     renderShell()
 
     expect(screen.getByText('page-body')).toBeInTheDocument()
-    // Chrome pieces: sidebar trigger, settings dialog slot, app bar
+    // Chrome pieces: sidebar trigger, settings nav, app bar
     // (label depends on the sidebar's collapsed state)
     expect(
       screen.getByRole('button', { name: /nav\.aria\.(open|close)Sidebar/ }),
     ).toBeInTheDocument()
-    expect(screen.getByTestId('settings-dialog')).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: 'settings.title' }),
     ).toBeInTheDocument()
@@ -68,31 +60,47 @@ describe('PageLayoutShell', () => {
   it('marks the history nav active only on /history', () => {
     renderShell('/history')
 
-    expect(historyNavButton().getAttribute('data-active')).toBe('true')
+    expect(navButton('nav.downloadHistory').getAttribute('data-active')).toBe(
+      'true',
+    )
   })
 
   it('leaves the history nav inactive on other routes', () => {
     renderShell('/home')
 
-    expect(historyNavButton().getAttribute('data-active')).toBe('false')
+    expect(navButton('nav.downloadHistory').getAttribute('data-active')).toBe(
+      'false',
+    )
   })
 
   it('clicking the history nav navigates to /history', async () => {
     const { user } = renderShell('/home')
 
-    await user.click(historyNavButton())
+    await user.click(navButton('nav.downloadHistory'))
 
     // Route changed: the shell re-rendered with /history active
     await vi.waitFor(() =>
-      expect(historyNavButton().getAttribute('data-active')).toBe('true'),
+      expect(navButton('nav.downloadHistory').getAttribute('data-active')).toBe(
+        'true',
+      ),
     )
   })
 
-  it('the footer settings button opens the settings dialog state', async () => {
+  it('marks the settings nav active only on /settings', () => {
+    renderShell('/settings')
+
+    expect(navButton('settings.title').getAttribute('data-active')).toBe('true')
+  })
+
+  it('clicking the settings footer button navigates to /settings', async () => {
     const { user } = renderShell('/home')
 
-    await user.click(screen.getByRole('button', { name: 'settings.title' }))
+    await user.click(navButton('settings.title'))
 
-    expect(store.getState().settings.dialogOpen).toBe(true)
+    await vi.waitFor(() =>
+      expect(navButton('settings.title').getAttribute('data-active')).toBe(
+        'true',
+      ),
+    )
   })
 })

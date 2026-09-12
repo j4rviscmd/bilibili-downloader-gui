@@ -365,7 +365,6 @@
   },
   "settings": {
     "title": "설정",
-    "open_dialog": "설정 열기",
     "language_label": "언어",
     "output_dir_label": "출력 디렉터리",
     "output_dir_placeholder": "예: C:\\Users\\you\\Downloads 또는 /Users/you/Downloads",
@@ -374,7 +373,6 @@
     "output_dir_changing": "선택 중...",
     "output_dir_dialog_title": "출력 디렉터리 선택",
     "auto_save_note": "변경 사항은 자동 저장됩니다.",
-    "dialog_title": "설정",
     "save_success": "설정을 저장했습니다",
     "save_failed": "설정 저장 실패",
     "patch_invalid": "설정 변경이 잘못되었습니다. settings.json에 잘못된 타입의 값이 있는지 확인하세요.",
@@ -398,7 +396,6 @@
     "trim_mode_description": "MP4 파일 트림 시 기본 방식을 선택합니다",
     "trim_mode_copy": "빠른 속도 (복사)",
     "trim_mode_reencode": "정확한 (재인코딩)",
-    "app_section_label": "애플리케이션",
     "open_logs_button": "로그 열기",
     "open_logs_failed": "로그를 열지 못했습니다",
     "show_github_stars_label": "GitHub Stars 표시",
@@ -428,7 +425,6 @@
       "error": "릴리스 노트를 불러오지 못했습니다. 인터넷 연결을 확인해 주세요."
     },
     "dev_options": {
-      "title": "개발자 옵션",
       "open_devtools_on_startup": "시작 시 DevTools 열기",
       "open_devtools_on_startup_description": "활성화하면 앱 시작 시 브라우저 DevTools 콘솔이 자동으로 열립니다. 다음 재시작 시 적용됩니다.",
       "enable_dev_updater": "업데이트 흐름 활성화",
@@ -469,8 +465,6 @@
     "rotation_mode_reencode": "정확 (재인코딩)",
     "rotation_angle_label": "기본 회전 각도",
     "rotation_angle_description": "기본 회전 방향을 선택합니다",
-    "notifications_section_label": "알림",
-    "notifications_section_description": "다운로드 완료 시 피드백을 사용자 지정합니다.",
     "taskbar_progress_label": "작업 표시줄 진행률",
     "taskbar_progress_description": "작업 표시줄에 다운로드 진행률을 표시합니다.",
     "flash_taskbar_on_complete_label": "완료 시 작업 표시줄 깜빡임",
@@ -488,7 +482,17 @@
     "video_codec_avc_only_description": "항상 H.264(AVC)를 사용하여 최대한의 장치/재생기 호환성 보장.",
     "download_parallelism_label": "세그먼트 병렬 다운로드 수",
     "download_parallelism_description": "세그먼트 병렬 다운로드 수량. 높은 값(8, 6)은 빠를 수 있지만 Bilibili CDN 스로틀링을 유발할 수 있습니다. 낮은 값(2, 1)은 안정적이지만 느립니다. 기본값은 8이며 대부분의 연결에 권장됩니다.",
-    "download_parallelism_cdn_warning": "Bilibili CDN이 병렬 다운로드를 제한할 수 있습니다. 다운로드가 불안정하면 4 또는 2로 줄여보세요."
+    "download_parallelism_cdn_warning": "Bilibili CDN이 병렬 다운로드를 제한할 수 있습니다. 다운로드가 불안정하면 4 또는 2로 줄여보세요.",
+    "category": {
+      "general": "일반",
+      "download": "다운로드",
+      "storage": "저장소",
+      "notifications": "알림",
+      "toolDefaults": "도구 기본값",
+      "account": "계정",
+      "about": "정보",
+      "dev": "개발자"
+    }
   },
   "validation": {
     "path": {

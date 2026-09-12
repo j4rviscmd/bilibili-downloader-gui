@@ -20,6 +20,9 @@
 // API
 export * from './api/loginApi'
 
+// Pure login-status helpers (shared with the settings page)
+export * from './loginStatus'
+
 // Hooks
 export { useLogin } from './model/useLogin'
 
@@ -29,5 +32,11 @@ export { QRCodeDisplay } from './ui/QRCodeDisplay'
 export { QRCodeLoginDialog } from './ui/QRCodeLoginDialog'
 
 // State
-export { default as loginReducer, setSession } from './model/loginSlice'
+// setLoginMethod is aliased: the api module already exports an async
+// `setLoginMethod` (backend call); the slice action needs a distinct name.
+export {
+  default as loginReducer,
+  setLoginMethod as setLoginMethodAction,
+  setSession,
+} from './model/loginSlice'
 export type { LoginSliceState } from './model/loginSlice'

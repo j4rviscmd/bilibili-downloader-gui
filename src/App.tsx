@@ -4,6 +4,7 @@ import {
   useDownloadCompletionNotifications,
   useTaskbarProgress,
 } from '@/features/notifications'
+import { useFontSizeEffect } from '@/features/settings/hooks/useFontSizeEffect'
 import { useFontSizeShortcuts } from '@/features/settings/hooks/useFontSizeShortcuts'
 import { useThemeEffect } from '@/features/settings/hooks/useThemeEffect'
 import { UpdateNotification } from '@/features/updater'
@@ -19,6 +20,7 @@ import { Route, Routes } from 'react-router'
 function App() {
   const theme = useSelector((state) => state.settings.theme) ?? 'light'
   useThemeEffect()
+  useFontSizeEffect()
   useFontSizeShortcuts()
   useTaskbarProgress()
   useDownloadCompletionNotifications()
