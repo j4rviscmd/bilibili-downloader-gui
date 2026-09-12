@@ -365,7 +365,6 @@
   },
   "settings": {
     "title": "Paramètres",
-    "open_dialog": "Ouvrir les paramètres",
     "language_label": "Langue",
     "output_dir_label": "Répertoire de sortie",
     "output_dir_placeholder": "ex: C:\\Users\\you\\Downloads ou /Users/you/Downloads",
@@ -374,7 +373,6 @@
     "output_dir_changing": "Sélection...",
     "output_dir_dialog_title": "Sélectionner le répertoire de sortie",
     "auto_save_note": "Les modifications sont enregistrées automatiquement.",
-    "dialog_title": "Paramètres",
     "save_success": "Paramètres enregistrés",
     "save_failed": "Échec de l'enregistrement des paramètres",
     "patch_invalid": "Modification des paramètres invalide. Vérifiez si settings.json contient des valeurs au type incorrect.",
@@ -398,7 +396,6 @@
     "trim_mode_description": "Sélectionnez la méthode de découpe par défaut pour les fichiers MP4",
     "trim_mode_copy": "Rapide (Copie)",
     "trim_mode_reencode": "Précis (Réencodage)",
-    "app_section_label": "Application",
     "open_logs_button": "Ouvrir les journaux",
     "open_logs_failed": "Impossible d'ouvrir les journaux",
     "show_github_stars_label": "Afficher les GitHub Stars",
@@ -428,7 +425,6 @@
       "error": "Échec du chargement des notes de version. Vérifiez votre connexion internet."
     },
     "dev_options": {
-      "title": "Options de développement",
       "open_devtools_on_startup": "Ouvrir DevTools au démarrage",
       "open_devtools_on_startup_description": "Lorsqu'activé, la console DevTools du navigateur s'ouvre automatiquement au démarrage de l'application. Prend effet au prochain redémarrage.",
       "enable_dev_updater": "Activer le flux de mise à jour",
@@ -469,8 +465,6 @@
     "rotation_mode_reencode": "Précis (Recodage)",
     "rotation_angle_label": "Angle de rotation par défaut",
     "rotation_angle_description": "Choisissez la direction de rotation par défaut",
-    "notifications_section_label": "Notifications",
-    "notifications_section_description": "Personnalisez les retours lors de la fin des téléchargements.",
     "taskbar_progress_label": "Progression dans la barre des tâches",
     "taskbar_progress_description": "Affiche la progression du téléchargement dans la barre des tâches.",
     "flash_taskbar_on_complete_label": "Faire clignoter la barre à la fin",
@@ -488,7 +482,17 @@
     "video_codec_avc_only_description": "Utilise toujours H.264 (AVC) pour une compatibilité maximale des appareils et lecteurs.",
     "download_parallelism_label": "Parallélisme du Téléchargement de Segments",
     "download_parallelism_description": "Nombre de téléchargements parallèles de segments. Des valeurs plus élevées (8, 6) peuvent être plus rapides mais peuvent déclencher la limitation du CDN Bilibili. Des valeurs plus faibles (2, 1) sont plus stables mais plus lentes. La valeur par défaut est 8, recommandée pour la plupart des connexions.",
-    "download_parallelism_cdn_warning": "Le CDN Bilibili peut limiter les téléchargements parallèles. Si les téléchargements sont instables, essayez de réduire à 4 ou 2."
+    "download_parallelism_cdn_warning": "Le CDN Bilibili peut limiter les téléchargements parallèles. Si les téléchargements sont instables, essayez de réduire à 4 ou 2.",
+    "category": {
+      "general": "Général",
+      "download": "Téléchargements",
+      "storage": "Stockage",
+      "notifications": "Notifications",
+      "toolDefaults": "Valeurs par défaut des outils",
+      "account": "Compte",
+      "about": "À propos",
+      "dev": "Développeur"
+    }
   },
   "validation": {
     "path": {

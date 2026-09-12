@@ -5,7 +5,7 @@ import {
   callUpdateLibPath,
 } from '@/features/settings/api/settingApi'
 import { languages } from '@/features/settings/language/languages'
-import { setOpenDialog, setSettings } from '@/features/settings/settingsSlice'
+import { setSettings } from '@/features/settings/settingsSlice'
 import type { Settings, SettingsPatch } from '@/features/settings/type'
 import type { SupportedLang } from '@/i18n'
 import { changeLanguage } from '@/shared/i18n'
@@ -96,15 +96,6 @@ export const useSettings = () => {
   }
 
   /**
-   * Updates the settings dialog open/close state.
-   *
-   * @param open - True to open the dialog, false to close
-   */
-  const updateOpenDialog = (open: boolean) => {
-    store.dispatch(setOpenDialog(open))
-  }
-
-  /**
    * Changes the application language and persists the setting.
    *
    * First applies the language change via i18n, then saves just the
@@ -174,8 +165,9 @@ export const useSettings = () => {
    *
    * @returns The fetched settings object
    */
-  // Why useCallback: SettingsDialog's open-refresh effect depends on this
-  // reference; an unstable one would re-run the fetch on every render.
+  // Why useCallback: the settings page's became-visible refresh effect
+  // depends on this reference; an unstable one would re-run the fetch on
+  // every render.
   const getSettings = useCallback(async (): Promise<Settings> => {
     const settings = await callGetSettings()
     store.dispatch(setSettings(settings))
@@ -205,7 +197,6 @@ export const useSettings = () => {
     settings,
     saveByForm,
     updateLanguage,
-    updateOpenDialog,
     updateSettings,
     getSettings,
     updateLibPath,

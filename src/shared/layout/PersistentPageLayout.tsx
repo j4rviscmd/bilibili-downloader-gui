@@ -10,6 +10,7 @@ import { HistoryContent } from '@/pages/history'
 import { HomeContent } from '@/pages/home'
 import { ResolutionContent } from '@/pages/resolution'
 import { RotationContent } from '@/pages/rotation'
+import { SettingsContent } from '@/pages/settings'
 import { TrimContent } from '@/pages/trim'
 import { WatchHistoryContent } from '@/pages/watch-history'
 
@@ -28,6 +29,7 @@ const PAGES: readonly PageConfig[] = [
   { path: '/audio', Component: AudioContent },
   { path: '/resolution', Component: ResolutionContent },
   { path: '/rotation', Component: RotationContent },
+  { path: '/settings', Component: SettingsContent },
 ] as const
 
 const VALID_PATHS: readonly string[] = PAGES.map((p) => p.path)

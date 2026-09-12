@@ -365,7 +365,6 @@
   },
   "settings": {
     "title": "設定",
-    "open_dialog": "設定を開く",
     "language_label": "言語",
     "output_dir_label": "出力ディレクトリ",
     "output_dir_placeholder": "例: C:\\Users\\you\\Downloads または /Users/you/Downloads",
@@ -374,7 +373,6 @@
     "output_dir_changing": "選択中...",
     "output_dir_dialog_title": "出力ディレクトリを選択",
     "auto_save_note": "変更は自動的に保存されます。",
-    "dialog_title": "設定",
     "save_success": "設定を保存しました",
     "save_failed": "設定の保存に失敗しました",
     "patch_invalid": "設定の変更が無効です。settings.json に不正な型の値がないか確認してください。",
@@ -398,7 +396,6 @@
     "trim_mode_description": "MP4ファイルのトリム時の既定の方式を選択",
     "trim_mode_copy": "高速（コピー）",
     "trim_mode_reencode": "高精度（再エンコード）",
-    "app_section_label": "アプリケーション",
     "open_logs_button": "ログを開く",
     "open_logs_failed": "ログを開けませんでした",
     "show_github_stars_label": "GitHub Stars を表示",
@@ -428,7 +425,6 @@
       "error": "リリースノートの読み込みに失敗しました。インターネット接続を確認してください。"
     },
     "dev_options": {
-      "title": "開発者オプション",
       "open_devtools_on_startup": "起動時にDevToolsを開く",
       "open_devtools_on_startup_description": "有効にすると、アプリ起動時にブラウザのDevToolsコンソールが自動的に開きます。次回起動時に反映されます。",
       "enable_dev_updater": "アップデート導線を有効化",
@@ -469,8 +465,6 @@
     "rotation_mode_reencode": "正確（再エンコード）",
     "rotation_angle_label": "デフォルトの回転角度",
     "rotation_angle_description": "既定の回転方向を選びます",
-    "notifications_section_label": "通知",
-    "notifications_section_description": "ダウンロード完了時のフィードバックをカスタマイズします。",
     "taskbar_progress_label": "タスクバー進捗",
     "taskbar_progress_description": "タスクバーにダウンロード進捗を表示します。",
     "flash_taskbar_on_complete_label": "完了時にタスクバーを点滅",
@@ -488,7 +482,17 @@
     "video_codec_avc_only_description": "常にH.264（AVC）を使用して最大限のデバイス/プレイヤー互換性を確保。",
     "download_parallelism_label": "セグメント並列ダウンロード数",
     "download_parallelism_description": "セグメントの並列ダウンロード数。高い値（8, 6）は高速ですがbilibili CDNのスロットリングを引き起こす可能性があります。低い値（2, 1）は安定していますが低速です。デフォルトは8で、ほとんどの接続で推奨されます。",
-    "download_parallelism_cdn_warning": "bilibili CDNが並列ダウンロードを制限する可能性があります。ダウンロードが不安定な場合は、4または2に減らしてみてください。"
+    "download_parallelism_cdn_warning": "bilibili CDNが並列ダウンロードを制限する可能性があります。ダウンロードが不安定な場合は、4または2に減らしてみてください。",
+    "category": {
+      "general": "一般",
+      "download": "ダウンロード",
+      "storage": "ストレージ",
+      "notifications": "通知",
+      "toolDefaults": "ツール既定値",
+      "account": "アカウント",
+      "about": "アプリ情報",
+      "dev": "開発者"
+    }
   },
   "validation": {
     "path": {
