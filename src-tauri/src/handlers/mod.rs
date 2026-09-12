@@ -8,6 +8,7 @@
 //! - **cookie**: Firefox cookie extraction and caching
 //! - **favorites**: Bilibili favorite folder and video retrieval
 //! - **ffmpeg**: Binary validation and installation, A/V merging
+//! - **gif**: Local MP4 to GIF/WebM animation generation
 //! - **github**: GitHub API integration (repository info)
 //! - **settings**: Application settings persistence
 //! - **trim**: Local MP4 file trimming via ffmpeg stream copy
@@ -21,6 +22,7 @@ pub mod concurrency;
 pub mod cookie;
 pub mod favorites;
 pub mod ffmpeg;
+pub mod gif;
 pub mod github;
 pub mod history_session;
 pub mod init;

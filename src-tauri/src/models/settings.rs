@@ -169,6 +169,10 @@ pub struct Settings {
         skip_serializing_if = "Option::is_none"
     )]
     pub audio_format: Option<AudioFormat>,
+    /// Default output format for the GIF/WebM animation generator feature.
+    /// Defaults to "gif" if not specified.
+    #[serde(rename = "gifFormat", default, skip_serializing_if = "Option::is_none")]
+    pub gif_format: Option<GifFormat>,
     /// Default rotation angle (clockwise degrees: 90/180/270) for the MP4
     /// rotation feature. Defaults to 90 if not specified.
     #[serde(
@@ -259,6 +263,17 @@ pub enum AudioFormat {
     Mp3,
     /// AAC in MP4 container, `.m4a`.
     M4a,
+}
+
+/// Output format for the GIF/WebM animation generator feature.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum GifFormat {
+    /// Animated GIF, `.gif`.
+    #[default]
+    Gif,
+    /// Silent WebM (VP9), `.webm`.
+    Webm,
 }
 
 /// Rotation mode for the MP4 rotation feature.

@@ -47,6 +47,7 @@ No ads, no tracking. 100% free.
 - **Trim** - Cut local MP4 files by start/end time (lossless stream copy or re-encode)
 - **Concat** - Merge multiple MP4 files into one (auto re-encode fallback on codec mismatch)
 - **Audio Extract** - Extract audio from local MP4 to MP3/M4A with bitrate presets
+- **GIF / WebM Generator** - Turn a local MP4 clip into an animated GIF (256-color) or a silent WebM with width/FPS presets
 
 ### Bilibili Integration
 

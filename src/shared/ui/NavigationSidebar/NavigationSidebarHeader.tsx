@@ -23,6 +23,7 @@ import {
   Combine,
   Eye,
   Home,
+  ImagePlay,
   Music,
   RotateCw,
   Scaling,
@@ -62,6 +63,7 @@ type MenuGroup = {
  * - Tool category:
  *   - Trim (/trim) - Trim local MP4 files by start/end time
  *   - Concat (/concat) - Concatenate multiple MP4 files into one
+ *   - GIF (/gif) - Generate GIF/WebM animations from local MP4 clips
  *
  * Note: Download history (/history) is provided separately in SidebarFooter.
  *
@@ -150,6 +152,13 @@ export function NavigationSidebarHeader({
           icon: RotateCw,
           label: t('nav.rotation'),
           ariaLabel: t('nav.aria.rotation'),
+          requiresAuth: false,
+        },
+        {
+          path: '/gif',
+          icon: ImagePlay,
+          label: t('nav.gif'),
+          ariaLabel: t('nav.aria.gif'),
           requiresAuth: false,
         },
       ],

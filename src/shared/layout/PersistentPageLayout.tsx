@@ -6,6 +6,7 @@ import { Navigate, useLocation } from 'react-router'
 import { AudioContent } from '@/pages/audio'
 import { ConcatContent } from '@/pages/concat'
 import { FavoriteContent } from '@/pages/favorite'
+import { GifContent } from '@/pages/gif'
 import { HistoryContent } from '@/pages/history'
 import { HomeContent } from '@/pages/home'
 import { ResolutionContent } from '@/pages/resolution'
@@ -29,6 +30,7 @@ const PAGES: readonly PageConfig[] = [
   { path: '/audio', Component: AudioContent },
   { path: '/resolution', Component: ResolutionContent },
   { path: '/rotation', Component: RotationContent },
+  { path: '/gif', Component: GifContent },
   { path: '/settings', Component: SettingsContent },
 ] as const
 

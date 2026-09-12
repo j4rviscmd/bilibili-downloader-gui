@@ -47,6 +47,7 @@ Pas de publicités, pas de suivi. 100 % gratuit.
 - **Découpage** - Coupez les fichiers MP4 locaux par heure de début/fin (copie de flux sans perte ou réencodage)
 - **Concaténation** - Fusionnez plusieurs fichiers MP4 en un seul (réencodage automatique si les codecs ne correspondent pas)
 - **Extraction audio** - Extrayez l'audio d'un MP4 local en MP3/M4A avec préréglages de débit
+- **Générateur GIF / WebM** - Transforme un clip MP4 local en GIF animé (256 couleurs) ou en WebM silencieux avec préréglages largeur/FPS
 
 ### Intégration Bilibili
 

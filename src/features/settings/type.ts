@@ -96,6 +96,11 @@ export interface Settings {
    */
   audioFormat?: AudioFormat
   /**
+   * Default output format for the GIF/WebM animation generator feature.
+   * Defaults to 'gif' if not specified.
+   */
+  gifFormat?: GifFormat
+  /**
    * Default rotation angle for the MP4 rotation feature.
    * Defaults to 90 if not specified.
    */
@@ -184,6 +189,13 @@ export type TrimMode = 'copy' | 'reencode'
  * - m4a: AAC in MP4 container
  */
 export type AudioFormat = 'mp3' | 'm4a'
+
+/**
+ * Output format for the GIF/WebM animation generator.
+ * - gif: 256-color animated GIF
+ * - webm: Silent WebM (VP9)
+ */
+export type GifFormat = 'gif' | 'webm'
 
 /**
  * Rotation angle for MP4 rotation (clockwise degrees).

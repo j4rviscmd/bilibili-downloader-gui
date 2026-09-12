@@ -47,11 +47,13 @@
       "closeSidebar": "사이드바 닫기",
       "audio": "오디오 추출 페이지로 이동",
       "resolution": "해상도 변환 페이지로 이동",
-      "rotation": "영상 회전 페이지로 이동"
+      "rotation": "영상 회전 페이지로 이동",
+      "gif": "GIF/WebM 생성 페이지로 이동"
     },
     "audio": "오디오 추출",
     "resolution": "해상도 변환",
-    "rotation": "영상 회전"
+    "rotation": "영상 회전",
+    "gif": "GIF / WebM"
   },
   "trim": {
     "title": "영상 트림",
@@ -176,6 +178,58 @@
       "same_path": "입력과 출력 경로는 달라야 합니다",
       "invalid_angle": "잘못된 회전 각도입니다 (90, 180, 270 중 하나여야 합니다)",
       "ffmpeg_failed": "ffmpeg 실행에 실패했습니다"
+    }
+  },
+  "gif": {
+    "title": "GIF / WebM 생성",
+    "description": "로컬 MP4에서 구간을 잘라 GIF 또는 WebM 애니메이션을 생성합니다.",
+    "inputFile": "입력 파일",
+    "browse": "찾아보기",
+    "noFileSelected": "파일이 선택되지 않았습니다",
+    "clipRange": "클립 범위",
+    "startTime": "시작 시간",
+    "endTime": "종료 시간",
+    "timePlaceholder": "hh:mm:ss",
+    "rangeHint": "시작·종료 시간 모두 필수입니다 (hh:mm:ss).",
+    "outputFile": "출력 파일",
+    "chooseOutput": "출력 선택",
+    "noOutputSelected": "출력이 선택되지 않았습니다",
+    "format": {
+      "label": "형식 및 크기",
+      "gif": "GIF",
+      "gifHintShort": "256색 GIF 애니메이션",
+      "universalBadge": "범용",
+      "gifHint": "어디서든 사용 가능하지만 256색 제한이 있고 파일이 커지는 경향이 있습니다.",
+      "webm": "WebM",
+      "webmHintShort": "무음 VP9 WebM, 더 작은 파일",
+      "smallBadge": "가벼움",
+      "webmHint": "GIF보다 작고 선명하지만 일부 사이트는 GIF만 지원합니다."
+    },
+    "size": {
+      "width": "너비",
+      "original": "원본",
+      "fps": "프레임 레이트"
+    },
+    "generate": "생성",
+    "generating": "생성 중",
+    "clear": "지우기",
+    "success": "애니메이션 생성 완료",
+    "failed": "생성 실패",
+    "openFolder": "폴더 열기",
+    "elapsed": "경과",
+    "remaining": "남음",
+    "error": {
+      "input_not_found": "입력 파일을 찾을 수 없습니다.",
+      "unsupported_format": "입력은 MP4 파일이어야 합니다.",
+      "unsupported_output_format": "출력 확장자가 선택한 형식과 일치하지 않습니다.",
+      "same_path": "입력과 출력 경로는 달라야 합니다.",
+      "invalid_range": "시간 범위가 잘못되었습니다: 시작이 종료보다 빨라야 합니다.",
+      "ffmpeg_failed": "ffmpeg 애니메이션 생성에 실패했습니다.",
+      "empty_start": "시작 시간을 입력하세요.",
+      "empty_end": "종료 시간을 입력하세요.",
+      "invalid_start": "시작 시간은 hh:mm:ss 형식이어야 합니다.",
+      "invalid_end": "종료 시간은 hh:mm:ss 형식이어야 합니다.",
+      "end_before_start": "종료 시간은 시작 시간보다 늦어야 합니다."
     }
   },
   "actions": {
@@ -461,6 +515,10 @@
     "audio_format_description": "오디오 추출 시 기본 출력 형식",
     "audio_format_mp3": "MP3",
     "audio_format_m4a": "M4A (AAC)",
+    "gif_format_label": "기본 애니메이션 형식",
+    "gif_format_description": "GIF/WebM 생성 기능의 기본 출력 형식입니다.",
+    "gif_format_gif": "GIF",
+    "gif_format_webm": "WebM",
     "rotation_mode_label": "기본 회전 모드",
     "rotation_mode_description": "비디오 회전 기본 방식을 선택합니다",
     "rotation_mode_copy": "빠름 (복사)",
