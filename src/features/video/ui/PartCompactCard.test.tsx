@@ -173,4 +173,19 @@ describe('PartCompactCard', () => {
       screen.queryByRole('button', { name: 'video.cancel_download' }),
     ).not.toBeInTheDocument()
   })
+
+  it('exposes the effective status via data-status (E2E hook)', () => {
+    const running = setup({
+      status: status({ status: 'running', isDownloading: true }),
+    })
+    expect(
+      running.container.querySelector('[data-status="running"]'),
+    ).not.toBeNull()
+
+    // isComplete overrides a stale non-done status (merge-finished race)
+    const done = setup({
+      status: status({ status: 'running', isComplete: true }),
+    })
+    expect(done.container.querySelector('[data-status="done"]')).not.toBeNull()
+  })
 })

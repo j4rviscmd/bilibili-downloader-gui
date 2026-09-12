@@ -2,9 +2,9 @@ import { store } from '@/app/store'
 import { useVideoInfo } from '@/features/video'
 import { expandShortUrl } from '@/features/video/api/expandShortUrl'
 import { setInput } from '@/features/video/model/inputSlice'
-import { clearQueue } from '@/shared/queue'
+import { clearQueue, enqueue } from '@/shared/queue'
 import { renderWithProviders } from '@/test/test-utils'
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import VideoForm1 from './VideoForm1'
@@ -225,6 +225,50 @@ describe('VideoForm1', () => {
       // Second call is the explicit (non-silent) submit
       expect(onValid1).toHaveBeenCalledTimes(2)
       expect(onValid1).toHaveBeenLastCalledWith(VALID_URL)
+    })
+
+    it('cancels the pending debounce on explicit submit (no refetch)', async () => {
+      // Regression: the typing-armed debounce timer survived an explicit
+      // Enter/blur submit and re-fetched the same URL 500ms later, wiping
+      // state (clearQueue) mid-download. Submit must cancel the timer.
+      const { onValid1, user, input } = await typeUrl(VALID_URL)
+      onValid1.mockResolvedValue(true)
+
+      // Submit before the typing-armed debounce fires
+      await user.type(input, '{Enter}')
+      expect(onValid1).toHaveBeenCalledTimes(1)
+
+      await debounce()
+      expect(onValid1).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not fire the debounced silent fetch during a download session', async () => {
+      // Regression (found by the download E2E): a debounce timer armed just
+      // before clicking Download fired mid-session and its silent refetch
+      // clearQueue()d the in-flight queue. The input is disabled while a
+      // session is active, so the timer must be a no-op.
+      const { onValid1, input } = await typeUrl(VALID_URL)
+
+      // Session active: parent + running child make hasActiveDownloads true
+      store.dispatch(
+        enqueue({
+          downloadId: 'parent-1',
+          filename: 'v',
+          status: 'running',
+        }),
+      )
+      store.dispatch(
+        enqueue({
+          downloadId: 'parent-1-p1',
+          parentId: 'parent-1',
+          filename: 'v 1',
+          status: 'running',
+        }),
+      )
+      await waitFor(() => expect(input).toBeDisabled())
+
+      await debounce()
+      expect(onValid1).not.toHaveBeenCalled()
     })
   })
 })

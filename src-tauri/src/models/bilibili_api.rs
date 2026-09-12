@@ -62,6 +62,10 @@ pub struct WebInterfaceApiResponsePage {
 /// (e.g., bangumi episode or festival page).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WebInterfaceApiResponseData {
+    /// Canonical BV id of the video (used to normalize av-URL lookups;
+    /// defaulted to empty when the payload omits it)
+    #[serde(default)]
+    pub bvid: String,
     pub title: String,
     pub pic: String,
     pub cid: i64,
@@ -732,24 +736,31 @@ mod tests {
         assert_eq!(resp.code, 0);
 
         let data = resp.data.expect("data present");
-        assert_eq!(data.title, "【BW2019】自营 CUT");
-        assert_eq!(data.cid, 146224527);
+        assert_eq!(data.title, "bilibili献给新一代的演讲《后浪》");
+        assert_eq!(data.cid, 186803402);
         assert!(data.redirect_url.is_none(), "no redirect in fixture");
 
         let pages = data.pages.expect("pages present");
-        assert_eq!(pages.len(), 2);
-        assert_eq!(pages[0].cid, 146224527);
+        assert_eq!(pages.len(), 3);
+        assert_eq!(pages[0].cid, 186803402);
         assert_eq!(pages[0].page, 1);
-        assert_eq!(pages[0].part, "1");
-        assert_eq!(pages[0].duration, 265);
-        assert!(
-            pages[0].first_frame.is_none(),
-            "first_frame absent on page 1"
-        );
-        assert_eq!(
-            pages[1].first_frame.as_deref(),
-            Some("http://i0.hdslb.com/bfs/story-fn/first-frame.jpg")
-        );
+        assert_eq!(pages[0].part, "bilibili献给新一代的演讲《后浪》");
+        assert_eq!(pages[0].duration, 233);
+        assert_eq!(pages[1].cid, 186917910);
+        assert_eq!(pages[1].page, 2);
+        assert_eq!(pages[1].part, "bilibili青年宣言片《后浪》央视版");
+        assert_eq!(pages[2].cid, 189702747);
+        assert_eq!(pages[2].page, 3);
+        assert_eq!(pages[2].part, "bilibili青年宣言片《后浪》央视完整版");
+        // No page carries a first_frame in this snapshot: every part falls
+        // back to the video-level pic for its thumbnail.
+        for (i, page) in pages.iter().enumerate() {
+            assert!(
+                page.first_frame.is_none(),
+                "first_frame absent on page {}",
+                i + 1
+            );
+        }
     }
 
     #[test]

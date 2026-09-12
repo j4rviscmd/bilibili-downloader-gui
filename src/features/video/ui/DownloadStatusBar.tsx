@@ -58,7 +58,9 @@ export function DownloadStatusBar() {
 
   return (
     <AnimatedSection show={busy}>
-      <div className="border-b px-6 py-2.5">
+      {/* data-testid is the E2E anchor for "a download session is active" —
+          AnimatedSection unmounts this subtree when not busy. */}
+      <div data-testid="download-status-bar" className="border-b px-6 py-2.5">
         <TooltipProvider delayDuration={300}>
           <div className="flex items-center gap-3">
             <div className="bg-primary/20 relative h-2 flex-1 overflow-hidden rounded-full">

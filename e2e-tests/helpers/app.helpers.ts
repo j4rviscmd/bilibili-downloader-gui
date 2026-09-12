@@ -98,12 +98,21 @@ export async function waitForUrlInput(): Promise<void> {
   await input.waitForClickable({ timeout: 5_000 })
 }
 
+/** Window parking spot for the pending invoke result (see tauriInvoke). */
+type InvokeResultWindow = {
+  __tauriInvokeResult?: { ok?: unknown; err?: string }
+}
+
 /**
- * Invoke a Tauri backend command via window.__TAURI_INTERNALS__.
+ * Invoke a Tauri backend command via window.__TAURI_INTERNALS__ and read
+ * the result back.
+ *
  * Works because withGlobalTauri: true is set in tauri.conf.json.
  *
- * Executes the given Tauri command inside the browser context using
- * the global `__TAURI_INTERNALS__` object injected by the Tauri runtime.
+ * Why the window-buffer round trip: WebKit's WebDriver does not resolve a
+ * Promise returned from browser.execute — the call returns null long
+ * before the invoke settles. The result is therefore parked on window and
+ * polled until it appears.
  *
  * @typeParam T - The expected return type of the Tauri command
  * @param command - The Tauri command name (must match the Rust `#[tauri::command]` function name)
@@ -119,13 +128,37 @@ export async function tauriInvoke<T = unknown>(
   command: string,
   args?: Record<string, unknown>,
 ): Promise<T> {
-  return await browser.execute(
-    (cmd: string, params?: Record<string, unknown>) => {
+  await browser.execute(
+    (cmd: string, params: Record<string, unknown> | undefined) => {
+      const w = window as unknown as InvokeResultWindow
+      w.__tauriInvokeResult = undefined
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { invoke } = (window as any).__TAURI_INTERNALS__
-      return invoke(cmd, params)
+      ;(window as any).__TAURI_INTERNALS__
+        .invoke(cmd, params)
+        .then((value: unknown) => {
+          w.__tauriInvokeResult = { ok: value }
+        })
+        .catch((error: unknown) => {
+          w.__tauriInvokeResult = { err: String(error) }
+        })
     },
     command,
     args,
   )
+  await browser.waitUntil(
+    async () =>
+      (await browser.execute(
+        () =>
+          (window as unknown as InvokeResultWindow).__tauriInvokeResult !==
+          undefined,
+      )) === true,
+    { timeout: 15_000, timeoutMsg: `tauriInvoke(${command}) timed out` },
+  )
+  const result = (await browser.execute(
+    () => (window as unknown as InvokeResultWindow).__tauriInvokeResult,
+  )) as { ok?: T; err?: string }
+  if (result.err) {
+    throw new Error(`tauriInvoke(${command}) failed: ${result.err}`)
+  }
+  return result.ok as T
 }

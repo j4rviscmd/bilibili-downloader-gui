@@ -93,6 +93,10 @@ describe('DownloadStatusBar', () => {
     // 1 done of 2 non-cancelled parts
     expect(await screen.findByText('1/2')).toBeInTheDocument()
 
+    // E2E hook: the testid is the session-active anchor for E2E specs
+    // (AnimatedSection unmounts this subtree when the session settles)
+    expect(await screen.findByTestId('download-status-bar')).toBeInTheDocument()
+
     await user.click(
       screen.getByRole('button', { name: 'downloadStatus.cancel_all' }),
     )
