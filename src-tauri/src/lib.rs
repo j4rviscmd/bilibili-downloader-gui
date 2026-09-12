@@ -24,6 +24,7 @@ use crate::handlers::concat;
 use crate::handlers::cookie;
 use crate::handlers::favorites;
 use crate::handlers::ffmpeg;
+use crate::handlers::gif;
 use crate::handlers::github;
 use crate::handlers::init;
 use crate::handlers::qr_login;
@@ -218,6 +219,7 @@ pub fn run() {
             probe_audio_bitrate,
             extract_resolution,
             probe_video_resolution,
+            generate_animation,
             generate_qr_code,
             poll_qr_status,
             qr_logout,
@@ -1501,6 +1503,17 @@ async fn probe_video_resolution(
 ) -> Result<Option<crate::utils::ffmpeg_probe::VideoResolution>, String> {
     let ffmpeg_path = crate::utils::paths::get_ffmpeg_path(&app);
     Ok(crate::utils::ffmpeg_probe::probe_video_resolution(&ffmpeg_path, &input_path).await)
+}
+
+/// Generates a GIF or WebM animation from a time range of a local MP4 file.
+///
+/// Returns the absolute path of the written output file.
+#[tauri::command]
+async fn generate_animation(
+    app: AppHandle,
+    options: gif::GifOptions,
+) -> Result<gif::GifResult, String> {
+    gif::generate_animation(&app, &options).await
 }
 
 /// Sets the simulate logout flag for development mode.

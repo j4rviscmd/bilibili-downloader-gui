@@ -59,6 +59,21 @@ export function ToolDefaultsSection() {
         />
       </SettingField>
       <SettingField
+        label={t('settings.gif_format_label')}
+        description={t('settings.gif_format_description')}
+      >
+        <SettingToggleGroup
+          value={settings.gifFormat ?? 'gif'}
+          onValueChange={(value) => {
+            saveByForm({ gifFormat: value as 'gif' | 'webm' })
+          }}
+          options={[
+            { value: 'gif', label: t('settings.gif_format_gif') },
+            { value: 'webm', label: t('settings.gif_format_webm') },
+          ]}
+        />
+      </SettingField>
+      <SettingField
         label={t('settings.rotation_mode_label')}
         description={t('settings.rotation_mode_description')}
       >

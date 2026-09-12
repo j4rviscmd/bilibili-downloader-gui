@@ -47,6 +47,7 @@ Sin anuncios, sin seguimiento. 100% gratis.
 - **Recortar** - Corta archivos MP4 locales por tiempo de inicio/fin (copia sin pérdida o recodificación)
 - **Concatenar** - Fusiona varios archivos MP4 en uno (recodificación automática si los códecs no coinciden)
 - **Extracción de audio** - Extrae audio de MP4 local a MP3/M4A con presets de bitrate
+- **Generador de GIF / WebM** - Convierte un clip MP4 local en un GIF animado (256 colores) o un WebM silencioso con presets de ancho/FPS
 
 ### Integración con Bilibili
 

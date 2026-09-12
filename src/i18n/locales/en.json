@@ -47,11 +47,13 @@
       "closeSidebar": "Close sidebar",
       "audio": "Navigate to audio page",
       "resolution": "Navigate to resolution page",
-      "rotation": "Navigate to rotation page"
+      "rotation": "Navigate to rotation page",
+      "gif": "Navigate to GIF/WebM generator page"
     },
     "audio": "Audio",
     "resolution": "Resolution",
-    "rotation": "Rotation"
+    "rotation": "Rotation",
+    "gif": "GIF / WebM"
   },
   "trim": {
     "title": "Trim Video",
@@ -176,6 +178,58 @@
       "same_path": "Input and output paths must be different",
       "invalid_angle": "Invalid rotation angle (must be 90, 180, or 270)",
       "ffmpeg_failed": "ffmpeg execution failed"
+    }
+  },
+  "gif": {
+    "title": "GIF / WebM Generator",
+    "description": "Cut a clip from a local MP4 file and generate a GIF or WebM animation.",
+    "inputFile": "Input file",
+    "browse": "Browse",
+    "noFileSelected": "No file selected",
+    "clipRange": "Clip range",
+    "startTime": "Start time",
+    "endTime": "End time",
+    "timePlaceholder": "hh:mm:ss",
+    "rangeHint": "Both start and end times are required (hh:mm:ss).",
+    "outputFile": "Output file",
+    "chooseOutput": "Choose output",
+    "noOutputSelected": "No output selected",
+    "format": {
+      "label": "Format & size",
+      "gif": "GIF",
+      "gifHintShort": "256-color animated GIF",
+      "universalBadge": "Universal",
+      "gifHint": "Works everywhere, but limited to 256 colors and tends to be large.",
+      "webm": "WebM",
+      "webmHintShort": "Silent VP9 WebM with smaller files",
+      "smallBadge": "Smaller",
+      "webmHint": "Smaller and higher quality than GIF, but some sites only accept GIF."
+    },
+    "size": {
+      "width": "Width",
+      "original": "Original",
+      "fps": "Frame rate"
+    },
+    "generate": "Generate",
+    "generating": "Generating",
+    "clear": "Clear",
+    "success": "Animation generated",
+    "failed": "Generation failed",
+    "openFolder": "Open folder",
+    "elapsed": "Elapsed",
+    "remaining": "Remaining",
+    "error": {
+      "input_not_found": "Input file not found.",
+      "unsupported_format": "Input must be an MP4 file.",
+      "unsupported_output_format": "Output extension does not match the selected format.",
+      "same_path": "Input and output paths must differ.",
+      "invalid_range": "Invalid time range: start must be before end.",
+      "ffmpeg_failed": "ffmpeg failed to generate the animation.",
+      "empty_start": "Start time is required.",
+      "empty_end": "End time is required.",
+      "invalid_start": "Start time must be in hh:mm:ss format.",
+      "invalid_end": "End time must be in hh:mm:ss format.",
+      "end_before_start": "End time must be after start time."
     }
   },
   "actions": {
@@ -461,6 +515,10 @@
     "audio_format_description": "Default output format used when extracting audio",
     "audio_format_mp3": "MP3",
     "audio_format_m4a": "M4A (AAC)",
+    "gif_format_label": "Default animation format",
+    "gif_format_description": "Default output format for the GIF/WebM generator.",
+    "gif_format_gif": "GIF",
+    "gif_format_webm": "WebM",
     "rotation_mode_label": "Default rotation mode",
     "rotation_mode_description": "Choose how videos are rotated by default",
     "rotation_mode_copy": "Fast (Copy)",

@@ -100,6 +100,7 @@ describe('NavigationSidebarHeader', () => {
       'nav.audio',
       'nav.resolution',
       'nav.rotation',
+      'nav.gif',
     ]
     for (const label of labels) {
       expect(screen.getByText(label)).toBeInTheDocument()

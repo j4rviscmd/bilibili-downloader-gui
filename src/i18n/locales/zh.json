@@ -47,11 +47,13 @@
       "closeSidebar": "关闭侧边栏",
       "audio": "前往音频提取页面",
       "resolution": "转到分辨率转换页面",
-      "rotation": "转到旋转视频页面"
+      "rotation": "转到旋转视频页面",
+      "gif": "前往 GIF/WebM 生成页面"
     },
     "audio": "音频提取",
     "resolution": "分辨率转换",
-    "rotation": "旋转视频"
+    "rotation": "旋转视频",
+    "gif": "GIF / WebM"
   },
   "trim": {
     "title": "裁剪视频",
@@ -176,6 +178,58 @@
       "same_path": "输入文件和输出文件路径不能相同",
       "invalid_angle": "无效的旋转角度（必须是 90、180 或 270）",
       "ffmpeg_failed": "ffmpeg执行失败"
+    }
+  },
+  "gif": {
+    "title": "GIF / WebM 生成",
+    "description": "从本地 MP4 截取片段并生成 GIF 或 WebM 动画。",
+    "inputFile": "输入文件",
+    "browse": "浏览",
+    "noFileSelected": "未选择文件",
+    "clipRange": "截取范围",
+    "startTime": "开始时间",
+    "endTime": "结束时间",
+    "timePlaceholder": "hh:mm:ss",
+    "rangeHint": "开始和结束时间均为必填（hh:mm:ss）。",
+    "outputFile": "输出文件",
+    "chooseOutput": "选择输出",
+    "noOutputSelected": "未选择输出",
+    "format": {
+      "label": "格式与尺寸",
+      "gif": "GIF",
+      "gifHintShort": "256 色 GIF 动画",
+      "universalBadge": "通用",
+      "gifHint": "随处可用，但仅支持256色且文件往往较大。",
+      "webm": "WebM",
+      "webmHintShort": "无声 VP9 WebM，文件更小",
+      "smallBadge": "更小",
+      "webmHint": "比GIF更小更清晰，但部分网站仅支持GIF。"
+    },
+    "size": {
+      "width": "宽度",
+      "original": "原始",
+      "fps": "帧率"
+    },
+    "generate": "生成",
+    "generating": "生成中",
+    "clear": "清除",
+    "success": "动画生成完成",
+    "failed": "生成失败",
+    "openFolder": "打开文件夹",
+    "elapsed": "已用",
+    "remaining": "剩余",
+    "error": {
+      "input_not_found": "找不到输入文件。",
+      "unsupported_format": "输入必须是 MP4 文件。",
+      "unsupported_output_format": "输出扩展名与所选格式不匹配。",
+      "same_path": "输入和输出路径不能相同。",
+      "invalid_range": "时间范围无效：开始时间必须早于结束时间。",
+      "ffmpeg_failed": "ffmpeg 生成动画失败。",
+      "empty_start": "请输入开始时间。",
+      "empty_end": "请输入结束时间。",
+      "invalid_start": "开始时间必须为 hh:mm:ss 格式。",
+      "invalid_end": "结束时间必须为 hh:mm:ss 格式。",
+      "end_before_start": "结束时间必须晚于开始时间。"
     }
   },
   "actions": {
@@ -461,6 +515,10 @@
     "audio_format_description": "提取音频时的默认输出格式",
     "audio_format_mp3": "MP3",
     "audio_format_m4a": "M4A (AAC)",
+    "gif_format_label": "默认动画格式",
+    "gif_format_description": "GIF/WebM 生成功能的默认输出格式。",
+    "gif_format_gif": "GIF",
+    "gif_format_webm": "WebM",
     "rotation_mode_label": "默认旋转模式",
     "rotation_mode_description": "选择旋转视频的默认方式",
     "rotation_mode_copy": "快速（复制）",

@@ -47,11 +47,13 @@
       "closeSidebar": "Fermer la barre latérale",
       "audio": "Aller à la page audio",
       "resolution": "Aller à la page de résolution",
-      "rotation": "Aller à la page de rotation"
+      "rotation": "Aller à la page de rotation",
+      "gif": "Aller au générateur GIF/WebM"
     },
     "audio": "Audio",
     "resolution": "Résolution",
-    "rotation": "Rotation"
+    "rotation": "Rotation",
+    "gif": "GIF / WebM"
   },
   "trim": {
     "title": "Découper la vidéo",
@@ -176,6 +178,58 @@
       "same_path": "Les chemins d'entrée et de sortie doivent être différents",
       "invalid_angle": "Angle de rotation invalide (doit être 90, 180 ou 270)",
       "ffmpeg_failed": "Échec de l'exécution de ffmpeg"
+    }
+  },
+  "gif": {
+    "title": "Générateur GIF / WebM",
+    "description": "Coupez un extrait d'un MP4 local et générez une animation GIF ou WebM.",
+    "inputFile": "Fichier d'entrée",
+    "browse": "Parcourir",
+    "noFileSelected": "Aucun fichier sélectionné",
+    "clipRange": "Plage de l'extrait",
+    "startTime": "Heure de début",
+    "endTime": "Heure de fin",
+    "timePlaceholder": "hh:mm:ss",
+    "rangeHint": "Les heures de début et de fin sont obligatoires (hh:mm:ss).",
+    "outputFile": "Fichier de sortie",
+    "chooseOutput": "Choisir la sortie",
+    "noOutputSelected": "Sortie non sélectionnée",
+    "format": {
+      "label": "Format et taille",
+      "gif": "GIF",
+      "gifHintShort": "GIF animé 256 couleurs",
+      "universalBadge": "Universel",
+      "gifHint": "Fonctionne partout, mais limité à 256 couleurs et souvent volumineux.",
+      "webm": "WebM",
+      "webmHintShort": "WebM VP9 silencieux, fichiers plus petits",
+      "smallBadge": "Plus léger",
+      "webmHint": "Plus petit et de meilleure qualité que le GIF, mais certains sites n’acceptent que le GIF."
+    },
+    "size": {
+      "width": "Largeur",
+      "original": "Original",
+      "fps": "Fréquence d'images"
+    },
+    "generate": "Générer",
+    "generating": "Génération",
+    "clear": "Effacer",
+    "success": "Animation générée",
+    "failed": "Échec de la génération",
+    "openFolder": "Ouvrir le dossier",
+    "elapsed": "Écoulé",
+    "remaining": "Restant",
+    "error": {
+      "input_not_found": "Fichier d'entrée introuvable.",
+      "unsupported_format": "L'entrée doit être un fichier MP4.",
+      "unsupported_output_format": "L'extension de sortie ne correspond pas au format sélectionné.",
+      "same_path": "Les chemins d'entrée et de sortie doivent être différents.",
+      "invalid_range": "Plage horaire invalide : le début doit précéder la fin.",
+      "ffmpeg_failed": "ffmpeg n'a pas pu générer l'animation.",
+      "empty_start": "L'heure de début est requise.",
+      "empty_end": "L'heure de fin est requise.",
+      "invalid_start": "L'heure de début doit être au format hh:mm:ss.",
+      "invalid_end": "L'heure de fin doit être au format hh:mm:ss.",
+      "end_before_start": "L'heure de fin doit être postérieure à celle de début."
     }
   },
   "actions": {
@@ -461,6 +515,10 @@
     "audio_format_description": "Format de sortie par défaut lors de l'extraction audio",
     "audio_format_mp3": "MP3",
     "audio_format_m4a": "M4A (AAC)",
+    "gif_format_label": "Format d'animation par défaut",
+    "gif_format_description": "Format de sortie par défaut du générateur GIF/WebM.",
+    "gif_format_gif": "GIF",
+    "gif_format_webm": "WebM",
     "rotation_mode_label": "Mode de rotation par défaut",
     "rotation_mode_description": "Choisissez comment les vidéos sont pivotées par défaut",
     "rotation_mode_copy": "Rapide (Copie)",
