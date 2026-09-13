@@ -155,8 +155,9 @@ fn parse_trailing_kbps(line: &str) -> Option<u32> {
 /// flake lesson):
 /// - Probe invocations (`ffmpeg -i <file>`): print a `Duration:` line to
 ///   stderr and exit 1, like real ffmpeg without an output target.
-/// - Encode invocations: write a sentinel to the LAST argument (the output
-///   path) and exit `exit_code`.
+/// - Encode invocations: emit one `-progress` line (`out_time=`) to stderr
+///   so the handlers' stderr parsers and progress emits execute, then write
+///   a sentinel to the LAST argument (the output path) and exit `exit_code`.
 /// - `fail_on_copy`: any invocation whose args contain `copy` exits 1,
 ///   which drives concat's copy→re-encode fallback.
 #[cfg(all(test, unix))]
@@ -181,6 +182,7 @@ if [ \"$1\" = \"-i\" ]; then
     echo \"  Duration: 00:01:00.00, start: 0.000000\" 1>&2
     exit 1
 fi
+printf 'frame=15\\nout_time_us=1000000\\nout_time=00:00:01.000000\\nprogress=continue\\n' 1>&2
 {copy_guard}for last do :; done
 echo fake-ffmpeg-output > \"$last\"
 exit {exit_code}

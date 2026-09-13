@@ -54,6 +54,11 @@ describe('ToolDefaultsSection', () => {
       { audioFormat: 'm4a' },
     ],
     [
+      'settings.gif_format_label',
+      'settings.gif_format_webm',
+      { gifFormat: 'webm' },
+    ],
+    [
       'settings.rotation_mode_label',
       'settings.rotation_mode_reencode',
       { rotationMode: 'reencode' },
