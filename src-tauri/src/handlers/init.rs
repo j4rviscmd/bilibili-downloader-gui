@@ -7,7 +7,10 @@
 //! State and read by the main window via `get_init_result` on startup, so the
 //! main window never re-runs the heavy init.
 
-use std::sync::Mutex;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Mutex,
+};
 
 use tauri::{AppHandle, Emitter, Manager, State};
 
@@ -59,16 +62,15 @@ pub async fn initialize(app: AppHandle) -> Result<(), String> {
     // in E2E mode where there is no splash). The AtomicBool guarantees the
     // heavy init (cleanup, ffmpeg, session restore, user fetch) runs at most
     // once per process; the second caller returns immediately.
-    let init_guard = app.state::<std::sync::atomic::AtomicBool>();
-    if init_guard.swap(true, std::sync::atomic::Ordering::SeqCst) {
+    let init_guard = app.state::<AtomicBool>();
+    if !begin_initialization(
+        &init_guard,
+        &app.state::<Mutex<InitResult>>(),
+        crate::handlers::settings::get_settings(&app),
+    )
+    .await?
+    {
         return Ok(());
-    }
-
-    // First-run language selection can update settings after setup created
-    // the splash. Hand the latest selection to the main window.
-    let settings = crate::handlers::settings::get_settings(&app).await?;
-    if let Ok(mut result) = app.state::<Mutex<InitResult>>().lock() {
-        result.settings = Some(settings);
     }
 
     // 1. Clean up orphaned temp files from previous sessions.
@@ -180,6 +182,29 @@ pub async fn initialize(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Refresh the first-run language snapshot before heavy initialization. A failed
+/// refresh releases the guard and preserves the error so another caller can retry.
+async fn begin_initialization(
+    guard: &AtomicBool,
+    result: &Mutex<InitResult>,
+    settings: impl std::future::Future<Output = Result<Settings, String>>,
+) -> Result<bool, String> {
+    if guard.swap(true, Ordering::SeqCst) {
+        return Ok(false);
+    }
+    let refreshed = settings.await.and_then(|settings| {
+        let mut result = result.lock().map_err(|error| error.to_string())?;
+        result.settings = Some(settings);
+        Ok(())
+    });
+    if let Err(error) = refreshed {
+        guard.store(false, Ordering::SeqCst);
+        log::error!("[BE] Failed to refresh initialization settings: {error}");
+        return Err(error);
+    }
+    Ok(true)
+}
+
 /// Returns the result of the backend init sequence. Called by the main window
 /// on startup (after finish_splash) to avoid re-running init.
 #[tauri::command]
@@ -222,6 +247,53 @@ fn emit_progress<R: tauri::Runtime>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn settings_refresh_failure_preserves_state_and_allows_retry() {
+        let guard = AtomicBool::new(false);
+        let state = Mutex::new(InitResult {
+            settings: Some(Settings {
+                dl_output_path: Some("seeded".into()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+        let error =
+            begin_initialization(&guard, &state, async { Err("settings read failed".into()) })
+                .await
+                .unwrap_err();
+        assert_eq!(error, "settings read failed");
+        assert!(!guard.load(Ordering::SeqCst));
+        assert_eq!(
+            state
+                .lock()
+                .unwrap()
+                .settings
+                .as_ref()
+                .unwrap()
+                .dl_output_path
+                .as_deref(),
+            Some("seeded")
+        );
+
+        let settings = Settings {
+            language: crate::models::settings::Language::Zh,
+            ..Default::default()
+        };
+        assert!(begin_initialization(&guard, &state, async { Ok(settings) })
+            .await
+            .unwrap());
+        assert!(guard.load(Ordering::SeqCst));
+        assert_eq!(
+            serde_json::to_value(&state.lock().unwrap().settings).unwrap()["language"],
+            "zh"
+        );
+        assert!(!begin_initialization(&guard, &state, async {
+            panic!("completed init must not reread settings")
+        })
+        .await
+        .unwrap());
+    }
 
     #[test]
     fn init_step_serializes_camel_case() {

@@ -118,9 +118,9 @@ fn cleanup_ffmpeg_dir(ffmpeg_root: &Path) {
 ///
 /// This function:
 /// 1. Creates the ffmpeg directory if needed
-/// 2. Downloads the appropriate binary for Windows or macOS
-/// 3. Extracts the archive
-/// 4. Sets execute permissions (macOS only)
+/// 2. Downloads the pinned native Windows, macOS, or Linux binary
+/// 3. Verifies its checksum and extracts the archive
+/// 4. Sets execute permissions (Unix only)
 /// 5. Cleans up the downloaded archive
 ///
 /// # Arguments
@@ -129,15 +129,16 @@ fn cleanup_ffmpeg_dir(ffmpeg_root: &Path) {
 ///
 /// # Returns
 ///
-/// Returns `Ok(true)` on successful installation, `Ok(false)` if the platform
-/// is not supported or download/extraction fails.
+/// Returns `Ok(true)` on successful installation and `Ok(false)` if the platform
+/// is not supported. Exhausting the available sources returns their errors.
 ///
 /// # Errors
 ///
 /// Returns an error if:
 /// - Directory creation fails
+/// - All sources fail download, checksum, extraction, or functional validation
 /// - Archive extraction fails
-/// - Permission setting fails (macOS)
+/// - Permission setting fails (Unix)
 pub async fn install_ffmpeg(app: &AppHandle) -> Result<bool> {
     log::info!("[BE] install_ffmpeg: starting ffmpeg installation");
 
@@ -152,45 +153,9 @@ pub async fn install_ffmpeg(app: &AppHandle) -> Result<bool> {
     let segment_concurrency =
         crate::models::settings::Settings::resolve_segment_concurrency(&settings);
 
-    // Download URL and filename based on platform
-    // Windows GPL is available only as .zip; Linux GPL as .tar.xz
-    let Some((url, filename)) = (if cfg!(target_os = "windows") {
-        Some((
-            "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip",
-            "ffmpeg-master-latest-win64-gpl.zip",
-        ))
-    } else if cfg!(target_os = "macos") {
-        Some(("https://evermeet.cx/ffmpeg/getrelease/zip", "ffmpeg.zip"))
-    } else if cfg!(target_os = "linux") {
-        Some((
-            "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz",
-            "ffmpeg-master-latest-linux64-gpl.tar.xz",
-        ))
-    } else {
-        None
-    }) else {
+    let sources = download_sources(std::env::consts::OS, std::env::consts::ARCH)?;
+    if sources.is_empty() {
         return Ok(false);
-    };
-
-    let mut sources = vec![FfmpegSource {
-        url: url.to_string(),
-        filename: filename.to_string(),
-        sha256: None,
-    }];
-    if let Some(mirror) = mirror_source(std::env::consts::OS, std::env::consts::ARCH)? {
-        // Evermeet and the historical BtbN URLs above are x86_64 builds.
-        // Use the matching native upstream asset on ARM64.
-        if cfg!(target_arch = "aarch64") {
-            sources = vec![FfmpegSource {
-                url: mirror.url.replace(
-                    "https://registry.npmmirror.com/-/binary/ffmpeg-static",
-                    "https://github.com/eugeneware/ffmpeg-static/releases/download",
-                ),
-                filename: mirror.filename.clone(),
-                sha256: mirror.sha256.clone(),
-            }];
-        }
-        sources.push(mirror);
     }
     install_from_sources(app, &root, &sources, segment_concurrency).await
 }
@@ -199,17 +164,18 @@ pub async fn install_ffmpeg(app: &AppHandle) -> Result<bool> {
 struct FfmpegSource {
     url: String,
     filename: String,
-    sha256: Option<String>,
+    sha256: String,
 }
 
-fn mirror_source(os: &str, arch: &str) -> Result<Option<FfmpegSource>> {
+/// Both endpoints serve the same pinned, checksummed artifact for the native platform.
+fn download_sources(os: &str, arch: &str) -> Result<Vec<FfmpegSource>> {
     let platform = match (os, arch) {
         ("windows", "x86_64") => "win32-x64",
         ("macos", "aarch64") => "darwin-arm64",
         ("macos", "x86_64") => "darwin-x64",
         ("linux", "x86_64") => "linux-x64",
         ("linux", "aarch64") => "linux-arm64",
-        _ => return Ok(None),
+        _ => return Ok(Vec::new()),
     };
     let manifest: serde_json::Value =
         serde_json::from_str(include_str!("../../ffmpeg-binaries.json"))?;
@@ -221,16 +187,18 @@ fn mirror_source(os: &str, arch: &str) -> Result<Option<FfmpegSource>> {
             .ok_or_else(|| anyhow::anyhow!("Invalid FFmpeg manifest"))
     };
     let filename = field(&asset["filename"])?;
-    Ok(Some(FfmpegSource {
-        url: format!(
-            "{}/{}/{}",
-            field(&manifest["mirror"])?,
-            field(&manifest["version"])?,
-            filename
-        ),
-        filename,
-        sha256: Some(field(&asset["sha256"])?),
-    }))
+    let version = field(&manifest["version"])?;
+    let sha256 = field(&asset["sha256"])?;
+    ["upstream", "mirror"]
+        .into_iter()
+        .map(|endpoint| {
+            Ok(FfmpegSource {
+                url: format!("{}/{}/{}", field(&manifest[endpoint])?, version, filename),
+                filename: filename.clone(),
+                sha256: sha256.clone(),
+            })
+        })
+        .collect()
 }
 
 /// Probe the actual asset, including redirects, before entering the downloader's
@@ -264,7 +232,7 @@ async fn install_from_sources<R: Runtime>(
             &source.url,
             &source.filename,
             concurrency,
-            source.sha256.as_deref(),
+            &source.sha256,
         )
         .await
         {
@@ -313,7 +281,7 @@ async fn install_ffmpeg_in_dir<R: Runtime>(
     url: &str,
     filename: &str,
     segment_concurrency: usize,
-    expected_sha256: Option<&str>,
+    expected_sha256: &str,
 ) -> Result<bool> {
     // Create ffmpeg_root if it doesn't exist
     if !ffmpeg_root.exists() {
@@ -335,7 +303,7 @@ async fn install_ffmpeg_in_dir<R: Runtime>(
         None,
         true, // emit progress so the splash can show a download progress bar
         segment_concurrency,
-        // Throwaway health scope: the ffmpeg archive comes from github/evermeet
+        // Throwaway health scope: the ffmpeg archive comes from GitHub/npmmirror
         // hosts, which are outside the bilivideo.com substitution domain, so
         // sharing state would be meaningless here.
         std::sync::Arc::new(crate::utils::cdn_selector::HostHealth::new()),
@@ -345,13 +313,12 @@ async fn install_ffmpeg_in_dir<R: Runtime>(
         anyhow::bail!("FFmpeg download failed from {}: {}", url, error);
     }
 
-    if let Some(expected) = expected_sha256 {
-        let mut file = File::open(&archive_path)?;
-        let mut digest = Sha256::new();
-        std::io::copy(&mut file, &mut digest)?;
-        if format!("{:x}", digest.finalize()) != expected {
-            anyhow::bail!("FFmpeg checksum mismatch for {}", filename);
-        }
+    let mut file = File::open(&archive_path)?;
+    let mut digest = Sha256::new();
+    std::io::copy(&mut file, &mut digest)?;
+    drop(file);
+    if format!("{:x}", digest.finalize()) != expected_sha256 {
+        anyhow::bail!("FFmpeg checksum mismatch for {}", filename);
     }
 
     let is_unpacked = unpack_archive(&archive_path, ffmpeg_root).await?;
@@ -1317,7 +1284,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn mirror_assets_match_platform_and_have_pinned_checksums() {
+    fn all_download_sources_match_platform_and_have_pinned_checksums() {
         for (os, arch, name) in [
             ("windows", "x86_64", "ffmpeg-win32-x64.gz"),
             ("macos", "aarch64", "ffmpeg-darwin-arm64.gz"),
@@ -1325,12 +1292,26 @@ mod tests {
             ("linux", "x86_64", "ffmpeg-linux-x64.gz"),
             ("linux", "aarch64", "ffmpeg-linux-arm64.gz"),
         ] {
-            let source = mirror_source(os, arch).unwrap().unwrap();
-            assert_eq!(source.filename, name);
-            assert!(source.url.starts_with("https://registry.npmmirror.com/"));
-            assert_eq!(source.sha256.unwrap().len(), 64);
+            let sources = download_sources(os, arch).unwrap();
+            assert_eq!(sources.len(), 2);
+            assert_eq!(
+                sources[0].url,
+                format!(
+                    "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1.1/{name}"
+                )
+            );
+            assert_eq!(
+                sources[1].url,
+                format!("https://registry.npmmirror.com/-/binary/ffmpeg-static/b6.1.1/{name}")
+            );
+            for source in &sources {
+                assert_eq!(source.filename, name);
+                assert_eq!(source.sha256.len(), 64);
+                assert!(source.sha256.bytes().all(|byte| byte.is_ascii_hexdigit()));
+            }
+            assert_eq!(sources[0].sha256, sources[1].sha256);
         }
-        assert!(mirror_source("windows", "arm").unwrap().is_none());
+        assert!(download_sources("windows", "arm").unwrap().is_empty());
     }
 
     #[cfg(unix)]
@@ -1344,12 +1325,12 @@ mod tests {
             FfmpegSource {
                 url: format!("{}/blocked", server.uri()),
                 filename: "blocked.zip".into(),
-                sha256: None,
+                sha256: sha256.clone(),
             },
             FfmpegSource {
                 url: format!("{}/ffmpeg.zip", server.uri()),
                 filename: "ffmpeg.zip".into(),
-                sha256: Some(sha256),
+                sha256,
             },
         ];
         let app = tauri::test::mock_app();
@@ -1367,7 +1348,7 @@ mod tests {
         let sources = vec![FfmpegSource {
             url: format!("{}/ffmpeg.zip", server.uri()),
             filename: "ffmpeg.zip".into(),
-            sha256: Some("0".repeat(64)),
+            sha256: "0".repeat(64),
         }];
         let app = tauri::test::mock_app();
         let tmp = tempfile::tempdir().unwrap();
@@ -1377,6 +1358,47 @@ mod tests {
             .unwrap_err();
         assert!(error.to_string().contains("checksum mismatch"));
         assert!(!root.exists());
+    }
+
+    #[tokio::test]
+    async fn checksum_is_checked_before_archive_extraction() {
+        let server = wiremock::MockServer::start().await;
+        mount_archive(&server, fake_ffmpeg_zip(0)).await;
+        let tmp = tempfile::tempdir().unwrap();
+        let error = install_from_mock(&server, tmp.path(), &"0".repeat(64))
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("checksum mismatch"));
+        assert!(tmp.path().join("ffmpeg.zip").exists());
+        assert!(!tmp.path().join("padding.bin").exists());
+        assert!(!build_ffmpeg_bin_path(tmp.path()).exists());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn corrupt_primary_switches_to_verified_mirror() {
+        let primary = wiremock::MockServer::start().await;
+        let mirror = wiremock::MockServer::start().await;
+        mount_archive(&primary, fake_ffmpeg_zip(1)).await;
+        let body = fake_ffmpeg_zip(0);
+        let sha256 = format!("{:x}", Sha256::digest(&body));
+        mount_archive(&mirror, body).await;
+        let sources = [primary.uri(), mirror.uri()].map(|base| FfmpegSource {
+            url: format!("{base}/ffmpeg.zip"),
+            filename: "ffmpeg.zip".into(),
+            sha256: sha256.clone(),
+        });
+        let app = tauri::test::mock_app();
+        let tmp = tempfile::tempdir().unwrap();
+        assert!(install_from_sources(app.handle(), tmp.path(), &sources, 1)
+            .await
+            .unwrap());
+        assert!(!primary.received_requests().await.unwrap().is_empty());
+        assert!(!mirror.received_requests().await.unwrap().is_empty());
+        assert_eq!(
+            fs::read_to_string(build_ffmpeg_bin_path(tmp.path())).unwrap(),
+            "#!/bin/sh\nexit 0\n"
+        );
     }
 
     #[cfg(unix)]
@@ -1809,7 +1831,11 @@ mod tests {
 
     /// Drives `install_ffmpeg_in_dir` against a wiremock server serving
     /// `/ffmpeg.zip`, landing the install in `root`.
-    async fn install_from_mock(server: &wiremock::MockServer, root: &Path) -> anyhow::Result<bool> {
+    async fn install_from_mock(
+        server: &wiremock::MockServer,
+        root: &Path,
+        sha256: &str,
+    ) -> anyhow::Result<bool> {
         let app = tauri::test::mock_app();
         install_ffmpeg_in_dir(
             app.handle(),
@@ -1817,7 +1843,7 @@ mod tests {
             &format!("{}/ffmpeg.zip", server.uri()),
             "ffmpeg.zip",
             1,
-            None,
+            sha256,
         )
         .await
     }
@@ -1866,11 +1892,13 @@ mod tests {
     #[tokio::test]
     async fn install_ffmpeg_in_dir_downloads_unpacks_and_validates() {
         let server = wiremock::MockServer::start().await;
-        mount_archive(&server, fake_ffmpeg_zip(0)).await;
+        let body = fake_ffmpeg_zip(0);
+        let sha256 = format!("{:x}", Sha256::digest(&body));
+        mount_archive(&server, body).await;
 
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path().join("ffmpeg");
-        let ok = install_from_mock(&server, &root).await.unwrap();
+        let ok = install_from_mock(&server, &root, &sha256).await.unwrap();
 
         assert!(ok);
         let bin = build_ffmpeg_bin_path(&root);
@@ -1885,11 +1913,13 @@ mod tests {
     #[tokio::test]
     async fn install_ffmpeg_in_dir_invalid_binary_removes_root() {
         let server = wiremock::MockServer::start().await;
-        mount_archive(&server, fake_ffmpeg_zip(1)).await;
+        let body = fake_ffmpeg_zip(1);
+        let sha256 = format!("{:x}", Sha256::digest(&body));
+        mount_archive(&server, body).await;
 
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path().join("ffmpeg");
-        let ok = install_from_mock(&server, &root).await.unwrap();
+        let ok = install_from_mock(&server, &root, &sha256).await.unwrap();
 
         // Post-install validation failed: the whole tree is removed so the
         // next launch re-downloads from scratch (issue #440).
@@ -1904,7 +1934,9 @@ mod tests {
 
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path().join("ffmpeg");
-        let error = install_from_mock(&server, &root).await.unwrap_err();
+        let error = install_from_mock(&server, &root, &"0".repeat(64))
+            .await
+            .unwrap_err();
 
         assert!(error.to_string().contains("FFmpeg download failed"));
         assert!(

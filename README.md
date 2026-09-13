@@ -113,10 +113,9 @@ and remains available after an application update.
 FFmpeg setup probes the primary asset with a five-second timeout. If it is
 unreachable or installation fails, setup automatically tries the
 [npmmirror distribution](https://registry.npmmirror.com/binary.html?path=ffmpeg-static/).
-Downloads are served directly by its mainland China CDN. The mirror currently
-uses the pinned `ffmpeg-static` b6.1.1 assets, which can differ in version and
-codec coverage from the primary builds. Mirror assets are checked against
-upstream SHA-256 digests in `src-tauri/ffmpeg-binaries.json` before extraction;
+The primary GitHub source and mainland China CDN both serve the same pinned
+`ffmpeg-static` b6.1.1 asset for the native platform. Every download is checked
+against the upstream SHA-256 digest in `src-tauri/ffmpeg-binaries.json` before extraction;
 all installed binaries must pass a functional AAC encode probe.
 
 To package the ZIPs on Windows after `npm run tauri build -- --no-bundle`, run

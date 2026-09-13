@@ -108,8 +108,8 @@ Release 同时提供两个 Windows x64 ZIP：
 
 在线安装会用 5 秒超时检测主下载地址，主源不可达或安装失败时自动切换到
 [npmmirror 国内镜像](https://registry.npmmirror.com/binary.html?path=ffmpeg-static/)，由国内 CDN 直接提供文件。
-镜像使用固定的 `ffmpeg-static` b6.1.1 构建，与主源的版本和编解码器范围可能不同。
-下载后先按上游公布的 SHA-256 校验，再解压并执行 AAC 编码验证。
+GitHub 主源和国内镜像使用同一份固定的 `ffmpeg-static` b6.1.1 构建，并按本机系统和架构选择文件。
+所有下载都先按 `src-tauri/ffmpeg-binaries.json` 中上游公布的 SHA-256 校验，再解压并执行 AAC 编码验证。
 
 ## 贡献
 
