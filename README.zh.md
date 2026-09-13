@@ -74,7 +74,7 @@
 
 - **安全的凭证管理** - 二维码登录的凭证使用AES-256-GCM加密并本地存储。通过Argon2id密钥派生实现机器特定的保护。
 - **本地存储** - 下载的视频仅保存在您的电脑上
-- **无追踪** - 仅与 Bilibili API 和 GitHub（用于检查更新）通信，无遥测
+- **无追踪** - 使用 Bilibili API、GitHub 更新服务和 FFmpeg 安装下载源，无遥测
 
 ## 安装
 
@@ -92,6 +92,24 @@
 > ```bash
 > xattr -dr com.apple.quarantine "/Applications/bilibili-downloader-gui.app"
 > ```
+
+### 首次安装与 Windows ZIP 版本
+
+Windows 安装器支持选择安装语言。应用首次启动时，会在安装 FFmpeg 前让你选择默认语言，
+并按系统/浏览器语言预选；之后可在设置中修改。
+
+Release 同时提供两个 Windows x64 ZIP：
+
+- `Windows_x64-light.zip`：轻量版，首次启动时下载 FFmpeg。
+- `Windows_x64-with-ffmpeg.zip`：内置 FFmpeg 及其许可证、构建说明和源码链接，安装 FFmpeg 无需联网。
+
+请完整解压后运行。两种版本都需要 Microsoft Edge WebView2 Runtime，设置保存在应用数据目录。
+内置 FFmpeg 会复制到配置的库目录，之后更新应用仍可继续使用。
+
+在线安装会用 5 秒超时检测主下载地址，主源不可达或安装失败时自动切换到
+[npmmirror 国内镜像](https://registry.npmmirror.com/binary.html?path=ffmpeg-static/)，由国内 CDN 直接提供文件。
+镜像使用固定的 `ffmpeg-static` b6.1.1 构建，与主源的版本和编解码器范围可能不同。
+下载后先按上游公布的 SHA-256 校验，再解压并执行 AAC 编码验证。
 
 ## 贡献
 

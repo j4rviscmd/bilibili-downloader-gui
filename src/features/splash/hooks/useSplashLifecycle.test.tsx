@@ -43,6 +43,22 @@ async function flush(ms: number) {
 }
 
 describe('useSplashLifecycle', () => {
+  it('waits for first-run language selection before initializing', async () => {
+    settingsPayload(true)
+    let enabled = false
+    const { result, rerender } = renderHookWithStore(() =>
+      useSplashLifecycle(enabled),
+    )
+    await flush(2_100)
+    expect(mockInvoke).not.toHaveBeenCalledWith('initialize')
+    expect(result.current.phase).toBe('active')
+    enabled = true
+    rerender()
+    await flush(10)
+    expect(mockInvoke).toHaveBeenCalledWith('initialize')
+    expect(result.current.phase).toBe('done')
+  })
+
   it('normal mode: active → fading after initialize + font + MIN_DISPLAY', async () => {
     settingsPayload(false)
     const { result } = renderHookWithStore(() => useSplashLifecycle())

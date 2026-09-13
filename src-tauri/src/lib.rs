@@ -260,6 +260,7 @@ pub fn run() {
             // language is passed via the splash URL). Why block_on: setup is
             // synchronous but get_settings is async; this adds only a few ms
             // (reading the settings store) and runs before the splash appears.
+            let first_run = !crate::utils::paths::get_settings_path(app.handle()).exists();
             let settings = tauri::async_runtime::block_on(async {
                 crate::handlers::settings::get_settings(app.handle())
                     .await
@@ -291,9 +292,8 @@ pub fn run() {
             crate::handlers::concurrency::DOWNLOAD_SPEED_LIMITER
                 .set_bps(Settings::resolve_download_speed_limit_bps(&settings));
 
-            // Store settings into InitResult so initialize doesn't reload them
-            // (settings are already read here; initialize focuses on ffmpeg /
-            // session / user which actually take time).
+            // Seed InitResult before opening any windows. initialize refreshes
+            // it after first-run language selection, before FFmpeg setup.
             if let Some(ref s) = settings {
                 if let Some(state) = app.try_state::<std::sync::Mutex<init::InitResult>>() {
                     if let Ok(mut guard) = state.lock() {
@@ -324,7 +324,11 @@ pub fn run() {
                 // Create the splash window first. The main window is created by
                 // finish_splash once initialization completes, so the maximized
                 // restore never races a splash-time geometry lock.
-                window::create_splash_window(app.handle(), window_theme, language)?;
+                window::create_splash_window(
+                    app.handle(),
+                    window_theme,
+                    if first_run { None } else { language },
+                )?;
             }
 
             // Initialize logging plugin with app_data_dir/logs path

@@ -8,6 +8,7 @@ import { cn } from '@/shared/lib/utils'
 import { useSplashLifecycle } from '../hooks/useSplashLifecycle'
 import { useThreeScene } from '../hooks/useThreeScene'
 import { FADE_DURATION_MS } from '../lib/constants'
+import { SetupLanguage } from './SetupLanguage'
 
 /**
  * Standalone splash window content (Discord-style).
@@ -24,7 +25,10 @@ import { FADE_DURATION_MS } from '../lib/constants'
  * closes this window and creates the main window.
  */
 export function SplashScreen() {
-  const { phase, onFadeComplete, skipMode } = useSplashLifecycle()
+  const [needsLanguage, setNeedsLanguage] = useState(
+    () => new URLSearchParams(window.location.search).get('setup') === '1',
+  )
+  const { phase, onFadeComplete, skipMode } = useSplashLifecycle(!needsLanguage)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [stepLabel, setStepLabel] = useState<string>('')
   const [ffmpegProgress, setFfmpegProgress] = useState<number | null>(null)
@@ -59,6 +63,10 @@ export function SplashScreen() {
   }, [])
 
   if (phase === 'done') return null
+
+  if (needsLanguage) {
+    return <SetupLanguage onComplete={() => setNeedsLanguage(false)} />
+  }
 
   // Settings still loading: blank splash background to prevent a flash before
   // the 3D animation is ready to mount.

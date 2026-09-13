@@ -32,6 +32,19 @@
     "createUpdaterArtifacts": true,
     "active": true,
     "targets": "all",
+    "windows": {
+      "nsis": {
+        "languages": [
+          "English",
+          "SimpChinese",
+          "Japanese",
+          "Korean",
+          "Spanish",
+          "French"
+        ],
+        "displayLanguageSelector": true
+      }
+    },
     "macOS": {
       "signingIdentity": "-"
     },

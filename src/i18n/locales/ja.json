@@ -400,7 +400,11 @@
     "cookie_success": "Cookieの取得に成功しました",
     "cookie_failed": "Cookieの取得に失敗しました",
     "cleanup_in_progress": "一時ファイルをクリーンアップしています...",
-    "cleanup_completed": "{{deleted}}個の一時ファイルをクリーンアップしました（{{failed}}個失敗）"
+    "cleanup_completed": "{{deleted}}個の一時ファイルをクリーンアップしました（{{failed}}個失敗）",
+    "choose_language": "言語を選択",
+    "choose_language_description": "セットアップ前にアプリの言語を選択してください。後で設定から変更できます。",
+    "continue_setup": "続ける",
+    "language_save_failed": "言語を保存できませんでした。もう一度お試しください。"
   },
   "errorPage": {
     "title": "エラーが発生しました",

@@ -64,6 +64,13 @@ pub async fn initialize(app: AppHandle) -> Result<(), String> {
         return Ok(());
     }
 
+    // First-run language selection can update settings after setup created
+    // the splash. Hand the latest selection to the main window.
+    let settings = crate::handlers::settings::get_settings(&app).await?;
+    if let Ok(mut result) = app.state::<Mutex<InitResult>>().lock() {
+        result.settings = Some(settings);
+    }
+
     // 1. Clean up orphaned temp files from previous sessions.
     emit_step(&app, "init.cleanup_in_progress");
     let _ = cleanup::cleanup_temp_files(&app, None);
@@ -77,13 +84,18 @@ pub async fn initialize(app: AppHandle) -> Result<(), String> {
     let _ = history_session::recover_interrupted(&app);
 
     // 2. ffmpeg validate / install (heaviest step; downloads on first run).
-    //    Settings are already loaded in setup and stored in InitResult, so
-    //    they are not reloaded here.
+    //    The latest settings are stored in InitResult above.
     emit_step(&app, "init.checking_ffmpeg");
     let mut ffmpeg_success = ffmpeg::validate_ffmpeg(&app).await;
     if !ffmpeg_success {
         emit_step(&app, "init.installing_ffmpeg");
-        ffmpeg_success = ffmpeg::install_ffmpeg(&app).await.unwrap_or(false);
+        ffmpeg_success = match ffmpeg::install_ffmpeg(&app).await {
+            Ok(success) => success,
+            Err(error) => {
+                log::error!("[BE] FFmpeg installation failed: {error:#}");
+                false
+            }
+        };
     }
 
     // 3. Session restore. Honor the user-selected login method strictly (no

@@ -1,0 +1,33 @@
+name: Windows ZIP validation
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'scripts/package-windows.ps1'
+      - 'src-tauri/ffmpeg-binaries.json'
+      - 'src-tauri/src/handlers/ffmpeg.rs'
+      - '.github/workflows/windows-zips.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm ci
+      - run: npm run tauri build -- --no-bundle
+      - name: Build ZIP editions and validate bundled FFmpeg
+        shell: pwsh
+        run: ./scripts/package-windows.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-zip-editions
+          path: artifacts/windows/*.zip
