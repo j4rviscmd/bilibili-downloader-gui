@@ -21,7 +21,9 @@ export function ResolutionContent() {
       title={t('resolution.title')}
       description={t('resolution.description')}
     >
-      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto pt-2 pb-4 sm:pt-3 sm:pb-6">
+      {/* Why: pr-5 reserves space so the scrollbar gutter does not overlap
+          the flush-right edge of the form sections. */}
+      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto pt-2 pr-5 pb-4 sm:pt-3 sm:pb-6">
         <ResolutionForm />
       </div>
     </PageTemplate>

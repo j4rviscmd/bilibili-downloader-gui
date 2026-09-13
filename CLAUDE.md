@@ -89,6 +89,14 @@ the real logic into pure functions or test seams and test those:
   add per-file `vi.mock('@tauri-apps/api/core')`
 - Run `npm test` and `cargo test` before handing over for verification
 
+### External Processes (Windows Console Window)
+
+Every `Command::new` / `AsyncCommand::new` spawn **must set
+`CREATE_NO_WINDOW`** — follow the existing pattern in
+`src-tauri/src/handlers/` (e.g. `gif.rs`). Without it a console window
+pops up on Windows release builds only; dev builds and Ubuntu CI cannot
+catch this.
+
 ### Code Comments
 
 **Write all code comments in English.** This includes inline `//`

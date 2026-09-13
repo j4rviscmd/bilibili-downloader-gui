@@ -67,7 +67,9 @@ export function ConcatForm() {
           // min-h-0 makes this region refuse to shrink, so `overflow-y-auto`
           // never fires, the section grows unbounded, and the output/action
           // rows get pushed off-screen (the original #461 symptom).
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          // Why: pr-5 reserves space so the scrollbar gutter does not
+          // overlap the flush-right edge of the file rows.
+          <div className="min-h-0 flex-1 overflow-y-auto pr-5">
             <FileList
               files={files}
               isProcessing={isConcatting}

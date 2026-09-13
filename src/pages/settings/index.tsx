@@ -100,7 +100,9 @@ export function SettingsContent() {
     >
       <div className="flex min-h-0 flex-1 gap-6 pt-2 pb-4 sm:pt-3 sm:pb-6">
         <CategoryNav active={category} onSelect={setCategory} />
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        {/* Why: pr-5 reserves space so the scrollbar gutter does not overlap
+            the flush-right edge of the settings sections. */}
+        <div className="min-h-0 flex-1 overflow-y-auto pr-5">
           <Section />
         </div>
       </div>
