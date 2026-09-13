@@ -310,4 +310,56 @@ describe('useGif', () => {
     expect(result.current.status).toBe('idle')
     expect(result.current.progress).toBeNull()
   })
+
+  it('offers a *_clip.gif default name for an extension-less input', async () => {
+    const { result } = renderHook(() => useGif(), { wrapper })
+    mockOpen.mockResolvedValueOnce('/x/movie')
+    await act(async () => {
+      await result.current.handleBrowse()
+    })
+
+    mockSave.mockResolvedValueOnce('/o/out.gif')
+    await act(async () => {
+      await result.current.handleChooseOutput()
+    })
+
+    expect(mockSave).toHaveBeenCalledWith(
+      expect.objectContaining({ defaultPath: 'movie_clip.gif' }),
+    )
+  })
+
+  it('setFormat appends the extension when the picked output has none', async () => {
+    const { result } = renderHook(() => useGif(), { wrapper })
+    await pickPaths(result, '/x/movie.mp4', '/o/out-noext')
+
+    act(() => {
+      result.current.setFormat('webm')
+    })
+
+    expect(result.current.outputPath).toBe('/o/out-noext.webm')
+  })
+
+  it('reveal swallows a backend error instead of rejecting', async () => {
+    mockCommands({ reveal_in_folder: new Error('opener failed') })
+    const { result } = renderHook(() => useGif(), { wrapper })
+    await pickPaths(result)
+
+    // Must resolve (error is logged, not thrown)
+    await act(async () => {
+      await result.current.handleReveal()
+    })
+  })
+
+  it('setFormat still updates locally when patch_settings fails', async () => {
+    mockCommands({ patch_settings: new Error('disk full') })
+    const { result } = renderHook(() => useGif(), { wrapper })
+    await pickPaths(result)
+
+    act(() => {
+      result.current.setFormat('webm')
+    })
+
+    expect(result.current.format).toBe('webm')
+    expect(store.getState().settings.gifFormat).toBe('webm')
+  })
 })

@@ -1,6 +1,7 @@
 import { SettingField } from '@/features/settings/ui/SettingRow'
 import { SettingToggleGroup } from '@/features/settings/ui/SettingToggleGroup'
 import { useSettings } from '@/features/settings/useSettings'
+import { Separator } from '@/shared/ui/separator'
 import { useTranslation } from 'react-i18next'
 
 /**
@@ -43,6 +44,7 @@ export function ToolDefaultsSection() {
           options={copyReencodeChoices('trim_mode', 'trim')}
         />
       </SettingField>
+      <Separator />
       <SettingField
         label={t('settings.audio_format_label')}
         description={t('settings.audio_format_description')}
@@ -58,6 +60,7 @@ export function ToolDefaultsSection() {
           ]}
         />
       </SettingField>
+      <Separator />
       <SettingField
         label={t('settings.gif_format_label')}
         description={t('settings.gif_format_description')}
@@ -73,6 +76,7 @@ export function ToolDefaultsSection() {
           ]}
         />
       </SettingField>
+      <Separator />
       <SettingField
         label={t('settings.rotation_mode_label')}
         description={t('settings.rotation_mode_description')}

@@ -162,6 +162,33 @@ describe('GifContent (page + GifForm wiring)', () => {
     expect(screen.getByText(/gif\.remaining/)).toHaveTextContent('2:05')
     expect(screen.getByText('gif.generating')).toBeInTheDocument()
   })
+
+  it('renders progress without a remaining estimate when unavailable', () => {
+    vi.mocked(useGif).mockReturnValue(
+      createMockUseGif({
+        status: 'generating',
+        progress: { progress: 1, currentTimeSec: 0, totalDurationSec: 0 },
+        elapsedSec: 3,
+        remainingSec: null,
+      }),
+    )
+
+    renderWithProviders(<GifContent />, { route: '/gif' })
+
+    expect(screen.getByText('1%')).toBeInTheDocument()
+    expect(screen.getByText(/gif\.elapsed/)).toHaveTextContent('0:03')
+    expect(screen.queryByText(/gif\.remaining/)).not.toBeInTheDocument()
+  })
+
+  it('renders the empty-start range error key from the hook', () => {
+    vi.mocked(useGif).mockReturnValue(
+      createMockUseGif({ rangeError: 'empty_start' }),
+    )
+
+    renderWithProviders(<GifContent />, { route: '/gif' })
+
+    expect(screen.getByText('gif.error.empty_start')).toBeInTheDocument()
+  })
 })
 
 describe('formatDuration (gif)', () => {

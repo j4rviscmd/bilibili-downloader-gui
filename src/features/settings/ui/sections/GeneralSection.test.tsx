@@ -112,4 +112,13 @@ describe('GeneralSection', () => {
 
     await waitFor(() => expect(lastSetSettings()).toMatchObject(expected))
   })
+
+  it('renders one divider per group boundary', () => {
+    seedSettings()
+    const { container } = renderWithProviders(<GeneralSection />)
+
+    expect(container.querySelectorAll('[data-slot="separator"]')).toHaveLength(
+      1,
+    )
+  })
 })
