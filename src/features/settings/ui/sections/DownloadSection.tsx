@@ -20,6 +20,7 @@ import {
 } from '@/shared/animate-ui/radix/tooltip'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
+import { Separator } from '@/shared/ui/separator'
 import { Switch } from '@/shared/ui/switch'
 import { Info } from 'lucide-react'
 import { useState } from 'react'
@@ -114,6 +115,9 @@ export function DownloadSection() {
           {t('settings.output_dir_description')}
         </p>
       </SettingField>
+      {/* Why: one separator per group boundary, not per item — issue #693 allows
+          adjacent settings in the same group to go undivided */}
+      <Separator />
       <SettingField
         label={
           <span className="flex items-center gap-2">
@@ -144,6 +148,7 @@ export function DownloadSection() {
           }))}
         />
       </SettingField>
+      <Separator />
       <SettingRow
         label={t('settings.auto_rename_duplicates_label')}
         description={t('settings.auto_rename_duplicates_description')}
@@ -174,6 +179,7 @@ export function DownloadSection() {
           }}
         />
       </SettingRow>
+      <Separator />
       {/* id is the deep-link anchor for /settings?category=download&anchor=
           speed-limit (the download status bar's limit link, issue #421). */}
       <div id="setting-speed-limit">
@@ -217,7 +223,11 @@ export function DownloadSection() {
           )}
         </SettingField>
       )}
+      {/* The speed-limit pair (anchor row + conditional value field) stays
+          together between the surrounding separators. */}
+      <Separator />
       <TitleReplacementSettings />
+      <Separator />
       <SettingField
         label={t('settings.video_codec_priority_label')}
         description={t('settings.video_codec_priority_description')}

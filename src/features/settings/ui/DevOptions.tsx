@@ -4,6 +4,7 @@ import { useSettings } from '@/features/settings/useSettings'
 import { useUser } from '@/features/user'
 import { logger } from '@/shared/lib/logger'
 
+import { Separator } from '@/shared/ui/separator'
 import { Switch } from '@/shared/ui/switch'
 import { invoke } from '@tauri-apps/api/core'
 import { useTranslation } from 'react-i18next'
@@ -89,6 +90,7 @@ export function DevOptions() {
           onCheckedChange={handleToggleDevtools}
         />
       </SettingRow>
+      <Separator />
       <SettingRow
         label={t('settings.dev_options.enable_dev_updater')}
         htmlFor="enable-dev-updater"
@@ -100,6 +102,7 @@ export function DevOptions() {
           onCheckedChange={handleToggleDevUpdater}
         />
       </SettingRow>
+      <Separator />
       <SettingRow
         label={t('settings.dev_options.simulate_logout')}
         htmlFor="simulate-logout"

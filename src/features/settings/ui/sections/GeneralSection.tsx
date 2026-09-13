@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/shared/ui/select'
+import { Separator } from '@/shared/ui/separator'
 import { Switch } from '@/shared/ui/switch'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -115,6 +116,7 @@ export function GeneralSection() {
           </span>
         </div>
       </div>
+      <Separator />
       <SettingRow
         label={t('settings.show_github_stars_label')}
         description={t('settings.show_github_stars_description')}
