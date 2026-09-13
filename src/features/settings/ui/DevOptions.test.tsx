@@ -142,4 +142,12 @@ describe('DevOptions', () => {
       patch: { enableDevUpdater: true },
     })
   })
+
+  it('renders one divider between each of the three options', () => {
+    const { container } = renderWithProviders(<DevOptions />)
+
+    expect(container.querySelectorAll('[data-slot="separator"]')).toHaveLength(
+      2,
+    )
+  })
 })

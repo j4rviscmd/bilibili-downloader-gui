@@ -326,6 +326,15 @@ describe('DownloadSection', () => {
       }),
     )
   })
+
+  it('renders one divider per group boundary', () => {
+    seedSettings()
+    const { container } = renderWithProviders(<DownloadSection />)
+
+    expect(container.querySelectorAll('[data-slot="separator"]')).toHaveLength(
+      5,
+    )
+  })
 })
 
 /** Mirrors DEFAULT_RULES in TitleReplacementSettings (backend defaults). */
