@@ -512,6 +512,69 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn generate_animation_with_ffmpeg_rejects_missing_input() {
+        let dir = tempfile::tempdir().unwrap();
+        let output = dir.path().join("out.gif");
+        // Input path does not exist on disk — validation must reject before
+        // any spawn attempt.
+        let options = gif_e2e_options(
+            &dir.path().join("missing.mp4").to_string_lossy(),
+            &output.to_string_lossy(),
+        );
+
+        let app = tauri::test::mock_app();
+        let err = generate_animation_with_ffmpeg(
+            &dir.path().join("nonexistent-ffmpeg"),
+            app.handle(),
+            &options,
+        )
+        .await
+        .unwrap_err();
+        assert!(err.starts_with("ERR::GIF_INPUT_NOT_FOUND"), "got: {err}");
+    }
+
+    #[tokio::test]
+    async fn generate_animation_with_ffmpeg_rejects_non_mp4_input() {
+        let dir = tempfile::tempdir().unwrap();
+        let input = gif_fixture(dir.path(), "in.txt");
+        let output = dir.path().join("out.gif");
+        let options = gif_e2e_options(&input, &output.to_string_lossy());
+
+        let app = tauri::test::mock_app();
+        let err = generate_animation_with_ffmpeg(
+            &dir.path().join("nonexistent-ffmpeg"),
+            app.handle(),
+            &options,
+        )
+        .await
+        .unwrap_err();
+        assert!(err.starts_with("ERR::GIF_UNSUPPORTED_FORMAT"), "got: {err}");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn generate_animation_with_ffmpeg_rejects_same_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let input = gif_fixture(dir.path(), "in.mp4");
+        // The extension check runs before the same-file guard, so reaching
+        // the same-file rejection needs a .gif-suffixed path that resolves
+        // to the input: a symlink does exactly that.
+        let link = dir.path().join("link.gif");
+        std::os::unix::fs::symlink(&input, &link).unwrap();
+        let options = gif_e2e_options(&input, &link.to_string_lossy());
+
+        let app = tauri::test::mock_app();
+        let err = generate_animation_with_ffmpeg(
+            &dir.path().join("nonexistent-ffmpeg"),
+            app.handle(),
+            &options,
+        )
+        .await
+        .unwrap_err();
+        assert!(err.starts_with("ERR::GIF_SAME_PATH"), "got: {err}");
+    }
+
+    #[tokio::test]
     async fn generate_animation_with_ffmpeg_rejects_extension_mismatch() {
         let dir = tempfile::tempdir().unwrap();
         let input = gif_fixture(dir.path(), "in.mp4");
