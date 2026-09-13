@@ -3,7 +3,6 @@ import { useTaskbarProgress } from '@/features/notifications/hooks/useTaskbarPro
 import { setSettings } from '@/features/settings/settingsSlice'
 import type { Settings } from '@/features/settings/type'
 import { setProgress } from '@/shared/progress/progressSlice'
-import { clearQueue, enqueue } from '@/shared/queue/queueSlice'
 import { getCurrentWindow, ProgressBarStatus } from '@tauri-apps/api/window'
 import { error as logError } from '@tauri-apps/plugin-log'
 import { renderHook, waitFor } from '@testing-library/react'
@@ -15,6 +14,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // vi.fn the hook invokes.
 const mockSetProgressBar = getCurrentWindow()
   .setProgressBar as unknown as ReturnType<typeof vi.fn>
+
+import { resetQueue, seedSession } from '@/test/test-utils'
 
 const baselineSettings: Settings = {
   dlOutputPath: '',
@@ -36,7 +37,7 @@ const wrapper = ({ children }: { children: ReactNode }) => (
 describe('useTaskbarProgress', () => {
   beforeEach(() => {
     store.dispatch(setSettings(baselineSettings))
-    store.dispatch(clearQueue())
+    resetQueue()
     mockSetProgressBar.mockClear()
   })
   afterEach(() => {
@@ -51,29 +52,19 @@ describe('useTaskbarProgress', () => {
   })
 
   it('shows the progress bar while a child download is running', () => {
-    store.dispatch(
-      enqueue({
-        downloadId: 'parent-1-p1',
-        parentId: 'parent-1',
-        status: 'running',
-      }),
-    )
+    seedSession('BVtaskbar1', [{ partIndex: 1, cid: 1, status: 'running' }])
     renderHook(() => useTaskbarProgress(), { wrapper })
     // No progress entries yet, so overallRatio is 0, but the bar is shown.
     expect(mockSetProgressBar).toHaveBeenCalledWith({ progress: 0 })
   })
 
   it('reflects the computed overall ratio in the bar', () => {
-    store.dispatch(
-      enqueue({
-        downloadId: 'parent-1-p1',
-        parentId: 'parent-1',
-        status: 'running',
-      }),
-    )
+    const parentId = seedSession('BVtaskbar2', [
+      { partIndex: 1, cid: 1, status: 'running' },
+    ])
     store.dispatch(
       setProgress({
-        downloadId: 'parent-1-p1',
+        downloadId: `${parentId}-p1`,
         stage: 'audio',
         percentage: 50,
         deltaTime: 1,
@@ -106,13 +97,7 @@ describe('useTaskbarProgress', () => {
     store.dispatch(
       setSettings({ ...baselineSettings, showTaskbarProgress: false }),
     )
-    store.dispatch(
-      enqueue({
-        downloadId: 'parent-1-p1',
-        parentId: 'parent-1',
-        status: 'running',
-      }),
-    )
+    seedSession('BVtaskbar3', [{ partIndex: 1, cid: 1, status: 'running' }])
     renderHook(() => useTaskbarProgress(), { wrapper })
     expect(mockSetProgressBar).toHaveBeenCalledWith({
       status: ProgressBarStatus.None,

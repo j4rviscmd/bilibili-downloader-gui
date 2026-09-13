@@ -38,7 +38,7 @@ Sin anuncios, sin seguimiento. 100% gratis.
 - **Soporte de Bangumi (anime y series)** - Descarga episodios de anime y series además de videos regulares
 - **Guardado por lotes de videos multiparte** - Descarga automáticamente todas las partes de cursos, series, etc.
 - **Descargas rápidas y estables** - Cambio automático de CDN con reintento automático ante errores de red
-- **Procesamiento en segundo plano** - Gestión de cola con progreso en tiempo real
+- **Cola de descargas** - Sigue buscando y añadiendo descargas mientras se ejecutan; una cola serial (FIFO) se procesa en la página de descargas con una barra de progreso inferior
 - **Incrustación de subtítulos** - Selección de subtítulos blandos/duros con soporte multiidioma y subtítulos con IA
 - **Audio de alta resolución** - Compatible con Dolby Atmos y Hi-Res Lossless
 

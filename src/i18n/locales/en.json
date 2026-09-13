@@ -21,7 +21,8 @@
     "copy": "Copy"
   },
   "nav": {
-    "home": "Home",
+    "search": "Search",
+    "downloads": "Downloads",
     "downloadHistory": "Download History",
     "watchHistory": "Watch History",
     "favorite": "Favorites",
@@ -36,7 +37,8 @@
     },
     "aria": {
       "mainNavigation": "Main navigation",
-      "home": "Navigate to download page",
+      "search": "Navigate to search page",
+      "downloads": "Navigate to downloads page",
       "downloadHistory": "Navigate to download history",
       "watchHistory": "Navigate to watch history",
       "favorite": "Navigate to favorites page",
@@ -780,6 +782,15 @@
     "status_cancelling": "Cancelling",
     "status_cancelled": "Cancelled",
     "status_error": "Error"
+  },
+  "queue": {
+    "title": "Downloads",
+    "description": "Queued downloads run here one by one, in order.",
+    "empty": "No downloads in the queue.\nSearch for a video and press Download — it will appear here.",
+    "clear_finished": "Clear Finished",
+    "parts_completed": "{{completed}}/{{total}} parts",
+    "duplicates_excluded": "{{count}} part(s) are already in the download queue and were not added again.",
+    "open_downloads": "Open the downloads page"
   },
   "audio": {
     "title": "Audio Extraction",

@@ -15,8 +15,11 @@ vi.mock('@/pages/init', () => ({
 vi.mock('@/pages/error', () => ({
   default: () => <div>page:error</div>,
 }))
-vi.mock('@/pages/home', () => ({
-  HomeContent: () => <div>page:home</div>,
+vi.mock('@/pages/search', () => ({
+  SearchContent: () => <div>page:search</div>,
+}))
+vi.mock('@/pages/downloads', () => ({
+  DownloadsContent: () => <div>page:downloads</div>,
 }))
 vi.mock('@/pages/history', () => ({
   HistoryContent: () => <div>page:history</div>,
@@ -67,7 +70,8 @@ describe('App routing', () => {
     ['/', 'page:index'],
     ['/init', 'page:init'],
     ['/error', 'page:error'],
-    ['/home', 'page:home'],
+    ['/search', 'page:search'],
+    ['/downloads', 'page:downloads'],
     ['/history', 'page:history'],
     ['/favorite', 'page:favorite'],
     ['/watch-history', 'page:watch-history'],
@@ -81,10 +85,10 @@ describe('App routing', () => {
     expectVisible(marker)
   })
 
-  it('redirects unknown persistent paths to /home', () => {
+  it('redirects unknown persistent paths to /search', () => {
     renderWithProviders(<App />, { route: '/does-not-exist' })
 
-    expect(screen.getByText('page:home')).toBeInTheDocument()
+    expect(screen.getByText('page:search')).toBeInTheDocument()
     expect(screen.queryByText('page:index')).not.toBeInTheDocument()
   })
 })

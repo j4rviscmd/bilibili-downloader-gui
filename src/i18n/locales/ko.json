@@ -21,7 +21,8 @@
     "copy": "복사"
   },
   "nav": {
-    "home": "홈",
+    "search": "검색",
+    "downloads": "다운로드",
     "downloadHistory": "다운로드 기록",
     "watchHistory": "시청 기록",
     "favorite": "즐겨찾기",
@@ -36,7 +37,8 @@
     },
     "aria": {
       "mainNavigation": "메인 내비게이션",
-      "home": "다운로드 페이지로 이동",
+      "search": "검색 페이지로 이동",
+      "downloads": "다운로드 페이지로 이동",
       "downloadHistory": "다운로드 기록 페이지로 이동",
       "watchHistory": "시청 기록으로 이동",
       "favorite": "즐겨찾기 페이지로 이동",
@@ -780,6 +782,15 @@
     "status_error": "오류",
     "speed_limit_tooltip": "속도 제한이 활성화되어 있습니다. 클릭하여 설정을 엽니다. 변경 사항은 진행 중인 다운로드에 즉시 반영되며 이 앱 인스턴스에만 적용됩니다.",
     "speed_limit_set": "속도 제한 설정"
+  },
+  "queue": {
+    "title": "다운로드",
+    "description": "대기열의 다운로드가 순서대로 하나씩 실행됩니다.",
+    "empty": "대기열에 다운로드가 없습니다.\n동영상을 검색하고 다운로드 버튼을 누르면 여기에 추가됩니다.",
+    "clear_finished": "완료 항목 삭제",
+    "parts_completed": "{{completed}}/{{total}}개 파트",
+    "duplicates_excluded": "{{count}}개 파트는 이미 다운로드 대기열에 있어 추가하지 않았습니다.",
+    "open_downloads": "다운로드 페이지 열기"
   },
   "audio": {
     "title": "오디오 추출",

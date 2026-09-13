@@ -131,13 +131,15 @@ describe('SettingsContent', () => {
           <div style={{ display: pathname === '/settings' ? 'block' : 'none' }}>
             <SettingsContent />
           </div>
-          {pathname === '/home' && <Link to="/settings">back-to-settings</Link>}
-          {pathname === '/settings' && <Link to="/home">go-home</Link>}
+          {pathname === '/search' && (
+            <Link to="/settings">back-to-settings</Link>
+          )}
+          {pathname === '/settings' && <Link to="/search">go-search</Link>}
         </>
       )
     }
 
-    const { user } = renderWithProviders(<Harness />, { route: '/home' })
+    const { user } = renderWithProviders(<Harness />, { route: '/search' })
     expect(mockInvoke).not.toHaveBeenCalledWith('get_settings')
 
     // First arrival at /settings: the page becomes visible → refresh (1).
@@ -145,7 +147,7 @@ describe('SettingsContent', () => {
     await waitFor(() => expect(mockInvoke).toHaveBeenCalledWith('get_settings'))
 
     // Leave and come back → refresh fires again (2), no remount involved.
-    await user.click(screen.getByText('go-home'))
+    await user.click(screen.getByText('go-search'))
     await user.click(screen.getByText('back-to-settings'))
     await waitFor(() =>
       expect(

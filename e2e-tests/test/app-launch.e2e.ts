@@ -4,7 +4,7 @@
  * Covers the core user flow:
  * - App launch from uninitialized state
  * - Initialization sequence (settings, ffmpeg, cookies)
- * - Navigation to /home
+ * - Navigation to /search
  * - Sidebar verification
  * - Settings dialog open/close
  * - Video URL input and info fetch (backend serves a bundled fixture
@@ -87,7 +87,7 @@ describe('bilibili-downloader-gui E2E', () => {
     await waitForMainUI()
 
     const currentUrl = await browser.getUrl()
-    expect(currentUrl).to.include('/home')
+    expect(currentUrl).to.include('/search')
 
     await saveScreenshot('launch', '01-home-loaded')
   })
@@ -270,7 +270,7 @@ describe('bilibili-downloader-gui E2E', () => {
 
     // Session-active proof: the status bar exists exactly while downloads
     // are in flight (AnimatedSection unmounts it once settled).
-    const bar = await browser.$(S.DOWNLOAD_STATUS_BAR)
+    const bar = await browser.$(S.QUEUE_BOTTOM_BAR)
     await bar.waitForExist({ timeout: 30_000 })
 
     await saveScreenshot('download', '00-session-started')
@@ -281,21 +281,21 @@ describe('bilibili-downloader-gui E2E', () => {
     // NOTE: not asserting the mid-session compact "done" row — localhost
     // fixtures finish a part in well under a second, so that DOM window is
     // a race by design (see the session-start screenshot instead).
-    const bar = await browser.$(S.DOWNLOAD_STATUS_BAR)
+    const bar = await browser.$(S.QUEUE_BOTTOM_BAR)
     await bar.waitForExist({ timeout: 90_000, reverse: true })
 
-    // Durable terminal signal: the full-card complete blocks persist after
-    // the compact rows revert (compact rows unmount on settle by design).
+    // Durable terminal signal: the part cards' queue badges settle on
+    // data-status="done" (the cards carry no progress detail by design —
+    // issue #691; stage detail lives on /downloads).
     await browser.waitUntil(
       async () => {
-        const blocks = await browser.$$(S.PART_COMPLETE)
-        // ElementArray.length is typed Promise<number> in wdio v9
-        return (await blocks.length) === 3
+        const done = await browser.$$('[data-status="done"]')
+        return (await done.length) === 3
       },
       {
         timeout: 30_000,
         interval: 500,
-        timeoutMsg: 'expected 3 completed-part indicators',
+        timeoutMsg: 'expected 3 completed-part badges',
       },
     )
 

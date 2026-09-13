@@ -10,7 +10,6 @@
 // The store must load before videoApi to break the circular import
 // (store registers the api middleware, api imports the store).
 import { store } from '@/app/store'
-import { downloadVideo } from '@/features/video/api/downloadVideo'
 import { videoApi } from '@/features/video/api/videoApi'
 import {
   resetInput,
@@ -21,9 +20,13 @@ import {
 import { resetVideo } from '@/features/video/model/videoSlice'
 import { clearError as clearDownloadError } from '@/shared/downloadStatus/downloadStatusSlice'
 import { clearProgress } from '@/shared/progress/progressSlice'
-import { clearQueue, enqueue } from '@/shared/queue'
 import { toast } from '@/shared/ui/toast'
-import { mockInvoke, renderWithProviders } from '@/test/test-utils'
+import {
+  mockInvoke,
+  renderWithProviders,
+  resetQueue,
+  seedSession,
+} from '@/test/test-utils'
 import { act, waitFor } from '@testing-library/react'
 import type { Mock } from 'vitest'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -35,16 +38,12 @@ import {
   type VideoInfoContextValue,
 } from './VideoInfoContext'
 
-vi.mock('@/features/video/api/downloadVideo', () => ({
-  downloadVideo: vi.fn().mockResolvedValue(undefined),
-}))
-
 vi.mock('@/shared/ui/toast', () => ({
   toast: { info: vi.fn(), warning: vi.fn(), error: vi.fn(), success: vi.fn() },
 }))
 
-const downloadVideoMock = downloadVideo as unknown as Mock
 const toastError = toast.error as unknown as Mock
+const toastInfo = toast.info as unknown as Mock
 
 const VIDEO_URL = 'https://www.bilibili.com/video/BV1xx411c7XD'
 const BANGUMI_URL = 'https://www.bilibili.com/bangumi/play/ep3051843'
@@ -129,10 +128,9 @@ beforeEach(() => {
   store.dispatch(videoApi.util.resetApiState())
   store.dispatch(resetInput())
   store.dispatch(resetVideo())
-  store.dispatch(clearQueue())
+  resetQueue()
   store.dispatch(clearProgress())
   store.dispatch(clearDownloadError())
-  downloadVideoMock.mockResolvedValue(undefined)
   mockInvoke.mockImplementation((cmd: string) => {
     if (cmd === 'fetch_video_info') return Promise.resolve(videoPayload)
     if (cmd === 'fetch_bangumi_info') return Promise.resolve(bangumiPayload)
@@ -508,7 +506,7 @@ describe('download', () => {
     store.dispatch(updatePartSelected({ index: 1, selected: false }))
   }
 
-  it('enqueues parent and children, opens the dialog and awaits downloadVideo', async () => {
+  it('enqueues one session with a snapshotted payload (issue #691)', async () => {
     await setupForDownload()
 
     await act(async () => {
@@ -516,9 +514,11 @@ describe('download', () => {
     })
 
     const queue = store.getState().queue
-    const parent = queue.find((q) => !q.parentId)
+    const parent = queue.find((q) => q.kind === 'parent')
     expect(parent).toMatchObject({
-      filename: 'Test Video',
+      kind: 'parent',
+      videoId: 'BV1xx411c7XD',
+      title: 'Test Video',
       status: 'pending',
     })
     expect(parent?.downloadId).toMatch(/^BV1xx411c7XD-[0-9a-f-]+$/)
@@ -527,26 +527,29 @@ describe('download', () => {
     expect(children).toHaveLength(1)
     expect(children[0]).toMatchObject({
       downloadId: `${parent?.downloadId}-p1`,
-      filename: 'Custom name',
+      kind: 'part',
+      cid: 100,
+      partIndex: 1,
+      title: 'Custom name',
       status: 'pending',
+      videoId: 'BV1xx411c7XD',
     })
-
-    expect(downloadVideoMock).toHaveBeenCalledTimes(1)
-    expect(downloadVideoMock).toHaveBeenCalledWith(
-      'BV1xx411c7XD',
-      100,
-      'Custom name',
-      80,
-      30216,
-      `${parent?.downloadId}-p1`,
-      parent?.downloadId,
-      60,
-      'thumb',
-      1,
-      { mode: 'off', selectedLans: [] },
-      undefined,
-      undefined,
-    )
+    // The backend invocation snapshot carries the selected settings.
+    expect(children[0].payload).toMatchObject({
+      videoId: 'BV1xx411c7XD',
+      cid: 100,
+      filename: 'Custom name',
+      quality: 80,
+      audioQuality: 30216,
+      durationSeconds: 60,
+      thumbnailUrl: 'thumb',
+      page: 1,
+      epId: null,
+    })
+    expect(children[0].expectedStages).toEqual({
+      audioStage: true,
+      mergeStage: true,
+    })
   })
 
   it('is a no-op while form 1 is invalid', async () => {
@@ -560,114 +563,46 @@ describe('download', () => {
       await ctx.download()
     })
 
-    expect(downloadVideoMock).not.toHaveBeenCalled()
     expect(store.getState().queue).toHaveLength(0)
   })
 
-  it('clears stale finished items for the same part numbers before starting', async () => {
+  it('keeps a prior finished session and appends the new one (latest wins)', async () => {
     await setupForDownload()
-    // A prior session's finished child for part 1 (different parent id).
-    store.dispatch(
-      enqueue({
-        downloadId: 'old-parent-p1',
-        parentId: 'old-parent',
-        status: 'done',
-      }),
-    )
+    // A prior session's finished child for the same videoId+cid.
+    const oldParent = seedSession('BV1xx411c7XD', [
+      { partIndex: 1, cid: 100, status: 'done' },
+    ])
 
     await act(async () => {
       await ctx.download()
     })
 
-    expect(
-      store.getState().queue.find((q) => q.downloadId === 'old-parent-p1'),
-    ).toBeUndefined()
+    const queue = store.getState().queue
+    // Old items survive (visible on /downloads until cleared)…
+    expect(queue.find((q) => q.downloadId === `${oldParent}-p1`)).toBeDefined()
+    // …and the new session lands as a second parent.
+    const parents = queue.filter((q) => q.kind === 'parent')
+    expect(parents).toHaveLength(2)
+    expect(parents[parents.length - 1].status).toBe('pending')
   })
 
-  it('skips a per-part cancel silently and continues to the next part', async () => {
-    renderProvider()
-    await act(async () => {
-      await ctx.onValid1(VIDEO_URL)
-    })
-    act(() => {
-      ctx.onValid2(0, 'First part', '80', '30216')
-      ctx.onValid2(1, 'Second part', '80', '30216')
-    })
-    store.dispatch(updatePartSelected({ index: 1, selected: true }))
-
-    downloadVideoMock.mockRejectedValueOnce(new Error('ERR::CANCELLED'))
-
-    await act(async () => {
-      await ctx.download()
-    })
-
-    // Both parts attempted; the cancelled part produced no toast.
-    expect(downloadVideoMock).toHaveBeenCalledTimes(2)
-    expect(toastError).not.toHaveBeenCalled()
-  })
-
-  it('toasts with a retry hint for a transient network failure and continues', async () => {
-    renderProvider()
-    await act(async () => {
-      await ctx.onValid1(VIDEO_URL)
-    })
-    act(() => {
-      ctx.onValid2(0, 'First part', '80', '30216')
-      ctx.onValid2(1, 'Second part', '80', '30216')
-    })
-    store.dispatch(updatePartSelected({ index: 1, selected: true }))
-
-    downloadVideoMock.mockRejectedValueOnce(new Error('ERR::NETWORK::down'))
-
-    await act(async () => {
-      await ctx.download()
-    })
-
-    expect(downloadVideoMock).toHaveBeenCalledTimes(2)
-    await waitFor(() =>
-      expect(toastError).toHaveBeenCalledWith(
-        'video.download_failed',
-        expect.objectContaining({ duration: Infinity }),
-      ),
-    )
-    const call = toastError.mock.calls.find(
-      ([t]) => t === 'video.download_failed',
-    )
-    expect(call?.[1].description).toContain('video.retry_hint')
-  })
-
-  it('toasts the mapped message for a non-transient failure', async () => {
+  it('excludes parts already active in the queue and toasts the count', async () => {
     await setupForDownload()
-    downloadVideoMock.mockRejectedValueOnce(new Error('ERR::DISK_FULL'))
+    // Same videoId+cid already pending in another session.
+    seedSession('BV1xx411c7XD', [{ partIndex: 1, cid: 100, status: 'pending' }])
 
     await act(async () => {
       await ctx.download()
     })
 
-    await waitFor(() =>
-      expect(toastError).toHaveBeenCalledWith(
-        'video.download_failed',
-        expect.anything(),
-      ),
+    // Only ONE session for this video is pending-new: the fresh enqueue was
+    // fully excluded (the single selected part is already active).
+    const queue = store.getState().queue
+    expect(queue.filter((q) => q.kind === 'parent')).toHaveLength(1)
+    expect(queue.filter((q) => q.kind === 'part')).toHaveLength(1)
+    expect(toastInfo).toHaveBeenCalledWith(
+      'queue.duplicates_excluded',
+      expect.objectContaining({ duration: 5000 }),
     )
-    const call = toastError.mock.calls.find(
-      ([t]) => t === 'video.download_failed',
-    )
-    expect(call?.[1].description).not.toContain('video.retry_hint')
-    // The raw mapped key rides inside the interpolated part description.
-    expect(call?.[1].description).toContain(
-      'video.download_failed_part_description',
-    )
-  })
-
-  it('skips the toast when the failure is an unauthorized expiry', async () => {
-    await setupForDownload()
-    downloadVideoMock.mockRejectedValueOnce(new Error('ERR::UNAUTHORIZED'))
-
-    await act(async () => {
-      await ctx.download()
-    })
-
-    expect(toastError).not.toHaveBeenCalled()
   })
 })

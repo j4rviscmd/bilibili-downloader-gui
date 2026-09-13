@@ -2,7 +2,7 @@
  * usePendingDownload suite.
  *
  * Asserts the setPendingDownload dispatch on the real store and the
- * navigation to /home through MemoryRouter.
+ * navigation to /search through MemoryRouter.
  */
 
 import { store } from '@/app/store'
@@ -18,7 +18,7 @@ const wrapper = ({ children }: { children: ReactNode }) => (
   <Provider store={store}>
     <MemoryRouter initialEntries={['/watch-history']}>
       <Routes>
-        <Route path="/home" element={<div>home-page</div>} />
+        <Route path="/search" element={<div>search-page</div>} />
         <Route path="*" element={children} />
       </Routes>
     </MemoryRouter>
@@ -30,7 +30,7 @@ describe('usePendingDownload', () => {
     store.dispatch(resetInput())
   })
 
-  it('stores the pending download and navigates to /home', () => {
+  it('stores the pending download and navigates to /search', () => {
     const { result } = renderHook(() => usePendingDownload(), { wrapper })
 
     act(() => {
@@ -42,7 +42,7 @@ describe('usePendingDownload', () => {
       cid: 12345,
       page: 2,
     })
-    expect(screen.getByText('home-page')).toBeTruthy()
+    expect(screen.getByText('search-page')).toBeTruthy()
   })
 
   it('accepts a null cid (favorites entry point)', () => {
@@ -57,6 +57,6 @@ describe('usePendingDownload', () => {
       cid: null,
       page: 1,
     })
-    expect(screen.getByText('home-page')).toBeTruthy()
+    expect(screen.getByText('search-page')).toBeTruthy()
   })
 })

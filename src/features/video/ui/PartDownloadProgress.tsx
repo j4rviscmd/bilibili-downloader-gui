@@ -14,7 +14,46 @@ import { CheckCircle2, FolderOpen } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Mosaic } from 'react-loading-indicators'
-import type { PartDownloadStatus } from '../hooks/usePartDownloadStatus'
+
+/**
+ * Full per-part status view model this component renders: queue fields
+ * plus the progress entries. The search-page card consumes a queue-only
+ * subset (see usePartDownloadStatus); /downloads rows assemble this shape
+ * from their row model.
+ */
+export type PartDownloadStatus = {
+  /** Download ID */
+  downloadId: string | undefined
+  /** Current status */
+  status:
+    | 'pending'
+    | 'running'
+    | 'cancelling'
+    | 'cancelled'
+    | 'done'
+    | 'error'
+    | undefined
+  /** Error message if status is 'error' */
+  errorMessage: string | undefined
+  /** Output file path (available after download completes) */
+  outputPath: string | undefined
+  /** Filename */
+  filename: string | undefined
+  /** All progress entries for this download */
+  progressEntries: Progress[]
+  /** Whether download is complete (progress 'complete' stage) */
+  isComplete: boolean
+  /** Whether download is currently running */
+  isDownloading: boolean
+  /** Whether download is pending */
+  isPending: boolean
+  /** Whether download has an error */
+  hasError: boolean
+  /** Whether download is being cancelled */
+  isCancelling: boolean
+  /** Whether download was cancelled */
+  isCancelled: boolean
+}
 
 // @why: 28px matches the tallest in-row control (h-7 buttons / size-7 icon
 //   buttons) so every state renders at the same height, keeping the block

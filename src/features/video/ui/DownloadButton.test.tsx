@@ -1,8 +1,6 @@
-import { store } from '@/app/store'
 import { useVideoInfo } from '@/features/video'
 import type { Input } from '@/features/video/types'
-import { clearQueue, enqueue } from '@/shared/queue'
-import { renderWithProviders } from '@/test/test-utils'
+import { renderWithProviders, resetQueue, seedSession } from '@/test/test-utils'
 import { screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -36,20 +34,10 @@ function createMockUseVideoInfo(
   } as ReturnType<typeof useVideoInfo>
 }
 
-/** Enqueues a parent + child so selectHasActiveDownloads matches. */
-function seedRunningDownload() {
-  store.dispatch(
-    enqueue({ downloadId: 'p1', filename: 'parent', status: 'running' }),
-  )
-  store.dispatch(
-    enqueue({ downloadId: 'p1-p1', parentId: 'p1', status: 'running' }),
-  )
-}
-
 describe('DownloadButton', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    store.dispatch(clearQueue())
+    resetQueue()
     vi.mocked(useVideoInfo).mockReturnValue(createMockUseVideoInfo())
   })
 
@@ -67,35 +55,23 @@ describe('DownloadButton', () => {
     expect(download).toHaveBeenCalledTimes(1)
   })
 
-  it('shows the downloading label and disables while a download runs', () => {
-    seedRunningDownload()
+  it('stays enabled and keeps the idle label while a queue session runs (issue #691)', () => {
+    // Downloads no longer lock the button — clicking enqueues another
+    // session; the duplicate guard at enqueue time handles conflicts.
+    seedSession('BVbtn1', [{ partIndex: 1, cid: 1, status: 'running' }])
 
     renderWithProviders(<DownloadButton />)
 
     expect(
-      screen.getByRole('button', { name: 'video.downloading' }),
-    ).toBeDisabled()
-    expect(
-      screen.queryByRole('button', { name: 'actions.download' }),
-    ).not.toBeInTheDocument()
+      screen.getByRole('button', { name: 'actions.download' }),
+    ).toBeEnabled()
   })
 
-  it('shows the cancelling label while a download is being cancelled', () => {
-    store.dispatch(enqueue({ downloadId: 'p1', status: 'cancelling' }))
+  it('is enabled once every enqueued part is done', () => {
+    seedSession('BVbtn2', [{ partIndex: 1, cid: 1, status: 'done' }])
 
     renderWithProviders(<DownloadButton />)
 
-    expect(
-      screen.getByRole('button', { name: 'video.download_cancelling' }),
-    ).toBeDisabled()
-  })
-
-  it('returns to the idle label once every download is done', () => {
-    store.dispatch(enqueue({ downloadId: 'p1-p1', status: 'done' }))
-
-    renderWithProviders(<DownloadButton />)
-
-    // 'done' items are not active downloads, so the button re-enables
     expect(
       screen.getByRole('button', { name: 'actions.download' }),
     ).toBeEnabled()

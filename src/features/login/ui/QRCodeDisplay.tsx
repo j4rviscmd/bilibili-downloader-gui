@@ -185,7 +185,7 @@ export function QRCodeDisplay({ onSuccess }: QRCodeDisplayProps) {
             if (onSuccess) {
               onSuccess()
             } else {
-              navigate('/home')
+              navigate('/search')
             }
           }, 1500)
         })

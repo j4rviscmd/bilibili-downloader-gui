@@ -2,31 +2,19 @@ import type { PayloadAction } from '@reduxjs/toolkit'
 import { createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit'
 
 import type { RootState } from '@/app/store'
+import { clearProgressByDownloadId } from '@/shared/progress/progressSlice'
 import { callCancelAllDownloads, callCancelDownload } from './api/cancelApi'
+import type { EnqueueSessionPayload, QueueItem, QueueItemStatus } from './types'
 
-/**
- * Lifecycle state of a single {@linkcode QueueItem}.
- *
- * - `pending` - Enqueued but not yet started by the backend.
- * - `running` - Actively downloading.
- * - `cancelling` - User requested cancellation; awaiting backend confirmation.
- * - `cancelled` - Backend confirmed cancellation via the `download_cancelled` event.
- * - `done` - Download finished successfully.
- * - `error` - Download failed; see `errorMessage` for details.
- */
-type QueueItemStatus =
-  | 'pending'
-  | 'running'
-  | 'cancelling'
-  | 'cancelled'
-  | 'done'
-  | 'error'
+export type { QueueItem, QueueItemStatus } from './types'
 
 /**
  * Aggregates parent queue item statuses based on their children.
  *
  * Updates parent status based on the statuses of all child items with
- * matching parentId. Status priority: error > cancelling > running > done > cancelled > pending.
+ * matching parentId. Status priority: error > running > pending > done >
+ * cancelled — a parent's 'cancelling' is never derived from children (see
+ * the in-loop @why: per-part cancel must not cascade to the session).
  * If no children exist and parent is not in 'cancelling' state, removes the parent from the queue.
  *
  * @param state - Current queue array to modify
@@ -53,18 +41,32 @@ function aggregateParentStatuses(state: QueueItem[]): void {
 
     const statuses = children.map((c) => c.status)
 
-    // Priority: error > cancelling > running > pending > done > cancelled.
+    // A parent already in 'cancelling' is a SESSION-level cancel in flight
+    // (cancelAllDownloads / cancelParentDownloads set the parent item
+    // itself). Keep it: the thunk's fulfilled case finalizes it to
+    // 'cancelled', and re-deriving from children here would resurrect a
+    // mid-cancel parent as 'pending' and strand it.
+    if (parent.status === 'cancelling') return
+
+    // Priority: error > running > pending > done > cancelled.
     // A pending child means the playlist hasn't finished yet, so a cancelled
     // sibling (from a per-part cancel) must NOT flip the parent to
     // 'cancelled' — that would abort the remaining parts in the serial
     // download loop. Only once every remaining part is done/cancelled does
     // the parent settle to 'cancelled' (or 'done' if nothing was skipped).
+    //
+    // @why 'cancelling' is deliberately NOT derived from children: a
+    //   per-part cancel flips only that child, and the runner treats a
+    //   'cancelling' PARENT as "whole session cancelled" (it finalizes the
+    //   pending siblings). Deriving it here made cancelling ONE part kill
+    //   its siblings whenever the invoke reject raced ahead of the
+    //   download_cancelled event (IPC ordering is not guaranteed).
+    //   Children in 'cancelling' are simply skipped by the runner's
+    //   pending-pick and settle via the event / thunk fulfillment.
     const previousStatus = parent.status
     let nextStatus: QueueItemStatus
     if (statuses.includes('error')) {
       nextStatus = 'error'
-    } else if (statuses.includes('cancelling')) {
-      nextStatus = 'cancelling'
     } else if (statuses.includes('running')) {
       nextStatus = 'running'
     } else if (statuses.includes('pending')) {
@@ -78,8 +80,8 @@ function aggregateParentStatuses(state: QueueItem[]): void {
     }
     parent.status = nextStatus
 
-    // @why: Record wall-clock timestamps on parent lifecycle transitions so the
-    //   download dialog can show real elapsed time. audio and video stages run
+    // @why: Record wall-clock timestamps on parent lifecycle transitions so
+    //   /downloads can show real elapsed time. audio and video stages run
     //   in parallel (tokio::try_join!), each emitting its own elapsed time —
     //   summing them makes the timer advance at ~2x real time. A single parent
     //   clock sidesteps that entirely. The existing-value guard keeps the
@@ -121,32 +123,9 @@ function aggregateParentStatuses(state: QueueItem[]): void {
 }
 
 /**
- * Queue item representing a download task.
- */
-export type QueueItem = {
-  /** Unique download identifier */
-  downloadId: string
-  /** Optional parent ID for grouping multi-part downloads */
-  parentId?: string
-  /** Output filename */
-  filename?: string
-  /** Current status */
-  status?: QueueItemStatus
-  /** Error message if status is 'error' */
-  errorMessage?: string
-  /** Output file path (available after download completes) */
-  outputPath?: string
-  /** Video title */
-  title?: string
-  /** Parent download start timestamp (ms since epoch) */
-  startedAtMs?: number
-  /** Parent download completion timestamp (ms since epoch) */
-  completedAtMs?: number
-}
-
-/**
  * Empty initial state for the queue slice. The queue is populated at
- * runtime as downloads are enqueued.
+ * runtime as downloads are enqueued. Session-scoped by design: a reload
+ * drops pending items, which is the accepted MVP behavior (issue #691).
  */
 const initialState: QueueItem[] = []
 
@@ -223,9 +202,77 @@ export const cancelAllDownloads = createAsyncThunk(
 )
 
 /**
- * Redux slice for download queue management.
+ * Async thunk to cancel one parent session and its whole subtree.
  *
- * Manages the queue of pending, running, and completed downloads.
+ * @why Cancelling the parent downloadId alone is a trap: a pending parent
+ *   holds no backend token, so `cancelDownload(parentId)` would finalize the
+ *   PARENT as 'cancelled' while never touching its children — the runner
+ *   would then happily download every part. Cancelling must enumerate the
+ *   children and go through the backend's batch cancel (which pre-marks
+ *   pending children so `download_video` rejects them on start), scoped to
+ *   this parent's subtree only.
+ *
+ * @param parentId - downloadId of the parent session to cancel
+ */
+export const cancelParentDownloads = createAsyncThunk(
+  'queue/cancelParentDownloads',
+  async (parentId: string, { getState }) => {
+    const state = getState() as RootState
+    const subtreeIds = state.queue
+      .filter((i) => i.downloadId === parentId || i.parentId === parentId)
+      .filter((i) =>
+        ['pending', 'running', 'cancelling'].includes(i.status ?? ''),
+      )
+      .map((i) => i.downloadId)
+
+    if (subtreeIds.length === 0) {
+      return { count: 0, downloadIds: [] as string[] }
+    }
+
+    const count = await callCancelAllDownloads(subtreeIds)
+    return { count, downloadIds: subtreeIds }
+  },
+)
+
+/**
+ * Async thunk to clear finished (settled) sessions from the queue.
+ *
+ * Removes every parent whose subtree is fully terminal
+ * (done/cancelled/error) together with its children, and clears the
+ * matching progress entries. This replaces the queue-wiping role the old
+ * `clearQueue` action played (it was dispatched on every URL navigation);
+ * without a cleaner, progress entries accumulate for the whole session.
+ */
+export const clearFinishedQueueItems = createAsyncThunk(
+  'queue/clearFinishedQueueItems',
+  async (_, { getState, dispatch }) => {
+    const queue = (getState() as RootState).queue
+    const TERMINAL = ['done', 'cancelled', 'error']
+    const ids: string[] = []
+
+    for (const parent of queue.filter((i) => i.kind === 'parent')) {
+      const children = queue.filter((i) => i.parentId === parent.downloadId)
+      const settled =
+        children.length > 0 &&
+        children.every((c) => TERMINAL.includes(c.status ?? ''))
+      if (!settled) continue
+      ids.push(parent.downloadId, ...children.map((c) => c.downloadId))
+    }
+
+    if (ids.length > 0) {
+      dispatch(queueSlice.actions.removeQueueItems(ids))
+      ids.forEach((id) => dispatch(clearProgressByDownloadId(id)))
+    }
+    return { removed: ids.length, downloadIds: ids }
+  },
+)
+
+/**
+ * Redux slice for the download queue (issue #691).
+ *
+ * Manages the session-scoped serial download queue: enqueueing whole
+ * sessions (`enqueueSession`), lifecycle updates driven by the runner and
+ * backend events, and cancellation (single / parent subtree / all).
  * Automatically updates parent status based on children.
  */
 export const queueSlice = createSlice({
@@ -233,19 +280,56 @@ export const queueSlice = createSlice({
   initialState,
   reducers: {
     /**
-     * Adds a download to the queue.
-     * Skips if an item with the same downloadId already exists.
+     * Enqueues one download session: a parent item plus a pending child
+     * for every selected part, all sharing a fresh `enqueuedAtMs`.
+     *
+     * Atomic by design — the caller (VideoInfoContext.download) snapshots
+     * the current part inputs into the payload, so subsequent edits to
+     * `state.input` (title/quality/subtitle changes, URL navigation,
+     * deselection) never leak into an already-enqueued session.
      */
-    enqueue(state, action: PayloadAction<QueueItem>) {
-      const payload = action.payload
-      if (!state.find((i) => i.downloadId === payload.downloadId)) {
-        state.push({ ...payload, status: payload.status || 'pending' })
+    enqueueSession(state, action: PayloadAction<EnqueueSessionPayload>) {
+      const { videoId, videoTitle, parts } = action.payload
+      if (parts.length === 0) return
+      // Each session gets a unique parentId so /downloads shows a fresh
+      // card every time. Child downloadIds derive from parentId
+      // (`{parentId}-p{n}` — format is load-bearing, see QueueItem docs).
+      const parentId = `${videoId}-${crypto.randomUUID()}`
+      const now = Date.now()
+      state.push({
+        downloadId: parentId,
+        kind: 'parent',
+        videoId,
+        title: videoTitle,
+        thumbnailUrl: parts[0]?.thumbnailUrl ?? null,
+        status: 'pending',
+        enqueuedAtMs: now,
+      })
+      for (const part of parts) {
+        state.push({
+          downloadId: `${parentId}-p${part.partIndex}`,
+          kind: 'part',
+          parentId,
+          videoId,
+          cid: part.cid,
+          partIndex: part.partIndex,
+          title: part.title,
+          thumbnailUrl: part.thumbnailUrl,
+          status: 'pending',
+          enqueuedAtMs: now,
+          expectedStages: part.expectedStages,
+          payload: part.payload,
+        })
       }
       aggregateParentStatuses(state)
     },
-    /** Clears all items from the queue. */
-    clearQueue() {
-      return []
+    /** Removes the given items by downloadId (used by clearFinishedQueueItems). */
+    removeQueueItems(state, action: PayloadAction<string[]>) {
+      const ids = new Set(action.payload)
+      const filtered = state.filter((i) => !ids.has(i.downloadId))
+      state.length = 0
+      state.push(...filtered)
+      aggregateParentStatuses(state)
     },
     /**
      * Updates the status of a queue item.
@@ -392,97 +476,61 @@ export const queueSlice = createSlice({
       })
       aggregateParentStatuses(state)
     })
+
+    // Parent-subtree cancel: same protocol as cancelAllDownloads, scoped to
+    // the parent's items only — other queued sessions must keep draining.
+    builder.addCase(cancelParentDownloads.pending, (state, action) => {
+      const parentId = action.meta.arg
+      state.forEach((item) => {
+        if (
+          (item.downloadId === parentId || item.parentId === parentId) &&
+          (item.status === 'pending' || item.status === 'running')
+        ) {
+          item.status = 'cancelling'
+        }
+      })
+      aggregateParentStatuses(state)
+    })
+
+    builder.addCase(cancelParentDownloads.fulfilled, (state, action) => {
+      const parentId = action.meta.arg
+      state.forEach((item) => {
+        if (
+          (item.downloadId === parentId || item.parentId === parentId) &&
+          item.status === 'cancelling'
+        ) {
+          item.status = 'cancelled'
+        }
+      })
+      aggregateParentStatuses(state)
+    })
+
+    builder.addCase(cancelParentDownloads.rejected, (state, action) => {
+      const parentId = action.meta.arg
+      state.forEach((item) => {
+        if (
+          (item.downloadId === parentId || item.parentId === parentId) &&
+          item.status === 'cancelling'
+        ) {
+          item.status = 'cancelled'
+        }
+      })
+      aggregateParentStatuses(state)
+    })
   },
 })
 
 export const {
-  enqueue,
-  clearQueue,
+  enqueueSession,
+  removeQueueItems,
   updateQueueStatus,
   updateQueueItem,
   clearQueueItem,
 } = queueSlice.actions
 export default queueSlice.reducer
 
-/**
- * Finds a completed queue item for a specific part index.
- * Extracts part index from downloadId using regex pattern `-p(\d+)$`.
- *
- * @param partIndex - One-based part number (matches the number in downloadId)
- */
-export function findCompletedItemForPart(
-  state: RootState,
-  partIndex: number,
-): QueueItem | undefined {
-  return state.queue.find((item) => {
-    const match = item.downloadId.match(/-p(\d+)$/)
-    return (
-      match && parseInt(match[1], 10) === partIndex && item.status === 'done'
-    )
-  })
-}
-
-/**
- * Selects download ID by part index from queue.
- * Extracts part index from downloadId using regex pattern `-p(\d+)$`.
- *
- * @param partIndex - Zero-based part index (will match +1 in downloadId)
- */
-export const selectDownloadIdByPartIndex = (
-  state: { queue: QueueItem[] },
-  partIndex: number,
-): string | undefined => {
-  // Search from the end: the most recently enqueued part for this index
-  // wins. During a re-download, stale items from a prior session (e.g.
-  // cancelled children kept for visibility) coexist with the new ones, and
-  // resolving to an old downloadId would make the part card show the prior
-  // session's state.
-  for (let i = state.queue.length - 1; i >= 0; i--) {
-    const match = state.queue[i].downloadId.match(/-p(\d+)$/)
-    if (match && parseInt(match[1], 10) === partIndex + 1) {
-      return state.queue[i].downloadId
-    }
-  }
-  return undefined
-}
-
 /** Memoized selector factory for queue item by download ID. */
 export const selectQueueItemByDownloadId = (downloadId: string) =>
   createSelector([(state: RootState) => state.queue], (queue) =>
     queue.find((q) => q.downloadId === downloadId),
   )
-
-/**
- * Memoized selector to check if any downloads are active.
- * Returns true if any child is running/pending, or parent is cancelling.
- */
-export const selectHasActiveDownloads = createSelector(
-  [(state: RootState) => state.queue],
-  (queue) => {
-    const parentIdsWithChildren = new Set(
-      queue.map((i) => i.parentId).filter((id): id is string => id != null),
-    )
-
-    return queue.some((q) => {
-      if (q.parentId) {
-        return q.status === 'running' || q.status === 'pending'
-      }
-      if (q.status === 'cancelling') {
-        return true
-      }
-      if (q.status === 'pending') {
-        return parentIdsWithChildren.has(q.downloadId)
-      }
-      return false
-    })
-  },
-)
-
-/**
- * Memoized selector to check if any downloads are being cancelled.
- * Used to display 'Cancelling...' label on the download button.
- */
-export const selectHasCancellingDownloads = createSelector(
-  [(state: RootState) => state.queue],
-  (queue) => queue.some((q) => q.status === 'cancelling'),
-)

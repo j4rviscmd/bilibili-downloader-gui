@@ -59,12 +59,12 @@ vi.mock('@/features/user', () => ({
 
 import { QRCodeDisplay } from './QRCodeDisplay'
 
-/** Wraps the component with a /home probe route for navigation asserts. */
+/** Wraps the component with a /search probe route for navigation asserts. */
 function renderLogin() {
   return renderWithProviders(
     <Routes>
       <Route path="/" element={<QRCodeDisplay />} />
-      <Route path="/home" element={<div>HOME-MARKER</div>} />
+      <Route path="/search" element={<div>SEARCH-MARKER</div>} />
     </Routes>,
     { route: '/' },
   )
@@ -155,7 +155,7 @@ describe('QRCodeDisplay', () => {
     expect(login.generateNewQrCode).toHaveBeenCalledTimes(2) // mount + click
   })
 
-  it('on success refreshes user info and navigates home after the delay', async () => {
+  it('on success refreshes user info and navigates to search after the delay', async () => {
     vi.useFakeTimers()
     Object.assign(login.state, {
       qrStatus: 'success',
@@ -170,13 +170,13 @@ describe('QRCodeDisplay', () => {
     expect(login.stopPolling).toHaveBeenCalled()
 
     // Still on the login page before the 1.5s delay elapses
-    expect(screen.queryByText('HOME-MARKER')).toBeNull()
+    expect(screen.queryByText('SEARCH-MARKER')).toBeNull()
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1500)
     })
 
-    expect(screen.getByText('HOME-MARKER')).toBeInTheDocument()
+    expect(screen.getByText('SEARCH-MARKER')).toBeInTheDocument()
   })
 
   it('error status maps a known ERR:: code to its translation key', () => {

@@ -33,8 +33,11 @@ export const SIDEBAR_FOOTER = '[data-slot="sidebar-footer"]'
 
 // Navigation buttons (aria-labels from i18n en.json)
 
-/** Sidebar navigation button for the download (home) page. */
-export const NAV_HOME = '[aria-label="Navigate to download page"]'
+/** Sidebar navigation button for the search page (issue #691 rename of /home). */
+export const NAV_SEARCH = '[aria-label="Navigate to search page"]'
+
+/** Sidebar navigation button for the downloads (queue) page. */
+export const NAV_DOWNLOADS = '[aria-label="Navigate to downloads page"]'
 
 /** Sidebar navigation button for the favorites page. */
 export const NAV_FAVORITE = '[aria-label="Navigate to favorites page"]'
@@ -121,13 +124,13 @@ export const HEADER_DOWNLOAD_BUTTON =
 // -- Download Session UI --
 
 /**
- * Overall download status bar. Exists exactly while a download session is
- * active — AnimatedSection unmounts the subtree once everything settles.
+ * Queue bottom bar. Exists exactly while the download queue is draining —
+ * AnimatedSection unmounts the subtree once everything settles.
  */
-export const DOWNLOAD_STATUS_BAR = '[data-testid="download-status-bar"]'
+export const QUEUE_BOTTOM_BAR = '[data-testid="queue-bottom-bar"]'
 
 /**
- * Durable per-part completion block. Outlives the compact-row session UI
- * (the full card keeps it after the session settles).
+ * Durable per-part completion block on the /downloads part rows (the
+ * search-page cards carry only a status badge — issue #691).
  */
 export const PART_COMPLETE = '[data-testid="part-download-complete"]'

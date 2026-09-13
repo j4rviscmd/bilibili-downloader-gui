@@ -21,11 +21,8 @@ import {
   VIDEO_QUALITIES_ORDER,
 } from '@/features/video/lib/constants'
 import { buildVideoFormSchema2 } from '@/features/video/lib/formSchema'
+import { getStatusVisual } from '@/features/video/lib/statusVisual'
 import { buildVideoUrl } from '@/features/video/lib/utils'
-import {
-  selectActivePartIndex,
-  stageExpectations,
-} from '@/features/video/model/downloadProgress'
 import {
   defaultSubtitleConfig,
   setAccordionOpen,
@@ -37,9 +34,6 @@ import {
   updateSubtitleConfig,
 } from '@/features/video/model/inputSlice'
 import type { Video } from '@/features/video/types'
-import { AnimatedSection } from '@/features/video/ui/AnimatedSection'
-import { PartCompactCard } from '@/features/video/ui/PartCompactCard'
-import { PartDownloadProgress } from '@/features/video/ui/PartDownloadProgress'
 import { QualityRadioGroup } from '@/features/video/ui/QualityRadioGroup'
 import { SubtitleSection } from '@/features/video/ui/SubtitleSection'
 import { Checkbox } from '@/shared/animate-ui/radix/checkbox'
@@ -53,10 +47,6 @@ import {
 import { logger } from '@/shared/lib/logger'
 import { mapBackendError } from '@/shared/lib/mapBackendError'
 import { cn } from '@/shared/lib/utils'
-import {
-  cancelDownload,
-  selectHasActiveDownloads,
-} from '@/shared/queue/queueSlice'
 import {
   Form,
   FormControl,
@@ -179,17 +169,19 @@ function QualitiesFetchErrorWarning({
  * duplicate titles. Wrapped with `React.memo` to skip re-renders when
  * props are shallowly equal.
  *
- * While a download session is active the full body collapses into the
- * single-line PartCompactCard (issue #569); the active part auto-expands
- * its PartDownloadProgress detail. All cards animate back to the full
- * form when the session settles.
+ * Always full mode (issue #691): the compact swap is abolished. The card
+ * carries a status badge resolved by `videoId`+`cid`, so background queue
+ * downloads of other videos never light this card up. The form is only
+ * disabled while THIS part is active in the queue (pending/running/
+ * cancelling) — edits after that point cannot affect the enqueued
+ * payload anyway (it was snapshotted at enqueue time).
  */
 const VideoPartCard = memo(function VideoPartCard({
   video,
   page,
   isDuplicate,
 }: Props) {
-  const { onValid2 } = useVideoInfo()
+  const { onValid2, videoId } = useVideoInfo()
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
   const disabled = video.parts.length === 0
@@ -197,42 +189,37 @@ const VideoPartCard = memo(function VideoPartCard({
   const min = Math.floor(videoPart.duration / 60)
   const sec = videoPart.duration % 60
 
-  const downloadStatus = usePartDownloadStatus(page - 1)
-  const { isDownloading, isPending, isComplete } = downloadStatus
-  const hasActiveDownloads = useSelector(selectHasActiveDownloads)
+  // Badge/status scope: videoId+cid (latest queue item wins). videoId is
+  // null only before a valid URL resolves; the parts list is empty then, so
+  // the fallback is inert in practice.
+  const downloadStatus = usePartDownloadStatus(videoId ?? '', videoPart.cid)
+  // Active = enqueued and not settled: pending (waiting for its turn in the
+  // serial queue), running, or cancelling. Only this state disables the form.
+  const partActive = ['pending', 'running', 'cancelling'].includes(
+    downloadStatus.status ?? '',
+  )
 
   const partInput = useSelector(
     (state: RootState) => state.input.partInputs[page - 1],
   )
   const selected = partInput?.selected ?? true
-  const isWaitingForTurn =
-    selected && !downloadStatus.downloadId && !isComplete && hasActiveDownloads
-
-  // Compact mode: every card collapses to a single line while a download
-  // session is active. Derived (not stored) — same signal that freezes URL
-  // input, pagination, and this card's fieldset, so all four always agree.
-  const isCompact = hasActiveDownloads
-  // Auto-follow: only the active part (running, else first pending) is
-  // expanded. Primitive selector — re-renders only when the active part
-  // actually changes, never per progress tick.
-  const activePartIndex = useSelector(selectActivePartIndex)
-  const isActive = activePartIndex === page
 
   const dispatch = useDispatch()
 
-  // Track previous isComplete state to detect transition
-  const prevIsCompleteRef = useRef(isComplete)
+  // Track previous queue status to detect the settle transition
+  const prevStatusRef = useRef(downloadStatus.status)
 
-  // Deselect only when isComplete transitions from false to true
+  // Deselect exactly when this part's queue item settles as done: the
+  // selection belongs to the search form, and a finished part shouldn't be
+  // re-enqueued by a later Download click. Scoped to this videoId+cid, so a
+  // background session completing never touches this card.
   useEffect(() => {
-    const wasComplete = prevIsCompleteRef.current
-    prevIsCompleteRef.current = isComplete
-
-    // Only deselect on the exact moment of completion transition
-    if (!wasComplete && isComplete && selected) {
+    const wasStatus = prevStatusRef.current
+    prevStatusRef.current = downloadStatus.status
+    if (wasStatus !== 'done' && downloadStatus.status === 'done' && selected) {
       dispatch(updatePartSelected({ index: page - 1, selected: false }))
     }
-  }, [isComplete, selected, page, dispatch])
+  }, [downloadStatus.status, selected, page, dispatch])
 
   const subtitle = partInput?.subtitle
   const isSubtitleInvalid =
@@ -250,20 +237,18 @@ const VideoPartCard = memo(function VideoPartCard({
 
   // Shared by both the compact card and the full-mode progress block so the
   // two can never disagree about which stages to render.
-  // hasEmbeddedAudio: durl sources (audio muxed into the file) hide the audio
-  // stage. isSilentVideo: no audio track exists at all (issue #446) — same
-  // stage hiding, different banner text.
-  // Before resolution the qualities fetch is the only signal: an empty audio
-  // list separates durl (embedded audio) from silent (audioAbsent flag).
+  // isSilentVideo: no audio track exists at all (issue #446) — drives the
+  // no-audio-track banner (vs. the durl embedded-audio one). Before
+  // resolution the qualities fetch is the only signal: an empty audio list
+  // separates durl (embedded audio) from silent (audioAbsent flag).
+  // (The hasEmbeddedAudio counterpart left with the progress detail: stage
+  // hiding is now /downloads' concern via the expectedStages snapshot.)
   const audioAbsentFlag = partInput?.audioAbsent ?? false
   const emptyAudioList =
     audioQualities !== undefined && audioQualities.length === 0
   const isSilentVideo = resolvedQuality
     ? resolvedQuality.audioAbsent
     : audioAbsentFlag && emptyAudioList
-  const hasEmbeddedAudio = resolvedQuality
-    ? resolvedQuality.audioQuality === null && !resolvedQuality.audioAbsent
-    : emptyAudioList && !audioAbsentFlag
 
   /**
    * Builds the summary label for the accordion trigger.
@@ -329,6 +314,28 @@ const VideoPartCard = memo(function VideoPartCard({
       resolvedQuality.audioQualityFallback
     )
   }, [resolvedQuality])
+
+  /**
+   * Queue status badge (issue #691): resolved by `videoId`+`cid`, so only
+   * this part's own queue item can light it up. Rendered only when the part
+   * has a queue item — never-downloaded parts show no badge. `data-status`
+   * keeps the E2E anchor that the abolished compact row used to carry.
+   */
+  const queueBadge = downloadStatus.status ? (
+    <span
+      data-status={downloadStatus.status}
+      className="bg-muted ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium"
+    >
+      <span
+        className={cn(
+          'size-1.5 rounded-full',
+          getStatusVisual(downloadStatus.status).dotClass,
+        )}
+        aria-hidden
+      />
+      {t(getStatusVisual(downloadStatus.status).labelKey)}
+    </span>
+  ) : null
 
   /**
    * Controlled value for the Accordion component derived from Redux state.
@@ -397,12 +404,6 @@ const VideoPartCard = memo(function VideoPartCard({
       container.scrollTo({ top: scrollOffset, behavior: 'smooth' })
     }, 400)
   }, [])
-
-  // Auto-follow: keep the active (downloading) card in view as the session
-  // advances part to part. Fires only when this card becomes the active one.
-  useEffect(() => {
-    if (isActive) scrollCardIntoView()
-  }, [isActive, scrollCardIntoView])
 
   /**
    * Fetches quality options for the current video part.
@@ -566,16 +567,6 @@ const VideoPartCard = memo(function VideoPartCard({
   )
 
   /**
-   * Handles cancel action by stopping the current download and deselecting the part.
-   */
-  const handleCancel = useCallback(() => {
-    if (downloadStatus.downloadId) {
-      store.dispatch(cancelDownload(downloadStatus.downloadId))
-    }
-    store.dispatch(updatePartSelected({ index: page - 1, selected: false }))
-  }, [page, downloadStatus.downloadId])
-
-  /**
    * Copies the video part name to clipboard.
    * Shows a success toast and resets the copied state after 2 seconds.
    */
@@ -686,281 +677,323 @@ const VideoPartCard = memo(function VideoPartCard({
   )
 
   return (
-    <div
-      ref={cardRef}
-      className={cn(
-        // Compact mode tightens the vertical rhythm so the collapsed rows
-        // read as one list; horizontal padding is kept so the rows' content
-        // stays aligned with the full cards' content column.
-        isCompact ? 'px-3 py-0.5 md:px-4' : 'p-3 md:p-4',
-      )}
-    >
+    <div ref={cardRef} className="p-3 md:p-4">
       <Form {...form}>
-        {/* Full body: collapses into the compact row while a download
-            session is active (the fieldset is also hard-disabled during
-            that window, before the exit animation removes it). */}
-        <AnimatedSection show={!isCompact}>
-          <fieldset
-            disabled={
-              disabled || isDownloading || isPending || hasActiveDownloads
-            }
+        <fieldset disabled={disabled || partActive}>
+          <form
+            onSubmit={form.handleSubmit(onSubmit)}
+            onBlur={form.handleSubmit(onSubmit)}
+            className="space-y-2"
           >
-            <form
-              onSubmit={form.handleSubmit(onSubmit)}
-              onBlur={form.handleSubmit(onSubmit)}
-              className="space-y-2"
-            >
-              {/* Thumbnail and Title Section */}
-              <div>
-                <div className="flex items-center gap-3">
-                  <div className="relative">
-                    <span className="text-muted-foreground bg-muted absolute -top-6 left-1/2 -translate-x-1/2 rounded-full px-1.5 text-[10px] leading-4 font-medium tabular-nums">
-                      P{page}
-                    </span>
-                    <Checkbox
-                      checked={selected}
-                      onCheckedChange={handleSelectedChange}
-                      size="lg"
-                    />
-                  </div>
-                  {videoPart.thumbnail.url ? (
-                    <TooltipProvider delayDuration={200}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <img
-                            src={videoPart.thumbnail.url}
-                            alt={t('video.thumbnail_alt', {
-                              part: videoPart.part,
-                            })}
-                            className="h-16 w-24 cursor-pointer rounded-lg object-cover md:h-20 md:w-32"
-                            loading="lazy"
-                            referrerPolicy="no-referrer"
-                            onClick={handleThumbnailClick}
-                          />
-                        </TooltipTrigger>
-                        <TooltipContent side="top">
-                          <p className="text-sm">
-                            {t('video.open_in_browser')}
-                          </p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  ) : (
-                    <div className="bg-muted flex h-16 w-24 items-center justify-center rounded-lg md:h-20 md:w-32">
-                      <ImageOff className="text-muted-foreground/50 h-8 w-8" />
-                    </div>
-                  )}
-
-                  {/* Title Input */}
-                  <div className="flex-1">
-                    <FormField
-                      control={form.control}
-                      name="title"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-sm font-medium">
-                            {t('video.title_label')}
-                          </FormLabel>
-                          <FormControl>
-                            <Textarea
-                              placeholder={t('video.title_placeholder')}
-                              className="min-h-[52px] resize-none"
-                              rows={3}
-                              value={field.value}
-                              onChange={(e) => {
-                                field.onChange(e.target.value)
-
-                                // Debounce validation so it only fires after
-                                // the user pauses typing, avoiding noisy
-                                // per-keystroke error flashes. When valid, also
-                                // flush the auto-save so the download-ready
-                                // state updates without requiring blur.
-                                cancelPendingTitleValidation()
-                                titleDebounceRef.current = setTimeout(() => {
-                                  void form.trigger('title').then((isValid) => {
-                                    if (isValid) {
-                                      void form.handleSubmit(onSubmit)()
-                                    }
-                                  })
-                                }, 500)
-                              }}
-                              onBlur={() => {
-                                // Cancel any not-yet-fired debounce timer so the
-                                // form-level onBlur flushes the save once. If the
-                                // timer already fired, the extra dispatch is
-                                // idempotent (same title value).
-                                cancelPendingTitleValidation()
-                                field.onBlur()
-                              }}
-                            />
-                          </FormControl>
-                          {selected && <FormMessage />}
-                        </FormItem>
-                      )}
-                    />
-                  </div>
+            {/* Thumbnail and Title Section */}
+            <div>
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <span className="text-muted-foreground bg-muted absolute -top-6 left-1/2 -translate-x-1/2 rounded-full px-1.5 text-[10px] leading-4 font-medium tabular-nums">
+                    P{page}
+                  </span>
+                  <Checkbox
+                    checked={selected}
+                    onCheckedChange={handleSelectedChange}
+                    size="lg"
+                  />
                 </div>
-
-                {/* Video Part Name and Duration */}
-                <div
-                  className="text-muted-foreground mt-1.5 flex items-center text-sm"
-                  style={{ marginLeft: '2.25rem' }}
-                >
-                  <button
-                    type="button"
-                    onClick={handleCopyPartName}
-                    className="hover:bg-muted mr-0.5 rounded p-1 transition-colors"
-                    title={t('video.copy_title')}
-                  >
-                    {copied ? (
-                      <Check className="h-3.5 w-3.5" />
-                    ) : (
-                      <Copy className="h-3.5 w-3.5" />
-                    )}
-                  </button>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span
-                        className="inline-block max-w-[200px] cursor-help truncate font-medium md:max-w-[300px]"
-                        title={videoPart.part}
-                      >
-                        {videoPart.part}
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">
-                      <p className="text-sm">{videoPart.part}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                  <span className="px-1">/</span>
-                  {min > 0 && <span>{min}m</span>}
-                  <span>{sec}s</span>
-                  {isPreview && (
+                {videoPart.thumbnail.url ? (
+                  <TooltipProvider delayDuration={200}>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900 dark:text-amber-200">
-                          {t('video.bangumi_preview_badge')}
-                        </span>
+                        <img
+                          src={videoPart.thumbnail.url}
+                          alt={t('video.thumbnail_alt', {
+                            part: videoPart.part,
+                          })}
+                          className="h-16 w-24 cursor-pointer rounded-lg object-cover md:h-20 md:w-32"
+                          loading="lazy"
+                          referrerPolicy="no-referrer"
+                          onClick={handleThumbnailClick}
+                        />
                       </TooltipTrigger>
-                      <TooltipContent side="top" className="whitespace-nowrap">
-                        <p className="text-sm">
-                          {t('video.bangumi_preview_tooltip')}
-                        </p>
+                      <TooltipContent side="top">
+                        <p className="text-sm">{t('video.open_in_browser')}</p>
                       </TooltipContent>
                     </Tooltip>
-                  )}
+                  </TooltipProvider>
+                ) : (
+                  <div className="bg-muted flex h-16 w-24 items-center justify-center rounded-lg md:h-20 md:w-32">
+                    <ImageOff className="text-muted-foreground/50 h-8 w-8" />
+                  </div>
+                )}
+
+                {/* Title Input */}
+                <div className="flex-1">
+                  <FormField
+                    control={form.control}
+                    name="title"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm font-medium">
+                          {t('video.title_label')}
+                        </FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder={t('video.title_placeholder')}
+                            className="min-h-[52px] resize-none"
+                            rows={3}
+                            value={field.value}
+                            onChange={(e) => {
+                              field.onChange(e.target.value)
+
+                              // Debounce validation so it only fires after
+                              // the user pauses typing, avoiding noisy
+                              // per-keystroke error flashes. When valid, also
+                              // flush the auto-save so the download-ready
+                              // state updates without requiring blur.
+                              cancelPendingTitleValidation()
+                              titleDebounceRef.current = setTimeout(() => {
+                                void form.trigger('title').then((isValid) => {
+                                  if (isValid) {
+                                    void form.handleSubmit(onSubmit)()
+                                  }
+                                })
+                              }, 500)
+                            }}
+                            onBlur={() => {
+                              // Cancel any not-yet-fired debounce timer so the
+                              // form-level onBlur flushes the save once. If the
+                              // timer already fired, the extra dispatch is
+                              // idempotent (same title value).
+                              cancelPendingTitleValidation()
+                              field.onBlur()
+                            }}
+                          />
+                        </FormControl>
+                        {selected && <FormMessage />}
+                      </FormItem>
+                    )}
+                  />
                 </div>
               </div>
 
-              {/* Options Accordion */}
-              <TooltipProvider delayDuration={200}>
-                <Accordion
-                  type="multiple"
-                  className="w-full"
-                  value={accordionValue}
-                  onValueChange={handleAccordionChange}
+              {/* Video Part Name and Duration */}
+              <div
+                className="text-muted-foreground mt-1.5 flex items-center text-sm"
+                style={{ marginLeft: '2.25rem' }}
+              >
+                <button
+                  type="button"
+                  onClick={handleCopyPartName}
+                  className="hover:bg-muted mr-0.5 rounded p-1 transition-colors"
+                  title={t('video.copy_title')}
                 >
-                  <AccordionItem value="options">
-                    <AccordionTrigger className="py-2 text-sm">
-                      <span className="flex items-center gap-2">
-                        {t('video.options')}
-                        {summaryLabel && (
-                          <span className="text-muted-foreground font-normal">
-                            / {summaryLabel}
-                          </span>
-                        )}
-                        {hasFallback && (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className="ml-1 text-amber-500">⚠️</span>
-                            </TooltipTrigger>
-                            <TooltipContent side="top">
-                              <p className="text-sm">
-                                {t('video.quality_fallback_tooltip')}
-                              </p>
-                            </TooltipContent>
-                          </Tooltip>
-                        )}
+                  {copied ? (
+                    <Check className="h-3.5 w-3.5" />
+                  ) : (
+                    <Copy className="h-3.5 w-3.5" />
+                  )}
+                </button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span
+                      className="inline-block max-w-[200px] cursor-help truncate font-medium md:max-w-[300px]"
+                      title={videoPart.part}
+                    >
+                      {videoPart.part}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <p className="text-sm">{videoPart.part}</p>
+                  </TooltipContent>
+                </Tooltip>
+                <span className="px-1">/</span>
+                {min > 0 && <span>{min}m</span>}
+                <span>{sec}s</span>
+                {queueBadge}
+                {isPreview && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                        {t('video.bangumi_preview_badge')}
                       </span>
-                    </AccordionTrigger>
-                    <AccordionContent transition={accordionTransition}>
-                      <div className="space-y-4">
-                        {/* Unified loading skeleton: shown until all fetches complete */}
-                        {qualitiesLoading ||
-                        videoQualities === undefined ||
-                        (subtitlesLoading && subtitles === undefined) ? (
-                          <>
-                            <div className="space-y-2">
-                              <Skeleton className="h-4 w-16" />
-                              <Skeleton className="h-[1.62rem] w-full" />
-                            </div>
-                            <div className="space-y-2">
-                              <Skeleton className="h-4 w-16" />
-                              <Skeleton className="h-[1.62rem] w-full" />
-                            </div>
-                            <div className="space-y-2">
-                              <Skeleton className="h-4 w-16" />
-                              <Skeleton className="h-[1.62rem] w-full" />
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            {/* Video Quality */}
-                            {videoQualities.length === 0 ? (
-                              qualitiesError ? (
-                                <QualitiesFetchErrorWarning
-                                  error={qualitiesError}
-                                />
-                              ) : (
-                                <UnavailableEpisodeWarning
-                                  status={videoPart.status ?? 0}
-                                />
-                              )
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="whitespace-nowrap">
+                      <p className="text-sm">
+                        {t('video.bangumi_preview_tooltip')}
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+              </div>
+            </div>
+
+            {/* Options Accordion */}
+            <TooltipProvider delayDuration={200}>
+              <Accordion
+                type="multiple"
+                className="w-full"
+                value={accordionValue}
+                onValueChange={handleAccordionChange}
+              >
+                <AccordionItem value="options">
+                  <AccordionTrigger className="py-2 text-sm">
+                    <span className="flex items-center gap-2">
+                      {t('video.options')}
+                      {summaryLabel && (
+                        <span className="text-muted-foreground font-normal">
+                          / {summaryLabel}
+                        </span>
+                      )}
+                      {hasFallback && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="ml-1 text-amber-500">⚠️</span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            <p className="text-sm">
+                              {t('video.quality_fallback_tooltip')}
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                    </span>
+                  </AccordionTrigger>
+                  <AccordionContent transition={accordionTransition}>
+                    <div className="space-y-4">
+                      {/* Unified loading skeleton: shown until all fetches complete */}
+                      {qualitiesLoading ||
+                      videoQualities === undefined ||
+                      (subtitlesLoading && subtitles === undefined) ? (
+                        <>
+                          <div className="space-y-2">
+                            <Skeleton className="h-4 w-16" />
+                            <Skeleton className="h-[1.62rem] w-full" />
+                          </div>
+                          <div className="space-y-2">
+                            <Skeleton className="h-4 w-16" />
+                            <Skeleton className="h-[1.62rem] w-full" />
+                          </div>
+                          <div className="space-y-2">
+                            <Skeleton className="h-4 w-16" />
+                            <Skeleton className="h-[1.62rem] w-full" />
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          {/* Video Quality */}
+                          {videoQualities.length === 0 ? (
+                            qualitiesError ? (
+                              <QualitiesFetchErrorWarning
+                                error={qualitiesError}
+                              />
                             ) : (
+                              <UnavailableEpisodeWarning
+                                status={videoPart.status ?? 0}
+                              />
+                            )
+                          ) : (
+                            <FormField
+                              control={form.control}
+                              name="videoQuality"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <div className="flex items-center gap-1.5">
+                                    <FormLabel className="text-sm font-medium">
+                                      {t('video.quality_label')}
+                                    </FormLabel>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Info className="text-muted-foreground h-4 w-4 cursor-help" />
+                                      </TooltipTrigger>
+                                      <TooltipContent
+                                        side="top"
+                                        className="max-w-xs text-xs"
+                                      >
+                                        <p>{t('video.quality_description')}</p>
+                                        <p className="mt-1">
+                                          {t('video.quality_note')}
+                                        </p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </div>
+                                  <FormControl>
+                                    <RadioGroup
+                                      value={String(field.value)}
+                                      onValueChange={field.onChange}
+                                    >
+                                      <QualityRadioGroup
+                                        idPrefix={`vq-${page}`}
+                                        unavailableReason={t(
+                                          'video.quality_requires_vip_or_login',
+                                        )}
+                                        options={VIDEO_QUALITIES_ORDER.map(
+                                          (id) => ({
+                                            id: String(id),
+                                            label:
+                                              VIDEO_QUALITIES_MAP[id] ??
+                                              String(id),
+                                            isAvailable: isQualityAvailable(
+                                              id,
+                                              'video',
+                                            ),
+                                          }),
+                                        )}
+                                      />
+                                    </RadioGroup>
+                                  </FormControl>
+                                  {selected && <FormMessage />}
+                                </FormItem>
+                              )}
+                            />
+                          )}
+
+                          {/* Audio Quality Section */}
+                          {(audioQualities?.length ?? 0) > 0 ? (
+                            <div>
+                              <div className="mb-2 flex items-center gap-1.5">
+                                <span className="text-sm font-medium">
+                                  {t('video.audio_quality_label')}
+                                </span>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Info className="text-muted-foreground h-4 w-4 cursor-help" />
+                                  </TooltipTrigger>
+                                  <TooltipContent
+                                    side="right"
+                                    className="max-w-xs text-xs"
+                                  >
+                                    <p>
+                                      {t('video.audio_quality_description')}
+                                    </p>
+                                    <p className="mt-1 whitespace-pre-line">
+                                      {t('video.audio_quality_note')}
+                                    </p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </div>
                               <FormField
                                 control={form.control}
-                                name="videoQuality"
+                                name="audioQuality"
                                 render={({ field }) => (
                                   <FormItem>
-                                    <div className="flex items-center gap-1.5">
-                                      <FormLabel className="text-sm font-medium">
-                                        {t('video.quality_label')}
-                                      </FormLabel>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <Info className="text-muted-foreground h-4 w-4 cursor-help" />
-                                        </TooltipTrigger>
-                                        <TooltipContent
-                                          side="top"
-                                          className="max-w-xs text-xs"
-                                        >
-                                          <p>
-                                            {t('video.quality_description')}
-                                          </p>
-                                          <p className="mt-1">
-                                            {t('video.quality_note')}
-                                          </p>
-                                        </TooltipContent>
-                                      </Tooltip>
-                                    </div>
                                     <FormControl>
                                       <RadioGroup
                                         value={String(field.value)}
                                         onValueChange={field.onChange}
                                       >
                                         <QualityRadioGroup
-                                          idPrefix={`vq-${page}`}
+                                          idPrefix={`aq-${page}`}
+                                          // Why: the `video.*` key is reused on purpose, not a copy-paste slip —
+                                          // availability is a bare membership check with no per-option cause, so
+                                          // one generic message serves both groups (issue #584)
                                           unavailableReason={t(
                                             'video.quality_requires_vip_or_login',
                                           )}
-                                          options={VIDEO_QUALITIES_ORDER.map(
+                                          options={AUDIO_QUALITIES_ORDER.map(
                                             (id) => ({
                                               id: String(id),
-                                              label:
-                                                VIDEO_QUALITIES_MAP[id] ??
-                                                String(id),
+                                              label: AUDIO_QUALITIES_MAP[id],
                                               isAvailable: isQualityAvailable(
-                                                id,
-                                                'video',
+                                                Number(id),
+                                                'audio',
                                               ),
                                             }),
                                           )}
@@ -971,171 +1004,79 @@ const VideoPartCard = memo(function VideoPartCard({
                                   </FormItem>
                                 )}
                               />
-                            )}
-
-                            {/* Audio Quality Section */}
-                            {(audioQualities?.length ?? 0) > 0 ? (
-                              <div>
-                                <div className="mb-2 flex items-center gap-1.5">
-                                  <span className="text-sm font-medium">
-                                    {t('video.audio_quality_label')}
-                                  </span>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Info className="text-muted-foreground h-4 w-4 cursor-help" />
-                                    </TooltipTrigger>
-                                    <TooltipContent
-                                      side="right"
-                                      className="max-w-xs text-xs"
-                                    >
-                                      <p>
-                                        {t('video.audio_quality_description')}
-                                      </p>
-                                      <p className="mt-1 whitespace-pre-line">
-                                        {t('video.audio_quality_note')}
-                                      </p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </div>
-                                <FormField
-                                  control={form.control}
-                                  name="audioQuality"
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormControl>
-                                        <RadioGroup
-                                          value={String(field.value)}
-                                          onValueChange={field.onChange}
-                                        >
-                                          <QualityRadioGroup
-                                            idPrefix={`aq-${page}`}
-                                            // Why: the `video.*` key is reused on purpose, not a copy-paste slip —
-                                            // availability is a bare membership check with no per-option cause, so
-                                            // one generic message serves both groups (issue #584)
-                                            unavailableReason={t(
-                                              'video.quality_requires_vip_or_login',
-                                            )}
-                                            options={AUDIO_QUALITIES_ORDER.map(
-                                              (id) => ({
-                                                id: String(id),
-                                                label: AUDIO_QUALITIES_MAP[id],
-                                                isAvailable: isQualityAvailable(
-                                                  Number(id),
-                                                  'audio',
-                                                ),
-                                              }),
-                                            )}
-                                          />
-                                        </RadioGroup>
-                                      </FormControl>
-                                      {selected && <FormMessage />}
-                                    </FormItem>
-                                  )}
-                                />
+                            </div>
+                          ) : (
+                            <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm dark:border-blue-800 dark:bg-blue-950">
+                              <div className="flex items-center gap-2">
+                                <Info className="h-4 w-4 flex-shrink-0 text-blue-600 dark:text-blue-400" />
+                                <p className="text-blue-900 dark:text-blue-100">
+                                  {isSilentVideo
+                                    ? t('video.no_audio_track')
+                                    : t('video.bangumi_audio_embedded')}
+                                </p>
                               </div>
-                            ) : (
-                              <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm dark:border-blue-800 dark:bg-blue-950">
-                                <div className="flex items-center gap-2">
-                                  <Info className="h-4 w-4 flex-shrink-0 text-blue-600 dark:text-blue-400" />
-                                  <p className="text-blue-900 dark:text-blue-100">
-                                    {isSilentVideo
-                                      ? t('video.no_audio_track')
-                                      : t('video.bangumi_audio_embedded')}
-                                  </p>
-                                </div>
+                            </div>
+                          )}
+
+                          {/* Subtitle Section */}
+                          {subtitles && subtitles.length > 0 && (
+                            <div>
+                              <div className="mb-2 flex items-center gap-1.5">
+                                <span className="text-sm font-medium">
+                                  {t('video.subtitle')}
+                                </span>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Info className="text-muted-foreground h-4 w-4 cursor-help" />
+                                  </TooltipTrigger>
+                                  <TooltipContent
+                                    side="right"
+                                    className="max-w-xs text-xs"
+                                  >
+                                    <p>{t('video.subtitle_description')}</p>
+                                    <p className="mt-1">
+                                      {t('video.subtitle_note')}
+                                    </p>
+                                  </TooltipContent>
+                                </Tooltip>
                               </div>
-                            )}
+                              <SubtitleSection
+                                subtitles={subtitles}
+                                config={
+                                  partInput?.subtitle ?? defaultSubtitleConfig
+                                }
+                                disabled={disabled || partActive}
+                                page={page}
+                                onConfigChange={handleSubtitleConfigChange}
+                              />
+                            </div>
+                          )}
+                          {selected && isSubtitleInvalid && (
+                            <div className="text-destructive text-xs">
+                              {t('video.subtitle_select_required')}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            </TooltipProvider>
 
-                            {/* Subtitle Section */}
-                            {subtitles && subtitles.length > 0 && (
-                              <div>
-                                <div className="mb-2 flex items-center gap-1.5">
-                                  <span className="text-sm font-medium">
-                                    {t('video.subtitle')}
-                                  </span>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Info className="text-muted-foreground h-4 w-4 cursor-help" />
-                                    </TooltipTrigger>
-                                    <TooltipContent
-                                      side="right"
-                                      className="max-w-xs text-xs"
-                                    >
-                                      <p>{t('video.subtitle_description')}</p>
-                                      <p className="mt-1">
-                                        {t('video.subtitle_note')}
-                                      </p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </div>
-                                <SubtitleSection
-                                  subtitles={subtitles}
-                                  config={
-                                    partInput?.subtitle ?? defaultSubtitleConfig
-                                  }
-                                  disabled={
-                                    disabled ||
-                                    isDownloading ||
-                                    isPending ||
-                                    hasActiveDownloads
-                                  }
-                                  page={page}
-                                  onConfigChange={handleSubtitleConfigChange}
-                                />
-                              </div>
-                            )}
-                            {selected && isSubtitleInvalid && (
-                              <div className="text-destructive text-xs">
-                                {t('video.subtitle_select_required')}
-                              </div>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                </Accordion>
-              </TooltipProvider>
+            {/* Duplicate Warning */}
+            {selected && isDuplicate && (
+              <div className="text-destructive mt-1 text-sm">
+                {t('validation.video.title.duplicate')}
+              </div>
+            )}
+          </form>
+        </fieldset>
 
-              {/* Duplicate Warning */}
-              {selected && isDuplicate && (
-                <div className="text-destructive mt-1 text-sm">
-                  {t('validation.video.title.duplicate')}
-                </div>
-              )}
-            </form>
-          </fieldset>
-        </AnimatedSection>
-
-        {/* Compact row: replaces the full body during a download session.
-            Animated against the full body above so the swap is one
-            continuous motion. */}
-        <AnimatedSection show={isCompact}>
-          <PartCompactCard
-            page={page}
-            title={partInput?.title ?? videoPart.part}
-            thumbnailUrl={videoPart.thumbnail.url}
-            status={downloadStatus}
-            isQueued={Boolean(downloadStatus.downloadId) || isWaitingForTurn}
-            isActive={isActive}
-            hasEmbeddedAudio={hasEmbeddedAudio || isSilentVideo}
-            expectations={stageExpectations(partInput)}
-            onThumbnailClick={handleThumbnailClick}
-            onCancel={handleCancel}
-          />
-        </AnimatedSection>
-
-        {/* Download Progress Section (full mode only; the compact mode
-            renders it inside PartCompactCard's expander for the active
-            part) */}
-        {!isCompact && (downloadStatus.downloadId || isWaitingForTurn) && (
-          <PartDownloadProgress
-            status={downloadStatus}
-            isWaitingForTurn={isWaitingForTurn}
-            onCancel={handleCancel}
-            hasEmbeddedAudio={hasEmbeddedAudio || isSilentVideo}
-          />
-        )}
+        {/* No per-part progress detail here by design (issue #691): the
+            search page's responsibility ends at enqueueing — the badge
+            carries the state, the bottom bar the summary, and /downloads
+            the stage detail and cancellation. */}
       </Form>
     </div>
   )

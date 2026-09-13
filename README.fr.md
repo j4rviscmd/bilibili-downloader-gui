@@ -38,7 +38,7 @@ Pas de publicités, pas de suivi. 100 % gratuit.
 - **Prise en charge de Bangumi (anime et séries)** - Téléchargez des épisodes d'anime et de séries en plus des vidéos régulières
 - **Sauvegarde par lot de vidéos multi-parties** - Téléchargez automatiquement toutes les parties de cours, séries, etc.
 - **Téléchargements rapides et stables** - Changement automatique de CDN avec réessai automatique en cas d'erreurs réseau
-- **Traitement en arrière-plan** - Gestion de file avec progression en temps réel
+- **File de téléchargements** - Continuez à rechercher et à mettre en file pendant les téléchargements ; une file série (FIFO) est traitée sur la page des téléchargements avec une barre de progression en bas
 - **Incorporation de sous-titres** - Sélection de sous-titres souples/durs avec support multilingue et sous-titres IA
 - **Audio haute résolution** - Prise en charge Dolby Atmos et Hi-Res Lossless
 

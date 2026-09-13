@@ -4,7 +4,7 @@ import { setUser } from '@/features/user/userSlice'
 import { PARTS_PER_PAGE, setVideo } from '@/features/video'
 import { initPartInputs, setInput } from '@/features/video/model/inputSlice'
 import type { Video, VideoPart } from '@/features/video/types'
-import HomeContent from '@/pages/home'
+import SearchContent from '@/pages/search'
 import { renderWithProviders } from '@/test/test-utils'
 import { screen, within } from '@testing-library/react'
 import { Navigate, Route, Routes, useLocation } from 'react-router'
@@ -88,23 +88,23 @@ function seedVideo(partCount: number) {
 function RedirectHarness() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/home" replace />} />
-      <Route path="/home" element={<HomeContent />} />
+      <Route path="/" element={<Navigate to="/search" replace />} />
+      <Route path="/search" element={<SearchContent />} />
       <Route path="/init" element={<div>init-route</div>} />
     </Routes>
   )
 }
 
-/** /home route with an echo of the search string so URL rewrites are observable. */
+/** /search route with an echo of the search string so URL rewrites are observable. */
 function HomeWithSearchEcho() {
   const { search } = useLocation()
   return (
     <Routes>
       <Route
-        path="/home"
+        path="/search"
         element={
           <>
-            <HomeContent />
+            <SearchContent />
             <div data-testid="search-echo">{search}</div>
           </>
         }
@@ -113,7 +113,7 @@ function HomeWithSearchEcho() {
   )
 }
 
-describe('HomeContent', () => {
+describe('SearchContent', () => {
   beforeEach(() => {
     // The store is a singleton shared across tests in this file; reset the
     // slices the page reads so each test seeds only what it asserts on.
@@ -145,7 +145,7 @@ describe('HomeContent', () => {
   })
 
   it('renders the URL input card with VideoForm1 and the login notice when logged out', () => {
-    renderWithProviders(<HomeContent />, { route: '/home' })
+    renderWithProviders(<SearchContent />, { route: '/search' })
 
     expect(screen.getByText('video.step1_title')).toBeInTheDocument()
     expect(screen.getByTestId('video-form1')).toBeInTheDocument()
@@ -168,7 +168,7 @@ describe('HomeContent', () => {
       }),
     )
 
-    renderWithProviders(<HomeContent />, { route: '/home' })
+    renderWithProviders(<SearchContent />, { route: '/search' })
 
     expect(
       screen.queryByText('video.login_benefits_title'),
@@ -187,7 +187,7 @@ describe('HomeContent', () => {
     )
     store.dispatch(setInput(initialInput))
 
-    renderWithProviders(<HomeContent />, { route: '/home' })
+    renderWithProviders(<SearchContent />, { route: '/search' })
 
     expect(screen.queryByText('video.step2_title')).not.toBeInTheDocument()
     expect(screen.queryAllByTestId('video-part-card')).toHaveLength(0)
@@ -198,7 +198,7 @@ describe('HomeContent', () => {
     store.dispatch(setInput(initialInput))
     seedVideo(3)
 
-    renderWithProviders(<HomeContent />, { route: '/home' })
+    renderWithProviders(<SearchContent />, { route: '/search' })
 
     expect(screen.getByText('video.step2_title')).toBeInTheDocument()
     expect(screen.getAllByTestId('video-part-card')).toHaveLength(3)
@@ -214,8 +214,8 @@ describe('HomeContent', () => {
     store.dispatch(setInput(initialInput))
     seedVideo(PARTS_PER_PAGE + 2)
 
-    const { user } = renderWithProviders(<HomeContent />, {
-      route: '/home?someParam=1',
+    const { user } = renderWithProviders(<SearchContent />, {
+      route: '/search?someParam=1',
     })
 
     // Page 1 shows exactly PARTS_PER_PAGE cards of 12 total.
@@ -237,8 +237,8 @@ describe('HomeContent', () => {
     store.dispatch(setInput(initialInput))
     seedVideo(2)
 
-    const { user } = renderWithProviders(<HomeContent />, {
-      route: '/home',
+    const { user } = renderWithProviders(<SearchContent />, {
+      route: '/search',
     })
 
     await user.click(screen.getByText('video.select_all_page'))
@@ -256,8 +256,8 @@ describe('HomeContent', () => {
     store.dispatch(setInput(initialInput))
     const url = 'https://www.bilibili.com/video/BV1autoFetch'
 
-    renderWithProviders(<HomeContent />, {
-      route: `/home?autoFetch=${encodeURIComponent(url)}`,
+    renderWithProviders(<SearchContent />, {
+      route: `/search?autoFetch=${encodeURIComponent(url)}`,
     })
 
     // onValid1 validates then dispatches setUrl before the (mocked,
@@ -278,7 +278,7 @@ describe('HomeContent', () => {
 
   it('strips a stale page param when a ?p= URL lands in the store', async () => {
     store.dispatch(setInput(initialInput))
-    renderWithProviders(<HomeWithSearchEcho />, { route: '/home?page=2' })
+    renderWithProviders(<HomeWithSearchEcho />, { route: '/search?page=2' })
 
     // A multi-part URL arriving in the store invalidates the page param
     store.dispatch(
@@ -296,7 +296,7 @@ describe('HomeContent', () => {
   it('keeps other search params when stripping the stale page param', async () => {
     store.dispatch(setInput(initialInput))
     renderWithProviders(<HomeWithSearchEcho />, {
-      route: '/home?page=2&foo=1',
+      route: '/search?page=2&foo=1',
     })
 
     store.dispatch(
@@ -315,8 +315,8 @@ describe('HomeContent', () => {
   it('collapses page numbers to ellipsis when there are more than 7 pages', async () => {
     seedVideo(PARTS_PER_PAGE * 8 + 1) // 9 pages
 
-    const { user } = renderWithProviders(<HomeContent />, {
-      route: '/home',
+    const { user } = renderWithProviders(<SearchContent />, {
+      route: '/search',
     })
 
     const footer = screen.getByText('video.pagination_next').closest('ul')!
@@ -336,8 +336,8 @@ describe('HomeContent', () => {
   it('asks for confirmation before navigating away from a selection', async () => {
     seedVideo(PARTS_PER_PAGE + 2) // 2 pages
 
-    const { user } = renderWithProviders(<HomeContent />, {
-      route: '/home',
+    const { user } = renderWithProviders(<SearchContent />, {
+      route: '/search',
     })
 
     // Select everything on page 1, then try to leave
@@ -360,8 +360,8 @@ describe('HomeContent', () => {
   it('cancelling the navigation dialog keeps the selection and page', async () => {
     seedVideo(PARTS_PER_PAGE + 2)
 
-    const { user } = renderWithProviders(<HomeContent />, {
-      route: '/home',
+    const { user } = renderWithProviders(<SearchContent />, {
+      route: '/search',
     })
 
     await user.click(screen.getByText('video.select_all_page'))
@@ -378,7 +378,7 @@ describe('HomeContent', () => {
   it('syncs a stale URL page param down to the last page when parts shrink', () => {
     seedVideo(3) // single page
 
-    renderWithProviders(<HomeContent />, { route: '/home?page=9' })
+    renderWithProviders(<SearchContent />, { route: '/search?page=9' })
 
     // Effect clamps the out-of-range page to totalPages (1)
     expect(store.getState().input.homePage).toBe(1)

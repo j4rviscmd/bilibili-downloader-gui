@@ -9,14 +9,18 @@
 
 import { store } from '@/app/store'
 import { clearHistory } from '@/features/history/model/historySlice'
-import { initPartInputs, resetInput } from '@/features/video/model/inputSlice'
+import {
+  initPartInputs,
+  resetInput,
+  setUrl,
+} from '@/features/video/model/inputSlice'
 import {
   clearProgress,
   selectProgressEntriesByDownloadId,
 } from '@/shared/progress/progressSlice'
-import { clearQueue, enqueue } from '@/shared/queue/queueSlice'
 import { toast } from '@/shared/ui/toast'
 import { clearTauriEvents, emitTauriEvent } from '@/test/tauriEvents'
+import { resetQueue, seedSession } from '@/test/test-utils'
 import { act, cleanup, render, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -37,6 +41,17 @@ const progressBase = {
   deltaTime: 0.5,
   elapsedTime: 1,
   isComplete: false,
+}
+
+/** Active part downloadId of the seeded session ('BVlistener-…-p1'). */
+let d1 = 'd1'
+
+/** Seeds one session part with the given status and points d1 at it. */
+function useD1(status: 'pending' | 'running' | 'done' | 'error' = 'pending') {
+  const parentId = seedSession('BVlistener', [{ partIndex: 1, cid: 1, status }])
+  d1 = `${parentId}-p1`
+  progressBase.downloadId = d1
+  return d1
 }
 
 function queue() {
@@ -60,7 +75,7 @@ beforeEach(async () => {
   // clearing state, so its listeners stop firing into the fresh state.
   cleanup()
   clearTauriEvents()
-  store.dispatch(clearQueue())
+  resetQueue()
   store.dispatch(clearProgress())
   store.dispatch(resetInput())
   store.dispatch(clearHistory())
@@ -74,38 +89,38 @@ afterEach(() => {
 describe('progress event', () => {
   it('dispatches setProgress and marks running on download stages', async () => {
     await mount()
-    store.dispatch(enqueue({ downloadId: 'd1', status: 'pending' }))
+    useD1('pending')
 
     act(() => {
       emitTauriEvent('progress', { ...progressBase, stage: 'audio' })
     })
 
     expect(
-      selectProgressEntriesByDownloadId('d1')(store.getState()),
+      selectProgressEntriesByDownloadId(d1)(store.getState()),
     ).toHaveLength(1)
-    expect(queue().find((q) => q.downloadId === 'd1')!.status).toBe('running')
+    expect(queue().find((q) => q.downloadId === d1)!.status).toBe('running')
   })
 
   it('marks done on complete stage', async () => {
     await mount()
-    store.dispatch(enqueue({ downloadId: 'd1', status: 'running' }))
+    useD1('running')
 
     act(() => {
       emitTauriEvent('progress', { ...progressBase, stage: 'complete' })
     })
 
-    expect(queue().find((q) => q.downloadId === 'd1')!.status).toBe('done')
+    expect(queue().find((q) => q.downloadId === d1)!.status).toBe('done')
   })
 
   it('unknown stage leaves queue status untouched', async () => {
     await mount()
-    store.dispatch(enqueue({ downloadId: 'd1', status: 'pending' }))
+    useD1('pending')
 
     act(() => {
       emitTauriEvent('progress', { ...progressBase, stage: 'finalize' })
     })
 
-    expect(queue().find((q) => q.downloadId === 'd1')!.status).toBe('pending')
+    expect(queue().find((q) => q.downloadId === d1)!.status).toBe('pending')
   })
 
   it('merge-fallback stage shows the audio-merge-fallback toast once', async () => {
@@ -155,81 +170,51 @@ describe('history:entry_added', () => {
 describe('download_cancelled', () => {
   it('marks cancelled, clears progress, and toasts', async () => {
     await mount()
-    store.dispatch(enqueue({ downloadId: 'd1', status: 'running' }))
+    useD1('running')
     act(() => {
       emitTauriEvent('progress', { ...progressBase, stage: 'audio' })
     })
 
     act(() => {
-      emitTauriEvent('download_cancelled', { downloadId: 'd1' })
+      emitTauriEvent('download_cancelled', { downloadId: d1 })
     })
 
-    expect(queue().find((q) => q.downloadId === 'd1')!.status).toBe('cancelled')
+    expect(queue().find((q) => q.downloadId === d1)!.status).toBe('cancelled')
     expect(
-      selectProgressEntriesByDownloadId('d1')(store.getState()),
+      selectProgressEntriesByDownloadId(d1)(store.getState()),
     ).toHaveLength(0)
     expect(toast.info).toHaveBeenCalledWith('video.download_cancelled')
   })
 
   it('keeps done items (late cancel race)', async () => {
     await mount()
-    store.dispatch(enqueue({ downloadId: 'd1', status: 'done' }))
+    useD1('done')
 
     act(() => {
-      emitTauriEvent('download_cancelled', { downloadId: 'd1' })
+      emitTauriEvent('download_cancelled', { downloadId: d1 })
     })
 
-    expect(queue().find((q) => q.downloadId === 'd1')!.status).toBe('done')
+    expect(queue().find((q) => q.downloadId === d1)!.status).toBe('done')
     expect(toast.info).not.toHaveBeenCalled()
   })
 
   it('keeps error items too', async () => {
     await mount()
-    store.dispatch(enqueue({ downloadId: 'd1', status: 'error' }))
+    useD1('error')
 
     act(() => {
-      emitTauriEvent('download_cancelled', { downloadId: 'd1' })
+      emitTauriEvent('download_cancelled', { downloadId: d1 })
     })
 
-    expect(queue().find((q) => q.downloadId === 'd1')!.status).toBe('error')
+    expect(queue().find((q) => q.downloadId === d1)!.status).toBe('error')
   })
 })
 
 describe('quality/subtitle resolved events', () => {
-  it('download-quality-resolved updates resolved quality and closes accordions', async () => {
-    await mount()
-    store.dispatch(
-      initPartInputs([
-        {
-          cid: 1,
-          page: 1,
-          title: 'P1',
-          videoQuality: '1080P',
-          audioQuality: 'high',
-          selected: true,
-          duration: 60,
-        },
-      ]),
-    )
-    act(() => {
-      emitTauriEvent('download-quality-resolved', {
-        page: 1,
-        videoQuality: 80,
-        videoQualityFallback: false,
-        videoCodecid: 7,
-        videoCodecFallback: false,
-        audioQuality: 30216,
-        audioQualityFallback: false,
-        isPreview: null,
-      })
-    })
-    const part = store.getState().input.partInputs[0]
-    expect(part.resolvedQuality?.videoQuality).toBe(80)
-    expect(part.accordionOpen).toBe(false)
-  })
-
-  it('download-subtitle-resolved stores mode and labels', async () => {
-    await mount()
+  // The displayed video's URL decides which events may write state.input
+  // (issue #691 pollution guard) — every test in this block must set it.
+  function displayVideo(videoId: string) {
+    store.dispatch(setUrl(`https://www.bilibili.com/video/${videoId}`))
     store.dispatch(
       initPartInputs([
         {
@@ -252,8 +237,54 @@ describe('quality/subtitle resolved events', () => {
         },
       ]),
     )
+  }
+
+  it('download-quality-resolved updates resolved quality and closes accordions', async () => {
+    await mount()
+    displayVideo('BVlistener')
+    act(() => {
+      emitTauriEvent('download-quality-resolved', {
+        downloadId: 'BVlistener-s1-p1',
+        page: 1,
+        videoQuality: 80,
+        videoQualityFallback: false,
+        videoCodecid: 7,
+        videoCodecFallback: false,
+        audioQuality: 30216,
+        audioQualityFallback: false,
+        isPreview: null,
+      })
+    })
+    const part = store.getState().input.partInputs[0]
+    expect(part.resolvedQuality?.videoQuality).toBe(80)
+    expect(part.accordionOpen).toBe(false)
+  })
+
+  it('a background video resolved event does not pollute the displayed video', async () => {
+    await mount()
+    displayVideo('BVdisplayed')
+    act(() => {
+      emitTauriEvent('download-quality-resolved', {
+        downloadId: 'BVbackground-s1-p1',
+        page: 1,
+        videoQuality: 80,
+        videoQualityFallback: false,
+        videoCodecid: 7,
+        videoCodecFallback: false,
+        audioQuality: 30216,
+        audioQualityFallback: false,
+        isPreview: null,
+      })
+    })
+    expect(store.getState().input.partInputs[0].resolvedQuality).toBeUndefined()
+  })
+
+  it('download-subtitle-resolved stores mode and labels', async () => {
+    await mount()
+    displayVideo('BVlistener')
     act(() => {
       emitTauriEvent('download-subtitle-resolved', {
+        downloadId: 'BVlistener-s1-p2',
         page: 2,
         subtitleMode: 'soft',
         subtitleLanguageLabels: ['日本語', 'English'],
@@ -286,14 +317,14 @@ describe('download-retrying', () => {
     act(() => {
       emitTauriEvent('progress', { ...progressBase, stage: 'video' })
       emitTauriEvent('download-retrying', {
-        downloadId: 'd1',
+        downloadId: d1,
         stage: 'video',
         isRetrying: true,
       })
     })
-    const entry = selectProgressEntriesByDownloadId('d1')(
-      store.getState(),
-    ).find((e) => e.stage === 'video')
+    const entry = selectProgressEntriesByDownloadId(d1)(store.getState()).find(
+      (e) => e.stage === 'video',
+    )
     expect(entry?.isRetrying).toBe(true)
   })
 })
@@ -314,7 +345,7 @@ describe('unmount', () => {
         status: 'completed',
         version: '1.0',
       })
-      emitTauriEvent('download_cancelled', { downloadId: 'd1' })
+      emitTauriEvent('download_cancelled', { downloadId: d1 })
       emitTauriEvent('download-subtitle-warning', { failedLanguages: ['a'] })
     })
 

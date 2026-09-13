@@ -20,10 +20,72 @@ import { MemoryRouter } from 'react-router'
 import type { Mock } from 'vitest'
 
 import { store } from '@/app/store'
-import type { PartDownloadStatus } from '@/features/video/hooks/usePartDownloadStatus'
+import type { PartDownloadStatus } from '@/features/video/ui/PartDownloadProgress'
+import {
+  enqueueSession,
+  removeQueueItems,
+  updateQueueStatus,
+  type EnqueuePartSpec,
+  type QueueItemStatus,
+} from '@/shared/queue'
 
 /** The single `vi.fn` created by src/test/setup.ts — re-exported for ergonomics. */
 export const mockInvoke = invoke as unknown as Mock
+
+/**
+ * Empties the singleton store's download queue (successor of the abolished
+ * clearQueue action — the queue is session-scoped since issue #691).
+ */
+export function resetQueue() {
+  const ids = store.getState().queue.map((i) => i.downloadId)
+  if (ids.length > 0) store.dispatch(removeQueueItems(ids))
+}
+
+/**
+ * Seeds one download session through the real enqueueSession reducer and
+ * returns the parent downloadId. Statuses beyond 'pending' are applied via
+ * updateQueueStatus so parent aggregation runs like production.
+ */
+export function seedSession(
+  videoId: string,
+  parts: { partIndex: number; cid: number; status?: QueueItemStatus }[],
+): string {
+  const specs: EnqueuePartSpec[] = parts.map((p) => ({
+    partIndex: p.partIndex,
+    cid: p.cid,
+    title: `P${p.partIndex}`,
+    thumbnailUrl: null,
+    expectedStages: { audioStage: true, mergeStage: true },
+    payload: {
+      videoId,
+      cid: p.cid,
+      filename: `P${p.partIndex}`,
+      quality: null,
+      audioQuality: null,
+      durationSeconds: 60,
+      thumbnailUrl: null,
+      page: p.partIndex,
+      epId: null,
+      subtitle: null,
+    },
+  }))
+  store.dispatch(enqueueSession({ videoId, videoTitle: videoId, parts: specs }))
+  const parents = store
+    .getState()
+    .queue.filter((i) => i.kind === 'parent' && i.videoId === videoId)
+  const parentId = parents[parents.length - 1].downloadId
+  for (const p of parts) {
+    if (p.status && p.status !== 'pending') {
+      store.dispatch(
+        updateQueueStatus({
+          downloadId: `${parentId}-p${p.partIndex}`,
+          status: p.status,
+        }),
+      )
+    }
+  }
+  return parentId
+}
 
 /** Builds an idle PartDownloadStatus with per-test overrides. */
 export function createPartDownloadStatus(

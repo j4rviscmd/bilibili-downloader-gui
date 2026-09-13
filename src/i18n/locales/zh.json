@@ -21,7 +21,8 @@
     "copy": "复制"
   },
   "nav": {
-    "home": "主页",
+    "search": "搜索",
+    "downloads": "下载",
     "downloadHistory": "下载历史",
     "watchHistory": "观看历史",
     "favorite": "收藏",
@@ -36,7 +37,8 @@
     },
     "aria": {
       "mainNavigation": "主导航",
-      "home": "前往下载页面",
+      "search": "前往搜索页面",
+      "downloads": "前往下载页面",
       "downloadHistory": "前往下载历史页面",
       "watchHistory": "转到观看历史",
       "favorite": "前往收藏页面",
@@ -780,6 +782,15 @@
     "status_error": "错误",
     "speed_limit_tooltip": "速度限制已启用。点击打开设置——更改立即对正在进行的下载生效，仅应用于本应用实例。",
     "speed_limit_set": "设置速度限制"
+  },
+  "queue": {
+    "title": "下载",
+    "description": "排队中的下载会按顺序逐个执行。",
+    "empty": "队列中没有下载任务。\n搜索视频并点击下载按钮，任务会添加到这里。",
+    "clear_finished": "清除已完成",
+    "parts_completed": "{{completed}}/{{total}} 个分P",
+    "duplicates_excluded": "{{count}} 个分P已在下载队列中，未重复添加。",
+    "open_downloads": "打开下载页面"
   },
   "audio": {
     "title": "音频提取",

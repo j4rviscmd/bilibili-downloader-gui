@@ -9,7 +9,6 @@
  */
 
 // API functions
-export { downloadVideo } from './api/downloadVideo'
 export { fetchVideoInfo } from './api/fetchVideoInfo'
 export {
   useFetchVideoInfoQuery,
@@ -38,7 +37,6 @@ export {
 export { setVideo, videoSlice } from './model/videoSlice'
 
 // Selectors
-export { selectOverallSummary } from './model/downloadProgress'
 export {
   selectAllPartValid,
   selectDuplicateIndices,

@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router'
 /**
  * Index page component (root route).
  *
- * Redirects to /home if initialized, otherwise to /init.
+ * Redirects to /search if initialized, otherwise to /init.
  * Does not render any UI.
  *
  * @example
@@ -19,7 +19,7 @@ function IndexPage() {
 
   useEffect(() => {
     if (initiated) {
-      navigate('/home')
+      navigate('/search')
     } else {
       navigate('/init')
     }

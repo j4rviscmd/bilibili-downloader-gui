@@ -2,8 +2,7 @@ import { store } from '@/app/store'
 import type { User } from '@/features/user/types'
 import { setUser } from '@/features/user/userSlice'
 import { setHomePage } from '@/features/video/model/inputSlice'
-import { clearQueue } from '@/shared/queue'
-import { renderWithProviders } from '@/test/test-utils'
+import { renderWithProviders, resetQueue } from '@/test/test-utils'
 import { screen } from '@testing-library/react'
 import { useLocation } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -82,7 +81,7 @@ describe('NavigationSidebarHeader', () => {
   beforeEach(() => {
     // Reset shared singleton-store slices between tests.
     store.dispatch(setUser(loggedOutUser))
-    store.dispatch(clearQueue())
+    resetQueue()
     store.dispatch(setHomePage(1))
   })
 
@@ -90,7 +89,8 @@ describe('NavigationSidebarHeader', () => {
     renderSidebar()
 
     const labels = [
-      'nav.home',
+      'nav.search',
+      'nav.downloads',
       'nav.category.bilibili',
       'nav.favorite',
       'nav.watchHistory',
@@ -114,12 +114,12 @@ describe('NavigationSidebarHeader', () => {
     expect(trim).toHaveAttribute('aria-current', 'page')
     expect(trim).toHaveAttribute('data-active', 'true')
 
-    const home = screen.getByRole('button', { name: 'nav.aria.home' })
-    expect(home).not.toHaveAttribute('aria-current')
+    const search = screen.getByRole('button', { name: 'nav.aria.search' })
+    expect(search).not.toHaveAttribute('aria-current')
   })
 
   it('navigates to the clicked item path', async () => {
-    const { user: actor } = renderSidebar('/home')
+    const { user: actor } = renderSidebar('/search')
 
     await actor.click(screen.getByRole('button', { name: 'nav.aria.concat' }))
 
@@ -129,25 +129,25 @@ describe('NavigationSidebarHeader', () => {
     ).toHaveAttribute('aria-current', 'page')
   })
 
-  it('restores the last-viewed ?page= param on Home navigation', async () => {
+  it('restores the last-viewed ?page= param on Search navigation', async () => {
     store.dispatch(setHomePage(3))
     const { user: actor } = renderSidebar('/trim')
 
-    await actor.click(screen.getByRole('button', { name: 'nav.aria.home' }))
+    await actor.click(screen.getByRole('button', { name: 'nav.aria.search' }))
 
-    // The Home button returns to the paginated page the user was on,
+    // The Search button returns to the paginated page the user was on,
     // taking URL priority over any stale ?p embedded in input.url.
-    expect(screen.getByTestId('location')).toHaveTextContent('/home?page=3')
+    expect(screen.getByTestId('location')).toHaveTextContent('/search?page=3')
   })
 
   it('disables auth-required items when logged out and blocks navigation', async () => {
-    const { user: actor } = renderSidebar('/home')
+    const { user: actor } = renderSidebar('/search')
 
     const favorite = screen.getByRole('button', { name: 'nav.aria.favorite' })
     expect(favorite).toHaveAttribute('aria-disabled', 'true')
 
     await actor.click(favorite)
-    expect(screen.getByTestId('location')).toHaveTextContent('/home')
+    expect(screen.getByTestId('location')).toHaveTextContent('/search')
   })
 
   it('enables auth-required items when logged in', async () => {
@@ -162,7 +162,7 @@ describe('NavigationSidebarHeader', () => {
         },
       }),
     )
-    const { user: actor } = renderSidebar('/home')
+    const { user: actor } = renderSidebar('/search')
 
     const favorite = screen.getByRole('button', { name: 'nav.aria.favorite' })
     expect(favorite).not.toHaveAttribute('aria-disabled')

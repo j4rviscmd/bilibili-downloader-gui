@@ -1,4 +1,3 @@
-import { useSelector } from '@/app/store'
 import { useHistory } from '@/features/history/hooks/useHistory'
 import type { HistoryEntry } from '@/features/history/model/historySlice'
 import HistoryExportDialog from '@/features/history/ui/HistoryExportDialog'
@@ -7,7 +6,6 @@ import HistoryList from '@/features/history/ui/HistoryList'
 import HistorySearch from '@/features/history/ui/HistorySearch'
 import { usePendingDownload } from '@/shared/hooks/usePendingDownload'
 import { PageTemplate } from '@/shared/layout'
-import { selectHasActiveDownloads } from '@/shared/queue'
 import { Button } from '@/shared/ui/button'
 import { toast } from '@/shared/ui/toast'
 import { confirm, save } from '@tauri-apps/plugin-dialog'
@@ -27,7 +25,6 @@ import { logger } from '@/shared/lib/logger'
  */
 export function HistoryContent() {
   const { t } = useTranslation()
-  const hasActiveDownloads = useSelector(selectHasActiveDownloads)
   const handleDownload = usePendingDownload()
 
   const {
@@ -183,7 +180,6 @@ export function HistoryContent() {
           loading={loading}
           onDelete={remove}
           onDownload={onDownload}
-          disabled={hasActiveDownloads}
         />
       </div>
 

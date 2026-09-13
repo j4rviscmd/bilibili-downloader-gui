@@ -8,7 +8,6 @@ import {
 } from '@/features/watch-history'
 import { usePendingDownload } from '@/shared/hooks/usePendingDownload'
 import { PageTemplate } from '@/shared/layout'
-import { selectHasActiveDownloads } from '@/shared/queue'
 import { Alert, AlertDescription } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
 import { toast } from '@/shared/ui/toast'
@@ -35,7 +34,6 @@ import { useTranslation } from 'react-i18next'
 export function WatchHistoryContent() {
   const { t } = useTranslation()
   const user = useSelector((state) => state.user)
-  const hasActiveDownloads = useSelector(selectHasActiveDownloads)
   const handleDownload = usePendingDownload()
 
   const {
@@ -140,7 +138,6 @@ export function WatchHistoryContent() {
           hasMore={!!cursor && !cursor.isEnd}
           onLoadMore={fetchMore}
           onDownload={onDownload}
-          disabled={hasActiveDownloads}
         />
       </div>
     </PageTemplate>

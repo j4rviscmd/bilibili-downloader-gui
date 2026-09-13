@@ -21,7 +21,8 @@
     "copy": "コピー"
   },
   "nav": {
-    "home": "ホーム",
+    "search": "検索",
+    "downloads": "ダウンロード",
     "downloadHistory": "ダウンロード履歴",
     "watchHistory": "視聴履歴",
     "favorite": "お気に入り",
@@ -36,7 +37,8 @@
     },
     "aria": {
       "mainNavigation": "メインナビゲーション",
-      "home": "ダウンロード画面へ移動",
+      "search": "検索ページへ移動",
+      "downloads": "ダウンロードページへ移動",
       "downloadHistory": "ダウンロード履歴画面へ移動",
       "watchHistory": "視聴履歴に移動",
       "favorite": "お気に入り画面へ移動",
@@ -780,6 +782,15 @@
     "status_cancelling": "キャンセル中",
     "status_cancelled": "キャンセル済み",
     "status_error": "エラー"
+  },
+  "queue": {
+    "title": "ダウンロード",
+    "description": "追加したダウンロードを順番に1件ずつ処理します。",
+    "empty": "キューにあるダウンロードはありません。\n動画を検索してダウンロードボタンを押すと、ここに追加されます。",
+    "clear_finished": "完了済みを削除",
+    "parts_completed": "{{completed}}/{{total}} パート",
+    "duplicates_excluded": "{{count}} 件のパートはすでにダウンロードキューにあるため追加しませんでした。",
+    "open_downloads": "ダウンロードページを開く"
   },
   "audio": {
     "title": "音声抽出",
