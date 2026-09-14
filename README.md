@@ -78,6 +78,8 @@ No ads, no tracking. 100% free.
 
 ## Installation
 
+### Option A: Installer (recommended)
+
 | Platform                  | Download                                                                                                                                                                             |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **macOS (Apple Silicon)** | [bilibili-downloader-gui_macOS_arm64.dmg](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_macOS_arm64.dmg)                     |
@@ -93,13 +95,13 @@ No ads, no tracking. 100% free.
 > xattr -dr com.apple.quarantine "/Applications/bilibili-downloader-gui.app"
 > ```
 
-### First-run setup and Windows ZIP editions
-
 The Windows installer offers a language selector. On first launch, choose
 the application's default language before FFmpeg setup starts; the initial
 selection follows your system/browser language. You can change it in Settings.
 
-Releases also provide two Windows x64 ZIP editions:
+### Option B: Portable ZIP (Windows only)
+
+The releases page also offers two portable Windows x64 ZIP editions:
 
 - `Windows_x64-light.zip`: smaller download; installs FFmpeg on first launch.
 - `Windows_x64-with-ffmpeg.zip`: includes FFmpeg, its license and upstream
@@ -110,17 +112,16 @@ Microsoft Edge WebView2 Runtime and store settings in the usual application
 data directory. Bundled FFmpeg is copied to the configured library directory
 and remains available after an application update.
 
-FFmpeg setup probes the primary asset with a five-second timeout. If it is
-unreachable or installation fails, setup automatically tries the
-[npmmirror distribution](https://registry.npmmirror.com/binary.html?path=ffmpeg-static/).
-The primary GitHub source and mainland China CDN both serve the same pinned
-`ffmpeg-static` b6.1.1 asset for the native platform. Every download is checked
-against the upstream SHA-256 digest in `src-tauri/ffmpeg-binaries.json` before extraction;
-all installed binaries must pass a functional AAC encode probe.
+> [!WARNING]
+> ZIP editions do not update automatically. Check the
+> [releases page](https://github.com/j4rviscmd/bilibili-downloader-gui/releases)
+> periodically and update manually.
 
-To package the ZIPs on Windows after `npm run tauri build -- --no-bundle`, run
-`./scripts/package-windows.ps1` in PowerShell. Release CI publishes both ZIPs;
-the separate Windows ZIP validation workflow builds and checks them on PRs.
+<!-- China-specific FFmpeg download details (npmmirror fallback, pinned
+     ffmpeg-static asset, SHA-256 verification) intentionally live only in
+     README.zh.md — do not re-add them here or translate them into other
+     language READMEs. Developer packaging steps live in
+     .github/workflows/windows-zips.yml. -->
 
 ## Contributing
 

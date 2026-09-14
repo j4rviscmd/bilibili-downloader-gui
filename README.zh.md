@@ -78,6 +78,8 @@
 
 ## 安装
 
+### 方式 A：安装器（推荐）
+
 | 平台                      | 下载                                                                                                                                                                                 |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **macOS (Apple Silicon)** | [bilibili-downloader-gui_macOS_arm64.dmg](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_macOS_arm64.dmg)                     |
@@ -93,18 +95,26 @@
 > xattr -dr com.apple.quarantine "/Applications/bilibili-downloader-gui.app"
 > ```
 
-### 首次安装与 Windows ZIP 版本
-
 Windows 安装器支持选择安装语言。应用首次启动时，会在安装 FFmpeg 前让你选择默认语言，
 并按系统/浏览器语言预选；之后可在设置中修改。
 
-Release 同时提供两个 Windows x64 ZIP：
+### 方式 B：便携 ZIP 版（仅 Windows）
+
+Release 页面还提供两个 Windows x64 ZIP 便携版：
 
 - `Windows_x64-light.zip`：轻量版，首次启动时下载 FFmpeg。
 - `Windows_x64-with-ffmpeg.zip`：内置 FFmpeg 及其许可证、构建说明和源码链接，安装 FFmpeg 无需联网。
 
 请完整解压后运行。两种版本都需要 Microsoft Edge WebView2 Runtime，设置保存在应用数据目录。
 内置 FFmpeg 会复制到配置的库目录，之后更新应用仍可继续使用。
+
+> [!WARNING]
+> ZIP 版本不会自动更新，请定期查看
+> [Release 页面](https://github.com/j4rviscmd/bilibili-downloader-gui/releases)
+> 并手动更新。
+
+<!-- China-only note: the paragraph below is intentionally absent from
+     README.md and other language READMEs — keep it when syncing translations. -->
 
 在线安装会用 5 秒超时检测主下载地址，主源不可达或安装失败时自动切换到
 [npmmirror 国内镜像](https://registry.npmmirror.com/binary.html?path=ffmpeg-static/)，由国内 CDN 直接提供文件。
