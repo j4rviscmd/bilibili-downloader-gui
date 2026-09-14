@@ -147,6 +147,22 @@ jobs:
           updaterJsonPreferNsis: true
           args: ${{ matrix.args }}
 
+      - name: Package Windows ZIP editions
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/package-windows.ps1
+
+      - name: Upload Windows ZIP editions
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $version = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          $zips = (Get-ChildItem artifacts/windows/*.zip).FullName
+          gh release upload "v$version" @zips --repo $env:GITHUB_REPOSITORY
+          if ($LASTEXITCODE -ne 0) { throw "Windows ZIP upload failed" }
+
   upload-stable-assets:
     name: Upload fixed-name assets for README links
     needs: publish-tauri
