@@ -74,17 +74,19 @@ No ads, no tracking. 100% free.
 
 - **Secure Credential Management** - QR code login credentials are encrypted with AES-256-GCM and stored locally. Keys are derived using Argon2id, ensuring machine-specific protection.
 - **Local-only Storage** - Downloaded videos are stored only on your PC
-- **No tracking** - Communicates only with Bilibili APIs and GitHub (for updates); no telemetry
+- **No tracking** - Uses Bilibili APIs, GitHub for updates, and FFmpeg distribution hosts for setup; no telemetry
 
 ## Installation
 
-| Platform                  | Download                                                                                                                                                                             |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **macOS (Apple Silicon)** | [bilibili-downloader-gui_macOS_arm64.dmg](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_macOS_arm64.dmg)                     |
-| **macOS (Intel)**         | [bilibili-downloader-gui_macOS_x64.dmg](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_macOS_x64.dmg)                         |
-| **Windows**               | [bilibili-downloader-gui_Windows_x64-setup.exe](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Windows_x64-setup.exe)         |
-| **Linux (deb)**           | [bilibili-downloader-gui_Linux_x64.deb](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Linux_x64.deb)                         |
-| **Linux (AppImage)**      | [bilibili-downloader-gui_Linux_x64.AppImage.tar.gz](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Linux_x64.AppImage.tar.gz) |
+### Option A: Installer (recommended)
+
+| Platform                  | Download                                                                                                                                                                     |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **macOS (Apple Silicon)** | [bilibili-downloader-gui_macOS_arm64.dmg](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_macOS_arm64.dmg)             |
+| **macOS (Intel)**         | [bilibili-downloader-gui_macOS_x64.dmg](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_macOS_x64.dmg)                 |
+| **Windows**               | [bilibili-downloader-gui_Windows_x64-setup.exe](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Windows_x64-setup.exe) |
+| **Linux (deb)**           | [bilibili-downloader-gui_Linux_x64.deb](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Linux_x64.deb)                 |
+| **Linux (AppImage)**      | [bilibili-downloader-gui_Linux_x64.AppImage](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Linux_x64.AppImage)       |
 
 > [!NOTE]
 > macOS builds use ad-hoc code signing (not Apple-notarized). On first launch, go to **System Settings > Privacy & Security** and click **Open Anyway**. Alternatively, run:
@@ -92,6 +94,34 @@ No ads, no tracking. 100% free.
 > ```bash
 > xattr -dr com.apple.quarantine "/Applications/bilibili-downloader-gui.app"
 > ```
+
+The Windows installer offers a language selector. On first launch, choose
+the application's default language before FFmpeg setup starts; the initial
+selection follows your system/browser language. You can change it in Settings.
+
+### Option B: Portable ZIP (Windows only)
+
+The releases page also offers two portable Windows x64 ZIP editions:
+
+- `Windows_x64-light.zip`: smaller download; installs FFmpeg on first launch.
+- `Windows_x64-with-ffmpeg.zip`: includes FFmpeg, its license and upstream
+  build/source notices; FFmpeg setup works without a network download.
+
+Extract the entire ZIP before running the executable. Both editions require
+Microsoft Edge WebView2 Runtime and store settings in the usual application
+data directory. Bundled FFmpeg is copied to the configured library directory
+and remains available after an application update.
+
+> [!WARNING]
+> ZIP editions do not update automatically. Check the
+> [releases page](https://github.com/j4rviscmd/bilibili-downloader-gui/releases)
+> periodically and update manually.
+
+<!-- China-specific FFmpeg download details (npmmirror fallback, pinned
+     ffmpeg-static asset, SHA-256 verification) intentionally live only in
+     README.zh.md — do not re-add them here or translate them into other
+     language READMEs. Developer packaging steps live in
+     .github/workflows/windows-zips.yml. -->
 
 ## Contributing
 

@@ -74,17 +74,19 @@ Pas de publicités, pas de suivi. 100 % gratuit.
 
 - **Gestion sécurisée des identifiants** - Les identifiants de connexion par code QR sont chiffrés avec AES-256-GCM et stockés localement. La dérivation de clés avec Argon2id assure une protection spécifique à la machine.
 - **Stockage local uniquement** - Les vidéos téléchargées sont stockées uniquement sur votre PC
-- **Aucun suivi** - Ne communique qu'avec les APIs Bilibili et GitHub (pour les mises à jour) ; aucune télémétrie
+- **Aucun suivi** - Utilise les APIs Bilibili, GitHub pour les mises à jour et les hôtes de distribution FFmpeg pour l'installation ; aucune télémétrie
 
 ## Installation
 
-| Plateforme                | Téléchargement                                                                                                                                                                       |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **macOS (Apple Silicon)** | [bilibili-downloader-gui_macOS_arm64.dmg](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_macOS_arm64.dmg)                     |
-| **macOS (Intel)**         | [bilibili-downloader-gui_macOS_x64.dmg](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_macOS_x64.dmg)                         |
-| **Windows**               | [bilibili-downloader-gui_Windows_x64-setup.exe](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Windows_x64-setup.exe)         |
-| **Linux (deb)**           | [bilibili-downloader-gui_Linux_x64.deb](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Linux_x64.deb)                         |
-| **Linux (AppImage)**      | [bilibili-downloader-gui_Linux_x64.AppImage.tar.gz](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Linux_x64.AppImage.tar.gz) |
+### Option A : Installateur (recommandé)
+
+| Plateforme                | Téléchargement                                                                                                                                                               |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **macOS (Apple Silicon)** | [bilibili-downloader-gui_macOS_arm64.dmg](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_macOS_arm64.dmg)             |
+| **macOS (Intel)**         | [bilibili-downloader-gui_macOS_x64.dmg](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_macOS_x64.dmg)                 |
+| **Windows**               | [bilibili-downloader-gui_Windows_x64-setup.exe](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Windows_x64-setup.exe) |
+| **Linux (deb)**           | [bilibili-downloader-gui_Linux_x64.deb](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Linux_x64.deb)                 |
+| **Linux (AppImage)**      | [bilibili-downloader-gui_Linux_x64.AppImage](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Linux_x64.AppImage)       |
 
 > [!NOTE]
 > Les builds macOS utilisent la signature de code ad hoc (sans notarisation Apple). Au premier lancement, allez dans **Réglages Système > Confidentialité et sécurité** et cliquez sur **Ouvrir quand même**. Alternativement, exécutez :
@@ -92,6 +94,22 @@ Pas de publicités, pas de suivi. 100 % gratuit.
 > ```bash
 > xattr -dr com.apple.quarantine "/Applications/bilibili-downloader-gui.app"
 > ```
+
+L'installateur Windows propose un sélecteur de langue. Au premier lancement, choisissez la langue par défaut de l'application avant le début de la configuration de FFmpeg ; la sélection initiale suit la langue de votre système/navigateur. Vous pouvez la modifier dans les Paramètres.
+
+### Option B : ZIP portable (Windows uniquement)
+
+La page des versions propose également deux éditions ZIP portables Windows x64 :
+
+- `Windows_x64-light.zip` : téléchargement plus léger ; installe FFmpeg au premier lancement.
+- `Windows_x64-with-ffmpeg.zip` : inclut FFmpeg, sa licence et les mentions de compilation et de source en amont ; la configuration de FFmpeg fonctionne sans téléchargement réseau.
+
+Extrayez l'intégralité du ZIP avant d'exécuter le programme. Les deux éditions nécessitent Microsoft Edge WebView2 Runtime et stockent les paramètres dans le répertoire de données d'application habituel. Le FFmpeg intégré est copié vers le répertoire de bibliothèque configuré et reste disponible après une mise à jour de l'application.
+
+> [!WARNING]
+> Les éditions ZIP ne se mettent pas à jour automatiquement. Consultez régulièrement la
+> [page des versions](https://github.com/j4rviscmd/bilibili-downloader-gui/releases)
+> et mettez à jour manuellement.
 
 ## Contribuer
 

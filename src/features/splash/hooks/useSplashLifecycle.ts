@@ -34,12 +34,13 @@ interface SplashLifecycle {
  * When `skipSplashAnimation` is enabled in settings, the minimum display time
  * and fade animation are skipped for fastest possible startup.
  */
-export function useSplashLifecycle(): SplashLifecycle {
+export function useSplashLifecycle(enabled = true): SplashLifecycle {
   const [phase, setPhase] = useState<SplashPhase>('active')
   const [skipMode, setSkipMode] = useState<boolean | null>(null)
   const disposedRef = useRef(false)
 
   useEffect(() => {
+    if (!enabled) return
     disposedRef.current = false
 
     const run = async () => {
@@ -88,7 +89,7 @@ export function useSplashLifecycle(): SplashLifecycle {
     return () => {
       disposedRef.current = true
     }
-  }, [])
+  }, [enabled])
 
   const onFadeComplete = useCallback(() => {
     setPhase('done')
