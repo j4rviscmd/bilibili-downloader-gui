@@ -40,9 +40,10 @@ launcher that runs `npm run tauri dev` as native Windows processes via
 
 Requirements on the Windows side: Node.js and Rust (MSVC). The Windows
 Node.js must resolve via `where node`, or be managed by
-[fnm](https://github.com/Schniz/fnm) (default alias). `node_modules`
-must contain the Windows-native binaries — run `npm install` from
-Windows once if you installed dependencies from WSL first.
+[fnm](https://github.com/Schniz/fnm) (default alias). `npm start` checks
+that `node_modules` contains the Windows-native binaries (a WSL-side
+`npm ci`/`npm install` leaves only the Linux ones) and re-runs
+`npm install` on the Windows side automatically when they are missing.
 
 ## Development Workflow
 
