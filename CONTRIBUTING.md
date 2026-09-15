@@ -29,6 +29,21 @@ the fail-safe gate if the hook is bypassed (e.g. `--no-verify`).
 
 See `package.json` scripts for all available commands.
 
+### Developing on WSL
+
+`npm run tauri dev` inside WSL builds the **Linux** app. To verify the
+**Windows** build (WebView2, `#[cfg(windows)]` code paths,
+`CREATE_NO_WINDOW` behavior), use `npm start` instead — it is a thin
+launcher that runs `npm run tauri dev` as native Windows processes via
+`cmd.exe`. On Windows, macOS and Linux, `npm start` is equivalent to
+`npm run tauri dev`.
+
+Requirements on the Windows side: Node.js and Rust (MSVC). The Windows
+Node.js must resolve via `where node`, or be managed by
+[fnm](https://github.com/Schniz/fnm) (default alias). `node_modules`
+must contain the Windows-native binaries — run `npm install` from
+Windows once if you installed dependencies from WSL first.
+
 ## Development Workflow
 
 This project follows **GitHub Flow**. All changes go through feature
