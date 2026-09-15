@@ -398,7 +398,11 @@
     "cookie_success": "Cookie retrieval succeeded",
     "cookie_failed": "Cookie retrieval failed",
     "cleanup_in_progress": "Cleaning up temporary files...",
-    "cleanup_completed": "Cleaned up {{deleted}} temporary files ({{failed}} failed)"
+    "cleanup_completed": "Cleaned up {{deleted}} temporary files ({{failed}} failed)",
+    "choose_language": "Choose your language",
+    "choose_language_description": "Select the default application language before setup. You can change it later in Settings.",
+    "continue_setup": "Continue",
+    "language_save_failed": "Could not save the language. Please try again."
   },
   "errorPage": {
     "title": "An error occurred",

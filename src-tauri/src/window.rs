@@ -94,7 +94,7 @@ pub fn create_splash_window(
     // first paint (labels render in the user's language).
     let url = match &language {
         Some(lang) => format!("splashscreen?lang={}", lang),
-        None => "splashscreen".to_string(),
+        None => "splashscreen?setup=1".to_string(),
     };
     let _splash = WebviewWindowBuilder::new(app, "splash", WebviewUrl::App(url.into()))
         .title(window_title(&app.package_info().version.to_string()))

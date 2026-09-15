@@ -398,7 +398,11 @@
     "cookie_success": "Cookie 获取成功",
     "cookie_failed": "Cookie 获取失败",
     "cleanup_in_progress": "正在清理临时文件...",
-    "cleanup_completed": "已清理 {{deleted}} 个临时文件（{{failed}} 个失败）"
+    "cleanup_completed": "已清理 {{deleted}} 个临时文件（{{failed}} 个失败）",
+    "choose_language": "选择默认语言",
+    "choose_language_description": "在开始安装前选择应用语言，之后可在设置中修改。",
+    "continue_setup": "继续",
+    "language_save_failed": "无法保存语言，请重试。"
   },
   "errorPage": {
     "title": "发生错误",

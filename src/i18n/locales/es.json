@@ -398,7 +398,11 @@
     "cookie_success": "Cookie obtenida correctamente",
     "cookie_failed": "Error al obtener cookie",
     "cleanup_in_progress": "Limpiando archivos temporales...",
-    "cleanup_completed": "Limpiados {{deleted}} archivos temporales ({{failed}} fallidos)"
+    "cleanup_completed": "Limpiados {{deleted}} archivos temporales ({{failed}} fallidos)",
+    "choose_language": "Elige tu idioma",
+    "choose_language_description": "Selecciona el idioma de la aplicación antes de la configuración. Puedes cambiarlo en Ajustes.",
+    "continue_setup": "Continuar",
+    "language_save_failed": "No se pudo guardar el idioma. Inténtalo de nuevo."
   },
   "errorPage": {
     "title": "Ocurrió un error",

@@ -398,7 +398,11 @@
     "cookie_success": "Récupération du cookie réussie",
     "cookie_failed": "Échec de la récupération du cookie",
     "cleanup_in_progress": "Nettoyage des fichiers temporaires...",
-    "cleanup_completed": "{{deleted}} fichiers temporaires nettoyés ({{failed}} échoués)"
+    "cleanup_completed": "{{deleted}} fichiers temporaires nettoyés ({{failed}} échoués)",
+    "choose_language": "Choisissez votre langue",
+    "choose_language_description": "Sélectionnez la langue de l’application avant la configuration. Vous pourrez la modifier dans les paramètres.",
+    "continue_setup": "Continuer",
+    "language_save_failed": "Impossible d’enregistrer la langue. Réessayez."
   },
   "errorPage": {
     "title": "Une erreur est survenue",
