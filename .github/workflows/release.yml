@@ -337,6 +337,8 @@ jobs:
               { match: `_${version}_x64.dmg`, fixedName: 'bilibili-downloader-gui_macOS_x64.dmg' },
               { match: `_${version}_x64-setup.exe`, fixedName: 'bilibili-downloader-gui_Windows_x64-setup.exe' },
               { match: `_${version}_amd64.deb`, fixedName: 'bilibili-downloader-gui_Linux_x64.deb' },
+              // Why: Tauri v2 (createUpdaterArtifacts) releases the raw versioned .AppImage — no .AppImage.tar.gz asset exists, so the tar.gz mapping from 17e0db3 was dropped in 45640a2, 404-ing the READMEs' AppImage link (confirmed against v1.60.0 assets)
+              { match: `_${version}_amd64.AppImage`, fixedName: 'bilibili-downloader-gui_Linux_x64.AppImage' },
             ];
 
             // Remove old fixed-name assets if they exist from a previous run
