@@ -1,5 +1,5 @@
 import { useAppDispatch, useSelector } from '@/app/store'
-import { QueueParentCard } from '@/pages/downloads/QueueParentCard'
+import { QueuePartRow } from '@/pages/downloads/QueuePartRow'
 import {
   Tooltip,
   TooltipContent,
@@ -10,31 +10,58 @@ import { PageTemplate } from '@/shared/layout'
 import {
   cancelAllDownloads,
   clearFinishedQueueItems,
-  selectQueueSessions,
+  selectQueuePartRows,
   selectQueueSummary,
+  type QueuePartRow as QueuePartRowModel,
 } from '@/shared/queue'
 import { Button } from '@/shared/ui/button'
 import { Download, Trash2 } from 'lucide-react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 /**
- * Downloads page content (issue #691): renders the queue's drain state.
- *
- * Sessions appear in FIFO order; each parent card expands into part rows
- * with per-part cancel and stage detail. Toolbar offers cancel-all and a
- * manual clear of settled sessions (which also clears their progress
- * entries — the old queue-wiping role of clearQueue).
+ * Downloads page content (issue #691): renders the queue's drain state as
+ * a FLAT part list split into three sections — Downloading / Queued /
+ * Finished (done·cancelled·error) — each in drain order. Enqueue clicks
+ * are not grouped: the replace semantics already spread one video's parts
+ * across sessions, and the post-MVP part-reorder feature needs part
+ * granularity. Each row carries its own cancel and stage detail. The
+ * toolbar offers cancel-all and a manual clear of settled parts (which
+ * also clears their progress entries — the old queue-wiping role of
+ * clearQueue).
  */
 export function DownloadsContent() {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
-  const sessions = useSelector(selectQueueSessions)
+  const rows = useSelector(selectQueuePartRows)
   const summary = useSelector(selectQueueSummary)
 
-  const hasSettled = sessions.some(
-    (s) =>
-      s.parts.length > 0 &&
-      s.parts.every((p) => ['done', 'cancelled', 'error'].includes(p.status)),
+  // Section split (verification decision): downloading (incl. the brief
+  // cancelling window — still in flight until the backend confirms),
+  // queued, and settled (done/cancelled/error). Rows keep their drain
+  // order within a section.
+  const sections = useMemo(() => {
+    const downloading: QueuePartRowModel[] = []
+    const queued: QueuePartRowModel[] = []
+    const settled: QueuePartRowModel[] = []
+    for (const row of rows) {
+      if (row.status === 'running' || row.status === 'cancelling') {
+        downloading.push(row)
+      } else if (row.status === 'pending') {
+        queued.push(row)
+      } else {
+        settled.push(row)
+      }
+    }
+    return [
+      { key: 'section_downloading', rows: downloading },
+      { key: 'section_queued', rows: queued },
+      { key: 'section_finished', rows: settled },
+    ].filter((section) => section.rows.length > 0)
+  }, [rows])
+
+  const hasSettled = rows.some((r) =>
+    ['done', 'cancelled', 'error'].includes(r.status),
   )
 
   const handleCancelAll = () => {
@@ -94,7 +121,7 @@ export function DownloadsContent() {
         </div>
       }
     >
-      {sessions.length === 0 ? (
+      {rows.length === 0 ? (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 py-12 text-center">
           <div className="bg-muted flex size-14 items-center justify-center rounded-full">
             <Download className="text-muted-foreground size-6" />
@@ -104,9 +131,23 @@ export function DownloadsContent() {
           </p>
         </div>
       ) : (
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto py-3">
-          {sessions.map((row) => (
-            <QueueParentCard key={row.parent.downloadId} row={row} />
+        /* pr-5 reserves space so the scrollbar gutter does not overlap the
+           rows (pattern from issue #700). */
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto py-3 pr-5">
+          {sections.map((section) => (
+            <section key={section.key}>
+              <h2 className="text-muted-foreground mb-1 px-1 text-xs font-semibold tracking-wide uppercase">
+                {t(`queue.${section.key}`)}
+                <span className="ml-1.5 tabular-nums">
+                  ({section.rows.length})
+                </span>
+              </h2>
+              <div className="divide-y">
+                {section.rows.map((row) => (
+                  <QueuePartRow key={row.item.downloadId} row={row} />
+                ))}
+              </div>
+            </section>
           ))}
         </div>
       )}

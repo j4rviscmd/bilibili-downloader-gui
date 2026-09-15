@@ -16,12 +16,19 @@ import { SpeedLimitLink, formatKbps } from './SpeedLimitLink'
  * Bottom download bar (issue #691, Steam-like), mounted once in
  * PageLayoutShell so it survives page navigation.
  *
- * Visible exactly while the queue is draining (`hasActive`): overall
+ * Visible while the queue holds ANY item (`hasAnyItems`): overall
  * progress across every session, completed mp4 count (`12/38`), summed
  * transfer rate, the speed-limit link, and an avatar-group of the active
- * sessions' thumbnails (FIFO head, up to 5, then `+N`). The whole area
+ * PARTS' thumbnails (FIFO head, up to 5, then `+N` — one avatar per part,
+ * so enqueuing several parts adds several avatars). The whole area
  * navigates to `/downloads` — cancellation lives there, deliberately not
  * here.
+ *
+ * Eye guidance (issue #691 comment 3): the enqueue site (DownloadButton)
+ * launches a fly-to-bar thumbnail animation toward the avatar area
+ * (`data-queue-avatar-target`, consumed by ThumbnailFlightLayer); the
+ * first enqueue additionally animates the bar in via AnimatedSection's
+ * height spring, and each new thumbnail pops in (zoom-in).
  */
 export function QueueBottomBar() {
   const { t } = useTranslation()
@@ -41,7 +48,7 @@ export function QueueBottomBar() {
         key={thumb.downloadId}
         // zoom-in pop: a freshly enqueued session's thumbnail animates in,
         // steering the user's eyes to the bar (issue #691 comment intent).
-        className="border-background animate-in zoom-in-50 size-8 rounded-lg border-2 duration-300"
+        className="border-background animate-in zoom-in-50 size-8 rounded-lg border-2 duration-500"
       >
         <AvatarImage
           src={thumb.url ?? undefined}
@@ -58,7 +65,7 @@ export function QueueBottomBar() {
     avatars.push(
       <Avatar
         key="__remainder"
-        className="border-background bg-muted animate-in zoom-in-50 size-8 rounded-lg border-2 duration-300"
+        className="border-background bg-muted animate-in zoom-in-50 size-8 rounded-lg border-2 duration-500"
       >
         <AvatarFallback className="rounded-lg text-xs font-medium">
           +{summary.activeSessionRemainder}
@@ -67,8 +74,12 @@ export function QueueBottomBar() {
     )
   }
 
+  // Persistent while the queue holds anything (active or settled):
+  // appearing/disappearing mid-use jiggled every page's layout; the bar
+  // only hides on a fully empty queue (pre-first-download or after Clear
+  // Finished).
   return (
-    <AnimatedSection show={summary.hasActive}>
+    <AnimatedSection show={summary.hasAnyItems}>
       <div
         data-testid="queue-bottom-bar"
         role="button"
@@ -104,9 +115,12 @@ export function QueueBottomBar() {
           >
             <SpeedLimitLink />
           </span>
-          {/* Explicit children prop: AvatarGroup types children as a single
+          {/* Fly-to-bar landing zone (ThumbnailFlightLayer targets this).
+              Explicit children prop: AvatarGroup types children as a single
               ReactElement[] array, which the JSX multi-child form upsets. */}
-          <AvatarGroup className="h-8 shrink-0" children={avatars} />
+          <div data-queue-avatar-target="true">
+            <AvatarGroup className="h-8 shrink-0" children={avatars} />
+          </div>
         </div>
       </div>
     </AnimatedSection>

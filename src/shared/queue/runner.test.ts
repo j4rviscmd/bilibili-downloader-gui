@@ -70,12 +70,14 @@ function spec(partIndex: number, cid: number) {
 }
 
 function enqueueTwoPartSession(videoId: string, baseCid: number) {
+  // Cast: the thunk is typed against the app RootState; the minimal test
+  // store accepts the same action shape.
   store.dispatch(
     enqueueSession({
       videoId,
       videoTitle: `title-${videoId}`,
       parts: [spec(1, baseCid), spec(2, baseCid + 1)],
-    }),
+    }) as never,
   )
 }
 

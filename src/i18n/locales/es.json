@@ -358,10 +358,6 @@
     "bangumi_preview_tooltip": "Se requiere membresía premium. Solo se descargarán los primeros 6 minutos.",
     "bangumi_durl_not_supported": "Este formato de episodio no es compatible.",
     "open_in_browser": "Abrir en navegador",
-    "confirm_navigation_title": "Confirmar",
-    "confirm_navigation_message": "Tiene partes seleccionados. Navegar a otra página borrará su selección. ¿Continuar?",
-    "confirm_navigation_cancel": "Cancelar",
-    "confirm_navigation_ok": "Navegar",
     "navigation_disabled_tooltip": "Por favor, espere a que se completen las descargas"
   },
   "progress": {
@@ -787,9 +783,10 @@
     "title": "Descargas",
     "description": "Las descargas en cola se ejecutan aquí una a una, en orden.",
     "empty": "No hay descargas en la cola.\nBusca un vídeo y pulsa Descargar: se añadirá aquí.",
+    "section_downloading": "Descargando",
+    "section_queued": "En cola",
+    "section_finished": "Completadas y canceladas",
     "clear_finished": "Borrar terminadas",
-    "parts_completed": "{{completed}}/{{total}} partes",
-    "duplicates_excluded": "{{count}} parte(s) ya estaban en la cola de descarga y no se añadieron de nuevo.",
     "open_downloads": "Abrir la página de descargas"
   },
   "audio": {

@@ -193,11 +193,6 @@ const VideoPartCard = memo(function VideoPartCard({
   // null only before a valid URL resolves; the parts list is empty then, so
   // the fallback is inert in practice.
   const downloadStatus = usePartDownloadStatus(videoId ?? '', videoPart.cid)
-  // Active = enqueued and not settled: pending (waiting for its turn in the
-  // serial queue), running, or cancelling. Only this state disables the form.
-  const partActive = ['pending', 'running', 'cancelling'].includes(
-    downloadStatus.status ?? '',
-  )
 
   const partInput = useSelector(
     (state: RootState) => state.input.partInputs[page - 1],
@@ -679,7 +674,11 @@ const VideoPartCard = memo(function VideoPartCard({
   return (
     <div ref={cardRef} className="p-3 md:p-4">
       <Form {...form}>
-        <fieldset disabled={disabled || partActive}>
+        {/* The form stays editable while the part is queued/running by
+            design (replace semantics): the enqueued payload is a snapshot,
+            edits never leak into it, and pressing Download again swaps a
+            pending part in place / re-queues a running one. */}
+        <fieldset disabled={disabled}>
           <form
             onSubmit={form.handleSubmit(onSubmit)}
             onBlur={form.handleSubmit(onSubmit)}
@@ -1045,7 +1044,7 @@ const VideoPartCard = memo(function VideoPartCard({
                                 config={
                                   partInput?.subtitle ?? defaultSubtitleConfig
                                 }
-                                disabled={disabled || partActive}
+                                disabled={disabled}
                                 page={page}
                                 onConfigChange={handleSubtitleConfigChange}
                               />

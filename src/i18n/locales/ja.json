@@ -358,10 +358,6 @@
     "bangumi_preview_tooltip": "プレミアム会員権限が必要です。冒頭6分のみダウンロードされます。",
     "bangumi_durl_not_supported": "このエピソード形式はサポートされていません。",
     "open_in_browser": "ブラウザで開く",
-    "confirm_navigation_title": "確認",
-    "confirm_navigation_message": "選択中のパートがあります。ページを移動すると選択が解除されます。続行しますか？",
-    "confirm_navigation_cancel": "キャンセル",
-    "confirm_navigation_ok": "移動",
     "navigation_disabled_tooltip": "ダウンロード完了までお待ちください"
   },
   "progress": {
@@ -787,9 +783,10 @@
     "title": "ダウンロード",
     "description": "追加したダウンロードを順番に1件ずつ処理します。",
     "empty": "キューにあるダウンロードはありません。\n動画を検索してダウンロードボタンを押すと、ここに追加されます。",
+    "section_downloading": "ダウンロード中",
+    "section_queued": "ダウンロード予定",
+    "section_finished": "完了・キャンセル",
     "clear_finished": "完了済みを削除",
-    "parts_completed": "{{completed}}/{{total}} パート",
-    "duplicates_excluded": "{{count}} 件のパートはすでにダウンロードキューにあるため追加しませんでした。",
     "open_downloads": "ダウンロードページを開く"
   },
   "audio": {

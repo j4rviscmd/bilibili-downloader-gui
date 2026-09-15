@@ -18,16 +18,13 @@ import {
   initPartInputs,
   setUrl,
   updatePartInputByIndex,
+  updatePartSelected,
 } from '@/features/video/model/inputSlice'
 import { selectDuplicateIndices } from '@/features/video/model/selectors'
 import { setVideo } from '@/features/video/model/videoSlice'
 import { logger } from '@/shared/lib/logger'
 import { mapBackendError } from '@/shared/lib/mapBackendError'
-import {
-  collectActivePartKeys,
-  enqueueSession,
-  type EnqueuePartSpec,
-} from '@/shared/queue'
+import { enqueueSession, type EnqueuePartSpec } from '@/shared/queue'
 import { toast } from '@/shared/ui/toast'
 import {
   createContext,
@@ -432,16 +429,14 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
     if (!isForm1Valid || !isForm2ValidAll) return
     if (!videoId) return
 
-    const activeKeys = collectActivePartKeys(store.getState().queue)
+    // No duplicate guard here by design (verification decision): the
+    // enqueueSession thunk implements REPLACE semantics — pending
+    // duplicates swap in place, running ones are cancelled and re-queued —
+    // so changing a part's quality is just "press Download again".
     const parts: EnqueuePartSpec[] = []
-    let skippedCount = 0
 
     input.partInputs.forEach((pi, idx) => {
       if (!pi.selected) return
-      if (activeKeys.has(`${videoId}:${pi.cid}`)) {
-        skippedCount += 1
-        return
-      }
       const title = pi.title.trim()
       parts.push({
         partIndex: idx + 1,
@@ -473,14 +468,6 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
       })
     })
 
-    if (skippedCount > 0) {
-      toast.info(t('queue.duplicates_excluded', { count: skippedCount }), {
-        duration: 5000,
-      })
-      logger.info(
-        `download: excluded ${skippedCount} already-active part(s) from enqueue`,
-      )
-    }
     if (parts.length === 0) return
 
     // Clear previous resolved quality/subtitle info of the displayed video
@@ -489,6 +476,18 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
     store.dispatch(clearResolvedInfo())
 
     store.dispatch(enqueueSession({ videoId, videoTitle: video.title, parts }))
+
+    // Selection's job ends at enqueue: leave the checkboxes on and the
+    // NEXT Download click would re-include the already-queued/running
+    // parts — with replace semantics that cancels-and-requeues the running
+    // one (found in verification: queueing parts 11-20 mid-download
+    // cancelled part of 1-10). The per-part completion deselect stays as a
+    // straggler sweep.
+    for (const spec of parts) {
+      store.dispatch(
+        updatePartSelected({ index: spec.partIndex - 1, selected: false }),
+      )
+    }
   }, [isForm1Valid, isForm2ValidAll, videoId, input.partInputs, video, t])
 
   const value: VideoInfoContextValue = {

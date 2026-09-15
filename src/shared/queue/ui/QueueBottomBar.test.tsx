@@ -58,7 +58,9 @@ describe('QueueBottomBar', () => {
     expect(screen.getByText('1/2')).toBeInTheDocument()
   })
 
-  it('hides again once everything settles', () => {
+  it('stays mounted once everything settles (persistent until cleared)', () => {
+    // Verification decision: the bar only hides on a fully EMPTY queue —
+    // popping out on settle jiggled every page's layout.
     seedSession('BVbar2', [
       { partIndex: 1, cid: 1, status: 'done' },
       { partIndex: 2, cid: 2, status: 'cancelled' },
@@ -66,7 +68,8 @@ describe('QueueBottomBar', () => {
 
     renderBar()
 
-    expect(screen.queryByTestId('queue-bottom-bar')).not.toBeInTheDocument()
+    expect(screen.getByTestId('queue-bottom-bar')).toBeInTheDocument()
+    expect(screen.getByText('1/1')).toBeInTheDocument()
   })
 
   it('navigates to /downloads when the bar area is clicked', async () => {
@@ -78,6 +81,21 @@ describe('QueueBottomBar', () => {
     expect(
       await screen.findByTestId('location', undefined, { timeout: 2000 }),
     ).toHaveTextContent('/downloads')
+  })
+
+  it('caps avatars at 5 with a +N remainder tile', () => {
+    for (let i = 1; i <= 7; i++) {
+      seedSession(`BVmany${i}`, [{ partIndex: 1, cid: i, status: 'running' }])
+    }
+
+    renderBar()
+
+    // 6 visible avatar slots: 5 thumbnails + the +2 remainder tile.
+    const slots = document.querySelectorAll(
+      '[data-queue-avatar-target] [data-slot="avatar"]',
+    )
+    expect(slots).toHaveLength(6)
+    expect(screen.getByText('+2')).toBeInTheDocument()
   })
 
   it('shows the aggregate transfer rate of running parts', () => {

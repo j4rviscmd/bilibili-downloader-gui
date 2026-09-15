@@ -7,6 +7,7 @@ import {
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
 import { logger } from '@/shared/lib/logger'
+import { startThumbnailFlight } from '@/shared/queue/ui/thumbnailFlight'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -34,12 +35,24 @@ function DownloadButton() {
 
   const disabled = !(isForm1Valid && isForm2ValidAll)
 
-  const handleClick = useCallback(() => {
-    logger.info(
-      `DownloadButton: Download clicked, selectedCount=${selectedCount}`,
-    )
-    download()
-  }, [download, selectedCount])
+  const handleClick = useCallback(
+    (e: React.MouseEvent<HTMLButtonElement>) => {
+      logger.info(
+        `DownloadButton: Download clicked, selectedCount=${selectedCount}`,
+      )
+      // Eye guidance (issue #691 comment 3): launch the first selected
+      // part's thumbnail toward the bottom bar as the session is enqueued.
+      // MVP flies one representative thumbnail; the avatar group pops the
+      // real per-session slots in as they land.
+      const firstSelected = input.partInputs.find((pi) => pi.selected)
+      startThumbnailFlight({
+        url: firstSelected?.thumbnailUrl ?? null,
+        rect: e.currentTarget.getBoundingClientRect(),
+      })
+      download()
+    },
+    [download, selectedCount, input.partInputs],
+  )
 
   /**
    * Returns a localized explanation of why the download button is disabled,

@@ -20,6 +20,7 @@ import {
 import { resetVideo } from '@/features/video/model/videoSlice'
 import { clearError as clearDownloadError } from '@/shared/downloadStatus/downloadStatusSlice'
 import { clearProgress } from '@/shared/progress/progressSlice'
+import { updateQueueStatus } from '@/shared/queue'
 import { toast } from '@/shared/ui/toast'
 import {
   mockInvoke,
@@ -43,7 +44,6 @@ vi.mock('@/shared/ui/toast', () => ({
 }))
 
 const toastError = toast.error as unknown as Mock
-const toastInfo = toast.info as unknown as Mock
 
 const VIDEO_URL = 'https://www.bilibili.com/video/BV1xx411c7XD'
 const BANGUMI_URL = 'https://www.bilibili.com/bangumi/play/ep3051843'
@@ -566,7 +566,9 @@ describe('download', () => {
     expect(store.getState().queue).toHaveLength(0)
   })
 
-  it('keeps a prior finished session and appends the new one (latest wins)', async () => {
+  it('keeps a prior settled same-video session and appends a fresh one', async () => {
+    // Verification decision: finished entries accumulate for the app's
+    // lifetime; clearing them is the user's explicit Clear Finished action.
     await setupForDownload()
     // A prior session's finished child for the same videoId+cid.
     const oldParent = seedSession('BV1xx411c7XD', [
@@ -578,31 +580,102 @@ describe('download', () => {
     })
 
     const queue = store.getState().queue
-    // Old items survive (visible on /downloads until cleared)…
     expect(queue.find((q) => q.downloadId === `${oldParent}-p1`)).toBeDefined()
-    // …and the new session lands as a second parent.
     const parents = queue.filter((q) => q.kind === 'parent')
     expect(parents).toHaveLength(2)
     expect(parents[parents.length - 1].status).toBe('pending')
   })
 
-  it('excludes parts already active in the queue and toasts the count', async () => {
+  it('replaces a pending duplicate in place (no second session)', async () => {
     await setupForDownload()
     // Same videoId+cid already pending in another session.
-    seedSession('BV1xx411c7XD', [{ partIndex: 1, cid: 100, status: 'pending' }])
+    const priorParent = seedSession('BV1xx411c7XD', [
+      { partIndex: 1, cid: 100, status: 'pending' },
+    ])
+    const priorChildId = `${priorParent}-p1`
 
     await act(async () => {
       await ctx.download()
     })
 
-    // Only ONE session for this video is pending-new: the fresh enqueue was
-    // fully excluded (the single selected part is already active).
     const queue = store.getState().queue
+    // No new parent: the pending part was swapped in place.
     expect(queue.filter((q) => q.kind === 'parent')).toHaveLength(1)
-    expect(queue.filter((q) => q.kind === 'part')).toHaveLength(1)
-    expect(toastInfo).toHaveBeenCalledWith(
-      'queue.duplicates_excluded',
-      expect.objectContaining({ duration: 5000 }),
+    const child = queue.find((q) => q.downloadId === priorChildId)!
+    expect(child.status).toBe('pending')
+    // The fresh snapshot (custom title/quality from the form) replaced it.
+    expect(child.title).toBe('Custom name')
+    expect(child.payload?.quality).toBe(80)
+  })
+
+  it('deselects enqueued parts — a later Download must not re-include them', async () => {
+    // Regression (verification): the checkboxes stayed on after enqueue, so
+    // queueing parts 11-20 mid-download re-included the still-selected
+    // 1-10 and the replace semantics cancelled the running part.
+    await setupForDownload() // selects part 1 (index 0) only
+
+    // First enqueue: lands in the queue AND clears the checkbox.
+    await act(async () => {
+      await ctx.download()
+    })
+    expect(store.getState().input.partInputs.some((pi) => pi.selected)).toBe(
+      false,
     )
+
+    // The queued part is now running; a second Download click has nothing
+    // selected and must not cancel it.
+    const part = store
+      .getState()
+      .queue.find((q) => q.kind === 'part' && q.cid === 100)!
+    await act(async () => {
+      store.dispatch(
+        updateQueueStatus({
+          downloadId: part.downloadId,
+          status: 'running',
+        }),
+      )
+    })
+    mockInvoke.mockClear()
+    await act(async () => {
+      await ctx.download()
+    })
+
+    expect(mockInvoke).not.toHaveBeenCalledWith(
+      'cancel_download',
+      expect.anything(),
+    )
+    expect(
+      store.getState().queue.find((q) => q.downloadId === part.downloadId)
+        ?.status,
+    ).toBe('running')
+  })
+
+  it('cancels a running duplicate and enqueues the fresh part at the tail', async () => {
+    await setupForDownload()
+    // Same videoId+cid already RUNNING in a prior session.
+    const priorParent = seedSession('BV1xx411c7XD', [
+      { partIndex: 1, cid: 100, status: 'running' },
+    ])
+    mockInvoke.mockResolvedValueOnce(true)
+
+    await act(async () => {
+      await ctx.download()
+    })
+
+    // The running part was cancelled…
+    await vi.waitFor(() =>
+      expect(
+        store.getState().queue.find((q) => q.downloadId === `${priorParent}-p1`)
+          ?.status,
+      ).toBe('cancelled'),
+    )
+    // …and the fresh part landed as a new pending session at the tail.
+    const parents = store.getState().queue.filter((q) => q.kind === 'parent')
+    expect(parents).toHaveLength(2)
+    expect(
+      store
+        .getState()
+        .queue.filter((q) => q.kind === 'part' && q.status === 'pending'),
+    ).toHaveLength(1)
   })
 })

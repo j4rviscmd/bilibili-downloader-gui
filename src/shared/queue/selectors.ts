@@ -13,24 +13,6 @@ import type { QueueItem, QueueItemStatus } from './types'
  * their video is currently displayed on /search.
  */
 
-/**
- * Builds the active-part dedup key set used by the enqueue-time duplicate
- * guard: parts that are pending/running/cancelling cannot be re-enqueued.
- *
- * Imperative (called from `getState()` in VideoInfoContext.download, not
- * subscribed to), hence a plain function rather than a memoized selector.
- */
-export function collectActivePartKeys(queue: QueueItem[]): Set<string> {
-  const keys = new Set<string>()
-  for (const item of queue) {
-    if (item.kind !== 'part' || item.cid == null) continue
-    if (!['pending', 'running', 'cancelling'].includes(item.status ?? ''))
-      continue
-    keys.add(`${item.videoId}:${item.cid}`)
-  }
-  return keys
-}
-
 /** Resolves the effective part status with the isComplete→done override. */
 function effectiveStatus(
   item: QueueItem,
@@ -81,53 +63,50 @@ export type QueuePartRow = {
   progressEntries: RootState['progress']
 }
 
-/** One session (parent) row of `/downloads`. */
-export type QueueSessionRow = {
-  parent: QueueItem
-  /** Child rows, partIndex ascending. */
-  parts: QueuePartRow[]
-  /** running + pending child count. */
-  activeCount: number
-}
-
 /**
- * `/downloads` row model: every session (parent) with its part rows, in
- * FIFO order. Titles come from `QueueItem.title` — never from
- * `state.input`, which may belong to a different video.
+ * `/downloads` row model: every part FLAT, in drain order — sessions
+ * (enqueue clicks) are deliberately NOT grouped visually: the replace
+ * semantics already spread one video's parts across sessions, and the
+ * post-MVP part-reorder feature needs a part-granular list. Order matches
+ * the runner's pick order (session FIFO, then partIndex). Titles come from
+ * `QueueItem.title` — never from `state.input`, which may belong to a
+ * different video.
  */
-export const selectQueueSessions = createSelector(
+export const selectQueuePartRows = createSelector(
   [(state: RootState) => state.queue, (state: RootState) => state.progress],
-  (queue, progress): QueueSessionRow[] => {
-    const parents = queue
-      .filter((i) => i.kind === 'parent')
-      .sort((a, b) => a.enqueuedAtMs - b.enqueuedAtMs)
-
-    return parents.map((parent) => {
-      const parts = queue
-        .filter((i) => i.parentId === parent.downloadId)
-        .sort((a, b) => (a.partIndex ?? 0) - (b.partIndex ?? 0))
-        .map((item): QueuePartRow => {
-          const progressEntries = progress.filter(
-            (p) => p.downloadId === item.downloadId,
-          )
-          const rep = pickStageData(progressEntries, item.expectedStages)
-          return {
-            item,
-            status: effectiveStatus(item, rep.isComplete),
-            percentage: rep.percentage,
-            isRetrying: rep.isRetrying,
-            stage: rep.stage,
-            progressEntries,
-          }
-        })
-      return {
-        parent,
-        parts,
-        activeCount: parts.filter(
-          (r) => r.status === 'running' || r.status === 'pending',
-        ).length,
-      }
-    })
+  (queue, progress): QueuePartRow[] => {
+    const parents = new Map(
+      queue
+        .filter((i) => i.kind === 'parent')
+        .map((p) => [p.downloadId, p] as const),
+    )
+    // Orphan parts (parent pruned mid-flight — clearFinished removes
+    // both together, so this is defensive) are unreachable for the runner
+    // and dropped from the list rather than sorted to the top.
+    return queue
+      .filter((i) => i.kind === 'part')
+      .map((item) => ({ item, parent: parents.get(item.parentId ?? '') }))
+      .filter((entry) => entry.parent !== undefined)
+      .sort((a, b) => {
+        const pa = a.parent?.enqueuedAtMs ?? 0
+        const pb = b.parent?.enqueuedAtMs ?? 0
+        if (pa !== pb) return pa - pb
+        return (a.item.partIndex ?? 0) - (b.item.partIndex ?? 0)
+      })
+      .map(({ item }): QueuePartRow => {
+        const progressEntries = progress.filter(
+          (p) => p.downloadId === item.downloadId,
+        )
+        const rep = pickStageData(progressEntries, item.expectedStages)
+        return {
+          item,
+          status: effectiveStatus(item, rep.isComplete),
+          percentage: rep.percentage,
+          isRetrying: rep.isRetrying,
+          stage: rep.stage,
+          progressEntries,
+        }
+      })
   },
 )
 
@@ -135,6 +114,13 @@ export const selectQueueSessions = createSelector(
 export type QueueSummary = {
   /** Any part running/pending, or any parent cancelling. */
   hasActive: boolean
+  /**
+   * ANY queue item exists (active or settled). The bottom bar stays
+   * mounted while this is true — it only hides on a fully empty queue, so
+   * the bar never pops in/out mid-use (layout shift) and finished entries
+   * keep a permanent affordance until Clear Finished empties the queue.
+   */
+  hasAnyItems: boolean
   /** Completed part count (mp4 units, cancelled excluded). */
   completedParts: number
   /** Total non-cancelled part count. */
@@ -145,9 +131,14 @@ export type QueueSummary = {
   aggregateTransferRate: number
   /** Any running part is in the ffmpeg merge stage (blocks cancel-all). */
   isMerging: boolean
-  /** First N active session thumbnails in drain (FIFO) order. */
+  /**
+   * First N active PART thumbnails in drain (FIFO) order — per part, not
+   * per session: enqueuing several parts must visibly add several avatars
+   * (bangumi episodes carry distinct thumbnails). Ordered by session FIFO,
+   * then partIndex within a session.
+   */
   activeThumbnails: { downloadId: string; url: string | null; title: string }[]
-  /** Active sessions beyond {@linkcode activeThumbnails}. */
+  /** Active parts beyond {@linkcode activeThumbnails}. */
   activeSessionRemainder: number
 }
 
@@ -209,23 +200,41 @@ export const selectQueueSummary = createSelector(
       )
       .sort((a, b) => a.enqueuedAtMs - b.enqueuedAtMs)
 
+    // Flatten the active sessions' ACTIVE parts (FIFO, partIndex within a
+    // session) — one avatar per part.
+    const activeParts: {
+      downloadId: string
+      url: string | null
+      title: string
+    }[] = []
+    for (const parent of activeParents) {
+      for (const part of queue
+        .filter(
+          (i) =>
+            i.parentId === parent.downloadId &&
+            ['pending', 'running', 'cancelling'].includes(i.status ?? ''),
+        )
+        .sort((a, b) => (a.partIndex ?? 0) - (b.partIndex ?? 0))) {
+        activeParts.push({
+          downloadId: part.downloadId,
+          url: part.thumbnailUrl ?? parent.thumbnailUrl ?? null,
+          title: part.title,
+        })
+      }
+    }
+
     return {
       hasActive,
+      hasAnyItems: queue.length > 0,
       completedParts,
       totalParts,
       overallRatio: totalParts > 0 ? ratioSum / totalParts : 0,
       aggregateTransferRate,
       isMerging,
-      activeThumbnails: activeParents
-        .slice(0, BOTTOM_BAR_THUMBAIL_LIMIT)
-        .map((p) => ({
-          downloadId: p.downloadId,
-          url: p.thumbnailUrl ?? null,
-          title: p.title,
-        })),
+      activeThumbnails: activeParts.slice(0, BOTTOM_BAR_THUMBAIL_LIMIT),
       activeSessionRemainder: Math.max(
         0,
-        activeParents.length - BOTTOM_BAR_THUMBAIL_LIMIT,
+        activeParts.length - BOTTOM_BAR_THUMBAIL_LIMIT,
       ),
     }
   },

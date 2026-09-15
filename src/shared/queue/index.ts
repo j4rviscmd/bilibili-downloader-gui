@@ -16,14 +16,13 @@ export {
 export { createQueueRunner } from './runner'
 export type { QueueRunnerStore } from './runner'
 export {
-  collectActivePartKeys,
   selectHasActiveDownloads,
   selectHasCancellingDownloads,
   selectPartItemForVideo,
-  selectQueueSessions,
+  selectQueuePartRows,
   selectQueueSummary,
 } from './selectors'
-export type { QueuePartRow, QueueSessionRow, QueueSummary } from './selectors'
+export type { QueuePartRow, QueueSummary } from './selectors'
 export { ALL_STAGES, pickStageData } from './stages'
 export type { StageProgress } from './stages'
 export type {

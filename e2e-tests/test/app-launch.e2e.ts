@@ -281,8 +281,10 @@ describe('bilibili-downloader-gui E2E', () => {
     // NOTE: not asserting the mid-session compact "done" row — localhost
     // fixtures finish a part in well under a second, so that DOM window is
     // a race by design (see the session-start screenshot instead).
+    // The bottom bar is persistent now: it only hides on a fully empty
+    // queue, so completion is asserted via the settled rows instead.
     const bar = await browser.$(S.QUEUE_BOTTOM_BAR)
-    await bar.waitForExist({ timeout: 90_000, reverse: true })
+    await bar.waitForExist({ timeout: 10_000 })
 
     // Durable terminal signal: the part cards' queue badges settle on
     // data-status="done" (the cards carry no progress detail by design —

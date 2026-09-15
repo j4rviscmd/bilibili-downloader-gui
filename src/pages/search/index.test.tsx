@@ -333,45 +333,24 @@ describe('SearchContent', () => {
     expect(store.getState().input.homePage).toBe(2)
   })
 
-  it('asks for confirmation before navigating away from a selection', async () => {
+  it('navigates immediately with selections kept (no confirmation dialog)', async () => {
+    // Issue #691: the old dialog warned that paging would CLEAR the
+    // selection — selections now persist in partInputs independent of the
+    // visible page, enabling multi-page batch select → one enqueue.
     seedVideo(PARTS_PER_PAGE + 2) // 2 pages
 
     const { user } = renderWithProviders(<SearchContent />, {
       route: '/search',
     })
 
-    // Select everything on page 1, then try to leave
     await user.click(screen.getByText('video.select_all_page'))
     const footer = screen.getByText('video.pagination_next').closest('ul')!
     await user.click(within(footer).getByText('2'))
 
-    // Dialog appears; page has not changed yet
-    expect(screen.getByText('video.confirm_navigation_title')).toBeTruthy()
-    expect(store.getState().input.homePage).toBe(1)
-
-    // Confirm: selection cleared and navigation proceeds
-    await user.click(screen.getByText('video.confirm_navigation_ok'))
+    // No dialog; navigation is immediate…
+    expect(screen.queryByText('video.confirm_navigation_title')).toBeNull()
     expect(store.getState().input.homePage).toBe(2)
-    expect(store.getState().input.partInputs.some((p) => p.selected)).toBe(
-      false,
-    )
-  })
-
-  it('cancelling the navigation dialog keeps the selection and page', async () => {
-    seedVideo(PARTS_PER_PAGE + 2)
-
-    const { user } = renderWithProviders(<SearchContent />, {
-      route: '/search',
-    })
-
-    await user.click(screen.getByText('video.select_all_page'))
-    const footer = screen.getByText('video.pagination_next').closest('ul')!
-    await user.click(within(footer).getByText('2'))
-
-    await user.click(screen.getByText('video.confirm_navigation_cancel'))
-
-    expect(store.getState().input.homePage).toBe(1)
-    // Page-1 parts keep their selection (page-2 parts were never selected)
+    // …and the page-1 selections survive for a multi-page batch enqueue.
     expect(store.getState().input.partInputs.some((p) => p.selected)).toBe(true)
   })
 

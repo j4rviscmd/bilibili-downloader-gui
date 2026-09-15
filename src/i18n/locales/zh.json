@@ -358,10 +358,6 @@
     "bangumi_preview_tooltip": "需要大会员权限。仅下载前6分钟内容。",
     "bangumi_durl_not_supported": "此剧集格式不支持。",
     "open_in_browser": "在浏览器中打开",
-    "confirm_navigation_title": "确认",
-    "confirm_navigation_message": "您已选择了分P。切换页面将清除选择。是否继续？",
-    "confirm_navigation_cancel": "取消",
-    "confirm_navigation_ok": "切换",
     "navigation_disabled_tooltip": "请等待下载完成"
   },
   "progress": {
@@ -787,9 +783,10 @@
     "title": "下载",
     "description": "排队中的下载会按顺序逐个执行。",
     "empty": "队列中没有下载任务。\n搜索视频并点击下载按钮，任务会添加到这里。",
+    "section_downloading": "下载中",
+    "section_queued": "待下载",
+    "section_finished": "已完成・已取消",
     "clear_finished": "清除已完成",
-    "parts_completed": "{{completed}}/{{total}} 个分P",
-    "duplicates_excluded": "{{count}} 个分P已在下载队列中，未重复添加。",
     "open_downloads": "打开下载页面"
   },
   "audio": {

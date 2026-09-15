@@ -4,11 +4,9 @@ import { useInit } from '@/features/init'
 import { QRCodeLoginDialog } from '@/features/login'
 import type { Video } from '@/features/video'
 import {
-  deselectAll,
   deselectPageAll,
   DownloadButton,
   PARTS_PER_PAGE,
-  selectHasSelectedParts,
   selectPageAll,
   setHomePage,
   useVideoInfo,
@@ -17,14 +15,6 @@ import {
 } from '@/features/video'
 import VideoPartCard from '@/features/video/ui/VideoPartCard'
 import VideoPartCardSkeleton from '@/features/video/ui/VideoPartCardSkeleton'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/shared/animate-ui/radix/dialog'
 import {
   Tooltip,
   TooltipContent,
@@ -417,15 +407,6 @@ function SearchContentInner() {
   // Track scroll request timestamp to ensure each navigation triggers scroll
   const [scrollRequestId, setScrollRequestId] = useState(0)
 
-  // Confirmation dialog state for page navigation
-  const [pendingPageChange, setPendingPageChange] = useState<number | null>(
-    null,
-  )
-  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false)
-
-  // Check if any part is selected
-  const hasSelectedParts = useSelector(selectHasSelectedParts)
-
   // Track previous pendingDownload to detect when it's cleared
   const prevPendingDownloadRef = useRef<typeof input.pendingDownload>(null)
 
@@ -434,24 +415,26 @@ function SearchContentInner() {
 
     let targetIndex: number | null = null
 
-    if (browserP) {
-      targetIndex = parseInt(browserP, 10) - 1
-      // Why: Scrolls the targeted episode (Video.epId) into view to match the
-      // page-jump and single-episode selection above, so the user immediately
-      // sees the one part that was auto-selected.
+    // `?p=N` first (router param or the pasted input URL) — an
+    // `av…?p=N` URL resolves to a bangumi whose top-level epId points at
+    // the DEFAULT episode (episode 1), so honoring epId first scrolled to
+    // the top no matter which p the URL named (same root cause as the
+    // selection priority fix in shouldSelectPart).
+    const pParam =
+      browserP ??
+      (() => {
+        try {
+          return input.url ? new URL(input.url).searchParams.get('p') : null
+        } catch {
+          return null
+        }
+      })()
+    if (pParam) {
+      targetIndex = parseInt(pParam, 10) - 1
     } else if (video.contentType === 'bangumi' && video.epId !== undefined) {
-      // Bangumi URL: scroll to the requested episode
+      // Bangumi URL (no ?p): scroll to the requested episode
       const idx = video.parts.findIndex((p) => p.epId === video.epId)
       targetIndex = idx >= 0 ? idx : null
-    } else if (input.url) {
-      try {
-        const pParam = new URL(input.url).searchParams.get('p')
-        if (pParam) {
-          targetIndex = parseInt(pParam, 10) - 1
-        }
-      } catch {
-        // Invalid URL
-      }
     }
 
     setScrollToPartIndex(targetIndex)
@@ -506,48 +489,24 @@ function SearchContentInner() {
   )
 
   /**
-   * Handles pagination navigation with confirmation dialog when parts are selected.
+   * Handles pagination navigation.
    *
-   * If parts are selected, shows a confirmation dialog before navigating.
-   * On confirmation, clears selection and navigates to the new page.
-   * On cancel, stays on the current page.
+   * Navigates immediately even with parts selected (issue #691): selections
+   * live in `partInputs` independent of the visible page, and a later
+   * Download enqueues ALL selected parts — so paging with selections kept
+   * is now the intended multi-page batch flow. The old confirmation dialog
+   * warned that navigation would clear the selection, a premise the queue
+   * design removed.
    *
    * @param page - The target page number (1-indexed)
    */
   const handlePageChange = useCallback(
     (page: number) => {
-      // Skip confirmation if navigating to the same page
       if (page === currentPage) return
-
-      if (hasSelectedParts) {
-        setPendingPageChange(page)
-        setIsConfirmDialogOpen(true)
-      } else {
-        performPageChange(page)
-      }
+      performPageChange(page)
     },
-    [currentPage, hasSelectedParts, performPageChange],
+    [currentPage, performPageChange],
   )
-
-  /**
-   * Confirms page navigation: clears selection and navigates.
-   */
-  const handleConfirmNavigation = useCallback(() => {
-    if (pendingPageChange !== null) {
-      dispatch(deselectAll())
-      performPageChange(pendingPageChange)
-    }
-    setIsConfirmDialogOpen(false)
-    setPendingPageChange(null)
-  }, [pendingPageChange, performPageChange])
-
-  /**
-   * Cancels page navigation: closes dialog without changes.
-   */
-  const handleCancelNavigation = useCallback(() => {
-    setIsConfirmDialogOpen(false)
-    setPendingPageChange(null)
-  }, [])
 
   /**
    * Part index range (0-based, inclusive) for the currently visible page.
@@ -723,26 +682,6 @@ function SearchContentInner() {
           </Card>
         </div>
       )}
-
-      {/* Confirmation Dialog for Page Navigation */}
-      <Dialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
-        <DialogContent disableOutsideClick>
-          <DialogHeader>
-            <DialogTitle>{t('video.confirm_navigation_title')}</DialogTitle>
-            <DialogDescription>
-              {t('video.confirm_navigation_message')}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={handleCancelNavigation}>
-              {t('video.confirm_navigation_cancel')}
-            </Button>
-            <Button onClick={handleConfirmNavigation}>
-              {t('video.confirm_navigation_ok')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

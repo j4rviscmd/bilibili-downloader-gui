@@ -35,6 +35,25 @@ describe('shouldSelectPart', () => {
     })
   })
 
+  describe('bangumi reached via an av ?p=N URL (pending outranks epId)', () => {
+    // Regression (verification): av…?p=3 resolves to a bangumi whose
+    // top-level epId points at episode 1 — pending must win or part 1
+    // gets selected no matter which p the URL named.
+    it('selects by pending.page even when videoEpId points elsewhere', () => {
+      const ctx = {
+        contentType: 'bangumi' as const,
+        videoEpId: 825757,
+        pending: { bvid: 'av123', cid: null, page: 3 },
+      }
+      expect(
+        shouldSelectPart(makePart({ epId: 825757, page: 1 }), 0, ctx),
+      ).toBe(false)
+      expect(
+        shouldSelectPart(makePart({ epId: 999999, page: 3 }), 2, ctx),
+      ).toBe(true)
+    })
+  })
+
   describe('video with a pending download', () => {
     it('selects by cid when pending.cid is provided', () => {
       const ctx = {

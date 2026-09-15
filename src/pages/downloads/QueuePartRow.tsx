@@ -1,16 +1,25 @@
 import { useAppDispatch } from '@/app/store'
+import { IconButton } from '@/components/animate-ui/components/buttons/icon'
 import { getStatusVisual } from '@/features/video/lib/statusVisual'
 import {
   PartDownloadProgress,
   type PartDownloadStatus,
 } from '@/features/video/ui/PartDownloadProgress'
-import { cn } from '@/shared/lib/utils'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/shared/animate-ui/radix/tooltip'
+import { logger } from '@/shared/lib/logger'
 import type { QueuePartRow } from '@/shared/queue'
 import { cancelDownload } from '@/shared/queue'
 import { Button } from '@/shared/ui/button'
+import { invoke } from '@tauri-apps/api/core'
+import { FilePlay, FolderOpen, ImageOff } from 'lucide-react'
+import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-/** Status badge shared by the part row and the parent card header. */
+/** Status badge carried by each part row (E2E anchor via data-status). */
 export function QueueStatusBadge({
   status,
 }: {
@@ -24,7 +33,7 @@ export function QueueStatusBadge({
       className="bg-muted inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium"
     >
       <span
-        className={cn('size-1.5 rounded-full', visual.dotClass)}
+        className={`size-1.5 rounded-full ${visual.dotClass}`}
         aria-hidden
       />
       {t(visual.labelKey)}
@@ -37,7 +46,10 @@ type Props = {
 }
 
 /**
- * One part row inside a `/downloads` session card.
+ * One part row of the flat `/downloads` list (drain order).
+ *
+ * No P-number: it is session-relative, so a flat cross-session list would
+ * show several "P1"s — the thumbnail and title identify the part.
  *
  * `data-status` keeps the E2E anchor name the abolished compact row used
  * (the row carries the status attribute itself here).
@@ -73,16 +85,93 @@ export function QueuePartRow({ row }: Props) {
     if (item.downloadId) dispatch(cancelDownload(item.downloadId))
   }
 
+  // Finished rows inline their actions on the header line (verification
+  // decision): the complete marker + open/reveal icon buttons ride next to
+  // the badge instead of a second detail line, keeping finished rows
+  // single-line.
+  const handleOpenFile = useCallback(async () => {
+    if (!item.outputPath) return
+    await invoke('open_file', { path: item.outputPath }).catch((e) => {
+      logger.error('Failed to open file', e)
+    })
+  }, [item.outputPath])
+
+  const handleRevealInFolder = useCallback(async () => {
+    if (!item.outputPath) return
+    await invoke('reveal_in_folder', { path: item.outputPath }).catch((e) => {
+      logger.error('Failed to reveal in folder', e)
+    })
+  }, [item.outputPath])
+
+  const finishedExtras =
+    status === 'done' && item.outputPath ? (
+      <span
+        data-testid="part-download-complete"
+        className="flex shrink-0 items-center gap-0.5"
+      >
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <IconButton
+              variant="ghost"
+              size="xs"
+              onClick={handleOpenFile}
+              aria-label={t('video.open_file')}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <FilePlay className="size-3.5" />
+            </IconButton>
+          </TooltipTrigger>
+          <TooltipContent side="top" arrow>
+            {t('video.open_file')}
+          </TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <IconButton
+              variant="ghost"
+              size="xs"
+              onClick={handleRevealInFolder}
+              aria-label={t('video.open_folder')}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <FolderOpen className="size-3.5" />
+            </IconButton>
+          </TooltipTrigger>
+          <TooltipContent side="top" arrow>
+            {t('video.open_folder')}
+          </TooltipContent>
+        </Tooltip>
+      </span>
+    ) : null
+
   return (
     <div className="space-y-1 py-1.5">
       <div className="flex items-center gap-2 text-sm">
-        <span className="text-muted-foreground w-9 shrink-0 text-xs font-medium tabular-nums">
-          P{item.partIndex}
-        </span>
-        <span className="min-w-0 flex-1 truncate" title={item.title}>
-          {item.title}
-        </span>
+        {item.thumbnailUrl ? (
+          <img
+            src={item.thumbnailUrl}
+            alt=""
+            className="h-9 w-16 shrink-0 rounded-md object-cover"
+            loading="lazy"
+            referrerPolicy="no-referrer"
+          />
+        ) : (
+          <div className="bg-muted flex h-9 w-16 shrink-0 items-center justify-center rounded-md">
+            <ImageOff className="text-muted-foreground/50 h-4 w-4" />
+          </div>
+        )}
+        {/* App tooltip instead of a native title= on the truncated span
+            (CLAUDE.md tooltip rule): the full part title on hover. */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="min-w-0 flex-1 truncate">{item.title}</span>
+          </TooltipTrigger>
+          <TooltipContent side="top" align="start">
+            <p className="max-w-xs truncate">{item.title}</p>
+          </TooltipContent>
+        </Tooltip>
         <QueueStatusBadge status={status} />
+        {finishedExtras}
         {canCancel && (
           <Button
             variant="ghost"
@@ -94,13 +183,21 @@ export function QueuePartRow({ row }: Props) {
           </Button>
         )}
       </div>
-      <PartDownloadProgress
-        status={partStatus}
-        hasEmbeddedAudio={
-          item.expectedStages ? !item.expectedStages.audioStage : false
-        }
-        flat
-      />
+      {/* Detail line only where it carries content: running stages and
+          error messages. Finished rows inline their actions above; pending
+          and cancelled rows are badge-only — a second empty-looking line
+          wasted vertical space. suppressStatusLabels: the badge already
+          states the status. */}
+      {(status === 'running' || status === 'error') && (
+        <PartDownloadProgress
+          status={partStatus}
+          hasEmbeddedAudio={
+            item.expectedStages ? !item.expectedStages.audioStage : false
+          }
+          flat
+          suppressStatusLabels
+        />
+      )}
     </div>
   )
 }

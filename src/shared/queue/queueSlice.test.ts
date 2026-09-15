@@ -269,6 +269,42 @@ describe('aggregate: per-part cancel must not cascade to the session', () => {
   })
 })
 
+describe('enqueueSession accumulation', () => {
+  it('keeps settled same-video sessions — clearing is manual only', async () => {
+    // Verification decision: /downloads' Finished section accumulates for
+    // the app's lifetime; enqueue must not silently remove old runs.
+    const settled = seedSession('BV1', [1], ['done'])
+    await store.dispatch(
+      enqueueSession({ videoId: 'BV1', videoTitle: 'v1', parts: [spec(2, 2)] }),
+    )
+    expect(store.getState().queue.some((i) => i.parentId === settled)).toBe(
+      true,
+    )
+    expect(
+      store.getState().queue.filter((i) => i.kind === 'parent'),
+    ).toHaveLength(2)
+  })
+})
+
+describe('completedAtMs stamping', () => {
+  it('stamps cancelled sessions too — the elapsed timer must freeze at cancel', async () => {
+    // Regression (verification): a cancelled session left completedAtMs
+    // unset, so /downloads recomputed elapsed from Date.now() on every
+    // unrelated re-render and the timer kept counting.
+    const parentId = seedSession('BV1', [101, 102])
+    store.dispatch(
+      updateQueueStatus({ downloadId: `${parentId}-p1`, status: 'running' }),
+    )
+    mockInvoke.mockResolvedValueOnce(1)
+    await store.dispatch(cancelParentDownloads(parentId))
+
+    const parent = queue().find((i) => i.downloadId === parentId)!
+    expect(parent.status).toBe('cancelled')
+    expect(parent.completedAtMs).toBeGreaterThan(0)
+    expect(parent.completedAtMs).toBeGreaterThanOrEqual(parent.startedAtMs ?? 0)
+  })
+})
+
 describe('cancelParentDownloads', () => {
   it('cancels only the parent subtree, leaving other sessions intact', async () => {
     const parentIdA = seedSession('BVa', [1, 2])

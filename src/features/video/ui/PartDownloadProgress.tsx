@@ -10,7 +10,7 @@ import { mapBackendError } from '@/shared/lib/mapBackendError'
 import type { Progress } from '@/shared/ui/Progress'
 import { Button } from '@/shared/ui/button'
 import { invoke } from '@tauri-apps/api/core'
-import { CheckCircle2, FolderOpen } from 'lucide-react'
+import { CheckCircle2, FilePlay, FolderOpen } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Mosaic } from 'react-loading-indicators'
@@ -310,6 +310,14 @@ type Props = {
    * floating foreign box instead of part of the same area.
    */
   flat?: boolean
+  /**
+   * Suppress the pure status-label rows (pending / cancelling /
+   * cancelled). The /downloads part row already carries a status badge —
+   * rendering the same label twice read as duplicated UI. The error row
+   * (carries the message) and the complete row (carries the open/reveal
+   * buttons) always stay.
+   */
+  suppressStatusLabels?: boolean
 }
 
 /**
@@ -322,6 +330,7 @@ export function PartDownloadProgress({
   onCancel,
   hasEmbeddedAudio = false,
   flat = false,
+  suppressStatusLabels = false,
 }: Props) {
   const { t } = useTranslation()
   const {
@@ -431,25 +440,42 @@ export function PartDownloadProgress({
               {t('video.download_complete')}
             </span>
           </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleOpenFile}
-              className="h-7 px-2 text-xs"
-            >
-              <FolderOpen className="mr-1 h-3 w-3" />
-              {t('video.open_file')}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRevealInFolder}
-              className="h-7 px-2 text-xs"
-            >
-              <FolderOpen className="mr-1 h-3 w-3" />
-              {t('video.open_folder')}
-            </Button>
+          {/* Icon-only ghost buttons inline (height saving): the labeled
+              outline buttons made every finished row read taller than the
+              label alone. Tooltips carry the action names. */}
+          <div className="flex items-center gap-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <IconButton
+                  variant="ghost"
+                  size="xs"
+                  onClick={handleOpenFile}
+                  aria-label={t('video.open_file')}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <FilePlay className="size-3.5" />
+                </IconButton>
+              </TooltipTrigger>
+              <TooltipContent side="top" arrow>
+                {t('video.open_file')}
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <IconButton
+                  variant="ghost"
+                  size="xs"
+                  onClick={handleRevealInFolder}
+                  aria-label={t('video.open_folder')}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <FolderOpen className="size-3.5" />
+                </IconButton>
+              </TooltipTrigger>
+              <TooltipContent side="top" arrow>
+                {t('video.open_folder')}
+              </TooltipContent>
+            </Tooltip>
           </div>
         </div>
       )}
@@ -546,7 +572,7 @@ export function PartDownloadProgress({
         </div>
       )}
 
-      {isCancelling && (
+      {isCancelling && !suppressStatusLabels && (
         <div
           className={`text-muted-foreground ${MIN_HEIGHT} flex items-center gap-2 text-sm`}
         >
@@ -559,7 +585,7 @@ export function PartDownloadProgress({
           finishes, status becomes 'cancelled' but the file is actually
           complete, so the "complete" view is accurate. Showing both is
           contradictory. */}
-      {isCancelled && !isComplete && (
+      {isCancelled && !isComplete && !suppressStatusLabels && (
         <div
           className={`text-muted-foreground ${MIN_HEIGHT} flex items-center text-sm`}
         >
@@ -567,25 +593,27 @@ export function PartDownloadProgress({
         </div>
       )}
 
-      {(isPending || isWaitingForTurn) && !isCancelling && (
-        <div
-          className={`text-muted-foreground ${MIN_HEIGHT} flex items-center gap-2 text-sm`}
-        >
-          <div className="h-2 w-2 animate-pulse rounded-full bg-current" />
-          <span>{t('video.download_pending')}</span>
-          {onCancel && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onCancel}
-              className="text-muted-foreground hover:text-destructive ml-auto h-7 px-2 text-xs"
-            >
-              <CircleX animateOnHover className="size-4" />
-              {t('actions.cancel')}
-            </Button>
-          )}
-        </div>
-      )}
+      {(isPending || isWaitingForTurn) &&
+        !isCancelling &&
+        !suppressStatusLabels && (
+          <div
+            className={`text-muted-foreground ${MIN_HEIGHT} flex items-center gap-2 text-sm`}
+          >
+            <div className="h-2 w-2 animate-pulse rounded-full bg-current" />
+            <span>{t('video.download_pending')}</span>
+            {onCancel && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onCancel}
+                className="text-muted-foreground hover:text-destructive ml-auto h-7 px-2 text-xs"
+              >
+                <CircleX animateOnHover className="size-4" />
+                {t('actions.cancel')}
+              </Button>
+            )}
+          </div>
+        )}
     </div>
   )
 }

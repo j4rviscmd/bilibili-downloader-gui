@@ -129,6 +129,15 @@ export const HEADER_DOWNLOAD_BUTTON =
  */
 export const QUEUE_BOTTOM_BAR = '[data-testid="queue-bottom-bar"]'
 
+// -- /downloads: flat sectioned queue (issue #691) --
+
+/** Part row by effective status (pending/running/cancelling/done/…). */
+export const QUEUE_ROW_BY_STATUS = (status: string) =>
+  `[data-status="${status}"]`
+
+/** Per-part cancel button (text "Cancel" in the en locale). */
+export const QUEUE_ROW_CANCEL = 'button=Cancel'
+
 /**
  * Durable per-part completion block on the /downloads part rows (the
  * search-page cards carry only a status badge — issue #691).

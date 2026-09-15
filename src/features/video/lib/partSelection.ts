@@ -28,11 +28,16 @@ export type SelectionContext = {
  * Determines whether a part should be initially selected after fetching.
  *
  * Selection priority:
- * 1. Bangumi with a requested `videoEpId` → only the matching episode.
+ * 1. Pending download (cid/page) → the specific part from a `?p=N` URL
+ *    or from history/favorites navigation. Pending outranks the bangumi
+ *    epId: an `av…?p=N` URL resolves to a bangumi whose top-level epId
+ *    points at the DEFAULT episode (episode 1), so honoring epId first
+ *    selected part 1 no matter which `p` the URL named (found in
+ *    verification). Bangumi URLs never carry a pending (no `?p`), so the
+ *    epId path below still owns them.
+ * 2. Bangumi with a requested `videoEpId` → only the matching episode.
  *    A bangumi URL always targets one episode (via epId), so selecting
  *    only that episode prevents silently queuing an entire season.
- * 2. Pending download (cid/page) → the specific part from a `?p=N` URL
- *    or from history/favorites navigation.
  * 3. Otherwise → only the first page (`index < PARTS_PER_PAGE`). This
  *    avoids queuing every part of a large multi-part video when the URL
  *    does not name a specific part.
@@ -47,13 +52,13 @@ export const shouldSelectPart = (
   index: number,
   ctx: SelectionContext,
 ): boolean => {
-  if (ctx.contentType === 'bangumi' && ctx.videoEpId !== undefined) {
-    return part.epId === ctx.videoEpId
-  }
   if (ctx.pending) {
     return ctx.pending.cid !== null
       ? part.cid === ctx.pending.cid
       : part.page === ctx.pending.page
+  }
+  if (ctx.contentType === 'bangumi' && ctx.videoEpId !== undefined) {
+    return part.epId === ctx.videoEpId
   }
   return index < PARTS_PER_PAGE
 }

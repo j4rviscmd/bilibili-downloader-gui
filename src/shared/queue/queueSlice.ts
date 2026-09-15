@@ -94,19 +94,24 @@ function aggregateParentStatuses(state: QueueItem[]): void {
     ) {
       parent.startedAtMs = Date.now()
     }
-    // @why: Stamp the completion time only when the session has actually
-    //   settled. 'error' outranks 'pending'/'running' in the priority above,
-    //   so a mid-session part failure aggregates the parent to 'error' while
-    //   its siblings are still queued — stamping there would freeze the
-    //   elapsed timer at the first failure for the rest of the session
-    //   (transient errors don't stop the serial loop; the remaining parts
-    //   keep downloading). Only a parent whose children are all terminal
-    //   (done/cancelled/error) is complete.
+    // @why: Stamp the completion time when the session has actually
+    //   settled — done, error, OR fully cancelled. 'error' outranks
+    //   'pending'/'running' in the priority above, so a mid-session part
+    //   failure aggregates the parent to 'error' while its siblings are
+    //   still queued — stamping there would freeze the elapsed timer at the
+    //   first failure for the rest of the session (transient errors don't
+    //   stop the serial loop; the remaining parts keep downloading). Only a
+    //   parent whose children are all terminal (done/cancelled/error) is
+    //   complete. Cancelled MUST stamp too: without it the /downloads card
+    //   recomputes elapsed from Date.now() on every unrelated re-render and
+    //   a cancelled session's timer keeps counting forever.
     const sessionSettled = statuses.every(
       (s) => s === 'done' || s === 'cancelled' || s === 'error',
     )
     if (
-      (nextStatus === 'done' || nextStatus === 'error') &&
+      (nextStatus === 'done' ||
+        nextStatus === 'error' ||
+        nextStatus === 'cancelled') &&
       sessionSettled &&
       !parent.completedAtMs
     ) {
@@ -268,6 +273,74 @@ export const clearFinishedQueueItems = createAsyncThunk(
 )
 
 /**
+ * Enqueues one download session (parent + pending parts) with REPLACE
+ * semantics for duplicated parts (issue #691 verification decision):
+ *
+ * - A part whose videoId+cid already sits PENDING in the queue is replaced
+ *   IN PLACE (payload/title/expectedStages updated, queue position kept) —
+ *   changing the quality of a queued part is just "pick and press Download
+ *   again", no cancel round-trip.
+ * - A part that is already RUNNING (or cancelling) cannot be swapped under
+ *   the runner's feet: the old child is cancelled and the fresh part is
+ *   enqueued at the tail as usual.
+ *
+ * Settled sessions are deliberately NOT pruned here (verification
+ * decision): the Finished section of /downloads accumulates them for the
+ * app's lifetime and the user clears them explicitly via
+ * clearFinishedQueueItems — auto-pruning on re-enqueue made finished
+ * entries vanish at unpredictable enqueue moments.
+ */
+export const enqueueSession = createAsyncThunk<
+  void,
+  EnqueueSessionPayload,
+  { state: RootState }
+>('queue/enqueueSession', (payload, { dispatch, getState }) => {
+  const queue = (getState() as RootState).queue
+
+  // Replace-or-append per duplicated part.
+  const freshParts = payload.parts.filter((part) => {
+    const active = queue.find(
+      (i) =>
+        i.kind === 'part' &&
+        i.videoId === payload.videoId &&
+        i.cid === part.cid &&
+        ['pending', 'running', 'cancelling'].includes(i.status ?? ''),
+    )
+    if (!active) return true
+    if (active.status === 'pending') {
+      // Pure in-place replace: the runner hasn't started this part yet, so
+      // swapping its snapshot is safe and keeps its FIFO position.
+      dispatch(
+        queueSlice.actions.updateQueueItem({
+          downloadId: active.downloadId,
+          title: part.title,
+          thumbnailUrl: part.thumbnailUrl,
+          expectedStages: part.expectedStages,
+          payload: part.payload,
+        }),
+      )
+      return false
+    }
+    // Running / cancelling: cancel the old download; the fresh part is
+    // enqueued at the tail below. The cancel toast from the
+    // download_cancelled event is honest feedback for this path.
+    if (active.status === 'running') {
+      dispatch(cancelDownload(active.downloadId))
+    }
+    return true
+  })
+
+  if (freshParts.length > 0) {
+    dispatch(
+      queueSlice.actions.sessionEnqueued({
+        ...payload,
+        parts: freshParts,
+      }),
+    )
+  }
+})
+
+/**
  * Redux slice for the download queue (issue #691).
  *
  * Manages the session-scoped serial download queue: enqueueing whole
@@ -287,8 +360,11 @@ export const queueSlice = createSlice({
      * the current part inputs into the payload, so subsequent edits to
      * `state.input` (title/quality/subtitle changes, URL navigation,
      * deselection) never leak into an already-enqueued session.
+     *
+     * Reached through the `enqueueSession` thunk, which first prunes the
+     * SAME video's previously settled sessions (see its @why).
      */
-    enqueueSession(state, action: PayloadAction<EnqueueSessionPayload>) {
+    sessionEnqueued(state, action: PayloadAction<EnqueueSessionPayload>) {
       const { videoId, videoTitle, parts } = action.payload
       if (parts.length === 0) return
       // Each session gets a unique parentId so /downloads shows a fresh
@@ -521,7 +597,7 @@ export const queueSlice = createSlice({
 })
 
 export const {
-  enqueueSession,
+  sessionEnqueued,
   removeQueueItems,
   updateQueueStatus,
   updateQueueItem,

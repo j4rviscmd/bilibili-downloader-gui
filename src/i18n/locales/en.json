@@ -358,10 +358,6 @@
     "bangumi_preview_tooltip": "Premium membership required. Only the first 6 minutes will be downloaded.",
     "bangumi_durl_not_supported": "This episode format is not supported.",
     "open_in_browser": "Open in browser",
-    "confirm_navigation_title": "Confirm",
-    "confirm_navigation_message": "You have selected parts. Navigating to another page will clear your selection. Continue?",
-    "confirm_navigation_cancel": "Cancel",
-    "confirm_navigation_ok": "Navigate",
     "navigation_disabled_tooltip": "Please wait for downloads to complete"
   },
   "progress": {
@@ -787,9 +783,10 @@
     "title": "Downloads",
     "description": "Queued downloads run here one by one, in order.",
     "empty": "No downloads in the queue.\nSearch for a video and press Download — it will appear here.",
+    "section_downloading": "Downloading",
+    "section_queued": "Queued",
+    "section_finished": "Finished",
     "clear_finished": "Clear Finished",
-    "parts_completed": "{{completed}}/{{total}} parts",
-    "duplicates_excluded": "{{count}} part(s) are already in the download queue and were not added again.",
     "open_downloads": "Open the downloads page"
   },
   "audio": {

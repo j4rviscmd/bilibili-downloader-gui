@@ -273,13 +273,17 @@ describe('VideoPartCard', () => {
     expect(screen.getByText('video.bangumi_audio_embedded')).toBeInTheDocument()
   })
 
-  it('disables all inputs while the part is downloading', () => {
+  it('keeps all inputs editable while the part is queued or downloading', () => {
+    // Replace semantics (verification decision): the enqueued payload is a
+    // snapshot, so edits are safe — the user changes quality and presses
+    // Download again to swap the queued part. Locking the form (and the
+    // options expander inside it) blocked exactly that workflow.
     setup({
       status: { downloadId: 'dl-1', isDownloading: true, status: 'running' },
     })
 
-    expect(screen.getByRole('checkbox')).toBeDisabled()
-    expect(screen.getByDisplayValue('My Video Part 1')).toBeDisabled()
+    expect(screen.getByRole('checkbox')).toBeEnabled()
+    expect(screen.getByDisplayValue('My Video Part 1')).toBeEnabled()
   })
 
   it('shows the waiting badge once the part is enqueued (no progress detail)', () => {

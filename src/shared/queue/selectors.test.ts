@@ -1,12 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
 import type { RootState } from '@/app/store'
-import { enqueueSession, default as queueReducer } from './queueSlice'
+import { default as queueReducer, sessionEnqueued } from './queueSlice'
 import {
-  collectActivePartKeys,
   selectHasActiveDownloads,
   selectPartItemForVideo,
-  selectQueueSessions,
+  selectQueuePartRows,
   selectQueueSummary,
 } from './selectors'
 import type { DownloadPartPayload, ExpectedStages, QueueItem } from './types'
@@ -75,24 +74,6 @@ function stateOf(
   return { queue, progress } as TestState
 }
 
-describe('collectActivePartKeys', () => {
-  it('collects pending/running/cancelling parts keyed by videoId:cid', () => {
-    const queue = [
-      ...session('BV1', 1, [
-        { cid: 1, partIndex: 1, status: 'running' },
-        { cid: 2, partIndex: 2, status: 'pending' },
-        { cid: 3, partIndex: 3, status: 'done' },
-        { cid: 4, partIndex: 4, status: 'cancelled' },
-      ]),
-    ]
-    const keys = collectActivePartKeys(queue)
-    expect(keys.has('BV1:1')).toBe(true)
-    expect(keys.has('BV1:2')).toBe(true)
-    expect(keys.has('BV1:3')).toBe(false)
-    expect(keys.has('BV1:4')).toBe(false)
-  })
-})
-
 describe('selectPartItemForVideo', () => {
   it('resolves the latest matching part by videoId+cid', () => {
     const queue = [
@@ -108,8 +89,8 @@ describe('selectPartItemForVideo', () => {
   })
 })
 
-describe('selectQueueSessions', () => {
-  it('orders sessions FIFO and parts by partIndex, titles from items', () => {
+describe('selectQueuePartRows', () => {
+  it('lists parts flat in drain order (session FIFO, then partIndex)', () => {
     const queue = [
       ...session('BV2', 2, [
         { cid: 21, partIndex: 2 },
@@ -117,11 +98,23 @@ describe('selectQueueSessions', () => {
       ]),
       ...session('BV1', 1, [{ cid: 10, partIndex: 1 }]),
     ]
-    const rows = selectQueueSessions(stateOf(queue) as unknown as RootState)
-    expect(rows.map((r) => r.parent.videoId)).toEqual(['BV1', 'BV2'])
-    expect(rows[1].parts.map((p) => p.item.partIndex)).toEqual([1, 2])
-    expect(rows[1].parts[0].item.title).toBe('part-1')
-    expect(rows[0].activeCount).toBe(1)
+    const rows = selectQueuePartRows(stateOf(queue) as unknown as RootState)
+    expect(rows.map((r) => r.item.cid)).toEqual([10, 20, 21])
+    expect(rows[0].item.title).toBe('part-1')
+  })
+
+  it('drops orphan part items lacking a parent from the flat list', () => {
+    const queue = [
+      ...session('BV1', 1, [{ cid: 10, partIndex: 1 }]),
+      // Orphan (parent pruned): unreachable for the runner — must not
+      // crash and must not appear in the list.
+      {
+        ...session('BV9', 9, [{ cid: 99, partIndex: 1 }])[1],
+        parentId: 'missing-parent',
+      },
+    ]
+    const rows = selectQueuePartRows(stateOf(queue) as unknown as RootState)
+    expect(rows.map((r) => r.item.cid)).toEqual([10])
   })
 })
 
@@ -236,6 +229,22 @@ describe('selectQueueSummary', () => {
     expect(summary.activeSessionRemainder).toBe(2)
   })
 
+  it('lists one avatar per active PART, not per session', () => {
+    const queue = [
+      ...session('BV1', 1, [
+        { cid: 1, partIndex: 1, status: 'running' },
+        { cid: 2, partIndex: 2, status: 'pending' },
+        { cid: 3, partIndex: 3, status: 'done' },
+      ]),
+    ]
+    const summary = selectQueueSummary(stateOf(queue) as unknown as RootState)
+    // Settled parts are not avatars; active ones are (FIFO, partIndex asc).
+    expect(summary.activeThumbnails).toHaveLength(2)
+    expect(summary.activeSessionRemainder).toBe(0)
+    expect(summary.activeThumbnails[0].title).toBe('part-1')
+    expect(summary.activeThumbnails[1].title).toBe('part-2')
+  })
+
   it('hasActive false once every part settles', () => {
     const queue = [
       ...session('BV1', 1, [
@@ -265,7 +274,7 @@ describe('enqueueSession → selectors integration', () => {
     ]
     const reduced = queueReducer(
       undefined,
-      enqueueSession({ videoId: 'BV1', videoTitle: 'v', parts }),
+      sessionEnqueued({ videoId: 'BV1', videoTitle: 'v', parts }),
     )
     const summary = selectQueueSummary(stateOf(reduced) as unknown as RootState)
     expect(summary.totalParts).toBe(1)

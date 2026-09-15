@@ -212,6 +212,42 @@ export async function startFixtureServer(
  *   probe overshoot like bytes=0-4194303 answers truthfully)
  * - unsatisfiable → 416 with the "bytes asterisk-slash total" form
  */
+/**
+ * Media throttle (E2E_SLOW_MEDIA=1): chunked writes at
+ * E2E_MEDIA_BYTES_PER_SEC (default 2048). The fixture media is ~10KB, so
+ * unthrottled a part completes in well under a second — too fast for the
+ * queue-branch specs that need a part observably RUNNING while others sit
+ * PENDING. Throttled, one stream takes ~5s and the drain order is stable.
+ */
+const SLOW_MEDIA = process.env.E2E_SLOW_MEDIA === '1'
+const MEDIA_BYTES_PER_SEC = Number(process.env.E2E_MEDIA_BYTES_PER_SEC ?? 2048)
+const TICK_MS = 100
+
+/** Ends the response with `body`, chunk-throttled when SLOW_MEDIA is on. */
+function endMaybeThrottled(res: http.ServerResponse, body: Buffer): void {
+  if (!SLOW_MEDIA) {
+    res.end(body)
+    return
+  }
+  const bytesPerTick = Math.max(
+    1,
+    Math.round((MEDIA_BYTES_PER_SEC * TICK_MS) / 1000),
+  )
+  let cursor = 0
+  const timer = setInterval(() => {
+    if (res.destroyed) {
+      clearInterval(timer)
+      return
+    }
+    res.write(body.subarray(cursor, cursor + bytesPerTick))
+    cursor += bytesPerTick
+    if (cursor >= body.length) {
+      clearInterval(timer)
+      res.end()
+    }
+  }, TICK_MS)
+}
+
 function serveMedia(
   req: http.IncomingMessage,
   res: http.ServerResponse,
@@ -232,7 +268,7 @@ function serveMedia(
   const range = req.headers.range
   if (!range) {
     res.writeHead(200, { ...common, 'Content-Length': total })
-    res.end(body)
+    endMaybeThrottled(res, body)
     return
   }
 
@@ -264,5 +300,5 @@ function serveMedia(
     'Content-Range': `bytes ${start}-${end}/${total}`,
     'Content-Length': end - start + 1,
   })
-  res.end(body.subarray(start, end + 1))
+  endMaybeThrottled(res, body.subarray(start, end + 1))
 }

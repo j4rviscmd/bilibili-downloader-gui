@@ -358,10 +358,6 @@
     "bangumi_preview_tooltip": "Abonnement premium requis. Seules les 6 premières minutes seront téléchargées.",
     "bangumi_durl_not_supported": "Ce format d'épisode n'est pas pris en charge.",
     "open_in_browser": "Ouvrir dans le navigateur",
-    "confirm_navigation_title": "Confirmer",
-    "confirm_navigation_message": "Vous avez des parties sélectionnées. Naviguer vers une autre page effacera votre sélection. Continuer ?",
-    "confirm_navigation_cancel": "Annuler",
-    "confirm_navigation_ok": "Naviguer",
     "navigation_disabled_tooltip": "Veuillez attendre la fin des téléchargements"
   },
   "progress": {
@@ -787,9 +783,10 @@
     "title": "Téléchargements",
     "description": "Les téléchargements en file d'attente s'exécutent ici un par un, dans l'ordre.",
     "empty": "Aucun téléchargement dans la file.\nRecherchez une vidéo et appuyez sur Télécharger : elle sera ajoutée ici.",
+    "section_downloading": "En cours",
+    "section_queued": "En file",
+    "section_finished": "Terminés et annulés",
     "clear_finished": "Effacer les terminés",
-    "parts_completed": "{{completed}}/{{total}} parties",
-    "duplicates_excluded": "{{count}} partie(s) déjà présentes dans la file de téléchargement n'ont pas été ajoutées à nouveau.",
     "open_downloads": "Ouvrir la page des téléchargements"
   },
   "audio": {

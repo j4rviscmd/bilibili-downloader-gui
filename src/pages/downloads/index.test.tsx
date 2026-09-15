@@ -1,16 +1,21 @@
 /**
  * Downloads page suite.
  *
- * Seeds the real store's queue slice and locks the page's wiring: session
- * cards in FIFO order, the cancel-all / clear-finished toolbar matrix, and
- * the empty state.
+ * Seeds the real store's queue slice and locks the page's wiring: the
+ * FLAT part list in drain order, the cancel-all / clear-finished toolbar
+ * matrix, per-row cancel, and the empty state.
  */
 
 import { store } from '@/app/store'
 import DownloadsContent from '@/pages/downloads'
 import { TooltipProvider } from '@/shared/animate-ui/radix/tooltip'
 import { setProgress } from '@/shared/progress/progressSlice'
-import { renderWithProviders, resetQueue, seedSession } from '@/test/test-utils'
+import {
+  mockInvoke,
+  renderWithProviders,
+  resetQueue,
+  seedSession,
+} from '@/test/test-utils'
 import { screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -24,23 +29,17 @@ describe('DownloadsContent', () => {
     resetQueue()
   })
 
-  it('shows the empty state when the queue has no sessions', () => {
-    renderWithProviders(
-      <TooltipProvider>
-        <DownloadsContent />
-      </TooltipProvider>,
-      { route: '/downloads' },
-    )
+  it('shows the empty state when the queue has no parts', () => {
+    renderWithProviders(<DownloadsContent />, { route: '/downloads' })
 
     expect(screen.getByText('queue.title')).toBeInTheDocument()
     expect(screen.getByText('queue.empty')).toBeInTheDocument()
-    // Cancel-all is disabled without active work.
     expect(
       screen.getByRole('button', { name: 'downloadStatus.cancel_all' }),
     ).toBeDisabled()
   })
 
-  it('renders one parent card per session with part rows', () => {
+  it('renders a flat drain-ordered list with one row per part', () => {
     seedSession('BVfirst', [
       { partIndex: 1, cid: 1, status: 'running' },
       { partIndex: 2, cid: 2, status: 'pending' },
@@ -54,20 +53,46 @@ describe('DownloadsContent', () => {
       { route: '/downloads' },
     )
 
-    expect(screen.getByText('BVfirst')).toBeInTheDocument()
-    expect(screen.getByText('BVsecond')).toBeInTheDocument()
-    // Part rows carry the E2E data-status anchor.
-    expect(
-      document.querySelectorAll('[data-status]').length,
-    ).toBeGreaterThanOrEqual(3)
+    // Flat rows: one row per part (3 parts across 2 enqueue clicks, all
+    // carrying the data-status E2E anchor — no per-click grouping).
+    expect(document.querySelectorAll('[data-status]').length).toBe(3)
+    expect(document.querySelectorAll('[data-status]').length).toBe(3)
     expect(
       screen.getAllByText('downloadStatus.status_downloading').length,
     ).toBeGreaterThan(0)
   })
 
-  it('parent cancel routes through cancelParentDownloads and settles the subtree', async () => {
-    const parentId = seedSession('BVcancel', [
+  it('splits rows into Downloading / Queued / Finished sections', () => {
+    seedSession('BVsec', [
       { partIndex: 1, cid: 1, status: 'running' },
+      { partIndex: 2, cid: 2, status: 'pending' },
+      { partIndex: 3, cid: 3, status: 'done' },
+      { partIndex: 4, cid: 4, status: 'cancelled' },
+    ])
+
+    renderWithProviders(
+      <TooltipProvider>
+        <DownloadsContent />
+      </TooltipProvider>,
+      { route: '/downloads' },
+    )
+
+    expect(screen.getByText('queue.section_downloading')).toBeInTheDocument()
+    expect(screen.getByText('queue.section_queued')).toBeInTheDocument()
+    expect(screen.getByText('queue.section_finished')).toBeInTheDocument()
+    // Section headers carry their row counts.
+    expect(screen.getByText('queue.section_queued').textContent).toContain(
+      '(1)',
+    )
+    expect(screen.getByText('queue.section_finished').textContent).toContain(
+      '(2)',
+    )
+  })
+
+  it('part-row cancel settles that part only (siblings untouched)', async () => {
+    seedSession('BVcancel', [
+      { partIndex: 1, cid: 1, status: 'running' },
+      { partIndex: 2, cid: 2, status: 'pending' },
     ])
     const { user } = renderWithProviders(
       <TooltipProvider>
@@ -76,27 +101,22 @@ describe('DownloadsContent', () => {
       { route: '/downloads' },
     )
 
-    // The parent header's cancel (part rows render their own cancel
-    // buttons for active parts — the header one comes first).
+    // First cancel button = first row in drain order (the running part 1).
+    mockInvoke.mockResolvedValueOnce(true)
     await user.click(
       screen.getAllByRole('button', { name: 'actions.cancel' })[0],
     )
 
-    // The whole subtree settles to cancelled (the cancelDownload(parentId)
-    // trap — a pending parent has no backend token and would leave its
-    // children running — must not reproduce here).
     await vi.waitFor(() => {
-      const statuses = store
-        .getState()
-        .queue.filter(
-          (i) => i.downloadId === parentId || i.parentId === parentId,
-        )
-        .map((i) => i.status)
-      expect(statuses.every((s) => s === 'cancelled')).toBe(true)
+      const queue = store.getState().queue
+      const first = queue.find((i) => i.kind === 'part' && i.cid === 1)
+      const second = queue.find((i) => i.kind === 'part' && i.cid === 2)
+      expect(first?.status).toBe('cancelled')
+      expect(second?.status).toBe('pending')
     })
   })
 
-  it('enables clear-finished only when a session is settled', async () => {
+  it('enables clear-finished only when a part is settled', async () => {
     seedSession('BVsettled', [{ partIndex: 1, cid: 1, status: 'done' }])
     seedSession('BVactive', [{ partIndex: 1, cid: 2, status: 'running' }])
 
@@ -111,9 +131,13 @@ describe('DownloadsContent', () => {
 
     await user.click(clear)
 
-    // The settled session is gone; the active one remains.
-    expect(screen.queryByText('BVsettled')).not.toBeInTheDocument()
-    expect(screen.getByText('BVactive')).toBeInTheDocument()
+    // The settled part is gone; the active one remains.
+    expect(
+      screen.getByText('downloadStatus.status_downloading'),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText('downloadStatus.status_completed'),
+    ).not.toBeInTheDocument()
     expect(store.getState().queue.some((i) => i.videoId === 'BVsettled')).toBe(
       false,
     )
@@ -145,5 +169,25 @@ describe('DownloadsContent', () => {
     )
 
     expect(store.getState().progress.length).toBe(0)
+  })
+
+  it('shows the cancelled label exactly once per part (badge only)', () => {
+    // Regression (verification): PartDownloadProgress also renders a
+    // cancelled label row — without suppression the status read twice.
+    seedSession('BVdup', [{ partIndex: 1, cid: 1, status: 'cancelled' }])
+
+    renderWithProviders(
+      <TooltipProvider>
+        <DownloadsContent />
+      </TooltipProvider>,
+      { route: '/downloads' },
+    )
+
+    expect(screen.getAllByText('downloadStatus.status_cancelled').length).toBe(
+      1,
+    )
+    expect(
+      screen.queryByText('video.download_cancelled'),
+    ).not.toBeInTheDocument()
   })
 })
