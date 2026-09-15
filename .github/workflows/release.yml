@@ -1,3 +1,20 @@
+# Release automation (release-please):
+#   push    : release-please opens/updates a `chore(main): release X.Y.Z` PR
+#             from Conventional Commits (feat=minor, fix=patch, `!`=major).
+#             When that PR is merged, release-please creates a DRAFT GitHub
+#             release (the git tag is only created on publication), then the
+#             publish matrix uploads all assets to the draft. finalize-release
+#             uploads fixed-name assets, publishes the draft (creating the
+#             tag), and rewrites the body with GitHub-generated notes.
+#   dispatch: recovery path. Resolves an existing (possibly draft) release by
+#             tag and re-runs publish+finalize idempotently. Note: "Re-run
+#             failed jobs" only helps when release-please itself failed
+#             BEFORE creating the draft — afterwards release_created is false
+#             and publish is skipped, so use "Run workflow" instead. The one
+#             exception: if only finalize-release failed (matrix green), a
+#             plain "Re-run failed jobs" is safe — finalize is self-contained
+#             and idempotent, and re-running just it skips the ~30min matrix.
+# https://github.com/googleapis/release-please
 # https://github.com/tauri-apps/tauri-action
 name: 'publish'
 
@@ -5,75 +22,82 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to re-publish (e.g. v1.60.0). Default: version in src-tauri/tauri.conf.json. Pass it explicitly when recovering an older release'
+        required: false
+        type: string
+
+# Why: push and dispatch-recovery runs share one queue and are never
+# cancelled mid-run — killing the matrix or finalize mid-upload leaves a
+# dangling draft / partial assets, the failure mode documented in the
+# CLAUDE.md "Releases" recovery section; finalize also depends on being
+# the single latest.json writer (see its comment below)
+concurrency:
+  group: publish
+  cancel-in-progress: false
 
 jobs:
-  preflight:
-    name: Preflight — check if release already exists
+  release-please:
+    name: release-please (release PR / draft release)
     permissions:
-      contents: read
+      contents: write
+      pull-requests: write
     runs-on: ubuntu-latest
     outputs:
-      skip: ${{ steps.check.outputs.skip }}
+      release_created: ${{ steps.release.outputs.release_created || steps.resolve.outputs.release_created }}
+      release_id: ${{ steps.release.outputs.id || steps.resolve.outputs.release_id }}
+      tag_name: ${{ steps.release.outputs.tag_name || steps.resolve.outputs.tag_name }}
+      # Commit SHA of the release: checkout ref for publish/finalize so a
+      # recovery dispatch rebuilds the released commit, not the current main.
+      ref: ${{ steps.release.outputs.sha || steps.resolve.outputs.ref }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Check for existing tag/release v__VERSION__
-        id: check
+
+      - name: Run release-please
+        id: release
+        if: github.event_name == 'push'
+        uses: googleapis/release-please-action@v5
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      # Recovery path: resolve an existing release by tag (draft releases are
+      # included in listReleases) and emit the same shape as release-please.
+      - name: Resolve release by tag
+        id: resolve
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
-            const path = require('path');
-            // Read version primarily from Tauri config, fallback to package.json
-            function readVersion(filePath) {
-              try {
-                return JSON.parse(fs.readFileSync(filePath, 'utf8')).version || '';
-              } catch (e) {
-                core.info(`Failed reading ${filePath}: ${e.message}`);
-                return '';
-              }
-            }
-            const version =
-              readVersion(path.join(process.cwd(), 'src-tauri', 'tauri.conf.json')) ||
-              readVersion(path.join(process.cwd(), 'package.json'));
-            if (!version) {
-              core.setFailed('Unable to determine version from src-tauri/tauri.conf.json or package.json');
-              return;
-            }
-            const tagName = `v${version}`;
-            core.info(`Checking if tag or release exists for ${tagName} ...`);
-
-            // Check tag
-            try {
-              await github.rest.git.getRef({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                ref: `tags/${tagName}`,
-              });
-              core.info(`Tag ${tagName} already exists. Skipping release.`);
-              core.setOutput('skip', 'true');
-              return;
-            } catch (e) {
-              if (e.status !== 404) throw e;
-            }
-            // Check release
-            const releases = await github.rest.repos.listReleases({
+            const tag = context.payload.inputs.tag ||
+              `v${JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8')).version}`;
+            const releases = await github.paginate(github.rest.repos.listReleases, {
               owner: context.repo.owner,
               repo: context.repo.repo,
               per_page: 100,
             });
-            const found = releases.data.find(r => r.tag_name === tagName);
-            if (found) {
-              core.info(`Release with tag ${tagName} already exists. Skipping release.`);
-              core.setOutput('skip', 'true');
+            // Prefer the draft when both a draft and a published release
+            // share the tag (recovery target).
+            const release = releases.find(r => r.tag_name === tag && r.draft) ||
+              releases.find(r => r.tag_name === tag);
+            if (!release) {
+              core.setFailed(`No release found for ${tag} — when recovering an older release, pass the 'tag' input explicitly`);
               return;
             }
-            core.info(`OK: ${tagName} does not exist. Proceeding with release.`);
-            core.setOutput('skip', 'false');
+            core.info(`Resolved ${tag} → release ${release.id} (draft=${release.draft}, sha=${release.target_commitish})`);
+            core.setOutput('release_created', 'true');
+            core.setOutput('release_id', String(release.id));
+            core.setOutput('tag_name', tag);
+            core.setOutput('ref', release.target_commitish);
+
   publish-tauri:
-    needs: preflight
-    if: needs.preflight.outputs.skip != 'true'
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
     permissions:
       contents: write
     strategy:
@@ -91,8 +115,11 @@ jobs:
 
     runs-on: ${{ matrix.platform }}
     steps:
+      # Empty on the push path (default ref) — set on dispatch recovery.
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-please.outputs.ref }}
 
       - name: Setup Node.js (fixed)
         uses: actions/setup-node@v4
@@ -129,22 +156,25 @@ jobs:
       - name: Install frontend dependencies
         run: test -f package-lock.json && npm ci || npm install
 
-      - name: Build and publish with Tauri
+      - name: Build and upload with Tauri
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         with:
-          tagName: v__VERSION__
-          releaseName: 'v__VERSION__'
-          releaseBody: 'See the assets to download this version and install.'
-          releaseDraft: false
-          prerelease: false
-          generateReleaseNotes: true
-          # アップデータ用 JSON をリリースにアップロードするか（デフォルト true）
-          includeUpdaterJson: true
-          # Windows で NSIS の setup.exe を優先するか（将来 v2 では true になる可能性）
-          updaterJsonPreferNsis: true
+          # Upload to the existing (draft) release. tagName is still passed so
+          # the updater latest.json keeps its URL shape — and must be the
+          # resolved tag: tauri-action does NOT substitute __VERSION__ when
+          # releaseId is set.
+          releaseId: ${{ needs.release-please.outputs.release_id }}
+          tagName: ${{ needs.release-please.outputs.tag_name }}
+          # Updater artifacts (.sig etc.) are still uploaded as assets, but
+          # latest.json is NOT written here: per-job updates race with each
+          # other (lock-free read-modify-write). finalize-release assembles it
+          # once after the whole matrix completes (single writer).
+          # CAUTION: relies on tauri-action@v0 always uploading .sig assets
+          # with includeUpdaterJson: false — re-check when bumping the major.
+          includeUpdaterJson: false
           args: ${{ matrix.args }}
 
       - name: Package Windows ZIP editions
@@ -152,42 +182,154 @@ jobs:
         shell: pwsh
         run: ./scripts/package-windows.ps1
 
+      # Upload by release id (not tag): the release is still a draft here, so
+      # the git tag does not exist yet and tag-based lookups would fail.
       - name: Upload Windows ZIP editions
         if: runner.os == 'Windows'
-        shell: pwsh
+        uses: actions/github-script@v7
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          $version = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
-          $zips = (Get-ChildItem artifacts/windows/*.zip).FullName
-          gh release upload "v$version" @zips --repo $env:GITHUB_REPOSITORY
-          if ($LASTEXITCODE -ne 0) { throw "Windows ZIP upload failed" }
+          RELEASE_ID: ${{ needs.release-please.outputs.release_id }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const releaseId = Number(process.env.RELEASE_ID);
+            const { data: release } = await github.rest.repos.getRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: releaseId,
+            });
+            for (const file of fs.readdirSync('artifacts/windows').filter(f => f.endsWith('.zip'))) {
+              // Delete same-name assets first so recovery re-runs stay idempotent
+              const existing = release.assets.find(a => a.name === file);
+              if (existing) {
+                await github.rest.repos.deleteReleaseAsset({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  asset_id: existing.id,
+                });
+                core.info(`Deleted old asset: ${file}`);
+              }
+              await github.rest.repos.uploadReleaseAsset({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: releaseId,
+                name: file,
+                data: fs.readFileSync(path.join('artifacts/windows', file)),
+              });
+              core.info(`Uploaded ${file}`);
+            }
 
-  upload-stable-assets:
-    name: Upload fixed-name assets for README links
-    needs: publish-tauri
+  finalize-release:
+    name: Finalize release (fixed-name assets, publish, notes)
+    needs: [release-please, publish-tauri]
     permissions:
       contents: write
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-please.outputs.ref }}
 
-      - name: Upload fixed-name copies
+      - name: Upload fixed-name assets, publish draft, rewrite notes
         uses: actions/github-script@v7
+        env:
+          RELEASE_ID: ${{ needs.release-please.outputs.release_id }}
+          TAG_NAME: ${{ needs.release-please.outputs.tag_name }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
+            const releaseId = Number(process.env.RELEASE_ID);
+            const tagName = process.env.TAG_NAME;
             const cfg = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8'));
             const version = cfg.version;
-            const tag = `v${version}`;
 
-            const { data: release } = await github.rest.repos.getReleaseByTag({
+            const { data: release } = await github.rest.repos.getRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              tag,
+              release_id: releaseId,
             });
+
+            // Assemble the updater latest.json ONCE here (single writer).
+            // The matrix jobs upload only the bundle + .sig assets; letting
+            // each tauri-action run merge latest.json races on a lock-free
+            // read-modify-write and can silently drop a platform for a whole
+            // release cycle. Missing bundle/sig fails closed: the draft stays
+            // unpublished until a workflow_dispatch re-run.
+            // Entry shape mirrors tauri-action's own latest.json (verified
+            // against the production v1.60.0 asset).
+            const UPDATER_FILES = [
+              // [versioned asset name, platform keys...]
+              ['bilibili-downloader-gui_aarch64.app.tar.gz', 'darwin-aarch64', 'darwin-aarch64-app'],
+              ['bilibili-downloader-gui_x64.app.tar.gz', 'darwin-x86_64', 'darwin-x86_64-app'],
+              [`bilibili-downloader-gui_${version}_amd64.AppImage`, 'linux-x86_64', 'linux-x86_64-appimage'],
+              [`bilibili-downloader-gui_${version}_amd64.deb`, 'linux-x86_64-deb'],
+              [`bilibili-downloader-gui-${version}-1.x86_64.rpm`, 'linux-x86_64-rpm'],
+              [`bilibili-downloader-gui_${version}_x64-setup.exe`, 'windows-x86_64', 'windows-x86_64-nsis'],
+              [`bilibili-downloader-gui_${version}_x64_en-US.msi`, 'windows-x86_64-msi'],
+            ];
+            const platforms = {};
+            const consumedSigs = new Set();
+            for (const [file, ...keys] of UPDATER_FILES) {
+              const asset = release.assets.find(a => a.name === file);
+              const sigAsset = release.assets.find(a => a.name === `${file}.sig`);
+              if (!asset || !sigAsset) {
+                core.setFailed(`Updater asset missing: ${file}${asset ? '' : ' (bundle)'}${sigAsset ? '' : ' (.sig)'}`);
+                return;
+              }
+              consumedSigs.add(sigAsset.name);
+              const sigResp = await github.rest.repos.getReleaseAsset({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                asset_id: sigAsset.id,
+                headers: { accept: 'application/octet-stream' },
+              });
+              const signature = Buffer.from(sigResp.data).toString('utf8').trim();
+              // Draft assets get an "untagged-*" download URL that 404s after
+              // publication — rewrite to the tag form (same fix tauri-action
+              // applies in upload-version-json.ts). No-op for already
+              // published releases (dispatch recovery).
+              const url = asset.browser_download_url.replace(
+                /\/download\/(untagged-[^/]+)\//,
+                `/download/${encodeURIComponent(tagName)}/`,
+              );
+              for (const key of keys) {
+                platforms[key] = { signature, url };
+              }
+            }
+            // A new updater artifact kind would upload a .sig we never map —
+            // surface it so it is not silently missing from latest.json.
+            for (const a of release.assets) {
+              if (a.name.endsWith('.sig') && !consumedSigs.has(a.name)) {
+                core.warning(`Unmapped .sig asset not included in latest.json: ${a.name}`);
+              }
+            }
+            const latestJson = {
+              version,
+              notes: 'See the assets to download this version and install.',
+              pub_date: new Date().toISOString(),
+              platforms,
+            };
+            // Delete any previous latest.json first so dispatch re-runs are idempotent
+            const prevLatest = release.assets.find(a => a.name === 'latest.json');
+            if (prevLatest) {
+              await github.rest.repos.deleteReleaseAsset({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                asset_id: prevLatest.id,
+              });
+            }
+            await github.rest.repos.uploadReleaseAsset({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: releaseId,
+              name: 'latest.json',
+              data: Buffer.from(JSON.stringify(latestJson, null, 2)),
+            });
+            core.info(`Assembled latest.json with platforms: ${Object.keys(platforms).join(', ')}`);
 
             // Mapping: versioned asset name pattern → fixed name
             const renames = [
@@ -195,7 +337,6 @@ jobs:
               { match: `_${version}_x64.dmg`, fixedName: 'bilibili-downloader-gui_macOS_x64.dmg' },
               { match: `_${version}_x64-setup.exe`, fixedName: 'bilibili-downloader-gui_Windows_x64-setup.exe' },
               { match: `_${version}_amd64.deb`, fixedName: 'bilibili-downloader-gui_Linux_x64.deb' },
-              { match: `_${version}_amd64.AppImage.tar.gz`, fixedName: 'bilibili-downloader-gui_Linux_x64.AppImage.tar.gz' },
             ];
 
             // Remove old fixed-name assets if they exist from a previous run
@@ -230,9 +371,34 @@ jobs:
               await github.rest.repos.uploadReleaseAsset({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                release_id: release.id,
+                release_id: releaseId,
                 name: fixedName,
                 data: Buffer.from(download.data),
               });
               core.info(`Uploaded ${fixedName} (from ${asset.name})`);
             }
+
+            // Publish the draft. This also creates the git tag — draft
+            // releases defer tag creation until publication.
+            await github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: releaseId,
+              draft: false,
+            });
+            core.info(`Published release (tag ${tagName})`);
+
+            // Rewrite the body with GitHub-generated notes. PATCH does not
+            // support generate_release_notes, so generate then patch.
+            const { data: notes } = await github.rest.repos.generateReleaseNotes({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: tagName,
+            });
+            await github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: releaseId,
+              body: notes.body,
+            });
+            core.info('Release notes rewritten with GitHub-generated notes');

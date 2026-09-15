@@ -138,6 +138,34 @@ into the **required** `ci-status` status check. The `coverage` job
   passing is sufficient to treat CI as green. Treat E2E as
   informational (screenshots are still useful for visual review).
 
+## Releases (release-please)
+
+Automated by release-please (`release-please-config.json` +
+`.release-please-manifest.json`; the canonical version lives in
+`src-tauri/tauri.conf.json`, and the manifest holds the last-released
+version — both are maintained by release-please, never edit by hand):
+
+- Merging `feat:`/`fix:` to main opens a `chore(main): release X.Y.Z`
+  PR. Merging that PR publishes automatically: draft release →
+  platform build matrix → finalize job (assembles the updater
+  `latest.json` once — matrix jobs never write it, avoiding the
+  per-job merge race — uploads fixed-name assets, publishes the draft
+  — which creates the tag — then rewrites notes with GitHub-generated
+  ones).
+- The release PR is authored with `GITHUB_TOKEN`, so PR-triggered CI
+  never runs on it. Merge it with `gh pr merge <n> --merge --admin`.
+- Never bump versions or create release tags/releases by hand.
+- Publish failure recovery: "Re-run failed jobs" only works when
+  release-please itself failed (no draft yet), or when only
+  `finalize-release` failed with the matrix green (finalize is
+  self-contained and idempotent). Otherwise run the workflow manually
+  (`workflow_dispatch`; the tag input defaults to the
+  `tauri.conf.json` version) — jobs are idempotent and re-upload
+  assets to the existing release. Recover an older release by passing
+  the `tag` input explicitly. Recover a dangling draft **before** the
+  next `feat:`/`fix:` merge — a lingering draft is invisible to
+  release-please's release detection and inflates the next release PR.
+
 ## Pre-verification Checklist
 
 - Use `@hypothesi/tauri-mcp-server` to retrieve logs and HTML elements
