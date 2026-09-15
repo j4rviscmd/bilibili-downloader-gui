@@ -268,8 +268,10 @@ jobs:
               [`bilibili-downloader-gui_${version}_amd64.AppImage`, 'linux-x86_64', 'linux-x86_64-appimage'],
               [`bilibili-downloader-gui_${version}_amd64.deb`, 'linux-x86_64-deb'],
               [`bilibili-downloader-gui-${version}-1.x86_64.rpm`, 'linux-x86_64-rpm'],
+              // Why: NSIS (.exe) is the only Windows installer — MSI was dropped (issue #711):
+              // near-zero MSI downloads and the updater channel is NSIS-only, so MSI served
+              // no update path. Do not re-add it without changing bundle.targets too.
               [`bilibili-downloader-gui_${version}_x64-setup.exe`, 'windows-x86_64', 'windows-x86_64-nsis'],
-              [`bilibili-downloader-gui_${version}_x64_en-US.msi`, 'windows-x86_64-msi'],
             ];
             const platforms = {};
             const consumedSigs = new Set();
@@ -337,6 +339,8 @@ jobs:
               { match: `_${version}_x64.dmg`, fixedName: 'bilibili-downloader-gui_macOS_x64.dmg' },
               { match: `_${version}_x64-setup.exe`, fixedName: 'bilibili-downloader-gui_Windows_x64-setup.exe' },
               { match: `_${version}_amd64.deb`, fixedName: 'bilibili-downloader-gui_Linux_x64.deb' },
+              // Why: Tauri v2 (createUpdaterArtifacts) releases the raw versioned .AppImage — no .AppImage.tar.gz asset exists, so the tar.gz mapping from 17e0db3 was dropped in 45640a2, 404-ing the READMEs' AppImage link (confirmed against v1.60.0 assets)
+              { match: `_${version}_amd64.AppImage`, fixedName: 'bilibili-downloader-gui_Linux_x64.AppImage' },
             ];
 
             // Remove old fixed-name assets if they exist from a previous run
