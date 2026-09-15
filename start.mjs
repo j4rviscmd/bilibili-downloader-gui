@@ -5,8 +5,8 @@
 // run as native Windows processes — required to verify Windows-only
 // behavior (WebView2, #[cfg(windows)] code paths, CREATE_NO_WINDOW, ...).
 
-import { execFileSync, spawn } from 'node:child_process'
-import { existsSync, readFileSync, realpathSync } from 'node:fs'
+import { execFileSync, spawn, spawnSync } from 'node:child_process'
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import { platform } from 'node:process'
 
 const CMD_EXE_FALLBACK = '/mnt/c/Windows/System32/cmd.exe'
@@ -83,6 +83,36 @@ function launch(child) {
   child.on('exit', (code) => process.exit(code ?? 1))
 }
 
+// Why: a WSL-side `npm ci`/`npm install` (e.g. forest start) leaves only the
+// Linux-native optional binaries in node_modules, and vite on the Windows
+// side then dies with MODULE_NOT_FOUND. Detect that and re-install from the
+// Windows side before launching.
+function ensureWindowsBinaries(cmdExe, pathPrefix) {
+  // Why: this one package is only a sentinel — npm installs/prunes the whole
+  // group of platform-specific optional deps (rollup, esbuild, ...) as a set,
+  // so a single representative binary reflects the state of all of them, and
+  // the remediation is always a full `npm install`, which restores the entire
+  // group at once (see CONTRIBUTING.md "Developing on WSL").
+  if (existsSync('node_modules/@rollup/rollup-win32-x64-msvc')) return
+  console.log(
+    'Windows-native binaries missing — running npm install on the Windows side...',
+  )
+  // In a git worktree `.git` is a file pointing to a WSL-side path that
+  // Windows git cannot resolve, so the `prepare` script would fail; skip
+  // scripts — they are not needed to place the native binaries.
+  const skipScripts =
+    existsSync('.git') && statSync('.git').isFile() ? ' --ignore-scripts' : ''
+  const result = spawnSync(
+    cmdExe,
+    ['/c', `${pathPrefix}npm install${skipScripts}`],
+    { stdio: 'inherit', cwd: process.cwd() },
+  )
+  if (result.status !== 0) {
+    console.error('error: Windows-side npm install failed.')
+    process.exit(result.status ?? 1)
+  }
+}
+
 if (isWsl()) {
   const cmdExe = findCmdExe()
   if (!cmdExe) {
@@ -105,6 +135,7 @@ if (isWsl()) {
   // passing the drvfs cwd here lets interop translate it to the Windows path.
   // `&&` is glued to %PATH% so the trailing space is not baked into PATH.
   const pathPrefix = nodeDir ? `set PATH=${nodeDir};%PATH%&& ` : ''
+  ensureWindowsBinaries(cmdExe, pathPrefix)
   launch(
     spawn(cmdExe, ['/c', `${pathPrefix}npm run tauri dev`], {
       stdio: 'inherit',
