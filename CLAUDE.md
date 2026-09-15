@@ -6,16 +6,17 @@ CONTRIBUTING.md.
 
 ## Commands
 
-| Command               | Purpose                      |
-| --------------------- | ---------------------------- |
-| `npm run tauri dev`   | Launch Tauri app (HMR)       |
-| `npm run dev`         | Frontend only (Vite)         |
-| `npm run build`       | Type-check + build           |
-| `npm run typecheck`   | TypeScript type check        |
-| `npm run lint`        | ESLint                       |
-| `npm run test`        | Run Vitest                   |
-| `npm run tauri build` | Build distributable binaries |
-| `cargo build` / `fmt` | Rust (run in `src-tauri/`)   |
+| Command               | Purpose                                    |
+| --------------------- | ------------------------------------------ |
+| `npm run tauri dev`   | Launch Tauri app (HMR)                     |
+| `npm start`           | Same, but WSL runs it as Windows processes |
+| `npm run dev`         | Frontend only (Vite)                       |
+| `npm run build`       | Type-check + build                         |
+| `npm run typecheck`   | TypeScript type check                      |
+| `npm run lint`        | ESLint                                     |
+| `npm run test`        | Run Vitest                                 |
+| `npm run tauri build` | Build distributable binaries               |
+| `cargo build` / `fmt` | Rust (run in `src-tauri/`)                 |
 
 ## Required Rules
 
