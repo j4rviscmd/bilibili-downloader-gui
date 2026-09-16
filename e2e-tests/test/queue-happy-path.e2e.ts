@@ -5,10 +5,19 @@
  * - the search page's part card carries a queue badge while the part is
  *   still active (videoId+cid scope — the /search responsibility split)
  *
- * Requires E2E_SLOW_MEDIA=1 (parts stay pending long enough to observe).
+ * Self-contained session: wdio launches a fresh app per spec file, so the
+ * setup loads the fixture video and patches the output directory itself.
+ * Requires E2E_SLOW_MEDIA=1 (parts stay active long enough to observe).
  */
 import { browser } from '@wdio/globals'
-import { saveScreenshot, waitForMainUI } from '../helpers/app.helpers'
+import {
+  loadFixtureVideo,
+  saveScreenshot,
+  setupDownloadEnv,
+  teardownDownloadEnv,
+  waitForMainUI,
+  type DownloadEnv,
+} from '../helpers/app.helpers'
 import * as S from '../helpers/selectors'
 
 /** Bottom-bar avatar tiles currently rendered (thumbnails + remainder). */
@@ -18,8 +27,16 @@ async function barAvatarCount(): Promise<number> {
 }
 
 describe('queue happy paths', () => {
+  let downloadEnv: DownloadEnv | null = null
+
   before(async () => {
     await waitForMainUI()
+    downloadEnv = await setupDownloadEnv()
+    await loadFixtureVideo()
+  })
+
+  after(async () => {
+    if (downloadEnv) await teardownDownloadEnv(downloadEnv)
   })
 
   it('shows one bottom-bar avatar per active part and navigates to /downloads', async () => {
@@ -44,9 +61,12 @@ describe('queue happy paths', () => {
     // The whole bar area is the navigation affordance.
     await bar.click()
     await browser.waitUntil(
-      async () =>
-        (await browser.$$('[data-status="running"], [data-status="pending"]'))
-          .length > 0,
+      async () => {
+        const rows = await browser.$$(
+          '[data-status="running"], [data-status="pending"]',
+        )
+        return (await rows.length) > 0
+      },
       {
         timeout: 10_000,
         timeoutMsg: 'expected /downloads rows after bar click',
@@ -63,12 +83,12 @@ describe('queue happy paths', () => {
     await list.waitForExist({ timeout: 10_000 })
 
     await browser.waitUntil(
-      async () =>
-        (
-          await browser.$$(
-            '[data-part-list] [data-status="pending"], [data-part-list] [data-status="running"]',
-          )
-        ).length > 0,
+      async () => {
+        const badges = await browser.$$(
+          '[data-part-list] [data-status="pending"], [data-part-list] [data-status="running"]',
+        )
+        return (await badges.length) > 0
+      },
       { timeout: 15_000, interval: 500 },
     )
     await saveScreenshot('queue-happy', '01-search-badges')
@@ -77,9 +97,12 @@ describe('queue happy paths', () => {
   it('drains the queue fully after the happy-path round trip', async () => {
     // Persistent bar: drain = no active rows on /downloads.
     await browser.waitUntil(
-      async () =>
-        (await browser.$$('[data-status="pending"], [data-status="running"]'))
-          .length === 0,
+      async () => {
+        const rows = await browser.$$(
+          '[data-status="pending"], [data-status="running"]',
+        )
+        return (await rows.length) === 0
+      },
       { timeout: 120_000, interval: 500 },
     )
     await saveScreenshot('queue-happy', '02-drained')

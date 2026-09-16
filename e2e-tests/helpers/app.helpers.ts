@@ -6,10 +6,21 @@
  */
 
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import * as S from './selectors'
+
+/**
+ * Fixture video URL submitted through the URL input form.
+ *
+ * Under E2E_TESTING the backend answers fetch_video_info with a bundled
+ * fixture regardless of the video ID, so any valid URL shape works; this
+ * matches the fixture video — the official bilibili CM with 3 parts — so
+ * what renders on screen corresponds to the URL (issue #565).
+ */
+export const FIXTURE_VIDEO_URL = 'https://www.bilibili.com/video/BV1FV411d7u7'
 
 /** Resolved path to the base `screenshots/` directory. */
 const baseScreenshotDir = path.resolve(
@@ -97,6 +108,84 @@ export async function waitForUrlInput(): Promise<void> {
   const input = await browser.$(S.URL_INPUT)
   await input.waitForExist({ timeout: 10_000 })
   await input.waitForClickable({ timeout: 5_000 })
+}
+
+/**
+ * Loads the fixture video on /search: fill the URL input, blur to submit
+ * (the form fetches on blur — WKWebView's WebDriver does not propagate
+ * focus changes, hence the explicit blur via JS), and wait for the part
+ * list to render.
+ *
+ * Each spec file runs in a fresh app session: wdio creates a new WebDriver
+ * session per file and tauri-webdriver relaunches the app with it, so any
+ * spec that needs the video on screen must load it itself instead of
+ * relying on state from a previously-run spec file.
+ */
+export async function loadFixtureVideo(): Promise<void> {
+  const input = await browser.$(S.URL_INPUT)
+  await input.waitForExist({ timeout: 10_000 })
+  await input.click()
+  await input.setValue(FIXTURE_VIDEO_URL)
+  await browser.execute(() => {
+    const el = document.activeElement
+    if (el instanceof HTMLElement) el.blur()
+  })
+  const partList = await browser.$(S.DATA_PART_LIST)
+  await partList.waitForExist({ timeout: 30_000 })
+}
+
+/** State captured by setupDownloadEnv for the matching teardown. */
+export type DownloadEnv = {
+  /** Fresh temp dir the spec's downloads are patched into. */
+  outputDir: string
+  /** Developer's dlOutputPath before the patch (null = OS default). */
+  originalDlOutputPath: string | null
+  /** History entry ids present before the spec ran. */
+  originalHistoryIds: string[]
+}
+
+/**
+ * Points dlOutputPath at a fresh temp dir so a spec's downloads never land
+ * in the developer's real output directory (dev and E2E share one
+ * app_data_dir — same bundle identifier — and each spec file starts a new
+ * app that reads the persisted settings). Pair with teardownDownloadEnv.
+ */
+export async function setupDownloadEnv(): Promise<DownloadEnv> {
+  const settings = await tauriInvoke<{ dlOutputPath?: string | null }>(
+    'get_settings',
+  )
+  const history = await tauriInvoke<Array<{ id: string }>>('get_history')
+  const outputDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bili-e2e-dl-'))
+  // patch_settings validates the path exists and is a directory, so a
+  // resolve here proves the backend accepted it.
+  await tauriInvoke('patch_settings', { patch: { dlOutputPath: outputDir } })
+  return {
+    outputDir,
+    originalDlOutputPath: settings.dlOutputPath ?? null,
+    originalHistoryIds: history.map((e) => e.id),
+  }
+}
+
+/**
+ * Restores the developer's output path, removes only the history entries
+ * the spec created, and deletes the temp dir. Best-effort per step: a
+ * settings failure must not mask test failures.
+ */
+export async function teardownDownloadEnv(env: DownloadEnv): Promise<void> {
+  await tauriInvoke('patch_settings', {
+    patch: { dlOutputPath: env.originalDlOutputPath },
+  }).catch(() => undefined)
+  const history = await tauriInvoke<Array<{ id: string }>>('get_history').catch(
+    () => [] as Array<{ id: string }>,
+  )
+  for (const entry of history) {
+    if (!env.originalHistoryIds.includes(entry.id)) {
+      await tauriInvoke('remove_history_entry', { id: entry.id }).catch(
+        () => undefined,
+      )
+    }
+  }
+  fs.rmSync(env.outputDir, { recursive: true, force: true })
 }
 
 /** Window parking spot for the pending invoke result (see tauriInvoke). */

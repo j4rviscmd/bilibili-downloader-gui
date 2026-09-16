@@ -83,9 +83,12 @@ jobs:
         working-directory: e2e-tests
         env:
           E2E_TESTING: 'true'
-          # Throttles fixture media to ~2KB/s so the queue-replace spec has
-          # observably RUNNING parts while later parts sit PENDING.
+          # Throttle fixture media so a part stays observably RUNNING
+          # (~20s: throttled CDN probe + streams) while later parts sit
+          # PENDING — the queue specs' branch matrix needs that window to
+          # fit several sequential enqueue/navigate clicks.
           E2E_SLOW_MEDIA: '1'
+          E2E_MEDIA_BYTES_PER_SEC: '768'
         run: npx wdio run wdio.conf.ts
 
       - name: Upload screenshots
