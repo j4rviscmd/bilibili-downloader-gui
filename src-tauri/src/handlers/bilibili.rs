@@ -2999,7 +2999,6 @@ mod tests {
     }
 
     #[test]
-    #[test]
     fn best_effort_not_capped_by_codec_priority() {
         // AV1 1080p+ exists, but HDR10 (125) is HEVC-only and higher —
         // best effort must take 125; codec priority only tie-breaks within
@@ -3014,6 +3013,7 @@ mod tests {
         assert_eq!(url, "https://example.com/125.m4s");
     }
 
+    #[test]
     fn select_stream_url_none_picks_highest_not_manifest_order() {
         // Regression (verification): manifest listed 1080p+ (112) BEFORE
         // HDR10 (125) — best-effort must still take the highest id.
