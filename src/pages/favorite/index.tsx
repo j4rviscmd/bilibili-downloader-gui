@@ -5,7 +5,6 @@ import FavoriteList from '@/features/favorite/ui/FavoriteList'
 import FolderSelector from '@/features/favorite/ui/FolderSelector'
 import { usePendingDownload } from '@/shared/hooks/usePendingDownload'
 import { PageTemplate } from '@/shared/layout'
-import { selectHasActiveDownloads } from '@/shared/queue'
 import { Button } from '@/shared/ui/button'
 import { toast } from '@/shared/ui/toast'
 import { RefreshCw } from 'lucide-react'
@@ -32,7 +31,6 @@ import { useTranslation } from 'react-i18next'
 export function FavoriteContent() {
   const { t } = useTranslation()
   const user = useSelector((state) => state.user)
-  const hasActiveDownloads = useSelector(selectHasActiveDownloads)
   const handleDownload = usePendingDownload()
 
   const mid = user.data?.isLogin ? (user.data.mid ?? null) : null
@@ -120,7 +118,6 @@ export function FavoriteContent() {
           hasMore={hasMore}
           onLoadMore={loadMore}
           onDownload={onDownload}
-          disabled={hasActiveDownloads}
         />
       </div>
     </PageTemplate>

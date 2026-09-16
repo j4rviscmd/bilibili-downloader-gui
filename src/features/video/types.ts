@@ -1,3 +1,11 @@
+// Subtitle DTOs moved to the queue domain (issue #691): enqueue payloads
+// snapshot subtitle selections, so the canonical types live in
+// shared/queue/types. Imported for local use and re-exported for
+// compatibility.
+import type { SubtitleConfig, SubtitleInfo } from '@/shared/queue/types'
+
+export type { SubtitleConfig, SubtitleInfo }
+
 /**
  * Content type identifier.
  */
@@ -164,35 +172,6 @@ export type AudioQuality = {
   quality: string
   /** Quality ID (e.g., 30216, 30251) */
   id: number
-}
-
-/**
- * Subtitle information for a video part.
- */
-export type SubtitleInfo = {
-  /** Language code (e.g., "zh-CN", "en") */
-  lan: string
-  /** Language display text (e.g., "中文（简体）") */
-  lanDoc: string
-  /** Subtitle URL (BCC JSON format) */
-  subtitleUrl: string
-  /** Whether this is an AI-generated subtitle */
-  isAi: boolean
-  /**
-   * AI subtitle type: 0 = legacy AI subtitle, 1 = translated AI subtitle.
-   * Undefined for manually created subtitles.
-   */
-  aiType?: number
-}
-
-/**
- * Subtitle configuration for download.
- */
-export type SubtitleConfig = {
-  /** Subtitle embed mode: 'soft' for soft-sub, 'hard' for hard-sub */
-  mode: 'soft' | 'hard' | 'off'
-  /** Selected subtitle language codes (for soft-sub, multiple allowed) */
-  selectedLans: string[]
 }
 
 /**

@@ -18,7 +18,7 @@ function InitPage() {
     const runInit = async (): Promise<void> => {
       const result = await initApp()
       if (result.code === 0) {
-        navigate('/home')
+        navigate('/search')
         return
       }
       const validErrorCodes = [1, 2, 3, 4, 5, 6]

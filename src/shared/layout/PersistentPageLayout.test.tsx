@@ -11,8 +11,11 @@ import { screen } from '@testing-library/react'
 import { Route, Routes } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/pages/home', () => ({
-  HomeContent: () => <div data-testid="page-home" />,
+vi.mock('@/pages/search', () => ({
+  SearchContent: () => <div data-testid="page-search" />,
+}))
+vi.mock('@/pages/downloads', () => ({
+  DownloadsContent: () => <div data-testid="page-downloads" />,
 }))
 vi.mock('@/pages/history', () => ({
   HistoryContent: () => <div data-testid="page-history" />,
@@ -47,7 +50,7 @@ vi.mock('@/shared/ui/GitHubStars', () => ({
 
 import { PersistentPageLayout } from './PersistentPageLayout'
 
-function renderLayout(route = '/home') {
+function renderLayout(route = '/search') {
   return renderWithProviders(
     <Routes>
       <Route path="/*" element={<PersistentPageLayout />} />
@@ -67,22 +70,22 @@ describe('PersistentPageLayout', () => {
     mockInvoke.mockResolvedValue(undefined)
   })
 
-  it('renders only /home initially', () => {
-    renderLayout('/home')
+  it('renders only /search initially', () => {
+    renderLayout('/search')
 
-    expect(screen.getByTestId('page-home')).toBeInTheDocument()
+    expect(screen.getByTestId('page-search')).toBeInTheDocument()
     expect(screen.queryByTestId('page-history')).toBeNull()
     expect(screen.queryByTestId('page-trim')).toBeNull()
   })
 
-  it('redirects unknown paths to /home', () => {
+  it('redirects unknown paths to /search', () => {
     renderLayout('/bogus')
 
-    expect(screen.getByTestId('page-home')).toBeInTheDocument()
+    expect(screen.getByTestId('page-search')).toBeInTheDocument()
   })
 
   it('mounts a page on first visit and keeps earlier pages mounted hidden', async () => {
-    const { user } = renderLayout('/home')
+    const { user } = renderLayout('/search')
 
     // Footer nav button, located via its visible span (tooltip also feeds
     // the accessible name, so role+name is brittle)
@@ -93,9 +96,9 @@ describe('PersistentPageLayout', () => {
     await user.click(historyNav)
 
     expect(await screen.findByTestId('page-history')).toBeInTheDocument()
-    // /home stays mounted (state preserved) but is hidden via display:none
-    expect(screen.getByTestId('page-home')).toBeInTheDocument()
-    expect(wrapperOf('page-home').style.display).toBe('none')
+    // /search stays mounted (state preserved) but is hidden via display:none
+    expect(screen.getByTestId('page-search')).toBeInTheDocument()
+    expect(wrapperOf('page-search').style.display).toBe('none')
     expect(wrapperOf('page-history').style.display).toBe('')
   })
 })

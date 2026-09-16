@@ -1081,10 +1081,8 @@ async fn download_video_impl_with<R: tauri::Runtime>(
 
     // Fallback if selected quality is unavailable (first = highest quality)
     // None means best available → -1 won't match any real quality ID.
-    let requested_quality = options.quality.unwrap_or(-1);
-
     let (video_url, video_backup_urls, raw_video_fallback) =
-        select_stream_url(&streams_for_selection, requested_quality)?;
+        select_stream_url(&streams_for_selection, options.quality)?;
     // Only treat as fallback when the user explicitly selected a quality.
     // When quality is None (accordion never opened), the best-available
     // selection is intentional and should not trigger the warning icon.
@@ -1095,7 +1093,7 @@ async fn download_video_impl_with<R: tauri::Runtime>(
         .iter()
         .find(|v| v.base_url == video_url)
         .map(|v| (v.id, v.codecid))
-        .unwrap_or((requested_quality, CODECID_AVC));
+        .unwrap_or((options.quality.unwrap_or(-1), CODECID_AVC));
 
     // True when the preferred codec was unavailable: either a lower-priority
     // codec was selected (fallback flag), or no priority codec existed at all
@@ -1117,8 +1115,17 @@ async fn download_video_impl_with<R: tauri::Runtime>(
     } else {
         let audio_quality = options
             .audio_quality
-            .unwrap_or(dash_data.audio.first().map(|a| a.id).unwrap_or(30280));
-        select_stream_url(&dash_data.audio, audio_quality)?
+            // Best effort mirrors the video path: HIGHEST id (30251 Hi-Res >
+            // 30250 Dolby > 30280 192K > …), not the manifest's first entry.
+            .unwrap_or_else(|| {
+                dash_data
+                    .audio
+                    .iter()
+                    .max_by_key(|a| a.id)
+                    .map(|a| a.id)
+                    .unwrap_or(30280)
+            });
+        select_stream_url(&dash_data.audio, Some(audio_quality))?
     };
     // Same logic: only warn when the user explicitly chose an audio quality.
     let audio_quality_fallback = options.audio_quality.is_some() && raw_audio_fallback;
@@ -2986,15 +2993,40 @@ mod tests {
     #[test]
     fn select_stream_url_exact_match_marks_no_fallback() {
         let items = vec![stream(80, 7), stream(64, 7)];
-        let (url, _backup, fell_back) = select_stream_url(&items, 64).unwrap();
+        let (url, _backup, fell_back) = select_stream_url(&items, Some(64)).unwrap();
         assert_eq!(url, "https://example.com/64.m4s");
         assert!(!fell_back);
     }
 
     #[test]
+    fn best_effort_not_capped_by_codec_priority() {
+        // AV1 1080p+ exists, but HDR10 (125) is HEVC-only and higher —
+        // best effort must take 125; codec priority only tie-breaks within
+        // the same rendition id.
+        let items = vec![stream(112, 12), stream(125, 7)];
+        let (scoped, _) = select_streams_by_codec_priority_with(
+            crate::utils::codec::VideoCodecPriority::Av1First,
+            &items,
+            None,
+        );
+        let (url, _, _) = select_stream_url(&scoped, None).unwrap();
+        assert_eq!(url, "https://example.com/125.m4s");
+    }
+
+    #[test]
+    fn select_stream_url_none_picks_highest_not_manifest_order() {
+        // Regression (verification): manifest listed 1080p+ (112) BEFORE
+        // HDR10 (125) — best-effort must still take the highest id.
+        let items = vec![stream(112, 7), stream(125, 7), stream(80, 7)];
+        let (url, _, fell_back) = select_stream_url(&items, None).unwrap();
+        assert_eq!(url, "https://example.com/125.m4s");
+        assert!(!fell_back, "best effort is intentional, not a fallback");
+    }
+
+    #[test]
     fn select_stream_url_unknown_quality_falls_back_to_first() {
         let items = vec![stream(80, 7), stream(64, 7)];
-        let (url, _, fell_back) = select_stream_url(&items, 127).unwrap();
+        let (url, _, fell_back) = select_stream_url(&items, Some(127)).unwrap();
         assert_eq!(url, "https://example.com/80.m4s");
         assert!(fell_back, "caller shows a quality-fallback warning");
     }
@@ -3002,7 +3034,7 @@ mod tests {
     #[test]
     fn select_stream_url_empty_list_errors() {
         assert_eq!(
-            select_stream_url(&[], 80),
+            select_stream_url(&[], Some(80)),
             Err("ERR::QUALITY_NOT_FOUND".to_string())
         );
     }
@@ -5250,18 +5282,31 @@ fn exhausted_retry_error(msg: String) -> String {
 /// Returns `ERR::QUALITY_NOT_FOUND` if quality list is empty.
 fn select_stream_url(
     items: &[crate::models::bilibili_api::XPlayerApiResponseVideo],
-    quality: i32,
+    quality: Option<i32>,
 ) -> Result<(String, Option<Vec<String>>, bool), String> {
-    items
-        .iter()
-        .find(|v| v.id == quality)
-        .map(|v| (v.base_url.clone(), v.backup_urls.clone(), false))
-        .or_else(|| {
-            items
-                .first()
-                .map(|v| (v.base_url.clone(), v.backup_urls.clone(), true))
-        })
-        .ok_or_else(|| "ERR::QUALITY_NOT_FOUND".into())
+    match quality {
+        // Best effort: the user never picked a quality, so the expectation
+        // is the HIGHEST available rendition — NOT the manifest's first
+        // entry. Bilibili does not guarantee descending order (this bangumi
+        // listed 1080p+ before HDR10, so `first()` auto-picked 1080p+).
+        // Max id = highest rendition because quality ids are ordered
+        // (127 8K > 126 Dolby > 125 HDR10 > … > 16 360p).
+        None => items
+            .iter()
+            .max_by_key(|v| v.id)
+            .map(|v| (v.base_url.clone(), v.backup_urls.clone(), false))
+            .ok_or_else(|| "ERR::QUALITY_NOT_FOUND".into()),
+        Some(qn) => items
+            .iter()
+            .find(|v| v.id == qn)
+            .map(|v| (v.base_url.clone(), v.backup_urls.clone(), false))
+            .or_else(|| {
+                items
+                    .first()
+                    .map(|v| (v.base_url.clone(), v.backup_urls.clone(), true))
+            })
+            .ok_or_else(|| "ERR::QUALITY_NOT_FOUND".into()),
+    }
 }
 
 /// Filters streams down to the requested quality when it exists (issue #584).
@@ -5307,7 +5352,25 @@ fn select_streams_by_codec_priority_with(
     video_streams: &[XPlayerApiResponseVideo],
     requested_quality: Option<i32>,
 ) -> (Vec<XPlayerApiResponseVideo>, Option<VideoStreamSelection>) {
-    let quality_scoped = scope_streams_to_quality(video_streams, requested_quality);
+    // Best effort (None): the highest rendition first — codec priority is
+    // a tie-breaker WITHIN that rendition only. Scoping the codec filter
+    // across the whole manifest capped unselected downloads at the best
+    // stream of the preferred codec (AV1-first default → 1080p+) and
+    // silently dropped higher HEVC-only renditions like HDR10 (qn=125).
+    let quality_scoped = match requested_quality {
+        None => {
+            let max_id = video_streams.iter().map(|v| v.id).max();
+            match max_id {
+                Some(id) => video_streams
+                    .iter()
+                    .filter(|v| v.id == id)
+                    .cloned()
+                    .collect(),
+                None => Vec::new(),
+            }
+        }
+        Some(_) => scope_streams_to_quality(video_streams, requested_quality),
+    };
 
     let available_codecs: Vec<i16> = quality_scoped.iter().map(|v| v.codecid).collect();
     let codec_selection = select_video_stream(&codec_priority, &available_codecs);
@@ -6481,16 +6544,22 @@ async fn refetch_dash_urls(
     let (streams_for_selection, _) =
         select_streams_by_codec_priority_with(codec_priority, &dash.video, Some(video_quality));
     let (video_url, video_backup_urls, _) =
-        select_stream_url(&streams_for_selection, video_quality)?;
+        select_stream_url(&streams_for_selection, Some(video_quality))?;
     // Silent sources carry no audio list — selecting would fail the whole
     // refetch and cost the video side its fresh URL (issue #446). The audio
     // fields are simply unused by the silent download path.
     let (audio_url, audio_backup_urls) = if dash.audio.is_empty() {
         (String::new(), None)
     } else {
-        let resolved_audio_quality =
-            audio_quality.unwrap_or_else(|| dash.audio.first().map(|a| a.id).unwrap_or(30280));
-        let (url, backups, _) = select_stream_url(&dash.audio, resolved_audio_quality)?;
+        let resolved_audio_quality = audio_quality.unwrap_or_else(|| {
+            // Best effort: highest id (see the initial selection's comment).
+            dash.audio
+                .iter()
+                .max_by_key(|a| a.id)
+                .map(|a| a.id)
+                .unwrap_or(30280)
+        });
+        let (url, backups, _) = select_stream_url(&dash.audio, Some(resolved_audio_quality))?;
         (url, backups)
     };
     Ok(FreshDashUrls {

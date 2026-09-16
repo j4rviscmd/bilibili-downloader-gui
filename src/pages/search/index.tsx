@@ -4,36 +4,23 @@ import { useInit } from '@/features/init'
 import { QRCodeLoginDialog } from '@/features/login'
 import type { Video } from '@/features/video'
 import {
-  deselectAll,
   deselectPageAll,
   DownloadButton,
   PARTS_PER_PAGE,
-  selectHasSelectedParts,
   selectPageAll,
   setHomePage,
   useVideoInfo,
   VideoForm1,
   VideoInfoProvider,
 } from '@/features/video'
-import { DownloadStatusBar } from '@/features/video/ui/DownloadStatusBar'
 import VideoPartCard from '@/features/video/ui/VideoPartCard'
 import VideoPartCardSkeleton from '@/features/video/ui/VideoPartCardSkeleton'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/shared/animate-ui/radix/dialog'
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
-import { cn } from '@/shared/lib/utils'
-import { selectHasActiveDownloads } from '@/shared/queue'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
 import {
@@ -62,21 +49,6 @@ import { Trans, useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router'
 
 /**
- * Props for the TooltipButton component.
- *
- * @property label - Button label text to display
- * @property onClick - Click event handler callback
- * @property disabled - Whether the button is disabled (optional)
- * @property tooltip - Tooltip text to show when disabled (optional)
- */
-type TooltipButtonProps = {
-  label: string
-  onClick: () => void
-  disabled?: boolean
-  tooltip?: string
-}
-
-/**
  * Button component that displays a tooltip when disabled.
  *
  * @private
@@ -86,7 +58,12 @@ function TooltipButton({
   onClick,
   disabled,
   tooltip,
-}: TooltipButtonProps) {
+}: {
+  label: string
+  onClick: () => void
+  disabled?: boolean
+  tooltip?: string
+}) {
   const button = (
     <Button variant="outline" size="sm" onClick={onClick} disabled={disabled}>
       {label}
@@ -118,7 +95,6 @@ type PaginatedPartListProps = {
   onPageChange: (page: number) => void
   scrollToPartIndex: number | null
   scrollRequestId: number
-  hasActiveDownloads: boolean
 }
 
 /**
@@ -148,12 +124,8 @@ function generatePaginationItems(
 }
 
 /** Computes the className for pagination navigation buttons. */
-function getPaginationNavClassName(
-  isDisabled: boolean,
-  hasActiveDownloads: boolean,
-): string {
-  if (isDisabled) return 'pointer-events-none opacity-50'
-  return hasActiveDownloads ? 'cursor-not-allowed' : 'cursor-pointer'
+function getPaginationNavClassName(isDisabled: boolean): string {
+  return isDisabled ? 'pointer-events-none opacity-50' : 'cursor-pointer'
 }
 
 /**
@@ -172,7 +144,6 @@ function PaginatedPartList({
   onPageChange,
   scrollToPartIndex,
   scrollRequestId,
-  hasActiveDownloads,
 }: PaginatedPartListProps) {
   const { t } = useTranslation()
   const totalPages = Math.ceil(video.parts.length / PARTS_PER_PAGE)
@@ -254,24 +225,12 @@ function PaginatedPartList({
             page={i + 1}
             isDuplicate={duplicateIndices.includes(i)}
           />
-          {i < pageRange.endIndex && (
-            <Separator
-              // Tighter rhythm between collapsed rows while a download
-              // session is active (compact part cards)
-              className={hasActiveDownloads ? 'my-0.5' : 'my-3'}
-            />
-          )}
+          {i < pageRange.endIndex && <Separator className="my-3" />}
         </div>,
       )
     }
     return parts
-  }, [
-    video,
-    duplicateIndices,
-    pageRange.startIndex,
-    pageRange.endIndex,
-    hasActiveDownloads,
-  ])
+  }, [video, duplicateIndices, pageRange.startIndex, pageRange.endIndex])
 
   if (isFetching) {
     return (
@@ -296,79 +255,48 @@ function PaginatedPartList({
       </CardContent>
       <CardFooter className="flex flex-col gap-3">
         {totalPages > 1 && (
-          <TooltipProvider delayDuration={0}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Pagination
-                  className={cn(
-                    hasActiveDownloads ? 'opacity-50' : '',
-                    'w-auto',
+          <Pagination className="w-auto">
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+                  className={getPaginationNavClassName(currentPage === 1)}
+                >
+                  {t('video.pagination_previous')}
+                </PaginationPrevious>
+              </PaginationItem>
+              {generatePaginationItems(totalPages, currentPage).map(
+                (item, idx) =>
+                  item === 'ellipsis' ? (
+                    <PaginationItem key={`ellipsis-${idx}`}>
+                      <PaginationEllipsis />
+                    </PaginationItem>
+                  ) : (
+                    <PaginationItem key={item}>
+                      <PaginationLink
+                        onClick={() => onPageChange(item)}
+                        isActive={currentPage === item}
+                        className="cursor-pointer"
+                      >
+                        {item}
+                      </PaginationLink>
+                    </PaginationItem>
+                  ),
+              )}
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() =>
+                    onPageChange(Math.min(totalPages, currentPage + 1))
+                  }
+                  className={getPaginationNavClassName(
+                    currentPage === totalPages,
                   )}
                 >
-                  <PaginationContent>
-                    <PaginationItem>
-                      <PaginationPrevious
-                        onClick={() => {
-                          if (hasActiveDownloads) return
-                          onPageChange(Math.max(1, currentPage - 1))
-                        }}
-                        className={getPaginationNavClassName(
-                          currentPage === 1,
-                          hasActiveDownloads,
-                        )}
-                      >
-                        {t('video.pagination_previous')}
-                      </PaginationPrevious>
-                    </PaginationItem>
-                    {generatePaginationItems(totalPages, currentPage).map(
-                      (item, idx) =>
-                        item === 'ellipsis' ? (
-                          <PaginationItem key={`ellipsis-${idx}`}>
-                            <PaginationEllipsis />
-                          </PaginationItem>
-                        ) : (
-                          <PaginationItem key={item}>
-                            <PaginationLink
-                              onClick={() => {
-                                if (hasActiveDownloads) return
-                                onPageChange(item)
-                              }}
-                              isActive={currentPage === item}
-                              className={
-                                hasActiveDownloads
-                                  ? 'cursor-not-allowed'
-                                  : 'cursor-pointer'
-                              }
-                            >
-                              {item}
-                            </PaginationLink>
-                          </PaginationItem>
-                        ),
-                    )}
-                    <PaginationItem>
-                      <PaginationNext
-                        onClick={() => {
-                          if (hasActiveDownloads) return
-                          onPageChange(Math.min(totalPages, currentPage + 1))
-                        }}
-                        className={getPaginationNavClassName(
-                          currentPage === totalPages,
-                          hasActiveDownloads,
-                        )}
-                      >
-                        {t('video.pagination_next')}
-                      </PaginationNext>
-                    </PaginationItem>
-                  </PaginationContent>
-                </Pagination>
-              </TooltipTrigger>
-              {hasActiveDownloads && (
-                <TooltipContent side="top" arrow>
-                  {t('video.navigation_disabled_tooltip')}
-                </TooltipContent>
-              )}
-            </Tooltip>
-          </TooltipProvider>
+                  {t('video.pagination_next')}
+                </PaginationNext>
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
         )}
         <div className="w-full">
           <DownloadButton />
@@ -379,14 +307,15 @@ function PaginatedPartList({
 }
 
 /**
- * Internal home page content component.
+ * Internal search page content component.
  *
- * Uses VideoInfoContext to display video URL input form and part configuration cards.
- * This component must be rendered within a `VideoInfoProvider`.
+ * Uses VideoInfoContext to display video URL input form and part
+ * configuration cards. This component must be rendered within a
+ * `VideoInfoProvider`.
  *
  * @private
  */
-function HomeContentInner() {
+function SearchContentInner() {
   const [searchParams, setSearchParams] = useSearchParams()
   const {
     video,
@@ -398,7 +327,6 @@ function HomeContentInner() {
   } = useVideoInfo()
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
-  const hasActiveDownloads = useSelector(selectHasActiveDownloads)
   const user = useSelector((state: RootState) => state.user)
   const isLoggedIn = user.hasCookie && user.data?.isLogin
   const [isQrLoginDialogOpen, setIsQrLoginDialogOpen] = useState(false)
@@ -438,30 +366,35 @@ function HomeContentInner() {
   const currentPage = useMemo(() => {
     let page = 1
 
+    // An explicit `?p=N` (router param or the pasted input URL) outranks the
+    // bangumi epId: an `av…?p=N` URL resolves to a bangumi whose top-level
+    // epId points at the DEFAULT episode (episode 1), so honoring epId first
+    // pinned the page to 1 no matter which p the URL named — the same
+    // priority mistake the selection and scroll fixes already corrected.
+    const pParam =
+      browserP ??
+      (() => {
+        try {
+          return input.url ? new URL(input.url).searchParams.get('p') : null
+        } catch {
+          return null
+        }
+      })()
+
     if (browserPage) {
       page = parseInt(browserPage, 10)
-    } else if (browserP) {
-      page = Math.ceil(parseInt(browserP, 10) / PARTS_PER_PAGE)
+    } else if (pParam) {
+      page = Math.ceil(parseInt(pParam, 10) / PARTS_PER_PAGE)
+    } else if (video.contentType === 'bangumi' && video.epId !== undefined) {
       // Why: A bangumi season spans many pages, so a deep-link to one episode
       // (Video.epId, populated by the backend from the ep-id URL) must open on
       // that episode's page. Otherwise the user lands on page 1 and the single
       // auto-selected episode stays off-screen (selection logic lives in
       // lib/partSelection shouldSelectPart).
-    } else if (video.contentType === 'bangumi' && video.epId !== undefined) {
-      // Bangumi URL: jump to the page containing the requested episode
       const idx = video.parts.findIndex((p) => p.epId === video.epId)
       if (idx >= 0) page = Math.floor(idx / PARTS_PER_PAGE) + 1
     } else if (input.pendingDownload) {
       page = Math.ceil(input.pendingDownload.page / PARTS_PER_PAGE)
-    } else if (input.url) {
-      try {
-        const pParam = new URL(input.url).searchParams.get('p')
-        if (pParam) {
-          page = Math.ceil(parseInt(pParam, 10) / PARTS_PER_PAGE)
-        }
-      } catch {
-        // Invalid URL, use default
-      }
     }
 
     return Math.max(1, Math.min(page, totalPages || 1))
@@ -479,15 +412,6 @@ function HomeContentInner() {
   // Track scroll request timestamp to ensure each navigation triggers scroll
   const [scrollRequestId, setScrollRequestId] = useState(0)
 
-  // Confirmation dialog state for page navigation
-  const [pendingPageChange, setPendingPageChange] = useState<number | null>(
-    null,
-  )
-  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false)
-
-  // Check if any part is selected
-  const hasSelectedParts = useSelector(selectHasSelectedParts)
-
   // Track previous pendingDownload to detect when it's cleared
   const prevPendingDownloadRef = useRef<typeof input.pendingDownload>(null)
 
@@ -496,24 +420,26 @@ function HomeContentInner() {
 
     let targetIndex: number | null = null
 
-    if (browserP) {
-      targetIndex = parseInt(browserP, 10) - 1
-      // Why: Scrolls the targeted episode (Video.epId) into view to match the
-      // page-jump and single-episode selection above, so the user immediately
-      // sees the one part that was auto-selected.
+    // `?p=N` first (router param or the pasted input URL) — an
+    // `av…?p=N` URL resolves to a bangumi whose top-level epId points at
+    // the DEFAULT episode (episode 1), so honoring epId first scrolled to
+    // the top no matter which p the URL named (same root cause as the
+    // selection priority fix in shouldSelectPart).
+    const pParam =
+      browserP ??
+      (() => {
+        try {
+          return input.url ? new URL(input.url).searchParams.get('p') : null
+        } catch {
+          return null
+        }
+      })()
+    if (pParam) {
+      targetIndex = parseInt(pParam, 10) - 1
     } else if (video.contentType === 'bangumi' && video.epId !== undefined) {
-      // Bangumi URL: scroll to the requested episode
+      // Bangumi URL (no ?p): scroll to the requested episode
       const idx = video.parts.findIndex((p) => p.epId === video.epId)
       targetIndex = idx >= 0 ? idx : null
-    } else if (input.url) {
-      try {
-        const pParam = new URL(input.url).searchParams.get('p')
-        if (pParam) {
-          targetIndex = parseInt(pParam, 10) - 1
-        }
-      } catch {
-        // Invalid URL
-      }
     }
 
     setScrollToPartIndex(targetIndex)
@@ -568,48 +494,24 @@ function HomeContentInner() {
   )
 
   /**
-   * Handles pagination navigation with confirmation dialog when parts are selected.
+   * Handles pagination navigation.
    *
-   * If parts are selected, shows a confirmation dialog before navigating.
-   * On confirmation, clears selection and navigates to the new page.
-   * On cancel, stays on the current page.
+   * Navigates immediately even with parts selected (issue #691): selections
+   * live in `partInputs` independent of the visible page, and a later
+   * Download enqueues ALL selected parts — so paging with selections kept
+   * is now the intended multi-page batch flow. The old confirmation dialog
+   * warned that navigation would clear the selection, a premise the queue
+   * design removed.
    *
    * @param page - The target page number (1-indexed)
    */
   const handlePageChange = useCallback(
     (page: number) => {
-      // Skip confirmation if navigating to the same page
       if (page === currentPage) return
-
-      if (hasSelectedParts) {
-        setPendingPageChange(page)
-        setIsConfirmDialogOpen(true)
-      } else {
-        performPageChange(page)
-      }
+      performPageChange(page)
     },
-    [currentPage, hasSelectedParts, performPageChange],
+    [currentPage, performPageChange],
   )
-
-  /**
-   * Confirms page navigation: clears selection and navigates.
-   */
-  const handleConfirmNavigation = useCallback(() => {
-    if (pendingPageChange !== null) {
-      dispatch(deselectAll())
-      performPageChange(pendingPageChange)
-    }
-    setIsConfirmDialogOpen(false)
-    setPendingPageChange(null)
-  }, [pendingPageChange, performPageChange])
-
-  /**
-   * Cancels page navigation: closes dialog without changes.
-   */
-  const handleCancelNavigation = useCallback(() => {
-    setIsConfirmDialogOpen(false)
-    setPendingPageChange(null)
-  }, [])
 
   /**
    * Part index range (0-based, inclusive) for the currently visible page.
@@ -670,10 +572,6 @@ function HomeContentInner() {
     // Note: searchParams is intentionally included in deps to read current state,
     // but the early return on prevUrl === input.url prevents infinite loops
   }, [input.url, setSearchParams, searchParams])
-
-  const selectTooltip = hasActiveDownloads
-    ? t('video.download_in_progress')
-    : undefined
 
   // Select all parts on current page
   const handleSelectAllCurrentPage = useCallback(() => {
@@ -768,23 +666,15 @@ function HomeContentInner() {
                     <TooltipButton
                       label={t('video.select_all_page')}
                       onClick={handleSelectAllCurrentPage}
-                      disabled={hasActiveDownloads}
-                      tooltip={selectTooltip}
                     />
                     <TooltipButton
                       label={t('video.deselect_all_page')}
                       onClick={handleDeselectAllCurrentPage}
-                      disabled={hasActiveDownloads}
-                      tooltip={selectTooltip}
                     />
                   </div>
                 )}
               </div>
             </CardHeader>
-            {/* Inline overall progress bar (successor of the abolished
-                download-status dialog, issue #569). Structurally sticky:
-                the part list scrolls in its own container below. */}
-            <DownloadStatusBar />
             <PaginatedPartList
               video={video}
               duplicateIndices={duplicateIndices}
@@ -793,45 +683,26 @@ function HomeContentInner() {
               onPageChange={handlePageChange}
               scrollToPartIndex={scrollToPartIndex}
               scrollRequestId={scrollRequestId}
-              hasActiveDownloads={hasActiveDownloads}
             />
           </Card>
         </div>
       )}
-
-      {/* Confirmation Dialog for Page Navigation */}
-      <Dialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
-        <DialogContent disableOutsideClick>
-          <DialogHeader>
-            <DialogTitle>{t('video.confirm_navigation_title')}</DialogTitle>
-            <DialogDescription>
-              {t('video.confirm_navigation_message')}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={handleCancelNavigation}>
-              {t('video.confirm_navigation_cancel')}
-            </Button>
-            <Button onClick={handleConfirmNavigation}>
-              {t('video.confirm_navigation_ok')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
 
 /**
- * Home page content component (main application view).
+ * Search page content component (main application view, issue #691).
  *
- * This is the content portion of the home page without the layout wrapper.
- * It should be rendered inside a PageLayoutShell or similar layout.
+ * The search page's responsibility ends at enqueueing downloads — the
+ * queue runner drains them and /downloads renders progress. This is the
+ * content portion without the layout wrapper; it should be rendered
+ * inside a PageLayoutShell or similar layout.
  *
  * Redirects to /init if the app is not initialized.
  * Supports autoFetch query parameter to automatically fetch video info.
  */
-export function HomeContent() {
+export function SearchContent() {
   const { initiated } = useInit()
   const navigate = useNavigate()
 
@@ -842,9 +713,9 @@ export function HomeContent() {
 
   return (
     <VideoInfoProvider>
-      <HomeContentInner />
+      <SearchContentInner />
     </VideoInfoProvider>
   )
 }
 
-export default HomeContent
+export default SearchContent

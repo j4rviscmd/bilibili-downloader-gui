@@ -19,6 +19,8 @@ import {
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
 import { cn } from '@/shared/lib/utils'
+import { QueueBottomBar } from '@/shared/queue/ui/QueueBottomBar'
+import { ThumbnailFlightLayer } from '@/shared/queue/ui/ThumbnailFlightLayer'
 import AppBar from '@/shared/ui/AppBar/AppBar'
 import { Button } from '@/shared/ui/button'
 import { NavigationSidebarHeader } from '@/shared/ui/NavigationSidebar'
@@ -147,6 +149,11 @@ export function PageLayoutShell({ children }: PageLayoutShellProps) {
               <AppBar user={user} theme={theme} setTheme={setTheme} />
             </header>
             {children}
+            {/* Queue bottom bar (issue #691): common layout element, mounts
+                after page content on every page and never unmounts. The
+                flight layer renders the fly-to-bar thumbnails above it. */}
+            <QueueBottomBar />
+            <ThumbnailFlightLayer />
           </div>
         </SidebarInset>
       </SidebarProvider>

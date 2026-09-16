@@ -1,7 +1,6 @@
-import { store } from '@/app/store'
 import type { Progress } from '@/shared/progress/types'
-import { clearQueue, enqueue } from '@/shared/queue'
-import { renderWithProviders } from '@/test/test-utils'
+
+import { renderWithProviders, resetQueue, seedSession } from '@/test/test-utils'
 import { screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 
@@ -25,7 +24,7 @@ function createProgress(overrides: Partial<Progress> = {}): Progress {
 describe('ProgressStatusBar', () => {
   beforeEach(() => {
     // The real singleton store persists between tests; clear the queue.
-    store.dispatch(clearQueue())
+    resetQueue()
   })
 
   it('renders elapsed, speed, sizes and percentage', () => {
@@ -70,9 +69,15 @@ describe('ProgressStatusBar', () => {
   })
 
   it('shows the queued label instead of elapsed for a pending queue item', () => {
-    store.dispatch(enqueue({ downloadId: 'dl-1', status: 'pending' }))
+    const parentId = seedSession('BVpb', [
+      { partIndex: 1, cid: 1, status: 'pending' },
+    ])
 
-    renderWithProviders(<ProgressStatusBar progress={createProgress()} />)
+    renderWithProviders(
+      <ProgressStatusBar
+        progress={createProgress({ downloadId: `${parentId}-p1` })}
+      />,
+    )
 
     expect(screen.getByText('progress.queued')).toBeInTheDocument()
     expect(

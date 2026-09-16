@@ -29,7 +29,10 @@ function HarnessWithRoutes() {
   return (
     <Routes>
       <Route path="/*" element={<Harness />} />
-      <Route path="/home" element={<div data-testid="landing">/home</div>} />
+      <Route
+        path="/search"
+        element={<div data-testid="landing">/search</div>}
+      />
       <Route path="/error" element={<div data-testid="landing">/error</div>} />
     </Routes>
   )
@@ -79,7 +82,7 @@ describe('InitPage', () => {
       route: '/',
     })
 
-    expect(await findByTestId('landing')).toHaveTextContent('/home')
+    expect(await findByTestId('landing')).toHaveTextContent('/search')
   })
 
   it('navigates to /error with code and detail when initApp fails', async () => {

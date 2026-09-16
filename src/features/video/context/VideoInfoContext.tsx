@@ -1,6 +1,5 @@
 import { isUnauthorizedError } from '@/app/lib/invokeErrorHandler'
-import { type RootState, store, useSelector } from '@/app/store'
-import { downloadVideo } from '@/features/video/api/downloadVideo'
+import { store, useSelector, type RootState } from '@/app/store'
 import {
   useLazyFetchBangumiInfoQuery,
   useLazyFetchVideoInfoQuery,
@@ -11,6 +10,7 @@ import {
 } from '@/features/video/lib/formSchema'
 import { shouldSelectPart } from '@/features/video/lib/partSelection'
 import { extractContentId } from '@/features/video/lib/utils'
+import { stageExpectations } from '@/features/video/model/downloadProgress'
 import {
   clearPendingDownload,
   clearResolvedInfo,
@@ -18,14 +18,13 @@ import {
   initPartInputs,
   setUrl,
   updatePartInputByIndex,
+  updatePartSelected,
 } from '@/features/video/model/inputSlice'
 import { selectDuplicateIndices } from '@/features/video/model/selectors'
 import { setVideo } from '@/features/video/model/videoSlice'
-import { setError } from '@/shared/downloadStatus/downloadStatusSlice'
 import { logger } from '@/shared/lib/logger'
 import { mapBackendError } from '@/shared/lib/mapBackendError'
-import { clearProgressByDownloadId } from '@/shared/progress/progressSlice'
-import { clearQueue, clearQueueItem, enqueue } from '@/shared/queue/queueSlice'
+import { enqueueSession, type EnqueuePartSpec } from '@/shared/queue'
 import { toast } from '@/shared/ui/toast'
 import {
   createContext,
@@ -79,6 +78,12 @@ export type VideoInfoContextValue = {
     videoQuality: string,
     audioQuality?: string,
   ) => void
+  /**
+   * Canonical video ID of the displayed content ('BV...' for videos,
+   * 'av{aid}' for bangumi) — the queue badge/dedup match key. Null when
+   * the URL is not (yet) a valid video/bangumi link.
+   */
+  videoId: string | null
   isForm1Valid: boolean
   isForm2ValidAll: boolean
   duplicateIndices: number[]
@@ -260,13 +265,13 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
       }
 
       // Note: this also runs for the debounced silent auto-fetch (a mere
-      // typing pause), wiping the current part selections / finished queue
-      // items before the new video arrives — same behavior as an explicit
-      // submit, accepted tradeoff for the auto path.
+      // typing pause), wiping the current part selections before the new
+      // video arrives — same behavior as an explicit submit, accepted
+      // tradeoff for the auto path. The download queue is NOT cleared
+      // (issue #691): queued/background sessions survive navigation.
       store.dispatch(setUrl(url))
       // Clear all selections when navigating to a new video via URL input
       store.dispatch(deselectAll())
-      store.dispatch(clearQueue())
 
       let fetchResult: { data?: Video; error?: unknown }
 
@@ -342,6 +347,16 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
   const schema2 = buildVideoFormSchema2(t)
   const isForm1Valid = schema1.safeParse({ url: input.url }).success
 
+  // Canonical queue-match videoId (same derivation the enqueue path uses).
+  // Memoized on the raw inputs so consumers get a stable string.
+  const videoId = useMemo(() => {
+    const contentId = extractContentId(input.url)
+    if (!contentId) return null
+    return contentId.type === 'video'
+      ? contentId.id
+      : `av${video.parts[0]?.aid ?? ''}`
+  }, [input.url, video.parts])
+
   const duplicateIndices = useSelector(selectDuplicateIndices)
   const hasDuplicates = duplicateIndices.length > 0
   const dupToastRef = useRef(false)
@@ -397,227 +412,89 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
   }, [input.pendingDownload, onValid1])
 
   /**
-   * Executes download for selected video/bangumi parts.
+   * Enqueues the selected parts as one download session (issue #691).
    *
-   * Starts download process for each selected part, creating queue entries.
-   * Shows appropriate toast notifications on errors.
+   * Responsibility ends at `enqueueSession`: everything the backend needs
+   * is snapshotted into the payload, so later edits to `state.input`
+   * (titles, qualities, URL navigation) cannot leak into the enqueued
+   * parts. The queue runner (shared/queue/runner.ts, started in main.tsx)
+   * drains sessions FIFO — searching/downloading stays possible while
+   * earlier sessions run, and this enqueue lands at the queue's tail.
    *
-   * Download IDs are generated using `crypto.randomUUID()` to guarantee
-   * globally unique identifiers:
-   * - Parent ID: `{videoId}-{uuid}`
-   * - Child ID:  `{videoId}-{uuid}-p{partNumber}`
+   * Parts whose `videoId`+`cid` are already active
+   * (pending/running/cancelling) are auto-excluded; when at least one was
+   * excluded, a toast reports the skipped count.
    */
   const download = useCallback(async () => {
     if (!isForm1Valid || !isForm2ValidAll) return
+    if (!videoId) return
 
-    const contentId = extractContentId(input.url)
-    if (!contentId) return
+    // No duplicate guard here by design (verification decision): the
+    // enqueueSession thunk implements REPLACE semantics — pending
+    // duplicates swap in place, running ones are cancelled and re-queued —
+    // so changing a part's quality is just "press Download again".
+    const parts: EnqueuePartSpec[] = []
 
-    const videoId =
-      contentId.type === 'video'
-        ? contentId.id
-        : `av${video.parts[0]?.aid ?? ''}`
+    input.partInputs.forEach((pi, idx) => {
+      if (!pi.selected) return
+      const title = pi.title.trim()
+      parts.push({
+        partIndex: idx + 1,
+        cid: pi.cid,
+        title,
+        thumbnailUrl: pi.thumbnailUrl ?? null,
+        // Snapshot the stage divisor now (issue #446): reading the lazy
+        // quality shape later would break the progress denominator of a
+        // background download whose part inputs no longer exist.
+        expectedStages: stageExpectations(pi),
+        payload: {
+          videoId,
+          cid: pi.cid,
+          filename: title,
+          quality: pi.videoQuality ? parseInt(pi.videoQuality, 10) : null,
+          audioQuality: pi.audioQuality ? parseInt(pi.audioQuality, 10) : null,
+          durationSeconds: pi.duration,
+          thumbnailUrl: pi.thumbnailUrl ?? null,
+          page: pi.page,
+          epId: video.parts[idx]?.epId ?? null,
+          subtitle: {
+            mode: pi.subtitle.mode,
+            selectedLans: pi.subtitle.selectedLans,
+            subtitles: (pi.subtitles ?? []).filter((s) =>
+              pi.subtitle.selectedLans.includes(s.lan),
+            ),
+          },
+        },
+      })
+    })
 
-    // Extract selected parts with their indices for download processing
-    const selectedParts = input.partInputs.flatMap((pi, idx) =>
-      pi.selected ? [{ pi, idx }] : [],
-    )
+    if (parts.length === 0) return
 
-    // Clear previous resolved quality/subtitle info before starting new download
+    // Clear previous resolved quality/subtitle info of the displayed video
+    // so a re-download's cards start clean. Resolved events for background
+    // videos are guarded in ListenerContext and never reach this video.
     store.dispatch(clearResolvedInfo())
 
-    // Clear previously finished items (done/cancelled/error) for the selected
-    // parts so a re-download starts clean. selectDownloadIdByPartIndex
-    // resolves by part suffix only, so stale items from a prior session would
-    // otherwise shadow the new download and show wrong state in the part card.
-    for (const { idx } of selectedParts) {
-      const partNumber = idx + 1
-      const staleItems = store.getState().queue.filter((item) => {
-        const match = item.downloadId.match(/-p(\d+)$/)
-        return (
-          match &&
-          parseInt(match[1], 10) === partNumber &&
-          (item.status === 'done' ||
-            item.status === 'cancelled' ||
-            item.status === 'error')
-        )
-      })
-      for (const item of staleItems) {
-        store.dispatch(clearQueueItem(item.downloadId))
-        store.dispatch(clearProgressByDownloadId(item.downloadId))
-      }
-    }
+    store.dispatch(enqueueSession({ videoId, videoTitle: video.title, parts }))
 
-    // Each download session gets a unique parentId so the dialog shows a
-    // fresh state every time. Child downloadIds derive from parentId.
-    const parentId = `${videoId}-${crypto.randomUUID()}`
-    store.dispatch(
-      enqueue({
-        downloadId: parentId,
-        filename: video.title,
-        status: 'pending',
-      }),
-    )
-
-    // Pre-enqueue every selected part as pending so the download status
-    // dialog shows all parts immediately. Downloads run serially, so without
-    // this only the in-flight part would appear. downloadVideo's own enqueue
-    // is a no-op for these IDs (deduped by downloadId).
-    for (const { pi, idx } of selectedParts) {
+    // Selection's job ends at enqueue: leave the checkboxes on and the
+    // NEXT Download click would re-include the already-queued/running
+    // parts — with replace semantics that cancels-and-requeues the running
+    // one (found in verification: queueing parts 11-20 mid-download
+    // cancelled part of 1-10). The per-part completion deselect stays as a
+    // straggler sweep.
+    for (const spec of parts) {
       store.dispatch(
-        enqueue({
-          downloadId: `${parentId}-p${idx + 1}`,
-          parentId,
-          filename: pi.title.trim(),
-          status: 'pending',
-        }),
+        updatePartSelected({ index: spec.partIndex - 1, selected: false }),
       )
     }
-
-    // No dialog to open anymore (issue #569): the inline DownloadStatusBar
-    // and the compact part cards pick the session up from the queue state
-    // these enqueues just created.
-    for (const { pi, idx } of selectedParts) {
-      // Abort remaining parts if cancelled (e.g. via cancelAllDownloads).
-      // Stop deterministically on the parent's status rather than relying on
-      // downloadVideo's reject error message.
-      const parent = store
-        .getState()
-        .queue.find((q) => q.downloadId === parentId)
-      if (parent?.status === 'cancelling' || parent?.status === 'cancelled') {
-        break
-      }
-
-      const currentPartInput = store.getState().input.partInputs[idx]
-      if (!currentPartInput?.selected) continue
-
-      // Get ep_id for bangumi content
-      const epId = video.parts[idx]?.epId
-
-      const downloadId = `${parentId}-p${idx + 1}`
-      try {
-        await downloadVideo(
-          videoId,
-          pi.cid,
-          pi.title.trim(),
-          pi.videoQuality ? parseInt(pi.videoQuality, 10) : null,
-          pi.audioQuality ? parseInt(pi.audioQuality, 10) : null,
-          downloadId,
-          parentId,
-          pi.duration,
-          pi.thumbnailUrl,
-          pi.page,
-          pi.subtitle,
-          currentPartInput.subtitles,
-          epId,
-        )
-      } catch (e) {
-        const raw = String(e)
-
-        const parent = store
-          .getState()
-          .queue.find((q) => q.downloadId === parentId)
-        // Whole-playlist cancel (cancelAllDownloads) stops the loop. Judge by
-        // the parent's status so error-message format changes can't let the
-        // next part start.
-        if (parent?.status === 'cancelling' || parent?.status === 'cancelled') {
-          break
-        }
-
-        // Per-part cancel (cancelDownload) only rejects this part with
-        // ERR::CANCELLED while leaving the parent running/pending — skip this
-        // part silently and continue to the next. Don't toast: the user
-        // intentionally cancelled.
-        if (raw.includes('ERR::CANCELLED')) {
-          continue
-        }
-
-        const key = mapBackendError(raw)
-        // Constraint: when mapBackendError has no mapping AND the raw error is
-        // ERR::UNAUTHORIZED, return null so no toast is shown here. Session
-        // expiry is handled centrally by interceptInvokeError/handleSessionExpiry
-        // (src/app/lib/invokeErrorHandler.ts), which emits its own dedicated
-        // session-expiry toast — showing another one here would duplicate it.
-        const description = key ? t(key) : isUnauthorizedError(raw) ? null : raw
-        if (description) {
-          // Bilibili-side transient errors: append a retry hint so the user
-          // knows the failure is likely temporary and a later retry may
-          // succeed. Confirmed by logs — when the built-in retry exhausts,
-          // a later manual retry typically succeeds (CDN-side instability).
-          const isTransientError =
-            raw.includes('ERR::NETWORK') ||
-            raw.includes('ERR::INVALID_MEDIA_RESPONSE') ||
-            raw.includes('ERR::AUDIO_DOWNLOAD_FAILED') ||
-            raw.includes('ERR::RATE_LIMITED')
-          const retryHint = isTransientError ? t('video.retry_hint') : undefined
-          const partDescription = t('video.download_failed_part_description', {
-            page: pi.page,
-            title: pi.title,
-            description,
-          })
-          // The wrapper (`@/shared/ui/toast`) injects the Copy button and
-          // disables the close button app-wide, so we only pass the localized
-          // text (with optional retry hint) as a plain string description.
-          toast.error(t('video.download_failed'), {
-            duration: Infinity,
-            description: retryHint
-              ? `${partDescription}\n${retryHint}`
-              : partDescription,
-          })
-          store.dispatch(
-            setError(retryHint ? `${description}\n${retryHint}` : description),
-          )
-        }
-        logger.error('Download failed', raw)
-
-        // Transient failures (e.g. network errors) should not block
-        // the remaining selected parts from being attempted.
-        continue
-      }
-    }
-
-    const parent = store.getState().queue.find((q) => q.downloadId === parentId)
-    if (parent?.status === 'cancelled' || parent?.status === 'cancelling') {
-      // Keep cancelled children visible (strikethrough) so the user can see
-      // which parts they skipped. Only remove orphaned pending children
-      // (left behind when the loop was interrupted before they could start).
-      // Done/error children are always kept for their re-download queue state.
-      const children = store
-        .getState()
-        .queue.filter((q) => q.parentId === parentId)
-      for (const child of children) {
-        if (child.status === 'pending') {
-          store.dispatch(clearQueueItem(child.downloadId))
-        }
-      }
-      // Remove the parent if no children remain.
-      const remaining = store
-        .getState()
-        .queue.filter((q) => q.parentId === parentId)
-      if (remaining.length === 0) {
-        store.dispatch(clearQueueItem(parentId))
-      }
-    } else {
-      const finalChildren = store
-        .getState()
-        .queue.filter((i) => i.parentId === parentId)
-      if (finalChildren.length === 0) {
-        store.dispatch(clearQueueItem(parentId))
-      }
-    }
-  }, [
-    isForm1Valid,
-    isForm2ValidAll,
-    input.url,
-    input.partInputs,
-    video.title,
-    t,
-  ])
+  }, [isForm1Valid, isForm2ValidAll, videoId, input.partInputs, video, t])
 
   const value: VideoInfoContextValue = {
     progress,
     video,
     input,
+    videoId,
     onValid1,
     onValid2,
     isForm1Valid,

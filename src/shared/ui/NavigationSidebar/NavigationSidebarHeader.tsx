@@ -21,13 +21,14 @@ import { selectHasActiveDownloads } from '@/shared/queue'
 import type { LucideIcon } from 'lucide-react'
 import {
   Combine,
+  Download as DownloadIcon,
   Eye,
-  Home,
   ImagePlay,
   Music,
   RotateCw,
   Scaling,
   Scissors,
+  Search,
   Star,
 } from 'lucide-react'
 import { Fragment } from 'react'
@@ -84,13 +85,20 @@ export function NavigationSidebarHeader({
 
   const groups: MenuGroup[] = [
     {
-      id: 'home',
+      id: 'search',
       items: [
         {
-          path: '/home',
-          icon: Home,
-          label: t('nav.home'),
-          ariaLabel: t('nav.aria.home'),
+          path: '/search',
+          icon: Search,
+          label: t('nav.search'),
+          ariaLabel: t('nav.aria.search'),
+          requiresAuth: false,
+        },
+        {
+          path: '/downloads',
+          icon: DownloadIcon,
+          label: t('nav.downloads'),
+          ariaLabel: t('nav.aria.downloads'),
           requiresAuth: false,
         },
       ],
@@ -169,7 +177,7 @@ export function NavigationSidebarHeader({
     const Icon = item.icon
     const isActive = location.pathname === item.path
     const isDisabled = item.requiresAuth && !isLoggedIn
-    const isHome = item.path === '/home'
+    const isSearch = item.path === '/search'
 
     /**
      * Click handler for navigation menu items.
@@ -185,8 +193,8 @@ export function NavigationSidebarHeader({
      */
     const handleClick = () => {
       if (isDisabled) return
-      if (isHome) {
-        navigate({ pathname: '/home', search: `?page=${homePage}` })
+      if (isSearch) {
+        navigate({ pathname: '/search', search: `?page=${homePage}` })
       } else {
         navigate(item.path)
       }
@@ -202,7 +210,7 @@ export function NavigationSidebarHeader({
         aria-disabled={isDisabled || undefined}
         className={isDisabled ? 'cursor-not-allowed opacity-50' : undefined}
       >
-        {isHome && hasActiveDownloads ? (
+        {item.path === '/downloads' && hasActiveDownloads ? (
           <Download
             animate={true}
             animation="default-loop"

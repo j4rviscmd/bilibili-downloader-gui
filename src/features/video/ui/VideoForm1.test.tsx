@@ -2,8 +2,7 @@ import { store } from '@/app/store'
 import { useVideoInfo } from '@/features/video'
 import { expandShortUrl } from '@/features/video/api/expandShortUrl'
 import { setInput } from '@/features/video/model/inputSlice'
-import { clearQueue, enqueue } from '@/shared/queue'
-import { renderWithProviders } from '@/test/test-utils'
+import { renderWithProviders, resetQueue, seedSession } from '@/test/test-utils'
 import { screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -38,7 +37,7 @@ function setup(isFetching = false, isSilentFetching = false) {
 describe('VideoForm1', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    store.dispatch(clearQueue())
+    resetQueue()
   })
 
   it('renders the URL input with its example placeholder', () => {
@@ -229,8 +228,8 @@ describe('VideoForm1', () => {
 
     it('cancels the pending debounce on explicit submit (no refetch)', async () => {
       // Regression: the typing-armed debounce timer survived an explicit
-      // Enter/blur submit and re-fetched the same URL 500ms later, wiping
-      // state (clearQueue) mid-download. Submit must cancel the timer.
+      // Enter/blur submit and re-fetched the same URL 500ms later. Submit
+      // must cancel the timer.
       const { onValid1, user, input } = await typeUrl(VALID_URL)
       onValid1.mockResolvedValue(true)
 
@@ -242,33 +241,12 @@ describe('VideoForm1', () => {
       expect(onValid1).toHaveBeenCalledTimes(1)
     })
 
-    it('does not fire the debounced silent fetch during a download session', async () => {
-      // Regression (found by the download E2E): a debounce timer armed just
-      // before clicking Download fired mid-session and its silent refetch
-      // clearQueue()d the in-flight queue. The input is disabled while a
-      // session is active, so the timer must be a no-op.
-      const { onValid1, input } = await typeUrl(VALID_URL)
-
-      // Session active: parent + running child make hasActiveDownloads true
-      store.dispatch(
-        enqueue({
-          downloadId: 'parent-1',
-          filename: 'v',
-          status: 'running',
-        }),
-      )
-      store.dispatch(
-        enqueue({
-          downloadId: 'parent-1-p1',
-          parentId: 'parent-1',
-          filename: 'v 1',
-          status: 'running',
-        }),
-      )
-      await waitFor(() => expect(input).toBeDisabled())
-
-      await debounce()
-      expect(onValid1).not.toHaveBeenCalled()
+    it('keeps the input enabled while a queue session is active (issue #691)', async () => {
+      // Downloads no longer freeze the search UI — typing into the URL
+      // field must remain possible mid-session.
+      const { input } = await typeUrl(VALID_URL)
+      seedSession('BVform1', [{ partIndex: 1, cid: 1, status: 'running' }])
+      await waitFor(() => expect(input).toBeEnabled())
     })
   })
 })

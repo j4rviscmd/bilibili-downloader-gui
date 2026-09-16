@@ -17,14 +17,14 @@ function Harness() {
   return (
     <Routes>
       <Route path="/" element={<IndexPage />} />
-      <Route path="/home" element={<div>home-route</div>} />
+      <Route path="/search" element={<div>search-route</div>} />
       <Route path="/init" element={<div>init-route</div>} />
     </Routes>
   )
 }
 
 describe('IndexPage', () => {
-  it('redirects to /home when the app is initialized', () => {
+  it('redirects to /search when the app is initialized', () => {
     vi.mocked(useInit).mockReturnValue({
       initiated: true,
     } as ReturnType<typeof useInit>)
@@ -33,7 +33,7 @@ describe('IndexPage', () => {
 
     // MemoryRouter keeps its own history, so the redirect is observed via
     // the matched route's marker element rather than window.location.
-    expect(screen.getByText('home-route')).toBeInTheDocument()
+    expect(screen.getByText('search-route')).toBeInTheDocument()
     expect(screen.queryByText('init-route')).not.toBeInTheDocument()
   })
 

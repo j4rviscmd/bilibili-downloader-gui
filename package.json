@@ -27,6 +27,7 @@
     "@dnd-kit/modifiers": "^9.0.0",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@floating-ui/react": "^0.27.20",
     "@hookform/resolvers": "^5.2.1",
     "@radix-ui/react-label": "^2.1.7",
     "@radix-ui/react-scroll-area": "^1.2.10",

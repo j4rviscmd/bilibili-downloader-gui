@@ -21,7 +21,8 @@
     "copy": "复制"
   },
   "nav": {
-    "home": "主页",
+    "search": "搜索",
+    "downloads": "下载",
     "downloadHistory": "下载历史",
     "watchHistory": "观看历史",
     "favorite": "收藏",
@@ -36,7 +37,8 @@
     },
     "aria": {
       "mainNavigation": "主导航",
-      "home": "前往下载页面",
+      "search": "前往搜索页面",
+      "downloads": "前往下载页面",
       "downloadHistory": "前往下载历史页面",
       "watchHistory": "转到观看历史",
       "favorite": "前往收藏页面",
@@ -356,10 +358,6 @@
     "bangumi_preview_tooltip": "需要大会员权限。仅下载前6分钟内容。",
     "bangumi_durl_not_supported": "此剧集格式不支持。",
     "open_in_browser": "在浏览器中打开",
-    "confirm_navigation_title": "确认",
-    "confirm_navigation_message": "您已选择了分P。切换页面将清除选择。是否继续？",
-    "confirm_navigation_cancel": "取消",
-    "confirm_navigation_ok": "切换",
     "navigation_disabled_tooltip": "请等待下载完成"
   },
   "progress": {
@@ -784,6 +782,16 @@
     "status_error": "错误",
     "speed_limit_tooltip": "速度限制已启用。点击打开设置——更改立即对正在进行的下载生效，仅应用于本应用实例。",
     "speed_limit_set": "设置速度限制"
+  },
+  "queue": {
+    "title": "下载",
+    "description": "排队中的下载会按顺序逐个执行。",
+    "empty": "队列中没有下载任务。\n搜索视频并点击下载按钮，任务会添加到这里。",
+    "section_downloading": "下载中",
+    "section_queued": "待下载",
+    "section_finished": "已完成・已取消",
+    "clear_finished": "清除已完成",
+    "open_downloads": "打开下载页面"
   },
   "audio": {
     "title": "音频提取",

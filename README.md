@@ -38,7 +38,9 @@ No ads, no tracking. 100% free.
 - **Bangumi (anime & series) support** - Download anime and series episodes alongside regular videos
 - **Multi-part video batch save** - Automatically download all parts of courses, series, etc.
 - **Fast & stable downloads** - Auto CDN switching with automatic retry on network errors
-- **Background processing** - Queue management with real-time progress
+- **Download queue** - Keep searching and queueing while downloads run; a
+  serial queue (FIFO) drains on the Downloads page with a bottom progress
+  bar
 - **Subtitle embedding** - Soft/hard subtitle selection with multi-language and AI subtitle support
 - **Hi-Res Audio** - Dolby Atmos and Hi-Res Lossless audio quality support
 

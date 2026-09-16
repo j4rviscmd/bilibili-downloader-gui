@@ -21,7 +21,8 @@
     "copy": "Copier"
   },
   "nav": {
-    "home": "Accueil",
+    "search": "Rechercher",
+    "downloads": "Téléchargements",
     "downloadHistory": "Historique de téléchargement",
     "watchHistory": "Historique de visionnage",
     "favorite": "Favoris",
@@ -36,7 +37,8 @@
     },
     "aria": {
       "mainNavigation": "Navigation principale",
-      "home": "Accéder à la page de téléchargement",
+      "search": "Aller à la page de recherche",
+      "downloads": "Aller à la page de téléchargements",
       "downloadHistory": "Accéder à l'historique de téléchargement",
       "watchHistory": "Accéder à l'historique de visionnage",
       "favorite": "Accéder aux favoris",
@@ -356,10 +358,6 @@
     "bangumi_preview_tooltip": "Abonnement premium requis. Seules les 6 premières minutes seront téléchargées.",
     "bangumi_durl_not_supported": "Ce format d'épisode n'est pas pris en charge.",
     "open_in_browser": "Ouvrir dans le navigateur",
-    "confirm_navigation_title": "Confirmer",
-    "confirm_navigation_message": "Vous avez des parties sélectionnées. Naviguer vers une autre page effacera votre sélection. Continuer ?",
-    "confirm_navigation_cancel": "Annuler",
-    "confirm_navigation_ok": "Naviguer",
     "navigation_disabled_tooltip": "Veuillez attendre la fin des téléchargements"
   },
   "progress": {
@@ -784,6 +782,16 @@
     "status_error": "Erreur",
     "speed_limit_tooltip": "Limite de vitesse active. Clique pour ouvrir le réglage — les changements s'appliquent immédiatement aux téléchargements en cours, uniquement à cette instance de l'application.",
     "speed_limit_set": "Définir une limite de vitesse"
+  },
+  "queue": {
+    "title": "Téléchargements",
+    "description": "Les téléchargements en file d'attente s'exécutent ici un par un, dans l'ordre.",
+    "empty": "Aucun téléchargement dans la file.\nRecherchez une vidéo et appuyez sur Télécharger : elle sera ajoutée ici.",
+    "section_downloading": "En cours",
+    "section_queued": "En file",
+    "section_finished": "Terminés et annulés",
+    "clear_finished": "Effacer les terminés",
+    "open_downloads": "Ouvrir la page des téléchargements"
   },
   "audio": {
     "title": "Extraction audio",

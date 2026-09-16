@@ -9,8 +9,10 @@ import { error as logError } from '@tauri-apps/plugin-log'
 import { screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { PartDownloadStatus } from '../hooks/usePartDownloadStatus'
-import { PartDownloadProgress } from './PartDownloadProgress'
+import {
+  PartDownloadProgress,
+  type PartDownloadStatus,
+} from './PartDownloadProgress'
 
 /** Builds a Progress stage entry. */
 function stage(overrides: Partial<Progress> = {}): Progress {

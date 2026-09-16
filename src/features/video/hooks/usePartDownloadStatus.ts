@@ -1,19 +1,22 @@
 import { useMemo } from 'react'
 import { useSelector } from 'react-redux'
 
-import type { RootState } from '@/app/store'
-import { selectProgressEntriesByDownloadId } from '@/shared/progress/progressSlice'
-import {
-  selectDownloadIdByPartIndex,
-  selectQueueItemByDownloadId,
-} from '@/shared/queue/queueSlice'
-import type { Progress } from '@/shared/ui/Progress'
+import { selectPartItemForVideo } from '@/shared/queue'
 
 /**
- * Result of part download status hook.
+ * Queue-only part status for the search page's part cards (issue #691).
+ *
+ * Resolves the LATEST queue part matching the `videoId`+`cid` pair — never
+ * by part index, so a background download of another video can never light
+ * this card up, and a re-download's fresh item wins over a prior session's
+ * stale one.
+ *
+ * Deliberately does NOT subscribe to progress entries: the card renders
+ * only a status badge (stage detail lives on /downloads), and a progress
+ * subscription would re-render every visible card on every download tick.
  */
-export type PartDownloadStatus = {
-  /** Download ID for this part */
+export type PartQueueStatus = {
+  /** Download ID of the latest queue item matching this videoId+cid */
   downloadId: string | undefined
   /** Current status */
   status:
@@ -28,66 +31,50 @@ export type PartDownloadStatus = {
   errorMessage: string | undefined
   /** Output file path (available after download completes) */
   outputPath: string | undefined
-  /** Filename */
+  /** Part title carried by the queue item */
   filename: string | undefined
-  /** All progress entries for this download */
-  progressEntries: Progress[]
-  /** Whether download is complete */
-  isComplete: boolean
-  /** Whether download is currently running */
-  isDownloading: boolean
-  /** Whether download is pending */
+  /** Whether the part is pending (queued, waiting for its turn) */
   isPending: boolean
-  /** Whether download has an error */
+  /** Whether the part is currently downloading */
+  isDownloading: boolean
+  /** Whether the part failed */
   hasError: boolean
-  /** Whether download is being cancelled */
+  /** Whether the part is being cancelled */
   isCancelling: boolean
-  /** Whether download was cancelled */
+  /** Whether the part was cancelled */
   isCancelled: boolean
+  /** Whether the part finished successfully */
+  isDone: boolean
 }
 
 /**
- * Hook to get download status for a specific video part.
+ * Hook to get the queue status for a specific video part.
  *
- * Extracts downloadId from queue using part index, then retrieves
- * queue item and all progress entries for that download.
- *
- * @param partIndex - Zero-based part index
- * @returns Download status for the part
+ * @param videoId - Video ID ('BV...' or 'av...') of the displayed video
+ * @param cid - Part CID to match
+ * @returns Queue status for the part (no progress detail)
  */
 export const usePartDownloadStatus = (
-  partIndex: number,
-): PartDownloadStatus => {
-  const downloadId = useSelector((state: RootState) =>
-    selectDownloadIdByPartIndex(state, partIndex),
-  )
-
+  videoId: string,
+  cid: number,
+): PartQueueStatus => {
   const selectQueueItem = useMemo(
-    () => selectQueueItemByDownloadId(downloadId ?? ''),
-    [downloadId],
+    () => selectPartItemForVideo(videoId, cid),
+    [videoId, cid],
   )
   const queueItem = useSelector(selectQueueItem)
 
-  const selectProgressEntries = useMemo(
-    () => selectProgressEntriesByDownloadId(downloadId ?? ''),
-    [downloadId],
-  )
-  const progressEntries = useSelector(selectProgressEntries)
-
-  const isComplete = progressEntries.some((p) => p.stage === 'complete')
-
   return {
-    downloadId,
+    downloadId: queueItem?.downloadId,
     status: queueItem?.status,
     errorMessage: queueItem?.errorMessage,
     outputPath: queueItem?.outputPath,
-    filename: queueItem?.filename,
-    progressEntries,
-    isComplete,
-    isDownloading: queueItem?.status === 'running' && !isComplete,
+    filename: queueItem?.title,
     isPending: queueItem?.status === 'pending',
+    isDownloading: queueItem?.status === 'running',
     hasError: queueItem?.status === 'error',
     isCancelling: queueItem?.status === 'cancelling',
     isCancelled: queueItem?.status === 'cancelled',
+    isDone: queueItem?.status === 'done',
   }
 }

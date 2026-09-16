@@ -1,6 +1,7 @@
-import { store } from '@/app/store'
+import { store, type RootState } from '@/app/store'
 import type { HistoryEntry } from '@/features/history/model/historySlice'
 import { addEntry } from '@/features/history/model/historySlice'
+import { extractContentId } from '@/features/video/lib/utils'
 import {
   closeAllAccordions,
   setResolvedQuality,
@@ -17,7 +18,7 @@ import {
   setProgress,
   setRetrying,
 } from '@/shared/progress/progressSlice'
-import { updateQueueStatus } from '@/shared/queue/queueSlice'
+import { updateQueueItem, updateQueueStatus } from '@/shared/queue/queueSlice'
 import { toast } from '@/shared/ui/toast'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { createContext, useEffect, type FC, type ReactNode } from 'react'
@@ -52,6 +53,32 @@ interface DownloadRetryingPayload {
 interface SubtitleWarningPayload {
   /** Display names of subtitle languages that failed to download (e.g., "日本語", "Español") */
   failedLanguages: string[]
+}
+
+/**
+ * Resolves whether a resolved-event downloadId belongs to the video
+ * currently displayed on /search (issue #691 pollution guard).
+ *
+ * `download-quality-resolved` / `download-subtitle-resolved` write into
+ * `state.input.partInputs` keyed by PAGE only, but with the serial queue
+ * several videos can be in flight at once — without this guard, a
+ * background download's event would overwrite the visible video's card
+ * data (resolved quality badges, subtitle summary) by page collision.
+ * The check mirrors the videoId derivation in VideoInfoContext.download():
+ * URL bvid for videos, `av{aid}` for bangumi.
+ */
+function isDisplayedVideoDownload(
+  state: RootState,
+  downloadId: string,
+): boolean {
+  const contentId = extractContentId(state.input.url)
+  if (!contentId) return false
+  const videoId =
+    contentId.type === 'video'
+      ? contentId.id
+      : `av${state.video.parts[0]?.aid ?? ''}`
+  if (!videoId) return false
+  return downloadId.startsWith(`${videoId}-`)
 }
 
 /**
@@ -188,6 +215,28 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
       unlistenQualityResolved = await listen<QualityResolvedPayload>(
         'download-quality-resolved',
         (event) => {
+          // ALWAYS record the resolved quality onto the queue item — it is
+          // keyed by downloadId, so background downloads are safe and the
+          // /downloads rows can badge the actually-used quality.
+          store.dispatch(
+            updateQueueItem({
+              downloadId: event.payload.downloadId,
+              resolvedVideoQuality: event.payload.videoQuality,
+              resolvedAudioQuality: event.payload.audioQuality,
+            }),
+          )
+          // Guard: only the displayed video's events may touch state.input
+          // (see isDisplayedVideoDownload). Background queue downloads
+          // resolve too; their page-keyed payloads would corrupt the
+          // visible video's cards.
+          if (
+            !isDisplayedVideoDownload(
+              store.getState(),
+              event.payload.downloadId,
+            )
+          ) {
+            return
+          }
           store.dispatch(setResolvedQuality(event.payload))
           store.dispatch(closeAllAccordions())
         },
@@ -197,6 +246,14 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
       unlistenSubtitleResolved = await listen<SubtitleResolvedPayload>(
         'download-subtitle-resolved',
         (event) => {
+          if (
+            !isDisplayedVideoDownload(
+              store.getState(),
+              event.payload.downloadId,
+            )
+          ) {
+            return
+          }
           const { page, subtitleMode, subtitleLanguageLabels } = event.payload
           store.dispatch(
             setResolvedSubtitle({

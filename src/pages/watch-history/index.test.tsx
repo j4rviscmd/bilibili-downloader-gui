@@ -15,13 +15,11 @@ vi.mock('@/features/watch-history/ui/WatchHistoryList', () => ({
   WatchHistoryList: (props: {
     entries: unknown[]
     hasMore: boolean
-    disabled: boolean
     onDownload: (e: unknown) => void
   }) => (
     <div>
       <div data-testid="wh-list">
-        count={props.entries.length} hasMore={String(props.hasMore)} disabled=
-        {String(props.disabled)}
+        count={props.entries.length} hasMore={String(props.hasMore)}
       </div>
       <button onClick={() => props.onDownload(mockEntry)}>download</button>
     </div>
@@ -158,7 +156,7 @@ describe('WatchHistoryContent', () => {
     expect(setDate).toHaveBeenCalledWith('week')
   })
 
-  it('wires list props from the hook (entries, hasMore, download lock)', () => {
+  it('wires list props from the hook (entries, hasMore)', () => {
     vi.mocked(useWatchHistory).mockReturnValue(
       createMockUseWatchHistory({
         entries: [mockEntry, mockEntry],
@@ -172,7 +170,6 @@ describe('WatchHistoryContent', () => {
 
     expect(screen.getByTestId('wh-list')).toHaveTextContent('count=2')
     expect(screen.getByTestId('wh-list')).toHaveTextContent('hasMore=true')
-    expect(screen.getByTestId('wh-list')).toHaveTextContent('disabled=false')
   })
 
   it('shows the error alert outside the list when the hook errored', () => {

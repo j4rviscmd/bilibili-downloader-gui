@@ -5,16 +5,14 @@ import {
   fetchPartQualities,
   fetchSubtitlesForPart,
 } from '@/features/video/api/fetchVideoInfo'
-import type { PartDownloadStatus } from '@/features/video/hooks/usePartDownloadStatus'
-import { usePartDownloadStatus } from '@/features/video/hooks/usePartDownloadStatus'
+import {
+  usePartDownloadStatus,
+  type PartQueueStatus,
+} from '@/features/video/hooks/usePartDownloadStatus'
 import { setInput } from '@/features/video/model/inputSlice'
 import type { Input, PartInput, Video } from '@/features/video/types'
 import { TooltipProvider } from '@/shared/animate-ui/radix/tooltip'
-import { clearQueue, enqueue } from '@/shared/queue'
-import {
-  createPartDownloadStatus,
-  renderWithProviders,
-} from '@/test/test-utils'
+import { renderWithProviders, resetQueue, seedSession } from '@/test/test-utils'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { fireEvent, screen } from '@testing-library/react'
 import { Provider } from 'react-redux'
@@ -68,8 +66,25 @@ const video: Video = {
   ],
 }
 
-/** Idle status the mocked hook returns by default. */
-const createMockStatus = createPartDownloadStatus
+/** Idle queue-only status the mocked hook returns by default. */
+function createMockStatus(
+  overrides: Partial<PartQueueStatus> = {},
+): PartQueueStatus {
+  return {
+    downloadId: undefined,
+    status: undefined,
+    errorMessage: undefined,
+    outputPath: undefined,
+    filename: undefined,
+    isPending: false,
+    isDownloading: false,
+    hasError: false,
+    isCancelling: false,
+    isCancelled: false,
+    isDone: false,
+    ...overrides,
+  }
+}
 
 /** Builds a selected PartInput for page 1. */
 function createPartInput(overrides: Partial<PartInput> = {}): PartInput {
@@ -94,6 +109,7 @@ function createMockVideoInfo(
     onValid2: vi.fn(),
     onValid1: vi.fn(),
     download: vi.fn(),
+    videoId: 'BV1xx411c7XD',
     isForm1Valid: true,
     isForm2ValidAll: true,
     duplicateIndices: [],
@@ -108,7 +124,7 @@ function createMockVideoInfo(
 
 type SetupOptions = {
   partInput?: Partial<PartInput>
-  status?: Partial<PartDownloadStatus>
+  status?: Partial<PartQueueStatus>
   isDuplicate?: boolean
   /** Overrides the default single-part video fixture. */
   video?: Video
@@ -204,7 +220,7 @@ const vipStatusBangumiVideo: Video = {
 describe('VideoPartCard', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    store.dispatch(clearQueue())
+    resetQueue()
   })
 
   it('renders the page badge, default title, part name and duration', () => {
@@ -257,26 +273,41 @@ describe('VideoPartCard', () => {
     expect(screen.getByText('video.bangumi_audio_embedded')).toBeInTheDocument()
   })
 
-  it('disables all inputs while the part is downloading', () => {
-    setup({ status: { downloadId: 'dl-1', isDownloading: true } })
+  it('keeps all inputs editable while the part is queued or downloading', () => {
+    // Replace semantics (verification decision): the enqueued payload is a
+    // snapshot, so edits are safe — the user changes quality and presses
+    // Download again to swap the queued part. Locking the form (and the
+    // options expander inside it) blocked exactly that workflow.
+    setup({
+      status: { downloadId: 'dl-1', isDownloading: true, status: 'running' },
+    })
 
-    expect(screen.getByRole('checkbox')).toBeDisabled()
-    expect(screen.getByDisplayValue('My Video Part 1')).toBeDisabled()
+    expect(screen.getByRole('checkbox')).toBeEnabled()
+    expect(screen.getByDisplayValue('My Video Part 1')).toBeEnabled()
   })
 
-  it('shows the download progress area once the part is enqueued', () => {
-    setup({ status: { downloadId: 'dl-1', isPending: true } })
+  it('shows the waiting badge once the part is enqueued (no progress detail)', () => {
+    // The card carries only the status badge — stage detail and
+    // cancellation live on /downloads (issue #691 responsibility split).
+    setup({
+      status: { downloadId: 'dl-1', isPending: true, status: 'pending' },
+    })
 
-    expect(screen.getByText('video.download_pending')).toBeInTheDocument()
+    const badge = screen.getByText('downloadStatus.status_waiting')
+    expect(badge.closest('[data-status]')).toHaveAttribute(
+      'data-status',
+      'pending',
+    )
+    expect(screen.queryByText('video.download_pending')).not.toBeInTheDocument()
   })
 
   it('deselects the part exactly when the download completes', () => {
     const { rerender } = setup()
 
-    // Simulate the false -> true isComplete transition on rerender.
+    // Simulate the not-done -> done status transition on rerender.
     // rerender drops the providers applied by renderWithProviders, so wrap.
     vi.mocked(usePartDownloadStatus).mockReturnValue(
-      createMockStatus({ downloadId: 'dl-1', isComplete: true }),
+      createMockStatus({ downloadId: 'dl-1', status: 'done', isDone: true }),
     )
     rerender(
       <Provider store={store}>
@@ -689,14 +720,14 @@ describe('VideoPartCard', () => {
 
   // --- Cancel handling ------------------------------------------------------------
 
-  it('cancels the pending download and deselects the part', async () => {
-    const { user } = setup({ status: { downloadId: 'dl-1', isPending: true } })
+  it('offers no cancel affordance while queued — cancellation lives on /downloads', () => {
+    setup({
+      status: { downloadId: 'dl-1', isPending: true, status: 'pending' },
+    })
 
-    await user.click(screen.getByRole('button', { name: 'actions.cancel' }))
-
-    await vi.waitFor(() =>
-      expect(store.getState().input.partInputs[0]!.selected).toBe(false),
-    )
+    expect(
+      screen.queryByRole('button', { name: 'actions.cancel' }),
+    ).not.toBeInTheDocument()
   })
 
   it('covers the subtitle-fetch failure path with an empty list', async () => {
@@ -756,25 +787,43 @@ describe('VideoPartCard', () => {
     })
   })
 
-  it('collapses into the compact waiting row while another download is active', () => {
-    // A foreign running child download keeps this part waiting for its turn;
-    // the card body collapses into the compact single-line row (issue #569).
-    store.dispatch(enqueue({ downloadId: 'other', status: 'pending' }))
+  it('stays in full mode with no badge while another video downloads (issue #691)', () => {
+    // A foreign running session must neither collapse this card nor light
+    // its badge: the badge scope is videoId+cid, not part index.
     store.dispatch(
-      enqueue({
-        downloadId: 'other-p1',
-        parentId: 'other',
-        status: 'running',
-      }),
+      setInput({
+        url: '',
+        partInputs: [createPartInput()],
+        pendingDownload: null,
+        homePage: 1,
+      } satisfies Input),
     )
-    setup()
+    vi.mocked(useVideoInfo).mockReturnValue(createMockVideoInfo())
+    vi.mocked(usePartDownloadStatus).mockReturnValue(createMockStatus())
+    seedSession('BVother', [{ partIndex: 1, cid: 999, status: 'running' }])
+    renderWithProviders(
+      <TooltipProvider>
+        <VideoPartCard video={video} page={1} />
+      </TooltipProvider>,
+    )
 
+    // Full form intact
+    expect(screen.getByDisplayValue('My Video Part 1')).toBeInTheDocument()
+    // No queue badge for this video+cid
     expect(
-      screen.getAllByText('downloadStatus.status_waiting').length,
-    ).toBeGreaterThan(0)
-    // The full form is swapped out while compact
-    expect(
-      screen.queryByDisplayValue('My Video Part 1'),
+      screen.queryByText('downloadStatus.status_downloading'),
     ).not.toBeInTheDocument()
+  })
+
+  it('shows the queue status badge for its own part', () => {
+    setup({
+      status: { downloadId: 'dl-1', status: 'running', isDownloading: true },
+    })
+
+    const badge = screen.getByText('downloadStatus.status_downloading')
+    expect(badge.closest('[data-status]')).toHaveAttribute(
+      'data-status',
+      'running',
+    )
   })
 })

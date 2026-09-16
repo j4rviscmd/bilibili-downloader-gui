@@ -5,12 +5,13 @@ import { Navigate, useLocation } from 'react-router'
 
 import { AudioContent } from '@/pages/audio'
 import { ConcatContent } from '@/pages/concat'
+import { DownloadsContent } from '@/pages/downloads'
 import { FavoriteContent } from '@/pages/favorite'
 import { GifContent } from '@/pages/gif'
 import { HistoryContent } from '@/pages/history'
-import { HomeContent } from '@/pages/home'
 import { ResolutionContent } from '@/pages/resolution'
 import { RotationContent } from '@/pages/rotation'
+import { SearchContent } from '@/pages/search'
 import { SettingsContent } from '@/pages/settings'
 import { TrimContent } from '@/pages/trim'
 import { WatchHistoryContent } from '@/pages/watch-history'
@@ -21,7 +22,8 @@ interface PageConfig {
 }
 
 const PAGES: readonly PageConfig[] = [
-  { path: '/home', Component: HomeContent },
+  { path: '/search', Component: SearchContent },
+  { path: '/downloads', Component: DownloadsContent },
   { path: '/history', Component: HistoryContent },
   { path: '/favorite', Component: FavoriteContent },
   { path: '/watch-history', Component: WatchHistoryContent },
@@ -67,7 +69,7 @@ function isValidPath(pathname: string): boolean {
 export function PersistentPageLayout(): ReactElement {
   const { pathname } = useLocation()
   const [mountedPages, setMountedPages] = useState<Set<string>>(
-    () => new Set(['/home']),
+    () => new Set(['/search']),
   )
 
   useEffect(() => {
@@ -77,7 +79,7 @@ export function PersistentPageLayout(): ReactElement {
   }, [pathname])
 
   if (!isValidPath(pathname)) {
-    return <Navigate to="/home" replace />
+    return <Navigate to="/search" replace />
   }
 
   return (

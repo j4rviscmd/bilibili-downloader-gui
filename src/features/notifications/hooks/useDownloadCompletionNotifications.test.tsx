@@ -2,11 +2,8 @@ import { store } from '@/app/store'
 import { useDownloadCompletionNotifications } from '@/features/notifications/hooks/useDownloadCompletionNotifications'
 import { setSettings } from '@/features/settings/settingsSlice'
 import type { Settings } from '@/features/settings/type'
-import {
-  clearQueue,
-  enqueue,
-  updateQueueStatus,
-} from '@/shared/queue/queueSlice'
+import { updateQueueStatus } from '@/shared/queue/queueSlice'
+import { resetQueue, seedSession } from '@/test/test-utils'
 import { getCurrentWindow, UserAttentionType } from '@tauri-apps/api/window'
 import { renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -33,16 +30,20 @@ const wrapper = ({ children }: { children: ReactNode }) => (
   <Provider store={store}>{children}</Provider>
 )
 
+/** Seeds one running part; its downloadId is `child-1` via the parent id. */
+let seededChildId = 'child-1-p1'
+
 function seedRunning() {
-  store.dispatch(
-    enqueue({ downloadId: 'child-1', parentId: 'parent-1', status: 'running' }),
-  )
+  const parentId = seedSession('BVnoti', [
+    { partIndex: 1, cid: 1, status: 'running' },
+  ])
+  seededChildId = `${parentId}-p1`
 }
 
 describe('useDownloadCompletionNotifications', () => {
   beforeEach(() => {
     store.dispatch(setSettings(baselineSettings))
-    store.dispatch(clearQueue())
+    resetQueue()
     mockRequestUserAttention.mockClear()
   })
   afterEach(() => {
@@ -52,7 +53,9 @@ describe('useDownloadCompletionNotifications', () => {
   it('flashes Informational on active → settled with success', async () => {
     seedRunning()
     renderHook(() => useDownloadCompletionNotifications(), { wrapper })
-    store.dispatch(updateQueueStatus({ downloadId: 'child-1', status: 'done' }))
+    store.dispatch(
+      updateQueueStatus({ downloadId: seededChildId, status: 'done' }),
+    )
     await waitFor(() => {
       expect(mockRequestUserAttention).toHaveBeenCalledWith(
         UserAttentionType.Informational,
@@ -64,7 +67,7 @@ describe('useDownloadCompletionNotifications', () => {
     seedRunning()
     renderHook(() => useDownloadCompletionNotifications(), { wrapper })
     store.dispatch(
-      updateQueueStatus({ downloadId: 'child-1', status: 'error' }),
+      updateQueueStatus({ downloadId: seededChildId, status: 'error' }),
     )
     await waitFor(() => {
       expect(mockRequestUserAttention).toHaveBeenCalledWith(
@@ -77,7 +80,7 @@ describe('useDownloadCompletionNotifications', () => {
     seedRunning()
     renderHook(() => useDownloadCompletionNotifications(), { wrapper })
     store.dispatch(
-      updateQueueStatus({ downloadId: 'child-1', status: 'cancelled' }),
+      updateQueueStatus({ downloadId: seededChildId, status: 'cancelled' }),
     )
     await waitFor(() => {
       expect(store.getState().queue[0]?.status).toBe('cancelled')
@@ -89,7 +92,9 @@ describe('useDownloadCompletionNotifications', () => {
     mockRequestUserAttention.mockRejectedValueOnce(new Error('os refused'))
     seedRunning()
     renderHook(() => useDownloadCompletionNotifications(), { wrapper })
-    store.dispatch(updateQueueStatus({ downloadId: 'child-1', status: 'done' }))
+    store.dispatch(
+      updateQueueStatus({ downloadId: seededChildId, status: 'done' }),
+    )
 
     // The promise rejection is caught and logged, never unhandled
     await waitFor(() => {
@@ -105,7 +110,9 @@ describe('useDownloadCompletionNotifications', () => {
     )
     seedRunning()
     renderHook(() => useDownloadCompletionNotifications(), { wrapper })
-    store.dispatch(updateQueueStatus({ downloadId: 'child-1', status: 'done' }))
+    store.dispatch(
+      updateQueueStatus({ downloadId: seededChildId, status: 'done' }),
+    )
     await waitFor(() => {
       expect(store.getState().queue[0]?.status).toBe('done')
     })

@@ -9,8 +9,8 @@ export type DownloadPhase =
  * Derive the download lifecycle phase from the current queue.
  *
  * - `idle`: no children (queue empty or only orphan parents).
- * - `active`: at least one child is pending/running, or any parent is
- *   cancelling.
+ * - `active`: at least one child is pending/running/cancelling, or any
+ *   parent is cancelling.
  * - `settled`: every child reached a terminal state (done/error/cancelled).
  *   `hasSuccess`/`hasError` are derived from children statuses. Cancelled
  *   children do NOT count toward either flag, so a pure all-cancelled
@@ -23,12 +23,16 @@ export function deriveDownloadPhase(queue: QueueItem[]): DownloadPhase {
   const children = queue.filter((q) => q.parentId != null)
   if (children.length === 0) return { phase: 'idle' }
 
-  // Active = any child pending/running OR any parent cancelling. A
-  // cancelling parent may have no running children left (see
-  // aggregateParentStatuses in queueSlice), so parents are checked
-  // separately to keep the flash from firing mid-cancel.
+  // Active = any child pending/running/cancelling OR any parent
+  // cancelling. A cancelling PARENT is a session-level cancel (it is never
+  // aggregated up from children — see queueSlice), and a cancelling CHILD
+  // is a per-part cancel still awaiting backend confirmation; either way
+  // the session has not settled, so the completion flash must not fire.
   const hasActiveChild = children.some(
-    (c) => c.status === 'running' || c.status === 'pending',
+    (c) =>
+      c.status === 'running' ||
+      c.status === 'pending' ||
+      c.status === 'cancelling',
   )
   const hasCancellingParent = queue.some((q) => q.status === 'cancelling')
   if (hasActiveChild || hasCancellingParent) return { phase: 'active' }

@@ -4,8 +4,6 @@ import {
   buildVideoFormSchema1,
   formSchema1,
 } from '@/features/video/lib/formSchema'
-import { cn } from '@/shared/lib/utils'
-import { selectHasActiveDownloads } from '@/shared/queue'
 import {
   Form,
   FormControl,
@@ -19,7 +17,6 @@ import { Loader2, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
 import { z } from 'zod'
 
 /**
@@ -48,7 +45,6 @@ const AUTO_ACTION_DELAY_MS = 500
 function VideoForm1() {
   const { input, onValid1, isFetching, isSilentFetching } = useVideoInfo()
   const { t } = useTranslation()
-  const hasActiveDownloads = useSelector(selectHasActiveDownloads)
   const [lastFetchedUrl, setLastFetchedUrl] = useState<string>('')
   const [isExpanding, setIsExpanding] = useState(false)
   const [expandError, setExpandError] = useState<string | null>(null)
@@ -57,16 +53,12 @@ function VideoForm1() {
   // not fire a duplicate request.
   const silentInFlightRef = useRef<string | null>(null)
 
-  // Why refs alongside the state/selector values: the debounce timer's
-  // callback closes over the values from the render that armed it. A timer
-  // armed just before an explicit submit fires ~500ms later with a stale
-  // lastFetchedUrl ('') and a stale hasActiveDownloads (false), letting a
-  // redundant silent fetch through — which clearQueue()s the download queue
-  // mid-session and wipes the completed-part UI (found by the download E2E).
-  // The refs always hold the live values for guard checks.
+  // Why a ref alongside the state value: the debounce timer's callback
+  // closes over the value from the render that armed it. A timer armed just
+  // before an explicit submit fires ~500ms later with a stale
+  // lastFetchedUrl (''), letting a redundant silent fetch through. The ref
+  // always holds the live value for the guard check.
   const lastFetchedUrlRef = useRef('')
-  const hasActiveDownloadsRef = useRef(hasActiveDownloads)
-  hasActiveDownloadsRef.current = hasActiveDownloads
 
   /** Records a fetched URL in both the state (render) and the ref (guards). */
   const markFetched = useCallback((url: string) => {
@@ -135,12 +127,10 @@ function VideoForm1() {
    */
   const handleSilentFetch = useCallback(
     async (url: string) => {
-      // Guard by refs, not the lastFetchedUrl state: this runs from the
-      // debounce timer's (possibly stale) closure — see the refs' block doc.
-      // hasActiveDownloads: the input is disabled mid-session, so a firing
-      // timer here is an echo/late arm and a refetch would clearQueue() the
-      // in-flight session's queue.
-      if (hasActiveDownloadsRef.current) return
+      // Guard by the ref, not the lastFetchedUrl state: this runs from the
+      // debounce timer's (possibly stale) closure — see the ref's block doc.
+      // (Downloads no longer freeze the input — issue #691 — so an active
+      // session no longer suppresses silent fetches.)
       if (
         !url ||
         url === lastFetchedUrlRef.current ||
@@ -241,12 +231,8 @@ function VideoForm1() {
     return (
       <button
         type="button"
-        disabled={hasActiveDownloads}
         onClick={() => handleClear(onChange)}
-        className={cn(
-          'text-muted-foreground hover:bg-muted hover:text-foreground absolute top-1/2 right-2 size-8 -translate-y-1/2 rounded-full p-1 transition-colors',
-          hasActiveDownloads && 'cursor-not-allowed opacity-50',
-        )}
+        className="text-muted-foreground hover:bg-muted hover:text-foreground absolute top-1/2 right-2 size-8 -translate-y-1/2 rounded-full p-1 transition-colors"
       >
         <X className="size-4" />
       </button>
@@ -315,11 +301,7 @@ function VideoForm1() {
                     // The stale-result guard in VideoInfoContext.tsx (discard when
                     // store input.url !== url) only works because this input stays
                     // enabled, so only an explicit submit's fetch may disable it.
-                    disabled={
-                      (isFetching && !isSilentFetching) ||
-                      isExpanding ||
-                      hasActiveDownloads
-                    }
+                    disabled={(isFetching && !isSilentFetching) || isExpanding}
                     value={field.value}
                     onChange={(e) =>
                       handleUrlChange(e.target.value, field.onChange)

@@ -6,6 +6,8 @@ import { SplashScreen } from '@/features/splash'
 import { setupI18n } from '@/i18n'
 import { changeLanguage, type SupportedLang } from '@/shared/i18n'
 import { logger } from '@/shared/lib/logger'
+import { executeDownloadPart } from '@/shared/queue/api/executeDownloadPart'
+import { createQueueRunner } from '@/shared/queue/runner'
 import { ErrorBoundary } from '@/shared/ui/ErrorBoundary'
 import '@/styles/index.css'
 import { createRoot } from 'react-dom/client'
@@ -44,6 +46,14 @@ window.addEventListener('unhandledrejection', (event) => {
 // main window at "/". Each is its own webview with its own Redux store; the
 // splash runs backend init then invokes finish_splash to create the main window.
 const isSplashWindow = window.location.pathname.startsWith('/splashscreen')
+
+// Serial download-queue runner (issue #691): React-external, started exactly
+// once in the main window. The splash window must NOT start one — it never
+// enqueues and its store dies when the splash closes, which would strand a
+// drain loop mid-session.
+if (!isSplashWindow) {
+  createQueueRunner(executeDownloadPart, () => store).start()
+}
 
 createRoot(document.getElementById('root')!).render(
   <ErrorBoundary>

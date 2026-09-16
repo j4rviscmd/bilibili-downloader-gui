@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { QueueItem } from '@/shared/queue/queueSlice'
+import type { QueueItem } from '@/shared/queue'
 
 import { deriveDownloadPhase } from './downloadPhase'
 
@@ -9,7 +9,15 @@ function item(
   status: QueueItem['status'],
   parentId?: string,
 ): QueueItem {
-  return { downloadId, status, ...(parentId ? { parentId } : {}) }
+  return {
+    downloadId,
+    status,
+    kind: parentId ? 'part' : 'parent',
+    videoId: 'BV1',
+    title: downloadId,
+    enqueuedAtMs: 0,
+    ...(parentId ? { parentId } : {}),
+  }
 }
 
 describe('deriveDownloadPhase', () => {
@@ -35,6 +43,16 @@ describe('deriveDownloadPhase', () => {
     const queue: QueueItem[] = [
       item('parent-1', 'running'),
       item('parent-1-p1', 'running', 'parent-1'),
+    ]
+    expect(deriveDownloadPhase(queue)).toEqual({ phase: 'active' })
+  })
+
+  it('returns active while a per-part cancel is in flight (cancelling child)', () => {
+    // Regression (issue #691 verification): the completion flash must not
+    // fire during the cancel-confirmation window of the last running part.
+    const queue: QueueItem[] = [
+      item('parent-1', 'running'),
+      item('parent-1-p1', 'cancelling', 'parent-1'),
     ]
     expect(deriveDownloadPhase(queue)).toEqual({ phase: 'active' })
   })

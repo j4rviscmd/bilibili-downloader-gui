@@ -18,7 +18,7 @@ vi.mock('@/shared/ui/GitHubStars', () => ({
 
 import { PageLayoutShell } from './PageLayout'
 
-function renderShell(route = '/home') {
+function renderShell(route = '/search') {
   return renderWithProviders(
     <Routes>
       <Route path="/*" element={<PageLayoutShell>page-body</PageLayoutShell>} />
@@ -66,7 +66,7 @@ describe('PageLayoutShell', () => {
   })
 
   it('leaves the history nav inactive on other routes', () => {
-    renderShell('/home')
+    renderShell('/search')
 
     expect(navButton('nav.downloadHistory').getAttribute('data-active')).toBe(
       'false',
@@ -74,7 +74,7 @@ describe('PageLayoutShell', () => {
   })
 
   it('clicking the history nav navigates to /history', async () => {
-    const { user } = renderShell('/home')
+    const { user } = renderShell('/search')
 
     await user.click(navButton('nav.downloadHistory'))
 
@@ -93,7 +93,7 @@ describe('PageLayoutShell', () => {
   })
 
   it('clicking the settings footer button navigates to /settings', async () => {
-    const { user } = renderShell('/home')
+    const { user } = renderShell('/search')
 
     await user.click(navButton('settings.title'))
 

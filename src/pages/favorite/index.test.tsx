@@ -17,13 +17,11 @@ vi.mock('@/features/favorite/ui/FavoriteList', () => ({
   default: (props: {
     videos: unknown[]
     hasMore: boolean
-    disabled: boolean
     onDownload: (v: unknown) => void
   }) => (
     <div>
       <div data-testid="fav-list">
-        count={props.videos.length} hasMore={String(props.hasMore)} disabled=
-        {String(props.disabled)}
+        count={props.videos.length} hasMore={String(props.hasMore)}
       </div>
       <button onClick={() => props.onDownload(mockVideo)}>download</button>
     </div>
@@ -147,7 +145,6 @@ describe('FavoriteContent', () => {
 
     expect(screen.getByTestId('fav-list')).toHaveTextContent('count=3')
     expect(screen.getByTestId('fav-list')).toHaveTextContent('hasMore=true')
-    expect(screen.getByTestId('fav-list')).toHaveTextContent('disabled=false')
   })
 
   it('disables refresh while loading or without a selected folder', async () => {

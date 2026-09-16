@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router'
 /**
  * Hook for handling pending download navigation.
  *
- * Provides a unified interface for navigating to the home page
+ * Provides a unified interface for navigating to the search page
  * with a pending download from watch history or favorites.
  *
  * @returns handleDownload function
@@ -31,7 +31,7 @@ export const usePendingDownload = () => {
       `usePendingDownload: Handling pending download bvid=${bvid}, page=${page}`,
     )
     dispatch(setPendingDownload({ bvid, cid, page }))
-    navigate('/home')
+    navigate('/search')
   }
 
   return handleDownload
