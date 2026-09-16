@@ -147,11 +147,15 @@ Automated by release-please (`release-please-config.json` +
 version — both are maintained by release-please, never edit by hand):
 
 - Merging `feat:`/`fix:` to main opens a `chore(main): release X.Y.Z`
-  PR. Merging that PR publishes automatically: draft release →
+  PR. Merging that PR publishes automatically: draft release + eager
+  git tag (the release-please job creates the tag before release-please
+  runs — release-please anchors on the tag matching the manifest
+  version exactly and ignores tagless drafts, so a deferred tag made
+  every release-merge run open an inflated full-history release PR) →
   platform build matrix → finalize job (assembles the updater
   `latest.json` once — matrix jobs never write it, avoiding the
   per-job merge race — uploads fixed-name assets, publishes the draft
-  — which creates the tag — then rewrites notes with GitHub-generated
+  — reusing the eager tag — then rewrites notes with GitHub-generated
   ones).
 - The release PR is authored with `GITHUB_TOKEN`, so PR-triggered CI
   never runs on it. Merge it with `gh pr merge <n> --merge --admin`.
@@ -163,9 +167,10 @@ version — both are maintained by release-please, never edit by hand):
   (`workflow_dispatch`; the tag input defaults to the
   `tauri.conf.json` version) — jobs are idempotent and re-upload
   assets to the existing release. Recover an older release by passing
-  the `tag` input explicitly. Recover a dangling draft **before** the
-  next `feat:`/`fix:` merge — a lingering draft is invisible to
-  release-please's release detection and inflates the next release PR.
+  the `tag` input explicitly. Recover a dangling draft promptly —
+  until finalize publishes it, the release never ships. (Since the
+  eager-tag change a lingering draft no longer distorts release-please
+  — the draft carries its tag.)
 
 ## Pre-verification Checklist
 
