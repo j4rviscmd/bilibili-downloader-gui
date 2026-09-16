@@ -91,35 +91,81 @@ export function QueueBottomBar() {
         }}
         className="bg-background/95 supports-backdrop-filter:bg-background/75 pointer-events-auto cursor-pointer border-t px-4 py-2 backdrop-blur"
       >
-        <div className="mx-auto flex w-full max-w-5xl items-center gap-3">
-          <Download className="text-muted-foreground size-4 shrink-0" />
-          <div className="bg-primary/20 relative h-2 min-w-16 flex-1 overflow-hidden rounded-full">
-            <div
-              className="bg-primary h-full transition-[width] duration-1000 ease-linear"
-              style={{ width: `${percent}%` }}
-            />
-          </div>
-          <span className="text-sm font-medium whitespace-nowrap tabular-nums">
-            {summary.completedParts}/{summary.totalParts}
-          </span>
-          {summary.aggregateTransferRate > 0 && (
-            <span className="text-muted-foreground text-sm whitespace-nowrap tabular-nums">
-              {formatKbps(summary.aggregateTransferRate)}
+        {/* Three-zone grid: the progress bar + count sit in the CENTER
+            column so the bar reads visually centered — a plain flex-1 bar
+            with the fixed-width right cluster (rate/link/avatars) looked
+            pushed left. The bar itself is capped (min(38vw, 28rem)) per
+            the verification feedback that shortening is acceptable. */}
+        {/* Symmetric ratio tracks (1fr/3fr/1fr): the center track — and
+            with it the progress bar (flex-1 inside) — stretches dynamically
+            to fill leftover width while staying perfectly centered; side
+            content changes (rate digits, limit icon) are absorbed by their
+            own 1fr tracks and never move the bar. */}
+        <div className="mx-auto grid w-full max-w-5xl grid-cols-[1fr_3fr_1fr] items-center gap-3">
+          {/* Left zone (flexible, min-w-0): rate + speed-limit live LEFT of
+              the bar so the right zone stays avatars-only — the two 1fr
+              tracks keep the center cluster centered no matter how the
+              rate/limit content changes. NOT fixed-width: at the max app
+              font size fixed side zones plus a wide center overflowed and
+              clipped the avatars, so the zones flex and shrink instead. */}
+          {/* justify-end: the cluster hugs the bar — icon leftmost, rate
+              immediately left of the bar — so the layout reads the same
+              whether the limit is on or off (verification feedback). */}
+          <div className="flex min-w-0 items-center justify-end gap-3">
+            {/* Always rendered (blank when idle) so the zone width never
+                changes across idle ⇄ active. */}
+            <span className="text-muted-foreground min-w-[9ch] text-right text-sm whitespace-nowrap tabular-nums">
+              {summary.aggregateTransferRate > 0
+                ? formatKbps(summary.aggregateTransferRate)
+                : ''}
             </span>
-          )}
-          {/* Internal affordance: must not trigger the bar's navigation. */}
-          <span
-            onClick={(e) => e.stopPropagation()}
-            onKeyDown={(e) => e.stopPropagation()}
-            className="contents"
-          >
-            <SpeedLimitLink />
-          </span>
-          {/* Fly-to-bar landing zone (ThumbnailFlightLayer targets this).
+            {/* Speed-limit control only while a download is in progress —
+                that is when a limit change applies live. When idle the
+                icon floated alone next to the blank rate; Settings remains
+                the entry point then. Internal affordance: must not trigger
+                the bar's navigation. Right of the rate, adjacent to the
+                bar (verification: the fixed-width rate near the bar keeps
+                the toggle from shifting the bar-adjacent layout). */}
+            {summary.hasActive && (
+              <span
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
+                className="contents"
+              >
+                <SpeedLimitLink />
+              </span>
+            )}
+          </div>
+          <div className="flex min-w-0 items-center gap-3">
+            <Download className="text-muted-foreground size-4 shrink-0" />
+            <div className="bg-primary/20 relative h-2 min-w-16 flex-1 overflow-hidden rounded-full">
+              <div
+                className="bg-primary h-full transition-[width] duration-1000 ease-linear"
+                style={{ width: `${percent}%` }}
+              />
+            </div>
+            {/* Fixed min-width (tabular-nums) so digit-count changes in the
+                completed count (7/13 → 10/13) never shift the bar. */}
+            <span className="min-w-[5ch] text-center text-sm font-medium whitespace-nowrap tabular-nums">
+              {summary.completedParts}/{summary.totalParts}
+            </span>
+          </div>
+          {/* Right zone (flexible, min-w-0): avatars only, LEFT-aligned —
+              with a single avatar, right-alignment left a dead gap between
+              the count and the tile (verification feedback). */}
+          <div className="flex min-w-0 items-center justify-start">
+            {/* Fly-to-bar landing zone (ThumbnailFlightLayer targets this).
               Explicit children prop: AvatarGroup types children as a single
               ReactElement[] array, which the JSX multi-child form upsets. */}
-          <div data-queue-avatar-target="true">
-            <AvatarGroup className="h-8 shrink-0" children={avatars} />
+            {/* Natural width (shrink-0): the zone's 1fr track absorbs
+              avatar count changes, so the center never moves and the row
+              never overflows at large font sizes. */}
+            <div
+              data-queue-avatar-target="true"
+              className="flex h-8 shrink-0 justify-end"
+            >
+              <AvatarGroup className="h-8 shrink-0" children={avatars} />
+            </div>
           </div>
         </div>
       </div>

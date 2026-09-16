@@ -1,5 +1,9 @@
 import { useAppDispatch } from '@/app/store'
 import { IconButton } from '@/components/animate-ui/components/buttons/icon'
+import {
+  AUDIO_QUALITIES_MAP,
+  VIDEO_QUALITIES_MAP,
+} from '@/features/video/lib/constants'
 import { getStatusVisual } from '@/features/video/lib/statusVisual'
 import {
   PartDownloadProgress,
@@ -16,7 +20,7 @@ import { cancelDownload } from '@/shared/queue'
 import { Button } from '@/shared/ui/button'
 import { invoke } from '@tauri-apps/api/core'
 import { FilePlay, FolderOpen, ImageOff } from 'lucide-react'
-import { useCallback } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 /** Status badge carried by each part row (E2E anchor via data-status). */
@@ -37,6 +41,56 @@ export function QueueStatusBadge({
         aria-hidden
       />
       {t(visual.labelKey)}
+    </span>
+  )
+}
+
+/**
+ * Part-row title: truncates with an ellipsis by default; on hover, ONLY
+ * when actually truncated, ping-pong scrolls the hidden overflow
+ * (marquee) — replaces the former full-title tooltip (verification
+ * decision: the tooltip duplicated what a marquee reveals in place).
+ */
+function MarqueeTitle({ title }: { title: string }) {
+  const innerRef = useRef<HTMLSpanElement>(null)
+  const [running, setRunning] = useState(false)
+  const [dist, setDist] = useState(0)
+
+  const startIfTruncated = () => {
+    const el = innerRef.current
+    if (!el) return
+    const hidden = el.scrollWidth - el.clientWidth
+    if (hidden > 1) {
+      setDist(hidden)
+      setRunning(true)
+    }
+  }
+
+  // ~45px/s, min 0.8s per direction so short overflows stay readable.
+  const duration = Math.max(0.8, dist / 45)
+
+  return (
+    <span
+      className="block min-w-0 flex-1 overflow-hidden"
+      onMouseEnter={startIfTruncated}
+      onMouseLeave={() => setRunning(false)}
+    >
+      <span
+        ref={innerRef}
+        // No ellipsis: the hover marquee reveals the hidden overflow, so a
+        // "..." would only duplicate what scrolling shows (parent clips).
+        className="block whitespace-nowrap"
+        style={
+          running
+            ? {
+                animation: `queue-title-marquee ${duration}s linear infinite alternate`,
+                ['--queue-marquee-dist' as string]: `${dist}px`,
+              }
+            : undefined
+        }
+      >
+        {title}
+      </span>
     </span>
   )
 }
@@ -103,6 +157,27 @@ export function QueuePartRow({ row }: Props) {
     })
   }, [item.outputPath])
 
+  // Actually-used quality (resolved by the backend; may differ from the
+  // request via fallback): a muted pill left of the status badge.
+  const qualityBadge = (() => {
+    const vq = item.resolvedVideoQuality
+    if (vq == null) return null
+    const parts = [
+      VIDEO_QUALITIES_MAP[vq] ?? String(vq),
+      ...(item.resolvedAudioQuality != null
+        ? [
+            AUDIO_QUALITIES_MAP[item.resolvedAudioQuality] ??
+              String(item.resolvedAudioQuality),
+          ]
+        : []),
+    ]
+    return (
+      <span className="bg-muted text-muted-foreground inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-xs font-medium tabular-nums">
+        {parts.join(' / ')}
+      </span>
+    )
+  })()
+
   const finishedExtras =
     status === 'done' && item.outputPath ? (
       <span
@@ -160,16 +235,8 @@ export function QueuePartRow({ row }: Props) {
             <ImageOff className="text-muted-foreground/50 h-4 w-4" />
           </div>
         )}
-        {/* App tooltip instead of a native title= on the truncated span
-            (CLAUDE.md tooltip rule): the full part title on hover. */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="min-w-0 flex-1 truncate">{item.title}</span>
-          </TooltipTrigger>
-          <TooltipContent side="top" align="start">
-            <p className="max-w-xs truncate">{item.title}</p>
-          </TooltipContent>
-        </Tooltip>
+        <MarqueeTitle title={item.title} />
+        {qualityBadge}
         <QueueStatusBadge status={status} />
         {finishedExtras}
         {canCancel && (

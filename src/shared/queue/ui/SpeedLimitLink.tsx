@@ -1,4 +1,5 @@
 import { useSelector } from '@/app/store'
+import { IconButton } from '@/components/animate-ui/components/buttons/icon'
 import {
   Tooltip,
   TooltipContent,
@@ -46,20 +47,30 @@ export function SpeedLimitLink() {
   const openSettings = () =>
     navigate('/settings?category=download&anchor=speed-limit')
 
-  // While unlimited the label itself is the affordance ("set a limit"),
-  // so the tooltip (which describes the ACTIVE limit) is omitted.
+  // While unlimited there is no value to show — the longest localized
+  // string in the bar for zero information. Icon-only with a tooltip
+  // (verification decision); the limited state below keeps icon + value.
   if (!enabled) {
     return (
-      <Button
-        variant="link"
-        size="sm"
-        className="text-muted-foreground text-sm underline-offset-2"
-        onClick={openSettings}
-        data-testid="speed-limit-link"
-      >
-        <Gauge className="h-4 w-4" aria-hidden />
-        {t('downloadStatus.speed_limit_set')}
-      </Button>
+      <TooltipProvider delayDuration={300}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <IconButton
+              variant="ghost"
+              size="xs"
+              onClick={openSettings}
+              aria-label={t('downloadStatus.speed_limit_set')}
+              data-testid="speed-limit-link"
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <Gauge className="size-3.5" />
+            </IconButton>
+          </TooltipTrigger>
+          <TooltipContent side="top" arrow>
+            {t('downloadStatus.speed_limit_set')}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     )
   }
 
@@ -67,15 +78,19 @@ export function SpeedLimitLink() {
     <TooltipProvider delayDuration={300}>
       <Tooltip>
         <TooltipTrigger asChild>
+          {/* Matches the adjacent rate display (muted, text-sm, size-3.5
+              icon, tabular-nums): the former link variant rendered in
+              primary color with a larger icon and read brighter/bigger
+              than the rate next to it (verification feedback). */}
           <Button
-            variant="link"
+            variant="ghost"
             size="sm"
-            className="text-sm tabular-nums underline-offset-2"
+            className="text-muted-foreground hover:text-foreground h-7 px-1 text-sm tabular-nums"
             onClick={openSettings}
             aria-label={t('downloadStatus.speed_limit_tooltip')}
             data-testid="speed-limit-link"
           >
-            <Gauge className="h-4 w-4" aria-hidden />
+            <Gauge className="size-3.5" aria-hidden />
             {settings.downloadSpeedLimitKbps != null &&
               formatKbps(settings.downloadSpeedLimitKbps)}
           </Button>

@@ -790,7 +790,7 @@
     "section_downloading": "ダウンロード中",
     "section_queued": "ダウンロード予定",
     "section_finished": "完了・キャンセル",
-    "clear_finished": "完了済みを削除",
+    "clear_finished": "完了済みをクリア",
     "open_downloads": "ダウンロードページを開く"
   },
   "audio": {

@@ -790,7 +790,7 @@
     "section_downloading": "다운로드 중",
     "section_queued": "다운로드 예정",
     "section_finished": "완료·취소",
-    "clear_finished": "완료 항목 삭제",
+    "clear_finished": "완료 항목 지우기",
     "open_downloads": "다운로드 페이지 열기"
   },
   "audio": {

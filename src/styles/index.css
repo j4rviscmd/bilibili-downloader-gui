@@ -149,3 +149,16 @@
   width: 1.125rem;
   margin-inline-end: 0.625rem;
 }
+
+/* Marquee for truncated titles on the /downloads part rows: scrolls the
+   text by exactly the hidden overflow (ping-pong). Only applied on hover
+   AND when the title actually truncates (scrollWidth > clientWidth) —
+   replacing the former full-title tooltip. */
+@keyframes queue-title-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(calc(-1 * var(--queue-marquee-dist, 0px)));
+  }
+}

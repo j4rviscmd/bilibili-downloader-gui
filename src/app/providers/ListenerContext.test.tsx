@@ -18,6 +18,7 @@ import {
   clearProgress,
   selectProgressEntriesByDownloadId,
 } from '@/shared/progress/progressSlice'
+import { enqueueSession } from '@/shared/queue'
 import { toast } from '@/shared/ui/toast'
 import { clearTauriEvents, emitTauriEvent } from '@/test/tauriEvents'
 import { resetQueue, seedSession } from '@/test/test-utils'
@@ -258,6 +259,62 @@ describe('quality/subtitle resolved events', () => {
     const part = store.getState().input.partInputs[0]
     expect(part.resolvedQuality?.videoQuality).toBe(80)
     expect(part.accordionOpen).toBe(false)
+  })
+
+  it('records resolved quality onto the queue item (background-safe)', async () => {
+    await mount()
+    displayVideo('BVlistener')
+    // A queue item for a BACKGROUND download id.
+    store.dispatch(
+      enqueueSession({
+        videoId: 'BVbackground',
+        videoTitle: 'bg',
+        parts: [
+          {
+            partIndex: 1,
+            cid: 1,
+            title: 'P1',
+            thumbnailUrl: null,
+            expectedStages: { audioStage: true, mergeStage: true },
+            payload: {
+              videoId: 'BVbackground',
+              cid: 1,
+              filename: 'P1',
+              quality: null,
+              audioQuality: null,
+              durationSeconds: 60,
+              thumbnailUrl: null,
+              page: 1,
+              epId: null,
+              subtitle: null,
+            },
+          },
+        ],
+      }),
+    )
+    const itemId = store
+      .getState()
+      .queue.find((q) => q.kind === 'part')!.downloadId
+
+    act(() => {
+      emitTauriEvent('download-quality-resolved', {
+        downloadId: itemId,
+        page: 1,
+        videoQuality: 80,
+        videoQualityFallback: false,
+        videoCodecid: 7,
+        videoCodecFallback: false,
+        audioQuality: 30280,
+        audioQualityFallback: false,
+        isPreview: null,
+      })
+    })
+
+    const item = store.getState().queue.find((q) => q.downloadId === itemId)!
+    expect(item.resolvedVideoQuality).toBe(80)
+    expect(item.resolvedAudioQuality).toBe(30280)
+    // And the DISPLAYED video's inputs stay untouched (guard intact).
+    expect(store.getState().input.partInputs[0].resolvedQuality).toBeUndefined()
   })
 
   it('a background video resolved event does not pollute the displayed video', async () => {

@@ -151,6 +151,10 @@ export type QueueItem = {
   enqueuedAtMs: number
   /** Stage divisor snapshot (part items only). */
   expectedStages?: ExpectedStages
+  /** Resolved video quality id (e.g. 80 = 1080p) from download-quality-resolved. */
+  resolvedVideoQuality?: number
+  /** Resolved audio quality id (null = durl/silent sources). */
+  resolvedAudioQuality?: number | null
   /** Backend invocation snapshot (part items only). */
   payload?: DownloadPartPayload
 }

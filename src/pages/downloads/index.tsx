@@ -15,7 +15,7 @@ import {
   type QueuePartRow as QueuePartRowModel,
 } from '@/shared/queue'
 import { Button } from '@/shared/ui/button'
-import { Download, Trash2 } from 'lucide-react'
+import { Download } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -84,13 +84,22 @@ export function DownloadsContent() {
                 {/*
                   A span wrapper is required: a disabled button gets
                   pointer-events: none and hover never reaches it.
+                  onFocus blur: entering /downloads sometimes focuses this
+                  first focusable element and Radix opened the tooltip
+                  with no cursor near it (verification feedback) — blur
+                  keeps the tooltip hover-only.
                 */}
-                <span>
+                <span onFocus={(e) => e.currentTarget.blur()}>
+                  {/* Ghost: destructive/secondary utilities — an outline
+                      button read as a primary action and pulled the eye
+                      (verification feedback); anyone NOT using them should
+                      look past these. */}
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
                     onClick={handleCancelAll}
                     disabled={!summary.hasActive || summary.isMerging}
+                    className="text-muted-foreground hover:text-destructive h-7 px-2 text-xs"
                   >
                     {t('downloadStatus.cancel_all')}
                   </Button>
@@ -110,12 +119,12 @@ export function DownloadsContent() {
             </Tooltip>
           </TooltipProvider>
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
             onClick={handleClearFinished}
             disabled={!hasSettled}
+            className="text-muted-foreground hover:text-destructive h-7 px-2 text-xs"
           >
-            <Trash2 className="mr-1 size-3.5" />
             {t('queue.clear_finished')}
           </Button>
         </div>

@@ -18,7 +18,7 @@ import {
   setProgress,
   setRetrying,
 } from '@/shared/progress/progressSlice'
-import { updateQueueStatus } from '@/shared/queue/queueSlice'
+import { updateQueueItem, updateQueueStatus } from '@/shared/queue/queueSlice'
 import { toast } from '@/shared/ui/toast'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { createContext, useEffect, type FC, type ReactNode } from 'react'
@@ -215,6 +215,16 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
       unlistenQualityResolved = await listen<QualityResolvedPayload>(
         'download-quality-resolved',
         (event) => {
+          // ALWAYS record the resolved quality onto the queue item — it is
+          // keyed by downloadId, so background downloads are safe and the
+          // /downloads rows can badge the actually-used quality.
+          store.dispatch(
+            updateQueueItem({
+              downloadId: event.payload.downloadId,
+              resolvedVideoQuality: event.payload.videoQuality,
+              resolvedAudioQuality: event.payload.audioQuality,
+            }),
+          )
           // Guard: only the displayed video's events may touch state.input
           // (see isDisplayedVideoDownload). Background queue downloads
           // resolve too; their page-keyed payloads would corrupt the

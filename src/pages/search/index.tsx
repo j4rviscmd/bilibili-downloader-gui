@@ -366,30 +366,35 @@ function SearchContentInner() {
   const currentPage = useMemo(() => {
     let page = 1
 
+    // An explicit `?p=N` (router param or the pasted input URL) outranks the
+    // bangumi epId: an `av…?p=N` URL resolves to a bangumi whose top-level
+    // epId points at the DEFAULT episode (episode 1), so honoring epId first
+    // pinned the page to 1 no matter which p the URL named — the same
+    // priority mistake the selection and scroll fixes already corrected.
+    const pParam =
+      browserP ??
+      (() => {
+        try {
+          return input.url ? new URL(input.url).searchParams.get('p') : null
+        } catch {
+          return null
+        }
+      })()
+
     if (browserPage) {
       page = parseInt(browserPage, 10)
-    } else if (browserP) {
-      page = Math.ceil(parseInt(browserP, 10) / PARTS_PER_PAGE)
+    } else if (pParam) {
+      page = Math.ceil(parseInt(pParam, 10) / PARTS_PER_PAGE)
+    } else if (video.contentType === 'bangumi' && video.epId !== undefined) {
       // Why: A bangumi season spans many pages, so a deep-link to one episode
       // (Video.epId, populated by the backend from the ep-id URL) must open on
       // that episode's page. Otherwise the user lands on page 1 and the single
       // auto-selected episode stays off-screen (selection logic lives in
       // lib/partSelection shouldSelectPart).
-    } else if (video.contentType === 'bangumi' && video.epId !== undefined) {
-      // Bangumi URL: jump to the page containing the requested episode
       const idx = video.parts.findIndex((p) => p.epId === video.epId)
       if (idx >= 0) page = Math.floor(idx / PARTS_PER_PAGE) + 1
     } else if (input.pendingDownload) {
       page = Math.ceil(input.pendingDownload.page / PARTS_PER_PAGE)
-    } else if (input.url) {
-      try {
-        const pParam = new URL(input.url).searchParams.get('p')
-        if (pParam) {
-          page = Math.ceil(parseInt(pParam, 10) / PARTS_PER_PAGE)
-        }
-      } catch {
-        // Invalid URL, use default
-      }
     }
 
     return Math.max(1, Math.min(page, totalPages || 1))

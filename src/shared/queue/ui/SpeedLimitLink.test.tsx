@@ -37,8 +37,11 @@ describe('SpeedLimitLink', () => {
       </>,
     )
 
+    // Icon-only while unlimited (verification decision) — the affordance
+    // name lives on aria-label/tooltip, not text content.
     const link = screen.getByTestId('speed-limit-link')
-    expect(link).toHaveTextContent('downloadStatus.speed_limit_set')
+    expect(link).toHaveAttribute('aria-label', 'downloadStatus.speed_limit_set')
+    expect(link).not.toHaveTextContent('downloadStatus.speed_limit_set')
     await user.click(link)
 
     expect(await screen.findByTestId('location-probe')).toHaveTextContent(
