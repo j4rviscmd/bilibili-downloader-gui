@@ -2,10 +2,15 @@
 #   push    : release-please opens/updates a `chore(main): release X.Y.Z` PR
 #             from Conventional Commits (feat=minor, fix=patch, `!`=major).
 #             When that PR is merged, release-please creates a DRAFT GitHub
-#             release (the git tag is only created on publication), then the
+#             release and this workflow creates the git tag IMMEDIATELY
+#             (release-please anchors its next release PR on the release
+#             whose tag exactly matches the manifest version, and ignores
+#             tagless drafts — a deferred tag made every release-merge run
+#             open an inflated full-history release PR, see #723), then the
 #             publish matrix uploads all assets to the draft. finalize-release
-#             uploads fixed-name assets, publishes the draft (creating the
-#             tag), and rewrites the body with GitHub-generated notes.
+#             uploads fixed-name assets, publishes the draft (reusing the
+#             tag created above), and rewrites the body with GitHub-generated
+#             notes.
 #   dispatch: recovery path. Resolves an existing (possibly draft) release by
 #             tag and re-runs publish+finalize idempotently. Note: "Re-run
 #             failed jobs" only helps when release-please itself failed
@@ -55,6 +60,31 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      # Create the git tag for the manifest's CURRENT version BEFORE
+      # release-please runs. Why: release-please anchors its release-PR
+      # generation on the release/tag matching the manifest version EXACTLY
+      # and drops tagless drafts (github-api.ts filters releases without a
+      # tagCommit; manifest.ts backfills the anchor from the git tag). Our
+      # tag used to be created by finalize-release, ~30-40min after the
+      # release PR merge — so the same run that created the draft found no
+      # anchor, treated the whole history as unreleased, and opened an
+      # inflated full-history release PR (see #723).
+      # The tag is missing exactly on the release-merge push (the manifest
+      # version only changes when a release PR merges); every other push
+      # finds the tag and skips. Point it at github.sha = the release PR
+      # merge commit; release-please's draft attaches to this existing tag.
+      - name: Create release tag
+        if: github.event_name == 'push'
+        run: |
+          VERSION=$(jq -r '.["."]' .release-please-manifest.json)
+          TAG="v${VERSION}"
+          if git ls-remote --exit-code origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "Tag ${TAG} already exists, skipping"
+            exit 0
+          fi
+          git tag "${TAG}" "$GITHUB_SHA"
+          git push origin "refs/tags/${TAG}"
 
       - name: Run release-please
         id: release
@@ -182,8 +212,10 @@ jobs:
         shell: pwsh
         run: ./scripts/package-windows.ps1
 
-      # Upload by release id (not tag): the release is still a draft here, so
-      # the git tag does not exist yet and tag-based lookups would fail.
+      # Upload by release id (not tag): the release is still a draft here —
+      # release-id targeting stays robust for drafts regardless of whether
+      # the tag exists yet (it does for new releases; pre-eager-tag drafts
+      # recovered by dispatch may still lack one).
       - name: Upload Windows ZIP editions
         if: runner.os == 'Windows'
         uses: actions/github-script@v7
@@ -382,8 +414,10 @@ jobs:
               core.info(`Uploaded ${fixedName} (from ${asset.name})`);
             }
 
-            // Publish the draft. This also creates the git tag — draft
-            // releases defer tag creation until publication.
+            // Publish the draft. The tag already exists (created in the
+            // release-please job before release-please ran) — publication
+            // reuses it; only drafts predating that step get their tag
+            // created here.
             await github.rest.repos.updateRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,

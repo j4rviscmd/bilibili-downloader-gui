@@ -31,14 +31,7 @@
   "bundle": {
     "createUpdaterArtifacts": true,
     "active": true,
-    "targets": [
-      "app",
-      "dmg",
-      "deb",
-      "rpm",
-      "appimage",
-      "nsis"
-    ],
+    "targets": ["app", "dmg", "deb", "rpm", "appimage", "nsis"],
     "windows": {
       "nsis": {
         "languages": [
