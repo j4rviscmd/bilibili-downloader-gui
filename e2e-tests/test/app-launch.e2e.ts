@@ -18,28 +18,19 @@
 
 import { expect } from 'chai'
 import fs from 'node:fs'
-import os from 'node:os'
 import path from 'node:path'
 
 import {
   ensureScreenshotDir,
+  FIXTURE_VIDEO_URL,
   saveScreenshot,
-  tauriInvoke,
+  setupDownloadEnv,
+  teardownDownloadEnv,
   waitForMainUI,
   waitForUrlInput,
+  type DownloadEnv,
 } from '../helpers/app.helpers'
 import * as S from '../helpers/selectors'
-
-/**
- * URL submitted through the URL input form.
- *
- * Under E2E_TESTING the backend answers fetch_video_info with a
- * bundled fixture regardless of the video ID, so any valid URL shape
- * works; this matches the fixture video — the official bilibili CM
- * "bilibili献给新一代的演讲《后浪》" (3 parts) — so what renders on
- * screen corresponds to the URL (issue #565).
- */
-const TEST_VIDEO_URL = 'https://www.bilibili.com/video/BV1FV411d7u7'
 
 /**
  * End-to-end test suite for the bilibili-downloader-gui application.
@@ -160,10 +151,10 @@ describe('bilibili-downloader-gui E2E', () => {
   it('should accept a video URL in the input field', async () => {
     const input = await browser.$(S.URL_INPUT)
     await input.click()
-    await input.setValue(TEST_VIDEO_URL)
+    await input.setValue(FIXTURE_VIDEO_URL)
 
     const value = await input.getValue()
-    expect(value).to.equal(TEST_VIDEO_URL)
+    expect(value).to.equal(FIXTURE_VIDEO_URL)
 
     await saveScreenshot('video', '00-url-entered')
   })
@@ -211,54 +202,18 @@ describe('bilibili-downloader-gui E2E', () => {
 
   // -- Phase 4: Download Pipeline (fixture server + real ffmpeg merge) --
 
-  // Output directory patched via patch_settings; kept suite-scoped so the
-  // final file assertions read the same path.
-  let downloadOutputDir = ''
-
-  // Pre-patch dlOutputPath and history ids, restored in the suite teardown:
-  // dev and E2E share one app_data_dir (same bundle identifier), so without
-  // restoration every post-E2E manual download lands in a temp dir and the
-  // fixture entries stay in the developer's history.
-  let originalDlOutputPath: string | null = null
-  let originalHistoryIds: string[] = []
+  // Output dir patch + history snapshot (restored in the suite teardown):
+  // see setupDownloadEnv/teardownDownloadEnv for the why.
+  let downloadEnv: DownloadEnv | null = null
 
   after(async () => {
-    if (!downloadOutputDir) return
-    // Restore the developer's output path (null = back to the OS default).
-    await tauriInvoke('patch_settings', {
-      patch: { dlOutputPath: originalDlOutputPath },
-    }).catch(() => {
-      // Best-effort: a settings failure must not mask test failures.
-    })
-    // Remove only the history entries this run created.
-    const history = await tauriInvoke<Array<{ id: string }>>(
-      'get_history',
-      {},
-    ).catch(() => [] as Array<{ id: string }>)
-    for (const entry of history) {
-      if (!originalHistoryIds.includes(entry.id)) {
-        await tauriInvoke('remove_history_entry', { id: entry.id }).catch(
-          () => undefined,
-        )
-      }
-    }
-    fs.rmSync(downloadOutputDir, { recursive: true, force: true })
+    if (downloadEnv) await teardownDownloadEnv(downloadEnv)
   })
 
   it('should patch the download output directory to a fresh temp dir', async () => {
-    const settings = await tauriInvoke<{ dlOutputPath?: string | null }>(
-      'get_settings',
-    )
-    originalDlOutputPath = settings.dlOutputPath ?? null
-    const history = await tauriInvoke<Array<{ id: string }>>('get_history')
-    originalHistoryIds = history.map((e) => e.id)
-
-    downloadOutputDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bili-e2e-dl-'))
-    // patch_settings validates the path exists and is a directory, so a
-    // resolve here proves the backend accepted it.
-    await tauriInvoke('patch_settings', {
-      patch: { dlOutputPath: downloadOutputDir },
-    })
+    // setupDownloadEnv also snapshots the history ids so teardown removes
+    // only the entries this run created.
+    downloadEnv = await setupDownloadEnv()
   })
 
   it('should start the download session when Download is clicked', async () => {
@@ -289,13 +244,16 @@ describe('bilibili-downloader-gui E2E', () => {
     // Durable terminal signal: the part cards' queue badges settle on
     // data-status="done" (the cards carry no progress detail by design —
     // issue #691; stage detail lives on /downloads).
+    // 120s: with E2E_SLOW_MEDIA=1 one part takes ~10-20s (throttled CDN
+    // probe + streams) and the queue drains serially, so three parts need
+    // well over the old 30s budget.
     await browser.waitUntil(
       async () => {
         const done = await browser.$$('[data-status="done"]')
         return (await done.length) === 3
       },
       {
-        timeout: 30_000,
+        timeout: 120_000,
         interval: 500,
         timeoutMsg: 'expected 3 completed-part badges',
       },
@@ -305,13 +263,12 @@ describe('bilibili-downloader-gui E2E', () => {
   })
 
   it('should write the three merged mp4 files to the output directory', async () => {
-    const files = fs
-      .readdirSync(downloadOutputDir)
-      .filter((f) => f.endsWith('.mp4'))
+    const outputDir = downloadEnv!.outputDir
+    const files = fs.readdirSync(outputDir).filter((f) => f.endsWith('.mp4'))
     expect(files.length).to.equal(3)
 
     for (const f of files) {
-      const filePath = path.join(downloadOutputDir, f)
+      const filePath = path.join(outputDir, f)
       const fd = fs.openSync(filePath, 'r')
       const head = Buffer.alloc(8)
       fs.readSync(fd, head, 0, 8, 0)

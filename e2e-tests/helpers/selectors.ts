@@ -131,9 +131,16 @@ export const QUEUE_BOTTOM_BAR = '[data-testid="queue-bottom-bar"]'
 
 // -- /downloads: flat sectioned queue (issue #691) --
 
-/** Part row by effective status (pending/running/cancelling/done/…). */
+/**
+ * Part row by effective status (pending/running/cancelling/done/…).
+ *
+ * Scoped out of [data-part-list]: the /search part cards carry data-status
+ * badges too, and PersistentPageLayout keeps every visited page mounted
+ * (hidden with display:none), so after navigating to /downloads an
+ * unscoped selector counts both pages' badges.
+ */
 export const QUEUE_ROW_BY_STATUS = (status: string) =>
-  `[data-status="${status}"]`
+  `[data-status="${status}"]:not([data-part-list] [data-status="${status}"])`
 
 /** Per-part cancel button (text "Cancel" in the en locale). */
 export const QUEUE_ROW_CANCEL = 'button=Cancel'

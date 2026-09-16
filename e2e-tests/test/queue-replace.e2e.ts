@@ -1,23 +1,45 @@
 /**
  * Queue replace-semantics E2E (issue #691).
  *
- * Runs after app-launch.e2e in the same session: the fixture video's 3
- * parts are loaded on /search and the initial download session has fully
- * settled (done). Requires E2E_SLOW_MEDIA=1 so a part stays observably
- * RUNNING (~5s/stream) while later parts sit PENDING — the branch matrix
- * below is state-driven, never timing-driven.
+ * Self-contained session: wdio launches a fresh app per spec file, so the
+ * setup loads the fixture video, patches the output directory, and
+ * downloads all three parts to a settled done baseline.
  *
- * Branch matrix (enqueue while…):
- * - a SETTLED (done) part   → appends a fresh queued row, done row stays
+ * Requires E2E_SLOW_MEDIA=1 so a part stays observably RUNNING (~20s:
+ * throttled CDN probe + streams) while the matrix's enqueue/navigate
+ * clicks land — every assertion waits for a stable row state, never a
+ * timing window.
+ *
+ * Assertions follow the runner's ACTUAL semantics (shared/queue/runner.ts):
+ * the next pending part is picked in the same call stack that settles the
+ * previous one, so an enqueue on an idle queue shows up as RUNNING (never
+ * pending) within one poll, and cancelling a RUNNING part immediately
+ * starts the next queued part.
+ *
+ * Branch matrix (each test builds its own precondition and leaves the
+ * queue idle, so tests never depend on each other's leftovers):
+ * - a SETTLED (done) part   → fresh row appended and started at once; done row stays
  * - a PENDING part          → replaced IN PLACE, row count unchanged
- * - a RUNNING part          → old row cancelled, fresh row appended
- * - a user-CANCELLED part   → appends a fresh queued row, cancelled stays
+ * - a RUNNING part          → old row cancelled, fresh row appended and started
+ * - a user-CANCELLED part   → fresh row appended, cancelled row stays
  */
 import { browser } from '@wdio/globals'
-import { saveScreenshot, waitForMainUI } from '../helpers/app.helpers'
+import {
+  loadFixtureVideo,
+  saveScreenshot,
+  setupDownloadEnv,
+  teardownDownloadEnv,
+  waitForMainUI,
+  type DownloadEnv,
+} from '../helpers/app.helpers'
 import * as S from '../helpers/selectors'
 
-/** Waits until the /downloads page shows exactly `n` rows in a status. */
+/**
+ * Waits until exactly `n` rows show a status on /downloads.
+ *
+ * Must run on /downloads: the /search part cards carry data-status badges
+ * too, so the global selector is page-scoped by navigation, not by CSS.
+ */
 async function waitForRowCount(status: string, n: number, timeout = 30_000) {
   await browser.waitUntil(
     async () => {
@@ -32,10 +54,24 @@ async function waitForRowCount(status: string, n: number, timeout = 30_000) {
   )
 }
 
+/** Waits until no pending/running rows remain — queue idle for the next test. */
+async function waitForIdle(timeout = 120_000) {
+  await waitForRowCount('pending', 0, timeout)
+  await waitForRowCount('running', 0, timeout)
+}
+
+/** Navigates to /downloads where the queue rows (and Cancel) live. */
+async function gotoDownloads() {
+  const nav = await browser.$(S.NAV_DOWNLOADS)
+  await nav.waitForExist({ timeout: 15_000 })
+  await nav.waitForClickable({ timeout: 10_000 })
+  await nav.click()
+}
+
 /** Navigates to /search, checks exactly the given part indexes, downloads. */
 async function enqueueParts(indexes: number[]) {
-  // Wait for the sidebar button before clicking: the previous spec may
-  // have left the app mid-animation or on another page.
+  // Wait for the sidebar button before clicking: the previous test may
+  // have left the app on /downloads.
   const nav = await browser.$(S.NAV_SEARCH)
   await nav.waitForExist({ timeout: 15_000 })
   await nav.waitForClickable({ timeout: 10_000 })
@@ -69,66 +105,112 @@ async function enqueueParts(indexes: number[]) {
 }
 
 describe('queue replace semantics', () => {
+  let downloadEnv: DownloadEnv | null = null
+
   before(async () => {
     await waitForMainUI()
+    downloadEnv = await setupDownloadEnv()
+    await loadFixtureVideo()
+
+    // Baseline: download all three parts to a settled done state so the
+    // matrix below always re-enqueues against SETTLED rows first.
+    const button = await browser.$(S.HEADER_DOWNLOAD_BUTTON)
+    await button.waitForClickable({ timeout: 10_000 })
+    await button.click()
+    await gotoDownloads()
+    await waitForRowCount('done', 3, 120_000)
   })
 
-  it('re-enqueue of a DONE part appends a queued row and keeps the done row', async () => {
-    await enqueueParts([0])
+  after(async () => {
+    if (downloadEnv) await teardownDownloadEnv(downloadEnv)
+  })
 
-    const bar = await browser.$(S.QUEUE_BOTTOM_BAR)
-    await bar.waitForExist({ timeout: 10_000 })
-    // done rows: 3 from the app-launch session; queued: 1 fresh.
+  it('re-enqueue of a DONE part appends a fresh row that starts at once, done row stays', async () => {
+    await enqueueParts([0])
+    await gotoDownloads()
+
+    // The queue is idle, so the runner picks the fresh part up immediately
+    // — it renders RUNNING, never pending (see runner.ts pickup design).
     await waitForRowCount('done', 3)
-    await waitForRowCount('pending', 1)
+    await waitForRowCount('running', 1)
     await saveScreenshot('queue-replace', '00-done-append')
+
+    // Leave the queue idle for the next test's precondition.
+    await waitForIdle()
+    await waitForRowCount('done', 4)
   })
 
   it('re-enqueue of a PENDING part replaces it in place (no new row)', async () => {
-    // Part 0 is RUNNING (slow media); part 1 lands PENDING behind it.
+    // Part 0 RUNNING (slow media); part 1 lands PENDING behind it.
+    await enqueueParts([0])
+    await gotoDownloads()
+    await waitForRowCount('running', 1)
+
     await enqueueParts([1])
+    await gotoDownloads()
     await waitForRowCount('running', 1)
     await waitForRowCount('pending', 1)
 
     // Same part again: in-place replace — the queued count stays 1 and no
     // running part is cancelled (still exactly 1 running row).
     await enqueueParts([1])
+    await gotoDownloads()
     await waitForRowCount('running', 1)
     await waitForRowCount('pending', 1)
     await saveScreenshot('queue-replace', '01-pending-in-place')
+
+    await waitForIdle()
+    await waitForRowCount('done', 6)
   })
 
-  it('re-enqueue of a RUNNING part cancels it and appends a fresh row', async () => {
+  it('re-enqueue of a RUNNING part cancels it and appends a fresh running row', async () => {
     await enqueueParts([0])
+    await gotoDownloads()
+    await waitForRowCount('running', 1)
 
-    // Old part 0 settles as cancelled; the fresh part 0 queues at the tail.
+    // Old part 0 settles as cancelled; the fresh part 0 is appended and —
+    // with nothing else queued — picked up as the new RUNNING row.
+    await enqueueParts([0])
+    await gotoDownloads()
     await waitForRowCount('cancelled', 1)
-    await waitForRowCount('running', 0)
-    await waitForRowCount('pending', 2)
+    await waitForRowCount('running', 1)
     await saveScreenshot('queue-replace', '02-running-replace')
+
+    await waitForIdle()
+    await waitForRowCount('done', 7)
   })
 
-  it('re-enqueue of a user-CANCELLED part appends a fresh queued row', async () => {
-    // Cancel one queued row from /downloads…
+  it('re-enqueue of a user-CANCELLED part appends a fresh running row', async () => {
+    // Cancel the running row from /downloads…
+    await enqueueParts([2])
+    await gotoDownloads()
+    await waitForRowCount('running', 1)
     const cancel = await browser.$(S.QUEUE_ROW_CANCEL)
     await cancel.waitForClickable({ timeout: 10_000 })
     await cancel.click()
-    await waitForRowCount('pending', 1)
+    // Nothing else is queued, so the queue goes fully idle.
+    await waitForIdle()
     await waitForRowCount('cancelled', 2)
     await saveScreenshot('queue-replace', '03-cancelled-row')
 
-    // …then re-enqueue that part: fresh queued row, cancelled row stays.
+    // …then re-enqueue that part: fresh row appended and started, the
+    // cancelled row stays.
     await enqueueParts([2])
-    await waitForRowCount('pending', 2)
+    await gotoDownloads()
+    await waitForRowCount('running', 1)
     await waitForRowCount('cancelled', 2)
     await saveScreenshot('queue-replace', '04-cancelled-append')
+
+    await waitForIdle()
+    await waitForRowCount('done', 8)
   })
 
-  it('drains to completion with finished entries accumulating', async () => {
-    // The bottom bar persists while the queue holds items — drain is
-    // asserted via zero active rows, not via the bar hiding.
-    await waitForRowCount('pending', 0, 120_000)
-    await waitForRowCount('running', 0, 120_000)
+  it('leaves every matrix branch drained and settled', async () => {
+    // Final invariant: no active rows, all branches terminal
+    // (done=8: setup 3 + one per matrix branch; cancelled=2).
+    await waitForIdle()
+    await waitForRowCount('done', 8)
+    await waitForRowCount('cancelled', 2)
     await saveScreenshot('queue-replace', '05-drained')
   })
 })
