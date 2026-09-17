@@ -31,6 +31,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Defender real-time scanning of the freshly built debug exe + WebView2
+      # runtime startup delays the first app launch past tauri-webdriver's
+      # internal window wait, so the first WebDriver session POST fails with
+      # "No window could be found" (Windows-only flake; macOS is unaffected).
+      # Disabling it is standard practice on disposable GH Actions runners
+      # and also speeds up the Rust build. continue-on-error guards against
+      # the cmdlet disappearing from future runner images.
+      - name: Disable Windows Defender real-time monitoring
+        if: runner.os == 'Windows'
+        shell: pwsh
+        continue-on-error: true
+        run: Set-MpPreference -DisableRealtimeMonitoring $true
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
