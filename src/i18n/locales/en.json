@@ -31,6 +31,8 @@
     "init": "Init",
     "error": "Error",
     "favoriteLoginRequired": "Available after login",
+    "noBackHistory": "No earlier page to go back to",
+    "noForwardHistory": "No later page to go forward to",
     "category": {
       "bilibili": "Bilibili",
       "tool": "Tools"
@@ -50,7 +52,9 @@
       "audio": "Navigate to audio page",
       "resolution": "Navigate to resolution page",
       "rotation": "Navigate to rotation page",
-      "gif": "Navigate to GIF/WebM generator page"
+      "gif": "Navigate to GIF/WebM generator page",
+      "goBack": "Go back one page",
+      "goForward": "Go forward one page"
     },
     "audio": "Audio",
     "resolution": "Resolution",
