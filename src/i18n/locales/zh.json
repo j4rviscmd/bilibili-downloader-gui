@@ -31,6 +31,8 @@
     "init": "初始化",
     "error": "错误",
     "favoriteLoginRequired": "登录后可用",
+    "noBackHistory": "没有可返回的页面",
+    "noForwardHistory": "没有可前进的页面",
     "category": {
       "bilibili": "Bilibili",
       "tool": "工具"
@@ -50,7 +52,9 @@
       "audio": "前往音频提取页面",
       "resolution": "转到分辨率转换页面",
       "rotation": "转到旋转视频页面",
-      "gif": "前往 GIF/WebM 生成页面"
+      "gif": "前往 GIF/WebM 生成页面",
+      "goBack": "返回上一页",
+      "goForward": "前进到下一页"
     },
     "audio": "音频提取",
     "resolution": "分辨率转换",

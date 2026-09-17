@@ -11,20 +11,15 @@ import {
   SidebarMenuItem,
   SidebarProvider,
   SidebarRail,
+  SidebarSeparator,
   useSidebar,
 } from '@/shared/animate-ui/radix/sidebar'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/shared/animate-ui/radix/tooltip'
-import { cn } from '@/shared/lib/utils'
 import { QueueBottomBar } from '@/shared/queue/ui/QueueBottomBar'
 import { ThumbnailFlightLayer } from '@/shared/queue/ui/ThumbnailFlightLayer'
 import AppBar from '@/shared/ui/AppBar/AppBar'
-import { Button } from '@/shared/ui/button'
+import { HistoryNavigation } from '@/shared/ui/AppBar/HistoryNavigation'
 import { NavigationSidebarHeader } from '@/shared/ui/NavigationSidebar'
-import { Archive, PanelLeft, PanelLeftClose } from 'lucide-react'
+import { Archive, ChevronsLeft, ChevronsRight } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router'
@@ -38,9 +33,14 @@ export interface PageLayoutShellProps {
 }
 
 /**
- * Custom sidebar trigger with dynamic icon and accessibility improvements.
+ * Sidebar expand/collapse toggle rendered at the bottom of the sidebar
+ * footer, below a divider (Google Cloud Console docs style).
+ *
+ * Why: the toggle used to live in the app bar next to the back/forward
+ * navigation (issue #692), which made the three icon buttons easy to
+ * mis-tap. Placing it inside the sidebar keeps the two controls apart.
  */
-function EnhancedSidebarTrigger({ className }: { className?: string }) {
+function SidebarToggleButton() {
   const { state, toggleSidebar } = useSidebar()
   const { t } = useTranslation()
 
@@ -48,26 +48,17 @@ function EnhancedSidebarTrigger({ className }: { className?: string }) {
   const label = isExpanded
     ? t('nav.aria.closeSidebar') || 'Close sidebar'
     : t('nav.aria.openSidebar') || 'Open sidebar'
-  const Icon = isExpanded ? PanelLeftClose : PanelLeft
+  const Icon = isExpanded ? ChevronsLeft : ChevronsRight
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn('h-full shrink-0 cursor-pointer', className)}
-          onClick={toggleSidebar}
-          aria-label={label}
-        >
-          <Icon />
-          <span className="sr-only">{label}</span>
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent side="right" align="center">
-        {label}
-      </TooltipContent>
-    </Tooltip>
+    <SidebarMenuButton
+      onClick={toggleSidebar}
+      tooltip={label}
+      aria-label={label}
+    >
+      <Icon className="size-4" />
+      <span>{label}</span>
+    </SidebarMenuButton>
   )
 }
 
@@ -139,13 +130,19 @@ export function PageLayoutShell({ children }: PageLayoutShellProps) {
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
+            <SidebarSeparator className="mx-0 my-1" />
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarToggleButton />
+              </SidebarMenuItem>
+            </SidebarMenu>
           </SidebarFooter>
           <SidebarRail />
         </Sidebar>
         <SidebarInset>
           <div className="flex h-full w-full flex-col">
             <header className="bg-accent flex shadow-md">
-              <EnhancedSidebarTrigger />
+              <HistoryNavigation />
               <AppBar user={user} theme={theme} setTheme={setTheme} />
             </header>
             {children}

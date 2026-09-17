@@ -31,6 +31,8 @@
     "init": "초기화",
     "error": "오류",
     "favoriteLoginRequired": "로그인 후 이용할 수 있습니다",
+    "noBackHistory": "돌아갈 페이지가 없습니다",
+    "noForwardHistory": "진행할 페이지가 없습니다",
     "category": {
       "bilibili": "Bilibili",
       "tool": "도구"
@@ -50,7 +52,9 @@
       "audio": "오디오 추출 페이지로 이동",
       "resolution": "해상도 변환 페이지로 이동",
       "rotation": "영상 회전 페이지로 이동",
-      "gif": "GIF/WebM 생성 페이지로 이동"
+      "gif": "GIF/WebM 생성 페이지로 이동",
+      "goBack": "이전 페이지로 돌아가기",
+      "goForward": "다음 페이지로 진행하기"
     },
     "audio": "오디오 추출",
     "resolution": "해상도 변환",

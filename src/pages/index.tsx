@@ -18,10 +18,13 @@ function IndexPage() {
   const navigate = useNavigate()
 
   useEffect(() => {
+    // Why: replace instead of push so the transient `/` entry does not
+    // stay in the history stack — otherwise the app bar back button
+    // (issue #692) returns here and this redirect bounces forward again.
     if (initiated) {
-      navigate('/search')
+      navigate('/search', { replace: true })
     } else {
-      navigate('/init')
+      navigate('/init', { replace: true })
     }
   }, [initiated, navigate])
 

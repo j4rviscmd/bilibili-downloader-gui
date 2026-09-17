@@ -31,6 +31,8 @@
     "init": "初期化",
     "error": "エラー",
     "favoriteLoginRequired": "ログインすると利用できます",
+    "noBackHistory": "戻れるページがありません",
+    "noForwardHistory": "進めるページがありません",
     "category": {
       "bilibili": "Bilibili",
       "tool": "ツール"
@@ -50,7 +52,9 @@
       "audio": "音声抽出ページへ移動",
       "resolution": "解像度変換ページへ移動",
       "rotation": "動画回転ページへ移動",
-      "gif": "GIF/WebM生成ページへ移動"
+      "gif": "GIF/WebM生成ページへ移動",
+      "goBack": "前のページへ戻る",
+      "goForward": "次のページへ進む"
     },
     "audio": "音声抽出",
     "resolution": "解像度変換",

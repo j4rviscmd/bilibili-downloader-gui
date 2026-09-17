@@ -31,6 +31,8 @@
     "init": "Initialisation",
     "error": "Erreur",
     "favoriteLoginRequired": "Disponible après connexion",
+    "noBackHistory": "Aucune page précédente où retourner",
+    "noForwardHistory": "Aucune page suivante où avancer",
     "category": {
       "bilibili": "Bilibili",
       "tool": "Outils"
@@ -50,7 +52,9 @@
       "audio": "Aller à la page audio",
       "resolution": "Aller à la page de résolution",
       "rotation": "Aller à la page de rotation",
-      "gif": "Aller au générateur GIF/WebM"
+      "gif": "Aller au générateur GIF/WebM",
+      "goBack": "Retourner à la page précédente",
+      "goForward": "Aller à la page suivante"
     },
     "audio": "Audio",
     "resolution": "Résolution",
