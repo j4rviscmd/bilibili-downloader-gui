@@ -95,6 +95,11 @@
 > xattr -dr com.apple.quarantine "/Applications/bilibili-downloader-gui.app"
 > ```
 
+> [!NOTE]
+> 自 v1.62.0 起，Linux 版本在 Ubuntu 24.04 上编译，需要 glibc 2.39 或更高版本（Debian 13+、Ubuntu 24.04+）。
+> 在 Ubuntu 22.04、Debian 12 等较旧的发行版上，v1.62.0 及之后的版本会因 `GLIBC_2.39 not found`
+> 错误无法启动——请勿在这些系统上更新应用。
+
 Windows 安装器支持选择安装语言。应用首次启动时，会在安装 FFmpeg 前让你选择默认语言，
 并按系统/浏览器语言预选；之后可在设置中修改。
 

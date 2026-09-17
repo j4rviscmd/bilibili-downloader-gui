@@ -138,7 +138,13 @@ jobs:
             args: '--target aarch64-apple-darwin'
           - platform: 'macos-latest' # Intel
             args: '--target x86_64-apple-darwin'
-          - platform: 'ubuntu-22.04'
+          # Why pinned to 24.04 (not ubuntu-latest): the glibc baseline of the
+          # Linux artifacts follows the build image (2.39 on noble), and the
+          # README documents that baseline — ubuntu-latest would silently bump
+          # it when it moves on (e.g. 26.04 → glibc 2.41). ubuntu-22.04 was
+          # dropped because its runner image entered deprecation on 2026-09-17
+          # (brownouts until 2027-04 retirement), see #710.
+          - platform: 'ubuntu-24.04'
             args: ''
           - platform: 'windows-latest'
             args: ''
@@ -178,7 +184,7 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Install dependencies (Ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04'
+        if: matrix.platform == 'ubuntu-24.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libdbus-1-dev
