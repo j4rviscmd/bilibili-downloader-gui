@@ -97,6 +97,12 @@ No ads, no tracking. 100% free.
 > xattr -dr com.apple.quarantine "/Applications/bilibili-downloader-gui.app"
 > ```
 
+> [!NOTE]
+> Linux builds require glibc 2.39 or newer (Debian 13+, Ubuntu 24.04+) since
+> v1.62.0, when builds moved to Ubuntu 24.04. On older distributions such as
+> Ubuntu 22.04 or Debian 12, v1.62.0 and later fail to start with a
+> `GLIBC_2.39 not found` error — do not update on those systems.
+
 The Windows installer offers a language selector. On first launch, choose
 the application's default language before FFmpeg setup starts; the initial
 selection follows your system/browser language. You can change it in Settings.

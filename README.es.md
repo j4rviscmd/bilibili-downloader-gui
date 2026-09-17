@@ -95,6 +95,9 @@ Sin anuncios, sin seguimiento. 100% gratis.
 > xattr -dr com.apple.quarantine "/Applications/bilibili-downloader-gui.app"
 > ```
 
+> [!NOTE]
+> A partir de v1.62.0, las compilaciones de Linux se crean en Ubuntu 24.04 y requieren glibc 2.39 o superior (Debian 13+, Ubuntu 24.04+). En distribuciones más antiguas como Ubuntu 22.04 o Debian 12, v1.62.0 y posteriores no se inician y muestran el error `GLIBC_2.39 not found`; no actualices en esos sistemas.
+
 El instalador de Windows ofrece un selector de idioma. En el primer inicio, elige el idioma predeterminado de la aplicación antes de que comience la configuración de FFmpeg; la selección inicial sigue el idioma de tu sistema/navegador. Puedes cambiarlo en Configuración.
 
 ### Opción B: ZIP portátil (solo Windows)
