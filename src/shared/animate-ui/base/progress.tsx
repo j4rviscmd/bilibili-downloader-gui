@@ -1,6 +1,7 @@
 'use client'
 
-import { Progress as ProgressPrimitives } from '@base-ui-components/react/progress'
+// Why: old package @base-ui-components/react is deprecated on npm ("Package was renamed to @base-ui/react"); this import must stay on the new canonical name — reverting to the old path re-introduces the deprecation
+import { Progress as ProgressPrimitives } from '@base-ui/react/progress'
 import { motion, type Transition } from 'motion/react'
 import * as React from 'react'
 
