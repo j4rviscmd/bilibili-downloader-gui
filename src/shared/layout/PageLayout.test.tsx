@@ -47,14 +47,29 @@ describe('PageLayoutShell', () => {
     renderShell()
 
     expect(screen.getByText('page-body')).toBeInTheDocument()
-    // Chrome pieces: sidebar trigger, settings nav, app bar
-    // (label depends on the sidebar's collapsed state)
+    // Chrome pieces: sidebar toggle at the top of the sidebar (its label
+    // depends on the collapsed state), settings nav, app bar
     expect(
       screen.getByRole('button', { name: /nav\.aria\.(open|close)Sidebar/ }),
     ).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: 'settings.title' }),
     ).toBeInTheDocument()
+  })
+
+  it('toggles the sidebar collapsed state from the sidebar top button', async () => {
+    const { user } = renderShell('/search')
+
+    // Sidebar starts expanded, so the button offers collapsing
+    await user.click(
+      screen.getByRole('button', { name: 'nav.aria.closeSidebar' }),
+    )
+
+    await vi.waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'nav.aria.openSidebar' }),
+      ).toBeInTheDocument(),
+    )
   })
 
   it('marks the history nav active only on /history', () => {

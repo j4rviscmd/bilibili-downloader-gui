@@ -230,6 +230,12 @@ export const config = {
   // Base options
   baseUrl: 'http://localhost:1420',
   waitforTimeout: 10_000,
-  connectionRetryTimeout: 120_000,
-  connectionRetryCount: 3,
+  // Why: each wdio spec creates a new WebDriver session, and tauri-webdriver
+  // waits a fixed internal budget for the app's first window. On cold Windows
+  // runners (Defender + first WebView2 spin-up) the first spec can burn
+  // through all retries with "No window could be found" — widen both so the
+  // slow first session still lands (see also the Defender disable step in
+  // .github/workflows/e2e.yml)
+  connectionRetryTimeout: 300_000,
+  connectionRetryCount: 5,
 }
