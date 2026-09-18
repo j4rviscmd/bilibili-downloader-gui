@@ -1,3 +1,5 @@
+[English](README.md) | 日本語 | [简体中文](README.zh.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Français](README.fr.md)
+
 <div align="center">
 
 # Bilibili Downloader GUI
@@ -8,8 +10,6 @@
 </picture>
 
 <img src="./public/app-demo_en.webp" alt="App Demo">
-
-[English](README.md) | 日本語 | [简体中文](README.zh.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Français](README.fr.md)
 
 [![Windows](https://img.shields.io/badge/Windows-Supported-0078D6?style=flat&logo=data:image/svg%2bxml;base64,PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+V2luZG93cyAxMTwvdGl0bGU+PHBhdGggZmlsbD0iIzAwQTRFRiIgZD0iTTAsMEgxMS4zNzdWMTEuMzcySDBaTTEyLjYyMywwSDI0VjExLjM3MkgxMi42MjNaTTAsMTIuNjIzSDExLjM3N1YyNEgwWm0xMi42MjMsMEgyNFYyNEgxMi42MjMiLz48L3N2Zz4=)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Windows_x64-setup.exe)
 [![macOS](https://img.shields.io/badge/macOS-Supported-000000?style=flat&logo=apple&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_macOS_arm64.dmg)
@@ -29,6 +29,42 @@
 広告なし、追跡なし。100%無料。
 
 </div>
+
+## インストール
+
+### 方法A: インストーラー（推奨）
+
+| プラットフォーム          | ダウンロード                                                                                                                                                                 |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **macOS (Apple Silicon)** | [bilibili-downloader-gui_macOS_arm64.dmg](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_macOS_arm64.dmg)             |
+| **macOS (Intel)**         | [bilibili-downloader-gui_macOS_x64.dmg](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_macOS_x64.dmg)                 |
+| **Windows**               | [bilibili-downloader-gui_Windows_x64-setup.exe](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Windows_x64-setup.exe) |
+| **Linux (deb)**           | [bilibili-downloader-gui_Linux_x64.deb](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Linux_x64.deb)                 |
+| **Linux (AppImage)**      | [bilibili-downloader-gui_Linux_x64.AppImage](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Linux_x64.AppImage)       |
+
+> [!NOTE]
+> macOSビルドはアドホックコード署名を使用しています（Appleの公証は受けていません）。初回起動時に **システム設定 > プライバシーとセキュリティ** で **このまま開く** をクリックしてください。または、以下を実行してください：
+>
+> ```bash
+> xattr -dr com.apple.quarantine "/Applications/bilibili-downloader-gui.app"
+> ```
+
+> [!NOTE]
+> Linuxビルドはv1.62.0からUbuntu 24.04上でコンパイルされており、glibc 2.39以上（Debian 13+、Ubuntu 24.04+）が必要です。Ubuntu 22.04やDebian 12など古いディストリビューションでは、v1.62.0以降は `GLIBC_2.39 not found` エラーで起動しないため、これらのシステムではアップデートしないでください。
+
+Windowsインストーラーは言語選択に対応しています。初回起動時、FFmpegセットアップの開始前にアプリケーションのデフォルト言語を選択します。初期選択はシステム/ブラウザの言語に従い、後から設定で変更できます。
+
+### 方法B: ポータブルZIP（Windowsのみ）
+
+Releaseページでは、ポータブル版のWindows x64 ZIPエディションを2種類提供しています：
+
+- `Windows_x64-light.zip`: ダウンロードサイズが小さく、初回起動時にFFmpegをインストール
+- `Windows_x64-with-ffmpeg.zip`: FFmpegとそのライセンス、アップストリームのビルド・ソース情報を同梱し、ネットワークダウンロードなしでFFmpegセットアップが動作
+
+実行前にZIP全体を解凍してください。両エディションともMicrosoft Edge WebView2 Runtimeが必要で、設定は通常のアプリケーションデータディレクトリに保存されます。同梱FFmpegは設定済みライブラリディレクトリにコピーされ、アプリケーション更新後も引き続き利用できます。
+
+> [!WARNING]
+> ZIPエディションは自動アップデートされません。[リリースページ](https://github.com/j4rviscmd/bilibili-downloader-gui/releases)を定期的に確認し、手動でアップデートしてください。
 
 ## 機能
 
@@ -75,42 +111,6 @@
 - **安全な認証情報管理** - QRコードログインの認証情報はAES-256-GCMで暗号化してローカルに保存。Argon2idによる鍵導出でマシン固有の保護を実現
 - **ローカルのみ保存** - ダウンロードした動画はPC内にのみ保存
 - **トラッキングなし** - Bilibili API、アップデート用のGitHub、セットアップ用のFFmpeg配布ホストとのみ通信、テレメトリなし
-
-## インストール
-
-### 方法A: インストーラー（推奨）
-
-| プラットフォーム          | ダウンロード                                                                                                                                                                 |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **macOS (Apple Silicon)** | [bilibili-downloader-gui_macOS_arm64.dmg](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_macOS_arm64.dmg)             |
-| **macOS (Intel)**         | [bilibili-downloader-gui_macOS_x64.dmg](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_macOS_x64.dmg)                 |
-| **Windows**               | [bilibili-downloader-gui_Windows_x64-setup.exe](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Windows_x64-setup.exe) |
-| **Linux (deb)**           | [bilibili-downloader-gui_Linux_x64.deb](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Linux_x64.deb)                 |
-| **Linux (AppImage)**      | [bilibili-downloader-gui_Linux_x64.AppImage](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Linux_x64.AppImage)       |
-
-> [!NOTE]
-> macOSビルドはアドホックコード署名を使用しています（Appleの公証は受けていません）。初回起動時に **システム設定 > プライバシーとセキュリティ** で **このまま開く** をクリックしてください。または、以下を実行してください：
->
-> ```bash
-> xattr -dr com.apple.quarantine "/Applications/bilibili-downloader-gui.app"
-> ```
-
-> [!NOTE]
-> Linuxビルドはv1.62.0からUbuntu 24.04上でコンパイルされており、glibc 2.39以上（Debian 13+、Ubuntu 24.04+）が必要です。Ubuntu 22.04やDebian 12など古いディストリビューションでは、v1.62.0以降は `GLIBC_2.39 not found` エラーで起動しないため、これらのシステムではアップデートしないでください。
-
-Windowsインストーラーは言語選択に対応しています。初回起動時、FFmpegセットアップの開始前にアプリケーションのデフォルト言語を選択します。初期選択はシステム/ブラウザの言語に従い、後から設定で変更できます。
-
-### 方法B: ポータブルZIP（Windowsのみ）
-
-Releaseページでは、ポータブル版のWindows x64 ZIPエディションを2種類提供しています：
-
-- `Windows_x64-light.zip`: ダウンロードサイズが小さく、初回起動時にFFmpegをインストール
-- `Windows_x64-with-ffmpeg.zip`: FFmpegとそのライセンス、アップストリームのビルド・ソース情報を同梱し、ネットワークダウンロードなしでFFmpegセットアップが動作
-
-実行前にZIP全体を解凍してください。両エディションともMicrosoft Edge WebView2 Runtimeが必要で、設定は通常のアプリケーションデータディレクトリに保存されます。同梱FFmpegは設定済みライブラリディレクトリにコピーされ、アプリケーション更新後も引き続き利用できます。
-
-> [!WARNING]
-> ZIPエディションは自動アップデートされません。[リリースページ](https://github.com/j4rviscmd/bilibili-downloader-gui/releases)を定期的に確認し、手動でアップデートしてください。
 
 ## コントリビューション
 

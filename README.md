@@ -1,3 +1,5 @@
+English | [日本語](README.ja.md) | [简体中文](README.zh.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Français](README.fr.md)
+
 <div align="center">
 
 # Bilibili Downloader GUI
@@ -8,8 +10,6 @@
 </picture>
 
 <img src="./public/app-demo_en.webp" alt="App Demo">
-
-English | [日本語](README.ja.md) | [简体中文](README.zh.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Français](README.fr.md)
 
 [![Windows](https://img.shields.io/badge/Windows-Supported-0078D6?style=flat&logo=data:image/svg%2bxml;base64,PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+V2luZG93cyAxMTwvdGl0bGU+PHBhdGggZmlsbD0iIzAwQTRFRiIgZD0iTTAsMEgxMS4zNzdWMTEuMzcySDBaTTEyLjYyMywwSDI0VjExLjM3MkgxMi42MjNaTTAsMTIuNjIzSDExLjM3N1YyNEgwWm0xMi42MjMsMEgyNFYyNEgxMi42MjMiLz48L3N2Zz4=)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Windows_x64-setup.exe)
 [![macOS](https://img.shields.io/badge/macOS-Supported-000000?style=flat&logo=apple&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_macOS_arm64.dmg)
@@ -29,54 +29,6 @@ English | [日本語](README.ja.md) | [简体中文](README.zh.md) | [한국어]
 No ads, no tracking. 100% free.
 
 </div>
-
-## Features
-
-### Download
-
-- **High-quality video download** - Choose any quality from 8K/4K/1080p/720p/HDR10/Dolby Vision
-- **Bangumi (anime & series) support** - Download anime and series episodes alongside regular videos
-- **Multi-part video batch save** - Automatically download all parts of courses, series, etc.
-- **Fast & stable downloads** - Auto CDN switching with automatic retry on network errors
-- **Download queue** - Keep searching and queueing while downloads run; a
-  serial queue (FIFO) drains on the Downloads page with a bottom progress
-  bar
-- **Subtitle embedding** - Soft/hard subtitle selection with multi-language and AI subtitle support
-- **Hi-Res Audio** - Dolby Atmos and Hi-Res Lossless audio quality support
-
-### Local MP4 Tools
-
-- **Trim** - Cut local MP4 files by start/end time (lossless stream copy or re-encode)
-- **Concat** - Merge multiple MP4 files into one (auto re-encode fallback on codec mismatch)
-- **Audio Extract** - Extract audio from local MP4 to MP3/M4A with bitrate presets
-- **GIF / WebM Generator** - Turn a local MP4 clip into an animated GIF (256-color) or a silent WebM with width/FPS presets
-
-### Bilibili Integration
-
-- **Favorites** - Browse and download videos from your Bilibili favorite folders
-- **Watch History** - Download videos directly from your Bilibili watch history
-- **Short URL auto-expand** - b23.tv short links automatically expand to full video URLs
-
-### Ease of Use
-
-- **6-language UI** - English / 日本語 / Français / Español / 中文 / 한국어
-- **One-click setup** - FFmpeg auto-install with functionality validation, no manual configuration needed
-- **Auto-update** - Built-in updater with signed release verification and release notes
-- **History search & export** - Export download history to JSON/CSV
-- **Dark mode support** - Light/dark theme toggle
-
-### Authentication Methods
-
-- **Firefox Cookie Auto-detection** - Detects Firefox cookies for high-quality downloads without manual login
-- **QR Code Login** - Scan the QR code in the app to log in
-- **Manual Cookie Paste** - Paste a `Cookie` header copied from your browser's DevTools; it is verified and stored like a QR session
-  - Switch between Cookie, QR, and manual login at any time
-
-### Privacy & Security
-
-- **Secure Credential Management** - QR code login credentials are encrypted with AES-256-GCM and stored locally. Keys are derived using Argon2id, ensuring machine-specific protection.
-- **Local-only Storage** - Downloaded videos are stored only on your PC
-- **No tracking** - Uses Bilibili APIs, GitHub for updates, and FFmpeg distribution hosts for setup; no telemetry
 
 ## Installation
 
@@ -130,6 +82,54 @@ and remains available after an application update.
      README.zh.md — do not re-add them here or translate them into other
      language READMEs. Developer packaging steps live in
      .github/workflows/windows-zips.yml. -->
+
+## Features
+
+### Download
+
+- **High-quality video download** - Choose any quality from 8K/4K/1080p/720p/HDR10/Dolby Vision
+- **Bangumi (anime & series) support** - Download anime and series episodes alongside regular videos
+- **Multi-part video batch save** - Automatically download all parts of courses, series, etc.
+- **Fast & stable downloads** - Auto CDN switching with automatic retry on network errors
+- **Download queue** - Keep searching and queueing while downloads run; a
+  serial queue (FIFO) drains on the Downloads page with a bottom progress
+  bar
+- **Subtitle embedding** - Soft/hard subtitle selection with multi-language and AI subtitle support
+- **Hi-Res Audio** - Dolby Atmos and Hi-Res Lossless audio quality support
+
+### Local MP4 Tools
+
+- **Trim** - Cut local MP4 files by start/end time (lossless stream copy or re-encode)
+- **Concat** - Merge multiple MP4 files into one (auto re-encode fallback on codec mismatch)
+- **Audio Extract** - Extract audio from local MP4 to MP3/M4A with bitrate presets
+- **GIF / WebM Generator** - Turn a local MP4 clip into an animated GIF (256-color) or a silent WebM with width/FPS presets
+
+### Bilibili Integration
+
+- **Favorites** - Browse and download videos from your Bilibili favorite folders
+- **Watch History** - Download videos directly from your Bilibili watch history
+- **Short URL auto-expand** - b23.tv short links automatically expand to full video URLs
+
+### Ease of Use
+
+- **6-language UI** - English / 日本語 / Français / Español / 中文 / 한국어
+- **One-click setup** - FFmpeg auto-install with functionality validation, no manual configuration needed
+- **Auto-update** - Built-in updater with signed release verification and release notes
+- **History search & export** - Export download history to JSON/CSV
+- **Dark mode support** - Light/dark theme toggle
+
+### Authentication Methods
+
+- **Firefox Cookie Auto-detection** - Detects Firefox cookies for high-quality downloads without manual login
+- **QR Code Login** - Scan the QR code in the app to log in
+- **Manual Cookie Paste** - Paste a `Cookie` header copied from your browser's DevTools; it is verified and stored like a QR session
+  - Switch between Cookie, QR, and manual login at any time
+
+### Privacy & Security
+
+- **Secure Credential Management** - QR code login credentials are encrypted with AES-256-GCM and stored locally. Keys are derived using Argon2id, ensuring machine-specific protection.
+- **Local-only Storage** - Downloaded videos are stored only on your PC
+- **No tracking** - Uses Bilibili APIs, GitHub for updates, and FFmpeg distribution hosts for setup; no telemetry
 
 ## Contributing
 
