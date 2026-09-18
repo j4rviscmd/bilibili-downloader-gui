@@ -1,0 +1,16 @@
+#!/bin/sh
+# Reject any push that creates, updates, or deletes refs/heads/main.
+# main only ever advances through PR merges; a direct push is almost
+# always an accident (wrong branch checked out, wrong refspec). The
+# server-side ruleset exempts repo admins, so this local hook is the
+# real guard for the owner's own machine. Use `git push --no-verify`
+# for a deliberate emergency push.
+
+set -e
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$remote_ref" = "refs/heads/main" ] || continue
+  echo "error: refusing to push ${remote_ref}: main accepts PR merges only." >&2
+  echo "error: if this is intentional, retry with --no-verify." >&2
+  exit 1
+done
