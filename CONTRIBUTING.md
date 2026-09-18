@@ -22,10 +22,12 @@ on macOS, MSVC Build Tools + WebView2 on Windows).
 npm install && npm run tauri dev
 ```
 
-`npm install` also activates the format-on-commit hook (`.githooks/`
-via `core.hooksPath`, see the `prepare` script). It runs `cargo fmt`
-and `prettier --write` on staged files and re-stages them; CI remains
-the fail-safe gate if the hook is bypassed (e.g. `--no-verify`).
+`npm install` also activates the git hooks in `.githooks/` (via
+`core.hooksPath`, see the `prepare` script). `pre-commit` runs
+`cargo fmt` and `prettier --write` on staged files and re-stages them;
+CI remains the fail-safe gate if the hook is bypassed. `pre-push`
+rejects any direct push to `main` (create, update, or delete) —
+`main` accepts PR merges only.
 
 See `package.json` scripts for all available commands.
 

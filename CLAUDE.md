@@ -118,8 +118,9 @@ into the **required** `ci-status` status check. The `coverage` job
      are not re-validated by this workflow -->
 - **reviewdog** posts eslint/clippy findings as PR inline comments and
   formatter fixes as suggested changes (one-click apply). ci.yml runs
-  on pull_request only (no push-to-main trigger). Local format-on-commit
-  hook lives in `.githooks/` (activated by the `prepare` npm script).
+  on pull_request only (no push-to-main trigger). Local hooks live in
+  `.githooks/` (activated by the `prepare` npm script): pre-commit
+  formats staged files, pre-push rejects direct pushes to `main`.
 - **gitleaks** (`.github/workflows/gitleaks.yml`) scans for leaked
   secrets: PR/push events scan the event's commits, and a daily
   scheduled run scans the full git history. Its `Secret Scan` check is
