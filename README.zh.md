@@ -1,3 +1,5 @@
+[English](README.md) | [日本語](README.ja.md) | 简体中文 | [한국어](README.ko.md) | [Español](README.es.md) | [Français](README.fr.md)
+
 <div align="center">
 
 # Bilibili Downloader GUI
@@ -8,8 +10,6 @@
 </picture>
 
 <img src="./public/app-demo_en.webp" alt="App Demo">
-
-[English](README.md) | [日本語](README.ja.md) | 简体中文 | [한국어](README.ko.md) | [Español](README.es.md) | [Français](README.fr.md)
 
 [![Windows](https://img.shields.io/badge/Windows-Supported-0078D6?style=flat&logo=data:image/svg%2bxml;base64,PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+V2luZG93cyAxMTwvdGl0bGU+PHBhdGggZmlsbD0iIzAwQTRFRiIgZD0iTTAsMEgxMS4zNzdWMTEuMzcySDBaTTEyLjYyMywwSDI0VjExLjM3MkgxMi42MjNaTTAsMTIuNjIzSDExLjM3N1YyNEgwWm0xMi42MjMsMEgyNFYyNEgxMi42MjMiLz48L3N2Zz4=)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Windows_x64-setup.exe)
 [![macOS](https://img.shields.io/badge/macOS-Supported-000000?style=flat&logo=apple&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_macOS_arm64.dmg)
@@ -29,52 +29,6 @@
 无广告，无追踪。100% 免费。
 
 </div>
-
-## 功能特性
-
-### 下载
-
-- **高品质视频下载** - 可选择 8K/4K/1080p/720p/HDR10/杜比视界 等任意画质
-- **番剧（动画/剧集）支持** - 除了普通视频，还可下载动画和剧集各集
-- **多部分视频批量保存** - 自动下载课程、番剧等所有部分
-- **高速稳定下载** - CDN 自动切换，网络错误时自动重试
-- **下载队列** - 下载进行中也可继续搜索和追加；串行队列（FIFO）在下载页消化，底部进度条显示总览
-- **字幕嵌入** - 软/硬字幕选择，多语言及 AI 字幕支持
-- **高解析度音频** - 支持 Dolby Atmos 和 Hi-Res Lossless
-
-### 本地 MP4 工具
-
-- **剪辑** - 指定开始/结束时间裁切本地 MP4（无损流复制或重新编码）
-- **合并** - 将多个 MP4 文件合并为一个（编码不一致时自动重新编码）
-- **音频提取** - 从本地 MP4 提取音频为 MP3/M4A，可选比特率
-- **GIF / WebM 生成** - 从本地 MP4 片段生成 GIF 动画（256 色）或无声 WebM，可选宽度和帧率
-
-### Bilibili 集成
-
-- **收藏夹** - 浏览并下载 Bilibili 收藏夹中的视频
-- **观看历史** - 直接从 Bilibili 观看历史中下载
-- **短链接自动展开** - b23.tv 短链接自动展开为完整视频地址
-
-### 易用性
-
-- **6语言界面** - 英语 / 日语 / 法语 / 西班牙语 / 中文 / 韩语
-- **一键安装** - FFmpeg 自动安装（含功能验证），无需手动配置
-- **自动更新** - 内置带签名验证的更新器和发布说明
-- **历史搜索与导出** - 支持将下载历史导出为 JSON/CSV
-- **暗色模式支持** - 亮色/暗色主题切换
-
-### 认证方式
-
-- **Firefox Cookie 自动检测** - 检测 Firefox 浏览器的 Cookie，无需手动登录即可下载高清视频
-- **二维码登录** - 在应用内扫描二维码即可登录
-- **手动 Cookie 粘贴** - 粘贴从浏览器 DevTools 复制的 `Cookie` 请求头，像二维码会话一样验证并保存
-  - Cookie、二维码与手动登录可随时切换
-
-### 隐私与安全
-
-- **安全的凭证管理** - 二维码登录的凭证使用AES-256-GCM加密并本地存储。通过Argon2id密钥派生实现机器特定的保护。
-- **本地存储** - 下载的视频仅保存在您的电脑上
-- **无追踪** - 使用 Bilibili API、GitHub 更新服务和 FFmpeg 安装下载源，无遥测
 
 ## 安装
 
@@ -125,6 +79,52 @@ Release 页面还提供两个 Windows x64 ZIP 便携版：
 [npmmirror 国内镜像](https://registry.npmmirror.com/binary.html?path=ffmpeg-static/)，由国内 CDN 直接提供文件。
 GitHub 主源和国内镜像使用同一份固定的 `ffmpeg-static` b6.1.1 构建，并按本机系统和架构选择文件。
 所有下载都先按 `src-tauri/ffmpeg-binaries.json` 中上游公布的 SHA-256 校验，再解压并执行 AAC 编码验证。
+
+## 功能特性
+
+### 下载
+
+- **高品质视频下载** - 可选择 8K/4K/1080p/720p/HDR10/杜比视界 等任意画质
+- **番剧（动画/剧集）支持** - 除了普通视频，还可下载动画和剧集各集
+- **多部分视频批量保存** - 自动下载课程、番剧等所有部分
+- **高速稳定下载** - CDN 自动切换，网络错误时自动重试
+- **下载队列** - 下载进行中也可继续搜索和追加；串行队列（FIFO）在下载页消化，底部进度条显示总览
+- **字幕嵌入** - 软/硬字幕选择，多语言及 AI 字幕支持
+- **高解析度音频** - 支持 Dolby Atmos 和 Hi-Res Lossless
+
+### 本地 MP4 工具
+
+- **剪辑** - 指定开始/结束时间裁切本地 MP4（无损流复制或重新编码）
+- **合并** - 将多个 MP4 文件合并为一个（编码不一致时自动重新编码）
+- **音频提取** - 从本地 MP4 提取音频为 MP3/M4A，可选比特率
+- **GIF / WebM 生成** - 从本地 MP4 片段生成 GIF 动画（256 色）或无声 WebM，可选宽度和帧率
+
+### Bilibili 集成
+
+- **收藏夹** - 浏览并下载 Bilibili 收藏夹中的视频
+- **观看历史** - 直接从 Bilibili 观看历史中下载
+- **短链接自动展开** - b23.tv 短链接自动展开为完整视频地址
+
+### 易用性
+
+- **6语言界面** - 英语 / 日语 / 法语 / 西班牙语 / 中文 / 韩语
+- **一键安装** - FFmpeg 自动安装（含功能验证），无需手动配置
+- **自动更新** - 内置带签名验证的更新器和发布说明
+- **历史搜索与导出** - 支持将下载历史导出为 JSON/CSV
+- **暗色模式支持** - 亮色/暗色主题切换
+
+### 认证方式
+
+- **Firefox Cookie 自动检测** - 检测 Firefox 浏览器的 Cookie，无需手动登录即可下载高清视频
+- **二维码登录** - 在应用内扫描二维码即可登录
+- **手动 Cookie 粘贴** - 粘贴从浏览器 DevTools 复制的 `Cookie` 请求头，像二维码会话一样验证并保存
+  - Cookie、二维码与手动登录可随时切换
+
+### 隐私与安全
+
+- **安全的凭证管理** - 二维码登录的凭证使用AES-256-GCM加密并本地存储。通过Argon2id密钥派生实现机器特定的保护。
+- **本地存储** - 下载的视频仅保存在您的电脑上
+- **无追踪** - 使用 Bilibili API、GitHub 更新服务和 FFmpeg 安装下载源，无遥测
 
 ## 贡献
 

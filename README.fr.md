@@ -1,3 +1,5 @@
+[English](README.md) | [日本語](README.ja.md) | [简体中文](README.zh.md) | [한국어](README.ko.md) | [Español](README.es.md) | Français
+
 <div align="center">
 
 # Bilibili Downloader GUI
@@ -8,8 +10,6 @@
 </picture>
 
 <img src="./public/app-demo_en.webp" alt="App Demo">
-
-[English](README.md) | [日本語](README.ja.md) | [简体中文](README.zh.md) | [한국어](README.ko.md) | [Español](README.es.md) | Français
 
 [![Windows](https://img.shields.io/badge/Windows-Supported-0078D6?style=flat&logo=data:image/svg%2bxml;base64,PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+V2luZG93cyAxMTwvdGl0bGU+PHBhdGggZmlsbD0iIzAwQTRFRiIgZD0iTTAsMEgxMS4zNzdWMTEuMzcySDBaTTEyLjYyMywwSDI0VjExLjM3MkgxMi42MjNaTTAsMTIuNjIzSDExLjM3N1YyNEgwWm0xMi42MjMsMEgyNFYyNEgxMi42MjMiLz48L3N2Zz4=)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Windows_x64-setup.exe)
 [![macOS](https://img.shields.io/badge/macOS-Supported-000000?style=flat&logo=apple&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_macOS_arm64.dmg)
@@ -29,6 +29,44 @@
 Pas de publicités, pas de suivi. 100 % gratuit.
 
 </div>
+
+## Installation
+
+### Option A : Installateur (recommandé)
+
+| Plateforme                | Téléchargement                                                                                                                                                               |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **macOS (Apple Silicon)** | [bilibili-downloader-gui_macOS_arm64.dmg](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_macOS_arm64.dmg)             |
+| **macOS (Intel)**         | [bilibili-downloader-gui_macOS_x64.dmg](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_macOS_x64.dmg)                 |
+| **Windows**               | [bilibili-downloader-gui_Windows_x64-setup.exe](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Windows_x64-setup.exe) |
+| **Linux (deb)**           | [bilibili-downloader-gui_Linux_x64.deb](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Linux_x64.deb)                 |
+| **Linux (AppImage)**      | [bilibili-downloader-gui_Linux_x64.AppImage](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Linux_x64.AppImage)       |
+
+> [!NOTE]
+> Les builds macOS utilisent la signature de code ad hoc (sans notarisation Apple). Au premier lancement, allez dans **Réglages Système > Confidentialité et sécurité** et cliquez sur **Ouvrir quand même**. Alternativement, exécutez :
+>
+> ```bash
+> xattr -dr com.apple.quarantine "/Applications/bilibili-downloader-gui.app"
+> ```
+
+> [!NOTE]
+> Depuis la v1.62.0, les builds Linux sont compilés sur Ubuntu 24.04 et nécessitent glibc 2.39 ou plus récent (Debian 13+, Ubuntu 24.04+). Sur des distributions plus anciennes comme Ubuntu 22.04 ou Debian 12, la v1.62.0 et les versions ultérieures ne démarrent pas et affichent l'erreur `GLIBC_2.39 not found` — ne mettez pas à jour sur ces systèmes.
+
+L'installateur Windows propose un sélecteur de langue. Au premier lancement, choisissez la langue par défaut de l'application avant le début de la configuration de FFmpeg ; la sélection initiale suit la langue de votre système/navigateur. Vous pouvez la modifier dans les Paramètres.
+
+### Option B : ZIP portable (Windows uniquement)
+
+La page des versions propose également deux éditions ZIP portables Windows x64 :
+
+- `Windows_x64-light.zip` : téléchargement plus léger ; installe FFmpeg au premier lancement.
+- `Windows_x64-with-ffmpeg.zip` : inclut FFmpeg, sa licence et les mentions de compilation et de source en amont ; la configuration de FFmpeg fonctionne sans téléchargement réseau.
+
+Extrayez l'intégralité du ZIP avant d'exécuter le programme. Les deux éditions nécessitent Microsoft Edge WebView2 Runtime et stockent les paramètres dans le répertoire de données d'application habituel. Le FFmpeg intégré est copié vers le répertoire de bibliothèque configuré et reste disponible après une mise à jour de l'application.
+
+> [!WARNING]
+> Les éditions ZIP ne se mettent pas à jour automatiquement. Consultez régulièrement la
+> [page des versions](https://github.com/j4rviscmd/bilibili-downloader-gui/releases)
+> et mettez à jour manuellement.
 
 ## Fonctionnalités
 
@@ -75,44 +113,6 @@ Pas de publicités, pas de suivi. 100 % gratuit.
 - **Gestion sécurisée des identifiants** - Les identifiants de connexion par code QR sont chiffrés avec AES-256-GCM et stockés localement. La dérivation de clés avec Argon2id assure une protection spécifique à la machine.
 - **Stockage local uniquement** - Les vidéos téléchargées sont stockées uniquement sur votre PC
 - **Aucun suivi** - Utilise les APIs Bilibili, GitHub pour les mises à jour et les hôtes de distribution FFmpeg pour l'installation ; aucune télémétrie
-
-## Installation
-
-### Option A : Installateur (recommandé)
-
-| Plateforme                | Téléchargement                                                                                                                                                               |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **macOS (Apple Silicon)** | [bilibili-downloader-gui_macOS_arm64.dmg](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_macOS_arm64.dmg)             |
-| **macOS (Intel)**         | [bilibili-downloader-gui_macOS_x64.dmg](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_macOS_x64.dmg)                 |
-| **Windows**               | [bilibili-downloader-gui_Windows_x64-setup.exe](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Windows_x64-setup.exe) |
-| **Linux (deb)**           | [bilibili-downloader-gui_Linux_x64.deb](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Linux_x64.deb)                 |
-| **Linux (AppImage)**      | [bilibili-downloader-gui_Linux_x64.AppImage](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Linux_x64.AppImage)       |
-
-> [!NOTE]
-> Les builds macOS utilisent la signature de code ad hoc (sans notarisation Apple). Au premier lancement, allez dans **Réglages Système > Confidentialité et sécurité** et cliquez sur **Ouvrir quand même**. Alternativement, exécutez :
->
-> ```bash
-> xattr -dr com.apple.quarantine "/Applications/bilibili-downloader-gui.app"
-> ```
-
-> [!NOTE]
-> Depuis la v1.62.0, les builds Linux sont compilés sur Ubuntu 24.04 et nécessitent glibc 2.39 ou plus récent (Debian 13+, Ubuntu 24.04+). Sur des distributions plus anciennes comme Ubuntu 22.04 ou Debian 12, la v1.62.0 et les versions ultérieures ne démarrent pas et affichent l'erreur `GLIBC_2.39 not found` — ne mettez pas à jour sur ces systèmes.
-
-L'installateur Windows propose un sélecteur de langue. Au premier lancement, choisissez la langue par défaut de l'application avant le début de la configuration de FFmpeg ; la sélection initiale suit la langue de votre système/navigateur. Vous pouvez la modifier dans les Paramètres.
-
-### Option B : ZIP portable (Windows uniquement)
-
-La page des versions propose également deux éditions ZIP portables Windows x64 :
-
-- `Windows_x64-light.zip` : téléchargement plus léger ; installe FFmpeg au premier lancement.
-- `Windows_x64-with-ffmpeg.zip` : inclut FFmpeg, sa licence et les mentions de compilation et de source en amont ; la configuration de FFmpeg fonctionne sans téléchargement réseau.
-
-Extrayez l'intégralité du ZIP avant d'exécuter le programme. Les deux éditions nécessitent Microsoft Edge WebView2 Runtime et stockent les paramètres dans le répertoire de données d'application habituel. Le FFmpeg intégré est copié vers le répertoire de bibliothèque configuré et reste disponible après une mise à jour de l'application.
-
-> [!WARNING]
-> Les éditions ZIP ne se mettent pas à jour automatiquement. Consultez régulièrement la
-> [page des versions](https://github.com/j4rviscmd/bilibili-downloader-gui/releases)
-> et mettez à jour manuellement.
 
 ## Contribuer
 
