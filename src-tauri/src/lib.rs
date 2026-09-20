@@ -246,8 +246,14 @@ pub fn run() {
                 app.handle()
                     .plugin(tauri_plugin_webdriver::init())
                     .expect("Failed to register webdriver plugin");
+                // CAUTION: bind loopback only. The plugin's default 0.0.0.0 bind
+                // triggers a Windows Firewall prompt on every `tauri dev` launch
+                // (per-exe-path, so each worktree re-prompts). The MCP client
+                // connects from the same machine, so loopback is sufficient.
                 app.handle()
-                    .plugin(tauri_plugin_mcp_bridge::init())
+                    .plugin(tauri_plugin_mcp_bridge::init_with_config(
+                        tauri_plugin_mcp_bridge::Config::localhost_only(),
+                    ))
                     .expect("Failed to register mcp-bridge plugin");
             }
 
