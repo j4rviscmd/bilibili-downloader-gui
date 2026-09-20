@@ -69,6 +69,14 @@ This project uses
 | `chore`    | Maintenance tasks (deps, configs, etc.)          |
 | `ci`       | CI/CD configuration changes                      |
 
+Release-triggering types are `feat`, `fix`, `perf`, and `revert`
+(see the Releases section in CLAUDE.md). Use a non-triggering type
+(`chore`, `style`, `test`, `docs`, `refactor`, `ci`) for changes with
+no end-user impact — dev-only code, CI, tooling, internal refactors —
+so release-please does not ship a pointless version. PRs are
+squash-merged with the PR title as the `main` commit, so put the
+type in the PR title too.
+
 Examples:
 
 ```bash

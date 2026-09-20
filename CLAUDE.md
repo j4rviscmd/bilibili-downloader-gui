@@ -157,6 +157,12 @@ version — both are maintained by release-please, never edit by hand):
   per-job merge race — uploads fixed-name assets, publishes the draft
   — reusing the eager tag — then rewrites notes with GitHub-generated
   ones).
+- Release-triggering commit types are `feat:`, `fix:`, `perf:`, and
+  `revert:`. Changes with no end-user impact (dev-only code, CI,
+  tooling, docs) must use a non-triggering type (`chore:`, `style:`,
+  `test:`, `docs:`, `refactor:`, `ci:`). PRs are squash-merged with
+  the PR title as the commit message, so the title must carry the
+  type.
 - The release PR is authored with `GITHUB_TOKEN`, so PR-triggered CI
   never runs on it. It must be merged with an admin override despite
   the required status checks.
