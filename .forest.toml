@@ -2,8 +2,5 @@
 commands = ["npm ci"]
 share = ["references/"]
 
-# Why: running `npm ci` from WSL on finish would rebuild node_modules with
-# Linux-only native binaries, breaking the Windows-side dev loop (`npm start`
-# auto-restores them per worktree anyway, but main should stay untouched).
 [finish]
 commands = []
