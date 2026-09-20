@@ -158,7 +158,8 @@ version — both are maintained by release-please, never edit by hand):
   — reusing the eager tag — then rewrites notes with GitHub-generated
   ones).
 - The release PR is authored with `GITHUB_TOKEN`, so PR-triggered CI
-  never runs on it. Merge it with `gh pr merge <n> --merge --admin`.
+  never runs on it. It must be merged with an admin override despite
+  the required status checks.
 - Never bump versions or create release tags/releases by hand.
 - Publish failure recovery: "Re-run failed jobs" only works when
   release-please itself failed (no draft yet), or when only
