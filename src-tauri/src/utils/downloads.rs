@@ -2380,8 +2380,14 @@ mod tests {
         let err = map_io_error(std::io::Error::from_raw_os_error(28));
         assert_eq!(err.to_string(), "ERR::DISK_FULL");
 
+        // Non-ENOSPC errors must pass through unchanged; comparing the
+        // io::Error itself (not its Display, which is locale-dependent on
+        // Windows: os error 13 is ERROR_INVALID_DATA, not EACCES).
         let other = map_io_error(std::io::Error::from_raw_os_error(13));
-        assert_eq!(other.to_string(), "Permission denied (os error 13)");
+        let io_err = other
+            .downcast_ref::<std::io::Error>()
+            .expect("non-ENOSPC error must pass through as io::Error");
+        assert_eq!(io_err.raw_os_error(), Some(13));
     }
 
     #[test]
