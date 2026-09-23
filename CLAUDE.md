@@ -132,6 +132,15 @@ into the **required** `ci-status` status check. The `coverage` job
   vulnerability patterns. Advanced setup because default setup does
   not support Rust. **NOT a required** status check — triage alerts in
   the Security tab instead of gating merges.
+- **Socket Security** (GitHub App — no workflow files) scans dependency
+  manifest changes on PRs for supply-chain attacks (known malware,
+  typosquats, obfuscated code) across npm and Cargo. Analyzes package
+  manifests only, never source code; free for public repos. **NOT a
+  required** status check (observation period — see #740); treat its PR
+  comments as review input. Dependabot bump PRs are scanned on purpose:
+  a compromised new version of an existing dependency is a real attack
+  vector. If it is ever made required (check name: "Socket Security:
+  Pull Request Alerts"), verify Dependabot auto-merge still completes.
 - **E2E Tests** (`.github/workflows/e2e.yml`) run in a macOS +
   Windows matrix and are **NOT a required** status check.
 - When monitoring CI (e.g. during `worktree-finish`), do **not** wait

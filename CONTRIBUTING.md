@@ -109,6 +109,11 @@ PR guidelines:
 - **CodeQL scans every PR** (JavaScript/TypeScript, Actions, Rust) —
   informational, not required; triage any alerts it raises in the
   Security tab
+- **Socket Security scans dependency changes on every PR** (npm + Cargo
+  manifests) for supply-chain risk such as malware and typosquats —
+  informational, not required; known malware fails its check
+  (non-blocking), so review its PR comment before merging when it
+  flags a dependency
 
 ## Project Structure
 
