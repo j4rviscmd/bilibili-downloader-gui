@@ -10,7 +10,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
-  SidebarRail,
   SidebarSeparator,
   useSidebar,
 } from '@/shared/animate-ui/radix/sidebar'
@@ -137,7 +136,6 @@ export function PageLayoutShell({ children }: PageLayoutShellProps) {
               </SidebarMenuItem>
             </SidebarMenu>
           </SidebarFooter>
-          <SidebarRail />
         </Sidebar>
         <SidebarInset>
           <div className="flex h-full w-full flex-col">
