@@ -1046,13 +1046,18 @@ async fn download_video_impl_with<R: tauri::Runtime>(
 
     let dash_data = data.dash.unwrap();
 
+    // Selection pool for the audio side: standard AAC plus the VIP-only
+    // Dolby/Hi-Res objects that bilibili returns outside `dash.audio`
+    // (issue #713). Built once, reused by selection and the fallback chain.
+    let selectable_audio = dash_data.selectable_audio();
+
     // Seed the shared mirror pool from the whole DASH manifest (video +
     // audio streams, base + backup URLs) so the video pre-selection already
     // knows mirror hosts that only the audio streams carry (issue #527).
     let manifest_urls: Vec<String> = dash_data
         .video
         .iter()
-        .chain(dash_data.audio.iter())
+        .chain(selectable_audio.iter())
         .flat_map(|s| {
             let mut v = vec![s.base_url.clone()];
             v.extend(s.backup_urls.clone().unwrap_or_default());
@@ -1061,15 +1066,19 @@ async fn download_video_impl_with<R: tauri::Runtime>(
         .collect();
     host_health.seed_mirrors_from_urls(&manifest_urls);
 
-    // Diagnostic: record the audio stream landscape and any VIP-only
-    // objects (dolby/flac) present in the manifest. Does not affect
-    // selection; lets us confirm from reporter logs whether a VIP account's
-    // manifest contained Hi-Res/Dolby entries (issue #467 investigation).
+    // Diagnostic: record the audio stream landscape split by source bucket.
+    // `flac_id`/`dolby_ids` answer directly from reporter logs whether a
+    // VIP account's manifest contained Hi-Res/Dolby entries (issues #467,
+    // #713).
     log::info!(
-        "[BE] download_video: dash audio landscape id={} audio_ids={:?} extra_keys={:?}",
+        "[BE] download_video: dash audio landscape id={} audio_ids={:?} flac_id={:?} dolby_ids={:?}",
         options.download_id,
         dash_data.audio.iter().map(|a| a.id).collect::<Vec<_>>(),
-        dash_data.extra.keys().collect::<Vec<_>>(),
+        dash_data.flac.as_ref().and_then(|f| f.audio.as_ref()).map(|a| a.id),
+        dash_data
+            .dolby
+            .as_ref()
+            .map(|d| d.audio.iter().map(|a| a.id).collect::<Vec<_>>()),
     );
 
     // Resolve codec priority and filter streams, scoped to the requested
@@ -1108,30 +1117,31 @@ async fn download_video_impl_with<R: tauri::Runtime>(
     // no audio track (uploader recorded without sound). There is nothing to
     // select, download, or merge on the audio side — the merge step remuxes
     // the video stream alone.
-    let audio_absent = dash_data.audio.is_empty();
+    let audio_absent = selectable_audio.is_empty();
 
     let (audio_url, audio_backup_urls, raw_audio_fallback) = if audio_absent {
         (String::new(), None, false)
     } else {
         let audio_quality = options
             .audio_quality
-            // Best effort mirrors the video path: HIGHEST id (30251 Hi-Res >
-            // 30250 Dolby > 30280 192K > …), not the manifest's first entry.
+            // Best effort: highest NUMERIC id, not the manifest's first
+            // entry. Audio ids are NOT quality-ordered (192K's 30280 is
+            // numerically above Hi-Res' 30251), so the no-pick default is
+            // 192K AAC; Hi-Res/Dolby require an explicit selection
+            // (issue #713).
             .unwrap_or_else(|| {
-                dash_data
-                    .audio
+                selectable_audio
                     .iter()
                     .max_by_key(|a| a.id)
                     .map(|a| a.id)
                     .unwrap_or(30280)
             });
-        select_stream_url(&dash_data.audio, Some(audio_quality))?
+        select_stream_url(&selectable_audio, Some(audio_quality))?
     };
     // Same logic: only warn when the user explicitly chose an audio quality.
     let audio_quality_fallback = options.audio_quality.is_some() && raw_audio_fallback;
     // Get the actual resolved audio quality ID
-    let resolved_audio_quality = dash_data
-        .audio
+    let resolved_audio_quality = selectable_audio
         .iter()
         .find(|a| a.base_url == audio_url)
         .map(|a| a.id);
@@ -1238,7 +1248,7 @@ async fn download_video_impl_with<R: tauri::Runtime>(
                 audio_backup_urls.clone(),
                 temp_audio_path.clone(),
                 cookie.clone(),
-                &dash_data.audio,
+                &selectable_audio,
                 &audio_refetch_ctx,
                 host_health.clone(),
             ))
@@ -2748,6 +2758,8 @@ mod tests {
             dash: Some(XPlayerApiResponseDash {
                 video: vec![],
                 audio: vec![],
+                dolby: None,
+                flac: None,
                 extra: HashMap::new(),
             }),
             durl: None,
@@ -5781,11 +5793,12 @@ async fn fetch_part_qualities_with(
 
     // DASH format: separate video and audio streams
     if let Some(dash) = data.dash {
+        let selectable_audio = dash.selectable_audio();
         let video_qualities = convert_qualities(&dash.video);
-        let audio_qualities = convert_qualities(&dash.audio);
+        let audio_qualities = convert_qualities(&selectable_audio);
         // Silent source (issue #446): video streams exist but the manifest
         // carries no audio track at all.
-        let audio_absent = !dash.video.is_empty() && dash.audio.is_empty();
+        let audio_absent = !dash.video.is_empty() && selectable_audio.is_empty();
         log::info!(
             "[BE] fetch_part_qualities: received {} video qualities, {} audio qualities (audio_absent={})",
             video_qualities.len(),
@@ -6548,18 +6561,20 @@ async fn refetch_dash_urls(
     // Silent sources carry no audio list — selecting would fail the whole
     // refetch and cost the video side its fresh URL (issue #446). The audio
     // fields are simply unused by the silent download path.
-    let (audio_url, audio_backup_urls) = if dash.audio.is_empty() {
+    let selectable_audio = dash.selectable_audio();
+    let (audio_url, audio_backup_urls) = if selectable_audio.is_empty() {
         (String::new(), None)
     } else {
         let resolved_audio_quality = audio_quality.unwrap_or_else(|| {
-            // Best effort: highest id (see the initial selection's comment).
-            dash.audio
+            // Best effort: highest numeric id (see the initial selection's
+            // comment for why this defaults to 192K AAC).
+            selectable_audio
                 .iter()
                 .max_by_key(|a| a.id)
                 .map(|a| a.id)
                 .unwrap_or(30280)
         });
-        let (url, backups, _) = select_stream_url(&dash.audio, Some(resolved_audio_quality))?;
+        let (url, backups, _) = select_stream_url(&selectable_audio, Some(resolved_audio_quality))?;
         (url, backups)
     };
     Ok(FreshDashUrls {
@@ -6683,8 +6698,9 @@ async fn fetch_bangumi_part_qualities_with(
 
     // Try DASH format first
     if let Some(dash) = &result.dash {
+        let selectable_audio = dash.selectable_audio();
         let video_qualities = convert_qualities(&dash.video);
-        let audio_qualities = convert_qualities(&dash.audio);
+        let audio_qualities = convert_qualities(&selectable_audio);
         log::info!(
             "[BE] fetch_bangumi_part_qualities: received {} video qualities, {} audio qualities",
             video_qualities.len(),

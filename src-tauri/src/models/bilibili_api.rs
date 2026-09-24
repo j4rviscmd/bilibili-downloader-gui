@@ -128,17 +128,64 @@ where
 pub struct XPlayerApiResponseDash {
     /// Available video stream qualities
     pub video: Vec<XPlayerApiResponseVideo>,
-    /// Available audio stream qualities. Null (audio-stripped videos,
+    /// Available standard AAC audio streams. Null (audio-stripped videos,
     /// issue #446) deserializes to an empty list.
     #[serde(default, deserialize_with = "null_to_default")]
     pub audio: Vec<XPlayerApiResponseVideo>,
-    /// Unparsed top-level DASH fields (e.g. `dolby`, `flac`) captured for
-    /// diagnostic logging only. These VIP-only audio objects are
-    /// intentionally NOT fed into stream selection (see issue #467
-    /// investigation), but recording their presence helps confirm whether
-    /// the manifest included them for a given account.
+    /// Dolby Atmos audio streams (VIP-only). Bilibili returns these in the
+    /// separate `dash.dolby` object, never inside `audio` (issue #713).
+    #[serde(default)]
+    pub dolby: Option<XPlayerApiResponseDolby>,
+    /// Hi-Res FLAC audio stream (VIP-only). Bilibili returns it in the
+    /// separate `dash.flac` object, never inside `audio` (issue #713).
+    #[serde(default)]
+    pub flac: Option<XPlayerApiResponseFlac>,
+    /// Unparsed top-level DASH fields (`minBufferTime` etc.) captured for
+    /// diagnostic logging only.
     #[serde(flatten, default)]
     pub extra: std::collections::HashMap<String, serde_json::Value>,
+}
+
+impl XPlayerApiResponseDash {
+    /// All audio streams eligible for selection: standard AAC (`audio`) plus
+    /// the VIP-only Dolby (`dolby.audio[]`) and Hi-Res FLAC (`flac.audio`)
+    /// objects. Selection and the quality list shown in the UI must both use
+    /// this — reading `audio` alone can never offer Hi-Res/Dolby (issue #713).
+    pub fn selectable_audio(&self) -> Vec<XPlayerApiResponseVideo> {
+        let mut streams = self.audio.clone();
+        if let Some(dolby) = &self.dolby {
+            streams.extend(dolby.audio.iter().cloned());
+        }
+        if let Some(audio) = self.flac.as_ref().and_then(|f| f.audio.as_ref()) {
+            streams.push(audio.clone());
+        }
+        streams
+    }
+}
+
+/// Dolby Atmos audio container (`dash.dolby`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct XPlayerApiResponseDolby {
+    /// 1 = standard Dolby effect, 2 = Dolby Atmos (informational only;
+    /// selection is by stream id).
+    #[serde(rename = "type", default)]
+    pub dolby_type: Option<i32>,
+    /// Dolby audio streams. Null deserializes to an empty list.
+    #[serde(default, deserialize_with = "null_to_default")]
+    pub audio: Vec<XPlayerApiResponseVideo>,
+}
+
+/// Hi-Res FLAC audio container (`dash.flac`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct XPlayerApiResponseFlac {
+    /// Whether the web player shows the Hi-Res toggle button
+    /// (informational only).
+    #[serde(default)]
+    pub display: Option<bool>,
+    /// The Hi-Res audio stream (id 30251). Null when the video has no
+    /// lossless track or the account cannot access it.
+    #[serde(default)]
+    pub audio: Option<XPlayerApiResponseVideo>,
 }
 
 /// Individual video or audio stream.
@@ -147,7 +194,11 @@ pub struct XPlayerApiResponseVideo {
     pub id: i32,
     pub codecid: i16,
     pub bandwidth: i64,
+    /// 0/absent for audio-only streams (dolby/flac objects omit it).
+    #[serde(default)]
     pub width: i16,
+    /// 0/absent for audio-only streams (dolby/flac objects omit it).
+    #[serde(default)]
     pub height: i16,
     #[serde(rename = "baseUrl")]
     pub base_url: String,
@@ -835,10 +886,22 @@ mod tests {
             "backupUrl rename"
         );
 
-        // VIP-only objects are captured via flatten for diagnostics, never
-        // fed into stream selection (see issue #467 investigation).
-        assert!(dash.extra.contains_key("dolby"));
-        assert!(dash.extra.contains_key("flac"));
+        // VIP-only objects parse into typed fields (issue #713) and join
+        // the selectable audio list; `extra` no longer carries them.
+        let dolby = dash.dolby.as_ref().expect("dolby present");
+        assert_eq!(dolby.dolby_type, Some(1));
+        assert_eq!(dolby.audio.len(), 1);
+        assert_eq!(dolby.audio[0].id, 30255);
+        let flac = dash.flac.as_ref().expect("flac present");
+        assert_eq!(flac.display, Some(true));
+        assert_eq!(flac.audio.as_ref().expect("flac audio").id, 30251);
+        let selectable = dash.selectable_audio();
+        assert_eq!(
+            selectable.iter().map(|a| a.id).collect::<Vec<_>>(),
+            vec![30280, 30216, 30255, 30251]
+        );
+        assert!(!dash.extra.contains_key("dolby"));
+        assert!(!dash.extra.contains_key("flac"));
 
         let formats = data.support_formats.expect("support_formats present");
         assert_eq!(formats.len(), 3);
@@ -874,6 +937,50 @@ mod tests {
         let dash = data.dash.unwrap();
         assert_eq!(dash.video.len(), 1);
         assert!(dash.audio.is_empty(), "null audio defaults to empty vec");
+    }
+
+    #[test]
+    fn parses_xplayer_dash_null_vip_audio_as_absent() {
+        // Bilibili returns "flac": null / "dolby": null when the video has
+        // no such track or the account cannot access it (docs: null when
+        // absent). Both must parse to None/empty and never surface as
+        // selectable streams (issue #713).
+        let resp: XPlayerApiResponse = serde_json::from_str(
+            r#"{
+                "code": 0, "message": "0",
+                "data": {
+                    "quality": 80,
+                    "dash": {
+                        "video": [
+                            {"id": 80, "codecid": 7, "bandwidth": 1,
+                             "width": 1920, "height": 1080,
+                             "baseUrl": "https://example.com/v80.m4s"}
+                        ],
+                        "audio": [
+                            {"id": 30280, "codecid": 0, "bandwidth": 1,
+                             "width": 0, "height": 0,
+                             "baseUrl": "https://example.com/a30280.m4s"}
+                        ],
+                        "dolby": {"type": 2, "audio": null},
+                        "flac": null
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let dash = resp.data.unwrap().dash.unwrap();
+        assert!(dash.flac.is_none());
+        let dolby = dash.dolby.as_ref().expect("dolby object present");
+        assert!(dolby.audio.is_empty());
+        // Only the standard AAC stream remains selectable.
+        assert_eq!(
+            dash.selectable_audio()
+                .iter()
+                .map(|a| a.id)
+                .collect::<Vec<_>>(),
+            vec![30280]
+        );
     }
 
     #[test]
@@ -1231,7 +1338,24 @@ mod tests {
         assert_eq!(orig.video.len(), again.video.len());
         assert_eq!(again.video[0].base_url, orig.video[0].base_url);
         // flatten'd extra survives the roundtrip as a map
-        assert!(again.extra.contains_key("dolby"));
+        assert!(again.extra.contains_key("duration"));
+        // typed VIP-only containers roundtrip too (issue #713)
+        assert_eq!(
+            again
+                .dolby
+                .as_ref()
+                .and_then(|d| d.audio.first())
+                .map(|a| a.id),
+            Some(30255)
+        );
+        assert_eq!(
+            again
+                .flac
+                .as_ref()
+                .and_then(|f| f.audio.as_ref())
+                .map(|a| a.id),
+            Some(30251)
+        );
         // serialized form uses the API field names
         assert!(json["data"]["dash"]["video"][0].get("baseUrl").is_some());
     }

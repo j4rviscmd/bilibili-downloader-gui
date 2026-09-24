@@ -259,6 +259,7 @@
     "quality_description": "ダウンロードする動画の画質を選択してください。",
     "quality_note": "※ 4K / HDR10 / Dolby Vision / 8K は大会員アカウントでのログインが必要です。その他の高画質はログイン状態や地域によっては選択できない場合があります。",
     "quality_requires_vip_or_login": "ログインが必要です。一部の選択肢には大会員が必要です",
+    "quality_unavailable_logged_in": "この動画では現在のアカウントでこのオプションを利用できません。上位の選択肢には大会員が必要な場合があります",
     "audio_quality_label": "音質",
     "audio_quality_description": "ダウンロードする音声の音質を選択してください。",
     "audio_quality_note": "※ Dolby Atmos や ハイレゾ などの高音質は、ログイン状態や地域によっては選択できない場合があります。\n※ 選んだ音質にできる限り近いものを取得しますが、状況により利用可能な最も高い音質となります。",

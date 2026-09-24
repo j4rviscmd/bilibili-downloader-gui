@@ -16,7 +16,7 @@ import {
 import { usePartDownloadStatus } from '@/features/video/hooks/usePartDownloadStatus'
 import {
   AUDIO_QUALITIES_MAP,
-  AUDIO_QUALITIES_ORDER,
+  audioOptionIds,
   VIDEO_QUALITIES_MAP,
   VIDEO_QUALITIES_ORDER,
 } from '@/features/video/lib/constants'
@@ -197,6 +197,12 @@ const VideoPartCard = memo(function VideoPartCard({
   const partInput = useSelector(
     (state: RootState) => state.input.partInputs[page - 1],
   )
+  const isLoggedIn = useSelector((state: RootState) => state.user.data.isLogin)
+  // Why: availability is a bare membership check with no per-option cause,
+  // so only login state can distinguish the reasons (issues #584, #713)
+  const qualityUnavailableReason = isLoggedIn
+    ? t('video.quality_unavailable_logged_in')
+    : t('video.quality_requires_vip_or_login')
   const selected = partInput?.selected ?? true
 
   const dispatch = useDispatch()
@@ -920,9 +926,9 @@ const VideoPartCard = memo(function VideoPartCard({
                                     >
                                       <QualityRadioGroup
                                         idPrefix={`vq-${page}`}
-                                        unavailableReason={t(
-                                          'video.quality_requires_vip_or_login',
-                                        )}
+                                        unavailableReason={
+                                          qualityUnavailableReason
+                                        }
                                         options={VIDEO_QUALITIES_ORDER.map(
                                           (id) => ({
                                             id: String(id),
@@ -980,22 +986,21 @@ const VideoPartCard = memo(function VideoPartCard({
                                       >
                                         <QualityRadioGroup
                                           idPrefix={`aq-${page}`}
-                                          // Why: the `video.*` key is reused on purpose, not a copy-paste slip —
-                                          // availability is a bare membership check with no per-option cause, so
-                                          // one generic message serves both groups (issue #584)
-                                          unavailableReason={t(
-                                            'video.quality_requires_vip_or_login',
-                                          )}
-                                          options={AUDIO_QUALITIES_ORDER.map(
-                                            (id) => ({
-                                              id: String(id),
-                                              label: AUDIO_QUALITIES_MAP[id],
-                                              isAvailable: isQualityAvailable(
-                                                Number(id),
-                                                'audio',
-                                              ),
-                                            }),
-                                          )}
+                                          unavailableReason={
+                                            qualityUnavailableReason
+                                          }
+                                          options={audioOptionIds(
+                                            audioQualities,
+                                          ).map((id) => ({
+                                            id: String(id),
+                                            label:
+                                              AUDIO_QUALITIES_MAP[id] ??
+                                              String(id),
+                                            isAvailable: isQualityAvailable(
+                                              id,
+                                              'audio',
+                                            ),
+                                          }))}
                                         />
                                       </RadioGroup>
                                     </FormControl>

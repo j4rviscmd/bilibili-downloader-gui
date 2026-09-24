@@ -1,4 +1,6 @@
 import { store } from '@/app/store'
+import type { User } from '@/features/user/types'
+import { setUser } from '@/features/user/userSlice'
 import { useVideoInfo } from '@/features/video'
 import {
   fetchBangumiPartQualities,
@@ -98,6 +100,17 @@ function createPartInput(overrides: Partial<PartInput> = {}): PartInput {
     duration: 125,
     subtitle: { mode: 'off', selectedLans: [] },
     ...overrides,
+  }
+}
+
+/** Full User payload for driving the user-slice login state in tests. */
+function userState(isLogin: boolean): User {
+  return {
+    code: 0,
+    message: '',
+    ttl: 0,
+    data: { uname: 'u', isLogin, wbiImg: { imgUrl: '', subUrl: '' } },
+    hasCookie: isLogin,
   }
 }
 
@@ -572,6 +585,71 @@ describe('VideoPartCard', () => {
         ),
       { timeout: 3000 },
     )
+  })
+
+  it('enables Hi-Res Lossless when the manifest offers it (issue #713)', () => {
+    setup({
+      partInput: {
+        accordionOpen: true,
+        videoQualities: [{ id: 80, quality: '1080p' }],
+        audioQualities: [
+          { id: 30280, quality: '192K' },
+          { id: 30251, quality: 'Hi-Res Lossless' },
+        ],
+        subtitles: [],
+      },
+    })
+
+    expect(screen.getByRole('radio', { name: 'Hi-Res Lossless' })).toBeEnabled()
+    // Dolby is not offered by this manifest — stays disabled
+    expect(screen.getByRole('radio', { name: 'Dolby Atmos' })).toBeDisabled()
+    // Options follow the quality ladder, not numeric id order (numeric
+    // order would list 192K above Hi-Res Lossless)
+    expect(
+      screen
+        .getByText('Hi-Res Lossless')
+        .compareDocumentPosition(screen.getByText('192K')),
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+  })
+
+  it('renders manifest-only audio ids as numeric options', () => {
+    // Dolby variant ids outside AUDIO_QUALITIES_ORDER (e.g. 30255) must
+    // still render, or a quality the backend offers could never be picked.
+    setup({
+      partInput: {
+        accordionOpen: true,
+        videoQualities: [{ id: 80, quality: '1080p' }],
+        audioQualities: [
+          { id: 30280, quality: '192K' },
+          { id: 30255, quality: 'Dolby Digital' },
+        ],
+        subtitles: [],
+      },
+    })
+
+    expect(screen.getByRole('radio', { name: '30255' })).toBeEnabled()
+  })
+
+  it('explains unavailable options with the logged-in reason when signed in', async () => {
+    store.dispatch(setUser(userState(true)))
+    try {
+      const { user } = setup({
+        partInput: {
+          accordionOpen: true,
+          videoQualities: [{ id: 80, quality: '1080p' }],
+          audioQualities: [{ id: 30280, quality: '192K' }],
+          subtitles: [],
+        },
+      })
+
+      await user.hover(screen.getByText('Hi-Res Lossless'))
+
+      expect(
+        await screen.findAllByText('video.quality_unavailable_logged_in'),
+      ).not.toHaveLength(0)
+    } finally {
+      store.dispatch(setUser(userState(false)))
+    }
   })
 
   // --- Accordion open/close fetch flow --------------------------------------------
