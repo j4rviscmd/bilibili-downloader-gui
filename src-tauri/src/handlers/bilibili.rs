@@ -2578,6 +2578,257 @@ mod tests {
         assert!(!out_dir.path().join("video.part.mp4").exists());
     }
 
+    #[tokio::test]
+    async fn download_video_impl_bangumi_durl_downloads_muxed_stream() {
+        // Bangumi served in the legacy durl format (no dash): the muxed MP4
+        // downloads straight to staging and finalizes without a merge
+        // (unused_merge panics if the merge step is ever reached).
+        let server = wiremock::MockServer::start().await;
+        let body: Vec<u8> = (0..4096u32).map(|i| (i % 251) as u8).collect();
+        mount_good_media(&server, "/media/mux", body.clone()).await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/pgc/player/web/playurl"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "result": {"is_preview": 0, "durls": [
+                        {"quality": 64, "durl": [
+                            {"order": 1, "length": 1000, "size": body.len() as i64,
+                             "url": format!("{}/media/mux", server.uri())}
+                        ]}
+                    ]}
+                })),
+            )
+            .mount(&server)
+            .await;
+
+        let lib = tempfile::tempdir().unwrap();
+        let out_dir = tempfile::tempdir().unwrap();
+        let app = tauri::test::mock_app();
+        let mut options = pr5_options("pr5-bangumi-durl", Some(999));
+        options.quality = Some(64);
+        let final_path = download_video_impl_with(
+            app.handle(),
+            &options,
+            &bili_api_mock(&server.uri(), ""),
+            lib.path(),
+            &out_dir.path().join("video.mp4"),
+            1,
+            crate::utils::codec::VideoCodecPriority::default(),
+            &unused_merge,
+        )
+        .await
+        .unwrap();
+
+        let expected_final = out_dir.path().join("video.mp4");
+        assert_eq!(PathBuf::from(&final_path), expected_final);
+        assert_eq!(std::fs::read(&expected_final).unwrap(), body);
+        assert!(!out_dir.path().join("video.part.mp4").exists());
+        assert!(!out_dir.path().join("video.mp4.lock").exists());
+    }
+
+    /// Mounts one-shot invalid-media mocks on `path` (attempt 1 fails with
+    /// the whitelisted ERR::INVALID_MEDIA_RESPONSE), then the good 206 mock
+    /// serves every later request. Bad mocks are mounted first so they win
+    /// wiremock's registration-order tie-break while hits remain.
+    async fn mount_then_good_media(server: &wiremock::MockServer, path: &str, body: Vec<u8>) {
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path(path))
+            .and(wiremock::matchers::header_exists("range"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .insert_header("Content-Type", "application/json")
+                    .set_body_string("{\"code\":-404}"),
+            )
+            .up_to_n_times(1)
+            .mount(server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path(path))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .insert_header("Content-Type", "application/json")
+                    .set_body_string("error"),
+            )
+            .up_to_n_times(1)
+            .mount(server)
+            .await;
+        mount_good_media(server, path, body).await;
+    }
+
+    /// Counts recorded requests whose path contains `needle`.
+    async fn count_requests(server: &wiremock::MockServer, needle: &str) -> usize {
+        server
+            .received_requests()
+            .await
+            .unwrap_or_default()
+            .iter()
+            .filter(|r| r.url.path().contains(needle))
+            .count()
+    }
+
+    #[tokio::test]
+    async fn download_video_impl_durl_refetches_playurl_on_retry() {
+        // Attempt 1 serves an invalid-media body (whitelisted retry), so
+        // attempt 2 must go through refetch_durl_url and succeed — the
+        // refetch branch feeds a fresh signed URL into retry_download.
+        let server = wiremock::MockServer::start().await;
+        let body: Vec<u8> = (0..4096u32).map(|i| (i % 251) as u8).collect();
+        mount_then_good_media(&server, "/media/mux", body.clone()).await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/nav"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(nav_wbi_mock_body()))
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/player/wbi/playurl"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": {"quality": 64, "durl": [
+                        {"order": 1, "length": 1000, "size": body.len() as i64,
+                         "url": format!("{}/media/mux", server.uri())}
+                    ]}
+                })),
+            )
+            .mount(&server)
+            .await;
+
+        let lib = tempfile::tempdir().unwrap();
+        let out_dir = tempfile::tempdir().unwrap();
+        let app = tauri::test::mock_app();
+        download_video_impl_with(
+            app.handle(),
+            &pr5_options("pr5-durl-refetch", None),
+            &bili_api_mock(&server.uri(), ""),
+            lib.path(),
+            &out_dir.path().join("video.mp4"),
+            1,
+            crate::utils::codec::VideoCodecPriority::default(),
+            &unused_merge,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            std::fs::read(out_dir.path().join("video.mp4")).unwrap(),
+            body
+        );
+        assert!(
+            count_requests(&server, "/x/player/wbi/playurl").await >= 2,
+            "playurl refetched on retry"
+        );
+    }
+
+    #[tokio::test]
+    async fn download_video_impl_dash_refetches_playurl_on_retry() {
+        // Same retry shape on the DASH path: attempt 2 refetches fresh DASH
+        // URLs and the download completes with a normal merge.
+        let server = wiremock::MockServer::start().await;
+        let video_body: Vec<u8> = (0..4096u32).map(|i| (i % 251) as u8).collect();
+        let audio_body: Vec<u8> = (1..4097u32).map(|i| (i % 241) as u8).collect();
+        mount_then_good_media(&server, "/media/v", video_body.clone()).await;
+        mount_good_media(&server, "/media/a", audio_body.clone()).await;
+        mount_dash_playurl(
+            &server,
+            &format!("{}/media/v", server.uri()),
+            &format!("{}/media/a", server.uri()),
+        )
+        .await;
+
+        let lib = tempfile::tempdir().unwrap();
+        let out_dir = tempfile::tempdir().unwrap();
+        let app = tauri::test::mock_app();
+        download_video_impl_with(
+            app.handle(),
+            &pr5_options("pr5-dash-refetch", None),
+            &bili_api_mock(&server.uri(), ""),
+            lib.path(),
+            &out_dir.path().join("video.mp4"),
+            1,
+            crate::utils::codec::VideoCodecPriority::default(),
+            &fake_merge,
+        )
+        .await
+        .unwrap();
+
+        let mut expected = video_body;
+        expected.extend_from_slice(&audio_body);
+        assert_eq!(
+            std::fs::read(out_dir.path().join("video.mp4")).unwrap(),
+            expected
+        );
+        assert!(
+            count_requests(&server, "/x/player/wbi/playurl").await >= 2,
+            "playurl refetched on retry"
+        );
+    }
+
+    #[tokio::test]
+    async fn download_video_impl_dash_refetch_failure_falls_back_to_stale_url() {
+        // The playurl mock only answers once: attempt 2's refetch fails
+        // (404) and the retry must proceed with the stale signed URL
+        // instead of failing the download.
+        let server = wiremock::MockServer::start().await;
+        let video_body: Vec<u8> = (0..4096u32).map(|i| (i % 251) as u8).collect();
+        let audio_body: Vec<u8> = (1..4097u32).map(|i| (i % 241) as u8).collect();
+        mount_then_good_media(&server, "/media/v", video_body.clone()).await;
+        mount_good_media(&server, "/media/a", audio_body.clone()).await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/nav"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(nav_wbi_mock_body()))
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/player/wbi/playurl"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": {"quality": 80, "dash": {
+                        "video": [
+                            {"id": 80, "codecid": 7, "bandwidth": 1, "width": 1920, "height": 1080,
+                             "baseUrl": format!("{}/media/v", server.uri())}
+                        ],
+                        "audio": [
+                            {"id": 30280, "codecid": 0, "bandwidth": 1, "width": 0, "height": 0,
+                             "baseUrl": format!("{}/media/a", server.uri())}
+                        ]}
+                    }
+                })),
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        let lib = tempfile::tempdir().unwrap();
+        let out_dir = tempfile::tempdir().unwrap();
+        let app = tauri::test::mock_app();
+        download_video_impl_with(
+            app.handle(),
+            &pr5_options("pr5-dash-stale", None),
+            &bili_api_mock(&server.uri(), ""),
+            lib.path(),
+            &out_dir.path().join("video.mp4"),
+            1,
+            crate::utils::codec::VideoCodecPriority::default(),
+            &fake_merge,
+        )
+        .await
+        .unwrap();
+
+        let mut expected = video_body;
+        expected.extend_from_slice(&audio_body);
+        assert_eq!(
+            std::fs::read(out_dir.path().join("video.mp4")).unwrap(),
+            expected
+        );
+        assert_eq!(
+            count_requests(&server, "/x/player/wbi/playurl").await,
+            2,
+            "initial fetch + one failed refetch; the retry itself used the stale URL"
+        );
+    }
+
     // ---- R7: output path naming helpers ----
 
     #[test]
