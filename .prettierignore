@@ -27,3 +27,10 @@ remotion/
 
 # Astro docs (has own prettier config)
 docs/
+
+# Machine-written by release-please (jsonpath version bump re-expands
+# bundle.targets one item per line, which conflicts with prettier's
+# collapsed style; release PRs are GITHUB_TOKEN-authored so no CI runs
+# on them and the drift lands on main — broke the Format gate on
+# releases 1.62.0 and 1.62.1)
+src-tauri/tauri.conf.json
