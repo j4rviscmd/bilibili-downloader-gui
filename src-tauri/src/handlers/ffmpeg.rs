@@ -1138,7 +1138,7 @@ pub(crate) async fn merge_avs_with_ffmpeg<R: Runtime>(
         AudioCodec::Copy,
     )?;
     let copy_result = run_merge_ffmpeg(
-        &ffmpeg_path,
+        ffmpeg_path,
         &copy_args,
         output_path,
         duration_ms,
@@ -1183,7 +1183,7 @@ pub(crate) async fn merge_avs_with_ffmpeg<R: Runtime>(
         AudioCodec::Aac,
     )?;
     match run_merge_ffmpeg(
-        &ffmpeg_path,
+        ffmpeg_path,
         &reencode_args,
         output_path,
         duration_ms,
