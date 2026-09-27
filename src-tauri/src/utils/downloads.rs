@@ -585,8 +585,8 @@ fn content_range_start(value: &header::HeaderValue) -> Option<u64> {
 ///    size.
 /// 3. Falls back to [`single_stream_fallback`] when the server does not
 ///    advertise `Accept-Ranges`/Content-Length.
-/// 4. Splits the payload into 8 MB segments (concurrency pinned to 1
-///    because Bilibili's CDN is unstable with parallel range requests).
+/// 4. Splits the payload into segments sized so the configured concurrency
+///    actually engages (see [`effective_segment_size`]).
 /// 5. Pre-allocates the output file and emits progress updates via
 ///    [`Emits`] to the frontend.
 /// 6. Streams each segment through [`download_segment_stream`] while an
@@ -728,13 +728,14 @@ pub async fn download_url<R: Runtime>(
     cdn_urls = ordered_urls;
 
     // ---- 2. Plan segments ----
-    // Why: raised from 8MB now that segments stream straight to disk (no
-    //   Vec<u8> buffering), so segment size no longer drives resident memory.
-    //   Fewer segment boundaries = fewer CDN-rotation resets and progress
-    //   dips. 32MB keeps small (50MB) videos parallelizable (2 segments)
-    //   while cutting 1GB from 125 to 32 segments.
-    const DEFAULT_SEGMENT_MB: u64 = 32;
-    let segment_size = DEFAULT_SEGMENT_MB * 1024 * 1024;
+    // Why adaptive sizing: Bilibili's CDN throttles each connection after
+    //   an initial burst (observed ~0.7-1 MB/s steady), so parallelism must
+    //   actually engage for the file at hand. A fixed 32MB size left files
+    //   under 32MB on a single connection regardless of the concurrency
+    //   setting (2026-09-27 log: 30MB video on one connection, slow tail);
+    //   sizing to total/concurrency restores it. Clamp floor/cap rationale:
+    //   `effective_segment_size`.
+    let segment_size = effective_segment_size(total, concurrency);
     let segments: Vec<(u64, u64)> = calculate_segments(total, segment_size);
 
     // Why: segment parallelism is now configurable instead of the previous
@@ -1901,6 +1902,23 @@ async fn backoff_sleep(attempt: u8) {
     tokio::time::sleep(Duration::from_millis(ms)).await;
 }
 
+/// Chooses the segment size so the segment count reaches the configured
+/// concurrency, defeating Bilibili's per-connection throttle.
+///
+/// `total / concurrency` is clamped into `[MIN_SEGMENT_MB, MAX_SEGMENT_MB]`
+/// MiB. The floor keeps small files (e.g. 3MB audio) on a single connection
+/// instead of handshake-dominated slivers; the cap preserves the large-file
+/// tuning (fewer segment boundaries = fewer rotation resets and progress
+/// dips; a 1GB file stays at 32 segments). `concurrency` is assumed >= 1
+/// (the settings resolver clamps it).
+/// Pure function — fully unit-testable.
+fn effective_segment_size(total: u64, concurrency: usize) -> u64 {
+    const MAX_SEGMENT_MB: u64 = 32;
+    const MIN_SEGMENT_MB: u64 = 4;
+    let target = total / concurrency.max(1) as u64;
+    target.clamp(MIN_SEGMENT_MB * 1024 * 1024, MAX_SEGMENT_MB * 1024 * 1024)
+}
+
 /// Calculates segment byte ranges for segmented download.
 ///
 /// Divides the total file size into segments of the specified size,
@@ -2025,6 +2043,59 @@ mod tests {
         assert_eq!(calculate_segments(3, 4), vec![(0, 2)]);
         // Zero total -> no segments (no infinite loop)
         assert!(calculate_segments(0, 4).is_empty());
+    }
+
+    #[test]
+    fn effective_segment_size_floors_small_files() {
+        // 3MiB audio at concurrency 8: 384KiB target -> 4MiB floor -> 1 segment
+        assert_eq!(effective_segment_size(3 * 1024 * 1024, 8), 4 * 1024 * 1024);
+        // Below the floor entirely: still the floor (calculate_segments
+        // then yields a single segment, same as before this change)
+        assert_eq!(effective_segment_size(1024, 8), 4 * 1024 * 1024);
+    }
+
+    #[test]
+    fn effective_segment_size_splits_to_concurrency() {
+        // 30MB video at concurrency 8: ~3.67MiB target -> 4MiB floor
+        let size = effective_segment_size(30_773_290, 8);
+        assert_eq!(size, 4 * 1024 * 1024);
+        // The 2026-09-27 log case now splits into 8 segments
+        assert_eq!(calculate_segments(30_773_290, size).len(), 8);
+
+        // 100MiB at 8: 12.5MiB target passes through unclamped
+        assert_eq!(
+            effective_segment_size(100 * 1024 * 1024, 8),
+            12 * 1024 * 1024 + 512 * 1024
+        );
+    }
+
+    #[test]
+    fn effective_segment_size_caps_large_files_and_single_thread() {
+        // 500MB at 8: 62.5MB target -> 32MB cap (large-file tuning kept)
+        assert_eq!(
+            effective_segment_size(500 * 1024 * 1024, 8),
+            32 * 1024 * 1024
+        );
+        // concurrency=1: whole-file target -> cap keeps 32MB segments
+        assert_eq!(
+            effective_segment_size(100 * 1024 * 1024, 1),
+            32 * 1024 * 1024
+        );
+    }
+
+    #[test]
+    fn effective_segment_size_boundary_floor_equals_target() {
+        // 32MiB at 8: target lands exactly on the 4MiB floor (clamp is a
+        // no-op) -> 8 segments. Before this change a 32MiB file was a
+        // single segment, so this pins the exact behavior-change boundary.
+        let size = effective_segment_size(32 * 1024 * 1024, 8);
+        assert_eq!(size, 4 * 1024 * 1024);
+        assert_eq!(calculate_segments(32 * 1024 * 1024, size).len(), 8);
+        // concurrency=2 on the same file: 16MiB target, unclamped mid-range
+        assert_eq!(
+            effective_segment_size(32 * 1024 * 1024, 2),
+            16 * 1024 * 1024
+        );
     }
 
     #[test]
