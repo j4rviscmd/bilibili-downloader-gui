@@ -8,6 +8,16 @@ on:
     branches: [main]
   push:
     branches: [main]
+    # Why paths-ignore: a merged release-please PR only bumps version
+    # fields (.release-please-manifest.json + the extra-files bump in
+    # src-tauri/tauri.conf.json, see release-please-config.json with
+    # skip-changelog: true), so the push run re-analyzed code identical
+    # to the previous push (~9 min for nothing). Feature pushes always
+    # touch files outside this list and still trigger. Only the push
+    # event is filtered — pull_request/schedule/dispatch ignore paths.
+    paths-ignore:
+      - .release-please-manifest.json
+      - src-tauri/tauri.conf.json
   # Why schedule: catch newly-published CodeQL queries between pushes
   schedule:
     - cron: '34 5 * * 1' # weekly, Monday 14:34 JST
