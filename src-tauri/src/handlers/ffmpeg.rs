@@ -2057,11 +2057,12 @@ mod tests {
     const MERGE_OK_SCRIPT: &str =
         "#!/bin/sh\necho out_time_ms=1500000\necho progress=end\nexit 0\n";
 
-    /// Fake ffmpeg whose stream-copy invocation fails (the standalone
-    /// `copy` codec arg) while the AAC re-encode succeeds — drives the
-    /// copy → AAC fallback path.
+    /// Fake ffmpeg whose AUDIO stream-copy invocation fails (the codec arg
+    /// right after `-c:a`) while the AAC re-encode succeeds — drives the
+    /// copy → AAC fallback path. The video codec stays `-c:v copy` in both
+    /// attempts, so matching any standalone `copy` arg would fail both.
     #[cfg(unix)]
-    const MERGE_COPY_FAIL_SCRIPT: &str = "#!/bin/sh\nfor a in \"$@\"; do\n  if [ \"$a\" = copy ]; then exit 1; fi\ndone\necho out_time_ms=1500000\necho progress=end\nexit 0\n";
+    const MERGE_COPY_FAIL_SCRIPT: &str = "#!/bin/sh\nprev=\nfor a in \"$@\"; do\n  if [ \"$prev\" = -c:a ] && [ \"$a\" = copy ]; then exit 1; fi\n  prev=$a\ndone\necho out_time_ms=1500000\necho progress=end\nexit 0\n";
 
     #[cfg(unix)]
     #[tokio::test]
