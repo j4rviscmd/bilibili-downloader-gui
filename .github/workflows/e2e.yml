@@ -84,9 +84,16 @@ jobs:
           path: ~/.cargo/bin/tauri-webdriver*
           key: tauri-webdriver-${{ runner.os }}-v1
 
+      # Why --force: the "Cache Rust" step (Swatinem/rust-cache caches
+      # ~/.cargo/bin) can restore a tauri-webdriver binary saved by an
+      # earlier run of this job; when this step's own cache misses (v1 key
+      # evicted), plain `cargo install` then fails with "binary
+      # `tauri-webdriver` already exists" before any test runs
+      # (deterministic macOS failures on 2026-09-28). --force makes the
+      # install idempotent in that case.
       - name: Install tauri-webdriver
         if: steps.cache-tw.outputs.cache-hit != 'true'
-        run: cargo install tauri-webdriver --locked
+        run: cargo install tauri-webdriver --locked --force
 
       - name: Build Tauri app (debug)
         working-directory: src-tauri
