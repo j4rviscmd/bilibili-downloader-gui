@@ -203,7 +203,6 @@ async fn run_ffmpeg_with_progress<R: tauri::Runtime>(
     #[cfg(target_os = "windows")]
     {
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        use std::os::windows::process::CommandExt;
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
 
@@ -583,6 +582,7 @@ mod tests {
     #[cfg(unix)]
     use crate::utils::ffmpeg_probe::write_fake_ffmpeg_executor;
 
+    #[cfg(unix)]
     fn concat_fixture(dir: &std::path::Path, count: usize) -> Vec<String> {
         (0..count)
             .map(|i| {
@@ -593,6 +593,7 @@ mod tests {
             .collect()
     }
 
+    #[cfg(unix)]
     fn concat_options(inputs: &[String], output: &str) -> ConcatOptions {
         ConcatOptions {
             input_paths: inputs.to_vec(),

@@ -3537,9 +3537,6 @@ mod tests {
         assert!(ensure_free_space(&target, 1).is_ok());
     }
 
-    // Why: the disk-space check is statvfs (unix-only); on Windows the
-    // function unconditionally returns Ok(()) and this assertion cannot hold.
-    #[cfg(target_family = "unix")]
     #[test]
     fn ensure_free_space_rejects_impossible_request() {
         let dir = tempfile::tempdir().unwrap();
@@ -5311,8 +5308,8 @@ async fn head_content_length_with(client: &Client, url: &str, cookie: Option<&st
 
 /// Ensures sufficient disk space is available for download.
 ///
-/// Uses `statvfs` to check available disk space at the target location.
-/// Currently only implemented for Unix-like systems. Does nothing on other platforms.
+/// Uses `fs2::available_space` (statvfs on Unix, GetDiskFreeSpaceExW on
+/// Windows) to check free space at the target location's parent directory.
 ///
 /// # Arguments
 ///
@@ -5321,38 +5318,20 @@ async fn head_content_length_with(client: &Client, url: &str, cookie: Option<&st
 ///
 /// # Returns
 ///
-/// Returns `Ok(())` if sufficient space is available or on non-Unix systems.
+/// Returns `Ok(())` if sufficient space is available, or if free space cannot
+/// be queried (fail-open, same as the previous statvfs behavior).
 ///
 /// # Errors
 ///
 /// Returns `ERR::DISK_FULL` if available space is less than needed.
 fn ensure_free_space(target_path: &Path, needed_bytes: u64) -> Result<(), String> {
-    #[cfg(target_family = "unix")]
-    {
-        use libc::statvfs;
-        use std::ffi::CString;
-        use std::mem::MaybeUninit;
-        use std::os::unix::ffi::OsStrExt;
-
-        let dir = target_path
-            .parent()
-            .unwrap_or_else(|| std::path::Path::new("."));
-        let c_path =
-            CString::new(dir.as_os_str().as_bytes()).map_err(|_| "ERR::DISK_FULL".to_string())?;
-        unsafe {
-            let mut stat = MaybeUninit::<statvfs>::uninit();
-            if statvfs(c_path.as_ptr(), stat.as_mut_ptr()) != 0 {
-                return Ok(());
-            }
-            let stat = stat.assume_init();
-            #[allow(clippy::unnecessary_cast, clippy::useless_conversion)]
-            let free_bytes = u64::from(stat.f_bavail) * stat.f_frsize;
-            if free_bytes < needed_bytes {
-                return Err("ERR::DISK_FULL".into());
-            }
-        }
+    let dir = target_path.parent().unwrap_or(Path::new("."));
+    let Ok(free_bytes) = fs2::available_space(dir) else {
+        return Ok(());
+    };
+    if free_bytes < needed_bytes {
+        return Err("ERR::DISK_FULL".into());
     }
-    // Not implemented on Windows, etc. -> skip
     Ok(())
 }
 

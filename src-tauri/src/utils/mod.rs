@@ -1,10 +1,9 @@
 //! Utility Modules
 //!
 //! This module contains utility functions for downloads, path resolution,
-//! analytics (currently disabled), WBI signature generation, subtitle conversion,
+//! WBI signature generation, subtitle conversion,
 //! filename sanitization, error handling, and log cleanup.
 
-pub mod analytics;
 pub mod cdn_selector;
 pub mod codec;
 pub mod downloads;
