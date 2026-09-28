@@ -422,6 +422,7 @@ mod tests {
     #[cfg(unix)]
     use crate::utils::ffmpeg_probe::write_fake_ffmpeg_executor;
 
+    #[cfg(unix)]
     fn audio_options(input: &str, output: &str) -> AudioOptions {
         AudioOptions {
             input_path: input.to_string(),
