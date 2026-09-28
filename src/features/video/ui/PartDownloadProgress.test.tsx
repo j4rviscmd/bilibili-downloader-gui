@@ -154,6 +154,28 @@ describe('PartDownloadProgress', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 
+  it('disables cancellation and follows the ticking % during merge-fallback', () => {
+    setup(
+      createMockStatus({
+        isDownloading: true,
+        progressEntries: [
+          stage({ stage: 'video', percentage: 100 }),
+          // Stale near-0% entry left when the backend switched to the AAC
+          // re-encode fallback — the live fallback entry must win.
+          stage({ stage: 'merge', percentage: 0 }),
+          stage({ stage: 'merge-fallback', percentage: 40 }),
+        ],
+      }),
+      vi.fn(),
+    )
+
+    expect(screen.getByText('video.stage_merge')).toBeInTheDocument()
+    expect(screen.getByText('40%')).toBeInTheDocument()
+    expect(screen.queryByText('0%')).not.toBeInTheDocument()
+    // The fallback is the same ffmpeg merge stage: no cancel control
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  })
+
   it('shows the complete state with open/reveal actions', async () => {
     const { user: actor } = setup(
       createMockStatus({
