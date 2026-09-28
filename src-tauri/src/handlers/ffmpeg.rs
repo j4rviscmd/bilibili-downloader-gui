@@ -15,7 +15,7 @@ use std::time::Duration;
 use std::{
     fs,
     path::{Path, PathBuf},
-    process::{Command, Stdio},
+    process::Stdio,
 };
 use tauri::{AppHandle, Manager, Runtime};
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -337,7 +337,7 @@ async fn install_ffmpeg_in_dir<R: Runtime>(
         let Some(ffmpeg_path_str) = ffmpeg_bin.to_str() else {
             return Err(anyhow::anyhow!("Invalid ffmpeg path"));
         };
-        let res = Command::new("chmod")
+        let res = std::process::Command::new("chmod")
             .arg("+x")
             .arg(ffmpeg_path_str)
             .output()
@@ -525,7 +525,6 @@ async fn validate_command(path: &Path) -> bool {
 
     #[cfg(target_os = "windows")]
     {
-        use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
@@ -1218,7 +1217,6 @@ async fn run_merge_ffmpeg<R: Runtime>(
 
     #[cfg(target_os = "windows")]
     {
-        use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
