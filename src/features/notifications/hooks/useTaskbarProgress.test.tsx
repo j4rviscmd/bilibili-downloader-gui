@@ -76,7 +76,9 @@ describe('useTaskbarProgress', () => {
       }),
     )
     renderHook(() => useTaskbarProgress(), { wrapper })
-    expect(mockSetProgressBar).toHaveBeenCalledWith({ progress: 17 })
+    // 0.45 share * 50% audio = 22.5 → 23 (merge owns 10%, video not yet
+    // started) — see pickStageData's MERGE_SHARE.
+    expect(mockSetProgressBar).toHaveBeenCalledWith({ progress: 23 })
   })
 
   it('logs when setProgressBar rejects', async () => {

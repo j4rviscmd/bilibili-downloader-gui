@@ -217,7 +217,12 @@ type MergeStageProgressProps = {
  * Has special conditional logic based on audio/video completion.
  */
 function MergeStageProgress({ progressEntries, t }: MergeStageProgressProps) {
-  const mergeProgress = progressEntries.find((p) => p.stage === 'merge')
+  // Why merge-fallback first: when the lossless copy path fails the backend
+  // switches stage and resets bytes, leaving the old 'merge' entry stale
+  // near 0% — the ticking 'merge-fallback' entry is the live one.
+  const mergeProgress =
+    progressEntries.find((p) => p.stage === 'merge-fallback') ??
+    progressEntries.find((p) => p.stage === 'merge')
   const audioProgress = progressEntries.find((p) => p.stage === 'audio')
   const videoProgress = progressEntries.find((p) => p.stage === 'video')
   const mergeLabel = t('video.stage_merge')
@@ -367,8 +372,11 @@ export function PartDownloadProgress({
     }
   }, [hasEmbeddedAudio])
 
+  // Why merge-fallback counts: it is the same ffmpeg merge stage (AAC
+  // re-encode fallback), so the mid-merge cancel race applies equally.
   const isInMergeStage = progressEntries.some(
-    (p) => p.stage === 'merge' && !p.isComplete,
+    (p) =>
+      (p.stage === 'merge' || p.stage === 'merge-fallback') && !p.isComplete,
   )
 
   // @why: Between download start and each stage's first progress event there
