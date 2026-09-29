@@ -111,9 +111,7 @@ PR guidelines:
   Security tab
 - **Socket Security scans dependency changes on every PR** (npm + Cargo
   manifests) for supply-chain risk such as malware and typosquats —
-  informational, not required; known malware fails its check
-  (non-blocking), so review its PR comment before merging when it
-  flags a dependency
+  its check is required; known malware fails it and blocks the merge
 
 ## Project Structure
 
