@@ -182,6 +182,10 @@ pub struct XPlayerApiResponseFlac {
     /// (informational only).
     #[serde(default)]
     pub display: Option<bool>,
+    // Why: a single Option, not a Vec — the asymmetry with Dolby's Vec mirrors
+    // bilibili's wire format: `dash.flac` carries one audio object while
+    // `dash.dolby` carries an array (references/bilibili-API-collect/docs/
+    // video/videostream_url.md, issue #713).
     /// The Hi-Res audio stream (id 30251). Null when the video has no
     /// lossless track or the account cannot access it.
     #[serde(default)]
@@ -194,6 +198,9 @@ pub struct XPlayerApiResponseVideo {
     pub id: i32,
     pub codecid: i16,
     pub bandwidth: i64,
+    // Note: old manifests' `audio` entries can omit width/height too, not
+    // just dolby/flac objects — the serde default is what keeps those
+    // responses parsing (issue #713).
     /// 0/absent for audio-only streams (dolby/flac objects omit it).
     #[serde(default)]
     pub width: i16,
