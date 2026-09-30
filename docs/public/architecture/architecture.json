@@ -1,0 +1,270 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Bilibili Downloader GUI",
+    "locale": "en",
+    "output": "docs/public/architecture/architecture.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/j4rviscmd/bilibili-downloader-gui",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "008f58b20e45e466b5c06fab99f4a5f1bd430456"
+    },
+    "views": [
+      {
+        "id": "download-flow",
+        "label": "Download flow",
+        "focus": ["rtk-store", "ipc", "bilibili-client", "bilibili-cdn", "ffmpeg", "fs"],
+        "note": "Search → DASH stream download → ffmpeg merge → output file"
+      },
+      {
+        "id": "auth-flow",
+        "label": "Login & session",
+        "focus": ["auth", "firefox-db", "bilibili-api", "ipc"],
+        "note": "QR / manual cookie / Firefox import; refresh keeps the session valid"
+      },
+      {
+        "id": "media-tools",
+        "label": "Local media tools",
+        "focus": ["media-tools", "ffmpeg", "fs"],
+        "note": "trim, concat, rotate, audio extraction and GIF run ffmpeg locally"
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "user",
+      "type": "external",
+      "label": "User",
+      "sublabel": "desktop",
+      "pos": [40, 300],
+      "size": [110, 60]
+    },
+    {
+      "id": "react-ui",
+      "type": "frontend",
+      "label": "React UI",
+      "sublabel": "pages · features · shadcn/ui",
+      "pos": [250, 300],
+      "size": [130, 60],
+      "sources": [
+        { "path": "src/main.tsx", "line": 1 },
+        { "path": "src/App.tsx", "line": 1 }
+      ]
+    },
+    {
+      "id": "rtk-store",
+      "type": "frontend",
+      "label": "RTK Query Store",
+      "sublabel": "tauriBaseQuery → invoke()",
+      "pos": [460, 300],
+      "size": [130, 60],
+      "sources": [
+        { "path": "src/app/store/tauriBaseQuery.ts", "line": 48, "end_line": 66 }
+      ]
+    },
+    {
+      "id": "ipc",
+      "type": "messagebus",
+      "label": "Tauri IPC Bridge",
+      "sublabel": "58 commands · events",
+      "pos": [670, 300],
+      "size": [130, 64],
+      "sources": [
+        { "path": "src-tauri/src/lib.rs", "line": 178, "end_line": 239 }
+      ]
+    },
+    {
+      "id": "auth",
+      "type": "security",
+      "label": "Auth & Session",
+      "sublabel": "QR · manual · Firefox",
+      "pos": [670, 140],
+      "size": [130, 60],
+      "sources": [
+        { "path": "src-tauri/src/handlers/qr_login.rs", "line": 318 },
+        { "path": "src-tauri/src/handlers/qr_login.rs", "line": 1230 },
+        { "path": "src-tauri/src/handlers/cookie.rs", "line": 79, "end_line": 98 }
+      ]
+    },
+    {
+      "id": "firefox-db",
+      "type": "database",
+      "label": "Firefox Cookies",
+      "sublabel": "profiles · cookies.sqlite",
+      "pos": [460, 140],
+      "size": [130, 60],
+      "sources": [
+        { "path": "src-tauri/src/handlers/cookie.rs", "line": 88 }
+      ]
+    },
+    {
+      "id": "bilibili-api",
+      "type": "cloud",
+      "label": "Bilibili Web API",
+      "sublabel": "api.bilibili.com",
+      "pos": [910, 140],
+      "size": [130, 60],
+      "sources": [
+        { "path": "src-tauri/src/handlers/bilibili.rs", "line": 243 }
+      ]
+    },
+    {
+      "id": "bilibili-client",
+      "type": "backend",
+      "label": "Bilibili Client",
+      "sublabel": "metadata · playurl · download",
+      "pos": [910, 300],
+      "size": [130, 60],
+      "sources": [
+        { "path": "src-tauri/src/handlers/bilibili.rs", "line": 706 },
+        { "path": "src-tauri/src/handlers/bilibili.rs", "line": 210 }
+      ]
+    },
+    {
+      "id": "bilibili-cdn",
+      "type": "cloud",
+      "label": "Bilibili CDN",
+      "sublabel": "DASH video/audio",
+      "pos": [1180, 300],
+      "size": [130, 60],
+      "sources": [
+        { "path": "src-tauri/src/handlers/bilibili.rs", "line": 480, "end_line": 483 }
+      ]
+    },
+    {
+      "id": "json-stores",
+      "type": "backend",
+      "label": "App State Stores",
+      "sublabel": "settings · history · login_state",
+      "pos": [460, 460],
+      "size": [130, 60],
+      "sources": [
+        { "path": "src-tauri/src/store/history_store.rs", "line": 34 },
+        { "path": "src-tauri/src/handlers/settings.rs", "line": 136, "end_line": 150 },
+        { "path": "src-tauri/src/lib.rs", "line": 173, "end_line": 177 }
+      ]
+    },
+    {
+      "id": "media-tools",
+      "type": "backend",
+      "label": "Local Media Tools",
+      "sublabel": "trim · concat · rotate · gif",
+      "pos": [670, 460],
+      "size": [130, 60],
+      "sources": [
+        { "path": "src-tauri/src/lib.rs", "line": 1430 },
+        { "path": "src-tauri/src/lib.rs", "line": 1460 },
+        { "path": "src-tauri/src/lib.rs", "line": 1506 }
+      ]
+    },
+    {
+      "id": "fs",
+      "type": "database",
+      "label": "Filesystem",
+      "sublabel": "app_data · lib · downloads",
+      "pos": [460, 620],
+      "size": [130, 60],
+      "sources": [
+        { "path": "src-tauri/src/utils/paths.rs", "line": 47, "end_line": 60 }
+      ]
+    },
+    {
+      "id": "ffmpeg",
+      "type": "external",
+      "label": "ffmpeg",
+      "sublabel": "merge · remux · transcode",
+      "pos": [880, 620],
+      "size": [130, 60],
+      "tag": "CREATE_NO_WINDOW",
+      "sources": [
+        { "path": "src-tauri/src/handlers/ffmpeg.rs", "line": 504, "end_line": 529 }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Tauri Webview (React)",
+      "wraps": ["react-ui", "rtk-store"]
+    },
+    {
+      "kind": "region",
+      "label": "Rust Core (src-tauri)",
+      "wraps": ["ipc", "auth", "bilibili-client", "json-stores", "media-tools"]
+    }
+  ],
+  "connections": [
+    { "id": "user-ui", "from": "user", "to": "react-ui", "label": "uses", "variant": "emphasis" },
+    { "id": "ui-store", "from": "react-ui", "to": "rtk-store", "label": "hooks" },
+    { "id": "store-ipc", "from": "rtk-store", "to": "ipc", "label": "invoke()", "variant": "emphasis" },
+    {
+      "id": "ipc-events",
+      "from": "ipc",
+      "to": "react-ui",
+      "label": "progress events",
+      "variant": "dashed",
+      "fromSide": "top",
+      "toSide": "top",
+      "via": [[735, 250], [315, 250]]
+    },
+    { "id": "ipc-client", "from": "ipc", "to": "bilibili-client", "label": "fetch · download", "variant": "emphasis" },
+    { "id": "ipc-auth", "from": "ipc", "to": "auth", "label": "login · refresh", "fromSide": "top", "toSide": "bottom" },
+    { "id": "ipc-json", "from": "ipc", "to": "json-stores", "label": "get · patch" },
+    { "id": "ipc-media", "from": "ipc", "to": "media-tools", "label": "media commands" },
+    { "id": "auth-firefox", "from": "auth", "to": "firefox-db", "label": "import cookies", "fromSide": "left", "toSide": "right" },
+    { "id": "auth-api", "from": "auth", "to": "bilibili-api", "label": "verify session", "fromSide": "right", "toSide": "left" },
+    { "id": "client-api", "from": "bilibili-client", "to": "bilibili-api", "label": "metadata · playurl", "fromSide": "top", "toSide": "bottom" },
+    { "id": "client-cdn", "from": "bilibili-client", "to": "bilibili-cdn", "label": "DASH streams", "variant": "emphasis" },
+    { "id": "client-ffmpeg", "from": "bilibili-client", "to": "ffmpeg", "label": "merge_avs", "fromSide": "bottom", "toSide": "top" },
+    { "id": "media-ffmpeg", "from": "media-tools", "to": "ffmpeg", "label": "transcode" },
+    { "id": "json-fs", "from": "json-stores", "to": "fs", "label": "locked_json" },
+    { "id": "client-fs", "from": "bilibili-client", "to": "fs", "label": "temp · output files", "fromSide": "bottom", "toSide": "top" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Frontend",
+      "items": [
+        "React 19 + TypeScript + Vite inside the Tauri webview",
+        "RTK Query caches every command via tauriBaseQuery → invoke()",
+        "6-locale i18n (en/ja/zh/ko/es/fr)"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Rust core",
+      "items": [
+        "58 commands registered in generate_handler! (lib.rs), plus one debug-only command",
+        "Handlers grouped by domain under src-tauri/src/handlers/",
+        "JSON stores go through multi-process safe locked_json, not tauri-plugin-store"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "External processes",
+      "items": [
+        "ffmpeg spawned with CREATE_NO_WINDOW on Windows",
+        "ffmpeg binary downloaded on demand into the lib dir and validated before use"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Updates",
+      "items": [
+        "tauri-plugin-updater checks GitHub Releases",
+        "Release notes and star count via github.rs (GitHub API)"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Trust & session",
+      "items": [
+        "Bilibili cookies kept in an in-memory cache; session persisted to login_state.json",
+        "ERR::UNAUTHORIZED auto-logs-out the UI (invokeErrorHandler)"
+      ]
+    }
+  ]
+}

@@ -178,6 +178,25 @@ src-tauri/src/
   (`generate_handler!`) in `src-tauri/src/lib.rs`
 - Dev-only features are gated behind `#[cfg(debug_assertions)]`
 
+### Architecture Diagram (docs site)
+
+The interactive architecture diagram published at
+`/architecture/architecture.html` on the docs site is generated with
+[Archify](https://github.com/tt-a1i/archify). Its checked-in source is
+`docs/public/architecture/architecture.json` (typed JSON; nodes carry
+`sources` references into this repository, pinned to a specific revision in
+`meta.repository`).
+
+- Regenerate when the architecture meaningfully changes (new subsystem,
+  changed IPC/event flow, moved persistence): update the JSON, bump
+  `meta.repository.revision` to the new HEAD, then run
+  `finalize` from the [archify skill](https://github.com/tt-a1i/archify)
+  (`node bin/archify.mjs finalize architecture docs/public/architecture/architecture.json docs/public/architecture/architecture.html --repo-root . --quality showcase --json`)
+  — the command verifies every source citation against the pinned revision.
+- The HTML is a self-contained artifact; never hand-edit it.
+- The docs nav links to it via the `nav.architecture` i18n key
+  (`docs/src/i18n/ui.ts`, all six locales).
+
 ## Code Style
 
 One rule beyond what CI enforces:
