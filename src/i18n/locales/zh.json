@@ -259,6 +259,7 @@
     "quality_description": "选择要下载的视频清晰度。",
     "quality_note": "* 4K / HDR10 / 杜比视界 / 8K 需要登录大会员账号。其他高码率清晰度可能因登录状态或地区不可用。",
     "quality_requires_vip_or_login": "需要登录；部分选项还需要大会员",
+    "quality_unavailable_logged_in": "当前账号无法在此视频使用该选项；更高档位可能需要大会员",
     "audio_quality_label": "音质",
     "audio_quality_description": "选择要下载的音频音质。",
     "audio_quality_note": "* 部分高品质音频（Dolby Atmos / Hi-Res）可能需要登录或受地区限制而不可用。\n* 我们会尽可能获取接近所选音质的版本；若不可用，则使用当前可用的最高音质。",

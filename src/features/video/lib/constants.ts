@@ -56,6 +56,26 @@ export const AUDIO_QUALITIES_ORDER: number[] = [
 ]
 
 /**
+ * Audio quality ids to render as options.
+ *
+ * The fixed ladder keeps its hand-curated quality order — a numeric sort
+ * cannot express it (192K's id 30280 is numerically above Hi-Res 30251).
+ * Fetched ids outside the ladder (e.g. a Dolby variant like 30255) render
+ * above it, numeric descending among themselves: they are VIP tiers the
+ * manifest offered, and skipping them would hide a quality the backend
+ * offers from selection (issue #713).
+ */
+export function audioOptionIds(
+  audioQualities: readonly { id: number }[] | null | undefined,
+): number[] {
+  const ladder = new Set(AUDIO_QUALITIES_ORDER)
+  const extra = [...new Set((audioQualities ?? []).map((q) => q.id))]
+    .filter((id) => !ladder.has(id))
+    .sort((a, b) => b - a)
+  return [...extra, ...AUDIO_QUALITIES_ORDER]
+}
+
+/**
  * Number of parts displayed per page in the paginated part list.
  *
  * Also bounds the default selection when a URL does not identify a
