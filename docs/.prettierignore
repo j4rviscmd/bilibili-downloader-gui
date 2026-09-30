@@ -6,3 +6,6 @@ dist/
 
 # Cache
 .astro/
+
+# Generated archify artifacts (never hand-edit; see CONTRIBUTING.md)
+public/architecture/

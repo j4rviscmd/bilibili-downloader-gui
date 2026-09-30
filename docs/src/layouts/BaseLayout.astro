@@ -223,6 +223,15 @@ const pathWithoutLang =
             >{t("nav.faq")}</a
           >
 
+          <!-- Why: raw file in docs/public/, served verbatim by Astro; the
+            standalone archify diagram is language-neutral so all locales
+            share one URL (source: docs/public/architecture/architecture.json) -->
+          <a
+            href={`${basePath}/architecture/architecture.html`}
+            class="text-muted-foreground hover:text-foreground text-sm"
+            >{t("nav.architecture")}</a
+          >
+
           <!-- Language Switcher -->
           <!--
             Dropdown menu for switching between supported languages.
