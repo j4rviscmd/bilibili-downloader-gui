@@ -133,6 +133,7 @@ const translations: Record<Lang, Record<string, unknown>> = {
     nav: {
       home: "Home",
       faq: "FAQ",
+      architecture: "Architecture",
     },
     hero: {
       title: "Bilibili Video Downloader",
@@ -190,6 +191,7 @@ const translations: Record<Lang, Record<string, unknown>> = {
     nav: {
       home: "ホーム",
       faq: "よくある質問",
+      architecture: "アーキテクチャ",
     },
     hero: {
       title: "Bilibili動画ダウンローダー",
@@ -246,6 +248,7 @@ const translations: Record<Lang, Record<string, unknown>> = {
     nav: {
       home: "首页",
       faq: "常见问题",
+      architecture: "架构",
     },
     hero: {
       title: "Bilibili视频下载器",
@@ -299,6 +302,7 @@ const translations: Record<Lang, Record<string, unknown>> = {
     nav: {
       home: "홈",
       faq: "자주 묻는 질문",
+      architecture: "아키텍처",
     },
     hero: {
       title: "Bilibili 비디오 다운로더",
@@ -355,6 +359,7 @@ const translations: Record<Lang, Record<string, unknown>> = {
     nav: {
       home: "Inicio",
       faq: "Preguntas frecuentes",
+      architecture: "Arquitectura",
     },
     hero: {
       title: "Descargador de videos de Bilibili",
@@ -412,6 +417,7 @@ const translations: Record<Lang, Record<string, unknown>> = {
     nav: {
       home: "Accueil",
       faq: "FAQ",
+      architecture: "Architecture",
     },
     hero: {
       title: "Téléchargeur de vidéos Bilibili",
