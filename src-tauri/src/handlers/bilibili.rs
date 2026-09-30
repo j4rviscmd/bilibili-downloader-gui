@@ -1122,20 +1122,16 @@ async fn download_video_impl_with<R: tauri::Runtime>(
     let (audio_url, audio_backup_urls, raw_audio_fallback) = if audio_absent {
         (String::new(), None, false)
     } else {
+        // Why: deliberately supersedes issue #713's "no-pick default is
+        // 192K; Hi-Res/Dolby need an explicit pick" — tier-ranked selection
+        // means a VIP manifest (selectable_audio() folds in the flac/dolby
+        // entries) now defaults to its best documented tier (#762 follow-up).
         let audio_quality = options
             .audio_quality
-            // Best effort: highest NUMERIC id, not the manifest's first
-            // entry. Audio ids are NOT quality-ordered (192K's 30280 is
-            // numerically above Hi-Res' 30251), so the no-pick default is
-            // 192K AAC; Hi-Res/Dolby require an explicit selection
-            // (issue #713).
-            .unwrap_or_else(|| {
-                selectable_audio
-                    .iter()
-                    .max_by_key(|a| a.id)
-                    .map(|a| a.id)
-                    .unwrap_or(30280)
-            });
+            // Best effort: highest QUALITY rank, not the manifest's first
+            // entry nor the numeric id (audio ids are not quality-ordered —
+            // see `audio_quality_rank`).
+            .unwrap_or_else(|| best_audio_quality_id(&selectable_audio).unwrap_or(30280));
         select_stream_url(&selectable_audio, Some(audio_quality))?
     };
     // Same logic: only warn when the user explicitly chose an audio quality.
@@ -3243,12 +3239,52 @@ mod tests {
             stream(80, 12), // av1 1080P — higher codecid wins the slot
             stream(64, 7),  // 720P
         ];
-        let qualities = convert_qualities(&streams);
+        let qualities = convert_qualities(&streams, video_quality_rank);
         let ids: Vec<i32> = qualities.iter().map(|q| q.id).collect();
         assert_eq!(ids, vec![80, 64], "qualities sorted best-first");
         assert_eq!(qualities[0].codecid, 12, "highest codecid kept for 80");
         assert_eq!(qualities[0].quality, "1080P");
         assert_eq!(qualities[1].quality, "720P");
+    }
+
+    #[test]
+    fn audio_quality_rank_ladder_beats_numeric_order() {
+        // Documented tier ladder: Hi-Res > Dolby > 192K > 132K > 64K, even
+        // though 192K (30280) is numerically the largest id.
+        assert!(audio_quality_rank(30251) > audio_quality_rank(30250));
+        assert!(audio_quality_rank(30250) > audio_quality_rank(30280));
+        assert!(audio_quality_rank(30280) > audio_quality_rank(30232));
+        assert!(audio_quality_rank(30232) > audio_quality_rank(30216));
+        // Undocumented ids rank below every known tier.
+        assert!(audio_quality_rank(30255) < audio_quality_rank(30216));
+    }
+
+    #[test]
+    fn best_audio_quality_id_prefers_hires_over_numeric_max() {
+        let streams = vec![stream(30280, 0), stream(30251, 0), stream(30216, 0)];
+        assert_eq!(best_audio_quality_id(&streams), Some(30251));
+
+        // AAC-only manifest: unchanged 192K default.
+        let aac = vec![stream(30216, 0), stream(30280, 0)];
+        assert_eq!(best_audio_quality_id(&aac), Some(30280));
+
+        // Undocumented tier (e.g. a Dolby variant) is never auto-picked.
+        let with_unknown = vec![stream(30280, 0), stream(30255, 0)];
+        assert_eq!(best_audio_quality_id(&with_unknown), Some(30280));
+    }
+
+    #[test]
+    fn convert_qualities_sorts_audio_by_quality_rank() {
+        let streams = vec![
+            stream(30216, 0),
+            stream(30280, 0),
+            stream(30250, 0),
+            stream(30251, 0),
+            stream(30255, 0), // undocumented — sorts below known tiers
+        ];
+        let qualities = convert_qualities(&streams, audio_quality_rank);
+        let ids: Vec<i32> = qualities.iter().map(|q| q.id).collect();
+        assert_eq!(ids, vec![30251, 30250, 30280, 30216, 30255]);
     }
 
     // ---- select_stream_url ----
@@ -4763,28 +4799,60 @@ fn web_interface_data_to_video(
     }
 }
 
+/// Quality rank of a video stream id.
+///
+/// The video `qn` table is a designed quality ladder (16 360p < … < 127 8K),
+/// so the numeric id itself is the rank.
+fn video_quality_rank(id: i32) -> i32 {
+    id
+}
+
+// Note: the mirrored table lives in-repo at
+// references/bilibili-API-collect/docs/video/videostream_url.md
+// (§ 视频伴音音质代码).
+/// Quality rank of an audio stream id.
+///
+/// Audio ids are allocated by history, not quality: the VIP tiers 30250
+/// (Dolby Atmos) / 30251 (Hi-Res Lossless) sit numerically BELOW the older
+/// 30280 (192K). The ladder mirrors the bilibili-API-collect
+/// 视频伴音音质代码 table, which lists the codes in ascending quality
+/// (64K < 132K < 192K < Dolby < Hi-Res). Undocumented ids rank below every
+/// known tier: they stay selectable in the UI but the best-effort default
+/// never auto-picks an unknown tier.
+fn audio_quality_rank(id: i32) -> i32 {
+    match id {
+        30251 => 5, // Hi-Res Lossless
+        30250 => 4, // Dolby Atmos
+        30280 => 3, // 192K AAC
+        30232 => 2, // 132K
+        30216 => 1, // 64K
+        _ => 0,
+    }
+}
+
+/// Best-effort audio quality id for downloads without an explicit pick:
+/// highest by quality rank (NOT numeric id — see `audio_quality_rank`),
+/// with the numeric id as a deterministic tie-break.
+fn best_audio_quality_id(streams: &[XPlayerApiResponseVideo]) -> Option<i32> {
+    streams
+        .iter()
+        .max_by_key(|a| (audio_quality_rank(a.id), a.id))
+        .map(|a| a.id)
+}
+
 /// Converts API video/audio quality data to frontend DTO format.
 ///
-/// Processes raw quality data from Bilibili API and converts it to a format usable by the frontend.
-/// When multiple entries have the same quality ID, selects the one with the highest codec ID.
+/// Processes raw quality data from Bilibili API and converts it to a format
+/// usable by the frontend, sorted by quality (highest first). When multiple
+/// entries share a quality ID, the highest codec ID wins the slot.
 ///
-/// # Processing Steps
-///
-/// 1. Group entries by quality ID
-/// 2. Select the highest codec ID for each quality level
-/// 3. Sort in descending order (highest quality first)
-///
-/// # Arguments
-///
-/// * `video` - Quality data slice from XPlayer API response
-///
-/// # Returns
-///
-/// Returns a vector of `Quality` structs sorted by quality (highest first).
-fn convert_qualities(video: &[XPlayerApiResponseVideo]) -> Vec<Quality> {
+/// `rank` supplies the ordering policy per stream family: video ids are a
+/// spec-guaranteed ladder, audio ids are not (see `audio_quality_rank`).
+/// Same-rank ids tie-break on the numeric id, descending.
+fn convert_qualities(streams: &[XPlayerApiResponseVideo], rank: fn(i32) -> i32) -> Vec<Quality> {
     let mut qualities: BTreeMap<i32, &XPlayerApiResponseVideo> = BTreeMap::new();
 
-    for item in video {
+    for item in streams {
         qualities
             .entry(item.id)
             .and_modify(|existing| {
@@ -4795,15 +4863,17 @@ fn convert_qualities(video: &[XPlayerApiResponseVideo]) -> Vec<Quality> {
             .or_insert(item);
     }
 
-    qualities
+    let mut out: Vec<Quality> = qualities
         .into_iter()
-        .rev()
         .map(|(id, v)| Quality {
             id,
             codecid: v.codecid,
             quality: quality_to_string(&id),
         })
-        .collect()
+        .collect();
+    // Reverse((rank, id)) = descending by rank, numeric id as tie-break.
+    out.sort_by_key(|q| std::cmp::Reverse((rank(q.id), q.id)));
+    out
 }
 
 /// Fetches video title and page information from Bilibili Web Interface API.
@@ -6024,8 +6094,8 @@ async fn fetch_part_qualities_with(
     // DASH format: separate video and audio streams
     if let Some(dash) = data.dash {
         let selectable_audio = dash.selectable_audio();
-        let video_qualities = convert_qualities(&dash.video);
-        let audio_qualities = convert_qualities(&selectable_audio);
+        let video_qualities = convert_qualities(&dash.video, video_quality_rank);
+        let audio_qualities = convert_qualities(&selectable_audio, audio_quality_rank);
         // Silent source (issue #446): video streams exist but the manifest
         // carries no audio track at all.
         let audio_absent = !dash.video.is_empty() && selectable_audio.is_empty();
@@ -6795,15 +6865,8 @@ async fn refetch_dash_urls(
     let (audio_url, audio_backup_urls) = if selectable_audio.is_empty() {
         (String::new(), None)
     } else {
-        let resolved_audio_quality = audio_quality.unwrap_or_else(|| {
-            // Best effort: highest numeric id (see the initial selection's
-            // comment for why this defaults to 192K AAC).
-            selectable_audio
-                .iter()
-                .max_by_key(|a| a.id)
-                .map(|a| a.id)
-                .unwrap_or(30280)
-        });
+        let resolved_audio_quality = audio_quality
+            .unwrap_or_else(|| best_audio_quality_id(&selectable_audio).unwrap_or(30280));
         let (url, backups, _) = select_stream_url(&selectable_audio, Some(resolved_audio_quality))?;
         (url, backups)
     };
@@ -6929,8 +6992,8 @@ async fn fetch_bangumi_part_qualities_with(
     // Try DASH format first
     if let Some(dash) = &result.dash {
         let selectable_audio = dash.selectable_audio();
-        let video_qualities = convert_qualities(&dash.video);
-        let audio_qualities = convert_qualities(&selectable_audio);
+        let video_qualities = convert_qualities(&dash.video, video_quality_rank);
+        let audio_qualities = convert_qualities(&selectable_audio, audio_quality_rank);
         log::info!(
             "[BE] fetch_bangumi_part_qualities: received {} video qualities, {} audio qualities",
             video_qualities.len(),
