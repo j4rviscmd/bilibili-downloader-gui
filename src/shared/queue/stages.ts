@@ -15,6 +15,17 @@ export const ALL_STAGES: ExpectedStages = {
 }
 
 /**
+ * Share of the overall bar owned by the ffmpeg merge stage (0.1 = 10%).
+ *
+ * Why so small: the common `-c:a copy` remux finishes in seconds, so the
+ * old equal-thirds split capped downloaded bytes at ~67% of the bar for
+ * the whole transfer. Why not zero: with no merge share the bar pins at
+ * 100% while ffmpeg still runs (issue #446), and the AAC fallback
+ * re-encode can run for minutes (issues #492/#586).
+ */
+const MERGE_SHARE = 0.1
+
+/**
  * Merges the progress entries of one download into per-stage views plus an
  * overall percentage.
  *
@@ -24,7 +35,8 @@ export const ALL_STAGES: ExpectedStages = {
  *
  * @param entries - Progress entries for one downloadId
  * @param expected - Which stages this download runs (snapshotted at enqueue
- *   time on the queue item). Divides by the real stage count so silent
+ *   time on the queue item). Weights the bar by stage shares (merge =
+ *   MERGE_SHARE, the rest split evenly between audio and video) so silent
  *   sources (no audio) and durl downloads (muxed, no merge) are not pinned
  *   below 100% (issue #446).
  */
@@ -66,19 +78,27 @@ export function pickStageData(
     entries.find((p) => p.stage === stage && !p.isComplete)
   const audio = byStage('audio')
   const video = byStage('video')
-  const merge = byStage('merge')
+  // Why merge-fallback first: it is the SAME ffmpeg merge stage after the
+  // lossless -c:a copy path failed and the backend fell back to AAC
+  // re-encoding (src-tauri/src/handlers/ffmpeg.rs). The fallback switch
+  // resets bytes to 0, leaving the old 'merge' entry stale near 0% — the
+  // ticking fallback entry must win so the bar keeps moving during a long
+  // re-encode.
+  const merge =
+    entries.find((p) => p.stage === 'merge-fallback' && !p.isComplete) ??
+    byStage('merge')
   const subtitle = byStage('subtitle')
   const audioPct = audio?.percentage ?? (merge ? 100 : 0)
   const videoPct = video?.percentage ?? (merge ? 100 : 0)
   const mergePct = merge?.percentage ?? 0
-  const divisor =
-    1 + (expected.audioStage ? 1 : 0) + (expected.mergeStage ? 1 : 0)
+  const mergeShare = expected.mergeStage ? MERGE_SHARE : 0
+  // Remaining share split evenly between video and (if expected) audio.
+  const streamShare = (1 - mergeShare) / (expected.audioStage ? 2 : 1)
   return {
     percentage:
-      ((expected.audioStage ? audioPct : 0) +
-        videoPct +
-        (expected.mergeStage ? mergePct : 0)) /
-      divisor,
+      (expected.audioStage ? streamShare * audioPct : 0) +
+      streamShare * videoPct +
+      mergeShare * mergePct,
     audio: audio
       ? { percentage: audio.percentage, transferRate: audio.transferRate }
       : null,

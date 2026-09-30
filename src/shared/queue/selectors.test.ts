@@ -177,6 +177,13 @@ describe('selectQueueSummary', () => {
       selectQueueSummary(stateOf(queue, [mk('merge')]) as unknown as RootState)
         .isMerging,
     ).toBe(true)
+    // The AAC re-encode fallback is the same ffmpeg merge stage, so it must
+    // block cancel-all identically.
+    expect(
+      selectQueueSummary(
+        stateOf(queue, [mk('merge-fallback')]) as unknown as RootState,
+      ).isMerging,
+    ).toBe(true)
   })
 
   it('sums transfer rates of running parts only, excluding retrying entries', () => {

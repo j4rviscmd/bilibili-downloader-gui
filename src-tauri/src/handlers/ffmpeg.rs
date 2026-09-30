@@ -15,7 +15,7 @@ use std::time::Duration;
 use std::{
     fs,
     path::{Path, PathBuf},
-    process::{Command, Stdio},
+    process::Stdio,
 };
 use tauri::{AppHandle, Manager, Runtime};
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -337,7 +337,7 @@ async fn install_ffmpeg_in_dir<R: Runtime>(
         let Some(ffmpeg_path_str) = ffmpeg_bin.to_str() else {
             return Err(anyhow::anyhow!("Invalid ffmpeg path"));
         };
-        let res = Command::new("chmod")
+        let res = std::process::Command::new("chmod")
             .arg("+x")
             .arg(ffmpeg_path_str)
             .output()
@@ -525,7 +525,6 @@ async fn validate_command(path: &Path) -> bool {
 
     #[cfg(target_os = "windows")]
     {
-        use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
@@ -991,6 +990,39 @@ pub async fn merge_avs(
     subtitle_mode: MergeMode,
     cancel_token: Option<CancellationToken>,
 ) -> Result<(), String> {
+    merge_avs_with_ffmpeg(
+        &get_ffmpeg_path(app),
+        app,
+        video_path,
+        audio_path,
+        output_path,
+        download_id,
+        duration_ms,
+        subtitle_mode,
+        cancel_token,
+    )
+    .await
+}
+
+/// Path-injected split of [`merge_avs`] (test seam, issue #646): runs the
+/// same copy → AAC-fallback flow against an explicit ffmpeg binary so tests
+/// drive it with a fake script in a tempdir, mirroring
+/// [`extract_audio_with_ffmpeg`].
+// Why generic over R: tests pass `tauri::test::mock_app().handle()`
+// (`AppHandle<MockRuntime>`), which only type-checks against a generic
+// Runtime param (same rationale as extract_audio_with_ffmpeg).
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn merge_avs_with_ffmpeg<R: Runtime>(
+    ffmpeg_path: &Path,
+    app: &tauri::AppHandle<R>,
+    video_path: &std::path::Path,
+    audio_path: Option<&std::path::Path>,
+    output_path: &std::path::Path,
+    download_id: Option<String>,
+    duration_ms: Option<u64>,
+    subtitle_mode: MergeMode,
+    cancel_token: Option<CancellationToken>,
+) -> Result<(), String> {
     log::info!(
         "[BE] merge_avs: starting merge download_id={:?}, output={:?}, subtitle_mode={:?}, audio={:?}",
         download_id,
@@ -1010,8 +1042,6 @@ pub async fn merge_avs(
     );
     let _ = emits.set_stage("merge").await;
 
-    let ffmpeg_path = get_ffmpeg_path(app);
-
     let to_str_err = || "Invalid path".to_string();
     let video_str = video_path.to_str().ok_or_else(to_str_err)?;
     let audio_str = audio_path
@@ -1027,10 +1057,11 @@ pub async fn merge_avs(
     // does not depend on the result; the log line arrives when the check
     // finishes.
     {
-        let ffmpeg_path_chk = ffmpeg_path.clone();
+        let ffmpeg_path_chk = ffmpeg_path.to_path_buf();
         let video_str_chk = video_str.to_string();
         let video_path_chk = video_path.to_path_buf();
         let download_id_chk = download_id.clone();
+
         tokio::spawn(async move {
             // Constraint: std::process::Command::output() blocks its thread,
             //   so it must go through spawn_blocking — calling it directly on
@@ -1106,7 +1137,7 @@ pub async fn merge_avs(
         AudioCodec::Copy,
     )?;
     let copy_result = run_merge_ffmpeg(
-        &ffmpeg_path,
+        ffmpeg_path,
         &copy_args,
         output_path,
         duration_ms,
@@ -1151,7 +1182,7 @@ pub async fn merge_avs(
         AudioCodec::Aac,
     )?;
     match run_merge_ffmpeg(
-        &ffmpeg_path,
+        ffmpeg_path,
         &reencode_args,
         output_path,
         duration_ms,
@@ -1186,7 +1217,6 @@ async fn run_merge_ffmpeg<R: Runtime>(
 
     #[cfg(target_os = "windows")]
     {
-        use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
@@ -2003,5 +2033,232 @@ mod tests {
             .unwrap_err();
         assert!(err.contains("Source ffmpeg binary not found"), "got: {err}");
         assert!(from.exists(), "source kept on failure");
+    }
+
+    // ---- merge_avs_with_ffmpeg e2e (fake ffmpeg scripts) ----
+
+    /// Writes a custom fake-ffmpeg shell script at the platform bin path
+    /// under `root` and returns the bin path (merge_avs_with_ffmpeg takes
+    /// the bin path directly).
+    #[cfg(unix)]
+    fn write_ffmpeg_script(root: &Path, script: &str) -> PathBuf {
+        let bin = build_ffmpeg_bin_path(root);
+        std::fs::create_dir_all(bin.parent().unwrap()).unwrap();
+        std::fs::write(&bin, script).unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+        bin
+    }
+
+    /// Fake ffmpeg that always succeeds and emits merge progress lines.
+    #[cfg(unix)]
+    const MERGE_OK_SCRIPT: &str =
+        "#!/bin/sh\necho out_time_ms=1500000\necho progress=end\nexit 0\n";
+
+    /// Fake ffmpeg whose AUDIO stream-copy invocation fails (the codec arg
+    /// right after `-c:a`) while the AAC re-encode succeeds — drives the
+    /// copy → AAC fallback path. The video codec stays `-c:v copy` in both
+    /// attempts, so matching any standalone `copy` arg would fail both.
+    #[cfg(unix)]
+    const MERGE_COPY_FAIL_SCRIPT: &str = "#!/bin/sh\nprev=\nfor a in \"$@\"; do\n  if [ \"$prev\" = -c:a ] && [ \"$a\" = copy ]; then exit 1; fi\n  prev=$a\ndone\necho out_time_ms=1500000\necho progress=end\nexit 0\n";
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn merge_avs_copy_success_completes() {
+        let app = tauri::test::mock_app();
+        let tmp = tempfile::tempdir().unwrap();
+        let ffmpeg = write_ffmpeg_script(&tmp.path().join("ff"), MERGE_OK_SCRIPT);
+        std::fs::write(tmp.path().join("v.m4s"), b"video-bytes").unwrap();
+        std::fs::write(tmp.path().join("a.m4s"), b"audio-bytes").unwrap();
+
+        merge_avs_with_ffmpeg(
+            &ffmpeg,
+            app.handle(),
+            &tmp.path().join("v.m4s"),
+            Some(&tmp.path().join("a.m4s")),
+            &tmp.path().join("out.mp4"),
+            Some("merge-copy-ok".into()),
+            Some(2000),
+            MergeMode::None,
+            None,
+        )
+        .await
+        .unwrap();
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn merge_avs_copy_failure_falls_back_to_aac_and_succeeds() {
+        // Copy attempt fails (exit 1), the AAC re-encode succeeds: the
+        // fallback must transparently complete the merge.
+        let app = tauri::test::mock_app();
+        let tmp = tempfile::tempdir().unwrap();
+        let ffmpeg = write_ffmpeg_script(&tmp.path().join("ff"), MERGE_COPY_FAIL_SCRIPT);
+        std::fs::write(tmp.path().join("v.m4s"), b"video-bytes").unwrap();
+        std::fs::write(tmp.path().join("a.m4s"), b"audio-bytes").unwrap();
+
+        merge_avs_with_ffmpeg(
+            &ffmpeg,
+            app.handle(),
+            &tmp.path().join("v.m4s"),
+            Some(&tmp.path().join("a.m4s")),
+            &tmp.path().join("out.mp4"),
+            Some("merge-aac-fallback".into()),
+            Some(2000),
+            MergeMode::None,
+            None,
+        )
+        .await
+        .unwrap();
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn merge_avs_both_attempts_fail_returns_error() {
+        let app = tauri::test::mock_app();
+        let tmp = tempfile::tempdir().unwrap();
+        let ffmpeg = write_ffmpeg_script(&tmp.path().join("ff"), "#!/bin/sh\nexit 1\n");
+
+        let err = merge_avs_with_ffmpeg(
+            &ffmpeg,
+            app.handle(),
+            &tmp.path().join("v.m4s"),
+            Some(&tmp.path().join("a.m4s")),
+            &tmp.path().join("out.mp4"),
+            None,
+            None,
+            MergeMode::None,
+            None,
+        )
+        .await
+        .unwrap_err();
+        assert!(err.contains("ffmpeg failed to merge"), "got: {err}");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn merge_avs_video_only_failure_is_final() {
+        // Video-only merges have no AAC fallback shape: the single failure
+        // must surface directly.
+        let app = tauri::test::mock_app();
+        let tmp = tempfile::tempdir().unwrap();
+        let ffmpeg = write_ffmpeg_script(&tmp.path().join("ff"), "#!/bin/sh\nexit 1\n");
+
+        let err = merge_avs_with_ffmpeg(
+            &ffmpeg,
+            app.handle(),
+            &tmp.path().join("v.m4s"),
+            None,
+            &tmp.path().join("out.mp4"),
+            None,
+            None,
+            MergeMode::None,
+            None,
+        )
+        .await
+        .unwrap_err();
+        assert!(err.contains("ffmpeg failed to merge"), "got: {err}");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn merge_avs_cancelled_copy_skips_aac_fallback() {
+        // Cancellation is a user action, not a transcode failure: the
+        // pre-cancelled token must abort the copy attempt AND skip the AAC
+        // fallback (a cancel must not trigger a re-encode).
+        let app = tauri::test::mock_app();
+        let tmp = tempfile::tempdir().unwrap();
+        // Prints one stdout line (so the progress loop observes the cancel)
+        // then sleeps: the kill happens on the line-read cancel check.
+        let ffmpeg = write_ffmpeg_script(
+            &tmp.path().join("ff"),
+            "#!/bin/sh\necho running\nsleep 5\nexit 1\n",
+        );
+        let token = CancellationToken::new();
+        token.cancel();
+
+        let err = merge_avs_with_ffmpeg(
+            &ffmpeg,
+            app.handle(),
+            &tmp.path().join("v.m4s"),
+            Some(&tmp.path().join("a.m4s")),
+            &tmp.path().join("out.mp4"),
+            None,
+            None,
+            MergeMode::None,
+            Some(token),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(err, "ERR::CANCELLED");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn move_ffmpeg_missing_source_dir_errors() {
+        let tmp = tempfile::tempdir().unwrap();
+        let err = move_ffmpeg(tmp.path().join("old-ffmpeg"), tmp.path().join("new-ffmpeg"))
+            .await
+            .unwrap_err();
+        assert!(
+            err.contains("Source ffmpeg directory does not exist"),
+            "got: {err}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn move_ffmpeg_invalid_source_bin_errors() {
+        let tmp = tempfile::tempdir().unwrap();
+        let from = tmp.path().join("old-ffmpeg");
+        write_ffmpeg_script(&from, "#!/bin/sh\nexit 1\n");
+
+        let err = move_ffmpeg(from.clone(), tmp.path().join("new-ffmpeg"))
+            .await
+            .unwrap_err();
+        assert!(
+            err.contains("Source ffmpeg binary is not valid"),
+            "got: {err}"
+        );
+        assert!(from.exists(), "source kept on failure");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn move_ffmpeg_replaces_existing_target() {
+        let tmp = tempfile::tempdir().unwrap();
+        let from = tmp.path().join("old-ffmpeg");
+        write_ffmpeg_script(&from, MERGE_OK_SCRIPT);
+        let to = tmp.path().join("new-ffmpeg");
+        std::fs::create_dir_all(&to).unwrap();
+        std::fs::write(to.join("stale.txt"), b"previous install").unwrap();
+
+        move_ffmpeg(from.clone(), to.clone()).await.unwrap();
+
+        assert!(build_ffmpeg_bin_path(&to).exists(), "binary moved over");
+        assert!(!from.exists(), "source removed after validation");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn move_ffmpeg_copied_bin_invalid_cleans_target() {
+        // The script succeeds only when invoked from the source path ($0),
+        // so validation passes on the original and fails on the copy —
+        // the copied tree must be cleaned up and the error surface.
+        let tmp = tempfile::tempdir().unwrap();
+        let from = tmp.path().join("old-ffmpeg");
+        write_ffmpeg_script(
+            &from,
+            "#!/bin/sh\ncase \"$0\" in\n  *old-ffmpeg*) exit 0;;\n  *) exit 1;;\nesac\n",
+        );
+        let to = tmp.path().join("new-ffmpeg");
+
+        let err = move_ffmpeg(from.clone(), to.clone()).await.unwrap_err();
+        assert!(
+            err.contains("Copied ffmpeg binary validation failed"),
+            "got: {err}"
+        );
+        assert!(!to.exists(), "failed copy is cleaned up");
+        assert!(from.exists(), "source kept for retry");
     }
 }

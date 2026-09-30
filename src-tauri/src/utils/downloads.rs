@@ -585,8 +585,8 @@ fn content_range_start(value: &header::HeaderValue) -> Option<u64> {
 ///    size.
 /// 3. Falls back to [`single_stream_fallback`] when the server does not
 ///    advertise `Accept-Ranges`/Content-Length.
-/// 4. Splits the payload into 8 MB segments (concurrency pinned to 1
-///    because Bilibili's CDN is unstable with parallel range requests).
+/// 4. Splits the payload into segments sized so the configured concurrency
+///    actually engages (see [`effective_segment_size`]).
 /// 5. Pre-allocates the output file and emits progress updates via
 ///    [`Emits`] to the frontend.
 /// 6. Streams each segment through [`download_segment_stream`] while an
@@ -728,13 +728,14 @@ pub async fn download_url<R: Runtime>(
     cdn_urls = ordered_urls;
 
     // ---- 2. Plan segments ----
-    // Why: raised from 8MB now that segments stream straight to disk (no
-    //   Vec<u8> buffering), so segment size no longer drives resident memory.
-    //   Fewer segment boundaries = fewer CDN-rotation resets and progress
-    //   dips. 32MB keeps small (50MB) videos parallelizable (2 segments)
-    //   while cutting 1GB from 125 to 32 segments.
-    const DEFAULT_SEGMENT_MB: u64 = 32;
-    let segment_size = DEFAULT_SEGMENT_MB * 1024 * 1024;
+    // Why adaptive sizing: Bilibili's CDN throttles each connection after
+    //   an initial burst (observed ~0.7-1 MB/s steady), so parallelism must
+    //   actually engage for the file at hand. A fixed 32MB size left files
+    //   under 32MB on a single connection regardless of the concurrency
+    //   setting (2026-09-27 log: 30MB video on one connection, slow tail);
+    //   sizing to total/concurrency restores it. Clamp floor/cap rationale:
+    //   `effective_segment_size`.
+    let segment_size = effective_segment_size(total, concurrency);
     let segments: Vec<(u64, u64)> = calculate_segments(total, segment_size);
 
     // Why: segment parallelism is now configurable instead of the previous
@@ -1901,6 +1902,23 @@ async fn backoff_sleep(attempt: u8) {
     tokio::time::sleep(Duration::from_millis(ms)).await;
 }
 
+/// Chooses the segment size so the segment count reaches the configured
+/// concurrency, defeating Bilibili's per-connection throttle.
+///
+/// `total / concurrency` is clamped into `[MIN_SEGMENT_MB, MAX_SEGMENT_MB]`
+/// MiB. The floor keeps small files (e.g. 3MB audio) on a single connection
+/// instead of handshake-dominated slivers; the cap preserves the large-file
+/// tuning (fewer segment boundaries = fewer rotation resets and progress
+/// dips; a 1GB file stays at 32 segments). `concurrency` is assumed >= 1
+/// (the settings resolver clamps it).
+/// Pure function — fully unit-testable.
+fn effective_segment_size(total: u64, concurrency: usize) -> u64 {
+    const MAX_SEGMENT_MB: u64 = 32;
+    const MIN_SEGMENT_MB: u64 = 4;
+    let target = total / concurrency.max(1) as u64;
+    target.clamp(MIN_SEGMENT_MB * 1024 * 1024, MAX_SEGMENT_MB * 1024 * 1024)
+}
+
 /// Calculates segment byte ranges for segmented download.
 ///
 /// Divides the total file size into segments of the specified size,
@@ -2025,6 +2043,59 @@ mod tests {
         assert_eq!(calculate_segments(3, 4), vec![(0, 2)]);
         // Zero total -> no segments (no infinite loop)
         assert!(calculate_segments(0, 4).is_empty());
+    }
+
+    #[test]
+    fn effective_segment_size_floors_small_files() {
+        // 3MiB audio at concurrency 8: 384KiB target -> 4MiB floor -> 1 segment
+        assert_eq!(effective_segment_size(3 * 1024 * 1024, 8), 4 * 1024 * 1024);
+        // Below the floor entirely: still the floor (calculate_segments
+        // then yields a single segment, same as before this change)
+        assert_eq!(effective_segment_size(1024, 8), 4 * 1024 * 1024);
+    }
+
+    #[test]
+    fn effective_segment_size_splits_to_concurrency() {
+        // 30MB video at concurrency 8: ~3.67MiB target -> 4MiB floor
+        let size = effective_segment_size(30_773_290, 8);
+        assert_eq!(size, 4 * 1024 * 1024);
+        // The 2026-09-27 log case now splits into 8 segments
+        assert_eq!(calculate_segments(30_773_290, size).len(), 8);
+
+        // 100MiB at 8: 12.5MiB target passes through unclamped
+        assert_eq!(
+            effective_segment_size(100 * 1024 * 1024, 8),
+            12 * 1024 * 1024 + 512 * 1024
+        );
+    }
+
+    #[test]
+    fn effective_segment_size_caps_large_files_and_single_thread() {
+        // 500MB at 8: 62.5MB target -> 32MB cap (large-file tuning kept)
+        assert_eq!(
+            effective_segment_size(500 * 1024 * 1024, 8),
+            32 * 1024 * 1024
+        );
+        // concurrency=1: whole-file target -> cap keeps 32MB segments
+        assert_eq!(
+            effective_segment_size(100 * 1024 * 1024, 1),
+            32 * 1024 * 1024
+        );
+    }
+
+    #[test]
+    fn effective_segment_size_boundary_floor_equals_target() {
+        // 32MiB at 8: target lands exactly on the 4MiB floor (clamp is a
+        // no-op) -> 8 segments. Before this change a 32MiB file was a
+        // single segment, so this pins the exact behavior-change boundary.
+        let size = effective_segment_size(32 * 1024 * 1024, 8);
+        assert_eq!(size, 4 * 1024 * 1024);
+        assert_eq!(calculate_segments(32 * 1024 * 1024, size).len(), 8);
+        // concurrency=2 on the same file: 16MiB target, unclamped mid-range
+        assert_eq!(
+            effective_segment_size(32 * 1024 * 1024, 2),
+            16 * 1024 * 1024
+        );
     }
 
     #[test]
@@ -2841,5 +2912,628 @@ mod tests {
         // The error is the raw io error (EACCES), not a cancel — and the
         // emitter's ticker was stopped by the funnel before returning.
         assert!(!err.to_string().contains("CANCELLED"), "got: {err}");
+    }
+
+    // ---- verify_resume_tail I/O failure branches ----
+
+    #[tokio::test]
+    async fn resume_tail_returns_false_when_disk_read_fails() {
+        // The on-disk tail cannot be read (file vanished between the
+        // interrupted attempt and the resume) — must fail closed, never
+        // stitch onto an unverifiable tail.
+        let missing = tempfile::tempdir().unwrap();
+        let path = missing.path().join("gone.bin");
+        assert!(
+            !verify_resume_tail(
+                &reqwest::Client::new(),
+                "http://127.0.0.1:1/never-hit",
+                &None,
+                &path,
+                0,
+                4096,
+            )
+            .await
+        );
+    }
+
+    #[tokio::test]
+    async fn resume_tail_returns_false_when_verify_request_fails() {
+        // Disk tail is readable but the re-fetch request itself errors
+        // (connection refused): unverified resume is corruption risk.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("seg.bin");
+        std::fs::write(&path, vec![0x33u8; 2048]).unwrap();
+        assert!(
+            !verify_resume_tail(
+                &reqwest::Client::new(),
+                "http://127.0.0.1:9/refused",
+                &None,
+                &path,
+                0,
+                2048,
+            )
+            .await
+        );
+    }
+
+    // ---- CDN probe vs segment disambiguation ----
+    //
+    // The probe GET and the segment GET hit the same URL and differ only in
+    // the Range header value (probe: bytes=0-{CDN_PROBE_BYTES-1}), so these
+    // mocks key on the exact header to let the probe succeed while the
+    // segment request exercises each error arm.
+
+    /// Mounts the successful probe mock (206, media type, full 4 KiB body).
+    /// `body` must be 4096 bytes so `bytes 0-4095/4096` is self-consistent.
+    async fn probe_ok_mock(server: &wiremock::MockServer, body: &[u8]) {
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::header(
+                "range",
+                format!("bytes=0-{}", 4 * 1024 * 1024 - 1),
+            ))
+            .respond_with(
+                wiremock::ResponseTemplate::new(206)
+                    .insert_header(
+                        "Content-Range",
+                        format!("bytes 0-{}/{}", body.len() - 1, body.len()),
+                    )
+                    .insert_header("Content-Type", "application/octet-stream")
+                    .set_body_bytes(body.to_vec()),
+            )
+            .mount(server)
+            .await;
+    }
+
+    #[tokio::test]
+    async fn download_url_segment_invalid_status_exhausts_http_retries() {
+        // Every segment GET returns 403: the per-URL HTTP budget (3) must
+        // exhaust and fail the download instead of looping forever.
+        let app = tauri::test::mock_app();
+        let server = wiremock::MockServer::start().await;
+        let body = e2e_body();
+        probe_ok_mock(&server, &body).await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::header("range", "bytes=0-4095"))
+            .respond_with(wiremock::ResponseTemplate::new(403))
+            .mount(&server)
+            .await;
+
+        let dir = tempfile::tempdir().unwrap();
+        let err = download_url(
+            app.handle(),
+            server.uri(),
+            None,
+            dir.path().join("out.bin"),
+            None,
+            false,
+            None,
+            None,
+            false,
+            1,
+            Arc::new(cdn_selector::HostHealth::new()),
+        )
+        .await
+        .unwrap_err();
+        assert!(err.to_string().contains("segment(s) failed"), "got: {err}");
+    }
+
+    #[tokio::test]
+    async fn download_url_segment_content_range_mismatch_exhausts_rotations() {
+        // Regression guard for the silent-corruption class: the edge serves
+        // 206 with a DIFFERENT Content-Range start than requested. Every
+        // rotation hits the same misaligned edge, so the rotation budget (1
+        // URL x MAX_CDN_LOOPS) must exhaust and fail loudly.
+        let app = tauri::test::mock_app();
+        let server = wiremock::MockServer::start().await;
+        let body = e2e_body();
+        probe_ok_mock(&server, &body).await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::header("range", "bytes=0-4095"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(206)
+                    .insert_header("Content-Range", "bytes 256-4351/4096")
+                    .insert_header("Content-Type", "application/octet-stream")
+                    .set_body_bytes(body.clone()),
+            )
+            .mount(&server)
+            .await;
+
+        let dir = tempfile::tempdir().unwrap();
+        let err = download_url(
+            app.handle(),
+            server.uri(),
+            None,
+            dir.path().join("out.bin"),
+            None,
+            false,
+            None,
+            None,
+            false,
+            1,
+            Arc::new(cdn_selector::HostHealth::new()),
+        )
+        .await
+        .unwrap_err();
+        assert!(err.to_string().contains("segment(s) failed"), "got: {err}");
+    }
+
+    #[tokio::test]
+    async fn download_url_segment_non_media_propagates_immediately() {
+        // 200 + matching Content-Length + JSON body (issue #467 error-body
+        // shape): must fail as ERR::INVALID_MEDIA_RESPONSE, propagated
+        // immediately — NOT wrapped as "N segment(s) failed", so the
+        // caller's playurl-refetch retry can engage.
+        let app = tauri::test::mock_app();
+        let server = wiremock::MockServer::start().await;
+        let body = e2e_body();
+        probe_ok_mock(&server, &body).await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::header("range", "bytes=0-4095"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .insert_header("Content-Type", "application/json")
+                    .set_body_bytes(body),
+            )
+            .mount(&server)
+            .await;
+
+        let dir = tempfile::tempdir().unwrap();
+        let err = download_url(
+            app.handle(),
+            server.uri(),
+            None,
+            dir.path().join("out.bin"),
+            None,
+            false,
+            None,
+            None,
+            false,
+            1,
+            Arc::new(cdn_selector::HostHealth::new()),
+        )
+        .await
+        .unwrap_err();
+        assert!(
+            err.to_string().contains("ERR::INVALID_MEDIA_RESPONSE"),
+            "got: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn download_url_segment_size_mismatch_exhausts_rotations() {
+        // Truncated-but-clean 206 (advertised range 4096, body 2048): every
+        // rotation serves the same truncation, so the budget must exhaust
+        // and the download fail instead of accepting short bytes.
+        let app = tauri::test::mock_app();
+        let server = wiremock::MockServer::start().await;
+        let body = e2e_body();
+        probe_ok_mock(&server, &body).await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::header("range", "bytes=0-4095"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(206)
+                    .insert_header("Content-Range", "bytes 0-4095/4096")
+                    .insert_header("Content-Type", "application/octet-stream")
+                    .set_body_bytes(body[..2048].to_vec()),
+            )
+            .mount(&server)
+            .await;
+
+        let dir = tempfile::tempdir().unwrap();
+        let err = download_url(
+            app.handle(),
+            server.uri(),
+            None,
+            dir.path().join("out.bin"),
+            None,
+            false,
+            None,
+            None,
+            false,
+            1,
+            Arc::new(cdn_selector::HostHealth::new()),
+        )
+        .await
+        .unwrap_err();
+        assert!(err.to_string().contains("segment(s) failed"), "got: {err}");
+    }
+
+    #[tokio::test]
+    async fn download_url_rejects_body_below_media_floor() {
+        // Every check passes per-segment but the final size (512) is below
+        // MIN_MEDIA_BYTES: a served error payload must not be reported as a
+        // successful download (issue #467).
+        let app = tauri::test::mock_app();
+        let server = wiremock::MockServer::start().await;
+        let tiny: Vec<u8> = (0..512u32).map(|i| (i % 251) as u8).collect();
+        // One mock serves both the probe and the segment GET (same 206).
+        segmented_206_mock(&server, &tiny).await;
+
+        let dir = tempfile::tempdir().unwrap();
+        let err = download_url(
+            app.handle(),
+            server.uri(),
+            None,
+            dir.path().join("out.bin"),
+            None,
+            false,
+            None,
+            None,
+            false,
+            1,
+            Arc::new(cdn_selector::HostHealth::new()),
+        )
+        .await
+        .unwrap_err();
+        assert!(
+            err.to_string().contains("ERR::INVALID_MEDIA_RESPONSE"),
+            "got: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn download_url_fallback_override_replaces_existing_file() {
+        // single_stream_fallback's override branch: stale file removed, the
+        // streamed body replaces it, and the forced stage/stop path runs.
+        let app = tauri::test::mock_app();
+        let server = wiremock::MockServer::start().await;
+        // Probe (Range GET) serves HTML so pre-selection yields no size and
+        // download_url routes to the fallback; the Range-less GET streams
+        // the real body.
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::header_exists("range"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .insert_header("Content-Type", "text/html")
+                    .set_body_string("<html>x</html>"),
+            )
+            .mount(&server)
+            .await;
+        let body = e2e_body();
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .insert_header("Content-Type", "application/octet-stream")
+                    .set_body_bytes(body.clone()),
+            )
+            .mount(&server)
+            .await;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("out.bin");
+        std::fs::write(&path, b"stale junk").unwrap();
+        download_url(
+            app.handle(),
+            server.uri(),
+            None,
+            path.clone(),
+            None,
+            true,
+            None,
+            Some("video"),
+            false,
+            1,
+            Arc::new(cdn_selector::HostHealth::new()),
+        )
+        .await
+        .unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), body);
+    }
+
+    // ---- raw-TCP scripted server: mid-stream breaks wiremock cannot do ----
+    //
+    // wiremock always serves well-formed responses, so Reconnect-arm
+    // recovery (truncated bodies, connection resets, request errors) is
+    // driven through a hand-rolled listener that answers one GET per
+    // connection and can cut the connection mid-body.
+
+    enum RawAction {
+        /// Full response: status line, Content-Range, body.
+        Respond(&'static str, Option<String>, Vec<u8>),
+        /// Headers advertise `advertised_len` but only `prefix` is written,
+        /// then the connection closes — a truncated body.
+        Truncate(Option<String>, Vec<u8>, usize),
+        /// Read the request and drop the connection without responding.
+        DropConn,
+    }
+
+    /// Reads one header-terminated HTTP request from the connection.
+    async fn read_get_request(stream: &mut tokio::net::TcpStream) -> String {
+        use tokio::io::AsyncReadExt;
+        let mut buf = Vec::new();
+        let mut chunk = [0u8; 1024];
+        loop {
+            let n = stream.read(&mut chunk).await.unwrap_or(0);
+            if n == 0 {
+                break;
+            }
+            buf.extend_from_slice(&chunk[..n]);
+            if buf.windows(4).any(|w| w == b"\r\n\r\n") {
+                break;
+            }
+        }
+        String::from_utf8_lossy(&buf).into_owned()
+    }
+
+    fn header_value(raw: &str, name: &str) -> Option<String> {
+        raw.lines().find_map(|l| {
+            let (k, v) = l.split_once(':')?;
+            k.trim()
+                .eq_ignore_ascii_case(name)
+                .then(|| v.trim().to_string())
+        })
+    }
+
+    async fn write_raw_response(
+        stream: &mut tokio::net::TcpStream,
+        status: &'static str,
+        content_range: Option<&str>,
+        body: &[u8],
+    ) {
+        use tokio::io::AsyncWriteExt;
+        // Why Connection: close: this server answers exactly one GET per
+        // connection (see spawn_scripted_server), so the header stops
+        // reqwest from pooling the connection and reusing it for a later
+        // retry/probe request that would then never be answered.
+        let mut resp = format!(
+            "HTTP/1.1 {}\r\nContent-Type: application/octet-stream\r\nConnection: close\r\n",
+            status
+        );
+        if let Some(cr) = content_range {
+            resp.push_str(&format!("Content-Range: {}\r\n", cr));
+        }
+        resp.push_str(&format!("Content-Length: {}\r\n\r\n", body.len()));
+        stream.write_all(resp.as_bytes()).await.unwrap();
+        stream.write_all(body).await.unwrap();
+        let _ = stream.flush().await;
+    }
+
+    /// Spawns a listener answering one request per connection via `handler`
+    /// (keyed on the request's Range header). Returns the base URL.
+    async fn spawn_scripted_server(
+        handler: Arc<dyn Fn(&str) -> RawAction + Send + Sync>,
+    ) -> String {
+        use tokio::io::AsyncWriteExt;
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            loop {
+                let Ok((mut stream, _)) = listener.accept().await else {
+                    break;
+                };
+                let handler = handler.clone();
+                tokio::spawn(async move {
+                    let raw = read_get_request(&mut stream).await;
+                    if raw.is_empty() {
+                        return;
+                    }
+                    match handler(&raw) {
+                        RawAction::Respond(status, cr, body) => {
+                            write_raw_response(&mut stream, status, cr.as_deref(), &body).await;
+                        }
+                        RawAction::Truncate(cr, prefix, advertised) => {
+                            let mut resp = format!(
+                                "HTTP/1.1 206 Partial Content\r\nContent-Type: \
+                                 application/octet-stream\r\nConnection: close\r\n\
+                                 Content-Length: {}\r\n",
+                                advertised
+                            );
+                            if let Some(cr) = &cr {
+                                resp.push_str(&format!("Content-Range: {}\r\n", cr));
+                            }
+                            resp.push_str("\r\n");
+                            stream.write_all(resp.as_bytes()).await.unwrap();
+                            stream.write_all(&prefix).await.unwrap();
+                            let _ = stream.flush().await;
+                            let _ = stream.shutdown().await;
+                        }
+                        RawAction::DropConn => {}
+                    }
+                });
+            }
+        });
+        format!("http://{addr}")
+    }
+
+    /// The scripted-server probe response for a 4 KiB single-segment body.
+    fn raw_probe_action(body: &[u8]) -> RawAction {
+        RawAction::Respond(
+            "206 Partial Content",
+            Some(format!("bytes 0-{}/{}", body.len() - 1, body.len())),
+            body.to_vec(),
+        )
+    }
+
+    #[tokio::test]
+    async fn download_url_reconnect_resumes_same_cdn_after_tail_verification() {
+        // Mid-body break -> Reconnect(2048): the same-CDN resume must first
+        // prove the edge still serves the identical tail (64 KiB window ->
+        // the whole 2048 here), then stitch the remaining bytes — the final
+        // file must be byte-exact.
+        let body = e2e_body();
+        let expected = body.clone();
+        let prefix = body[..2048].to_vec();
+        let suffix = body[2048..].to_vec();
+        let first_full = AtomicBool::new(true);
+        let handler = Arc::new(move |raw: &str| {
+            let range = header_value(raw, "range").unwrap_or_default();
+            match range.as_str() {
+                r if r.starts_with("bytes=0-4194303") => raw_probe_action(&body),
+                "bytes=0-2047" => RawAction::Respond(
+                    "206 Partial Content",
+                    Some("bytes 0-2047/4096".into()),
+                    prefix.clone(),
+                ),
+                "bytes=2048-4095" => RawAction::Respond(
+                    "206 Partial Content",
+                    Some("bytes 2048-4095/4096".into()),
+                    suffix.clone(),
+                ),
+                "bytes=0-4095" => {
+                    if first_full.swap(false, Ordering::SeqCst) {
+                        RawAction::Truncate(Some("bytes 0-4095/4096".into()), prefix.clone(), 4096)
+                    } else {
+                        raw_probe_action(&body)
+                    }
+                }
+                _ => RawAction::DropConn,
+            }
+        });
+        let url = spawn_scripted_server(handler).await;
+
+        let app = tauri::test::mock_app();
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("out.bin");
+        download_url(
+            app.handle(),
+            url,
+            None,
+            path.clone(),
+            None,
+            false,
+            None,
+            None,
+            false,
+            1,
+            Arc::new(cdn_selector::HostHealth::new()),
+        )
+        .await
+        .unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), expected, "stitched tail");
+    }
+
+    #[tokio::test]
+    async fn download_url_reconnect_tail_reject_restarts_segment_from_zero() {
+        // The verify re-fetch serves DIFFERENT tail bytes (edge switched
+        // streams): stitching is refused, the segment fully restarts (bytes
+        // already counted roll back), and the second full GET rewrites the
+        // whole range — byte-exact output, no stale stitch.
+        let body = e2e_body();
+        let expected = body.clone();
+        let prefix = body[..2048].to_vec();
+        let wrong_tail: Vec<u8> = prefix.iter().map(|b| !b).collect();
+        let first_full = AtomicBool::new(true);
+        let handler = Arc::new(move |raw: &str| {
+            let range = header_value(raw, "range").unwrap_or_default();
+            match range.as_str() {
+                r if r.starts_with("bytes=0-4194303") => raw_probe_action(&body),
+                "bytes=0-2047" => RawAction::Respond(
+                    "206 Partial Content",
+                    Some("bytes 0-2047/4096".into()),
+                    wrong_tail.clone(),
+                ),
+                "bytes=0-4095" => {
+                    if first_full.swap(false, Ordering::SeqCst) {
+                        RawAction::Truncate(Some("bytes 0-4095/4096".into()), prefix.clone(), 4096)
+                    } else {
+                        raw_probe_action(&body)
+                    }
+                }
+                _ => RawAction::DropConn,
+            }
+        });
+        let url = spawn_scripted_server(handler).await;
+
+        let app = tauri::test::mock_app();
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("out.bin");
+        download_url(
+            app.handle(),
+            url,
+            None,
+            path.clone(),
+            None,
+            false,
+            None,
+            None,
+            false,
+            1,
+            Arc::new(cdn_selector::HostHealth::new()),
+        )
+        .await
+        .unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), expected, "full restart");
+    }
+
+    #[tokio::test]
+    async fn download_url_reconnect_rotation_budget_exhaustion_fails_loudly() {
+        // Every attempt truncates AND the verify tail always mismatches:
+        // one free same-host restart, then rotations until the budget is
+        // spent — the segment must fail instead of looping forever.
+        let body = e2e_body();
+        let prefix = body[..2048].to_vec();
+        let wrong_tail: Vec<u8> = prefix.iter().map(|b| !b).collect();
+        let handler = Arc::new(move |raw: &str| {
+            let range = header_value(raw, "range").unwrap_or_default();
+            match range.as_str() {
+                r if r.starts_with("bytes=0-4194303") => raw_probe_action(&body),
+                "bytes=0-2047" => RawAction::Respond(
+                    "206 Partial Content",
+                    Some("bytes 0-2047/4096".into()),
+                    wrong_tail.clone(),
+                ),
+                "bytes=0-4095" => {
+                    RawAction::Truncate(Some("bytes 0-4095/4096".into()), prefix.clone(), 4096)
+                }
+                _ => RawAction::DropConn,
+            }
+        });
+        let url = spawn_scripted_server(handler).await;
+
+        let app = tauri::test::mock_app();
+        let dir = tempfile::tempdir().unwrap();
+        let err = download_url(
+            app.handle(),
+            url,
+            None,
+            dir.path().join("out.bin"),
+            None,
+            false,
+            None,
+            None,
+            false,
+            1,
+            Arc::new(cdn_selector::HostHealth::new()),
+        )
+        .await
+        .unwrap_err();
+        assert!(err.to_string().contains("segment(s) failed"), "got: {err}");
+    }
+
+    #[tokio::test]
+    async fn download_url_request_errors_mark_host_and_exhaust_rotations() {
+        // Probe succeeds once, then every segment GET is answered with a
+        // dropped connection: per-URL HTTP retries exhaust, the host is
+        // marked unhealthy, and rotation retries the next (same, 1-URL)
+        // candidate until the budget is spent.
+        let body = e2e_body();
+        let handler = Arc::new(move |raw: &str| {
+            let range = header_value(raw, "range").unwrap_or_default();
+            if range.starts_with("bytes=0-4194303") {
+                raw_probe_action(&body)
+            } else {
+                RawAction::DropConn
+            }
+        });
+        let url = spawn_scripted_server(handler).await;
+
+        let app = tauri::test::mock_app();
+        let dir = tempfile::tempdir().unwrap();
+        let err = download_url(
+            app.handle(),
+            url,
+            None,
+            dir.path().join("out.bin"),
+            None,
+            false,
+            None,
+            None,
+            false,
+            1,
+            Arc::new(cdn_selector::HostHealth::new()),
+        )
+        .await
+        .unwrap_err();
+        assert!(err.to_string().contains("segment(s) failed"), "got: {err}");
     }
 }

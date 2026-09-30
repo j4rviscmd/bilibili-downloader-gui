@@ -15,9 +15,11 @@ artifacts/
 *.local.md
 
 # Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-!.vscode/settings.json
+# Note: whole directory ignored — the former per-file whitelists
+# (extensions.json, settings.json) were dropped with the VS Code settings
+# files themselves; to share editor config again, use `.vscode/*` plus
+# `!`-prefixed exceptions (gitignore cannot re-include under a dir rule).
+.vscode/
 .idea
 .DS_Store
 *.suo

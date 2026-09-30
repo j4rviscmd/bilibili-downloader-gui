@@ -135,12 +135,14 @@ into the **required** `ci-status` status check. The `coverage` job
 - **Socket Security** (GitHub App — no workflow files) scans dependency
   manifest changes on PRs for supply-chain attacks (known malware,
   typosquats, obfuscated code) across npm and Cargo. Analyzes package
-  manifests only, never source code; free for public repos. **NOT a
-  required** status check (observation period — see #740); treat its PR
-  comments as review input. Dependabot bump PRs are scanned on purpose:
-  a compromised new version of an existing dependency is a real attack
-  vector. If it is ever made required (check name: "Socket Security:
-  Pull Request Alerts"), verify Dependabot auto-merge still completes.
+  manifests only, never source code; free for public repos. Its
+  `Socket Security: Pull Request Alerts` check is a **required** status
+  check (since 2026-09-29, after a zero-noise observation week — see
+  #740); known malware fails it. Renovate bump PRs are scanned on
+  purpose: a compromised new version of an existing dependency is a
+  real attack vector. Renovate is a ruleset bypass actor, but its
+  automerge only merges green branches, so a failing Socket check
+  stalls the bump for human review.
 - **E2E Tests** (`.github/workflows/e2e.yml`) run in a macOS +
   Windows matrix and are **NOT a required** status check.
 - When monitoring CI (e.g. during `worktree-finish`), do **not** wait

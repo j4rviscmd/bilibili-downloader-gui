@@ -234,7 +234,6 @@ pub fn run() {
             window::finish_splash,
             init::initialize,
             init::get_init_result,
-            // record_download_click  // NOTE: GA4 Analytics is currently disabled
             #[cfg(debug_assertions)]
             set_simulate_logout,
         ])
@@ -430,12 +429,6 @@ pub fn run() {
                 app.manage(SimulateLogoutFlag::default());
             }
 
-            // Analytics initialization (async errors are swallowed)
-            // NOTE: GA4 Analytics is currently disabled
-            // let handle: AppHandle = app.handle().clone();
-            // tauri::async_runtime::spawn(async move {
-            //     crate::utils::analytics::init_analytics(&handle).await;
-            // });
             // Devtools (debug) now opens from register_main_window_events after
             // the main window is created.
             Ok(())
@@ -1180,15 +1173,6 @@ async fn open_file(app: AppHandle, path: String) -> Result<(), String> {
         .open_path(&path, None::<&str>)
         .map_err(|e| format!("Failed to open file: {}", e))
 }
-
-// NOTE: GA4 Analytics is currently disabled
-// #[tauri::command]
-// async fn record_download_click(app: AppHandle, download_id: String) -> Result<(), String> {
-//     tauri::async_runtime::spawn(async move {
-//         crate::utils::analytics::record_download_click(&app, &download_id).await;
-//     });
-//     Ok(())
-// }
 
 /// Holds the `update.lock` file (and its flock) once this process starts an
 /// update session (issue #560).
