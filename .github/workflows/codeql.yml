@@ -31,6 +31,10 @@ jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
     runs-on: ubuntu-latest
+    # Why skip: a release-please PR contains no code changes (same
+    # rationale as the push paths-ignore above). Empty head_ref on
+    # push/schedule/dispatch keeps those triggers running.
+    if: github.head_ref != 'release-please--branches--main'
     permissions:
       # Why these permissions: minimum set required by codeql-action to
       # upload results to code scanning (docs: advanced setup security hardening)
