@@ -9,6 +9,14 @@ name: CI
 # work on pull_request events, so re-adding a push trigger requires
 # restoring the event-name guards these steps lost when the trigger was
 # removed
+# Why the per-job release-please guard: those PRs only bump versions/
+# CHANGELOG, so their code was already validated on the feature PRs.
+# Their workflow runs never instantiate jobs (observed 2026-09-16..30:
+# action_required, or instant platform-level failure with zero jobs),
+# so the guard only matters if a pending run is approved or the trigger
+# actor changes — then every job skips instead of burning ~60min of
+# runner time. ci-status keeps if: always() and passes when its
+# dependencies are skipped.
 on:
   pull_request:
     branches: [main]
@@ -30,6 +38,7 @@ jobs:
   format:
     name: Format
     runs-on: ubuntu-latest
+    if: github.head_ref != 'release-please--branches--main'
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -71,6 +80,7 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    if: github.head_ref != 'release-please--branches--main'
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -127,6 +137,7 @@ jobs:
   frontend-build:
     name: Frontend Build
     runs-on: ubuntu-latest
+    if: github.head_ref != 'release-please--branches--main'
     timeout-minutes: 15
     steps:
       - name: Checkout
@@ -154,6 +165,7 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    if: github.head_ref != 'release-please--branches--main'
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -202,6 +214,7 @@ jobs:
   rust-check:
     name: Rust Check
     runs-on: ubuntu-latest
+    if: github.head_ref != 'release-please--branches--main'
     timeout-minutes: 30
     steps:
       - name: Checkout
@@ -238,6 +251,7 @@ jobs:
   rust-clippy:
     name: Rust Clippy
     runs-on: ubuntu-latest
+    if: github.head_ref != 'release-please--branches--main'
     timeout-minutes: 30
     steps:
       - name: Checkout
@@ -315,6 +329,7 @@ jobs:
   rust-test:
     name: Rust Test
     runs-on: ubuntu-latest
+    if: github.head_ref != 'release-please--branches--main'
     timeout-minutes: 40
     steps:
       - name: Checkout
@@ -351,6 +366,7 @@ jobs:
   rust-format:
     name: Rust Format
     runs-on: ubuntu-latest
+    if: github.head_ref != 'release-please--branches--main'
     timeout-minutes: 30
     steps:
       - name: Checkout
@@ -406,6 +422,7 @@ jobs:
   coverage:
     name: Rust Coverage
     runs-on: ubuntu-latest
+    if: github.head_ref != 'release-please--branches--main'
     timeout-minutes: 60
     steps:
       - name: Checkout
@@ -505,6 +522,7 @@ jobs:
   docs-format:
     name: Docs Format
     runs-on: ubuntu-latest
+    if: github.head_ref != 'release-please--branches--main'
     timeout-minutes: 10
     steps:
       - name: Checkout

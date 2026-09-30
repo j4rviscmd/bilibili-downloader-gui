@@ -28,6 +28,12 @@ jobs:
   gitleaks:
     name: Secret Scan
     runs-on: ubuntu-latest
+    # Why skip: a release-please PR only adds version bumps + CHANGELOG
+    # text derived from commits already scanned on their own PRs (a
+    # skipped check run still satisfies the required Secret Scan check).
+    # Empty head_ref on push/schedule/dispatch keeps those triggers
+    # (incl. the daily full-history scan) running.
+    if: github.head_ref != 'release-please--branches--main'
     timeout-minutes: 10
     steps:
       - name: Checkout (full history)

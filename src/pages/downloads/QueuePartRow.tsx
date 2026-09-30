@@ -114,6 +114,20 @@ export function QueuePartRow({ row }: Props) {
   const { item, status } = row
 
   const isComplete = row.progressEntries.some((p) => p.stage === 'complete')
+  // Finished rows show the file name the backend actually wrote —
+  // duplicate avoidance may append " (1)" and the title was sanitized,
+  // so only this value matches what the user sees in Explorer. The final
+  // ".mp4" extension is stripped for readability (every row is an mp4).
+  // Falls back to the enqueue-time title until the invoke resolves
+  // outputPath.
+  // Note: split on both separators — Windows "\" and macOS "/" paths both
+  // occur (pinned by the POSIX-separator case in index.test.tsx).
+  const savedFileStem = item.outputPath
+    ?.split(/[\\/]/)
+    .pop()
+    ?.replace(/\.[^.]+$/, '')
+  const displayTitle =
+    status === 'done' && savedFileStem ? savedFileStem : item.title
 
   // PartDownloadProgress consumes the hook's status shape; /downloads
   // resolves items by downloadId (not videoId+cid), so assemble the same
@@ -235,7 +249,7 @@ export function QueuePartRow({ row }: Props) {
             <ImageOff className="text-muted-foreground/50 h-4 w-4" />
           </div>
         )}
-        <MarqueeTitle title={item.title} />
+        <MarqueeTitle title={displayTitle} />
         {qualityBadge}
         <QueueStatusBadge status={status} />
         {finishedExtras}
