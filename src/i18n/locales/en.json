@@ -259,6 +259,7 @@
     "quality_description": "Select the quality of the video to download.",
     "quality_note": "* 4K / HDR10 / Dolby Vision / 8K require a logged-in VIP (大会員) account. Other high qualities may depend on login state or region.",
     "quality_requires_vip_or_login": "Login required; some options additionally require a VIP (大会員) membership",
+    "quality_unavailable_logged_in": "Not available for this video with your account; higher tiers may require a VIP (大会員) membership",
     "audio_quality_label": "Audio Quality",
     "audio_quality_description": "Select the audio quality to download.",
     "audio_quality_note": "* Some high-quality audio (Dolby Atmos / Hi-Res) may require login status or region and may not be selectable.\n* We fetch the closest available quality to your selection; if unavailable, the highest quality currently available is used.",
