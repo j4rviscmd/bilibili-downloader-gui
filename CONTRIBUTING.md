@@ -107,8 +107,8 @@ PR guidelines:
 - **CI must be green before review** — PRs are reviewed only after all
   required checks (the `ci-status` aggregate) pass
 - **CodeQL scans every PR** (JavaScript/TypeScript, Actions, Rust) —
-  informational, not required; triage any alerts it raises in the
-  Security tab
+  its checks are required and fail only on error-severity / high+
+  security alerts; triage warning-level alerts in the Security tab
 - **Socket Security scans dependency changes on every PR** (npm + Cargo
   manifests) for supply-chain risk such as malware and typosquats —
   its check is required; known malware fails it and blocks the merge

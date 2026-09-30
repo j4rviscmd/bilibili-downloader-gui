@@ -138,8 +138,11 @@ into the **required** `ci-status` status check. The `coverage` job
 - **CodeQL** (`.github/workflows/codeql.yml`) statically analyzes
   JavaScript/TypeScript, Actions, and Rust (build-mode: none) for
   vulnerability patterns. Advanced setup because default setup does
-  not support Rust. **NOT a required** status check — triage alerts in
-  the Security tab instead of gating merges.
+  not support Rust. Its three `Analyze (...)` matrix checks are
+  **required** (since 2026-10-01; alert history until then was
+  warning-level only): the check fails only on analysis errors or
+  error-severity / high+ security alerts; warning-level alerts are
+  triaged in the Security tab.
 - **Socket Security** (GitHub App — no workflow files) scans dependency
   manifest changes on PRs for supply-chain attacks (known malware,
   typosquats, obfuscated code) across npm and Cargo. Analyzes package
@@ -154,8 +157,9 @@ into the **required** `ci-status` status check. The `coverage` job
 - **E2E Tests** (`.github/workflows/e2e.yml`) run in a macOS +
   Windows matrix and are **NOT a required** status check.
 - When monitoring CI (e.g. during `worktree-finish`), do **not** wait
-  for the E2E workflow to finish — `ci-status` and `Secret Scan`
-  passing is sufficient to treat CI as green. Treat E2E as
+  for the E2E workflow to finish — the required checks (`ci-status`,
+  `Secret Scan`, CodeQL `Analyze (...)`) passing is sufficient to
+  treat CI as green. Treat E2E as
   informational (screenshots are still useful for visual review).
 
 ## Releases (release-please)
