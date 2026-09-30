@@ -10,6 +10,7 @@ import { store } from '@/app/store'
 import DownloadsContent from '@/pages/downloads'
 import { TooltipProvider } from '@/shared/animate-ui/radix/tooltip'
 import { setProgress } from '@/shared/progress/progressSlice'
+import { updateQueueItem } from '@/shared/queue'
 import {
   mockInvoke,
   renderWithProviders,
@@ -87,6 +88,67 @@ describe('DownloadsContent', () => {
     expect(screen.getByText('queue.section_finished').textContent).toContain(
       '(2)',
     )
+  })
+
+  it('shows the actually saved file name on a finished part', () => {
+    const parentId = seedSession('BVsaved', [
+      { partIndex: 1, cid: 1, status: 'done' },
+      { partIndex: 2, cid: 2, status: 'running' },
+      { partIndex: 3, cid: 3, status: 'done' },
+      { partIndex: 4, cid: 4, status: 'done' },
+    ])
+    // The runner stores the backend-returned final path on completion; the
+    // " (1)" disk-duplicate suffix and sanitizing only surface there.
+    // Part 3: multi-dot name must lose ONLY the final ".mp4". Part 4:
+    // POSIX separators (macOS builds resolve paths with "/").
+    store.dispatch(
+      updateQueueItem({
+        downloadId: `${parentId}-p1`,
+        outputPath: 'E:\\dl\\P1 (1).mp4',
+      }),
+    )
+    store.dispatch(
+      updateQueueItem({
+        downloadId: `${parentId}-p3`,
+        outputPath: 'E:\\dl\\My.Video.Foo.mp4',
+      }),
+    )
+    store.dispatch(
+      updateQueueItem({
+        downloadId: `${parentId}-p4`,
+        outputPath: '/dl/P4 (2).mp4',
+      }),
+    )
+
+    renderWithProviders(
+      <TooltipProvider>
+        <DownloadsContent />
+      </TooltipProvider>,
+      { route: '/downloads' },
+    )
+
+    // Extension stripped: every row is an mp4, the stem is the identifier.
+    expect(screen.getByText('P1 (1)')).toBeInTheDocument()
+    expect(screen.getByText('My.Video.Foo')).toBeInTheDocument()
+    expect(screen.getByText('P4 (2)')).toBeInTheDocument()
+    // Not-yet-finished parts keep their enqueue-time title (no saved file).
+    expect(screen.getByText('P2')).toBeInTheDocument()
+  })
+
+  it('keeps the enqueue title on a done part whose path has not arrived yet', () => {
+    // Race window: the 'complete' progress event flips the row to done
+    // before the invoke resolves outputPath — the row must fall back to
+    // the enqueue title instead of going blank.
+    seedSession('BVrace', [{ partIndex: 1, cid: 1, status: 'done' }])
+
+    renderWithProviders(
+      <TooltipProvider>
+        <DownloadsContent />
+      </TooltipProvider>,
+      { route: '/downloads' },
+    )
+
+    expect(screen.getByText('P1')).toBeInTheDocument()
   })
 
   it('part-row cancel settles that part only (siblings untouched)', async () => {
