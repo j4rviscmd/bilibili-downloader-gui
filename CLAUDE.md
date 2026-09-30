@@ -115,6 +115,14 @@ into the **required** `ci-status` status check. The `coverage` job
      ~60min of runner time per merge and never caught a failure the PR
      run had missed (user decision 2026-09-11) — merged commits on main
      are not re-validated by this workflow -->
+- **Release-please PRs** (`release-please--branches--main`): their
+  workflow runs never instantiate jobs (observed: `action_required`, or
+  instant platform-level failure with zero jobs — the red X on every
+  release PR), so the required checks never report on them. Every
+  ci/e2e/gitleaks/codeql job still carries a `github.head_ref` guard:
+  if a pending run is ever approved (or the trigger actor changes), all
+  jobs skip and `ci-status` passes instead of re-validating version
+  bumps + CHANGELOG already validated on the feature PRs.
 - **reviewdog** posts eslint/clippy findings as PR inline comments and
   formatter fixes as suggested changes (one-click apply). ci.yml runs
   on pull_request only (no push-to-main trigger). Local hooks live in
@@ -174,9 +182,14 @@ version — both are maintained by release-please, never edit by hand):
   `test:`, `docs:`, `refactor:`, `ci:`). PRs are squash-merged with
   the PR title as the commit message, so the title must carry the
   type.
-- The release PR is authored with `GITHUB_TOKEN`, so PR-triggered CI
-  never runs on it. It must be merged with an admin override despite
-  the required status checks.
+- The release PR's `synchronize` pushes (github-actions[bot]) DO
+  create PR workflow runs, but those runs never instantiate jobs (they
+  sit `action_required` or fail at the platform level with zero jobs),
+  so the required checks never report on the release PR — it must be
+  merged with an admin override despite the required status checks.
+  The per-job `github.head_ref` guards (see CI section) keep an
+  approved/instantiated run cheap: every job skips and `ci-status`
+  goes green.
 - Never bump versions or create release tags/releases by hand.
 - Publish failure recovery: "Re-run failed jobs" only works when
   release-please itself failed (no draft yet), or when only

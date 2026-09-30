@@ -12,6 +12,10 @@ jobs:
   e2e:
     name: E2E Tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    # Why skip: a release-please PR only bumps versions/CHANGELOG — the
+    # code was already E2E-validated on the feature PRs, and the release
+    # PR is merged before this expensive matrix could finish anyway
+    if: github.head_ref != 'release-please--branches--main'
     # Cold Windows runs (no Rust/tauri-webdriver cache yet) compile the full
     # Tauri dep tree + driver and download ~100MB ffmpeg; 45min keeps the
     # job alive past that so post-step caches save (cancellation skips them)
