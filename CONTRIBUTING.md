@@ -104,11 +104,14 @@ PR guidelines:
 - **Keep commits clean** — squash or rebase if needed before merging
 - **Write in English** — PR titles/descriptions, commit messages, and
   code comments
-- **CI must be green before review** — PRs are reviewed only after all
-  required checks (the `ci-status` aggregate) pass
+- **CI must be green before review** — PRs are reviewed only after the
+  `ci-status` aggregate and every separately required check
+  (`Secret Scan`, CodeQL, Socket Security) passes
 - **CodeQL scans every PR** (JavaScript/TypeScript, Actions, Rust) —
-  its checks are required and fail only on error-severity / high+
-  security alerts; triage warning-level alerts in the Security tab
+  its checks are required: analysis/configuration errors fail the
+  `Analyze (...)` checks, and error/critical/high alerts fail the
+  `CodeQL` results check; lower-severity alerts are triaged in the
+  Security tab
 - **Socket Security scans dependency changes on every PR** (npm + Cargo
   manifests) for supply-chain risk such as malware and typosquats —
   its check is required; known malware fails it and blocks the merge
