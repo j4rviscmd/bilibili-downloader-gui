@@ -11,10 +11,12 @@ import type { SplashSceneHandle } from '../lib/createScene'
  * @param canvasRef - Ref to the `<canvas>` element to render into.
  * @param enabled   - Whether the scene should be active. Pass `false` to
  *   tear down the render loop and free resources.
+ * @param dark      - Whether to render with the dark-theme palette.
  */
 export function useThreeScene(
   canvasRef: RefObject<HTMLCanvasElement | null>,
   enabled: boolean,
+  dark = false,
 ): void {
   const sceneRef = useRef<SplashSceneHandle | null>(null)
 
@@ -25,7 +27,7 @@ export function useThreeScene(
 
     import('../lib/createScene').then(({ createSplashScene }) => {
       if (disposed || !canvasRef.current) return
-      sceneRef.current = createSplashScene(canvasRef.current)
+      sceneRef.current = createSplashScene(canvasRef.current, dark)
     })
 
     return () => {
@@ -33,5 +35,9 @@ export function useThreeScene(
       sceneRef.current?.dispose()
       sceneRef.current = null
     }
-  }, [canvasRef, enabled])
+    // Note: a `dark` flip tears down and rebuilds the whole scene because
+    // createSplashScene bakes the palette into the geometry's vertex colors at
+    // creation; SplashSceneHandle exposes no live palette-swap API. The theme
+    // param is fixed per splash window, so this only runs once in practice.
+  }, [canvasRef, enabled, dark])
 }

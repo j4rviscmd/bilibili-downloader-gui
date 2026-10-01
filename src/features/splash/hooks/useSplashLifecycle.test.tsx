@@ -6,10 +6,17 @@
  */
 
 import { mockInvoke, renderHookWithStore } from '@/test/test-utils'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { act } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useSplashLifecycle } from './useSplashLifecycle'
+
+// setup.ts returns a single shared window instance, so this is the same
+// vi.fn the splash would invoke if it still locked its own theme.
+const mockSetTheme = getCurrentWindow().setTheme as unknown as ReturnType<
+  typeof vi.fn
+>
 
 beforeEach(() => {
   vi.useFakeTimers()
@@ -115,5 +122,15 @@ describe('useSplashLifecycle', () => {
     await flush(2_100)
     expect(result.current.skipMode).toBe(false)
     expect(result.current.phase).toBe('fading')
+  })
+
+  it('does not lock the native window theme (the Rust side sets it)', async () => {
+    settingsPayload(false)
+    renderHookWithStore(() => useSplashLifecycle())
+    await flush(2_100)
+
+    // The splash must follow the theme chosen at window creation
+    // (create_splash_window), not override it back to light.
+    expect(mockSetTheme).not.toHaveBeenCalled()
   })
 })

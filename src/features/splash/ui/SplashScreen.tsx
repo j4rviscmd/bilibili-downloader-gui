@@ -23,18 +23,27 @@ import { SetupLanguage } from './SetupLanguage'
  *
  * On fade completion `useSplashLifecycle` invokes `finish_splash`, which
  * closes this window and creates the main window.
+ *
+ * Theme: the Rust side appends `?theme=dark` to the splash URL from
+ * settings.json (mirroring the lang param), and main.tsx syncs the html
+ * theme class to it so `dark:` variants resolve correctly. `light` is the
+ * fallback when the param is absent (first run / unset).
  */
 export function SplashScreen() {
   const [needsLanguage, setNeedsLanguage] = useState(
     () => new URLSearchParams(window.location.search).get('setup') === '1',
   )
+  // The theme param never changes during the splash lifetime, so a plain
+  // per-render read is enough (matches the showFfmpegBar derivation below).
+  const isDark =
+    new URLSearchParams(window.location.search).get('theme') === 'dark'
   const { phase, onFadeComplete, skipMode } = useSplashLifecycle(!needsLanguage)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [stepLabel, setStepLabel] = useState<string>('')
   const [ffmpegProgress, setFfmpegProgress] = useState<number | null>(null)
   const { t } = useTranslation()
 
-  useThreeScene(canvasRef, skipMode === false && phase !== 'done')
+  useThreeScene(canvasRef, skipMode === false && phase !== 'done', isDark)
 
   // Show the splash window once React has mounted. The window is created
   // hidden (visible(false)) to avoid a black frame during webview load; this
@@ -79,7 +88,7 @@ export function SplashScreen() {
       >
         {/* Inner container carries the rounded background; the outer wrapper
             stays transparent so the area outside the corners shows through. */}
-        <div className="h-full w-full rounded-2xl bg-[#f5f7fa]" />
+        <div className="h-full w-full rounded-2xl bg-[#f5f7fa] dark:bg-[#0f172a]" />
       </div>
     )
   }
@@ -92,7 +101,7 @@ export function SplashScreen() {
         data-tauri-drag-region
         className="fixed inset-0 z-50"
       >
-        <div className="flex h-full w-full flex-col items-center justify-center rounded-2xl bg-[#f5f7fa]">
+        <div className="flex h-full w-full flex-col items-center justify-center rounded-2xl bg-[#f5f7fa] dark:bg-[#0f172a]">
           <div className="border-foreground/20 border-t-foreground h-8 w-8 animate-spin rounded-full border-2" />
           {stepLabel && (
             <p className="text-muted-foreground mt-4 text-sm select-none">
@@ -128,7 +137,7 @@ export function SplashScreen() {
       {/* Inner container: rounded background + overflow-hidden clips the
           Three.js canvas to the rounded corners. The outer wrapper stays
           transparent so the native window shadow follows the rounded shape. */}
-      <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-2xl bg-[#f5f7fa]">
+      <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-2xl bg-[#f5f7fa] dark:bg-[#0f172a]">
         <canvas
           ref={canvasRef}
           data-tauri-drag-region
@@ -141,14 +150,16 @@ export function SplashScreen() {
             'fade-in animate-in duration-1000',
           )}
           style={{
-            color: '#333333ee',
-            textShadow: '0 0 40px rgba(0,161,214,0.2)',
+            color: isDark ? '#e5e7ebee' : '#333333ee',
+            textShadow: isDark
+              ? '0 0 40px rgba(0,161,214,0.35)'
+              : '0 0 40px rgba(0,161,214,0.2)',
           }}
         >
           <span style={{ color: '#00A1D6' }}>Bilibili</span> Downloader
         </h1>
         {showFfmpegBar && (
-          <div className="absolute right-6 bottom-14 left-6 z-10 h-1 overflow-hidden rounded-full bg-black/10">
+          <div className="absolute right-6 bottom-14 left-6 z-10 h-1 overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
             <div
               className="h-full rounded-full bg-[#00A1D6] transition-all duration-300"
               style={{ width: `${ffmpegProgress}%` }}
@@ -156,7 +167,7 @@ export function SplashScreen() {
           </div>
         )}
         {stepLabel && (
-          <p className="absolute right-6 bottom-6 left-6 z-10 truncate text-center text-[16px] font-medium text-[#6B7280] select-none">
+          <p className="absolute right-6 bottom-6 left-6 z-10 truncate text-center text-[16px] font-medium text-[#6B7280] select-none dark:text-[#9ca3af]">
             {t(stepLabel)}
           </p>
         )}

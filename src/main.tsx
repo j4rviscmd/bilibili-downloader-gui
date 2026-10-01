@@ -17,14 +17,26 @@ import { BrowserRouter } from 'react-router'
 // Initialize i18n once at startup
 setupI18n()
 
-// If this is the splash window, apply the user's language from the query param
-// (passed by create_splash_window) so splash labels render in the correct
-// language from the first frame.
+// If this is the splash window, apply the user's language and theme from the
+// query params (passed by create_splash_window) so splash labels render in
+// the correct language and `dark:` variants resolve, from the first frame.
 if (window.location.pathname.startsWith('/splashscreen')) {
-  const lang = new URLSearchParams(window.location.search).get('lang')
+  const params = new URLSearchParams(window.location.search)
+  const lang = params.get('lang')
   if (lang) {
     changeLanguage(lang as SupportedLang).catch(() => {})
   }
+  // The theme param is authoritative (settings.json read by the Rust side).
+  // index.html's inline script already guessed a class from localStorage,
+  // which can drift from settings.json — re-sync it here.
+  const theme = params.get('theme') === 'dark' ? 'dark' : 'light'
+  document.documentElement.classList.remove('light', 'dark')
+  document.documentElement.classList.add(theme)
+  // Note: Tailwind `dark:` classes do not reach native controls — the setup
+  // screen's <select> popup is drawn by the OS, which only follows
+  // `color-scheme`. Keeping it in sync with the class avoids a light popup
+  // on the dark splash.
+  document.documentElement.style.colorScheme = theme
   // Why clear html/body background: the splash window is transparent (rounded
   // corners rendered via CSS). index.html's inline theme script and index.css
   // set an opaque html/body background, which would fill the area outside the

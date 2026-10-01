@@ -1,5 +1,4 @@
 import { invoke } from '@tauri-apps/api/core'
-import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { sleep } from '@/shared/lib/utils'
@@ -24,12 +23,14 @@ interface SplashLifecycle {
  *
  * The splash is its own borderless window (a separate webview from main), so
  * it cannot share Redux state with the main window. Instead it:
- * 1. locks its own native theme to light to match the splash background,
- * 2. invokes the backend `initialize` command (the real step sequence lands
+ * 1. invokes the backend `initialize` command (the real step sequence lands
  *    in Phase B-2; currently a skeleton that returns immediately),
- * 3. waits for the minimum display time (unless skip mode),
- * 4. fades out, then on fade completion invokes `finish_splash`, which closes
+ * 2. waits for the minimum display time (unless skip mode),
+ * 3. fades out, then on fade completion invokes `finish_splash`, which closes
  *    the splash and creates the main window.
+ *
+ * The window's native theme is set by the Rust side at creation from
+ * settings.json (see create_splash_window), so no theme lock is needed here.
  *
  * When `skipSplashAnimation` is enabled in settings, the minimum display time
  * and fade animation are skipped for fastest possible startup.
@@ -44,11 +45,6 @@ export function useSplashLifecycle(enabled = true): SplashLifecycle {
     disposedRef.current = false
 
     const run = async () => {
-      // Lock the splash window theme to light to match the splash background.
-      getCurrentWindow()
-        .setTheme('light')
-        .catch(() => {})
-
       let skip = false
       try {
         const s = await invoke<{ skipSplashAnimation?: boolean }>(
