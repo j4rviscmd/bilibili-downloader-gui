@@ -24,6 +24,7 @@
     "search": "Rechercher",
     "downloads": "Téléchargements",
     "downloadHistory": "Historique de téléchargement",
+    "videoSearch": "Recherche de vidéos",
     "watchHistory": "Historique de visionnage",
     "favorite": "Favoris",
     "trim": "Découper",
@@ -54,7 +55,8 @@
       "rotation": "Aller à la page de rotation",
       "gif": "Aller au générateur GIF/WebM",
       "goBack": "Retourner à la page précédente",
-      "goForward": "Aller à la page suivante"
+      "goForward": "Aller à la page suivante",
+      "videoSearch": "Rechercher des vidéos"
     },
     "audio": "Audio",
     "resolution": "Résolution",
@@ -429,6 +431,7 @@
   "settings": {
     "title": "Paramètres",
     "language_label": "Langue",
+    "startupPage_label": "Page de démarrage",
     "output_dir_label": "Répertoire de sortie",
     "output_dir_placeholder": "ex: C:\\Users\\you\\Downloads ou /Users/you/Downloads",
     "output_dir_description": "Indiquez le répertoire où les vidéos seront enregistrées.",
@@ -700,6 +703,15 @@
     "downloadConfirmTitle": "Télécharger",
     "downloadConfirmMessage": "Aller à l'accueil effacera votre saisie actuelle. Continuer ?",
     "defaultFolder": "Par défaut"
+  },
+  "videoSearch": {
+    "title": "Recherche de vidéos",
+    "placeholder": "Rechercher des vidéos par mot-clé",
+    "searchButton": "Rechercher",
+    "noResults": "Aucune vidéo trouvée",
+    "prevPage": "Page précédente",
+    "nextPage": "Page suivante",
+    "resultsCount": "{{count}} résultats"
   },
   "watchHistory": {
     "title": "Historique de visionnage",

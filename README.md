@@ -108,6 +108,7 @@ and remains available after an application update.
 
 - **Favorites** - Browse and download videos from your Bilibili favorite folders
 - **Watch History** - Download videos directly from your Bilibili watch history
+- **Video Search** - Search bilibili videos by keyword right in the app (no login needed) and jump straight to download setup
 - **Short URL auto-expand** - b23.tv short links automatically expand to full video URLs
 
 ### Ease of Use
@@ -117,6 +118,7 @@ and remains available after an application update.
 - **Auto-update** - Built-in updater with signed release verification and release notes
 - **History search & export** - Export download history to JSON/CSV
 - **Dark mode support** - Light/dark theme toggle
+- **Startup page** - Choose which page the app opens on at launch
 
 ### Authentication Methods
 

@@ -24,6 +24,7 @@
     "search": "Search",
     "downloads": "Downloads",
     "downloadHistory": "Download History",
+    "videoSearch": "Video Search",
     "watchHistory": "Watch History",
     "favorite": "Favorites",
     "trim": "Trim",
@@ -54,7 +55,8 @@
       "rotation": "Navigate to rotation page",
       "gif": "Navigate to GIF/WebM generator page",
       "goBack": "Go back one page",
-      "goForward": "Go forward one page"
+      "goForward": "Go forward one page",
+      "videoSearch": "Video search"
     },
     "audio": "Audio",
     "resolution": "Resolution",
@@ -429,6 +431,7 @@
   "settings": {
     "title": "Settings",
     "language_label": "Language",
+    "startupPage_label": "Startup page",
     "output_dir_label": "Output Directory",
     "output_dir_placeholder": "e.g. C:\\Users\\you\\Downloads or /Users/you/Downloads",
     "output_dir_description": "Enter the directory where video files will be saved.",
@@ -700,6 +703,15 @@
     "downloadConfirmTitle": "Download",
     "downloadConfirmMessage": "Navigating to home will clear your current input. Continue?",
     "defaultFolder": "Default"
+  },
+  "videoSearch": {
+    "title": "Video Search",
+    "placeholder": "Search videos by keyword",
+    "searchButton": "Search",
+    "noResults": "No videos found",
+    "prevPage": "Previous page",
+    "nextPage": "Next page",
+    "resultsCount": "{{count}} results"
   },
   "watchHistory": {
     "title": "Watch History",

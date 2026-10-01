@@ -112,6 +112,7 @@ pub use utils::wbi;
 /// - `fetch_favorite_folders`: Fetches all favorite folders
 /// - `fetch_favorite_videos`: Fetches videos from a favorite folder
 /// - `fetch_watch_history`: Fetches user watch history with pagination
+/// - `search_videos`: Keyword search over bilibili videos (no login required)
 /// - `get_history`: Retrieves all download history entries
 /// - `add_history_entry`: Adds a new history entry
 /// - `remove_history_entry`: Removes a history entry by ID
@@ -210,6 +211,7 @@ pub fn run() {
             fetch_favorite_folders,
             fetch_favorite_videos,
             fetch_watch_history,
+            search_videos,
             expand_short_url,
             cleanup_temp_files,
             trim_video,
@@ -1396,6 +1398,25 @@ async fn fetch_watch_history(
     view_at: i64,
 ) -> Result<bilibili::WatchHistoryResponse, String> {
     bilibili::fetch_watch_history(&app, max, view_at).await
+}
+
+/// Searches bilibili videos by keyword.
+///
+/// Wraps the `search_type=video` WBI-signed endpoint; returns up to 20
+/// entries per page. Works logged out (buvid3 device cookie only).
+///
+/// # Errors
+///
+/// Returns an error if the keyword is empty (`ERR::SEARCH_KEYWORD_EMPTY`),
+/// the request is rate-limited/blocked (`ERR::RATE_LIMITED`), the HTTP
+/// request fails, or the response cannot be parsed.
+#[tauri::command]
+async fn search_videos(
+    app: AppHandle,
+    keyword: String,
+    page: i64,
+) -> Result<bilibili::SearchResponse, String> {
+    bilibili::search_videos(&app, &keyword, page).await
 }
 
 /// Cleans up orphaned temporary files from interrupted downloads.

@@ -429,6 +429,54 @@ pub struct WatchHistoryCursor {
 }
 
 // ============================================================================
+// Search APIs
+// ============================================================================
+
+/// Raw item of the `search_type=video` search response `data.result` array.
+///
+/// Only fields the UI consumes are captured; unknown fields are ignored by
+/// serde. Number types follow the documented response
+/// (references/bilibili-API-collect/docs/search/search_request.md).
+#[derive(Debug, Clone, Deserialize)]
+pub struct SearchApiResponseItem {
+    pub bvid: String,
+    pub title: String,
+    pub author: String,
+    #[serde(default)]
+    pub pic: String,
+    #[serde(default)]
+    pub play: i64,
+    /// Duration in seconds.
+    #[serde(default)]
+    pub duration: i64,
+}
+
+/// Raw body of `/x/web-interface/wbi/search/type`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct SearchApiResponse {
+    pub code: i64,
+    #[serde(default)]
+    pub message: String,
+    pub data: Option<SearchApiData>,
+}
+
+/// `data` object of the search response.
+///
+/// Field casing is mixed on the wire (`page`/`pagesize` snake, but
+/// `numResults`/`numPages` camel — see the doc response example), so the
+/// camel fields carry explicit renames.
+#[derive(Debug, Clone, Deserialize)]
+pub struct SearchApiData {
+    #[serde(default)]
+    pub page: i64,
+    #[serde(default, rename = "numResults")]
+    pub num_results: i64,
+    #[serde(default, rename = "numPages")]
+    pub num_pages: i64,
+    #[serde(default)]
+    pub result: Vec<SearchApiResponseItem>,
+}
+// ============================================================================
 // Subtitle APIs
 // ============================================================================
 
