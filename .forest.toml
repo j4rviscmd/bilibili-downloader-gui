@@ -3,4 +3,4 @@ commands = ["npm ci"]
 share = ["references/"]
 
 [finish]
-commands = []
+commands = ["codebase-memory-mcp cli --quiet index_repository '{\"repo_path\": \".\"}' || true"]

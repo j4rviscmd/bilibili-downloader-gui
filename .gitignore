@@ -34,6 +34,7 @@ artifacts/
 .worktrees/
 remotion/
 plans/
+docs/superpowers/
 
 # E2E test artifacts
 e2e-tests/screenshots/
