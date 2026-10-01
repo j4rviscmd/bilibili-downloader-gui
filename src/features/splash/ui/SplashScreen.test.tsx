@@ -5,7 +5,7 @@ import {
   renderWithProviders,
 } from '@/test/test-utils'
 import { screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // The lifecycle hook is covered by useSplashLifecycle.test.tsx; here it is
 // stubbed so each render locks one phase of the visual state machine.
@@ -40,6 +40,11 @@ describe('SplashScreen', () => {
     // bare vi.fn() from setup returns undefined, so make it thenable.
     mockInvoke.mockResolvedValue(undefined)
     mockLifecycle({})
+  })
+
+  // Theme tests rewrite the URL search param; restore a clean URL after each.
+  afterEach(() => {
+    window.history.pushState({}, '', '/')
   })
 
   it('renders nothing once the fade phase is done', () => {
@@ -82,6 +87,30 @@ describe('SplashScreen', () => {
     expect(screen.getByText('Downloader')).toBeInTheDocument()
     // Full mode mounts the Three.js canvas and starts the scene.
     expect(vi.mocked(useThreeScene)).toHaveBeenCalled()
+    // Without a theme param the scene runs in light mode.
+    expect(vi.mocked(useThreeScene)).toHaveBeenCalledWith(
+      expect.anything(),
+      true,
+      false,
+    )
+  })
+
+  it('renders dark-mode styling and passes dark to the scene when theme=dark', () => {
+    window.history.pushState({}, '', '/splashscreen?theme=dark')
+
+    renderWithProviders(<SplashScreen />)
+
+    // The scene receives the dark flag (palette: dark backdrop + brightened
+    // particle shades).
+    expect(vi.mocked(useThreeScene)).toHaveBeenCalledWith(
+      expect.anything(),
+      true,
+      true,
+    )
+    // Background and title switch to the dark variants.
+    expect(document.querySelector('.dark\\:bg-\\[\\#0f172a\\]')).not.toBeNull()
+    const title = screen.getByRole('heading', { level: 1 })
+    expect(title.style.color).toBe('#e5e7ebee')
   })
 
   it('shows the ffmpeg determinate progress bar during ffmpeg install', async () => {

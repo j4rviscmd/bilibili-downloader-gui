@@ -71,6 +71,24 @@ impl WindowGeometry {
     };
 }
 
+/// Builds the splash route URL with the language/theme query params.
+///
+/// - No saved language (first run): `splashscreen?setup=1` for the language
+///   selection screen.
+/// - Otherwise: `splashscreen?lang={lang}` plus `&theme=dark` when the saved
+///   theme is dark, so the splash renders light/dark from the first frame
+///   (the frontend treats a missing param as light).
+fn splash_url(language: Option<&str>, theme: Option<Theme>) -> String {
+    let Some(lang) = language else {
+        return "splashscreen?setup=1".to_string();
+    };
+    let mut url = format!("splashscreen?lang={lang}");
+    if matches!(theme, Some(Theme::Dark)) {
+        url.push_str("&theme=dark");
+    }
+    url
+}
+
 /// Creates the borderless, fixed-size, centered splash window.
 ///
 /// Content is served from the frontend "/splashscreen" route. `decorations
@@ -90,12 +108,7 @@ pub fn create_splash_window(
     theme: Option<Theme>,
     language: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // Pass the language as a query param so the splash can apply i18n before
-    // first paint (labels render in the user's language).
-    let url = match &language {
-        Some(lang) => format!("splashscreen?lang={}", lang),
-        None => "splashscreen?setup=1".to_string(),
-    };
+    let url = splash_url(language.as_deref(), theme);
     let _splash = WebviewWindowBuilder::new(app, "splash", WebviewUrl::App(url.into()))
         .title(window_title(&app.package_info().version.to_string()))
         .theme(theme.or(Some(Theme::Light)))
@@ -640,6 +653,27 @@ mod tests {
     #[test]
     fn window_title_includes_version() {
         assert_eq!(window_title("1.57.0"), "Bilibili Downloader v1.57.0");
+    }
+
+    #[test]
+    fn splash_url_first_run_uses_setup_mode() {
+        assert_eq!(splash_url(None, None), "splashscreen?setup=1");
+        // Setup mode wins over a saved theme (first run has no theme anyway).
+        assert_eq!(splash_url(None, Some(Theme::Dark)), "splashscreen?setup=1");
+    }
+
+    #[test]
+    fn splash_url_appends_theme_only_for_dark() {
+        assert_eq!(
+            splash_url(Some("ja"), Some(Theme::Dark)),
+            "splashscreen?lang=ja&theme=dark"
+        );
+        // Light / unset theme omit the param: the frontend defaults to light.
+        assert_eq!(
+            splash_url(Some("ja"), Some(Theme::Light)),
+            "splashscreen?lang=ja"
+        );
+        assert_eq!(splash_url(Some("en"), None), "splashscreen?lang=en");
     }
 
     #[test]

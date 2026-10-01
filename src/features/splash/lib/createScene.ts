@@ -31,7 +31,7 @@ import {
   COLORS,
   CONNECTION_DISTANCE,
   PARTICLE_COUNT,
-  PARTICLE_SHADES,
+  resolveSplashPalette,
   ROTATION_SPEED_X,
   ROTATION_SPEED_Y,
   SEGMENTS_PER_BOLT,
@@ -65,13 +65,17 @@ export interface SplashSceneHandle {
  * and free all GPU resources.
  *
  * @param canvas - The `<canvas>` element to render into.
+ * @param dark   - Whether to use the dark-theme palette (background clear
+ *   color + brightened particle shades). Accent blues stay shared.
  * @returns A handle with `dispose()` and `resize()` methods.
  */
 export function createSplashScene(
   canvas: HTMLCanvasElement,
+  dark = false,
 ): SplashSceneHandle {
   const width = canvas.clientWidth || window.innerWidth
   const height = canvas.clientHeight || window.innerHeight
+  const palette = resolveSplashPalette(dark)
 
   const renderer = new WebGLRenderer({
     canvas,
@@ -80,7 +84,7 @@ export function createSplashScene(
   })
   renderer.setSize(width, height)
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-  renderer.setClearColor(COLORS.background)
+  renderer.setClearColor(palette.background)
 
   const scene = new Scene()
   const camera = new PerspectiveCamera(60, width / height, 0.1, 1000)
@@ -89,13 +93,13 @@ export function createSplashScene(
   // ── Particles ──
   const positions = new Float32Array(PARTICLE_COUNT * 3)
   const pColors = new Float32Array(PARTICLE_COUNT * 3)
+  const shades = palette.particleShades
   for (let i = 0; i < PARTICLE_COUNT; i++) {
     const i3 = i * 3
     positions[i3] = (Math.random() - 0.5) * BOUNDS * 2
     positions[i3 + 1] = (Math.random() - 0.5) * BOUNDS * 2
     positions[i3 + 2] = (Math.random() - 0.5) * BOUNDS * 2
-    const shade =
-      PARTICLE_SHADES[Math.floor(Math.random() * PARTICLE_SHADES.length)]
+    const shade = shades[Math.floor(Math.random() * shades.length)]
     pColors[i3] = shade[0]
     pColors[i3 + 1] = shade[1]
     pColors[i3 + 2] = shade[2]

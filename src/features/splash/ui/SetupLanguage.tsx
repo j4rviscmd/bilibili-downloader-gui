@@ -32,7 +32,7 @@ export function SetupLanguage({ onComplete }: { onComplete: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 flex flex-col items-center justify-center gap-5 rounded-2xl bg-[#f5f7fa] p-10 text-[#333333]">
+    <div className="fixed inset-0 flex flex-col items-center justify-center gap-5 rounded-2xl bg-[#f5f7fa] p-10 text-[#333333] dark:bg-[#0f172a] dark:text-[#e5e7eb]">
       <h1 className="text-2xl font-medium">{t('init.choose_language')}</h1>
       <p className="text-center text-sm">
         {t('init.choose_language_description')}
@@ -40,7 +40,7 @@ export function SetupLanguage({ onComplete }: { onComplete: () => void }) {
       <label className="w-full max-w-sm">
         <span className="sr-only">{t('init.choose_language')}</span>
         <select
-          className="w-full rounded-md border bg-white p-3"
+          className="w-full rounded-md border bg-white p-3 dark:bg-[#1e293b]"
           value={language}
           disabled={saving}
           onChange={(event) => setLanguage(event.target.value as SupportedLang)}
