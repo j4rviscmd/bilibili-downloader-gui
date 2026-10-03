@@ -164,14 +164,16 @@ use crate::handlers::history_session::HistorySession;
 use crate::handlers::settings;
 use crate::models::bilibili_api::{
     BangumiPlayerApiResponse, BangumiPlayerResult, BangumiSeasonApiResponse, PlayerV2ApiResponse,
-    UserApiResponse, WatchHistoryApiResponse, WebInterfaceApiResponse, WebInterfaceApiResponseData,
-    XPlayerApiResponse, XPlayerApiResponseData, XPlayerApiResponseVideo,
+    SearchApiData, SearchApiResponse, SuggestApiResponse, UserApiResponse, WatchHistoryApiResponse,
+    WebInterfaceApiResponse, WebInterfaceApiResponseData, XPlayerApiResponse,
+    XPlayerApiResponseData, XPlayerApiResponseVideo,
 };
 use crate::models::cookie::CookieEntry;
 use crate::models::frontend_dto::{
     DownloadRetrying, Quality, SubtitleDto, Thumbnail, UserData, Video, VideoPart,
     WatchHistoryCursor, WatchHistoryEntry,
 };
+pub use crate::models::frontend_dto::{SearchResponse, SearchResultEntry};
 use crate::models::settings::Settings;
 use crate::utils::downloads::download_url;
 use crate::utils::paths::get_lib_path;
@@ -3931,6 +3933,335 @@ mod tests {
         assert_eq!(view_req.headers.get("cookie").unwrap(), "SESSDATA=abc");
     }
 
+    // ---- search_videos (keyword video search) ----
+
+    #[test]
+    fn cookie_header_with_buvid3_appends_or_preserves() {
+        // Missing buvid3 → appended
+        assert_eq!(
+            cookie_header_with_buvid3("SESSDATA=abc", "b3val"),
+            "SESSDATA=abc; buvid3=b3val"
+        );
+        // Empty header → buvid3 only
+        assert_eq!(cookie_header_with_buvid3("", "b3val"), "buvid3=b3val");
+        // Already present → unchanged
+        assert_eq!(
+            cookie_header_with_buvid3("buvid3=old; SESSDATA=abc", "b3val"),
+            "buvid3=old; SESSDATA=abc"
+        );
+        // Empty fetched value → unchanged (fetch returned nothing usable)
+        assert_eq!(
+            cookie_header_with_buvid3("SESSDATA=abc", ""),
+            "SESSDATA=abc"
+        );
+    }
+
+    #[test]
+    fn strip_keyword_em_tags_removes_highlights() {
+        assert_eq!(
+            strip_keyword_em_tags("梦然-《<em class=\"keyword\">少年</em>》官方版"),
+            "梦然-《少年》官方版"
+        );
+        // Bare <em> variant seen on some responses
+        assert_eq!(strip_keyword_em_tags("<em>少年</em>"), "少年");
+        assert_eq!(strip_keyword_em_tags("no tags"), "no tags");
+    }
+
+    #[test]
+    fn normalize_cover_url_prepends_https() {
+        assert_eq!(
+            normalize_cover_url("//i0.hdslb.com/bfs/archive/x.jpg"),
+            "https://i0.hdslb.com/bfs/archive/x.jpg"
+        );
+        assert_eq!(
+            normalize_cover_url("https://i0.hdslb.com/bfs/archive/x.jpg"),
+            "https://i0.hdslb.com/bfs/archive/x.jpg"
+        );
+    }
+
+    #[test]
+    fn duration_seconds_accepts_string_and_number_shapes() {
+        use serde_json::Value;
+        // Live-API string shapes ("m:ss", minutes > 99, empty)
+        assert_eq!(duration_seconds(Some(&Value::String("4:47".into()))), 287);
+        assert_eq!(
+            duration_seconds(Some(&Value::String("186:34".into()))),
+            11194
+        );
+        assert_eq!(
+            duration_seconds(Some(&Value::String("1:01:01".into()))),
+            3661
+        );
+        assert_eq!(duration_seconds(Some(&Value::String(String::new()))), 0);
+        // Reference-doc integer shape
+        assert_eq!(duration_seconds(Some(&Value::Number(287.into()))), 287);
+        // Hostile/huge wire value saturates instead of panicking
+        assert_eq!(
+            duration_seconds(Some(&Value::String("9223372036854775807:01:01".into()))),
+            i64::MAX
+        );
+        // Absent / null
+        assert_eq!(duration_seconds(None), 0);
+        assert_eq!(duration_seconds(Some(&Value::Null)), 0);
+    }
+
+    #[test]
+    fn unescape_title_entities_decodes_live_api_samples() {
+        // Samples observed on the live API (keyword "mrs.", 2026-10-01)
+        assert_eq!(
+            unescape_title_entities("Mrs. Kelly&#x27;s Class"),
+            "Mrs. Kelly's Class"
+        );
+        assert_eq!(
+            unescape_title_entities("Mr. &amp; Mrs. Smith"),
+            "Mr. & Mrs. Smith"
+        );
+        // Numeric decimal + named entities, and text without entities
+        assert_eq!(unescape_title_entities("a&quot;b"), "a\"b");
+        assert_eq!(unescape_title_entities("&#21490;蜜"), "史蜜");
+        assert_eq!(unescape_title_entities("plain title"), "plain title");
+        // Unknown entity and bare ampersand stay untouched
+        assert_eq!(unescape_title_entities("a &unknown; b"), "a &unknown; b");
+        assert_eq!(unescape_title_entities("AT&T"), "AT&T");
+    }
+
+    /// Wiremock body for a successful `search_type=video` page-1 response.
+    ///
+    /// Field shapes mirror the LIVE API (probed 2026-10-01): duration is a
+    /// "m:ss" string, and the list can interleave ad rows with an empty
+    /// bvid — both differ from the reference doc example.
+    fn search_ok_body() -> serde_json::Value {
+        serde_json::json!({
+            "code": 0, "message": "OK",
+            "data": {
+                "seid": "s", "page": 1, "pagesize": 20,
+                "numResults": 1000, "numPages": 50,
+                "result": [
+                    {
+                        "type": "video", "id": 1, "author": "up主",
+                        "mid": 1, "typeid": "193", "typename": "MV",
+                        "arcurl": "http://www.bilibili.com/video/av1",
+                        "aid": 1, "bvid": "BV1De411p77r",
+                        "title": "梦然-《<em class=\"keyword\">少年</em>》官方版&amp;MV",
+                        "description": "d", "pic": "//i0.hdslb.com/bfs/archive/x.jpg",
+                        "play": 1037655, "video_review": 2616, "favorites": 27341,
+                        "tag": "t", "review": 1265, "pubdate": 1590000000,
+                        "senddate": 1590000000, "duration": "4:47",
+                        "arcrank": "0"
+                    },
+                    {
+                        // Ad/interference row observed on the live API:
+                        // empty bvid (and empty duration) — must be filtered.
+                        "type": "video", "author": "ad",
+                        "bvid": "", "title": "ad row",
+                        "pic": "https://archive.biliimg.com/bfs/archive/ad.jpg",
+                        "play": 2550, "duration": ""
+                    }
+                ]
+            }
+        })
+    }
+
+    /// Mounts the nav mock (mixin key source) on `server`.
+    async fn mount_nav_mock(server: &wiremock::MockServer) {
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/nav"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(nav_wbi_mock_body()))
+            .mount(server)
+            .await;
+    }
+
+    #[tokio::test]
+    async fn search_videos_with_parses_and_normalizes_entries() {
+        let server = wiremock::MockServer::start().await;
+        mount_nav_mock(&server).await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/wbi/search/type"))
+            .and(wiremock::matchers::query_param("search_type", "video"))
+            // Reserved chars must round-trip through the WBI-signed query.
+            .and(wiremock::matchers::query_param("keyword", "a & b"))
+            .and(wiremock::matchers::header("Cookie", "buvid3=xyz"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(search_ok_body()))
+            .mount(&server)
+            .await;
+
+        let res = search_videos_with(&bili_api_mock(&server.uri(), "buvid3=xyz"), "a & b", 1)
+            .await
+            .unwrap();
+
+        assert_eq!(res.page, 1);
+        assert_eq!(res.num_results, 1000);
+        assert_eq!(res.num_pages, 50);
+        assert_eq!(res.entries.len(), 1);
+        let e = &res.entries[0];
+        assert_eq!(e.bvid, "BV1De411p77r");
+        assert_eq!(e.title, "梦然-《少年》官方版&MV");
+        assert_eq!(e.cover, "https://i0.hdslb.com/bfs/archive/x.jpg");
+        assert_eq!(e.author, "up主");
+        assert_eq!(e.play, 1037655);
+        assert_eq!(e.duration, 287, "\"4:47\" string normalized to seconds");
+    }
+
+    #[tokio::test]
+    async fn search_videos_with_maps_412_to_rate_limited() {
+        let server = wiremock::MockServer::start().await;
+        mount_nav_mock(&server).await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/wbi/search/type"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"code": -412, "message": "request blocked"})),
+            )
+            .mount(&server)
+            .await;
+
+        let err = search_videos_with(&bili_api_mock(&server.uri(), "buvid3=xyz"), "kw", 1)
+            .await
+            .unwrap_err();
+        assert_eq!(err, "ERR::RATE_LIMITED");
+    }
+
+    #[tokio::test]
+    async fn search_videos_with_maps_nonzero_api_error() {
+        let server = wiremock::MockServer::start().await;
+        mount_nav_mock(&server).await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/wbi/search/type"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"code": -400, "message": "bad request"})),
+            )
+            .mount(&server)
+            .await;
+
+        let err = search_videos_with(&bili_api_mock(&server.uri(), "buvid3=xyz"), "kw", 1)
+            .await
+            .unwrap_err();
+        assert!(err.contains("-400"), "unexpected error: {err}");
+    }
+
+    #[tokio::test]
+    async fn search_videos_with_accepts_empty_results() {
+        let server = wiremock::MockServer::start().await;
+        mount_nav_mock(&server).await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/wbi/search/type"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"code": 0, "message": "0",
+                    "data": {"page": 2, "numResults": 0, "numPages": 1, "result": []}})),
+            )
+            .mount(&server)
+            .await;
+
+        let res = search_videos_with(&bili_api_mock(&server.uri(), "buvid3=xyz"), "kw", 2)
+            .await
+            .unwrap();
+        assert!(res.entries.is_empty());
+        assert_eq!(res.num_results, 0);
+    }
+
+    #[tokio::test]
+    async fn search_videos_with_degrades_code0_missing_data_to_empty_page() {
+        // Some code-0 responses omit `data` entirely; the page must degrade
+        // to "no results" instead of erroring the whole search screen.
+        let server = wiremock::MockServer::start().await;
+        mount_nav_mock(&server).await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/wbi/search/type"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"code": 0, "message": "0"})),
+            )
+            .mount(&server)
+            .await;
+
+        let res = search_videos_with(&bili_api_mock(&server.uri(), "buvid3=xyz"), "kw", 1)
+            .await
+            .unwrap();
+        assert!(res.entries.is_empty());
+        assert_eq!(res.num_results, 0);
+        assert_eq!(res.num_pages, 0);
+        // The clamped requested page is echoed back, not the absent one.
+        assert_eq!(res.page, 1);
+    }
+
+    #[tokio::test]
+    async fn search_suggest_with_returns_keyword_values() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/main/suggest"))
+            .and(wiremock::matchers::query_param("term", "ショタ"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(
+                serde_json::json!({
+                    "code": 0, "exp_str": "",
+                    "result": {"tag": [
+                        {"value": "ショタ", "ref": 0, "name": "<em class=\"suggest_high_light\">ショタ</em>", "spid": 5, "type": ""},
+                        {"value": "おねショタ", "ref": 0, "name": "おね<em class=\"suggest_high_light\">ショタ</em>", "spid": 5, "type": ""}
+                    ]},
+                    "stoken": ""
+                }),
+            ))
+            .mount(&server)
+            .await;
+
+        let values = search_suggest_with(&bili_api_mock(&server.uri(), ""), "ショタ")
+            .await
+            .unwrap();
+        assert_eq!(values, vec!["ショタ".to_string(), "おねショタ".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn search_suggest_with_degrades_transport_and_api_errors_to_empty() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/main/suggest"))
+            .respond_with(wiremock::ResponseTemplate::new(500))
+            .mount(&server)
+            .await;
+
+        // Transport failure → empty, not an error (mid-typing must never
+        // surface an error).
+        let values = search_suggest_with(&bili_api_mock(&server.uri(), ""), "kw")
+            .await
+            .unwrap();
+        assert!(values.is_empty());
+
+        // API-level non-zero code → empty as well.
+        let server2 = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/main/suggest"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"code": -1, "result": null})),
+            )
+            .mount(&server2)
+            .await;
+        let values = search_suggest_with(&bili_api_mock(&server2.uri(), ""), "kw")
+            .await
+            .unwrap();
+        assert!(values.is_empty());
+    }
+
+    #[tokio::test]
+    async fn search_videos_with_clamps_page_to_one() {
+        // The seam clamps page < 1 to 1 BEFORE the request; the mock only
+        // answers `page=1`, so an unclamped `page=0` would 404 → ERR::API_ERROR.
+        let server = wiremock::MockServer::start().await;
+        mount_nav_mock(&server).await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/wbi/search/type"))
+            .and(wiremock::matchers::query_param("page", "1"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(search_ok_body()))
+            .mount(&server)
+            .await;
+
+        let res = search_videos_with(&bili_api_mock(&server.uri(), "buvid3=xyz"), "kw", 0)
+            .await
+            .unwrap();
+        assert_eq!(res.page, 1);
+    }
+
     #[tokio::test]
     async fn expand_short_url_follows_redirect_chain() {
         let server = wiremock::MockServer::start().await;
@@ -4931,6 +5262,132 @@ fn canonical_video_id<'a>(requested: &'a str, api_bvid: &'a str) -> &'a str {
     }
 }
 
+/// Appends `buvid3` to a cookie header when the header lacks it.
+///
+/// Why: the search API rejects requests without `buvid3` with code -412
+/// (references/bilibili-API-collect/docs/search/search_request.md), so
+/// anonymous searches must ride a device cookie even with no login session.
+fn cookie_header_with_buvid3(header: &str, buvid3: &str) -> String {
+    let has_buvid3 = header
+        .split(';')
+        .any(|c| c.trim_start().starts_with("buvid3="));
+    if has_buvid3 || buvid3.is_empty() {
+        return header.to_string();
+    }
+    if header.is_empty() {
+        format!("buvid3={buvid3}")
+    } else {
+        format!("{header}; buvid3={buvid3}")
+    }
+}
+
+/// Removes `<em class="keyword">` highlight tags the search API embeds in
+/// result titles (bare `<em>` variant also stripped defensively).
+fn strip_keyword_em_tags(title: &str) -> String {
+    title
+        .replace("<em class=\"keyword\">", "")
+        .replace("<em>", "")
+        .replace("</em>", "")
+}
+
+/// Unescapes the HTML entities bilibili embeds in search titles
+/// ("Mr. &amp; Mrs.", "Mrs. Kelly&#x27;s Class" — observed on the live API).
+/// Handles the common named entities plus decimal/hex numeric references;
+/// anything else is left untouched.
+fn unescape_title_entities(title: &str) -> String {
+    let Some(first) = title.find('&') else {
+        return title.to_string();
+    };
+    let mut out = String::with_capacity(title.len());
+    out.push_str(&title[..first]);
+    let rest = &title[first..];
+    let mut chars = rest.char_indices().peekable();
+    while let Some((i, c)) = chars.next() {
+        if c != '&' {
+            out.push(c);
+            continue;
+        }
+        // Find the entity end within a sane window; otherwise emit '&' as-is.
+        let tail = &rest[i + 1..];
+        let Some(semi) = tail.find(';').filter(|&e| e <= 10) else {
+            out.push('&');
+            continue;
+        };
+        let ent = &tail[..semi];
+        let decoded = match ent {
+            "amp" => Some('&'),
+            "lt" => Some('<'),
+            "gt" => Some('>'),
+            "quot" => Some('"'),
+            "apos" | "#39" | "#x27" | "#X27" => Some('\''),
+            "nbsp" => Some(' '),
+            _ => {
+                // Numeric references: &#123; / &#x1F600;
+                if let Some(num) = ent.strip_prefix('#') {
+                    let radix = if let Some(hex) = num.strip_prefix(['x', 'X']) {
+                        u32::from_str_radix(hex, 16).ok()
+                    } else {
+                        num.parse::<u32>().ok()
+                    };
+                    radix.and_then(char::from_u32)
+                } else {
+                    None
+                }
+            }
+        };
+        match decoded {
+            Some(ch) => {
+                out.push(ch);
+                // Skip past the consumed entity.
+                for _ in 0..=semi {
+                    chars.next();
+                }
+            }
+            None => out.push('&'),
+        }
+    }
+    out
+}
+
+/// Normalizes protocol-relative cover URLs ("//host/…") to https so the
+/// webview does not resolve them against the app origin.
+fn normalize_cover_url(pic: &str) -> String {
+    if let Some(rest) = pic.strip_prefix("//") {
+        format!("https://{rest}")
+    } else {
+        pic.to_string()
+    }
+}
+
+/// Normalizes a wire-format duration into seconds.
+///
+/// Why: the real search API returns durations as "m:ss"-style strings
+/// ("4:47", "186:34", sometimes ""), while the reference doc example shows
+/// plain integers — a strict i64 field failed the whole response parse
+/// (found during first manual verification). Both shapes are accepted; the
+/// fold also handles "h:mm:ss" and bare-second strings. Unparseable → 0.
+fn duration_seconds(value: Option<&serde_json::Value>) -> i64 {
+    match value {
+        Some(serde_json::Value::Number(n)) => n.as_i64().unwrap_or(0),
+        Some(serde_json::Value::String(s)) => s
+            .split(':')
+            .try_fold(0i64, |acc, part| {
+                // ponytail: saturating (not checked) — a hostile/huge wire
+                // value must not panic the command; clamping is enough.
+                part.trim()
+                    .parse::<i64>()
+                    .map(|n| acc.saturating_mul(60).saturating_add(n))
+            })
+            .unwrap_or(0),
+        _ => 0,
+    }
+}
+
+/// Process-lifetime cache of the anonymously fetched buvid3 used by
+/// [`search_videos`] when the cookie cache has none. Never persisted to the
+/// cookie cache file — anonymous search must not pollute login state.
+static ANON_BUVID3: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
 /// WBI-signed view-API fetch shared by metadata and history saving.
 ///
 /// Why: the unsigned `/x/web-interface/view` endpoint is rejected by
@@ -5872,6 +6329,195 @@ async fn fetch_watch_history_with(
     };
 
     Ok(WatchHistoryResponse { entries, cursor })
+}
+
+/// Searches bilibili videos by keyword (`search_type=video`, 20 per page).
+///
+/// Works logged out: the endpoint needs only a `buvid3` device cookie plus
+/// WBI signing (no SESSDATA personalization — results are identical logged
+/// in). When the cookie cache lacks `buvid3`, one is fetched via the login
+/// flow's Spirite endpoint and cached for the process lifetime.
+///
+/// Error codes: `ERR::SEARCH_KEYWORD_EMPTY` (blank keyword),
+/// `ERR::RATE_LIMITED` (API -412 or HTTP 429), `ERR::API_ERROR` (other HTTP
+/// failures), or a `Search API error (code …)` string for API-level errors.
+pub async fn search_videos(
+    app: &AppHandle,
+    keyword: &str,
+    page: i64,
+) -> Result<SearchResponse, String> {
+    log::info!("[BE] search_videos: keyword={:?}, page={}", keyword, page);
+    let keyword = keyword.trim();
+    if keyword.is_empty() {
+        return Err("ERR::SEARCH_KEYWORD_EMPTY".into());
+    }
+
+    let cookies = read_cookie(app)?.unwrap_or_default();
+    let header = build_cookie_header(&cookies);
+    let header = if header
+        .split(';')
+        .any(|c| c.trim_start().starts_with("buvid3="))
+    {
+        header
+    } else {
+        let buvid3 = match ANON_BUVID3.get() {
+            Some(v) => v.clone(),
+            None => {
+                // First anonymous search: activate the device fingerprint.
+                let (b3, _) = crate::handlers::qr_login::fetch_buvid().await?;
+                let _ = ANON_BUVID3.set(b3.clone());
+                b3
+            }
+        };
+        cookie_header_with_buvid3(&header, &buvid3)
+    };
+
+    let api = BiliApi::from_cookie_header(header)?;
+    let result = search_videos_with(&api, keyword, page).await;
+    // Why: surface the failing stage (mixin key / HTTP status / parse) in
+    // app.log — the first manual verification hit a parse error that was
+    // invisible without this line.
+    if let Err(e) = &result {
+        log::warn!("[BE] search_videos: failed: {e}");
+    }
+    result
+}
+
+/// Transport-injectable core of [`search_videos`] (test seam).
+async fn search_videos_with(
+    api: &BiliApi,
+    keyword: &str,
+    page: i64,
+) -> Result<SearchResponse, String> {
+    let page = page.max(1);
+
+    let mixin_key = crate::utils::wbi::fetch_mixin_key(
+        &api.http,
+        &api.base,
+        (!api.cookie_header.is_empty()).then_some(&api.cookie_header),
+    )
+    .await?;
+
+    let mut params = std::collections::BTreeMap::from([
+        ("search_type".to_string(), "video".to_string()),
+        ("keyword".to_string(), keyword.to_string()),
+        ("page".to_string(), page.to_string()),
+    ]);
+    let signature = crate::utils::wbi::generate_wbi_signature(&mut params, &mixin_key);
+    // Why: generate_wbi_signature already inserts wts into `params`
+    // (src-tauri/src/utils/wbi.rs); only w_rid is appended — same pattern as
+    // fetch_wbi_view. Sending wts twice makes wbi endpoints return v_voucher.
+    let mut query: Vec<(&str, String)> = params
+        .iter()
+        .map(|(k, v)| (k.as_str(), v.clone()))
+        .collect();
+    query.push(("w_rid", signature.w_rid));
+
+    let response = api
+        .get_q("/x/web-interface/wbi/search/type", &query)
+        .await?;
+    let response_text = response
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read search response text: {e}"))?;
+    let body: SearchApiResponse = serde_json::from_str(&response_text)
+        .map_err(|e| format!("Failed to parse search response: {e}. Response: {response_text}"))?;
+
+    if body.code == -412 {
+        return Err("ERR::RATE_LIMITED".into());
+    }
+    if body.code != 0 {
+        return Err(format!(
+            "Search API error (code {}): {}",
+            body.code, body.message
+        ));
+    }
+
+    // `data` is absent only on error bodies; treat it as an empty page so a
+    // malformed-but-code-0 response degrades to "no results" instead of an
+    // error screen.
+    let data = body.data.unwrap_or(SearchApiData {
+        page,
+        num_results: 0,
+        num_pages: 0,
+        result: Vec::new(),
+    });
+
+    Ok(SearchResponse {
+        page: data.page,
+        num_results: data.num_results,
+        num_pages: data.num_pages,
+        // Why: the result list can carry ad/interference rows with an empty
+        // bvid (observed on the live API); they are undownloadable.
+        entries: data
+            .result
+            .into_iter()
+            .filter(|item| !item.bvid.is_empty())
+            .map(|item| {
+                let duration = duration_seconds(item.duration.as_ref());
+                SearchResultEntry {
+                    title: unescape_title_entities(&strip_keyword_em_tags(&item.title)),
+                    cover: normalize_cover_url(&item.pic),
+                    bvid: item.bvid,
+                    author: item.author,
+                    play: item.play,
+                    duration,
+                }
+            })
+            .collect(),
+    })
+}
+
+/// Origin of the suggest API (lives outside api.bilibili.com).
+const SUGGEST_BASE: &str = "https://s.search.bilibili.com";
+
+/// Fetches search keyword suggestions for a partial input.
+///
+/// Wraps `https://s.search.bilibili.com/main/suggest` (up to 10 keywords,
+/// CJK/pinyin aware). No login and no WBI signing required — the endpoint is
+/// open (verified against the live API). Suggestions are best-effort: a
+/// failed fetch returns an empty list so typing never surfaces an error.
+pub async fn search_suggest(app: &AppHandle, keyword: &str) -> Result<Vec<String>, String> {
+    let keyword = keyword.trim();
+    if keyword.is_empty() {
+        return Ok(Vec::new());
+    }
+    log::info!("[BE] search_suggest: keyword={:?}", keyword);
+
+    let cookies = read_cookie(app)?.unwrap_or_default();
+    let header = build_cookie_header(&cookies);
+    // Why: reuse the shared transport (UA/timeout/E2E override) but point it
+    // at the suggest origin; the cookie header rides along when logged in.
+    let api = BiliApi::from_cookie_header(header)?.with_base(SUGGEST_BASE.to_string());
+
+    search_suggest_with(&api, keyword).await
+}
+
+/// Transport-injectable core of [`search_suggest`] (test seam).
+async fn search_suggest_with(api: &BiliApi, keyword: &str) -> Result<Vec<String>, String> {
+    // Why: get_q percent-encodes the term (CJK/reserved chars) instead of
+    // format!-embedding raw bytes into the path.
+    let Ok(response) = api
+        .get_q("/main/suggest", &[("term", keyword.to_string())])
+        .await
+    else {
+        // Best-effort: any transport failure degrades to "no suggestions"
+        // instead of an error the page would surface mid-typing.
+        return Ok(Vec::new());
+    };
+    let text = response
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read suggest response text: {e}"))?;
+    let body: SuggestApiResponse = serde_json::from_str(&text)
+        .map_err(|e| format!("Failed to parse suggest response: {e}. Response: {text}"))?;
+    if body.code != 0 {
+        return Ok(Vec::new());
+    }
+    Ok(body
+        .result
+        .map(|r| r.tag.into_iter().map(|t| t.value).collect())
+        .unwrap_or_default())
 }
 
 /// Fetches available subtitles for a video part from Player v2 API.

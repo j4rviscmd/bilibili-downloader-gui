@@ -21,9 +21,10 @@
     "copy": "복사"
   },
   "nav": {
-    "search": "검색",
+    "search": "동영상 가져오기",
     "downloads": "다운로드",
     "downloadHistory": "다운로드 기록",
+    "videoSearch": "동영상 검색",
     "watchHistory": "시청 기록",
     "favorite": "즐겨찾기",
     "trim": "트림",
@@ -39,7 +40,7 @@
     },
     "aria": {
       "mainNavigation": "메인 내비게이션",
-      "search": "검색 페이지로 이동",
+      "search": "URL로 동영상 가져오기",
       "downloads": "다운로드 페이지로 이동",
       "downloadHistory": "다운로드 기록 페이지로 이동",
       "watchHistory": "시청 기록으로 이동",
@@ -54,7 +55,8 @@
       "rotation": "영상 회전 페이지로 이동",
       "gif": "GIF/WebM 생성 페이지로 이동",
       "goBack": "이전 페이지로 돌아가기",
-      "goForward": "다음 페이지로 진행하기"
+      "goForward": "다음 페이지로 진행하기",
+      "videoSearch": "동영상 검색"
     },
     "audio": "오디오 추출",
     "resolution": "해상도 변환",
@@ -429,6 +431,7 @@
   "settings": {
     "title": "설정",
     "language_label": "언어",
+    "startupPage_label": "시작 페이지",
     "output_dir_label": "출력 디렉터리",
     "output_dir_placeholder": "예: C:\\Users\\you\\Downloads 또는 /Users/you/Downloads",
     "output_dir_description": "영상 파일이 저장될 디렉터리를 입력하세요.",
@@ -700,6 +703,18 @@
     "downloadConfirmTitle": "다운로드",
     "downloadConfirmMessage": "홈으로 이동하면 현재 입력이 지워집니다. 계속하시겠습니까?",
     "defaultFolder": "기본"
+  },
+  "videoSearch": {
+    "title": "동영상 검색",
+    "placeholder": "키워드로 동영상 검색",
+    "loading": "검색 중…",
+    "suggestions": "검색 제안",
+    "searchButton": "검색",
+    "noResults": "동영상을 찾을 수 없습니다",
+    "noResultsHint": "다른 키워드로 시도해 보세요",
+    "prevPage": "이전 페이지",
+    "nextPage": "다음 페이지",
+    "resultsCount": "{{count}}개 결과"
   },
   "watchHistory": {
     "title": "시청 기록",

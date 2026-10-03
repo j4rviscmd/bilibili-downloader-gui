@@ -90,6 +90,7 @@ describe('NavigationSidebarHeader', () => {
 
     const labels = [
       'nav.search',
+      'nav.videoSearch',
       'nav.downloads',
       'nav.category.bilibili',
       'nav.favorite',
@@ -148,6 +149,20 @@ describe('NavigationSidebarHeader', () => {
 
     await actor.click(favorite)
     expect(screen.getByTestId('location')).toHaveTextContent('/search')
+  })
+
+  it('keeps video-search available when logged out', async () => {
+    // Video search is the anonymous entry point (no SESSDATA needed), so
+    // its nav item must never inherit the auth-required disabled state.
+    const { user: actor } = renderSidebar('/search')
+
+    const videoSearch = screen.getByRole('button', {
+      name: 'nav.aria.videoSearch',
+    })
+    expect(videoSearch).not.toHaveAttribute('aria-disabled')
+
+    await actor.click(videoSearch)
+    expect(screen.getByTestId('location')).toHaveTextContent('/video-search')
   })
 
   it('enables auth-required items when logged in', async () => {

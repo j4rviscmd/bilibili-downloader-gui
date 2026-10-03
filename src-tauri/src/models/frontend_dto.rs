@@ -214,6 +214,33 @@ pub struct WatchHistoryCursor {
     pub is_end: bool,
 }
 
+// Search DTOs
+
+/// One keyword-search result video rendered on the video search page.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchResultEntry {
+    pub bvid: String,
+    /// Title with `<em class="keyword">` highlight tags removed.
+    pub title: String,
+    /// Cover URL normalized to `https://`.
+    pub cover: String,
+    pub author: String,
+    pub play: i64,
+    /// Duration in seconds.
+    pub duration: i64,
+}
+
+/// Response of the `search_videos` Tauri command.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchResponse {
+    pub page: i64,
+    pub num_results: i64,
+    pub num_pages: i64,
+    pub entries: Vec<SearchResultEntry>,
+}
+
 // Subtitle DTOs
 
 /// Subtitle information sent to the frontend.

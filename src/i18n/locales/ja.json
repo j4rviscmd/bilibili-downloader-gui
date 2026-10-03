@@ -21,9 +21,10 @@
     "copy": "コピー"
   },
   "nav": {
-    "search": "検索",
+    "search": "動画取得",
     "downloads": "ダウンロード",
     "downloadHistory": "ダウンロード履歴",
+    "videoSearch": "動画検索",
     "watchHistory": "視聴履歴",
     "favorite": "お気に入り",
     "trim": "トリム",
@@ -39,7 +40,7 @@
     },
     "aria": {
       "mainNavigation": "メインナビゲーション",
-      "search": "検索ページへ移動",
+      "search": "URLで動画を取得",
       "downloads": "ダウンロードページへ移動",
       "downloadHistory": "ダウンロード履歴画面へ移動",
       "watchHistory": "視聴履歴に移動",
@@ -54,7 +55,8 @@
       "rotation": "動画回転ページへ移動",
       "gif": "GIF/WebM生成ページへ移動",
       "goBack": "前のページへ戻る",
-      "goForward": "次のページへ進む"
+      "goForward": "次のページへ進む",
+      "videoSearch": "動画を検索"
     },
     "audio": "音声抽出",
     "resolution": "解像度変換",
@@ -429,6 +431,7 @@
   "settings": {
     "title": "設定",
     "language_label": "言語",
+    "startupPage_label": "起動時のページ",
     "output_dir_label": "出力ディレクトリ",
     "output_dir_placeholder": "例: C:\\Users\\you\\Downloads または /Users/you/Downloads",
     "output_dir_description": "動画ファイルの保存先ディレクトリを入力してください。",
@@ -700,6 +703,18 @@
     "downloadConfirmTitle": "ダウンロード",
     "downloadConfirmMessage": "ホームに移動すると現在の入力がクリアされます。続けますか？",
     "defaultFolder": "デフォルト"
+  },
+  "videoSearch": {
+    "title": "動画検索",
+    "placeholder": "キーワードで動画を検索",
+    "loading": "検索しています…",
+    "suggestions": "検索候補",
+    "searchButton": "検索",
+    "noResults": "動画が見つかりませんでした",
+    "noResultsHint": "別のキーワードで試してください",
+    "prevPage": "前のページ",
+    "nextPage": "次のページ",
+    "resultsCount": "{{count}}件"
   },
   "watchHistory": {
     "title": "視聴履歴",

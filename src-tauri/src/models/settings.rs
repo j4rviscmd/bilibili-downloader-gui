@@ -260,6 +260,15 @@ pub struct Settings {
         skip_serializing_if = "Option::is_none"
     )]
     pub enable_dev_updater: Option<bool>,
+    /// Page path the app opens on launch (e.g. "/search", "/downloads").
+    /// Defaults to "/search" when absent; the frontend validates it against
+    /// its route table and falls back to "/search" for unknown values.
+    #[serde(
+        rename = "startupPage",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub startup_page: Option<String>,
 }
 
 /// Trim mode for the MP4 trimming feature.

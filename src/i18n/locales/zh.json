@@ -21,9 +21,10 @@
     "copy": "复制"
   },
   "nav": {
-    "search": "搜索",
+    "search": "获取视频",
     "downloads": "下载",
     "downloadHistory": "下载历史",
+    "videoSearch": "视频搜索",
     "watchHistory": "观看历史",
     "favorite": "收藏",
     "trim": "裁剪",
@@ -39,7 +40,7 @@
     },
     "aria": {
       "mainNavigation": "主导航",
-      "search": "前往搜索页面",
+      "search": "通过URL获取视频",
       "downloads": "前往下载页面",
       "downloadHistory": "前往下载历史页面",
       "watchHistory": "转到观看历史",
@@ -54,7 +55,8 @@
       "rotation": "转到旋转视频页面",
       "gif": "前往 GIF/WebM 生成页面",
       "goBack": "返回上一页",
-      "goForward": "前进到下一页"
+      "goForward": "前进到下一页",
+      "videoSearch": "搜索视频"
     },
     "audio": "音频提取",
     "resolution": "分辨率转换",
@@ -429,6 +431,7 @@
   "settings": {
     "title": "设置",
     "language_label": "语言",
+    "startupPage_label": "启动页面",
     "output_dir_label": "输出目录",
     "output_dir_placeholder": "例如: C:\\Users\\you\\Downloads 或 /Users/you/Downloads",
     "output_dir_description": "请输入保存视频文件的目录。",
@@ -700,6 +703,18 @@
     "downloadConfirmTitle": "下载",
     "downloadConfirmMessage": "前往主页将清除当前输入，确定继续吗？",
     "defaultFolder": "默认收藏夹"
+  },
+  "videoSearch": {
+    "title": "视频搜索",
+    "placeholder": "按关键词搜索视频",
+    "loading": "搜索中…",
+    "suggestions": "搜索建议",
+    "searchButton": "搜索",
+    "noResults": "未找到视频",
+    "noResultsHint": "试试其他关键词",
+    "prevPage": "上一页",
+    "nextPage": "下一页",
+    "resultsCount": "{{count}}个结果"
   },
   "watchHistory": {
     "title": "观看历史",
