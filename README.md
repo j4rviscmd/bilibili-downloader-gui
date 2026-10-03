@@ -19,7 +19,7 @@ English | [日本語](README.ja.md) | [简体中文](README.zh.md) | [한국어]
 [![Last Commit](https://img.shields.io/github/last-commit/j4rviscmd/bilibili-downloader-gui/main?style=flat&color=1F6FEB&label=Last%20Update&logo=git&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/commits/main)
 [![CI](https://img.shields.io/github/actions/workflow/status/j4rviscmd/bilibili-downloader-gui/ci.yml?style=flat&label=CI&color=brightgreen&logo=githubactions&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/actions/workflows/ci.yml)
 [![CodeQL](https://img.shields.io/github/actions/workflow/status/j4rviscmd/bilibili-downloader-gui/codeql.yml?style=flat&label=CodeQL&color=brightgreen&logo=githubactions&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/actions/workflows/codeql.yml)
-[![CodeRabbit](https://img.shields.io/coderabbit/prs/github/j4rviscmd/bilibili-downloader-gui?style=flat&label=CodeRabbit%20Reviews&logo=coderabbit&logoColor=white)](https://coderabbit.ai)
+[![CodeRabbit](https://img.shields.io/badge/CodeRabbit-AI%20Code%20Review-FF5700?logo=coderabbit&logoColor=white)](https://coderabbit.ai)
 [![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/j4rviscmd/bilibili-downloader-gui?style=flat&label=OpenSSF%20Scorecard)](https://scorecard.dev/viewer/?uri=github.com/j4rviscmd/bilibili-downloader-gui)
 [![Codecov](https://img.shields.io/codecov/c/github/j4rviscmd/bilibili-downloader-gui?style=flat&label=Codecov&logo=codecov&logoColor=white)](https://codecov.io/gh/j4rviscmd/bilibili-downloader-gui)
 [![License](https://img.shields.io/badge/License-MIT-018FF5?style=flat&logo=opensourceinitiative&logoColor=white)](LICENSE)
