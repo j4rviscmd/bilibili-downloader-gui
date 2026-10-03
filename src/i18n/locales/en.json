@@ -21,7 +21,7 @@
     "copy": "Copy"
   },
   "nav": {
-    "search": "Search",
+    "search": "Fetch Video",
     "downloads": "Downloads",
     "downloadHistory": "Download History",
     "videoSearch": "Video Search",
@@ -40,7 +40,7 @@
     },
     "aria": {
       "mainNavigation": "Main navigation",
-      "search": "Navigate to search page",
+      "search": "Fetch a video by URL",
       "downloads": "Navigate to downloads page",
       "downloadHistory": "Navigate to download history",
       "watchHistory": "Navigate to watch history",
@@ -707,8 +707,11 @@
   "videoSearch": {
     "title": "Video Search",
     "placeholder": "Search videos by keyword",
+    "loading": "Searching…",
+    "suggestions": "Search suggestions",
     "searchButton": "Search",
     "noResults": "No videos found",
+    "noResultsHint": "Try a different keyword",
     "prevPage": "Previous page",
     "nextPage": "Next page",
     "resultsCount": "{{count}} results"

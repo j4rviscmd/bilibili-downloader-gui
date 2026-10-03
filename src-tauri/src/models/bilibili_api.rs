@@ -446,9 +446,12 @@ pub struct SearchApiResponseItem {
     pub pic: String,
     #[serde(default)]
     pub play: i64,
-    /// Duration in seconds.
+    /// Duration as sent by the API: a "m:ss"-style STRING in practice
+    /// ("186:34", sometimes ""), even though the reference doc example shows
+    /// an integer. Both shapes are accepted and normalized via
+    /// `duration_seconds` (handlers/bilibili.rs).
     #[serde(default)]
-    pub duration: i64,
+    pub duration: Option<serde_json::Value>,
 }
 
 /// Raw body of `/x/web-interface/wbi/search/type`.
@@ -458,6 +461,29 @@ pub struct SearchApiResponse {
     #[serde(default)]
     pub message: String,
     pub data: Option<SearchApiData>,
+}
+
+/// Raw item of the suggest API `result.tag` array. `name` carries highlight
+/// tags and is unused; only the clean `value` keyword is surfaced.
+#[derive(Debug, Clone, Deserialize)]
+pub struct SuggestApiTag {
+    pub value: String,
+}
+
+/// Raw body of `https://s.search.bilibili.com/main/suggest`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct SuggestApiResponse {
+    #[serde(default)]
+    pub code: i64,
+    #[serde(default)]
+    pub result: Option<SuggestApiResult>,
+}
+
+/// `result` object of the suggest response.
+#[derive(Debug, Clone, Deserialize)]
+pub struct SuggestApiResult {
+    #[serde(default)]
+    pub tag: Vec<SuggestApiTag>,
 }
 
 /// `data` object of the search response.

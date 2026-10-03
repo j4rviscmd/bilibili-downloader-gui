@@ -21,7 +21,7 @@
     "copy": "コピー"
   },
   "nav": {
-    "search": "検索",
+    "search": "動画取得",
     "downloads": "ダウンロード",
     "downloadHistory": "ダウンロード履歴",
     "videoSearch": "動画検索",
@@ -40,7 +40,7 @@
     },
     "aria": {
       "mainNavigation": "メインナビゲーション",
-      "search": "検索ページへ移動",
+      "search": "URLで動画を取得",
       "downloads": "ダウンロードページへ移動",
       "downloadHistory": "ダウンロード履歴画面へ移動",
       "watchHistory": "視聴履歴に移動",
@@ -707,8 +707,11 @@
   "videoSearch": {
     "title": "動画検索",
     "placeholder": "キーワードで動画を検索",
+    "loading": "検索しています…",
+    "suggestions": "検索候補",
     "searchButton": "検索",
     "noResults": "動画が見つかりませんでした",
+    "noResultsHint": "別のキーワードで試してください",
     "prevPage": "前のページ",
     "nextPage": "次のページ",
     "resultsCount": "{{count}}件"

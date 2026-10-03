@@ -212,6 +212,7 @@ pub fn run() {
             fetch_favorite_videos,
             fetch_watch_history,
             search_videos,
+            search_suggest,
             expand_short_url,
             cleanup_temp_files,
             trim_video,
@@ -1417,6 +1418,16 @@ async fn search_videos(
     page: i64,
 ) -> Result<bilibili::SearchResponse, String> {
     bilibili::search_videos(&app, &keyword, page).await
+}
+
+/// Fetches keyword suggestions for a partial search input.
+///
+/// Wraps the open `main/suggest` endpoint; returns up to 10 keywords.
+/// Best-effort: transport/API failures degrade to an empty list; a malformed
+/// 200 body returns Err (absorbed by the frontend's catch).
+#[tauri::command]
+async fn search_suggest(app: AppHandle, keyword: String) -> Result<Vec<String>, String> {
+    bilibili::search_suggest(&app, &keyword).await
 }
 
 /// Cleans up orphaned temporary files from interrupted downloads.

@@ -7,8 +7,9 @@ import { useNavigate } from 'react-router'
  *
  * Runs the initialization sequence (ffmpeg check, cookie validation, etc.)
  * during app startup. The splash screen handles the visual UX, so this
- * component renders no visible UI. Redirects to /search on success or /error
- * on failure.
+ * component renders no visible UI. Redirects to / on success (IndexPage
+ * resolves the configured startup page from settings — single resolution
+ * point) or /error on failure.
  */
 function InitPage() {
   const navigate = useNavigate()
@@ -21,7 +22,9 @@ function InitPage() {
         // Why: replace instead of push so the transient `/init` entry does
         // not stay in the history stack — otherwise the app bar back button
         // (issue #692) returns here and re-runs the whole init sequence.
-        navigate('/search', { replace: true })
+        // Why: land on / instead of a hardcoded page so IndexPage applies
+        // the user's startupPage setting with one shared fallback path.
+        navigate('/', { replace: true })
         return
       }
       const validErrorCodes = [1, 2, 3, 4, 5, 6]

@@ -26,8 +26,8 @@ interface PageConfig {
 // Why: exported only for the PAGES/PAGE_PATHS parity guard test — drift
 // between the mount table and the shared path list breaks navigation.
 export const PAGES: readonly PageConfig[] = [
-  { path: '/search', Component: SearchContent },
   { path: '/video-search', Component: VideoSearchContent },
+  { path: '/search', Component: SearchContent },
   { path: '/downloads', Component: DownloadsContent },
   { path: '/history', Component: HistoryContent },
   { path: '/favorite', Component: FavoriteContent },

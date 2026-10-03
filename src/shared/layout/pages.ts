@@ -4,8 +4,8 @@
  * validation, and the Settings startup-page options.
  */
 export const PAGE_PATHS = [
-  '/search',
   '/video-search',
+  '/search',
   '/downloads',
   '/history',
   '/favorite',

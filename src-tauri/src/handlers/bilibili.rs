@@ -164,7 +164,7 @@ use crate::handlers::history_session::HistorySession;
 use crate::handlers::settings;
 use crate::models::bilibili_api::{
     BangumiPlayerApiResponse, BangumiPlayerResult, BangumiSeasonApiResponse, PlayerV2ApiResponse,
-    SearchApiData, SearchApiResponse, UserApiResponse, WatchHistoryApiResponse,
+    SearchApiData, SearchApiResponse, SuggestApiResponse, UserApiResponse, WatchHistoryApiResponse,
     WebInterfaceApiResponse, WebInterfaceApiResponseData, XPlayerApiResponse,
     XPlayerApiResponseData, XPlayerApiResponseVideo,
 };
@@ -3979,25 +3979,85 @@ mod tests {
         );
     }
 
+    #[test]
+    fn duration_seconds_accepts_string_and_number_shapes() {
+        use serde_json::Value;
+        // Live-API string shapes ("m:ss", minutes > 99, empty)
+        assert_eq!(duration_seconds(Some(&Value::String("4:47".into()))), 287);
+        assert_eq!(
+            duration_seconds(Some(&Value::String("186:34".into()))),
+            11194
+        );
+        assert_eq!(
+            duration_seconds(Some(&Value::String("1:01:01".into()))),
+            3661
+        );
+        assert_eq!(duration_seconds(Some(&Value::String(String::new()))), 0);
+        // Reference-doc integer shape
+        assert_eq!(duration_seconds(Some(&Value::Number(287.into()))), 287);
+        // Hostile/huge wire value saturates instead of panicking
+        assert_eq!(
+            duration_seconds(Some(&Value::String("9223372036854775807:01:01".into()))),
+            i64::MAX
+        );
+        // Absent / null
+        assert_eq!(duration_seconds(None), 0);
+        assert_eq!(duration_seconds(Some(&Value::Null)), 0);
+    }
+
+    #[test]
+    fn unescape_title_entities_decodes_live_api_samples() {
+        // Samples observed on the live API (keyword "mrs.", 2026-10-01)
+        assert_eq!(
+            unescape_title_entities("Mrs. Kelly&#x27;s Class"),
+            "Mrs. Kelly's Class"
+        );
+        assert_eq!(
+            unescape_title_entities("Mr. &amp; Mrs. Smith"),
+            "Mr. & Mrs. Smith"
+        );
+        // Numeric decimal + named entities, and text without entities
+        assert_eq!(unescape_title_entities("a&quot;b"), "a\"b");
+        assert_eq!(unescape_title_entities("&#21490;蜜"), "史蜜");
+        assert_eq!(unescape_title_entities("plain title"), "plain title");
+        // Unknown entity and bare ampersand stay untouched
+        assert_eq!(unescape_title_entities("a &unknown; b"), "a &unknown; b");
+        assert_eq!(unescape_title_entities("AT&T"), "AT&T");
+    }
+
     /// Wiremock body for a successful `search_type=video` page-1 response.
+    ///
+    /// Field shapes mirror the LIVE API (probed 2026-10-01): duration is a
+    /// "m:ss" string, and the list can interleave ad rows with an empty
+    /// bvid — both differ from the reference doc example.
     fn search_ok_body() -> serde_json::Value {
         serde_json::json!({
-            "code": 0, "message": "0",
+            "code": 0, "message": "OK",
             "data": {
                 "seid": "s", "page": 1, "pagesize": 20,
                 "numResults": 1000, "numPages": 50,
-                "result": [{
-                    "type": "video", "id": 1, "author": "up主",
-                    "mid": 1, "typeid": "193", "typename": "MV",
-                    "arcurl": "http://www.bilibili.com/video/av1",
-                    "aid": 1, "bvid": "BV1De411p77r",
-                    "title": "梦然-《<em class=\"keyword\">少年</em>》官方版",
-                    "description": "d", "pic": "//i0.hdslb.com/bfs/archive/x.jpg",
-                    "play": 1037655, "video_review": 2616, "favorites": 27341,
-                    "tag": "t", "review": 1265, "pubdate": 1590000000,
-                    "senddate": 1590000000, "duration": 287,
-                    "arcrank": "0"
-                }]
+                "result": [
+                    {
+                        "type": "video", "id": 1, "author": "up主",
+                        "mid": 1, "typeid": "193", "typename": "MV",
+                        "arcurl": "http://www.bilibili.com/video/av1",
+                        "aid": 1, "bvid": "BV1De411p77r",
+                        "title": "梦然-《<em class=\"keyword\">少年</em>》官方版&amp;MV",
+                        "description": "d", "pic": "//i0.hdslb.com/bfs/archive/x.jpg",
+                        "play": 1037655, "video_review": 2616, "favorites": 27341,
+                        "tag": "t", "review": 1265, "pubdate": 1590000000,
+                        "senddate": 1590000000, "duration": "4:47",
+                        "arcrank": "0"
+                    },
+                    {
+                        // Ad/interference row observed on the live API:
+                        // empty bvid (and empty duration) — must be filtered.
+                        "type": "video", "author": "ad",
+                        "bvid": "", "title": "ad row",
+                        "pic": "https://archive.biliimg.com/bfs/archive/ad.jpg",
+                        "play": 2550, "duration": ""
+                    }
+                ]
             }
         })
     }
@@ -4035,11 +4095,11 @@ mod tests {
         assert_eq!(res.entries.len(), 1);
         let e = &res.entries[0];
         assert_eq!(e.bvid, "BV1De411p77r");
-        assert_eq!(e.title, "梦然-《少年》官方版");
+        assert_eq!(e.title, "梦然-《少年》官方版&MV");
         assert_eq!(e.cover, "https://i0.hdslb.com/bfs/archive/x.jpg");
         assert_eq!(e.author, "up主");
         assert_eq!(e.play, 1037655);
-        assert_eq!(e.duration, 287);
+        assert_eq!(e.duration, 287, "\"4:47\" string normalized to seconds");
     }
 
     #[tokio::test]
@@ -4124,6 +4184,63 @@ mod tests {
         assert_eq!(res.num_pages, 0);
         // The clamped requested page is echoed back, not the absent one.
         assert_eq!(res.page, 1);
+    }
+
+    #[tokio::test]
+    async fn search_suggest_with_returns_keyword_values() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/main/suggest"))
+            .and(wiremock::matchers::query_param("term", "ショタ"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(
+                serde_json::json!({
+                    "code": 0, "exp_str": "",
+                    "result": {"tag": [
+                        {"value": "ショタ", "ref": 0, "name": "<em class=\"suggest_high_light\">ショタ</em>", "spid": 5, "type": ""},
+                        {"value": "おねショタ", "ref": 0, "name": "おね<em class=\"suggest_high_light\">ショタ</em>", "spid": 5, "type": ""}
+                    ]},
+                    "stoken": ""
+                }),
+            ))
+            .mount(&server)
+            .await;
+
+        let values = search_suggest_with(&bili_api_mock(&server.uri(), ""), "ショタ")
+            .await
+            .unwrap();
+        assert_eq!(values, vec!["ショタ".to_string(), "おねショタ".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn search_suggest_with_degrades_transport_and_api_errors_to_empty() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/main/suggest"))
+            .respond_with(wiremock::ResponseTemplate::new(500))
+            .mount(&server)
+            .await;
+
+        // Transport failure → empty, not an error (mid-typing must never
+        // surface an error).
+        let values = search_suggest_with(&bili_api_mock(&server.uri(), ""), "kw")
+            .await
+            .unwrap();
+        assert!(values.is_empty());
+
+        // API-level non-zero code → empty as well.
+        let server2 = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/main/suggest"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"code": -1, "result": null})),
+            )
+            .mount(&server2)
+            .await;
+        let values = search_suggest_with(&bili_api_mock(&server2.uri(), ""), "kw")
+            .await
+            .unwrap();
+        assert!(values.is_empty());
     }
 
     #[tokio::test]
@@ -5173,6 +5290,65 @@ fn strip_keyword_em_tags(title: &str) -> String {
         .replace("</em>", "")
 }
 
+/// Unescapes the HTML entities bilibili embeds in search titles
+/// ("Mr. &amp; Mrs.", "Mrs. Kelly&#x27;s Class" — observed on the live API).
+/// Handles the common named entities plus decimal/hex numeric references;
+/// anything else is left untouched.
+fn unescape_title_entities(title: &str) -> String {
+    let Some(first) = title.find('&') else {
+        return title.to_string();
+    };
+    let mut out = String::with_capacity(title.len());
+    out.push_str(&title[..first]);
+    let rest = &title[first..];
+    let mut chars = rest.char_indices().peekable();
+    while let Some((i, c)) = chars.next() {
+        if c != '&' {
+            out.push(c);
+            continue;
+        }
+        // Find the entity end within a sane window; otherwise emit '&' as-is.
+        let tail = &rest[i + 1..];
+        let Some(semi) = tail.find(';').filter(|&e| e <= 10) else {
+            out.push('&');
+            continue;
+        };
+        let ent = &tail[..semi];
+        let decoded = match ent {
+            "amp" => Some('&'),
+            "lt" => Some('<'),
+            "gt" => Some('>'),
+            "quot" => Some('"'),
+            "apos" | "#39" | "#x27" | "#X27" => Some('\''),
+            "nbsp" => Some(' '),
+            _ => {
+                // Numeric references: &#123; / &#x1F600;
+                if let Some(num) = ent.strip_prefix('#') {
+                    let radix = if let Some(hex) = num.strip_prefix(['x', 'X']) {
+                        u32::from_str_radix(hex, 16).ok()
+                    } else {
+                        num.parse::<u32>().ok()
+                    };
+                    radix.and_then(char::from_u32)
+                } else {
+                    None
+                }
+            }
+        };
+        match decoded {
+            Some(ch) => {
+                out.push(ch);
+                // Skip past the consumed entity.
+                for _ in 0..=semi {
+                    chars.next();
+                }
+            }
+            None => out.push('&'),
+        }
+    }
+    out
+}
+
 /// Normalizes protocol-relative cover URLs ("//host/…") to https so the
 /// webview does not resolve them against the app origin.
 fn normalize_cover_url(pic: &str) -> String {
@@ -5180,6 +5356,30 @@ fn normalize_cover_url(pic: &str) -> String {
         format!("https://{rest}")
     } else {
         pic.to_string()
+    }
+}
+
+/// Normalizes a wire-format duration into seconds.
+///
+/// Why: the real search API returns durations as "m:ss"-style strings
+/// ("4:47", "186:34", sometimes ""), while the reference doc example shows
+/// plain integers — a strict i64 field failed the whole response parse
+/// (found during first manual verification). Both shapes are accepted; the
+/// fold also handles "h:mm:ss" and bare-second strings. Unparseable → 0.
+fn duration_seconds(value: Option<&serde_json::Value>) -> i64 {
+    match value {
+        Some(serde_json::Value::Number(n)) => n.as_i64().unwrap_or(0),
+        Some(serde_json::Value::String(s)) => s
+            .split(':')
+            .try_fold(0i64, |acc, part| {
+                // ponytail: saturating (not checked) — a hostile/huge wire
+                // value must not panic the command; clamping is enough.
+                part.trim()
+                    .parse::<i64>()
+                    .map(|n| acc.saturating_mul(60).saturating_add(n))
+            })
+            .unwrap_or(0),
+        _ => 0,
     }
 }
 
@@ -6173,7 +6373,14 @@ pub async fn search_videos(
     };
 
     let api = BiliApi::from_cookie_header(header)?;
-    search_videos_with(&api, keyword, page).await
+    let result = search_videos_with(&api, keyword, page).await;
+    // Why: surface the failing stage (mixin key / HTTP status / parse) in
+    // app.log — the first manual verification hit a parse error that was
+    // invisible without this line.
+    if let Err(e) = &result {
+        log::warn!("[BE] search_videos: failed: {e}");
+    }
+    result
 }
 
 /// Transport-injectable core of [`search_videos`] (test seam).
@@ -6240,19 +6447,77 @@ async fn search_videos_with(
         page: data.page,
         num_results: data.num_results,
         num_pages: data.num_pages,
+        // Why: the result list can carry ad/interference rows with an empty
+        // bvid (observed on the live API); they are undownloadable.
         entries: data
             .result
             .into_iter()
-            .map(|item| SearchResultEntry {
-                title: strip_keyword_em_tags(&item.title),
-                cover: normalize_cover_url(&item.pic),
-                bvid: item.bvid,
-                author: item.author,
-                play: item.play,
-                duration: item.duration,
+            .filter(|item| !item.bvid.is_empty())
+            .map(|item| {
+                let duration = duration_seconds(item.duration.as_ref());
+                SearchResultEntry {
+                    title: unescape_title_entities(&strip_keyword_em_tags(&item.title)),
+                    cover: normalize_cover_url(&item.pic),
+                    bvid: item.bvid,
+                    author: item.author,
+                    play: item.play,
+                    duration,
+                }
             })
             .collect(),
     })
+}
+
+/// Origin of the suggest API (lives outside api.bilibili.com).
+const SUGGEST_BASE: &str = "https://s.search.bilibili.com";
+
+/// Fetches search keyword suggestions for a partial input.
+///
+/// Wraps `https://s.search.bilibili.com/main/suggest` (up to 10 keywords,
+/// CJK/pinyin aware). No login and no WBI signing required — the endpoint is
+/// open (verified against the live API). Suggestions are best-effort: a
+/// failed fetch returns an empty list so typing never surfaces an error.
+pub async fn search_suggest(app: &AppHandle, keyword: &str) -> Result<Vec<String>, String> {
+    let keyword = keyword.trim();
+    if keyword.is_empty() {
+        return Ok(Vec::new());
+    }
+    log::info!("[BE] search_suggest: keyword={:?}", keyword);
+
+    let cookies = read_cookie(app)?.unwrap_or_default();
+    let header = build_cookie_header(&cookies);
+    // Why: reuse the shared transport (UA/timeout/E2E override) but point it
+    // at the suggest origin; the cookie header rides along when logged in.
+    let api = BiliApi::from_cookie_header(header)?.with_base(SUGGEST_BASE.to_string());
+
+    search_suggest_with(&api, keyword).await
+}
+
+/// Transport-injectable core of [`search_suggest`] (test seam).
+async fn search_suggest_with(api: &BiliApi, keyword: &str) -> Result<Vec<String>, String> {
+    // Why: get_q percent-encodes the term (CJK/reserved chars) instead of
+    // format!-embedding raw bytes into the path.
+    let Ok(response) = api
+        .get_q("/main/suggest", &[("term", keyword.to_string())])
+        .await
+    else {
+        // Best-effort: any transport failure degrades to "no suggestions"
+        // instead of an error the page would surface mid-typing.
+        return Ok(Vec::new());
+    };
+    let text = response
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read suggest response text: {e}"))?;
+    let body: SuggestApiResponse = serde_json::from_str(&text)
+        .map_err(|e| format!("Failed to parse suggest response: {e}. Response: {text}"))?;
+    if body.code != 0 {
+        return Ok(Vec::new());
+    }
+    Ok(body
+        .result
+        .map(|r| r.tag.into_iter().map(|t| t.value).collect())
+        .unwrap_or_default())
 }
 
 /// Fetches available subtitles for a video part from Player v2 API.

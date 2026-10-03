@@ -21,7 +21,7 @@
     "copy": "复制"
   },
   "nav": {
-    "search": "搜索",
+    "search": "获取视频",
     "downloads": "下载",
     "downloadHistory": "下载历史",
     "videoSearch": "视频搜索",
@@ -40,7 +40,7 @@
     },
     "aria": {
       "mainNavigation": "主导航",
-      "search": "前往搜索页面",
+      "search": "通过URL获取视频",
       "downloads": "前往下载页面",
       "downloadHistory": "前往下载历史页面",
       "watchHistory": "转到观看历史",
@@ -707,8 +707,11 @@
   "videoSearch": {
     "title": "视频搜索",
     "placeholder": "按关键词搜索视频",
+    "loading": "搜索中…",
+    "suggestions": "搜索建议",
     "searchButton": "搜索",
     "noResults": "未找到视频",
+    "noResultsHint": "试试其他关键词",
     "prevPage": "上一页",
     "nextPage": "下一页",
     "resultsCount": "{{count}}个结果"

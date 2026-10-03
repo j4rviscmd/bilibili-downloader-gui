@@ -24,13 +24,13 @@ import {
   Download as DownloadIcon,
   Eye,
   ImagePlay,
+  Link,
   Music,
   RotateCw,
   Scaling,
   Scissors,
   Search,
   Star,
-  Youtube,
 } from 'lucide-react'
 import { Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -89,17 +89,17 @@ export function NavigationSidebarHeader({
       id: 'search',
       items: [
         {
-          path: '/search',
+          path: '/video-search',
           icon: Search,
-          label: t('nav.search'),
-          ariaLabel: t('nav.aria.search'),
+          label: t('nav.videoSearch'),
+          ariaLabel: t('nav.aria.videoSearch'),
           requiresAuth: false,
         },
         {
-          path: '/video-search',
-          icon: Youtube,
-          label: t('nav.videoSearch'),
-          ariaLabel: t('nav.aria.videoSearch'),
+          path: '/search',
+          icon: Link,
+          label: t('nav.search'),
+          ariaLabel: t('nav.aria.search'),
           requiresAuth: false,
         },
         {

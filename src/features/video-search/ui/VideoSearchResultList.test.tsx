@@ -44,15 +44,39 @@ describe('VideoSearchResultList', () => {
 
     expect(screen.getByText('少年 官方版')).toBeInTheDocument()
     expect(screen.getByText('up主')).toBeInTheDocument()
-    expect(screen.getByText(/4:47/)).toBeInTheDocument()
+    // Duration renders as a thumbnail overlay badge (media-card convention).
+    expect(screen.getByText('4:47')).toBeInTheDocument()
+    expect(screen.getByText('1,037,655')).toBeInTheDocument()
     // Total count summary line (raw key — {{count}} never lands in the key).
     expect(screen.getByText('videoSearch.resultsCount')).toBeInTheDocument()
+    // Why: hdslb.com 403s cross-origin referers — the no-referrer policy is
+    // what makes covers load (regression: initial release shipped without
+    // it). alt="" makes the img presentational (no role), so query directly.
+    expect(document.querySelector('img')).toHaveAttribute(
+      'referrerPolicy',
+      'no-referrer',
+    )
     await user.click(screen.getByRole('button', { name: /少年 官方版/ }))
     // Favorites pattern: no cid — resolved later by the URL search page.
     expect(handleDownload).toHaveBeenCalledWith('BV1De411p77r', null, 1)
   })
 
-  it('renders the localized no-results message', () => {
+  it('renders card skeletons with an accessible busy state while loading', () => {
+    vi.mocked(useVideoSearch).mockReturnValue({ ...baseState, loading: true })
+    const { container } = renderWithProviders(<VideoSearchResultList />)
+
+    // Skeletons are aria-hidden decoration; the busy text carries the state.
+    expect(container.querySelector('[aria-busy="true"]')).toBeInTheDocument()
+    expect(screen.getByText('videoSearch.loading')).toBeInTheDocument()
+    expect(container.querySelectorAll('.animate-pulse').length).toBeGreaterThan(
+      0,
+    )
+    expect(
+      screen.queryByRole('button', { name: /少年/ }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('renders the no-results state with a hint after searching', () => {
     vi.mocked(useVideoSearch).mockReturnValue({
       ...baseState,
       entries: [],
@@ -61,5 +85,20 @@ describe('VideoSearchResultList', () => {
     renderWithProviders(<VideoSearchResultList />)
     // i18n test setup returns raw keys.
     expect(screen.getByText('videoSearch.noResults')).toBeInTheDocument()
+    expect(screen.getByText('videoSearch.noResultsHint')).toBeInTheDocument()
+  })
+
+  it('renders the prompt placeholder state before any search', () => {
+    vi.mocked(useVideoSearch).mockReturnValue({
+      ...baseState,
+      keyword: '',
+      entries: [],
+      numResults: 0,
+    })
+    renderWithProviders(<VideoSearchResultList />)
+    expect(screen.getByText('videoSearch.placeholder')).toBeInTheDocument()
+    expect(
+      screen.queryByText('videoSearch.noResultsHint'),
+    ).not.toBeInTheDocument()
   })
 })

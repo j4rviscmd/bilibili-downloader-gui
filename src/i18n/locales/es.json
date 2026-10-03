@@ -21,7 +21,7 @@
     "copy": "Copiar"
   },
   "nav": {
-    "search": "Buscar",
+    "search": "Obtener vídeo",
     "downloads": "Descargas",
     "downloadHistory": "Historial de descargas",
     "videoSearch": "Búsqueda de vídeos",
@@ -40,7 +40,7 @@
     },
     "aria": {
       "mainNavigation": "Navegación principal",
-      "search": "Ir a la página de búsqueda",
+      "search": "Obtener un vídeo por URL",
       "downloads": "Ir a la página de descargas",
       "downloadHistory": "Ir al historial de descargas",
       "watchHistory": "Ir al historial de visualización",
@@ -707,8 +707,11 @@
   "videoSearch": {
     "title": "Búsqueda de vídeos",
     "placeholder": "Buscar vídeos por palabra clave",
+    "loading": "Buscando…",
+    "suggestions": "Sugerencias de búsqueda",
     "searchButton": "Buscar",
     "noResults": "No se encontraron vídeos",
+    "noResultsHint": "Prueba con otra palabra clave",
     "prevPage": "Página anterior",
     "nextPage": "Página siguiente",
     "resultsCount": "{{count}} resultados"
