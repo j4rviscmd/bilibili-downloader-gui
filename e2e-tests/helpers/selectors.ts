@@ -33,8 +33,9 @@ export const SIDEBAR_FOOTER = '[data-slot="sidebar-footer"]'
 
 // Navigation buttons (aria-labels from i18n en.json)
 
-/** Sidebar navigation button for the search page (issue #691 rename of /home). */
-export const NAV_SEARCH = '[aria-label="Navigate to search page"]'
+/** Sidebar navigation button for the URL search page ("Fetch Video" since
+ * the video-search rename; formerly "Navigate to search page"). */
+export const NAV_SEARCH = '[aria-label="Fetch a video by URL"]'
 
 /** Sidebar navigation button for the downloads (queue) page. */
 export const NAV_DOWNLOADS = '[aria-label="Navigate to downloads page"]'
