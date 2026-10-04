@@ -1,5 +1,6 @@
 import {
   useVideoSearch,
+  VideoSearchFilterBar,
   VideoSearchInput,
   VideoSearchPagination,
   VideoSearchResultList,
@@ -50,6 +51,9 @@ export function VideoSearchContent() {
             <AlertDescription>{errorText}</AlertDescription>
           </Alert>
         )}
+        {/* Filter bar (bilibili-style order/duration/zone) rides above the
+            scroll area so it stays reachable while results scroll. */}
+        <VideoSearchFilterBar />
         <div className="min-h-0 flex-1 overflow-y-auto">
           <VideoSearchResultList />
         </div>

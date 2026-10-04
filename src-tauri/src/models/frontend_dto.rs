@@ -229,6 +229,26 @@ pub struct SearchResultEntry {
     pub play: i64,
     /// Duration in seconds.
     pub duration: i64,
+    /// Video zone (分区) id as sent by the API (numeric string, e.g. "193").
+    pub typeid: String,
+    /// Video zone display name in the source language; the frontend maps
+    /// known tids to localized names and falls back to this raw value.
+    pub typename: String,
+}
+
+/// Optional filters of the `search_videos` Tauri command.
+///
+/// Mirrors the video-search query params of the bilibili search API
+/// (references/bilibili-API-collect/docs/search/search_request.md):
+/// `order` (sort), `duration` (0-4 length bucket), `tids` (zone id).
+/// `None`/invalid values fall back to the bilibili defaults
+/// (totalrank / 0 / 0) inside the handler.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchFilters {
+    pub order: Option<String>,
+    pub duration: Option<i64>,
+    pub tids: Option<i64>,
 }
 
 /// Response of the `search_videos` Tauri command.

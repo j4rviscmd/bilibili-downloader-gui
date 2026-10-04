@@ -1,10 +1,12 @@
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 import type { VideoSearchResponse, VideoSearchState } from '../types'
+import { DEFAULT_VIDEO_SEARCH_FILTERS } from '../types'
 
 export const initialState: VideoSearchState = {
   keyword: '',
   page: 1,
+  filters: DEFAULT_VIDEO_SEARCH_FILTERS,
   results: null,
   loading: false,
   error: null,
@@ -13,8 +15,9 @@ export const initialState: VideoSearchState = {
 /**
  * Redux slice for the keyword video search feature.
  *
- * Stores the last submitted keyword, current page and the response so the
- * persistent page layout keeps results alive across navigation.
+ * Stores the last submitted keyword, current page, active filters and the
+ * response so the persistent page layout keeps results alive across
+ * navigation. Filters persist across keyword changes (bilibili behavior).
  */
 export const videoSearchSlice = createSlice({
   name: 'videoSearch',
@@ -33,6 +36,13 @@ export const videoSearchSlice = createSlice({
       state.results = action.payload.response
       state.error = null
     },
+    /** Patches one or more filter fields (caller re-runs the search). */
+    setFilter: (
+      state,
+      action: PayloadAction<Partial<VideoSearchState['filters']>>,
+    ) => {
+      state.filters = { ...state.filters, ...action.payload }
+    },
     setLoading: (state, action: PayloadAction<boolean>) => {
       state.loading = action.payload
     },
@@ -42,5 +52,6 @@ export const videoSearchSlice = createSlice({
   },
 })
 
-export const { setResult, setLoading, setError } = videoSearchSlice.actions
+export const { setResult, setFilter, setLoading, setError } =
+  videoSearchSlice.actions
 export default videoSearchSlice.reducer

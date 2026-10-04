@@ -452,6 +452,12 @@ pub struct SearchApiResponseItem {
     /// `duration_seconds` (handlers/bilibili.rs).
     #[serde(default)]
     pub duration: Option<serde_json::Value>,
+    /// Video zone (分区) id — a numeric STRING on the wire ("193").
+    #[serde(default)]
+    pub typeid: String,
+    /// Video zone display name in the source language (e.g. "MV").
+    #[serde(default)]
+    pub typename: String,
 }
 
 /// Raw body of `/x/web-interface/wbi/search/type`.

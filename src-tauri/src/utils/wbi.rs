@@ -183,7 +183,16 @@ pub async fn fetch_mixin_key(
         .json()
         .await
         .map_err(|e| format!("Failed to parse wbi_img response: {}", e))?;
+    mixin_key_from_nav_body(&body)
+}
 
+/// Derives the MixinKey from an already-parsed `/x/web-interface/nav`
+/// body.
+///
+/// Why extracted: the anonymous video-search path fetches nav over the
+/// curl transport (see handlers/bilibili.rs `search_videos_anon`) and
+/// must reuse the exact same derivation as the reqwest path.
+pub fn mixin_key_from_nav_body(body: &serde_json::Value) -> Result<String, String> {
     let wbi_img = body
         .pointer("/data/wbi_img")
         .and_then(|v| v.as_object())
@@ -283,5 +292,27 @@ mod tests {
         let raw = "abcdefghijklmnopqrstuvwxyz012345ABCDEFGHIJKLMNOPQRSTUVWXYZ678901";
         let key = derive_mixin_key(raw);
         assert_eq!(key.len(), 32);
+    }
+
+    #[test]
+    fn mixin_key_from_nav_body_extracts_and_rejects() {
+        // Derivation must match derive_mixin_key over img_key + sub_key.
+        let body = serde_json::json!({
+            "code": 0,
+            "data": {"wbi_img": {
+                "img_url": "https://i0.hdslb.com/bfs/wbi/7cd084941338484aae1ad9425b84077c.png",
+                "sub_url": "https://i0.hdslb.com/bfs/wbi/4932caff0ff74675b68c1558e4a7d75c.png"
+            }}
+        });
+        let mixin = mixin_key_from_nav_body(&body).unwrap();
+        assert_eq!(mixin.len(), 32);
+        assert_eq!(
+            mixin,
+            derive_mixin_key("7cd084941338484aae1ad9425b84077c4932caff0ff74675b68c1558e4a7d75c")
+        );
+
+        // Missing wbi_img (logged-out error bodies) → explicit error.
+        let broken = serde_json::json!({"code": -101, "data": {"isLogin": false}});
+        assert!(mixin_key_from_nav_body(&broken).is_err());
     }
 }

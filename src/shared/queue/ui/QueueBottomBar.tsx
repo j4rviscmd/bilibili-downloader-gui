@@ -101,7 +101,7 @@ export function QueueBottomBar() {
             to fill leftover width while staying perfectly centered; side
             content changes (rate digits, limit icon) are absorbed by their
             own 1fr tracks and never move the bar. */}
-        <div className="mx-auto grid w-full max-w-5xl grid-cols-[1fr_3fr_1fr] items-center gap-3">
+        <div className="mx-auto grid w-full max-w-6xl grid-cols-[1fr_3fr_1fr] items-center gap-3">
           {/* Left zone (flexible, min-w-0): rate + speed-limit live LEFT of
               the bar so the right zone stays avatars-only — the two 1fr
               tracks keep the center cluster centered no matter how the
