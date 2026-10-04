@@ -24,6 +24,11 @@
       "description": "Automerge non-major updates once CI passes; majors stay manual",
       "matchUpdateTypes": ["minor", "patch"],
       "automerge": true
+    },
+    {
+      "description": "Pin GitHub Actions refs to commit SHAs (opens pin PRs for any future unpinned uses; existing SHA pins are kept updated via Renovate digest updates tracking the # tag comment)",
+      "matchManagers": ["github-actions"],
+      "pinDigests": true
     }
   ]
 }
