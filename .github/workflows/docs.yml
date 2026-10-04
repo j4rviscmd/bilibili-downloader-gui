@@ -7,10 +7,11 @@ on:
       - 'docs/**'
   workflow_dispatch:
 
+# Why top-level read-only: Scorecard Token-Permissions max pattern
+# (issue #677); the Pages scopes live on the jobs below (build needs
+# pages: read for metadata, deploy needs the write scopes)
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: 'pages'
@@ -19,6 +20,11 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Why job-level: actions/configure-pages@v4 reads the Pages site
+    # metadata via the API, which requires pages: read on GITHUB_TOKEN
+    permissions:
+      contents: read
+      pages: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -53,6 +59,11 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     needs: build
+    # Why job-level (official actions/deploy-pages pattern): pages +
+    # id-token are required only for the deployment itself
+    permissions:
+      pages: write
+      id-token: write
     steps:
       - name: Deploy to GitHub Pages
         id: deployment

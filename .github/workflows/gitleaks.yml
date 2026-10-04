@@ -17,12 +17,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Why top-level read-only: Scorecard Token-Permissions max pattern
+# (issue #677); the scan job below declares its own write scope
 permissions:
   contents: read
-  # Why pull-requests write: lets the action comment on the PR when a leak
-  # is found (job failure alone would gate the merge either way).
-  # GITLEAKS_LICENSE is not needed for personal accounts (orgs only)
-  pull-requests: write
 
 jobs:
   gitleaks:
@@ -34,6 +32,12 @@ jobs:
     # Empty head_ref on push/schedule/dispatch keeps those triggers
     # (incl. the daily full-history scan) running.
     if: github.head_ref != 'release-please--branches--main'
+    # Why pull-requests write: lets the action comment on the PR when a
+    # leak is found (job failure alone would gate the merge either way).
+    # GITLEAKS_LICENSE is not needed for personal accounts (orgs only)
+    permissions:
+      contents: read
+      pull-requests: write
     timeout-minutes: 10
     steps:
       - name: Checkout (full history)

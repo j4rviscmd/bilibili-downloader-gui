@@ -7,6 +7,10 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
+# Why top-level read-only: Scorecard Token-Permissions max pattern
+# (issue #677); the e2e job below declares its own write scopes
+permissions:
+  contents: read
 
 jobs:
   e2e:

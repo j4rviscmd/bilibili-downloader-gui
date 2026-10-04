@@ -26,6 +26,10 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+# Why top-level read-only: Scorecard Token-Permissions max pattern
+# (issue #677); the analyze job escalates to what codeql-action needs
+permissions:
+  contents: read
 
 jobs:
   analyze:
