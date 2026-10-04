@@ -3,7 +3,8 @@ import { mockInvoke, renderHookWithStore } from '@/test/test-utils'
 import { act } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { searchVideosApi } from '../api/searchVideos'
-import { setResult } from '../model/videoSearchSlice'
+import { setFilter, setResult } from '../model/videoSearchSlice'
+import { DEFAULT_VIDEO_SEARCH_FILTERS } from '../types'
 import { useVideoSearch } from './useVideoSearch'
 
 vi.mock('../api/searchVideos', () => ({
@@ -20,6 +21,9 @@ const response = {
 describe('useVideoSearch', () => {
   afterEach(() => {
     vi.clearAllMocks()
+    // Singleton store: the setFilter tests below must not leak into the
+    // default-filters assertions of the other tests.
+    store.dispatch(setFilter(DEFAULT_VIDEO_SEARCH_FILTERS))
   })
 
   it('search stores the response and resets to page 1', async () => {
@@ -31,7 +35,11 @@ describe('useVideoSearch', () => {
       expect(result.current.numResults).toBe(40)
     })
 
-    expect(searchVideosApi).toHaveBeenCalledWith('kw', 1)
+    expect(searchVideosApi).toHaveBeenCalledWith(
+      'kw',
+      1,
+      DEFAULT_VIDEO_SEARCH_FILTERS,
+    )
     expect(result.current.entries).toEqual([])
     expect(result.current.keyword).toBe('kw')
     expect(result.current.loading).toBe(false)
@@ -68,7 +76,11 @@ describe('useVideoSearch', () => {
       expect(result.current.page).toBe(2)
     })
 
-    expect(searchVideosApi).toHaveBeenLastCalledWith('kw', 2)
+    expect(searchVideosApi).toHaveBeenLastCalledWith(
+      'kw',
+      2,
+      DEFAULT_VIDEO_SEARCH_FILTERS,
+    )
   })
 
   it('ignores a stale response that resolves after a newer search', async () => {
@@ -135,5 +147,49 @@ describe('useVideoSearch', () => {
     expect(result.current.keyword).toBe('fast')
     expect(result.current.error).toBeNull()
     expect(result.current.loading).toBe(false)
+  })
+
+  it('setFilter re-runs the last keyword at page 1 with merged filters', async () => {
+    vi.mocked(searchVideosApi).mockResolvedValue({ ...response, page: 3 })
+    const { result } = renderHookWithStore(() => useVideoSearch())
+
+    result.current.search('kw')
+    await vi.waitFor(() => {
+      expect(result.current.keyword).toBe('kw')
+    })
+    // Position beyond page 1 so the reset back to page 1 is observable.
+    store.dispatch(setResult({ keyword: 'kw', page: 3, response }))
+
+    result.current.setFilter({ order: 'click', tids: 4 })
+    await vi.waitFor(() => {
+      expect(result.current.filters).toEqual({
+        order: 'click',
+        duration: 0,
+        tids: 4,
+      })
+    })
+
+    expect(searchVideosApi).toHaveBeenLastCalledWith('kw', 1, {
+      order: 'click',
+      duration: 0,
+      tids: 4,
+    })
+  })
+
+  it('setFilter only updates state before the first search (no re-run)', async () => {
+    store.dispatch(setResult({ keyword: '', page: 1, response }))
+    const { result } = renderHookWithStore(() => useVideoSearch())
+
+    result.current.setFilter({ duration: 2 })
+
+    // The selector view re-renders async — wait for the patched filters.
+    await vi.waitFor(() => {
+      expect(result.current.filters).toEqual({
+        order: 'totalrank',
+        duration: 2,
+        tids: 0,
+      })
+    })
+    expect(searchVideosApi).not.toHaveBeenCalled()
   })
 })

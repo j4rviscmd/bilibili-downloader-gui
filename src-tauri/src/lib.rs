@@ -39,6 +39,7 @@ use crate::models::cookie::SimulateLogoutFlag;
 use crate::models::frontend_dto::FavoriteFolder;
 use crate::models::frontend_dto::FavoriteVideoListResponse;
 use crate::models::frontend_dto::Quality;
+use crate::models::frontend_dto::SearchFilters;
 use crate::models::frontend_dto::SubtitleDto;
 use crate::models::frontend_dto::User;
 use crate::models::frontend_dto::Video;
@@ -1405,6 +1406,9 @@ async fn fetch_watch_history(
 ///
 /// Wraps the `search_type=video` WBI-signed endpoint; returns up to 20
 /// entries per page. Works logged out (buvid3 device cookie only).
+/// `filters` carries the optional video-search filters (sort order /
+/// duration bucket / zone id); invalid values normalize to the bilibili
+/// defaults inside the handler.
 ///
 /// # Errors
 ///
@@ -1416,8 +1420,9 @@ async fn search_videos(
     app: AppHandle,
     keyword: String,
     page: i64,
+    filters: Option<SearchFilters>,
 ) -> Result<bilibili::SearchResponse, String> {
-    bilibili::search_videos(&app, &keyword, page).await
+    bilibili::search_videos(&app, &keyword, page, filters).await
 }
 
 /// Fetches keyword suggestions for a partial search input.

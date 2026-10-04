@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import type { VideoSearchResponse } from '../types'
+import type { VideoSearchFilters, VideoSearchResponse } from '../types'
 
 /**
  * Searches bilibili videos by keyword via the `search_videos` command.
@@ -8,11 +8,17 @@ import type { VideoSearchResponse } from '../types'
  *
  * @param keyword - Search keyword (non-empty; caller trims)
  * @param page - 1-based page number (20 items per page, fixed by the API)
+ * @param filters - Active search filters (order / duration bucket / zone)
  * @throws Error string from the backend, e.g. 'ERR::RATE_LIMITED'
  */
 export async function searchVideosApi(
   keyword: string,
   page: number,
+  filters: VideoSearchFilters,
 ): Promise<VideoSearchResponse> {
-  return invoke<VideoSearchResponse>('search_videos', { keyword, page })
+  return invoke<VideoSearchResponse>('search_videos', {
+    keyword,
+    page,
+    filters,
+  })
 }

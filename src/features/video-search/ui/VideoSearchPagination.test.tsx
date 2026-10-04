@@ -3,6 +3,7 @@ import { screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { VideoSearchView } from '../hooks/useVideoSearch'
 import { useVideoSearch } from '../hooks/useVideoSearch'
+import { DEFAULT_VIDEO_SEARCH_FILTERS } from '../types'
 import { VideoSearchPagination } from './VideoSearchPagination'
 
 vi.mock('../hooks/useVideoSearch', () => ({
@@ -23,12 +24,14 @@ function mockState(
     keyword: 'kw',
     page,
     numPages,
+    filters: DEFAULT_VIDEO_SEARCH_FILTERS,
     numResults: 40,
     entries: [],
     loading,
     error: null,
     search: vi.fn(),
     goToPage,
+    setFilter: vi.fn(),
   }
   vi.mocked(useVideoSearch).mockReturnValue(view)
   return goToPage

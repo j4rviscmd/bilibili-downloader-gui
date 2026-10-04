@@ -586,7 +586,7 @@ function SearchContentInner() {
   return (
     <div className="flex h-full flex-col">
       {/* Step 1: Fixed Area (outside scroll) */}
-      <div className="mx-auto w-full max-w-5xl px-3 pt-3 pb-3 sm:px-6">
+      <div className="mx-auto w-full max-w-6xl px-3 pt-3 pb-3 sm:px-6">
         {/* Login Benefits Info - shown only when not logged in */}
         {!isLoggedIn && (
           <Alert variant="info" className="mb-3">
@@ -647,7 +647,7 @@ function SearchContentInner() {
           still displayed, a silent refetch keeps the old list mounted
           instead of flashing skeletons mid-typing. */}
       {(video.parts.length > 0 || isExplicitFetching) && (
-        <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col px-3 pb-3 sm:px-6">
+        <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col px-3 pb-3 sm:px-6">
           <Card className="flex min-h-0 flex-1 flex-col">
             <CardHeader>
               <div className="flex items-center justify-between">

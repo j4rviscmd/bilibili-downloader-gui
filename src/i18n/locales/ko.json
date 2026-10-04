@@ -21,10 +21,10 @@
     "copy": "복사"
   },
   "nav": {
-    "search": "동영상 가져오기",
+    "search": "URL 가져오기",
     "downloads": "다운로드",
     "downloadHistory": "다운로드 기록",
-    "videoSearch": "동영상 검색",
+    "videoSearch": "검색",
     "watchHistory": "시청 기록",
     "favorite": "즐겨찾기",
     "trim": "트림",
@@ -714,7 +714,52 @@
     "noResultsHint": "다른 키워드로 시도해 보세요",
     "prevPage": "이전 페이지",
     "nextPage": "다음 페이지",
-    "resultsCount": "{{count}}개 결과"
+    "resultsCount": "{{count}}개 결과",
+    "filters": {
+      "groupLabel": "검색 필터",
+      "orderLabel": "정렬",
+      "durationLabel": "길이",
+      "zoneLabel": "카테고리",
+      "disabledHint": "먼저 검색을 실행하세요. 필터는 검색 결과에 적용됩니다",
+      "order": {
+        "totalrank": "종합",
+        "click": "최다 재생",
+        "pubdate": "최신 게시",
+        "dm": "최다 탄막",
+        "stow": "최다 즐겨찾기"
+      },
+      "duration": {
+        "all": "전체",
+        "under10": "10분 미만",
+        "min10to30": "10~30분",
+        "min30to60": "30~60분",
+        "over60": "60분 이상"
+      }
+    },
+    "zones": {
+      "all": "전체 카테고리",
+      "douga": "애니메이션",
+      "anime": "애니 시리즈",
+      "guochuang": "국산 애니메이션",
+      "music": "음악",
+      "dance": "댄스",
+      "game": "게임",
+      "knowledge": "지식",
+      "tech": "과학기술",
+      "sports": "스포츠",
+      "car": "자동차",
+      "life": "라이프스타일",
+      "food": "미식",
+      "animal": "동물",
+      "kichiku": "귀축",
+      "fashion": "패션",
+      "information": "뉴스",
+      "ent": "엔터테인먼트",
+      "cinephile": "영화·TV",
+      "documentary": "다큐멘터리",
+      "movie": "영화",
+      "tv": "TV 드라마"
+    }
   },
   "watchHistory": {
     "title": "시청 기록",

@@ -173,7 +173,7 @@ use crate::models::frontend_dto::{
     DownloadRetrying, Quality, SubtitleDto, Thumbnail, UserData, Video, VideoPart,
     WatchHistoryCursor, WatchHistoryEntry,
 };
-pub use crate::models::frontend_dto::{SearchResponse, SearchResultEntry};
+pub use crate::models::frontend_dto::{SearchFilters, SearchResponse, SearchResultEntry};
 use crate::models::settings::Settings;
 use crate::utils::downloads::download_url;
 use crate::utils::paths::get_lib_path;
@@ -182,7 +182,9 @@ use reqwest::header;
 use reqwest::Client;
 use std::collections::BTreeMap;
 use std::fs::{self, File, OpenOptions};
+use std::future::Future;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::AppHandle;
@@ -1530,7 +1532,6 @@ fn cleanup_subtitle_files(lib_path: &std::path::Path, download_id: &str) {
 
 #[cfg(test)]
 mod tests {
-
     // ---- PR④: metadata fetchers via injected transport ----
 
     #[tokio::test]
@@ -3936,27 +3937,6 @@ mod tests {
     // ---- search_videos (keyword video search) ----
 
     #[test]
-    fn cookie_header_with_buvid3_appends_or_preserves() {
-        // Missing buvid3 → appended
-        assert_eq!(
-            cookie_header_with_buvid3("SESSDATA=abc", "b3val"),
-            "SESSDATA=abc; buvid3=b3val"
-        );
-        // Empty header → buvid3 only
-        assert_eq!(cookie_header_with_buvid3("", "b3val"), "buvid3=b3val");
-        // Already present → unchanged
-        assert_eq!(
-            cookie_header_with_buvid3("buvid3=old; SESSDATA=abc", "b3val"),
-            "buvid3=old; SESSDATA=abc"
-        );
-        // Empty fetched value → unchanged (fetch returned nothing usable)
-        assert_eq!(
-            cookie_header_with_buvid3("SESSDATA=abc", ""),
-            "SESSDATA=abc"
-        );
-    }
-
-    #[test]
     fn strip_keyword_em_tags_removes_highlights() {
         assert_eq!(
             strip_keyword_em_tags("梦然-《<em class=\"keyword\">少年</em>》官方版"),
@@ -4085,9 +4065,14 @@ mod tests {
             .mount(&server)
             .await;
 
-        let res = search_videos_with(&bili_api_mock(&server.uri(), "buvid3=xyz"), "a & b", 1)
-            .await
-            .unwrap();
+        let res = search_videos_with(
+            &bili_api_mock(&server.uri(), "buvid3=xyz"),
+            "a & b",
+            1,
+            None,
+        )
+        .await
+        .unwrap();
 
         assert_eq!(res.page, 1);
         assert_eq!(res.num_results, 1000);
@@ -4100,6 +4085,69 @@ mod tests {
         assert_eq!(e.author, "up主");
         assert_eq!(e.play, 1037655);
         assert_eq!(e.duration, 287, "\"4:47\" string normalized to seconds");
+        assert_eq!(e.typeid, "193");
+        assert_eq!(e.typename, "MV");
+    }
+
+    #[tokio::test]
+    async fn search_videos_with_applies_filters_to_the_signed_query() {
+        let server = wiremock::MockServer::start().await;
+        mount_nav_mock(&server).await;
+        // The mock only answers when the filter params ride the query, so
+        // a missing/mis-signed param fails the request (404 → Err).
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/wbi/search/type"))
+            .and(wiremock::matchers::query_param("order", "click"))
+            .and(wiremock::matchers::query_param("duration", "2"))
+            .and(wiremock::matchers::query_param("tids", "4"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(search_ok_body()))
+            .mount(&server)
+            .await;
+
+        let filters = SearchFilters {
+            order: Some("click".into()),
+            duration: Some(2),
+            tids: Some(4),
+        };
+        let res = search_videos_with(
+            &bili_api_mock(&server.uri(), "buvid3=xyz"),
+            "kw",
+            1,
+            Some(&filters),
+        )
+        .await
+        .unwrap();
+        assert_eq!(res.entries.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn search_videos_with_normalizes_invalid_filters_to_defaults() {
+        let server = wiremock::MockServer::start().await;
+        mount_nav_mock(&server).await;
+        // Unknown order / out-of-range duration / negative tids must land
+        // on the documented defaults (totalrank / clamp to 4 / 0).
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/wbi/search/type"))
+            .and(wiremock::matchers::query_param("order", "totalrank"))
+            .and(wiremock::matchers::query_param("duration", "4"))
+            .and(wiremock::matchers::query_param("tids", "0"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(search_ok_body()))
+            .mount(&server)
+            .await;
+
+        let filters = SearchFilters {
+            order: Some("DROP TABLE videos".into()),
+            duration: Some(9),
+            tids: Some(-3),
+        };
+        search_videos_with(
+            &bili_api_mock(&server.uri(), "buvid3=xyz"),
+            "kw",
+            1,
+            Some(&filters),
+        )
+        .await
+        .unwrap();
     }
 
     #[tokio::test]
@@ -4115,7 +4163,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let err = search_videos_with(&bili_api_mock(&server.uri(), "buvid3=xyz"), "kw", 1)
+        let err = search_videos_with(&bili_api_mock(&server.uri(), "buvid3=xyz"), "kw", 1, None)
             .await
             .unwrap_err();
         assert_eq!(err, "ERR::RATE_LIMITED");
@@ -4134,7 +4182,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let err = search_videos_with(&bili_api_mock(&server.uri(), "buvid3=xyz"), "kw", 1)
+        let err = search_videos_with(&bili_api_mock(&server.uri(), "buvid3=xyz"), "kw", 1, None)
             .await
             .unwrap_err();
         assert!(err.contains("-400"), "unexpected error: {err}");
@@ -4154,7 +4202,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let res = search_videos_with(&bili_api_mock(&server.uri(), "buvid3=xyz"), "kw", 2)
+        let res = search_videos_with(&bili_api_mock(&server.uri(), "buvid3=xyz"), "kw", 2, None)
             .await
             .unwrap();
         assert!(res.entries.is_empty());
@@ -4176,7 +4224,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let res = search_videos_with(&bili_api_mock(&server.uri(), "buvid3=xyz"), "kw", 1)
+        let res = search_videos_with(&bili_api_mock(&server.uri(), "buvid3=xyz"), "kw", 1, None)
             .await
             .unwrap();
         assert!(res.entries.is_empty());
@@ -4256,10 +4304,152 @@ mod tests {
             .mount(&server)
             .await;
 
-        let res = search_videos_with(&bili_api_mock(&server.uri(), "buvid3=xyz"), "kw", 0)
+        let res = search_videos_with(&bili_api_mock(&server.uri(), "buvid3=xyz"), "kw", 0, None)
             .await
             .unwrap();
         assert_eq!(res.page, 1);
+    }
+
+    #[test]
+    fn curl_args_shape_uses_app_headers_and_bounds() {
+        let args = curl_args("https://api.bilibili.com/x?k=v", "buvid3=b3");
+        assert_eq!(args[0], "-sS");
+        assert_eq!(args[1], "--max-time");
+        assert_eq!(args[2], "15");
+        assert!(args.contains(&format!("User-Agent: {USER_AGENT}")));
+        assert!(args.contains(&"Referer: https://www.bilibili.com".to_string()));
+        assert!(args.contains(&"Cookie: buvid3=b3".to_string()));
+        assert_eq!(*args.last().unwrap(), "https://api.bilibili.com/x?k=v");
+
+        // Empty cookie → the Cookie header must be OMITTED (an empty
+        // `Cookie:` header is a script fingerprint; see curl_args).
+        let bare = curl_args("https://api.bilibili.com/nav", "");
+        assert!(!bare.iter().any(|a| a.starts_with("Cookie:")));
+    }
+
+    #[test]
+    fn parse_search_response_maps_codes_and_entries() {
+        let ok = parse_search_response(&search_ok_body().to_string(), 1).unwrap();
+        assert_eq!(ok.entries.len(), 1, "ad row filtered");
+        assert_eq!(ok.entries[0].typeid, "193");
+
+        let err = parse_search_response(r#"{"code":-412,"message":"blocked"}"#, 1).unwrap_err();
+        assert_eq!(err, "ERR::RATE_LIMITED");
+
+        let err = parse_search_response(r#"{"code":-400,"message":"bad"}"#, 1).unwrap_err();
+        assert!(err.contains("-400"));
+
+        // code-0 without data degrades to an empty page at the clamped page.
+        let empty = parse_search_response(r#"{"code":0,"message":"0"}"#, 0).unwrap();
+        assert_eq!(empty.page, 1);
+        assert_eq!(empty.entries.len(), 0);
+    }
+
+    /// Canned transport for the anonymous-search seam: serves spi/nav
+    /// fixtures and a scripted sequence of search bodies, recording the
+    /// cookie each search URL was fetched with. Single-threaded test
+    /// runtime → RefCell state, no locking.
+    struct AnonMock {
+        search_bodies: Vec<String>,
+        calls: std::cell::Cell<usize>,
+        search_cookies: std::cell::RefCell<Vec<String>>,
+    }
+
+    impl AnonMock {
+        fn new(search_bodies: Vec<String>) -> Self {
+            Self {
+                search_bodies,
+                calls: std::cell::Cell::new(0),
+                search_cookies: std::cell::RefCell::new(Vec::new()),
+            }
+        }
+
+        /// Decides synchronously and returns an OWNED future (no self
+        /// borrow escapes) so the closure satisfies the seam's
+        /// higher-ranked bound.
+        fn fetch(
+            &self,
+            url: &str,
+            cookie: &str,
+        ) -> Pin<Box<dyn Future<Output = Result<String, String>> + Send>> {
+            let out = if url.ends_with("/x/frontend/finger/spi") {
+                // Fresh device id per call: the retry must switch buvid3.
+                let calls = self.calls.get();
+                Ok(
+                    serde_json::json!({"code": 0, "data": {"b_3": format!("b3-{calls}")}})
+                        .to_string(),
+                )
+            } else if url.ends_with("/x/web-interface/nav") {
+                Ok(nav_wbi_mock_body().to_string())
+            } else {
+                let calls = self.calls.get();
+                self.calls.set(calls + 1);
+                self.search_cookies.borrow_mut().push(cookie.to_string());
+                let idx = calls.min(self.search_bodies.len() - 1);
+                Ok(self.search_bodies[idx].clone())
+            };
+            Box::pin(async move { out })
+        }
+    }
+
+    fn anon_voucher_body() -> String {
+        serde_json::json!({"code": 0, "message": "OK", "data": {"v_voucher": "voucher-x"}})
+            .to_string()
+    }
+
+    #[tokio::test]
+    async fn search_videos_anon_retries_v_voucher_with_fresh_buvid3() {
+        let mock = AnonMock::new(vec![anon_voucher_body(), search_ok_body().to_string()]);
+
+        let resp = search_videos_anon_with(
+            |u, c| mock.fetch(u, c),
+            "https://api.bilibili.com",
+            "kw",
+            1,
+            None,
+        )
+        .await
+        .unwrap()
+        .expect("transport available");
+
+        assert_eq!(resp.entries.len(), 1, "second attempt wins");
+        let cookies = mock.search_cookies.borrow().clone();
+        assert_eq!(cookies.len(), 2, "search fetched exactly twice");
+        assert_ne!(cookies[0], cookies[1], "retry switched to a fresh buvid3");
+        assert!(cookies[1].starts_with("buvid3=b3-"), "{cookies:?}");
+    }
+
+    #[tokio::test]
+    async fn search_videos_anon_returns_last_degraded_response_after_retries() {
+        let mock = AnonMock::new(vec![anon_voucher_body()]);
+
+        let resp = search_videos_anon_with(
+            |u, c| mock.fetch(u, c),
+            "https://api.bilibili.com",
+            "kw",
+            1,
+            None,
+        )
+        .await
+        .unwrap()
+        .expect("transport available");
+
+        assert_eq!(resp.page, 0, "degraded body surfaces after 3 attempts");
+        assert_eq!(mock.search_cookies.borrow().len(), 3);
+    }
+
+    #[tokio::test]
+    async fn search_videos_anon_signals_fallback_when_transport_fails() {
+        let out = search_videos_anon_with(
+            |_u, _c| Box::pin(async { Err("failed to spawn curl".to_string()) }),
+            "https://api.bilibili.com",
+            "kw",
+            1,
+            None,
+        )
+        .await
+        .unwrap();
+        assert!(out.is_none(), "None tells the caller to fall back");
     }
 
     #[tokio::test]
@@ -5262,25 +5452,6 @@ fn canonical_video_id<'a>(requested: &'a str, api_bvid: &'a str) -> &'a str {
     }
 }
 
-/// Appends `buvid3` to a cookie header when the header lacks it.
-///
-/// Why: the search API rejects requests without `buvid3` with code -412
-/// (references/bilibili-API-collect/docs/search/search_request.md), so
-/// anonymous searches must ride a device cookie even with no login session.
-fn cookie_header_with_buvid3(header: &str, buvid3: &str) -> String {
-    let has_buvid3 = header
-        .split(';')
-        .any(|c| c.trim_start().starts_with("buvid3="));
-    if has_buvid3 || buvid3.is_empty() {
-        return header.to_string();
-    }
-    if header.is_empty() {
-        format!("buvid3={buvid3}")
-    } else {
-        format!("{header}; buvid3={buvid3}")
-    }
-}
-
 /// Removes `<em class="keyword">` highlight tags the search API embeds in
 /// result titles (bare `<em>` variant also stripped defensively).
 fn strip_keyword_em_tags(title: &str) -> String {
@@ -5382,11 +5553,6 @@ fn duration_seconds(value: Option<&serde_json::Value>) -> i64 {
         _ => 0,
     }
 }
-
-/// Process-lifetime cache of the anonymously fetched buvid3 used by
-/// [`search_videos`] when the cookie cache has none. Never persisted to the
-/// cookie cache file — anonymous search must not pollute login state.
-static ANON_BUVID3: std::sync::OnceLock<String> = std::sync::OnceLock::new();
 
 /// WBI-signed view-API fetch shared by metadata and history saving.
 ///
@@ -6338,6 +6504,9 @@ async fn fetch_watch_history_with(
 /// in). When the cookie cache lacks `buvid3`, one is fetched via the login
 /// flow's Spirite endpoint and cached for the process lifetime.
 ///
+/// `filters` carries the bilibili video-search filter params (order /
+/// duration / tids); invalid values normalize to the bilibili defaults.
+///
 /// Error codes: `ERR::SEARCH_KEYWORD_EMPTY` (blank keyword),
 /// `ERR::RATE_LIMITED` (API -412 or HTTP 429), `ERR::API_ERROR` (other HTTP
 /// failures), or a `Search API error (code …)` string for API-level errors.
@@ -6345,6 +6514,7 @@ pub async fn search_videos(
     app: &AppHandle,
     keyword: &str,
     page: i64,
+    filters: Option<SearchFilters>,
 ) -> Result<SearchResponse, String> {
     log::info!("[BE] search_videos: keyword={:?}, page={}", keyword, page);
     let keyword = keyword.trim();
@@ -6354,26 +6524,25 @@ pub async fn search_videos(
 
     let cookies = read_cookie(app)?.unwrap_or_default();
     let header = build_cookie_header(&cookies);
-    let header = if header
+    // Anonymous (logged-out) search: the cookie cache carries no device
+    // fingerprint — search_videos_anon fetches a FRESH buvid3 per request
+    // (risk score accumulates per device id; see its doc comment) and runs
+    // the whole lifecycle on the curl transport.
+    let anonymous = !header
         .split(';')
-        .any(|c| c.trim_start().starts_with("buvid3="))
-    {
-        header
-    } else {
-        let buvid3 = match ANON_BUVID3.get() {
-            Some(v) => v.clone(),
-            None => {
-                // First anonymous search: activate the device fingerprint.
-                let (b3, _) = crate::handlers::qr_login::fetch_buvid().await?;
-                let _ = ANON_BUVID3.set(b3.clone());
-                b3
-            }
-        };
-        cookie_header_with_buvid3(&header, &buvid3)
-    };
+        .any(|c| c.trim_start().starts_with("buvid3="));
+
+    if anonymous {
+        let base = BiliApi::from_cookie_header("")?.base;
+        let result = search_videos_anon(&base, keyword, page, filters.as_ref()).await;
+        if let Err(e) = &result {
+            log::warn!("[BE] search_videos: failed: {e}");
+        }
+        return result;
+    }
 
     let api = BiliApi::from_cookie_header(header)?;
-    let result = search_videos_with(&api, keyword, page).await;
+    let result = search_videos_with(&api, keyword, page, filters.as_ref()).await;
     // Why: surface the failing stage (mixin key / HTTP status / parse) in
     // app.log — the first manual verification hit a parse error that was
     // invisible without this line.
@@ -6383,44 +6552,55 @@ pub async fn search_videos(
     result
 }
 
-/// Transport-injectable core of [`search_videos`] (test seam).
-async fn search_videos_with(
-    api: &BiliApi,
+/// Builds the WBI-signed query pairs for the video-search endpoint.
+fn signed_search_query(
+    mixin_key: &str,
     keyword: &str,
     page: i64,
-) -> Result<SearchResponse, String> {
+    filters: Option<&SearchFilters>,
+) -> Result<Vec<(String, String)>, String> {
     let page = page.max(1);
 
-    let mixin_key = crate::utils::wbi::fetch_mixin_key(
-        &api.http,
-        &api.base,
-        (!api.cookie_header.is_empty()).then_some(&api.cookie_header),
-    )
-    .await?;
+    let f = filters.cloned().unwrap_or_default();
+    // Whitelist of the documented video-search sort values; anything else
+    // (including None) falls back to the API default.
+    const SEARCH_ORDERS: [&str; 5] = ["totalrank", "click", "pubdate", "dm", "stow"];
+    let order = f
+        .order
+        .as_deref()
+        .filter(|o| SEARCH_ORDERS.contains(o))
+        .unwrap_or("totalrank");
+    // Why: the API defines duration buckets 0-4 (0 all … 4 >60min) and
+    // tids=0 as "all zones" — clamping keeps out-of-range frontend values
+    // inside the documented filter semantics
+    // (references/bilibili-API-collect/docs/search/search_request.md).
+    let duration = f.duration.unwrap_or(0).clamp(0, 4);
+    let tids = f.tids.unwrap_or(0).max(0);
 
     let mut params = std::collections::BTreeMap::from([
         ("search_type".to_string(), "video".to_string()),
         ("keyword".to_string(), keyword.to_string()),
         ("page".to_string(), page.to_string()),
+        ("order".to_string(), order.to_string()),
+        ("duration".to_string(), duration.to_string()),
+        ("tids".to_string(), tids.to_string()),
     ]);
-    let signature = crate::utils::wbi::generate_wbi_signature(&mut params, &mixin_key);
+    let signature = crate::utils::wbi::generate_wbi_signature(&mut params, mixin_key);
     // Why: generate_wbi_signature already inserts wts into `params`
     // (src-tauri/src/utils/wbi.rs); only w_rid is appended — same pattern as
     // fetch_wbi_view. Sending wts twice makes wbi endpoints return v_voucher.
-    let mut query: Vec<(&str, String)> = params
-        .iter()
-        .map(|(k, v)| (k.as_str(), v.clone()))
-        .collect();
-    query.push(("w_rid", signature.w_rid));
+    let mut query: Vec<(String, String)> = params.into_iter().collect();
+    query.push(("w_rid".to_string(), signature.w_rid));
+    Ok(query)
+}
 
-    let response = api
-        .get_q("/x/web-interface/wbi/search/type", &query)
-        .await?;
-    let response_text = response
-        .text()
-        .await
-        .map_err(|e| format!("Failed to read search response text: {e}"))?;
-    let body: SearchApiResponse = serde_json::from_str(&response_text)
+/// Parses and maps a `wbi/search/type` response body into the frontend DTO.
+///
+/// Extracted from the reqwest seam so the curl-based anonymous transport
+/// reuses the exact same code-mapping and entry-shaping logic.
+fn parse_search_response(response_text: &str, page: i64) -> Result<SearchResponse, String> {
+    let page = page.max(1);
+    let body: SearchApiResponse = serde_json::from_str(response_text)
         .map_err(|e| format!("Failed to parse search response: {e}. Response: {response_text}"))?;
 
     if body.code == -412 {
@@ -6462,10 +6642,224 @@ async fn search_videos_with(
                     author: item.author,
                     play: item.play,
                     duration,
+                    typeid: item.typeid,
+                    typename: item.typename,
                 }
             })
             .collect(),
     })
+}
+
+/// Transport-injectable core of [`search_videos`] (test seam).
+async fn search_videos_with(
+    api: &BiliApi,
+    keyword: &str,
+    page: i64,
+    filters: Option<&SearchFilters>,
+) -> Result<SearchResponse, String> {
+    let mixin_key = crate::utils::wbi::fetch_mixin_key(
+        &api.http,
+        &api.base,
+        (!api.cookie_header.is_empty()).then_some(&api.cookie_header),
+    )
+    .await?;
+    let query = signed_search_query(&mixin_key, keyword, page, filters)?;
+    let borrowed: Vec<(&str, String)> =
+        query.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
+    let response = api
+        .get_q("/x/web-interface/wbi/search/type", &borrowed)
+        .await?;
+    let response_text = response
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read search response text: {e}"))?;
+    parse_search_response(&response_text, page)
+}
+
+/// GETs `url` via the system `curl` and returns the response body.
+///
+/// Why a subprocess: bilibili's risk control probabilistically degrades
+/// ANONYMOUS `wbi/search/type` responses to an empty result list for this
+/// app's reqwest TLS stacks (native-tls AND rustls, HTTP/1.1 AND h2 — all
+/// verified failing against the live API on 2026-10-04), while OS-tool TLS
+/// shapes pass consistently (curl: 3/3, python-urllib: 12/12, same
+/// cookies/signing/IP/headers). Logged-in requests are unaffected. A spawn
+/// failure (no curl on PATH) is returned as Err so the caller can fall
+fn curl_args(url: &str, cookie_header: &str) -> Vec<String> {
+    // Why the Cookie header is conditional: sending an EMPTY `Cookie:`
+    // header marks the client as a script to bilibili's risk control and
+    // challenges the follow-up search with v_voucher (observed live
+    // 2026-10-04) — cookie-less requests must omit the header entirely.
+    let mut args = vec![
+        "-sS".to_string(),
+        "--max-time".to_string(),
+        "15".to_string(),
+        "-H".to_string(),
+        format!("User-Agent: {USER_AGENT}"),
+        "-H".to_string(),
+        format!("Referer: {REFERER}"),
+    ];
+    if !cookie_header.is_empty() {
+        args.push("-H".to_string());
+        args.push(format!("Cookie: {cookie_header}"));
+    }
+    args.push(url.to_string());
+    args
+}
+
+/// GETs `url` via the system `curl` and returns the response body.
+async fn fetch_url_via_curl(url: &str, cookie_header: &str) -> Result<String, String> {
+    use tokio::process::Command as AsyncCommand;
+
+    // Why absolute on macOS: PATH resolution inside the dev/bundle process
+    // can pick a non-system curl build whose TLS shape bilibili's risk
+    // control flags; /usr/bin/curl (LibreSSL) is the verified-passing one.
+    #[cfg(target_os = "macos")]
+    let curl = "/usr/bin/curl";
+    #[cfg(not(target_os = "macos"))]
+    let curl = "curl";
+
+    let mut cmd = AsyncCommand::new(curl);
+    cmd.args(curl_args(url, cookie_header));
+    {
+        // Same CREATE_NO_WINDOW discipline as every external process in
+        // handlers/ (e.g. gif.rs) — without it a console window pops up on
+        // Windows release builds.
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+    }
+    let output = cmd
+        .output()
+        .await
+        .map_err(|e| format!("failed to spawn curl: {e}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "curl exited with {}: {}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+/// Anonymous (logged-out) video search over the curl transport.
+///
+/// Why fresh buvid3 per request: bilibili's risk score accumulates per
+/// device id — a process-lifetime cached buvid3 degrades to empty results
+/// and eventually a `v_voucher` captcha challenge (observed live
+/// 2026-10-04), while every probe with a freshly issued buvid3 returned
+/// full results (~15/15). Each attempt therefore fetches its own device
+/// id; one retry with a brand-new id rides out a transient degrade.
+///
+/// Falls back to the reqwest seam when curl is unavailable so the feature
+/// degrades to the previous behavior instead of erroring.
+async fn search_videos_anon(
+    base: &str,
+    keyword: &str,
+    page: i64,
+    filters: Option<&SearchFilters>,
+) -> Result<SearchResponse, String> {
+    match search_videos_anon_with(
+        |url, cookie| Box::pin(fetch_url_via_curl(url, cookie)),
+        base,
+        keyword,
+        page,
+        filters,
+    )
+    .await
+    {
+        // None = curl transport unavailable → fall back to the reqwest
+        // seam (the pre-curl behavior) instead of erroring.
+        Ok(Some(resp)) => Ok(resp),
+        Ok(None) => {
+            log::warn!("[BE] search_videos: curl transport unavailable — falling back to reqwest");
+            let api = BiliApi::from_cookie_header(String::new())?;
+            search_videos_with(&api, keyword, page, filters).await
+        }
+        Err(e) => Err(e),
+    }
+}
+
+/// Transport-injectable core of [`search_videos_anon`] (test seam).
+///
+/// `fetch` maps `(url, cookie_header)` to the response body — the
+/// production closure shells out to curl (see [`fetch_url_via_curl`]);
+/// tests inject canned bodies. Returns `Ok(None)` when the transport
+/// itself is unavailable (spawn failure) so the caller can fall back.
+async fn search_videos_anon_with<F>(
+    fetch: F,
+    base: &str,
+    keyword: &str,
+    page: i64,
+    filters: Option<&SearchFilters>,
+) -> Result<Option<SearchResponse>, String>
+where
+    // Boxed borrow-carrying future: a plain `-> Fut` bound cannot express
+    // the higher-ranked borrow a Fn over borrowed URLs needs (E0106/E0277).
+    F: for<'a> Fn(
+        &'a str,
+        &'a str,
+    ) -> Pin<Box<dyn Future<Output = Result<String, String>> + 'a + Send>>,
+{
+    for attempt in 0..3 {
+        // Why spi over the same transport too: a buvid3 ISSUED to the
+        // reqwest TLS class gets flagged server-side and every later
+        // request carrying it degrades — the anonymous lifecycle stays on
+        // one transport.
+        let spi_body = match fetch(&format!("{base}/x/frontend/finger/spi"), "").await {
+            Ok(b) => b,
+            Err(_) => return Ok(None),
+        };
+        let b3 = serde_json::from_str::<serde_json::Value>(&spi_body)
+            .ok()
+            .and_then(|v| {
+                v.pointer("/data/b_3")
+                    .and_then(|b| b.as_str())
+                    .map(str::to_string)
+            })
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| "Failed to parse buvid3 from spi response".to_string())?;
+        let cookie = format!("buvid3={b3}");
+
+        // Nav needs no cookie; same-transport fetch keeps the lifecycle
+        // uniform (mixin key derivation via wbi::mixin_key_from_nav_body).
+        let nav_body = match fetch(&format!("{base}/x/web-interface/nav"), "").await {
+            Ok(b) => b,
+            Err(_) => return Ok(None),
+        };
+        let nav: serde_json::Value = serde_json::from_str(&nav_body)
+            .map_err(|e| format!("Failed to parse nav response: {e}"))?;
+        let mixin_key = crate::utils::wbi::mixin_key_from_nav_body(&nav)?;
+
+        let query = signed_search_query(&mixin_key, keyword, page, filters)?;
+        // Why: form-encoding percent-encodes reserved characters (`&`,
+        // spaces) in signed params / keywords — same constraint as get_q,
+        // whose reqwest encoder does this implicitly.
+        let qs = url::form_urlencoded::Serializer::new(String::new())
+            .extend_pairs(query.iter().map(|(k, v)| (k.as_str(), v.as_str())))
+            .finish();
+        let url = format!("{base}/x/web-interface/wbi/search/type?{qs}");
+
+        let body = match fetch(&url, &cookie).await {
+            Ok(b) => b,
+            Err(_) => return Ok(None),
+        };
+        let resp = parse_search_response(&body, page)?;
+        // Degrade markers: a `v_voucher` captcha challenge, or a page-0
+        // body for a page≥1 request (real responses echo the page back).
+        let degraded = body.contains("\"v_voucher\"") || (resp.page == 0 && page.max(1) >= 1);
+        if !degraded || attempt == 2 {
+            return Ok(Some(resp));
+        }
+        log::warn!(
+            "[BE] search_videos: anonymous response degraded (v_voucher/empty) — retrying with a fresh buvid3"
+        );
+    }
+    unreachable!("retry loop returns on its final iteration")
 }
 
 /// Origin of the suggest API (lives outside api.bilibili.com).

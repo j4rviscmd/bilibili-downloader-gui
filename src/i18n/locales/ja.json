@@ -21,10 +21,10 @@
     "copy": "コピー"
   },
   "nav": {
-    "search": "動画取得",
+    "search": "URL取得",
     "downloads": "ダウンロード",
     "downloadHistory": "ダウンロード履歴",
-    "videoSearch": "動画検索",
+    "videoSearch": "検索",
     "watchHistory": "視聴履歴",
     "favorite": "お気に入り",
     "trim": "トリム",
@@ -714,7 +714,52 @@
     "noResultsHint": "別のキーワードで試してください",
     "prevPage": "前のページ",
     "nextPage": "次のページ",
-    "resultsCount": "{{count}}件"
+    "resultsCount": "{{count}}件",
+    "filters": {
+      "groupLabel": "検索フィルタ",
+      "orderLabel": "並び順",
+      "durationLabel": "動画長",
+      "zoneLabel": "カテゴリ",
+      "disabledHint": "先に検索を実行してください。フィルタは検索結果に適用されます",
+      "order": {
+        "totalrank": "総合",
+        "click": "再生数が多い",
+        "pubdate": "投稿日が新しい",
+        "dm": "弾幕数が多い",
+        "stow": "お気に入りが多い"
+      },
+      "duration": {
+        "all": "すべて",
+        "under10": "10分未満",
+        "min10to30": "10〜30分",
+        "min30to60": "30〜60分",
+        "over60": "60分以上"
+      }
+    },
+    "zones": {
+      "all": "すべてのカテゴリ",
+      "douga": "アニメ",
+      "anime": "アニメ（シリーズ）",
+      "guochuang": "国産アニメ",
+      "music": "音楽",
+      "dance": "ダンス",
+      "game": "ゲーム",
+      "knowledge": "知識",
+      "tech": "科学技術",
+      "sports": "スポーツ",
+      "car": "自動車",
+      "life": "生活",
+      "food": "グルメ",
+      "animal": "動物",
+      "kichiku": "鬼畜",
+      "fashion": "ファッション",
+      "information": "ニュース",
+      "ent": "エンタメ",
+      "cinephile": "映画・TV",
+      "documentary": "ドキュメンタリー",
+      "movie": "映画",
+      "tv": "テレビドラマ"
+    }
   },
   "watchHistory": {
     "title": "視聴履歴",

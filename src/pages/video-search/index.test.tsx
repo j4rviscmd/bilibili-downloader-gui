@@ -1,4 +1,5 @@
 import { searchVideosApi } from '@/features/video-search/api/searchVideos'
+import { DEFAULT_VIDEO_SEARCH_FILTERS } from '@/features/video-search/types'
 import { renderWithProviders } from '@/test/test-utils'
 import { screen } from '@testing-library/react'
 import { Route, Routes } from 'react-router'
@@ -34,6 +35,8 @@ const response = {
       author: 'up主',
       play: 1,
       duration: 287,
+      typeid: '193',
+      typename: 'MV',
     },
   ],
 }
@@ -51,7 +54,11 @@ describe('VideoSearchContent', () => {
     await user.click(screen.getByRole('button', { name: SEARCH_BUTTON }))
 
     expect(await screen.findByText('少年 官方版')).toBeInTheDocument()
-    expect(searchVideosApi).toHaveBeenCalledWith('少年', 1)
+    expect(searchVideosApi).toHaveBeenCalledWith(
+      '少年',
+      1,
+      DEFAULT_VIDEO_SEARCH_FILTERS,
+    )
 
     await user.click(screen.getByRole('button', { name: /少年 官方版/ }))
     // Handed off to the URL search page (download flow).

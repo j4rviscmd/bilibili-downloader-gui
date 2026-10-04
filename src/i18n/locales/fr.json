@@ -21,10 +21,10 @@
     "copy": "Copier"
   },
   "nav": {
-    "search": "Récupérer la vidéo",
+    "search": "Récupérer par URL",
     "downloads": "Téléchargements",
     "downloadHistory": "Historique de téléchargement",
-    "videoSearch": "Recherche de vidéos",
+    "videoSearch": "Rechercher",
     "watchHistory": "Historique de visionnage",
     "favorite": "Favoris",
     "trim": "Découper",
@@ -714,7 +714,52 @@
     "noResultsHint": "Essayez un autre mot-clé",
     "prevPage": "Page précédente",
     "nextPage": "Page suivante",
-    "resultsCount": "{{count}} résultats"
+    "resultsCount": "{{count}} résultats",
+    "filters": {
+      "groupLabel": "Filtres de recherche",
+      "orderLabel": "Trier",
+      "durationLabel": "Durée",
+      "zoneLabel": "Catégorie",
+      "disabledHint": "Lancez d'abord une recherche — les filtres s'appliquent aux résultats",
+      "order": {
+        "totalrank": "Pertinence",
+        "click": "Plus vus",
+        "pubdate": "Plus récents",
+        "dm": "Plus de danmakus",
+        "stow": "Plus de favoris"
+      },
+      "duration": {
+        "all": "Toutes",
+        "under10": "Moins de 10 min",
+        "min10to30": "10-30 min",
+        "min30to60": "30-60 min",
+        "over60": "Plus de 60 min"
+      }
+    },
+    "zones": {
+      "all": "Toutes les catégories",
+      "douga": "Animation",
+      "anime": "Séries d'anime",
+      "guochuang": "Anime chinois",
+      "music": "Musique",
+      "dance": "Danse",
+      "game": "Jeux vidéo",
+      "knowledge": "Savoir",
+      "tech": "Technologie",
+      "sports": "Sports",
+      "car": "Automobile",
+      "life": "Vie quotidienne",
+      "food": "Gastronomie",
+      "animal": "Animaux",
+      "kichiku": "Guichu",
+      "fashion": "Mode",
+      "information": "Actualités",
+      "ent": "Divertissement",
+      "cinephile": "Ciné et TV",
+      "documentary": "Documentaires",
+      "movie": "Films",
+      "tv": "Séries TV"
+    }
   },
   "watchHistory": {
     "title": "Historique de visionnage",

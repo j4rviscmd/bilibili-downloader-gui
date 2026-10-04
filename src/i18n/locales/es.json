@@ -21,10 +21,10 @@
     "copy": "Copiar"
   },
   "nav": {
-    "search": "Obtener vídeo",
+    "search": "Obtener por URL",
     "downloads": "Descargas",
     "downloadHistory": "Historial de descargas",
-    "videoSearch": "Búsqueda de vídeos",
+    "videoSearch": "Buscar",
     "watchHistory": "Historial de visualización",
     "favorite": "Favoritos",
     "trim": "Recortar",
@@ -714,7 +714,52 @@
     "noResultsHint": "Prueba con otra palabra clave",
     "prevPage": "Página anterior",
     "nextPage": "Página siguiente",
-    "resultsCount": "{{count}} resultados"
+    "resultsCount": "{{count}} resultados",
+    "filters": {
+      "groupLabel": "Filtros de búsqueda",
+      "orderLabel": "Ordenar",
+      "durationLabel": "Duración",
+      "zoneLabel": "Categoría",
+      "disabledHint": "Primero realiza una búsqueda; los filtros se aplican a los resultados",
+      "order": {
+        "totalrank": "Relevancia",
+        "click": "Más vistos",
+        "pubdate": "Más recientes",
+        "dm": "Más danmaku",
+        "stow": "Más favoritos"
+      },
+      "duration": {
+        "all": "Todas",
+        "under10": "Menos de 10 min",
+        "min10to30": "10-30 min",
+        "min30to60": "30-60 min",
+        "over60": "Más de 60 min"
+      }
+    },
+    "zones": {
+      "all": "Todas las categorías",
+      "douga": "Animación",
+      "anime": "Series de anime",
+      "guochuang": "Anime chino",
+      "music": "Música",
+      "dance": "Baile",
+      "game": "Videojuegos",
+      "knowledge": "Conocimiento",
+      "tech": "Tecnología",
+      "sports": "Deportes",
+      "car": "Automoción",
+      "life": "Vida",
+      "food": "Gastronomía",
+      "animal": "Animales",
+      "kichiku": "Guichu",
+      "fashion": "Moda",
+      "information": "Noticias",
+      "ent": "Entretenimiento",
+      "cinephile": "Cine y TV",
+      "documentary": "Documentales",
+      "movie": "Películas",
+      "tv": "Series de TV"
+    }
   },
   "watchHistory": {
     "title": "Historial de visualización",

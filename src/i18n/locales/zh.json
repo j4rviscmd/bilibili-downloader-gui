@@ -21,10 +21,10 @@
     "copy": "复制"
   },
   "nav": {
-    "search": "获取视频",
+    "search": "URL获取",
     "downloads": "下载",
     "downloadHistory": "下载历史",
-    "videoSearch": "视频搜索",
+    "videoSearch": "搜索",
     "watchHistory": "观看历史",
     "favorite": "收藏",
     "trim": "裁剪",
@@ -714,7 +714,52 @@
     "noResultsHint": "试试其他关键词",
     "prevPage": "上一页",
     "nextPage": "下一页",
-    "resultsCount": "{{count}}个结果"
+    "resultsCount": "{{count}}个结果",
+    "filters": {
+      "groupLabel": "搜索筛选",
+      "orderLabel": "排序",
+      "durationLabel": "时长",
+      "zoneLabel": "分区",
+      "disabledHint": "请先搜索，筛选条件作用于搜索结果",
+      "order": {
+        "totalrank": "综合排序",
+        "click": "最多点击",
+        "pubdate": "最新发布",
+        "dm": "最多弹幕",
+        "stow": "最多收藏"
+      },
+      "duration": {
+        "all": "全部时长",
+        "under10": "10分钟以下",
+        "min10to30": "10-30分钟",
+        "min30to60": "30-60分钟",
+        "over60": "60分钟以上"
+      }
+    },
+    "zones": {
+      "all": "全部分区",
+      "douga": "动画",
+      "anime": "番剧",
+      "guochuang": "国创",
+      "music": "音乐",
+      "dance": "舞蹈",
+      "game": "游戏",
+      "knowledge": "知识",
+      "tech": "科技",
+      "sports": "运动",
+      "car": "汽车",
+      "life": "生活",
+      "food": "美食",
+      "animal": "动物圈",
+      "kichiku": "鬼畜",
+      "fashion": "时尚",
+      "information": "资讯",
+      "ent": "娱乐",
+      "cinephile": "影视",
+      "documentary": "纪录片",
+      "movie": "电影",
+      "tv": "电视剧"
+    }
   },
   "watchHistory": {
     "title": "观看历史",

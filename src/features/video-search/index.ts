@@ -9,9 +9,12 @@ export type { VideoSearchView } from './hooks/useVideoSearch'
 export { default as videoSearchReducer } from './model/videoSearchSlice'
 export type {
   VideoSearchEntry,
+  VideoSearchFilters,
+  VideoSearchOrder,
   VideoSearchResponse,
   VideoSearchState,
 } from './types'
+export { VideoSearchFilterBar } from './ui/VideoSearchFilterBar'
 export { VideoSearchInput } from './ui/VideoSearchInput'
 export { VideoSearchPagination } from './ui/VideoSearchPagination'
 export { VideoSearchResultList } from './ui/VideoSearchResultList'

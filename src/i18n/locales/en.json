@@ -21,10 +21,10 @@
     "copy": "Copy"
   },
   "nav": {
-    "search": "Fetch Video",
+    "search": "Fetch by URL",
     "downloads": "Downloads",
     "downloadHistory": "Download History",
-    "videoSearch": "Video Search",
+    "videoSearch": "Search",
     "watchHistory": "Watch History",
     "favorite": "Favorites",
     "trim": "Trim",
@@ -714,7 +714,52 @@
     "noResultsHint": "Try a different keyword",
     "prevPage": "Previous page",
     "nextPage": "Next page",
-    "resultsCount": "{{count}} results"
+    "resultsCount": "{{count}} results",
+    "filters": {
+      "groupLabel": "Search filters",
+      "orderLabel": "Sort",
+      "durationLabel": "Duration",
+      "zoneLabel": "Category",
+      "disabledHint": "Run a search first — filters apply to the current results",
+      "order": {
+        "totalrank": "Relevance",
+        "click": "Most viewed",
+        "pubdate": "Newest",
+        "dm": "Most danmaku",
+        "stow": "Most favorited"
+      },
+      "duration": {
+        "all": "Any length",
+        "under10": "Under 10 min",
+        "min10to30": "10–30 min",
+        "min30to60": "30–60 min",
+        "over60": "Over 60 min"
+      }
+    },
+    "zones": {
+      "all": "All categories",
+      "douga": "Animation",
+      "anime": "Anime Series",
+      "guochuang": "Chinese Anime",
+      "music": "Music",
+      "dance": "Dance",
+      "game": "Gaming",
+      "knowledge": "Knowledge",
+      "tech": "Tech",
+      "sports": "Sports",
+      "car": "Autos",
+      "life": "Lifestyle",
+      "food": "Food",
+      "animal": "Animals",
+      "kichiku": "Guichu",
+      "fashion": "Fashion",
+      "information": "News",
+      "ent": "Entertainment",
+      "cinephile": "Film & TV",
+      "documentary": "Documentary",
+      "movie": "Movies",
+      "tv": "TV Dramas"
+    }
   },
   "watchHistory": {
     "title": "Watch History",
