@@ -29,10 +29,6 @@ function HarnessWithRoutes() {
   return (
     <Routes>
       <Route path="/*" element={<Harness />} />
-      <Route
-        path="/search"
-        element={<div data-testid="landing">/search</div>}
-      />
       <Route path="/error" element={<div data-testid="landing">/error</div>} />
     </Routes>
   )
@@ -75,14 +71,16 @@ function mockUseInit(
 }
 
 describe('InitPage', () => {
-  it('navigates to /home when initApp succeeds (code 0)', async () => {
+  it('navigates to / when initApp succeeds so IndexPage resolves the startup page', async () => {
     mockUseInit(true, { code: 0 })
 
     const { findByTestId } = renderWithProviders(<HarnessWithRoutes />, {
       route: '/',
     })
 
-    expect(await findByTestId('landing')).toHaveTextContent('/search')
+    // The landing assertion is '/' (not a hardcoded page): startup-page
+    // resolution is IndexPage's single responsibility.
+    expect(await findByTestId('landing')).toHaveTextContent('/')
   })
 
   it('navigates to /error with code and detail when initApp fails', async () => {

@@ -10,6 +10,7 @@
 import { store } from '@/app/store'
 import { setSettings } from '@/features/settings/settingsSlice'
 import type { Settings } from '@/features/settings/type'
+import { PAGE_PATHS } from '@/shared/layout/pages'
 import { mockInvoke, renderWithProviders } from '@/test/test-utils'
 import { screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
@@ -18,7 +19,7 @@ vi.mock('@/shared/ui/toast', () => ({
   toast: { info: vi.fn(), warning: vi.fn(), error: vi.fn(), success: vi.fn() },
 }))
 
-import { GeneralSection } from './GeneralSection'
+import { GeneralSection, STARTUP_PAGE_LABEL_KEYS } from './GeneralSection'
 
 const baseline: Settings = {
   dlOutputPath: '/downloads/out',
@@ -49,14 +50,19 @@ describe('GeneralSection', () => {
     seedSettings()
     renderWithProviders(<GeneralSection />)
 
-    expect(screen.getByRole('combobox')).toHaveTextContent('日本語')
+    expect(
+      screen.getByRole('combobox', { name: 'settings.language_label' }),
+    ).toHaveTextContent('日本語')
   })
 
   it('changing the language persists exactly one {language} patch', async () => {
     seedSettings()
     const { user } = renderWithProviders(<GeneralSection />)
 
-    await user.click(screen.getByRole('combobox'))
+    const langSelect = screen.getByRole('combobox', {
+      name: 'settings.language_label',
+    })
+    await user.click(langSelect)
     await user.click(screen.getByRole('option', { name: 'English' }))
 
     await waitFor(() =>
@@ -68,6 +74,41 @@ describe('GeneralSection', () => {
       (c: unknown[]) => c[0] === 'patch_settings',
     )
     expect(patches).toHaveLength(1)
+  })
+
+  it('saves the startup page choice', async () => {
+    seedSettings()
+    const { user } = renderWithProviders(<GeneralSection />)
+
+    await user.click(
+      screen.getByRole('combobox', { name: 'settings.startupPage_label' }),
+    )
+    await user.click(screen.getByRole('option', { name: 'nav.downloads' }))
+
+    await waitFor(() =>
+      expect(lastSetSettings()).toMatchObject({ startupPage: '/downloads' }),
+    )
+  })
+
+  it('offers every page except /settings as a startup page option', async () => {
+    // Guards drift: an option rendered per PAGE_PATHS entry except
+    // /settings, each with its nav label key (Radix options carry no
+    // `value` attribute in the DOM, so labels are the observable).
+    seedSettings()
+    const { user } = renderWithProviders(<GeneralSection />)
+
+    await user.click(
+      screen.getByRole('combobox', { name: 'settings.startupPage_label' }),
+    )
+
+    const labels = screen.getAllByRole('option').map((o) => o.textContent)
+    expect(labels).not.toContain('nav.settings')
+    expect([...labels].sort()).toEqual(
+      [...PAGE_PATHS]
+        .filter((p) => p !== '/settings')
+        .map((p) => STARTUP_PAGE_LABEL_KEYS[p])
+        .sort(),
+    )
   })
 
   it('changing the theme persists the new theme', async () => {

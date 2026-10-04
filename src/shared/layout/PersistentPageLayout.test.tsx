@@ -48,7 +48,8 @@ vi.mock('@/shared/ui/GitHubStars', () => ({
   GitHubStars: () => <div data-testid="github-stars" />,
 }))
 
-import { PersistentPageLayout } from './PersistentPageLayout'
+import { PAGES, PersistentPageLayout } from './PersistentPageLayout'
+import { PAGE_PATHS } from './pages'
 
 function renderLayout(route = '/search') {
   return renderWithProviders(
@@ -68,6 +69,13 @@ describe('PersistentPageLayout', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockInvoke.mockResolvedValue(undefined)
+  })
+
+  it('keeps the mount table and the shared page path list in sync', () => {
+    // Drift between PAGES (mounting) and PAGE_PATHS (valid-path checks,
+    // startup-page redirect/options) would route a real page to the
+    // invalid-path redirect.
+    expect(PAGES.map((p) => p.path)).toEqual([...PAGE_PATHS])
   })
 
   it('renders only /search initially', () => {

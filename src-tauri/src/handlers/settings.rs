@@ -333,6 +333,29 @@ mod tests {
     }
 
     #[test]
+    fn patch_settings_accepts_startup_page_string_and_rejects_other_types() {
+        let dir = tempdir();
+        write_settings(
+            dir.path(),
+            json!({"language": "en", "startupPage": "/search"}),
+        );
+        patch_settings_at(
+            &settings_file(dir.path()),
+            &json!({"startupPage": "/downloads"}),
+        )
+        .unwrap();
+        assert_eq!(
+            read_settings(dir.path())["startupPage"],
+            json!("/downloads")
+        );
+
+        write_settings(dir.path(), json!({"language": "en"}));
+        let err =
+            patch_settings_at(&settings_file(dir.path()), &json!({"startupPage": 3})).unwrap_err();
+        assert!(err.contains("SETTINGS_PATCH_INVALID"), "got: {err}");
+    }
+
+    #[test]
     fn patch_validates_dl_output_path_when_changed() {
         let dir = tempdir();
         write_settings(dir.path(), json!({"language": "en"}));

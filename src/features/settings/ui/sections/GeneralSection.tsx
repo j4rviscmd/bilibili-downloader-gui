@@ -25,6 +25,25 @@ import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 /**
+ * Startup-page Select options: every page except /settings itself.
+ * Labels reuse the sidebar nav keys, so no new translation keys.
+ */
+export const STARTUP_PAGE_LABEL_KEYS: Record<string, string> = {
+  '/search': 'nav.search',
+  '/video-search': 'nav.videoSearch',
+  '/downloads': 'nav.downloads',
+  '/history': 'nav.downloadHistory',
+  '/favorite': 'nav.favorite',
+  '/watch-history': 'nav.watchHistory',
+  '/trim': 'nav.trim',
+  '/concat': 'nav.concat',
+  '/audio': 'nav.audio',
+  '/resolution': 'nav.resolution',
+  '/rotation': 'nav.rotation',
+  '/gif': 'nav.gif',
+}
+
+/**
  * General category: appearance-level preferences (language, theme, font
  * size) and app-bar/startup toggles.
  */
@@ -74,6 +93,29 @@ export function GeneralSection() {
             {languages.map((lang) => (
               <SelectItem key={lang.id} value={lang.id}>
                 {lang.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </SettingRow>
+      <SettingRow label={t('settings.startupPage_label')}>
+        <Select
+          value={settings.startupPage ?? '/search'}
+          onValueChange={(value) => {
+            // Silent: a page switch needs no success toast (matches theme).
+            void saveByForm({ startupPage: value }, true)
+          }}
+        >
+          <SelectTrigger
+            aria-label={t('settings.startupPage_label')}
+            className="w-48"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {Object.entries(STARTUP_PAGE_LABEL_KEYS).map(([path, key]) => (
+              <SelectItem key={path} value={path}>
+                {t(key)}
               </SelectItem>
             ))}
           </SelectContent>

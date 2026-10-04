@@ -1,4 +1,5 @@
 import { PageLayoutShell } from '@/shared/layout/PageLayout'
+import { PAGE_PATHS } from '@/shared/layout/pages'
 import type { FC, ReactElement } from 'react'
 import { useEffect, useState } from 'react'
 import { Navigate, useLocation } from 'react-router'
@@ -14,6 +15,7 @@ import { RotationContent } from '@/pages/rotation'
 import { SearchContent } from '@/pages/search'
 import { SettingsContent } from '@/pages/settings'
 import { TrimContent } from '@/pages/trim'
+import { VideoSearchContent } from '@/pages/video-search'
 import { WatchHistoryContent } from '@/pages/watch-history'
 
 interface PageConfig {
@@ -21,7 +23,10 @@ interface PageConfig {
   readonly Component: FC
 }
 
-const PAGES: readonly PageConfig[] = [
+// Why: exported only for the PAGES/PAGE_PATHS parity guard test — drift
+// between the mount table and the shared path list breaks navigation.
+export const PAGES: readonly PageConfig[] = [
+  { path: '/video-search', Component: VideoSearchContent },
   { path: '/search', Component: SearchContent },
   { path: '/downloads', Component: DownloadsContent },
   { path: '/history', Component: HistoryContent },
@@ -36,7 +41,9 @@ const PAGES: readonly PageConfig[] = [
   { path: '/settings', Component: SettingsContent },
 ] as const
 
-const VALID_PATHS: readonly string[] = PAGES.map((p) => p.path)
+// Why: single source shared with the startup-page redirect validation and
+// the Settings startup-page options (src/shared/layout/pages.ts).
+const VALID_PATHS: readonly string[] = PAGE_PATHS
 
 function isValidPath(pathname: string): boolean {
   return VALID_PATHS.includes(pathname)

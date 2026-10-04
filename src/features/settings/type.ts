@@ -165,6 +165,11 @@ export interface Settings {
    * Release builds always run the updater flow regardless of this flag.
    */
   enableDevUpdater?: boolean
+  /**
+   * Page path opened at startup (e.g. '/search', '/downloads'). Defaults
+   * to '/search'; unknown values fall back to '/search' at redirect time.
+   */
+  startupPage?: string
 }
 
 /**
