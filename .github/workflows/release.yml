@@ -42,6 +42,10 @@ on:
 concurrency:
   group: publish
   cancel-in-progress: false
+# Why top-level read-only: Scorecard Token-Permissions max pattern
+# (issue #677); each job below declares only the scopes it needs
+permissions:
+  contents: read
 
 jobs:
   release-please:
@@ -59,7 +63,7 @@ jobs:
       ref: ${{ steps.release.outputs.sha || steps.resolve.outputs.ref }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       # Create the git tag for the manifest's CURRENT version BEFORE
       # release-please runs. Why: release-please anchors its release-PR
@@ -89,7 +93,7 @@ jobs:
       - name: Run release-please
         id: release
         if: github.event_name == 'push'
-        uses: googleapis/release-please-action@v5
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
@@ -99,7 +103,7 @@ jobs:
       - name: Resolve release by tag
         id: resolve
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -153,12 +157,12 @@ jobs:
     steps:
       # Empty on the push path (default ref) — set on dispatch recovery.
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ needs.release-please.outputs.ref }}
 
       - name: Setup Node.js (fixed)
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20.x
           cache: npm
@@ -167,13 +171,13 @@ jobs:
         run: npm install -g npm@11.8.0
 
       - name: Install Rust (stable)
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
         with:
           # Only needed on macOS runners; adds targets for universal builds
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: Cache Rust (cargo registry, git, and target)
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             ~/.cargo/registry
@@ -193,7 +197,7 @@ jobs:
         run: test -f package-lock.json && npm ci || npm install
 
       - name: Build and upload with Tauri
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -224,7 +228,7 @@ jobs:
       # recovered by dispatch may still lack one).
       - name: Upload Windows ZIP editions
         if: runner.os == 'Windows'
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         env:
           RELEASE_ID: ${{ needs.release-please.outputs.release_id }}
         with:
@@ -267,12 +271,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ needs.release-please.outputs.ref }}
 
       - name: Upload fixed-name assets, publish draft, rewrite notes
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         env:
           RELEASE_ID: ${{ needs.release-please.outputs.release_id }}
           TAG_NAME: ${{ needs.release-please.outputs.tag_name }}
