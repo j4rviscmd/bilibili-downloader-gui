@@ -283,6 +283,7 @@
     "network_error": "다운로드 중 네트워크 오류 발생.",
     "video_not_found": "비디오를 찾을 수 없습니다. URL을 확인하세요.",
     "api_error": "비디오 정보를 가져오지 못했습니다.",
+    "no_stream": "이 영상의 재생 가능한 스트림이 반환되지 않았습니다.",
     "rate_limited": "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.",
     "audio_merge_fallback": "오디오 스트림 복사에 실패했습니다. AAC 재인코딩을 사용합니다.",
     "invalid_media_response": "서버에서 잘못된 미디어 응답을 받았습니다(오류 페이지 수신).",
@@ -714,6 +715,9 @@
     "noResultsHint": "다른 키워드로 시도해 보세요",
     "prevPage": "이전 페이지",
     "nextPage": "다음 페이지",
+    "previewPlay": "영상 미리보기",
+    "previewDownload": "이 영상 다운로드",
+    "previewOpenInBrowser": "브라우저에서 열기",
     "resultsCount": "{{count}}개 결과",
     "filters": {
       "groupLabel": "검색 필터",

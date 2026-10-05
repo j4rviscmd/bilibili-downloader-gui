@@ -170,6 +170,16 @@ export interface Settings {
    * to '/search'; unknown values fall back to '/search' at redirect time.
    */
   startupPage?: string
+  /**
+   * Last-used volume of the search-page preview player (0.0-1.0).
+   * Restored onto the preview `<video>` on open; persisted debounced on
+   * volumechange. Undefined until the first volumechange — a mute toggle
+   * fires it too and the listener persists both fields, so mute-first
+   * usage materializes this as the native default (1.0).
+   */
+  previewVolume?: number
+  /** Last-used muted flag of the preview player. Paired with previewVolume. */
+  previewMuted?: boolean
 }
 
 /**

@@ -125,6 +125,20 @@ fn patch_settings_at(filepath: &Path, patch: &Value) -> Result<(), String> {
             }
         }
 
+        // Validate previewVolume range only when the patch changes it
+        // (same rationale as dlOutputPath above): it maps 1:1 onto the
+        // HTMLMediaElement volume range [0.0, 1.0].
+        if patch_obj.contains_key("previewVolume") {
+            if let Some(volume) = merged_settings.preview_volume {
+                if !(0.0..=1.0).contains(&volume) {
+                    return Err(format!(
+                        "ERR:SETTINGS_PATCH_INVALID: previewVolume must be within [0.0, 1.0], got {}",
+                        volume
+                    ));
+                }
+            }
+        }
+
         *value = merged_value;
         Ok(())
     })
@@ -226,6 +240,29 @@ mod tests {
         assert_eq!(merged["fontSize"], json!(18), "patched field changes");
         assert_eq!(merged["language"], json!("en"), "untouched field survives");
         assert_eq!(merged["dlOutputPath"], json!("/tmp/a"));
+    }
+
+    #[test]
+    fn patch_settings_validates_preview_volume_range() {
+        let dir = tempdir();
+        write_settings(dir.path(), json!({"language": "en"}));
+
+        // Out-of-range volume is rejected without touching the file.
+        let err = patch_settings_at(&settings_file(dir.path()), &json!({"previewVolume": 1.5}))
+            .unwrap_err();
+        assert!(err.contains("ERR:SETTINGS_PATCH_INVALID"), "{err}");
+        assert!(read_settings(dir.path()).get("previewVolume").is_none());
+
+        // In-range values persist both preview fields.
+        patch_settings_at(
+            &settings_file(dir.path()),
+            &json!({"previewVolume": 0.5, "previewMuted": true}),
+        )
+        .unwrap();
+        let merged = read_settings(dir.path());
+        assert_eq!(merged["previewVolume"], json!(0.5));
+        assert_eq!(merged["previewMuted"], json!(true));
+        assert_eq!(merged["language"], json!("en"), "untouched field survives");
     }
 
     #[test]

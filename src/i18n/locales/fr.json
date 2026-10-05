@@ -283,6 +283,7 @@
     "network_error": "Erreur réseau pendant le téléchargement.",
     "video_not_found": "Vidéo non trouvée. Veuillez vérifier l'URL.",
     "api_error": "Échec de la récupération des informations de la vidéo.",
+    "no_stream": "Aucun flux lisible n'a été renvoyé pour cette vidéo.",
     "rate_limited": "Trop de requêtes. Veuillez patienter un instant et réessayer.",
     "audio_merge_fallback": "La copie du flux audio a échoué. Utilisation du réencodage AAC à la place.",
     "invalid_media_response": "Réponse média non valide du serveur (page d'erreur reçue).",
@@ -714,6 +715,9 @@
     "noResultsHint": "Essayez un autre mot-clé",
     "prevPage": "Page précédente",
     "nextPage": "Page suivante",
+    "previewPlay": "Aperçu de la vidéo",
+    "previewDownload": "Télécharger cette vidéo",
+    "previewOpenInBrowser": "Ouvrir dans le navigateur",
     "resultsCount": "{{count}} résultats",
     "filters": {
       "groupLabel": "Filtres de recherche",
