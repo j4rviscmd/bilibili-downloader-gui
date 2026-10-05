@@ -2,7 +2,7 @@ import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Search } from 'lucide-react'
-import { useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { searchSuggestApi } from '../api/searchSuggest'
 
@@ -14,9 +14,10 @@ const SUGGEST_DEBOUNCE_MS = 300
  * Keyword input + submit button with live search suggestions.
  *
  * WAI-ARIA combobox: ↑/↓ move the active option, Enter picks it (Enter with
- * no active option submits the raw draft), Esc closes the dropdown. The
- * suggest fetch is debounced and best-effort — failures render nothing
- * instead of interrupting typing.
+ * no active option submits the raw draft), Esc closes the dropdown, and
+ * focusing the input re-suggests for the current value. Picking a suggestion
+ * never re-suggests the committed keyword. The suggest fetch is debounced
+ * and best-effort — failures render nothing instead of interrupting typing.
  */
 export function VideoSearchInput({
   onSearch,
@@ -33,35 +34,52 @@ export function VideoSearchInput({
   // Stale-response guard: only the latest debounce round may set state.
   const latestRound = useRef(0)
   const listId = useId()
+  const inputRef = useRef<HTMLInputElement>(null)
+  // Set when a suggestion pick is about to overwrite the draft: the effect
+  // must skip its suggest fetch for that programmatic change (the search
+  // already ran on the picked value).
+  const suppressNextSuggest = useRef(false)
+
+  // Fetch suggestions for a keyword and open the list on success. Bumping
+  // the round invalidates every earlier in-flight response.
+  const requestSuggest = useCallback((keyword: string) => {
+    const round = ++latestRound.current
+    void searchSuggestApi(keyword)
+      .then((values) => {
+        if (round !== latestRound.current) return
+        setSuggestions(values)
+        setActiveIndex(-1)
+        setOpen(values.length > 0)
+      })
+      .catch(() => {
+        // Best-effort: never surface suggest errors mid-typing.
+        if (round === latestRound.current) setOpen(false)
+      })
+  }, [])
 
   useEffect(() => {
-    // Bump the round even for blank drafts: an in-flight response for a
-    // previous draft must not re-open the list after the input clears.
-    const round = ++latestRound.current
+    // Bump the round even for blank/suppressed drafts: an in-flight response
+    // for a previous draft must not re-open the list afterwards.
+    latestRound.current++
+    if (suppressNextSuggest.current) {
+      suppressNextSuggest.current = false
+      return
+    }
     const trimmed = draft.trim()
     if (!trimmed) {
       setSuggestions([])
       setOpen(false)
       return
     }
-    const timer = setTimeout(() => {
-      void searchSuggestApi(trimmed)
-        .then((values) => {
-          if (round !== latestRound.current) return
-          setSuggestions(values)
-          setActiveIndex(-1)
-          setOpen(values.length > 0)
-        })
-        .catch(() => {
-          // Best-effort: never surface suggest errors mid-typing.
-          if (round === latestRound.current) setOpen(false)
-        })
-    }, SUGGEST_DEBOUNCE_MS)
+    const timer = setTimeout(() => requestSuggest(trimmed), SUGGEST_DEBOUNCE_MS)
     return () => clearTimeout(timer)
-  }, [draft])
+  }, [draft, requestSuggest])
 
   const submit = (keyword: string) => {
     setOpen(false)
+    // Hand focus back to the page once the search fires, so the closed
+    // dropdown stays closed and results get keyboard focus (YouTube-like).
+    inputRef.current?.blur()
     onSearch(keyword)
   }
 
@@ -85,16 +103,32 @@ export function VideoSearchInput({
       setActiveIndex((i) => (i <= 0 ? suggestions.length - 1 : i - 1))
     } else if (e.key === 'Enter' && activeIndex >= 0) {
       e.preventDefault()
-      setDraft(suggestions[activeIndex] ?? draft)
-      submit(suggestions[activeIndex] ?? draft)
+      commitPick(suggestions[activeIndex] ?? draft)
     } else if (e.key === 'Escape') {
       setOpen(false)
     }
   }
 
-  const select = (value: string) => {
+  // Fill the input with a picked suggestion and search it. A same-value pick
+  // triggers React's state bailout (effect never runs), so the suppress flag
+  // is armed only when the draft will actually change.
+  const commitPick = (value: string) => {
+    if (value !== draft) suppressNextSuggest.current = true
     setDraft(value)
     submit(value)
+  }
+
+  /**
+   * Focusing the input re-suggests for the current value so the list is
+   * available right where the user left it (YouTube-like). A blank input
+   * has nothing to suggest.
+   */
+  const handleFocus = () => {
+    const trimmed = draft.trim()
+    // Why: skips SUGGEST_DEBOUNCE_MS on purpose — that debounce exists to
+    // batch keystrokes, while focus carries one final value; the focus test
+    // asserts the fetch fires with a 0ms timer advance (VideoSearchInput.test.tsx).
+    if (trimmed) requestSuggest(trimmed)
   }
 
   return (
@@ -107,8 +141,10 @@ export function VideoSearchInput({
         }}
       >
         <Input
+          ref={inputRef}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
+          onFocus={handleFocus}
           onKeyDown={handleKeyDown}
           placeholder={t('videoSearch.placeholder')}
           aria-label={t('videoSearch.placeholder')}
@@ -142,7 +178,7 @@ export function VideoSearchInput({
               // Why: preventDefault on mousedown keeps focus on the input so
               // the wrapper's onBlur never closes the list before the click.
               onMouseDown={(e) => e.preventDefault()}
-              onClick={() => select(value)}
+              onClick={() => commitPick(value)}
               onMouseEnter={() => setActiveIndex(i)}
               className={cn(
                 'cursor-pointer px-3 py-1.5 text-sm',
