@@ -25,6 +25,7 @@ import type { VideoSearchEntry } from '../types'
  * volume slider fires volumechange continuously while dragged, and each
  * patch_settings is a locked disk write — coalesce a drag into one save. */
 const VOLUME_SAVE_DEBOUNCE_MS = 500
+
 /**
  * Inline MP4 preview dialog for one search result.
  *
@@ -53,6 +54,14 @@ export function VideoPreviewDialog({
   // the native controls already render in a "playing" posture during
   // that window, so an explicit spinner keeps the loading state honest.
   const [buffering, setBuffering] = useState(false)
+  // Windows WebView2 (Chromium) native media controls already render a
+  // buffering spinner — the custom overlay would double it. macOS
+  // WKWebView and Linux WebKitGTK ship none, so the custom one stays
+  // there. userAgent per the GeneralSection convention
+  // (navigator.platform is deprecated). Evaluated per render (not module
+  // level) so tests can stub the UA before mounting.
+  const nativeBufferingSpinner =
+    typeof navigator !== 'undefined' && /Windows/i.test(navigator.userAgent)
   const videoRef = useRef<HTMLVideoElement>(null)
   const saveTimer = useRef<number | undefined>(undefined)
 
@@ -163,8 +172,9 @@ export function VideoPreviewDialog({
                 className="h-full w-full"
               />
               {/* Overlay only — pointer-events-none keeps the native
-                  controls usable while buffering. */}
-              {buffering && (
+                  controls usable while buffering. Suppressed on Windows
+                  (see nativeBufferingSpinner). */}
+              {buffering && !nativeBufferingSpinner && (
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                   <CircleIndicator size="lg" className="text-white/90" />
                 </div>
