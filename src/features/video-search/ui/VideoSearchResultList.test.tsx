@@ -4,7 +4,7 @@ import { usePendingDownload } from '@/shared/hooks/usePendingDownload'
 import { mockInvoke, renderWithProviders } from '@/test/test-utils'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { VideoSearchView } from '../hooks/useVideoSearch'
 import { useVideoSearch } from '../hooks/useVideoSearch'
 import { DEFAULT_VIDEO_SEARCH_FILTERS } from '../types'
@@ -66,6 +66,16 @@ const baseState: VideoSearchView = {
   setFilter: vi.fn(),
 }
 
+/** happy-dom's default userAgent tracks the host platform, which would
+ * make the buffering-spinner platform gate host-dependent. Stub it so
+ * each spinner test states its platform explicitly. */
+function stubUserAgent(ua: string) {
+  vi.spyOn(window.navigator, 'userAgent', 'get').mockReturnValue(ua)
+}
+
+const MAC_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'
+const WINDOWS_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+
 describe('VideoSearchResultList', () => {
   // The global store persists across tests in a file — reset the preview
   // audio settings so the volume-restore test does not leak into others.
@@ -73,6 +83,11 @@ describe('VideoSearchResultList', () => {
     store.dispatch(
       setSettings({ previewVolume: undefined, previewMuted: undefined }),
     )
+  })
+
+  // Restores the userAgent spies stubbed by stubUserAgent.
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('renders entry fields and click hands off to the download flow', async () => {
@@ -318,6 +333,8 @@ describe('VideoSearchResultList', () => {
     vi.mocked(useVideoSearch).mockReturnValue(baseState)
     vi.mocked(usePendingDownload).mockReturnValue(vi.fn())
     mockInvoke.mockResolvedValue('https://example.com/preview.mp4')
+    // macOS has no native buffering spinner — the custom one must show.
+    stubUserAgent(MAC_UA)
 
     const { user } = renderWithProviders(<VideoSearchResultList />)
     await user.click(
@@ -344,10 +361,36 @@ describe('VideoSearchResultList', () => {
     })
   })
 
+  it('hides the buffering spinner on Windows', async () => {
+    vi.mocked(useVideoSearch).mockReturnValue(baseState)
+    vi.mocked(usePendingDownload).mockReturnValue(vi.fn())
+    mockInvoke.mockResolvedValue('https://example.com/preview.mp4')
+    // Windows WebView2 native controls already render their own spinner.
+    stubUserAgent(WINDOWS_UA)
+
+    const { user } = renderWithProviders(<VideoSearchResultList />)
+    await user.click(
+      screen.getAllByRole('button', { name: 'videoSearch.previewPlay' })[0],
+    )
+
+    const video = await waitFor(() => {
+      const el = document.querySelector('video')
+      expect(el).not.toBeNull()
+      return el as HTMLVideoElement
+    })
+    fireEvent.loadStart(video)
+    fireEvent.waiting(video)
+    // fireEvent flushes the re-render, so a wrongly-shown overlay would
+    // already be in the DOM here.
+    expect(document.querySelector('.aspect-video .animate-spin')).toBeNull()
+  })
+
   it('shows the spinner for a seek started while paused', async () => {
     vi.mocked(useVideoSearch).mockReturnValue(baseState)
     vi.mocked(usePendingDownload).mockReturnValue(vi.fn())
     mockInvoke.mockResolvedValue('https://example.com/preview.mp4')
+    // Seek-while-paused spinner is likewise macOS/Linux-only.
+    stubUserAgent(MAC_UA)
 
     const { user } = renderWithProviders(<VideoSearchResultList />)
     await user.click(

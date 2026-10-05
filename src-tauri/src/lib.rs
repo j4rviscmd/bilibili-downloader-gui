@@ -51,10 +51,12 @@ use crate::models::qr_login::LoginState;
 use crate::models::qr_login::QrCodeResult;
 use crate::models::qr_login::QrPollResult;
 use crate::models::qr_login::Session;
+use crate::models::search_history::SearchHistoryEntry;
 use crate::models::settings::Language;
 use crate::models::settings::Settings;
 use crate::models::settings::UiTheme;
 use crate::store::HistoryStore;
+use crate::store::SearchHistoryStore;
 
 pub mod constants;
 pub mod emits;
@@ -219,6 +221,11 @@ pub fn run() {
             search_videos,
             search_suggest,
             fetch_popular_videos,
+            search_trending,
+            get_search_history,
+            record_search,
+            remove_search_history_entry,
+            clear_search_history,
             expand_short_url,
             get_preview_play_url,
             cleanup_temp_files,
@@ -1486,6 +1493,58 @@ async fn fetch_popular_videos(
     page: i64,
 ) -> Result<bilibili::SearchResponse, String> {
     bilibili::fetch_popular_videos(&app, page).await
+}
+/// Fetches the local search-keyword history (newest first, up to 10).
+#[tauri::command]
+async fn get_search_history(app: AppHandle) -> Result<Vec<SearchHistoryEntry>, String> {
+    let store = SearchHistoryStore::new(&app).map_err(|e| e.to_string())?;
+    Ok(store.get_all())
+}
+
+/// Records a submitted search keyword into the local search history.
+///
+/// Blank keywords are a no-op; failures are non-critical but surfaced (the
+/// frontend fire-and-forgets with a catch).
+#[tauri::command]
+async fn record_search(app: AppHandle, keyword: String) -> Result<(), String> {
+    let keyword = keyword.trim().to_string();
+    if keyword.is_empty() {
+        return Ok(());
+    }
+    let store = SearchHistoryStore::new(&app).map_err(|e| e.to_string())?;
+    // Why: pins the same compact RFC 3339 shape as the download-history
+    // store's timestamps (handlers/history_session.rs `now_rfc3339`), so
+    // both persisted JSON stores share one timestamp convention.
+    let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    store.record(&keyword, &now)
+}
+
+/// Removes one keyword from the search history and returns the updated list,
+/// so the frontend refreshes its panel state in a single round trip.
+#[tauri::command]
+async fn remove_search_history_entry(
+    app: AppHandle,
+    keyword: String,
+) -> Result<Vec<SearchHistoryEntry>, String> {
+    let store = SearchHistoryStore::new(&app).map_err(|e| e.to_string())?;
+    store.remove(&keyword)?;
+    Ok(store.get_all())
+}
+
+/// Clears the entire search history.
+#[tauri::command]
+async fn clear_search_history(app: AppHandle) -> Result<(), String> {
+    let store = SearchHistoryStore::new(&app).map_err(|e| e.to_string())?;
+    store.clear()
+}
+
+/// Fetches the bilibili hot-search (trending) keyword list (up to 10).
+///
+/// Wraps the WBI-signed `search/square` endpoint; best-effort like
+/// `search_suggest` — failures degrade to an empty list.
+#[tauri::command]
+async fn search_trending(app: AppHandle) -> Result<Vec<bilibili::TrendingKeyword>, String> {
+    bilibili::search_trending(&app).await
 }
 
 /// Cleans up orphaned temporary files from interrupted downloads.

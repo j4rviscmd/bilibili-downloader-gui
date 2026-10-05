@@ -11,15 +11,18 @@ import { store } from '@/app/store'
 import { setSettings } from '@/features/settings/settingsSlice'
 import type { Settings } from '@/features/settings/type'
 import { PAGE_PATHS } from '@/shared/layout/pages'
+import { toast } from '@/shared/ui/toast'
 import { mockInvoke, renderWithProviders } from '@/test/test-utils'
 import { screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi, type Mock } from 'vitest'
 
 vi.mock('@/shared/ui/toast', () => ({
   toast: { info: vi.fn(), warning: vi.fn(), error: vi.fn(), success: vi.fn() },
 }))
 
 import { GeneralSection, STARTUP_PAGE_LABEL_KEYS } from './GeneralSection'
+
+const toastSuccess = toast.success as unknown as Mock
 
 const baseline: Settings = {
   dlOutputPath: '/downloads/out',
@@ -55,7 +58,7 @@ describe('GeneralSection', () => {
     ).toHaveTextContent('日本語')
   })
 
-  it('changing the language persists exactly one {language} patch', async () => {
+  it('changing the language persists exactly one {language} patch and toasts', async () => {
     seedSettings()
     const { user } = renderWithProviders(<GeneralSection />)
 
@@ -74,9 +77,12 @@ describe('GeneralSection', () => {
       (c: unknown[]) => c[0] === 'patch_settings',
     )
     expect(patches).toHaveLength(1)
+    // Toast parity with every other settings control: the language change
+    // used to persist without any feedback.
+    expect(toastSuccess).toHaveBeenCalledWith('settings.save_success')
   })
 
-  it('saves the startup page choice', async () => {
+  it('saves the startup page choice and toasts', async () => {
     seedSettings()
     const { user } = renderWithProviders(<GeneralSection />)
 
@@ -88,6 +94,8 @@ describe('GeneralSection', () => {
     await waitFor(() =>
       expect(lastSetSettings()).toMatchObject({ startupPage: '/downloads' }),
     )
+    // Not silent: same success toast as the other General settings.
+    expect(toastSuccess).toHaveBeenCalledWith('settings.save_success')
   })
 
   it('offers every startup page from the label map', async () => {
