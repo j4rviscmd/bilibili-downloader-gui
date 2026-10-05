@@ -283,6 +283,7 @@
     "network_error": "Network error during download.",
     "video_not_found": "Video not found. Please check the URL.",
     "api_error": "Failed to fetch video information.",
+    "no_stream": "No playable stream was returned for this video.",
     "rate_limited": "Too many requests. Please wait a moment and try again.",
     "audio_merge_fallback": "Audio stream copy failed. Using AAC re-encoding instead.",
     "invalid_media_response": "Invalid media response from server (received error page instead of media).",
@@ -714,6 +715,9 @@
     "noResultsHint": "Try a different keyword",
     "prevPage": "Previous page",
     "nextPage": "Next page",
+    "previewPlay": "Preview video",
+    "previewDownload": "Download this video",
+    "previewOpenInBrowser": "Open in browser",
     "resultsCount": "{{count}} results",
     "filters": {
       "groupLabel": "Search filters",

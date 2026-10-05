@@ -3934,6 +3934,93 @@ mod tests {
         assert_eq!(view_req.headers.get("cookie").unwrap(), "SESSDATA=abc");
     }
 
+    // ---- get_preview_play_url (search-result MP4 preview) ----
+
+    #[tokio::test]
+    async fn get_preview_play_url_resolves_html5_mp4_durl() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/nav"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(nav_wbi_mock_body()))
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/wbi/view"))
+            .and(wiremock::matchers::query_param("bvid", "BV1preview"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": { "bvid": "BV1preview", "title": "t", "pic": "p",
+                              "cid": 77, "pages": [] }
+                })),
+            )
+            .mount(&server)
+            .await;
+        // Matches ONLY the html5 preview shape: a DASH-shaped request
+        // (fnval=16, no platform param) 404s, pinning the wire format.
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/player/wbi/playurl"))
+            .and(wiremock::matchers::query_param("cid", "77"))
+            .and(wiremock::matchers::query_param("platform", "html5"))
+            .and(wiremock::matchers::query_param("high_quality", "1"))
+            .and(wiremock::matchers::query_param("try_look", "1"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": {
+                        "durl": [
+                            { "order": 1, "length": 1, "size": 1,
+                              "url": "https://example.com/preview.mp4" }
+                        ]
+                    }
+                })),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        // Logged out (empty cookie): the preview must work for guests.
+        let api = bili_api_mock(&server.uri(), "");
+        let url = get_preview_play_url_with(&api, "BV1preview").await.unwrap();
+        assert_eq!(url, "https://example.com/preview.mp4");
+        server.verify().await;
+    }
+
+    #[tokio::test]
+    async fn get_preview_play_url_maps_missing_stream() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/nav"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(nav_wbi_mock_body()))
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/wbi/view"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": { "bvid": "BV1nostream", "title": "t", "pic": "p",
+                              "cid": 5, "pages": [] }
+                })),
+            )
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/player/wbi/playurl"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({ "code": 0, "message": "0", "data": {} })),
+            )
+            .mount(&server)
+            .await;
+
+        let api = bili_api_mock(&server.uri(), "");
+        let err = get_preview_play_url_with(&api, "BV1nostream")
+            .await
+            .unwrap_err();
+        assert_eq!(err, "ERR::NO_STREAM");
+    }
+
     // ---- search_videos (keyword video search) ----
 
     #[test]
@@ -7165,6 +7252,97 @@ async fn fetch_part_qualities_with(
     }
 
     Err("ERR::NO_STREAM".to_string())
+}
+
+/// Resolves a directly playable MP4 URL for previewing a search result.
+///
+/// Search-to-download sanity check: lets the user sample the video before
+/// committing to a download. Requests the HTML5 playurl variant
+/// (`platform=html5`), which returns a single muxed MP4 (audio embedded)
+/// with no referer hotlink protection, so the frontend can feed a plain
+/// `<video>` element without a proxy. Quality is capped server-side at
+/// 1080p (`high_quality=1`); VIP-only tiers are DASH-only and out of scope
+/// by design — entitlements stay enforced by the API either way.
+///
+/// Works logged out (`try_look=1` mirrors the official logged-out player)
+/// and sends the cached Cookie header when present so logged-in users get
+/// the full 1080p preview.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Video is not found (`ERR::VIDEO_NOT_FOUND`)
+/// - No MP4 stream is returned (`ERR::NO_STREAM`)
+pub async fn get_preview_play_url(app: &AppHandle, bvid: &str) -> Result<String, String> {
+    log::info!(
+        "[BE] get_preview_play_url: requesting preview for bvid={}",
+        bvid
+    );
+    let cookies = read_cookie(app)?.unwrap_or_default();
+    let api = BiliApi::from_cookies(&cookies)?;
+    get_preview_play_url_with(&api, bvid).await
+}
+
+/// Transport-injectable core of [`get_preview_play_url`] (test seam).
+async fn get_preview_play_url_with(api: &BiliApi, bvid: &str) -> Result<String, String> {
+    // The preview always samples page 1: the WBI view response reports its
+    // cid at the data root (equal to pages[0].cid for multi-part videos).
+    let view = fetch_wbi_view(api, bvid).await?;
+    let cid = view.data.map(|d| d.cid).unwrap_or_default();
+
+    let mixin_key = crate::utils::wbi::fetch_mixin_key(
+        &api.http,
+        &api.base,
+        (!api.cookie_header.is_empty()).then_some(&api.cookie_header),
+    )
+    .await?;
+
+    let (id_key, id_val) = wbi_video_param(bvid);
+    let mut params = BTreeMap::from([
+        (id_key.to_string(), id_val),
+        ("cid".to_string(), cid.to_string()),
+        ("qn".to_string(), "64".to_string()),
+        // Why: fnval=1 requests the legacy MP4 (durl) container, mutually
+        // exclusive with the DASH shape (fnval=16) the download path uses
+        // — a plain <video> element cannot play separate DASH tracks
+        // (references/bilibili-API-collect/docs/video/videostream_url.md).
+        ("fnval".to_string(), "1".to_string()),
+        ("fnver".to_string(), "0".to_string()),
+        // HTML5 platform = one muxed MP4, no referer hotlink check
+        // (references/bilibili-API-collect/docs/video/videostream_url.md).
+        ("platform".to_string(), "html5".to_string()),
+        ("high_quality".to_string(), "1".to_string()),
+        // Official logged-out player param: guests get 720p/1080p instead
+        // of the 480p cap; ignored server-side when SESSDATA is present.
+        ("try_look".to_string(), "1".to_string()),
+    ]);
+    let signature = crate::utils::wbi::generate_wbi_signature(&mut params, &mixin_key);
+
+    // Why: generate_wbi_signature already inserts wts into `params`
+    // (src-tauri/src/utils/wbi.rs) and this query is built from `params`,
+    // so pushing wts again would send the pair twice.
+    let mut query: Vec<(&str, String)> = params
+        .iter()
+        .map(|(k, v)| (k.as_str(), v.clone()))
+        .collect();
+    query.push(("w_rid", signature.w_rid));
+
+    let body: XPlayerApiResponse = api
+        .get_q("/x/player/wbi/playurl", &query)
+        .await?
+        .json()
+        .await
+        .map_err(|e| format!("XPlayerApi Failed to parse response JSON: {e}"))?;
+
+    validate_api_response(body.code, body.data.as_ref())?;
+
+    let url = body
+        .data
+        .and_then(|d| d.durl)
+        .and_then(|segments| segments.into_iter().next().map(|s| s.url))
+        .ok_or_else(|| "ERR::NO_STREAM".to_string())?;
+    log::info!("[BE] get_preview_play_url: resolved MP4 preview for bvid={bvid}");
+    Ok(url)
 }
 
 /// Timeout (seconds) for a single subtitle download request.

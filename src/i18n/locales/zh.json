@@ -284,6 +284,7 @@
     "network_error": "下载过程中发生网络错误。",
     "video_not_found": "未找到视频。请检查链接。",
     "api_error": "获取视频信息失败。",
+    "no_stream": "未返回该视频的可播放流。",
     "rate_limited": "请求过于频繁，请稍后再试。",
     "audio_merge_fallback": "音频流复制失败，正在使用 AAC 重新编码。",
     "invalid_media_response": "服务器返回了无效的媒体响应（接收到错误页面而非媒体）。",
@@ -714,6 +715,9 @@
     "noResultsHint": "试试其他关键词",
     "prevPage": "上一页",
     "nextPage": "下一页",
+    "previewPlay": "预览视频",
+    "previewDownload": "下载此视频",
+    "previewOpenInBrowser": "在浏览器中打开",
     "resultsCount": "{{count}}个结果",
     "filters": {
       "groupLabel": "搜索筛选",

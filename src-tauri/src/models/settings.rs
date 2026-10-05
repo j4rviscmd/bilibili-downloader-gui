@@ -269,6 +269,25 @@ pub struct Settings {
         skip_serializing_if = "Option::is_none"
     )]
     pub startup_page: Option<String>,
+    /// Last-used volume of the search-page preview player (0.0-1.0).
+    /// Restored onto the preview `<video>` when it mounts; written back
+    /// (debounced) on volumechange. None until the first volumechange —
+    /// a mute toggle fires it too and the listener persists both fields,
+    /// so mute-first usage materializes this as the native default 1.0.
+    #[serde(
+        rename = "previewVolume",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub preview_volume: Option<f64>,
+    /// Last-used muted flag of the preview player. Paired with
+    /// `previewVolume`.
+    #[serde(
+        rename = "previewMuted",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub preview_muted: Option<bool>,
 }
 
 /// Trim mode for the MP4 trimming feature.
