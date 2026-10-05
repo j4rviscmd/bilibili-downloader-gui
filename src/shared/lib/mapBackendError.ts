@@ -20,6 +20,7 @@ const VIDEO_ERROR_MAP: Record<string, string> = {
   'ERR::MERGE_FAILED': 'video.merge_failed',
   'ERR::QUALITY_NOT_FOUND': 'video.quality_not_found',
   'ERR::RATE_LIMITED': 'video.rate_limited',
+  'ERR::NO_STREAM': 'video.no_stream',
   // Bangumi error codes
   'ERR::BANGUMI_NOT_FOUND': 'video.bangumi_not_found',
   'ERR::BANGUMI_VIP_ONLY': 'video.bangumi_vip_only',

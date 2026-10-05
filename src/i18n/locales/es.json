@@ -283,6 +283,7 @@
     "network_error": "Error de red durante la descarga.",
     "video_not_found": "Video no encontrado. Por favor, verifica la URL.",
     "api_error": "Error al obtener información del video.",
+    "no_stream": "No se devolvió ninguna secuencia reproducible para este video.",
     "rate_limited": "Demasiadas solicitudes. Por favor, espere un momento e inténtelo de nuevo.",
     "audio_merge_fallback": "La copia del flujo de audio falló. Usando recodificación AAC en su lugar.",
     "invalid_media_response": "Respuesta de medios no válida del servidor (se recibió página de error).",
@@ -714,6 +715,9 @@
     "noResultsHint": "Prueba con otra palabra clave",
     "prevPage": "Página anterior",
     "nextPage": "Página siguiente",
+    "previewPlay": "Vista previa del video",
+    "previewDownload": "Descargar este video",
+    "previewOpenInBrowser": "Abrir en el navegador",
     "resultsCount": "{{count}} resultados",
     "filters": {
       "groupLabel": "Filtros de búsqueda",

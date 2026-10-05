@@ -50,6 +50,14 @@ npx shadcn@latest add <component>
   (`generate_handler!`) in `src-tauri/src/lib.rs`
 - Gate dev-only features behind `#[cfg(debug_assertions)]`
 
+### Persistent User Preferences
+
+- **Do not use `localStorage` / webview storage for user preferences.**
+  The canonical store is the Rust-managed `settings.json`: add a
+  serde-defaulted field to `Settings` (`src-tauri/src/models/settings.rs`
+  - the TS `Settings` interface), read it from the settings Redux slice,
+    and persist via `patch_settings` (field patches only — issue #563)
+
 ### Tauri API Mock (tests)
 
 ```typescript
