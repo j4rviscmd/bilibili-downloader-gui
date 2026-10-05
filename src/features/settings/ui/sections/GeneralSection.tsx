@@ -102,8 +102,7 @@ export function GeneralSection() {
         <Select
           value={settings.startupPage ?? '/search'}
           onValueChange={(value) => {
-            // Silent: a page switch needs no success toast (matches theme).
-            void saveByForm({ startupPage: value }, true)
+            void saveByForm({ startupPage: value })
           }}
         >
           <SelectTrigger
