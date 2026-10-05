@@ -253,6 +253,50 @@ describe('VideoSearchInput suggestions', () => {
     })
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
   })
+
+  it('Enter-submitting mid-debounce never reopens the list', async () => {
+    const { user } = setup()
+    const input = screen.getByRole('combobox', { name: PLACEHOLDER })
+    vi.mocked(searchSuggestApi).mockResolvedValue(['少年', '少年法'])
+
+    // user-event's default inter-key delay finishes typing far inside the
+    // 300ms debounce window, so Enter runs while the timer is pending.
+    await user.type(input, '少年')
+    await user.keyboard('{Enter}')
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300)
+    })
+
+    expect(searchSuggestApi).not.toHaveBeenCalled()
+    expect(input).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+  })
+
+  it('discards in-flight suggestions when Enter submits the search', async () => {
+    const { user } = setup()
+    const input = screen.getByRole('combobox', { name: PLACEHOLDER })
+
+    // Deferred manual promise: Promise.withResolvers needs lib es2024 and
+    // the repo targets ES2022.
+    let resolveFirst!: (v: string[]) => void
+    vi.mocked(searchSuggestApi).mockReturnValueOnce(
+      new Promise<string[]>((r) => {
+        resolveFirst = r
+      }),
+    )
+    await user.type(input, 'a')
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300)
+    })
+    await user.keyboard('{Enter}')
+    // The response for "a" lands after the search fired: it must not
+    // re-open the listbox over the results page.
+    resolveFirst(['古い候補'])
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+  })
 })
 
 const HISTORY = [
