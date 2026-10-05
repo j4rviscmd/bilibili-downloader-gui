@@ -4379,6 +4379,124 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn search_trending_with_parses_keywords_and_falls_back_show_name() {
+        let server = wiremock::MockServer::start().await;
+        mount_nav_mock(&server).await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path(
+                "/x/web-interface/wbi/search/square",
+            ))
+            .and(wiremock::matchers::query_param("limit", "10"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "OK",
+                    "data": {"trending": {"title": "bilibili热搜", "list": [
+                        {"keyword": "KPL", "show_name": "北京JDG vs 杭州LGD KPL"},
+                        {"keyword": "no_display"}
+                    ]}}
+                })),
+            )
+            .mount(&server)
+            .await;
+
+        let out = search_trending_with(&bili_api_mock(&server.uri(), ""))
+            .await
+            .unwrap();
+        assert_eq!(out.len(), 2);
+        assert_eq!(out[0].keyword, "KPL");
+        assert_eq!(out[0].show_name, "北京JDG vs 杭州LGD KPL");
+        // Missing show_name falls back to the keyword itself.
+        assert_eq!(out[1].show_name, "no_display");
+    }
+
+    #[tokio::test]
+    async fn search_trending_with_degrades_transport_and_api_errors_to_empty() {
+        // Nav answers (mixin key resolves) but square 500s → empty, no error.
+        let server = wiremock::MockServer::start().await;
+        mount_nav_mock(&server).await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path(
+                "/x/web-interface/wbi/search/square",
+            ))
+            .respond_with(wiremock::ResponseTemplate::new(500))
+            .mount(&server)
+            .await;
+        assert!(search_trending_with(&bili_api_mock(&server.uri(), ""))
+            .await
+            .unwrap()
+            .is_empty());
+
+        // API-level non-zero code → empty as well.
+        let server2 = wiremock::MockServer::start().await;
+        mount_nav_mock(&server2).await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path(
+                "/x/web-interface/wbi/search/square",
+            ))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"code": -400, "message": "err"})),
+            )
+            .mount(&server2)
+            .await;
+        assert!(search_trending_with(&bili_api_mock(&server2.uri(), ""))
+            .await
+            .unwrap()
+            .is_empty());
+    }
+
+    #[tokio::test]
+    async fn search_trending_with_degrades_code0_missing_data_to_empty() {
+        // code 0 but no `data` at all → empty, not an error (same degrade
+        // as search_videos_with_degrades_code0_missing_data_to_empty).
+        let server = wiremock::MockServer::start().await;
+        mount_nav_mock(&server).await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path(
+                "/x/web-interface/wbi/search/square",
+            ))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"code": 0, "message": "0"})),
+            )
+            .mount(&server)
+            .await;
+        assert!(search_trending_with(&bili_api_mock(&server.uri(), ""))
+            .await
+            .unwrap()
+            .is_empty());
+
+        // `data` present but no `trending` key → empty as well.
+        let server2 = wiremock::MockServer::start().await;
+        mount_nav_mock(&server2).await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path(
+                "/x/web-interface/wbi/search/square",
+            ))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"code": 0, "data": {}})),
+            )
+            .mount(&server2)
+            .await;
+        assert!(search_trending_with(&bili_api_mock(&server2.uri(), ""))
+            .await
+            .unwrap()
+            .is_empty());
+    }
+
+    #[tokio::test]
+    async fn search_trending_with_degrades_mixin_key_failure_to_empty() {
+        // No nav mock mounted: fetch_mixin_key fails → the panel degrades
+        // to an empty list, never an error (best-effort panel).
+        let server = wiremock::MockServer::start().await;
+        assert!(search_trending_with(&bili_api_mock(&server.uri(), ""))
+            .await
+            .unwrap()
+            .is_empty());
+    }
+
+    #[tokio::test]
     async fn search_videos_with_clamps_page_to_one() {
         // The seam clamps page < 1 to 1 BEFORE the request; the mock only
         // answers `page=1`, so an unclamped `page=0` would 404 → ERR::API_ERROR.
@@ -6998,6 +7116,127 @@ async fn search_suggest_with(api: &BiliApi, keyword: &str) -> Result<Vec<String>
     Ok(body
         .result
         .map(|r| r.tag.into_iter().map(|t| t.value).collect())
+        .unwrap_or_default())
+}
+
+/// A bilibili hot-search (trending) keyword.
+///
+/// `keyword` is the value to feed back into a search; `show_name` is the
+/// display string (occasionally longer than the keyword).
+/// Why camelCase: this struct is the IPC wire format — the shape must match
+/// the TS `TrendingKeyword` interface
+/// (src/features/video-search/api/searchTrending.ts).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrendingKeyword {
+    pub keyword: String,
+    pub show_name: String,
+}
+
+/// How many trending keywords to request (the web dropdown shows 10).
+const TRENDING_LIMIT: u32 = 10;
+
+/// Raw body of `/x/web-interface/wbi/search/square`.
+#[derive(Deserialize)]
+struct SearchSquareResponse {
+    code: i64,
+    #[serde(default)]
+    data: Option<SearchSquareData>,
+}
+
+#[derive(Deserialize)]
+struct SearchSquareData {
+    #[serde(default)]
+    trending: Option<SearchSquareTrending>,
+}
+
+#[derive(Deserialize)]
+struct SearchSquareTrending {
+    #[serde(default)]
+    list: Vec<SearchSquareItem>,
+}
+
+#[derive(Deserialize)]
+struct SearchSquareItem {
+    keyword: String,
+    #[serde(default)]
+    show_name: Option<String>,
+}
+
+/// Fetches the bilibili hot-search (trending) keyword list.
+///
+/// Wraps the WBI-signed `GET /x/web-interface/wbi/search/square` endpoint
+/// (references/bilibili-API-collect/docs/search/hot.md). Works logged out —
+/// same transport/cookie posture as `search_suggest`. Best-effort like
+/// `search_suggest`: transport failures, mixin-key failures, and API-level
+/// errors degrade to an empty list instead of surfacing on the search page.
+pub async fn search_trending(app: &AppHandle) -> Result<Vec<TrendingKeyword>, String> {
+    log::info!("[BE] search_trending");
+    let cookies = read_cookie(app)?.unwrap_or_default();
+    let header = build_cookie_header(&cookies);
+    let api = BiliApi::from_cookie_header(header)?;
+    search_trending_with(&api).await
+}
+
+/// Transport-injectable core of [`search_trending`] (test seam).
+async fn search_trending_with(api: &BiliApi) -> Result<Vec<TrendingKeyword>, String> {
+    let mixin_key = match crate::utils::wbi::fetch_mixin_key(
+        &api.http,
+        &api.base,
+        (!api.cookie_header.is_empty()).then_some(&api.cookie_header),
+    )
+    .await
+    {
+        Ok(k) => k,
+        Err(e) => {
+            // Best-effort panel: no key → no list, never an error.
+            log::warn!("[BE] search_trending: mixin key fetch failed: {e}");
+            return Ok(Vec::new());
+        }
+    };
+
+    let mut params =
+        std::collections::BTreeMap::from([("limit".to_string(), TRENDING_LIMIT.to_string())]);
+    let signature = crate::utils::wbi::generate_wbi_signature(&mut params, &mixin_key);
+    // Why: generate_wbi_signature already inserts wts into `params`
+    // (src-tauri/src/utils/wbi.rs); only w_rid is appended — same pattern as
+    // signed_search_query. Sending wts twice makes wbi endpoints return
+    // v_voucher.
+    let mut query: Vec<(&str, String)> = params
+        .iter()
+        .map(|(k, v)| (k.as_str(), v.clone()))
+        .collect();
+    query.push(("w_rid", signature.w_rid));
+
+    let Ok(response) = api
+        .get_q("/x/web-interface/wbi/search/square", &query)
+        .await
+    else {
+        // Best-effort: any transport failure degrades to "no trending list".
+        return Ok(Vec::new());
+    };
+    let text = response
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read trending response text: {e}"))?;
+    let body: SearchSquareResponse = serde_json::from_str(&text)
+        .map_err(|e| format!("Failed to parse trending response: {e}. Response: {text}"))?;
+    if body.code != 0 {
+        log::warn!("[BE] search_trending: API code {}", body.code);
+        return Ok(Vec::new());
+    }
+    Ok(body
+        .data
+        .and_then(|d| d.trending)
+        .map(|t| {
+            t.list
+                .into_iter()
+                .map(|i| TrendingKeyword {
+                    keyword: i.keyword.clone(),
+                    show_name: i.show_name.unwrap_or(i.keyword),
+                })
+                .collect()
+        })
         .unwrap_or_default())
 }
 

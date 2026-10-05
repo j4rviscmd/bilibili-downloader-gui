@@ -10,6 +10,22 @@ vi.mock('@/features/video-search/api/searchVideos', () => ({
   searchVideosApi: vi.fn(),
 }))
 
+vi.mock('@/features/video-search/api/searchSuggest', () => ({
+  searchSuggestApi: vi.fn().mockResolvedValue([]),
+}))
+
+// The suggest panels call these on focus/submit; factories return settled
+// empty results so the page tests exercise the search flow only.
+vi.mock('@/features/video-search/api/searchHistory', () => ({
+  getSearchHistoryApi: vi.fn().mockResolvedValue([]),
+  recordSearchApi: vi.fn().mockResolvedValue(undefined),
+  removeSearchHistoryApi: vi.fn().mockResolvedValue([]),
+  clearSearchHistoryApi: vi.fn().mockResolvedValue(undefined),
+}))
+vi.mock('@/features/video-search/api/searchTrending', () => ({
+  searchTrendingApi: vi.fn().mockResolvedValue([]),
+}))
+
 // Tests run without loaded translations, so accessible names are raw keys.
 const PLACEHOLDER = 'videoSearch.placeholder'
 const SEARCH_BUTTON = 'videoSearch.searchButton'

@@ -8,4 +8,5 @@ pub mod cookie;
 pub mod frontend_dto;
 pub mod history;
 pub mod qr_login;
+pub mod search_history;
 pub mod settings;
