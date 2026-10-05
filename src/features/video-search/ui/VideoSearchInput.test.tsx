@@ -86,6 +86,63 @@ describe('VideoSearchInput suggestions', () => {
     )
   })
 
+  it('clicking an option does not re-suggest the committed keyword', async () => {
+    const { user } = setup()
+    await typeAndSuggest(user, '少年')
+
+    vi.mocked(searchSuggestApi).mockClear()
+    await user.click(screen.getByRole('option', { name: '少年法' }))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300)
+    })
+    expect(searchSuggestApi).not.toHaveBeenCalled()
+    const input = screen.getByRole('combobox', { name: PLACEHOLDER })
+    expect(input).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+  })
+
+  it('Enter-picking a suggestion does not re-suggest it', async () => {
+    const { user } = setup()
+    await typeAndSuggest(user, '少年')
+
+    vi.mocked(searchSuggestApi).mockClear()
+    await user.keyboard('{ArrowDown}{Enter}')
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300)
+    })
+    expect(searchSuggestApi).not.toHaveBeenCalled()
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+  })
+
+  it('focusing the input re-suggests for the current value', async () => {
+    const { user } = setup()
+    await typeAndSuggest(user, '少年')
+    await user.click(screen.getByRole('option', { name: '少年法' }))
+    // Leave the input, then come back: the list must reappear for the
+    // committed keyword.
+    await user.click(document.body)
+    vi.mocked(searchSuggestApi).mockClear()
+    vi.mocked(searchSuggestApi).mockResolvedValue(['少年法 ライブ'])
+    await user.click(screen.getByRole('combobox', { name: PLACEHOLDER }))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(searchSuggestApi).toHaveBeenCalledWith('少年法')
+    expect(
+      screen.getByRole('option', { name: '少年法 ライブ' }),
+    ).toBeInTheDocument()
+  })
+
+  it('blurs the input when a search fires', async () => {
+    const { user } = setup()
+    await typeAndSuggest(user, '少年')
+
+    await user.keyboard('{Enter}')
+    expect(
+      screen.getByRole('combobox', { name: PLACEHOLDER }),
+    ).not.toHaveFocus()
+  })
+
   it('Enter without an active option submits the raw draft', async () => {
     const onSearch = vi.fn()
     const { user } = setup(onSearch)
