@@ -114,6 +114,8 @@ pub use utils::wbi;
 /// - `fetch_favorite_videos`: Fetches videos from a favorite folder
 /// - `fetch_watch_history`: Fetches user watch history with pagination
 /// - `search_videos`: Keyword search over bilibili videos (no login required)
+/// - `fetch_popular_videos`: Popular video feed for the search page's entry
+///   view (no login required)
 /// - `get_preview_play_url`: Resolves a playable MP4 preview URL for a
 ///   search result (HTML5 platform, ≤1080p, works logged out)
 /// - `get_history`: Retrieves all download history entries
@@ -216,6 +218,7 @@ pub fn run() {
             fetch_watch_history,
             search_videos,
             search_suggest,
+            fetch_popular_videos,
             expand_short_url,
             get_preview_play_url,
             cleanup_temp_files,
@@ -1464,6 +1467,25 @@ async fn search_videos(
 #[tauri::command]
 async fn search_suggest(app: AppHandle, keyword: String) -> Result<Vec<String>, String> {
     bilibili::search_suggest(&app, &keyword).await
+}
+
+/// Fetches the popular (综合热门) video feed — the video-search page's
+/// default entry view before the first keyword search.
+///
+/// Works logged out; logged-in users get a personalized ranking (the
+/// cached Cookie header rides the shared BiliApi transport).
+///
+/// # Errors
+///
+/// Returns an error if the request is rate-limited/blocked
+/// (`ERR::RATE_LIMITED`), the HTTP request fails, or the response cannot
+/// be parsed.
+#[tauri::command]
+async fn fetch_popular_videos(
+    app: AppHandle,
+    page: i64,
+) -> Result<bilibili::SearchResponse, String> {
+    bilibili::fetch_popular_videos(&app, page).await
 }
 
 /// Cleans up orphaned temporary files from interrupted downloads.

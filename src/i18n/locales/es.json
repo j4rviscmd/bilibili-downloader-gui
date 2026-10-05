@@ -705,8 +705,13 @@
     "downloadConfirmMessage": "Ir al inicio borrará tu entrada actual. ¿Continuar?",
     "defaultFolder": "Predeterminado"
   },
+  "popular": {
+    "title": "Vídeos populares",
+    "loadError": "Error al cargar el contenido",
+    "retry": "Reintentar"
+  },
   "videoSearch": {
-    "title": "Búsqueda de vídeos",
+    "title": "Búsqueda",
     "placeholder": "Buscar vídeos por palabra clave",
     "loading": "Buscando…",
     "suggestions": "Sugerencias de búsqueda",

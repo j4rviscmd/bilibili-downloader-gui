@@ -119,6 +119,39 @@ describe('NavigationSidebarHeader', () => {
     expect(search).not.toHaveAttribute('aria-current')
   })
 
+  it('keeps the video-search item active on the /video-search results page', async () => {
+    // The 動画検索 item targets /popular; /video-search is the same
+    // feature's results page and must not deselect it.
+    const { user: actor } = renderSidebar('/video-search')
+
+    const videoSearch = screen.getByRole('button', {
+      name: 'nav.aria.videoSearch',
+    })
+    expect(videoSearch).toHaveAttribute('aria-current', 'page')
+
+    // Clicking the ACTIVE item is a no-op: the results view stays (it
+    // must not jump to /popular) and no duplicate history entry is pushed.
+    await actor.click(videoSearch)
+    expect(screen.getByTestId('location')).toHaveTextContent('/video-search')
+  })
+
+  it('returns the video-search item to the last-viewed feature page', async () => {
+    // Search results → another page → 動画検索: must return to the results
+    // (with ?q=), not jump to /popular.
+    const { user: actor } = renderSidebar('/video-search?q=kw')
+
+    await actor.click(
+      screen.getByRole('button', { name: 'nav.aria.downloads' }),
+    )
+    expect(screen.getByTestId('location')).toHaveTextContent('/downloads')
+
+    await actor.click(
+      screen.getByRole('button', { name: 'nav.aria.videoSearch' }),
+    )
+    expect(screen.getByTestId('location')).toHaveTextContent('/video-search')
+    expect(screen.getByTestId('location')).toHaveTextContent('q=kw')
+  })
+
   it('navigates to the clicked item path', async () => {
     const { user: actor } = renderSidebar('/search')
 
@@ -162,7 +195,9 @@ describe('NavigationSidebarHeader', () => {
     expect(videoSearch).not.toHaveAttribute('aria-disabled')
 
     await actor.click(videoSearch)
-    expect(screen.getByTestId('location')).toHaveTextContent('/video-search')
+    // The 動画検索 entry point is the popular feed (/popular); keyword
+    // search results live at /video-search.
+    expect(screen.getByTestId('location')).toHaveTextContent('/popular')
   })
 
   it('enables auth-required items when logged in', async () => {

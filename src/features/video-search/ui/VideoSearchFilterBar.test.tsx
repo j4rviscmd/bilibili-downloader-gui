@@ -53,6 +53,7 @@ function mockState(overrides: Partial<VideoSearchView>) {
     error: null,
     search: vi.fn(),
     goToPage: vi.fn(),
+    searchStarted: true,
     setFilter,
     ...overrides,
   })

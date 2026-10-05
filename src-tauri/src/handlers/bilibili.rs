@@ -164,9 +164,9 @@ use crate::handlers::history_session::HistorySession;
 use crate::handlers::settings;
 use crate::models::bilibili_api::{
     BangumiPlayerApiResponse, BangumiPlayerResult, BangumiSeasonApiResponse, PlayerV2ApiResponse,
-    SearchApiData, SearchApiResponse, SuggestApiResponse, UserApiResponse, WatchHistoryApiResponse,
-    WebInterfaceApiResponse, WebInterfaceApiResponseData, XPlayerApiResponse,
-    XPlayerApiResponseData, XPlayerApiResponseVideo,
+    PopularApiData, PopularApiResponse, SearchApiData, SearchApiResponse, SuggestApiResponse,
+    UserApiResponse, WatchHistoryApiResponse, WebInterfaceApiResponse, WebInterfaceApiResponseData,
+    XPlayerApiResponse, XPlayerApiResponseData, XPlayerApiResponseVideo,
 };
 use crate::models::cookie::CookieEntry;
 use crate::models::frontend_dto::{
@@ -4432,6 +4432,98 @@ mod tests {
         assert_eq!(empty.entries.len(), 0);
     }
 
+    #[test]
+    fn parse_popular_response_maps_entries_and_pagination() {
+        let body = serde_json::json!({
+            "code": 0,
+            "message": "0",
+            "data": {
+                "list": [
+                    {
+                        "bvid": "BV1xx411c7mD",
+                        "title": "Popular title",
+                        "pic": "//i0.hdslb.com/bfs/archive/p.jpg",
+                        "owner": { "name": "up" },
+                        "stat": { "view": 2465053 },
+                        "duration": 138,
+                        "tid": 250,
+                        "tname": "出行"
+                    },
+                    // Ad/interference row: empty bvid is filtered out.
+                    { "bvid": "", "title": "ad" }
+                ],
+                "no_more": false
+            }
+        });
+
+        let ok = parse_popular_response(&body.to_string(), 2).unwrap();
+        assert_eq!(ok.page, 2);
+        assert_eq!(ok.num_results, 0, "feed reports no total (chip hidden)");
+        assert_eq!(ok.num_pages, 3, "no_more=false synthesizes a next page");
+        assert_eq!(ok.entries.len(), 1, "empty-bvid row filtered");
+        let e = &ok.entries[0];
+        assert_eq!(e.title, "Popular title");
+        assert_eq!(e.cover, "https://i0.hdslb.com/bfs/archive/p.jpg");
+        assert_eq!(e.author, "up");
+        assert_eq!(e.play, 2465053);
+        assert_eq!(e.duration, 138, "popular duration is already seconds");
+        assert_eq!(e.typeid, "250");
+        assert_eq!(e.typename, "出行");
+
+        let last = parse_popular_response(
+            r#"{"code":0,"message":"0","data":{"list":[],"no_more":true}}"#,
+            5,
+        )
+        .unwrap();
+        assert_eq!(
+            last.num_pages, 5,
+            "no_more=true caps pagination at the current page"
+        );
+        assert_eq!(last.entries.len(), 0);
+    }
+
+    #[test]
+    fn parse_popular_response_maps_error_codes() {
+        let err = parse_popular_response(r#"{"code":-412,"message":"blocked"}"#, 1).unwrap_err();
+        assert_eq!(err, "ERR::RATE_LIMITED");
+
+        let err = parse_popular_response(r#"{"code":-400,"message":"bad"}"#, 1).unwrap_err();
+        assert!(err.contains("-400"));
+
+        // code-0 without data degrades to an empty page; no_more defaults
+        // false so a next page is still advertised.
+        let empty = parse_popular_response(r#"{"code":0,"message":"0"}"#, 1).unwrap();
+        assert_eq!(empty.entries.len(), 0);
+        assert_eq!(empty.num_pages, 2);
+    }
+
+    #[tokio::test]
+    async fn fetch_popular_videos_with_clamps_page_and_sends_params() {
+        let server = wiremock::MockServer::start().await;
+        // Plain GET (no nav/WBI mock needed, unlike the search tests): the
+        // mock only answers when the page params ride the query, so a
+        // missing param fails the request (404 → Err).
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/popular"))
+            .and(wiremock::matchers::query_param("ps", "20"))
+            .and(wiremock::matchers::query_param("pn", "1"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(
+                serde_json::json!({"code": 0, "message": "0", "data": {"list": [
+                    {"bvid": "BV1xx411c7mD", "title": "t", "pic": "", "owner": {"name": "up"},
+                     "stat": {"view": 1}, "duration": 60, "tid": 1, "tname": "z"}
+                ], "no_more": true}}),
+            ))
+            .mount(&server)
+            .await;
+
+        let res = fetch_popular_videos_with(&bili_api_mock(&server.uri(), ""), 0)
+            .await
+            .unwrap();
+        assert_eq!(res.page, 1, "page clamped to 1");
+        assert_eq!(res.num_pages, 1, "no_more=true caps at the current page");
+        assert_eq!(res.entries.len(), 1);
+    }
+
     /// Canned transport for the anonymous-search seam: serves spi/nav
     /// fixtures and a scripted sequence of search bodies, recording the
     /// cookie each search URL was fetched with. Single-threaded test
@@ -6947,6 +7039,99 @@ where
         );
     }
     unreachable!("retry loop returns on its final iteration")
+}
+
+/// Page size of the popular-feed requests; 20 matches the search page's
+/// grid (the API accepts up to 50 per its docs).
+const POPULAR_PAGE_SIZE: i64 = 20;
+
+/// Fetches the popular (综合热门) video feed — the search page's default
+/// entry view before the first keyword search (bilibili-official behavior).
+///
+/// Works logged out (no WBI signing, no buvid3 — verified against the live
+/// API, unlike `wbi/search/type` this endpoint does not degrade anonymous
+/// reqwest requests). Logged-in users get a personalized ranking (cookie
+/// header rides `BiliApi` automatically).
+///
+/// Reuses the search DTO: `num_results` is 0 (the feed reports no total;
+/// this keeps the filter bar's result-count chip hidden) and `num_pages`
+/// is synthesized from `no_more` with "has next page" semantics.
+///
+/// Error codes: `ERR::RATE_LIMITED` (API -412 or HTTP 429),
+/// `ERR::API_ERROR` (other HTTP failures), or a freeform parse/API string.
+pub async fn fetch_popular_videos(app: &AppHandle, page: i64) -> Result<SearchResponse, String> {
+    log::info!("[BE] fetch_popular_videos: page={}", page.max(1));
+    let cookies = read_cookie(app)?.unwrap_or_default();
+    let header = build_cookie_header(&cookies);
+    let api = BiliApi::from_cookie_header(header)?;
+    let result = fetch_popular_videos_with(&api, page).await;
+    if let Err(e) = &result {
+        log::warn!("[BE] fetch_popular_videos: failed: {e}");
+    }
+    result
+}
+
+/// Transport-injectable core of [`fetch_popular_videos`] (test seam).
+async fn fetch_popular_videos_with(api: &BiliApi, page: i64) -> Result<SearchResponse, String> {
+    let page = page.max(1);
+    let response = api
+        .get_q(
+            "/x/web-interface/popular",
+            &[
+                ("ps", POPULAR_PAGE_SIZE.to_string()),
+                ("pn", page.to_string()),
+            ],
+        )
+        .await?;
+    let response_text = response
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read popular response text: {e}"))?;
+    parse_popular_response(&response_text, page)
+}
+
+/// Parses and maps a `popular` response body into the frontend search DTO.
+fn parse_popular_response(response_text: &str, page: i64) -> Result<SearchResponse, String> {
+    let body: PopularApiResponse = serde_json::from_str(response_text)
+        .map_err(|e| format!("Failed to parse popular response: {e}. Response: {response_text}"))?;
+
+    if body.code == -412 {
+        return Err("ERR::RATE_LIMITED".into());
+    }
+    if body.code != 0 {
+        return Err(format!(
+            "Popular API error (code {}): {}",
+            body.code, body.message
+        ));
+    }
+
+    // `data` is absent only on error bodies; treat it as an empty page so a
+    // malformed-but-code-0 response degrades to "no recommendations"
+    // instead of an error screen (same policy as the search parser).
+    let data = body.data.unwrap_or_default();
+
+    Ok(SearchResponse {
+        page,
+        num_results: 0,
+        num_pages: if data.no_more { page } else { page + 1 },
+        entries: data
+            .list
+            .into_iter()
+            // Ad/interference rows carry an empty bvid (same filter as search).
+            .filter(|item| !item.bvid.is_empty())
+            .map(|item| SearchResultEntry {
+                title: item.title,
+                cover: normalize_cover_url(&item.pic),
+                bvid: item.bvid,
+                author: item.owner.name,
+                play: item.stat.view,
+                // Already integer seconds on this API (search sends "M:S").
+                duration: item.duration,
+                typeid: item.tid.to_string(),
+                typename: item.tname,
+            })
+            .collect(),
+    })
 }
 
 /// Origin of the suggest API (lives outside api.bilibili.com).

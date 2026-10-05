@@ -2,6 +2,7 @@ import favoriteReducer from '@/features/favorite/model/favoriteSlice'
 import historyReducer from '@/features/history/model/historySlice'
 import initReducer from '@/features/init/model/initSlice'
 import loginReducer from '@/features/login/model/loginSlice'
+import { popularFeedReducer } from '@/features/popular'
 import devReducer from '@/features/settings/devSlice'
 import settingReducer from '@/features/settings/settingsSlice'
 import { sidebarReducer } from '@/features/sidebar'
@@ -36,6 +37,7 @@ export const store = configureStore({
     init: initReducer,
     input: inputReducer,
     login: loginReducer,
+    popularFeed: popularFeedReducer,
     progress: progressReducer,
     queue: queueReducer,
     settings: settingReducer,

@@ -66,4 +66,8 @@ export interface VideoSearchState {
   results: VideoSearchResponse | null
   loading: boolean
   error: string | null
+  /** Session response cache per searchCacheKey — back/forward and
+   * revisited page/filter combos skip the API call (rate-control
+   * mitigation; see videoSearchSlice). */
+  cache: Record<string, VideoSearchResponse>
 }

@@ -22,9 +22,13 @@ const SUGGEST_DEBOUNCE_MS = 300
 export function VideoSearchInput({
   onSearch,
   loading,
+  keyword,
 }: {
   onSearch: (keyword: string) => void
   loading: boolean
+  /** External keyword source (the results page's ?q=): keeps the input in
+   * sync when navigation (back/forward) changes it outside this input. */
+  keyword?: string
 }) {
   const { t } = useTranslation()
   const [draft, setDraft] = useState('')
@@ -74,6 +78,13 @@ export function VideoSearchInput({
     const timer = setTimeout(() => requestSuggest(trimmed), SUGGEST_DEBOUNCE_MS)
     return () => clearTimeout(timer)
   }, [draft, requestSuggest])
+
+  // External keyword sync (back/forward changes ?q= outside this input):
+  // adopt it into the draft. URL navigation wins over any unsubmitted
+  // local edit — the address bar is the source of truth for the results.
+  useEffect(() => {
+    if (keyword !== undefined) setDraft(keyword)
+  }, [keyword])
 
   const submit = (keyword: string) => {
     setOpen(false)

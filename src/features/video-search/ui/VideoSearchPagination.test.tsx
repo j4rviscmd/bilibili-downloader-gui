@@ -31,6 +31,7 @@ function mockState(
     error: null,
     search: vi.fn(),
     goToPage,
+    searchStarted: true,
     setFilter: vi.fn(),
   }
   vi.mocked(useVideoSearch).mockReturnValue(view)

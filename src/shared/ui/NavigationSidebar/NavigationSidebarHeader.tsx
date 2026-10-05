@@ -32,7 +32,7 @@ import {
   Search,
   Star,
 } from 'lucide-react'
-import { Fragment } from 'react'
+import { Fragment, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router'
 
@@ -83,13 +83,26 @@ export function NavigationSidebarHeader({
   const isLoggedIn = user.hasCookie && user.data?.isLogin
   const hasActiveDownloads = useSelector(selectHasActiveDownloads)
   const homePage = useSelector(selectHomePage)
+  // Last video-search-feature location the user viewed. The sidebar never
+  // unmounts (persistent chrome), so it observes every visit; clicking the
+  // 動画検索 item returns there — the /video-search?q=… results page when a
+  // search was open, otherwise the /popular entry view.
+  const lastVideoSearchPath = useRef('/popular')
+  useEffect(() => {
+    if (
+      location.pathname === '/popular' ||
+      location.pathname === '/video-search'
+    ) {
+      lastVideoSearchPath.current = location.pathname + location.search
+    }
+  }, [location.pathname, location.search])
 
   const groups: MenuGroup[] = [
     {
       id: 'search',
       items: [
         {
-          path: '/video-search',
+          path: '/popular',
           icon: Search,
           label: t('nav.videoSearch'),
           ariaLabel: t('nav.aria.videoSearch'),
@@ -183,12 +196,22 @@ export function NavigationSidebarHeader({
 
   const renderItem = (item: MenuItem) => {
     const Icon = item.icon
-    const isActive = location.pathname === item.path
+    // Why the /video-search special case: the 動画検索 item targets the
+    // /popular entry view, but /video-search is the same feature's results
+    // page — it must keep the item active instead of deselecting it.
+    const isActive =
+      location.pathname === item.path ||
+      (item.path === '/popular' && location.pathname === '/video-search')
     const isDisabled = item.requiresAuth && !isLoggedIn
     const isSearch = item.path === '/search'
 
     /**
      * Click handler for navigation menu items.
+     *
+     * The active item is a no-op: clicking it neither navigates away from
+     * the current view (e.g. the 動画検索 item is active on both /popular
+     * and the /video-search results page) nor pushes a duplicate history
+     * entry for the same path.
      *
      * For the Home item, navigates with the last viewed `?page` parameter
      * restored from Redux state, so the sidebar Home button returns the
@@ -200,9 +223,13 @@ export function NavigationSidebarHeader({
      * Disabled items (auth required but not logged in) are no-ops.
      */
     const handleClick = () => {
-      if (isDisabled) return
+      if (isDisabled || isActive) return
       if (isSearch) {
         navigate({ pathname: '/search', search: `?page=${homePage}` })
+      } else if (item.path === '/popular') {
+        // 動画検索 returns to the feature's last-viewed page (results with
+        // its ?q= when a search was open, else the popular feed).
+        navigate(lastVideoSearchPath.current)
       } else {
         navigate(item.path)
       }

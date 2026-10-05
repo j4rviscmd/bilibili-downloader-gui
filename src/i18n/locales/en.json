@@ -705,8 +705,13 @@
     "downloadConfirmMessage": "Navigating to home will clear your current input. Continue?",
     "defaultFolder": "Default"
   },
+  "popular": {
+    "title": "Popular Videos",
+    "loadError": "Failed to load the feed",
+    "retry": "Retry"
+  },
   "videoSearch": {
-    "title": "Video Search",
+    "title": "Search",
     "placeholder": "Search videos by keyword",
     "loading": "Searching…",
     "suggestions": "Search suggestions",
