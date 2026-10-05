@@ -44,7 +44,11 @@ function LanguageSwitcher() {
           <DropdownMenuContent align="end">
             <DropdownMenuRadioGroup
               value={settings.language}
-              onValueChange={(val) => updateLanguage(val as SupportedLang)}
+              onValueChange={(val) =>
+                // Silent: the whole UI switching language is its own
+                // feedback — matches the app-bar theme toggle's silent save.
+                void updateLanguage(val as SupportedLang, true)
+              }
             >
               {languages.map((lang) => (
                 <DropdownMenuRadioItem key={lang.id} value={lang.id}>

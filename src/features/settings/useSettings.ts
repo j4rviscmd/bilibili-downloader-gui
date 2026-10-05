@@ -99,13 +99,17 @@ export const useSettings = () => {
    * Changes the application language and persists the setting.
    *
    * First applies the language change via i18n, then saves just the
-   * `language` field as a patch.
+   * `language` field as a patch via `saveByForm`. Defaults to the same
+   * success/error toasts as every other settings control (the toast
+   * renders in the newly selected language); the app-bar quick switcher
+   * passes silent=true to match the quick theme toggle's silent save.
    *
    * @param lang - The target language code
+   * @param silent - If true, suppresses toast notifications (quick switcher)
    */
-  const updateLanguage = async (lang: SupportedLang) => {
+  const updateLanguage = async (lang: SupportedLang, silent = false) => {
     await changeLanguage(lang)
-    await updateSettings({ language: lang })
+    await saveByForm({ language: lang }, silent)
   }
 
   /**
