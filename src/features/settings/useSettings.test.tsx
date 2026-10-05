@@ -159,7 +159,7 @@ describe('useSettings', () => {
   })
 
   describe('updateLanguage', () => {
-    it('changes i18n language and persists the settings', async () => {
+    it('changes i18n language, persists the settings, and toasts success', async () => {
       mockCommands({ patch_settings: undefined })
       const { result } = renderHookWithStore(() => useSettings())
 
@@ -168,6 +168,20 @@ describe('useSettings', () => {
       expect(mockChangeLanguage).toHaveBeenCalledWith('ja')
       expect(mockInvoke).toHaveBeenCalledWith('patch_settings', {
         patch: { language: 'ja' },
+      })
+      expect(store.getState().settings.language).toBe('ja')
+      expect(toastSuccess).toHaveBeenCalledWith('settings.save_success')
+    })
+
+    it('toasts an error instead of rejecting when the backend save fails', async () => {
+      mockCommands({ patch_settings: new Error('ERR::SAVE_FAILED') })
+      const { result } = renderHookWithStore(() => useSettings())
+
+      await expect(result.current.updateLanguage('ja')).resolves.toBeUndefined()
+
+      expect(toastError).toHaveBeenCalledWith('settings.save_failed_generic', {
+        duration: 10000,
+        description: 'settings.save_failed',
       })
       expect(store.getState().settings.language).toBe('ja')
     })

@@ -55,14 +55,16 @@ describe('LanguageSwitcher', () => {
     ).toBeInTheDocument()
   })
 
-  it('lists every language and reports the picked one', async () => {
+  it('lists every language and reports the picked one, silently', async () => {
     const { user } = renderWithProviders(<LanguageSwitcher />)
 
     await user.click(screen.getByRole('button', { name: 'settings.language' }))
 
     await user.click(screen.getByRole('menuitemradio', { name: 'label-ja' }))
 
-    expect(settingsHook.updateLanguage).toHaveBeenCalledWith('ja')
+    // Silent: the app-bar quick switcher suppresses the save toast, matching
+    // the quick theme toggle (the settings page shows the toast instead).
+    expect(settingsHook.updateLanguage).toHaveBeenCalledWith('ja', true)
   })
 
   it('marks the active language in the radio group', async () => {
