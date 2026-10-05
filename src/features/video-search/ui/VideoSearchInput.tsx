@@ -73,6 +73,10 @@ export function VideoSearchInput({
   // must skip its suggest fetch for that programmatic change (the search
   // already ran on the picked value).
   const suppressNextSuggest = useRef(false)
+  // Pending suggest debounce timer; submit clears it so a search fired
+  // mid-debounce never spawns a stale fetch that reopens the list over
+  // the results page.
+  const suggestTimer = useRef<number | undefined>(undefined)
   const trendingCache = useRef<{ at: number; data: TrendingKeyword[] } | null>(
     null,
   )
@@ -187,17 +191,25 @@ export function VideoSearchInput({
       setOpen(history.length > 0 || trending.length > 0)
       return
     }
-    const timer = setTimeout(
+    // Why: window. selects the DOM overload so the timer id stays number for
+    // the number-typed ref — bare setTimeout returns NodeJS.Timeout under the
+    // installed @types/node (same pattern as VideoPreviewDialog.tsx saveTimer).
+    suggestTimer.current = window.setTimeout(
       () => requestSuggest(draft.trim()),
       SUGGEST_DEBOUNCE_MS,
     )
-    return () => clearTimeout(timer)
+    return () => clearTimeout(suggestTimer.current)
     // history/trending are read only for the blank branch's open decision;
     // listing them re-runs the effect when panel loads settle, which merely
     // recomputes that decision.
   }, [draft, hasDraft, history, trending, requestSuggest])
 
   const submit = (keyword: string) => {
+    // Why: Enter can beat both the debounce timer and the suggest fetch it
+    // spawned — clear the pending timer and invalidate in-flight responses,
+    // or their setOpen(true) reopens the list over the results page.
+    clearTimeout(suggestTimer.current)
+    latestRound.current++
     setOpen(false)
     // Hand focus back to the page once the search fires, so the closed
     // dropdown stays closed and results get keyboard focus (YouTube-like).
