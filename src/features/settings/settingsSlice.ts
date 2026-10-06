@@ -31,8 +31,8 @@ const initialState: Settings = {
   // switch is off, so the kbps seed only feeds the input's initial draft).
   downloadSpeedLimitEnabled: false,
   downloadSpeedLimitKbps: 1000,
-  // Must stay '/search' — IndexPage falls back to it for unknown values.
-  startupPage: '/search',
+  // Must stay '/popular' — IndexPage falls back to it for unknown values.
+  startupPage: '/popular',
 }
 
 export const settingsSlice = createSlice({

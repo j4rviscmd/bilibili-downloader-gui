@@ -7,7 +7,7 @@
 import { store } from '@/app/store'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { setSettings } from './settingsSlice'
+import { setSettings, settingsSlice } from './settingsSlice'
 
 function settings() {
   return store.getState().settings
@@ -55,5 +55,12 @@ describe('settingsSlice', () => {
     expect(settings().fontSize).toBe(16)
     expect(settings().language).toBe('ja')
     expect(settings().dlOutputPath).toBe('/downloads')
+  })
+
+  it('defaults startupPage to /popular', () => {
+    // Fresh installs: IndexPage redirects here before the persisted
+    // settings arrive, and its unknown-value fallback mirrors this
+    // default — a regression to another page would ship silently.
+    expect(settingsSlice.getInitialState().startupPage).toBe('/popular')
   })
 })

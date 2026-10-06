@@ -20,6 +20,7 @@ function Harness() {
     <Routes>
       <Route path="/" element={<IndexPage />} />
       <Route path="/search" element={<div>search-route</div>} />
+      <Route path="/popular" element={<div>popular-route</div>} />
       <Route path="/video-search" element={<div>video-search-route</div>} />
       <Route path="/init" element={<div>init-route</div>} />
     </Routes>
@@ -30,10 +31,10 @@ describe('IndexPage', () => {
   beforeEach(() => {
     // Isolate tests from each other's startup-page mutations on the real
     // singleton store.
-    store.dispatch(setSettings({ startupPage: '/search' }))
+    store.dispatch(setSettings({ startupPage: '/popular' }))
   })
 
-  it('redirects to /search when initialized with the default startup page', () => {
+  it('redirects to /popular when initialized with the default startup page', () => {
     vi.mocked(useInit).mockReturnValue({
       initiated: true,
     } as ReturnType<typeof useInit>)
@@ -42,7 +43,7 @@ describe('IndexPage', () => {
 
     // MemoryRouter keeps its own history, so the redirect is observed via
     // the matched route's marker element rather than window.location.
-    expect(screen.getByText('search-route')).toBeInTheDocument()
+    expect(screen.getByText('popular-route')).toBeInTheDocument()
     expect(screen.queryByText('init-route')).not.toBeInTheDocument()
   })
 
@@ -57,7 +58,7 @@ describe('IndexPage', () => {
     expect(screen.getByText('video-search-route')).toBeInTheDocument()
   })
 
-  it('falls back to /search for an unknown startup page', () => {
+  it('falls back to /popular for an unknown startup page', () => {
     vi.mocked(useInit).mockReturnValue({
       initiated: true,
     } as ReturnType<typeof useInit>)
@@ -65,7 +66,7 @@ describe('IndexPage', () => {
 
     renderWithProviders(<Harness />, { route: '/' })
 
-    expect(screen.getByText('search-route')).toBeInTheDocument()
+    expect(screen.getByText('popular-route')).toBeInTheDocument()
   })
 
   it('redirects to /init when the app is not initialized', () => {
@@ -76,6 +77,6 @@ describe('IndexPage', () => {
     renderWithProviders(<Harness />, { route: '/' })
 
     expect(screen.getByText('init-route')).toBeInTheDocument()
-    expect(screen.queryByText('search-route')).not.toBeInTheDocument()
+    expect(screen.queryByText('popular-route')).not.toBeInTheDocument()
   })
 })

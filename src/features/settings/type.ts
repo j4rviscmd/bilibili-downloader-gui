@@ -166,8 +166,8 @@ export interface Settings {
    */
   enableDevUpdater?: boolean
   /**
-   * Page path opened at startup (e.g. '/search', '/downloads'). Defaults
-   * to '/search'; unknown values fall back to '/search' at redirect time.
+   * Page path opened at startup (e.g. '/popular', '/search'). Defaults
+   * to '/popular'; unknown values fall back to '/popular' at redirect time.
    */
   startupPage?: string
   /**

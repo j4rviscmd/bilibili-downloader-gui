@@ -260,9 +260,9 @@ pub struct Settings {
         skip_serializing_if = "Option::is_none"
     )]
     pub enable_dev_updater: Option<bool>,
-    /// Page path the app opens on launch (e.g. "/search", "/downloads").
-    /// Defaults to "/search" when absent; the frontend validates it against
-    /// its route table and falls back to "/search" for unknown values.
+    /// Page path the app opens on launch (e.g. "/popular", "/search").
+    /// Defaults to "/popular" when absent; the frontend validates it against
+    /// its route table and falls back to "/popular" for unknown values.
     #[serde(
         rename = "startupPage",
         default,
