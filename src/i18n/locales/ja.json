@@ -726,6 +726,7 @@
     "previewPlay": "動画をプレビュー",
     "previewDownload": "この動画をダウンロード",
     "previewOpenInBrowser": "ブラウザで開く",
+    "previewPlaybackError": "動画の再生に失敗しました。もう一度お試しください。",
     "resultsCount": "{{count}}件",
     "filters": {
       "groupLabel": "検索フィルタ",

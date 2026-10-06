@@ -329,6 +329,38 @@ describe('VideoSearchResultList', () => {
     expect(store.getState().settings.previewVolume).toBe(0.7)
   })
 
+  it('replaces a failed media load with an error message, not a black player', async () => {
+    vi.mocked(useVideoSearch).mockReturnValue(baseState)
+    vi.mocked(usePendingDownload).mockReturnValue(vi.fn())
+    // Why: Akamai mirror host on purpose (sibling tests use example.com) —
+    // it mirrors the backend fallback where the playurl reroll loop
+    // exhausts and still returns the akamaized URL
+    // (get_preview_play_url_with in bilibili.rs). The host itself has no
+    // functional effect here; the media failure is fired manually below.
+    mockInvoke.mockResolvedValue(
+      'https://upos-hz-mirrorakam.akamaized.net/x.mp4',
+    )
+
+    const { user } = renderWithProviders(<VideoSearchResultList />)
+    await user.click(
+      screen.getAllByRole('button', { name: 'videoSearch.previewPlay' })[0],
+    )
+
+    const video = await waitFor(() => {
+      const el = document.querySelector('video')
+      expect(el).not.toBeNull()
+      return el as HTMLVideoElement
+    })
+    // CDN fetch dies inside the <video> element (URL itself resolved fine)
+    // — regression: this used to leave a silent dead black canvas.
+    fireEvent.error(video)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'videoSearch.previewPlaybackError',
+    )
+    expect(document.querySelector('video')).toBeNull()
+  })
+
   it('shows a buffering spinner until the media reports playable', async () => {
     vi.mocked(useVideoSearch).mockReturnValue(baseState)
     vi.mocked(usePendingDownload).mockReturnValue(vi.fn())
