@@ -285,6 +285,26 @@ describe('VideoSearchResultList', () => {
     expect(document.querySelector('video')).toBeNull()
   })
 
+  it('overrides video_not_found with the preview-specific unavailable message', async () => {
+    vi.mocked(useVideoSearch).mockReturnValue(baseState)
+    vi.mocked(usePendingDownload).mockReturnValue(vi.fn())
+    // Deleted/private/region-blocked videos still surface in search
+    // results; the view API refuses them with -404 → ERR::VIDEO_NOT_FOUND.
+    mockInvoke.mockRejectedValue('ERR::VIDEO_NOT_FOUND')
+
+    const { user } = renderWithProviders(<VideoSearchResultList />)
+    await user.click(
+      screen.getAllByRole('button', { name: 'videoSearch.previewPlay' })[0],
+    )
+
+    // The global video.video_not_found message ("check the URL") does not
+    // fit a search-result entry — the preview must show its own key.
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('videoSearch.previewVideoUnavailable')
+    expect(alert).not.toHaveTextContent('video.video_not_found')
+    expect(document.querySelector('video')).toBeNull()
+  })
+
   it('opens the preview from the play button without triggering the card download', async () => {
     vi.mocked(useVideoSearch).mockReturnValue(baseState)
     const handleDownload = vi.fn()

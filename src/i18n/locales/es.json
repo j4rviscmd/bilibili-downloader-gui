@@ -727,6 +727,7 @@
     "previewDownload": "Descargar este video",
     "previewOpenInBrowser": "Abrir en el navegador",
     "previewPlaybackError": "No se pudo reproducir el video. Vuelve a intentarlo.",
+    "previewVideoUnavailable": "No se puede previsualizar este video: puede que haya sido eliminado, marcado como privado o restringido por región.",
     "resultsCount": "{{count}} resultados",
     "filters": {
       "groupLabel": "Filtros de búsqueda",
