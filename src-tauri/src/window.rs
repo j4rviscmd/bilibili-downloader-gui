@@ -46,7 +46,7 @@ fn window_title(version: &str) -> String {
 const SPLASH_WIDTH: f64 = 480.0;
 const SPLASH_HEIGHT: f64 = 480.0;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct WindowGeometry {
     x: f64,
@@ -276,8 +276,9 @@ pub(crate) fn register_main_window_events(app: &AppHandle) {
         // CAUTION: Cmd+Q (macOS) and programmatic exit() bypass CloseRequested,
         // so persisting here keeps the latest normal geometry available even
         // when the app exits without closing the window normally.
-        // save_window_geometry internally skips fullscreen and maximized-only
-        // states, so only real changes to the normal geometry land on disk.
+        // save_window_geometry internally skips fullscreen, minimized and
+        // maximized-only states, so only real changes to the normal
+        // geometry land on disk.
         tauri::WindowEvent::Resized { .. } | tauri::WindowEvent::Moved { .. } => {
             save_window_geometry(&app_handle);
         }
@@ -344,6 +345,11 @@ fn read_window_theme_at(settings_path: &Path) -> Option<Theme> {
 /// - Fullscreen windows are skipped: the window reports full-screen bounds
 ///   here, and since the fullscreen state itself is intentionally not
 ///   persisted, overwriting would restore an oversized normal window.
+/// - Minimized windows are skipped: on Windows a minimized window reports
+///   the sentinel position (-32000,-32000 physical px) and a 0x0 client
+///   size; persisting that corrupts the store, after which every restore
+///   fails validation and silently falls back to defaults. Keeping the last
+///   good save preserves both geometry and the maximized flag.
 /// - Maximized windows persist only the `maximized` flag, reusing the last
 ///   saved normal geometry so un-maximizing on next launch restores the real
 ///   size instead of the full-screen bounds.
@@ -361,6 +367,14 @@ pub fn save_window_geometry(app: &AppHandle) {
         return;
     };
     if is_fullscreen {
+        return;
+    }
+    // Skip while minimized (see doc comment): the OS reports sentinel values
+    // that would corrupt the persisted geometry.
+    let Ok(is_minimized) = window.is_minimized() else {
+        return;
+    };
+    if is_minimized {
         return;
     }
 
@@ -392,7 +406,7 @@ pub fn save_window_geometry(app: &AppHandle) {
     let geo = if effective_maximized {
         // Persist only the flag; reuse the last normal geometry so un-maximizing
         // on next launch restores the real size instead of full-screen bounds.
-        let prev = read_raw_geometry(app).unwrap_or(WindowGeometry::DEFAULT);
+        let prev = prev_geometry_or_default(read_raw_geometry(app));
         WindowGeometry {
             maximized: true,
             ..prev
@@ -424,6 +438,16 @@ pub fn save_window_geometry(app: &AppHandle) {
     }) {
         log::warn!("[BE] save_window_geometry: failed to persist: {}", e);
     }
+}
+
+/// Fallback for the maximized-only save: the last saved normal geometry,
+/// or defaults when the persisted entry is missing or implausible
+/// (sub-minimum bounds, e.g. a minimized-window sentinel snapshot written
+/// by versions without the minimized guard). Stops corrupted entries from
+/// propagating indefinitely under `maximized: true`.
+fn prev_geometry_or_default(raw: Option<WindowGeometry>) -> WindowGeometry {
+    raw.filter(|g| g.width >= MIN_WIDTH && g.height >= MIN_HEIGHT)
+        .unwrap_or(WindowGeometry::DEFAULT)
 }
 
 /// Returns the primary monitor's work area in logical coordinates as
@@ -804,6 +828,52 @@ mod tests {
         assert_eq!(out.x, 120.0);
         assert_eq!(out.width, 1280.0);
         assert!(!out.maximized);
+    }
+
+    // ---- minimized-window corruption guard ----
+
+    #[test]
+    fn prev_geometry_or_default_keeps_plausible_saved_geometry() {
+        // Plausible entries pass through untouched, maximized flag included.
+        let input = geo(100.0, 50.0, 1200.0, 800.0, true);
+        assert_eq!(prev_geometry_or_default(Some(input.clone())), input);
+
+        // Exactly min-sized entries are plausible too (>= is inclusive):
+        // DEFAULT itself is MIN_WIDTH x MIN_HEIGHT, and rejecting such an
+        // entry would silently drop its saved position.
+        let min_sized = geo(100.0, 50.0, MIN_WIDTH, MIN_HEIGHT, false);
+        assert_eq!(prev_geometry_or_default(Some(min_sized.clone())), min_sized);
+    }
+
+    #[test]
+    fn prev_geometry_or_default_replaces_implausible_entries_with_default() {
+        // Windows minimized-window sentinel snapshot (observed on disk:
+        // 0x0 bounds at logical -21333 = physical -32000 at scale 1.5).
+        let sentinel = prev_geometry_or_default(Some(geo(-21333.3, -21333.3, 0.0, 0.0, true)));
+        assert_eq!(sentinel, WindowGeometry::DEFAULT);
+
+        // Sub-minimum bounds only are also implausible.
+        let tiny = prev_geometry_or_default(Some(geo(10.0, 10.0, 500.0, 400.0, true)));
+        assert_eq!(tiny, WindowGeometry::DEFAULT);
+
+        // Mixed dimensions: width plausible, height sub-minimum. Both
+        // sides of the && must hold — an `||` regression would let this
+        // half-corrupted entry propagate.
+        assert_eq!(
+            prev_geometry_or_default(Some(geo(10.0, 10.0, 1200.0, 100.0, true))),
+            WindowGeometry::DEFAULT
+        );
+
+        // NaN comparisons are false, so a NaN dimension always falls back
+        // and can never leak into the persisted store (serde_json would
+        // serialize it as null).
+        assert_eq!(
+            prev_geometry_or_default(Some(geo(0.0, 0.0, f64::NAN, MIN_HEIGHT, true))),
+            WindowGeometry::DEFAULT
+        );
+
+        // Missing entry falls back to defaults.
+        assert_eq!(prev_geometry_or_default(None), WindowGeometry::DEFAULT);
     }
 
     // ---- PR⑩: settings-backed theme read (issue #646) ----
