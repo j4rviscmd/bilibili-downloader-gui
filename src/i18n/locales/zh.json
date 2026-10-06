@@ -726,6 +726,7 @@
     "previewPlay": "预览视频",
     "previewDownload": "下载此视频",
     "previewOpenInBrowser": "在浏览器中打开",
+    "previewPlaybackError": "视频播放失败，请重试。",
     "resultsCount": "{{count}}个结果",
     "filters": {
       "groupLabel": "搜索筛选",
