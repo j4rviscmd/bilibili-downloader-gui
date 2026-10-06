@@ -333,6 +333,10 @@ export function VideoSearchInput({
         </Button>
       </form>
       {dropdownOpen && (
+        // Why z-50 (not z-10): the video card grid renders later in the
+        // DOM with its own z-10 overlays (hover-play button); an equal
+        // z-index tie resolves by DOM order, letting that overlay paint
+        // — and hit-test — ABOVE this dropdown.
         <ul
           id={listId}
           role="listbox"
@@ -341,7 +345,7 @@ export function VideoSearchInput({
               ? t('videoSearch.suggestions')
               : t('videoSearch.searchHistory')
           }
-          className="bg-popover text-popover-foreground absolute top-full left-0 z-10 mt-1 max-h-64 w-full overflow-auto rounded-md border shadow-md"
+          className="bg-popover text-popover-foreground absolute top-full left-0 z-50 mt-1 max-h-64 w-full overflow-auto rounded-md border shadow-md"
         >
           {items.map((item, i) => {
             const prevKind = items[i - 1]?.kind

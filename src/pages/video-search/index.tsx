@@ -93,7 +93,7 @@ export function VideoSearchContent() {
       actions={
         // Watch-history header pattern: the search box rides the title row
         // so it stays reachable while results scroll under it. flex-1 lets
-        // the input grow; the suggest dropdown overlays the body via z-10.
+        // the input grow; the suggest dropdown overlays the body via z-50.
         <div className="flex w-full flex-1 items-center gap-2 sm:w-auto">
           <VideoSearchInput
             onSearch={handleSearch}
