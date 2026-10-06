@@ -4,7 +4,7 @@
  * Covers the core user flow:
  * - App launch from uninitialized state
  * - Initialization sequence (settings, ffmpeg, cookies)
- * - Navigation to /search
+ * - Landing on the default startup page (/popular)
  * - Sidebar verification
  * - Settings dialog open/close
  * - Video URL input and info fetch (backend serves a bundled fixture
@@ -23,11 +23,11 @@ import path from 'node:path'
 import {
   ensureScreenshotDir,
   FIXTURE_VIDEO_URL,
+  navigateToUrlFetchPage,
   saveScreenshot,
   setupDownloadEnv,
   teardownDownloadEnv,
   waitForMainUI,
-  waitForUrlInput,
   type DownloadEnv,
 } from '../helpers/app.helpers'
 import * as S from '../helpers/selectors'
@@ -74,11 +74,13 @@ describe('bilibili-downloader-gui E2E', () => {
     await saveScreenshot('launch', '00-init-page')
   })
 
-  it('should complete initialization and navigate to home', async () => {
+  it('should complete initialization and land on the default startup page', async () => {
     await waitForMainUI()
 
+    // Fresh E2E sessions have no stored startupPage, so the app lands on
+    // the /popular default (video search entry view).
     const currentUrl = await browser.getUrl()
-    expect(currentUrl).to.include('/search')
+    expect(currentUrl).to.include('/popular')
 
     await saveScreenshot('launch', '01-home-loaded')
   })
@@ -86,7 +88,7 @@ describe('bilibili-downloader-gui E2E', () => {
   // -- Phase 1: Home Page UI Verification --
 
   it('should display the URL input form (Step 1)', async () => {
-    await waitForUrlInput()
+    await navigateToUrlFetchPage()
 
     const input = await browser.$(S.URL_INPUT)
     expect(await input.isExisting()).to.be.true
