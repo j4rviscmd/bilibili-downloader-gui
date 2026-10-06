@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_VIDEO_SEARCH_FILTERS } from '../types'
 import {
+  cacheStore,
+  clearSearchCache,
   initialState,
+  searchCacheKey,
   setError,
   setFilter,
   setLoading,
@@ -69,5 +72,41 @@ describe('videoSearchSlice', () => {
       order: 'pubdate',
       tids: 4,
     })
+  })
+})
+
+describe('videoSearchSlice response cache', () => {
+  it('builds a cache key from keyword, page and all filters', () => {
+    expect(
+      searchCacheKey('kw', 2, { order: 'click', duration: 1, tids: 4 }),
+    ).toBe('kw|2|click|1|4')
+  })
+
+  it('cacheStore keeps at most 10 entries, evicting the oldest', () => {
+    let state = initialState
+    for (let i = 0; i < 12; i++) {
+      state = videoSearchSlice.reducer(
+        state,
+        cacheStore({
+          key: `kw${i}|1|totalrank|0|0`,
+          response: { ...response, numResults: i },
+        }),
+      )
+    }
+    const keys = Object.keys(state.cache)
+    expect(keys).toHaveLength(10)
+    // Oldest two evicted, newest kept.
+    expect(keys).not.toContain('kw0|1|totalrank|0|0')
+    expect(keys).not.toContain('kw1|1|totalrank|0|0')
+    expect(keys).toContain('kw11|1|totalrank|0|0')
+  })
+
+  it('clearSearchCache empties the cache', () => {
+    let state = videoSearchSlice.reducer(
+      initialState,
+      cacheStore({ key: 'kw|1|totalrank|0|0', response }),
+    )
+    state = videoSearchSlice.reducer(state, clearSearchCache())
+    expect(state.cache).toEqual({})
   })
 })

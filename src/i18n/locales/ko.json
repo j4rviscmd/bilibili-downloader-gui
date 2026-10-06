@@ -705,8 +705,13 @@
     "downloadConfirmMessage": "홈으로 이동하면 현재 입력이 지워집니다. 계속하시겠습니까?",
     "defaultFolder": "기본"
   },
+  "popular": {
+    "title": "인기 동영상",
+    "loadError": "피드를 불러오지 못했습니다",
+    "retry": "다시 시도"
+  },
   "videoSearch": {
-    "title": "동영상 검색",
+    "title": "검색",
     "placeholder": "키워드로 동영상 검색",
     "loading": "검색 중…",
     "suggestions": "검색 제안",

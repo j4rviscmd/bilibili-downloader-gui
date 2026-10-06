@@ -705,8 +705,13 @@
     "downloadConfirmMessage": "ホームに移動すると現在の入力がクリアされます。続けますか？",
     "defaultFolder": "デフォルト"
   },
+  "popular": {
+    "title": "おすすめ動画",
+    "loadError": "フィードの読み込みに失敗しました",
+    "retry": "再試行"
+  },
   "videoSearch": {
-    "title": "動画検索",
+    "title": "検索",
     "placeholder": "キーワードで動画を検索",
     "loading": "検索しています…",
     "suggestions": "検索候補",

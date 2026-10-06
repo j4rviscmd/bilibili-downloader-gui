@@ -30,7 +30,7 @@ import { useTranslation } from 'react-i18next'
  */
 export const STARTUP_PAGE_LABEL_KEYS: Record<string, string> = {
   '/search': 'nav.search',
-  '/video-search': 'nav.videoSearch',
+  '/popular': 'nav.videoSearch',
   '/downloads': 'nav.downloads',
   '/history': 'nav.downloadHistory',
   '/favorite': 'nav.favorite',
@@ -51,6 +51,13 @@ export function GeneralSection() {
   const { t } = useTranslation()
   const { settings, saveByForm, updateLanguage } = useSettings()
   const currentFontSize = parseFontSize(settings.fontSize)
+  // Why: pre-/popular versions stored '/video-search' as the startup page;
+  // that path now redirects to /popular, so the Select normalizes it for
+  // display (the stored value itself is left untouched).
+  const startupPageValue =
+    settings.startupPage === '/video-search'
+      ? '/popular'
+      : (settings.startupPage ?? '/search')
 
   // Show the platform-native modifier in shortcut hints (Cmd on macOS,
   // Ctrl elsewhere). `userAgent` is used because `navigator.platform` is
@@ -100,7 +107,7 @@ export function GeneralSection() {
       </SettingRow>
       <SettingRow label={t('settings.startupPage_label')}>
         <Select
-          value={settings.startupPage ?? '/search'}
+          value={startupPageValue}
           onValueChange={(value) => {
             void saveByForm({ startupPage: value })
           }}

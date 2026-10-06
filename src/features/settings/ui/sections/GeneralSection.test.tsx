@@ -98,10 +98,17 @@ describe('GeneralSection', () => {
     expect(toastSuccess).toHaveBeenCalledWith('settings.save_success')
   })
 
-  it('offers every page except /settings as a startup page option', async () => {
-    // Guards drift: an option rendered per PAGE_PATHS entry except
-    // /settings, each with its nav label key (Radix options carry no
-    // `value` attribute in the DOM, so labels are the observable).
+  it('offers every startup page from the label map', async () => {
+    // Guards drift: options come from STARTUP_PAGE_LABEL_KEYS (Radix
+    // options carry no `value` attribute in the DOM, so labels are the
+    // observable) and every mapped path must be a valid page. /video-search
+    // is intentionally absent — it is a transient results page that
+    // redirects to /popular while idle.
+    expect(
+      Object.keys(STARTUP_PAGE_LABEL_KEYS).every((p) =>
+        (PAGE_PATHS as readonly string[]).includes(p),
+      ),
+    ).toBe(true)
     seedSettings()
     const { user } = renderWithProviders(<GeneralSection />)
 
@@ -112,10 +119,7 @@ describe('GeneralSection', () => {
     const labels = screen.getAllByRole('option').map((o) => o.textContent)
     expect(labels).not.toContain('nav.settings')
     expect([...labels].sort()).toEqual(
-      [...PAGE_PATHS]
-        .filter((p) => p !== '/settings')
-        .map((p) => STARTUP_PAGE_LABEL_KEYS[p])
-        .sort(),
+      Object.values(STARTUP_PAGE_LABEL_KEYS).sort(),
     )
   })
 

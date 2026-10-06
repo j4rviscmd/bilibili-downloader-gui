@@ -705,8 +705,13 @@
     "downloadConfirmMessage": "前往主页将清除当前输入，确定继续吗？",
     "defaultFolder": "默认收藏夹"
   },
+  "popular": {
+    "title": "热门视频",
+    "loadError": "加载内容失败",
+    "retry": "重试"
+  },
   "videoSearch": {
-    "title": "视频搜索",
+    "title": "搜索",
     "placeholder": "按关键词搜索视频",
     "loading": "搜索中…",
     "suggestions": "搜索建议",

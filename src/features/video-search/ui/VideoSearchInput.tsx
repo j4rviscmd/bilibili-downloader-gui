@@ -54,9 +54,13 @@ type DropdownItem =
 export function VideoSearchInput({
   onSearch,
   loading,
+  keyword,
 }: {
   onSearch: (keyword: string) => void
   loading: boolean
+  /** External keyword source (the results page's ?q=): keeps the input in
+   * sync when navigation (back/forward) changes it outside this input. */
+  keyword?: string
 }) {
   const { t } = useTranslation()
   const [draft, setDraft] = useState('')
@@ -203,6 +207,20 @@ export function VideoSearchInput({
     // listing them re-runs the effect when panel loads settle, which merely
     // recomputes that decision.
   }, [draft, hasDraft, history, trending, requestSuggest])
+
+  // External keyword sync (back/forward changes ?q= outside this input):
+  // adopt it into the draft. URL navigation wins over any unsubmitted
+  // local edit — the address bar is the source of truth for the results.
+  // Adopting must not open the suggest dropdown (the search already ran on
+  // this keyword) — the suggestion-pick suppression is reused. A
+  // same-value adoption is skipped so the armed flag cannot eat the next
+  // real keystroke's suggest round (React bails out on setDraft then).
+  useEffect(() => {
+    if (keyword === undefined) return
+    if (inputRef.current?.value === keyword) return
+    suppressNextSuggest.current = true
+    setDraft(keyword)
+  }, [keyword])
 
   const submit = (keyword: string) => {
     // Why: Enter can beat both the debounce timer and the suggest fetch it

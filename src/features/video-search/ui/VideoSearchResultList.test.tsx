@@ -62,6 +62,7 @@ const baseState: VideoSearchView = {
   ],
   search: vi.fn(),
   goToPage: vi.fn(),
+  searchStarted: true,
   setFilter: vi.fn(),
 }
 

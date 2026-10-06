@@ -4,6 +4,7 @@
  * Keyword search over bilibili videos (`search_type=video`), backed by the
  * `search_videos` Tauri command. Works without login.
  */
+export { fetchPopularVideosApi } from './api/fetchPopularVideos'
 export { useVideoSearch } from './hooks/useVideoSearch'
 export type { VideoSearchView } from './hooks/useVideoSearch'
 export { default as videoSearchReducer } from './model/videoSearchSlice'
@@ -14,6 +15,7 @@ export type {
   VideoSearchResponse,
   VideoSearchState,
 } from './types'
+export { VideoCardGrid, VideoCardSkeletonGrid } from './ui/VideoCardGrid'
 export { VideoSearchFilterBar } from './ui/VideoSearchFilterBar'
 export { VideoSearchInput } from './ui/VideoSearchInput'
 export { VideoSearchPagination } from './ui/VideoSearchPagination'

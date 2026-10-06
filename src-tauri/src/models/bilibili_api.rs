@@ -508,6 +508,64 @@ pub struct SearchApiData {
     #[serde(default)]
     pub result: Vec<SearchApiResponseItem>,
 }
+
+/// Raw body of `/x/web-interface/popular` (综合热门 video feed).
+#[derive(Debug, Clone, Deserialize)]
+pub struct PopularApiResponse {
+    pub code: i64,
+    #[serde(default)]
+    pub message: String,
+    pub data: Option<PopularApiData>,
+}
+
+/// `data` object of the popular response.
+///
+/// The feed reports no total page count — pagination uses `no_more` with
+/// "has next page" semantics (see `fetch_popular_videos` in handlers).
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct PopularApiData {
+    #[serde(default)]
+    pub list: Vec<PopularApiItem>,
+    #[serde(default)]
+    pub no_more: bool,
+}
+
+/// One video of the popular feed — same archive-object shape as the view
+/// API; only the card fields are kept (extra wire fields are ignored).
+#[derive(Debug, Clone, Deserialize)]
+pub struct PopularApiItem {
+    #[serde(default)]
+    pub bvid: String,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub pic: String,
+    #[serde(default)]
+    pub owner: PopularApiOwner,
+    #[serde(default)]
+    pub stat: PopularApiStat,
+    /// Duration in seconds (integer on this API, unlike search's "M:S").
+    #[serde(default)]
+    pub duration: i64,
+    #[serde(default)]
+    pub tid: i64,
+    #[serde(default)]
+    pub tname: String,
+}
+
+/// `owner` object of a popular feed item.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct PopularApiOwner {
+    #[serde(default)]
+    pub name: String,
+}
+
+/// `stat` object of a popular feed item.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct PopularApiStat {
+    #[serde(default)]
+    pub view: i64,
+}
 // ============================================================================
 // Subtitle APIs
 // ============================================================================

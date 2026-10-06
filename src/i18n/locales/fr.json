@@ -705,8 +705,13 @@
     "downloadConfirmMessage": "Aller à l'accueil effacera votre saisie actuelle. Continuer ?",
     "defaultFolder": "Par défaut"
   },
+  "popular": {
+    "title": "Vidéos populaires",
+    "loadError": "Échec du chargement du flux",
+    "retry": "Réessayer"
+  },
   "videoSearch": {
-    "title": "Recherche de vidéos",
+    "title": "Recherche",
     "placeholder": "Rechercher des vidéos par mot-clé",
     "loading": "Recherche…",
     "suggestions": "Suggestions de recherche",

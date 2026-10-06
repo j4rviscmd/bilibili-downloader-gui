@@ -10,6 +10,7 @@ import { DownloadsContent } from '@/pages/downloads'
 import { FavoriteContent } from '@/pages/favorite'
 import { GifContent } from '@/pages/gif'
 import { HistoryContent } from '@/pages/history'
+import { PopularContent } from '@/pages/popular'
 import { ResolutionContent } from '@/pages/resolution'
 import { RotationContent } from '@/pages/rotation'
 import { SearchContent } from '@/pages/search'
@@ -26,6 +27,7 @@ interface PageConfig {
 // Why: exported only for the PAGES/PAGE_PATHS parity guard test — drift
 // between the mount table and the shared path list breaks navigation.
 export const PAGES: readonly PageConfig[] = [
+  { path: '/popular', Component: PopularContent },
   { path: '/video-search', Component: VideoSearchContent },
   { path: '/search', Component: SearchContent },
   { path: '/downloads', Component: DownloadsContent },

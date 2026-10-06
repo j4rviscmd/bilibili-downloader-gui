@@ -3,14 +3,17 @@ import { mockInvoke, renderHookWithStore } from '@/test/test-utils'
 import { act } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { searchVideosApi } from '../api/searchVideos'
-import { setFilter, setResult } from '../model/videoSearchSlice'
+import {
+  clearSearchCache,
+  setFilter,
+  setResult,
+} from '../model/videoSearchSlice'
 import { DEFAULT_VIDEO_SEARCH_FILTERS } from '../types'
 import { useVideoSearch } from './useVideoSearch'
 
 vi.mock('../api/searchVideos', () => ({
   searchVideosApi: vi.fn(),
 }))
-
 const response = {
   page: 1,
   numResults: 40,
@@ -24,6 +27,8 @@ describe('useVideoSearch', () => {
     // Singleton store: the setFilter tests below must not leak into the
     // default-filters assertions of the other tests.
     store.dispatch(setFilter(DEFAULT_VIDEO_SEARCH_FILTERS))
+    // Response cache must not leak responses across tests.
+    store.dispatch(clearSearchCache())
   })
 
   it('search stores the response and resets to page 1', async () => {
@@ -191,5 +196,108 @@ describe('useVideoSearch', () => {
       })
     })
     expect(searchVideosApi).not.toHaveBeenCalled()
+  })
+})
+
+describe('useVideoSearch response cache', () => {
+  afterEach(() => {
+    vi.clearAllMocks()
+    store.dispatch(setFilter(DEFAULT_VIDEO_SEARCH_FILTERS))
+    store.dispatch(clearSearchCache())
+  })
+
+  it('reuses a cached response instead of refetching (history back/forward)', async () => {
+    vi.mocked(searchVideosApi).mockResolvedValue(response)
+    const { result } = renderHookWithStore(() => useVideoSearch())
+
+    result.current.search('kw')
+    await vi.waitFor(() => {
+      expect(result.current.keyword).toBe('kw')
+    })
+    result.current.search('other')
+    await vi.waitFor(() => {
+      expect(result.current.keyword).toBe('other')
+    })
+
+    // Back to the first keyword: served from the cache, no new request.
+    result.current.search('kw')
+    await vi.waitFor(() => {
+      expect(result.current.keyword).toBe('kw')
+    })
+    expect(searchVideosApi).toHaveBeenCalledTimes(2)
+  })
+
+  it('fresh search bypasses the cache', async () => {
+    vi.mocked(searchVideosApi).mockResolvedValue(response)
+    const { result } = renderHookWithStore(() => useVideoSearch())
+
+    result.current.search('kw')
+    await vi.waitFor(() => {
+      expect(result.current.keyword).toBe('kw')
+    })
+
+    result.current.search('kw', { fresh: true })
+    await vi.waitFor(() => {
+      expect(searchVideosApi).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  it('caches pagination pages (instant page round-trip)', async () => {
+    vi.mocked(searchVideosApi).mockResolvedValue(response)
+    const { result } = renderHookWithStore(() => useVideoSearch())
+
+    result.current.search('kw')
+    await vi.waitFor(() => {
+      expect(result.current.keyword).toBe('kw')
+    })
+    result.current.goToPage(2)
+    await vi.waitFor(() => {
+      expect(result.current.page).toBe(2)
+    })
+
+    // Back to page 1: cached — still only two API calls total.
+    result.current.goToPage(1)
+    await vi.waitFor(() => {
+      expect(result.current.page).toBe(1)
+    })
+    expect(searchVideosApi).toHaveBeenCalledTimes(2)
+  })
+
+  it('a cache hit cancels an in-flight slower request', async () => {
+    // Deferred manual promise: Promise.withResolvers needs lib es2024 and
+    // the repo targets ES2022.
+    let resolveSlow!: (r: typeof response) => void
+    vi.mocked(searchVideosApi)
+      .mockResolvedValueOnce(response)
+      .mockImplementationOnce(
+        () =>
+          new Promise((res) => {
+            resolveSlow = res
+          }),
+      )
+    const { result } = renderHookWithStore(() => useVideoSearch())
+
+    result.current.search('kw')
+    await vi.waitFor(() => {
+      expect(result.current.keyword).toBe('kw')
+    })
+
+    // Page 2 request hangs; navigating back to the cached page 1 must
+    // restore it instantly AND make the late page-2 response a no-op.
+    result.current.goToPage(2)
+    await vi.waitFor(() => {
+      expect(result.current.loading).toBe(true)
+    })
+    await act(async () => {
+      result.current.goToPage(1)
+    })
+    expect(result.current.page).toBe(1)
+    expect(result.current.loading).toBe(false)
+
+    await act(async () => {
+      resolveSlow({ ...response, page: 2 })
+    })
+    expect(result.current.page).toBe(1)
+    expect(result.current.loading).toBe(false)
   })
 })
