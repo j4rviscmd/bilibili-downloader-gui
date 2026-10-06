@@ -486,13 +486,47 @@ describe('VideoSearchResultList', () => {
     const browserButton = await screen.findByRole('button', {
       name: /videoSearch\.previewOpenInBrowser/,
     })
+    const video = await waitFor(() => {
+      const el = document.querySelector('video')
+      expect(el).not.toBeNull()
+      return el as HTMLVideoElement
+    })
+    const pauseSpy = vi.spyOn(video, 'pause')
     await user.click(browserButton)
 
     expect(vi.mocked(openUrl)).toHaveBeenCalledWith(
       'https://www.bilibili.com/video/BV1De411p77r',
     )
-    // Browser handoff keeps the dialog open — only the download
-    // handoff closes it.
+    // Playback pauses before the browser opens the same video (no double
+    // audio); the dialog itself stays open — only the download handoff
+    // closes it.
+    expect(pauseSpy).toHaveBeenCalledTimes(1)
     expect(document.querySelector('video')).not.toBeNull()
+  })
+
+  it('opens the video page in the browser while the preview is still resolving', async () => {
+    vi.mocked(useVideoSearch).mockReturnValue(baseState)
+    vi.mocked(usePendingDownload).mockReturnValue(vi.fn())
+    // Never-settling invoke pins the dialog to its skeleton state: no
+    // <video> is mounted yet, so videoRef.current is null in the handler
+    // (manual executor — tsconfig lib < es2024 has no withResolvers).
+    mockInvoke.mockReturnValue(new Promise(() => {}))
+
+    const { user } = renderWithProviders(<VideoSearchResultList />)
+    await user.click(
+      screen.getAllByRole('button', { name: 'videoSearch.previewPlay' })[0],
+    )
+
+    const browserButton = await screen.findByRole('button', {
+      name: /videoSearch\.previewOpenInBrowser/,
+    })
+    // The null branch of videoRef.current?.pause() must be a no-op —
+    // the handoff proceeds with no mounted video to pause.
+    await user.click(browserButton)
+
+    expect(document.querySelector('video')).toBeNull()
+    expect(vi.mocked(openUrl)).toHaveBeenCalledWith(
+      'https://www.bilibili.com/video/BV1De411p77r',
+    )
   })
 })
