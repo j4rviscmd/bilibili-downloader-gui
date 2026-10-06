@@ -263,6 +263,9 @@ describe('VideoSearchResultList', () => {
     await waitFor(() => {
       expect(video).toHaveAttribute('src', 'https://example.com/preview.mp4')
     })
+    // The native overflow (⋮) menu must not offer a Download item; the
+    // dialog's own download handoff is the intended path.
+    expect(video).toHaveAttribute('controlslist', 'nodownload')
   })
 
   it('shows a mapped error when the preview URL cannot be resolved', async () => {
