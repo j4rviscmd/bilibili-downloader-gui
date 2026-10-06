@@ -214,6 +214,9 @@ export function VideoPreviewDialog({
             size="sm"
             onClick={() => {
               if (!entry) return
+              // The browser starts the same video — pause the preview
+              // so audio doesn't double.
+              videoRef.current?.pause()
               openUrl(buildVideoUrl(entry.bvid, 1)).catch((e) => {
                 logger.error(
                   'VideoPreviewDialog: failed to open video in browser',
