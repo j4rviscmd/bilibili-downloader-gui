@@ -6005,7 +6005,18 @@ async fn fetch_wbi_view(api: &BiliApi, bvid: &str) -> Result<WebInterfaceApiResp
         .await
         .map_err(|e| format!("WebInterface Api Failed to parse response JSON: {e}"))?;
 
-    validate_api_response(body.code, body.data.as_ref())?;
+    if let Err(e) = validate_api_response(body.code, body.data.as_ref()) {
+        // Why log here: validate_api_response standardizes the code to
+        // ERR::* and drops Bilibili's own message, which is the only
+        // signal distinguishing deleted videos from region/charge-blocked
+        // ones (-404 covers all three) when diagnosing from app.log.
+        log::warn!(
+            "[BE] fetch_wbi_view: view API rejected bvid={bvid}, code={}, message=\"{}\"",
+            body.code,
+            body.message
+        );
+        return Err(e);
+    }
     Ok(body)
 }
 
@@ -7818,7 +7829,14 @@ pub async fn get_preview_play_url(app: &AppHandle, bvid: &str) -> Result<String,
     );
     let cookies = read_cookie(app)?.unwrap_or_default();
     let api = BiliApi::from_cookies(&cookies)?;
-    get_preview_play_url_with(&api, bvid).await
+    let result = get_preview_play_url_with(&api, bvid).await;
+    if let Err(e) = &result {
+        // Why: the stages above return ERR::* codes to the FE silently,
+        // which left app.log with "requesting" entries and no outcome —
+        // preview failures were undiagnosable from the log alone.
+        log::warn!("[BE] get_preview_play_url: failed for bvid={bvid}: {e}");
+    }
+    result
 }
 
 /// Transport-injectable core of [`get_preview_play_url`] (test seam).
@@ -7883,7 +7901,17 @@ async fn get_preview_play_url_with(api: &BiliApi, bvid: &str) -> Result<String, 
             .await
             .map_err(|e| format!("XPlayerApi Failed to parse response JSON: {e}"))?;
 
-        validate_api_response(body.code, body.data.as_ref())?;
+        if let Err(e) = validate_api_response(body.code, body.data.as_ref()) {
+            // Same rationale as the fetch_wbi_view log: keep Bilibili's
+            // code+message for diagnosis; the returned ERR::* code alone
+            // cannot tell why the playurl was refused.
+            log::warn!(
+                "[BE] get_preview_play_url: playurl API rejected bvid={bvid}, code={}, message=\"{}\"",
+                body.code,
+                body.message
+            );
+            return Err(e);
+        }
 
         let url = body
             .data
