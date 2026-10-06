@@ -164,8 +164,8 @@ use crate::handlers::history_session::HistorySession;
 use crate::handlers::settings;
 use crate::models::bilibili_api::{
     BangumiPlayerApiResponse, BangumiPlayerResult, BangumiSeasonApiResponse, PlayerV2ApiResponse,
-    PopularApiData, PopularApiResponse, SearchApiData, SearchApiResponse, SuggestApiResponse,
-    UserApiResponse, WatchHistoryApiResponse, WebInterfaceApiResponse, WebInterfaceApiResponseData,
+    PopularApiResponse, SearchApiData, SearchApiResponse, SuggestApiResponse, UserApiResponse,
+    WatchHistoryApiResponse, WebInterfaceApiResponse, WebInterfaceApiResponseData,
     XPlayerApiResponse, XPlayerApiResponseData, XPlayerApiResponseVideo,
 };
 use crate::models::cookie::CookieEntry;
