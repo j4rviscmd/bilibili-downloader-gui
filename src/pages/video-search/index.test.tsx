@@ -1,12 +1,15 @@
 import { store } from '@/app/store'
 import { searchVideosApi } from '@/features/video-search/api/searchVideos'
 import {
+  clearFeeds,
   clearSearchCache,
+  setError,
+  setFilter,
   setResult,
 } from '@/features/video-search/model/videoSearchSlice'
 import { DEFAULT_VIDEO_SEARCH_FILTERS } from '@/features/video-search/types'
 import { renderWithProviders } from '@/test/test-utils'
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import { useEffect, useState } from 'react'
 import { Link, Route, Routes, useLocation } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -93,11 +96,22 @@ const response = {
   ],
 }
 
+/** Distinct content from `response`: with stacked per-keyword feeds both
+ * stay mounted, so shared titles would break single-match assertions. */
+const seededResponse = {
+  ...response,
+  entries: [
+    { ...response.entries[0], bvid: 'BVseeded0000', title: 'シード動画' },
+  ],
+}
+
 // The page redirects to /popular while idle (no search yet); tests that
 // exercise the search flow pre-seed a finished search so the page mounts
 // active. Runs against the real singleton store, like the hook tests.
 function seedFinishedSearch() {
-  store.dispatch(setResult({ keyword: 'seed', page: 1, response }))
+  store.dispatch(
+    setResult({ keyword: 'seed', page: 1, response: seededResponse }),
+  )
 }
 
 describe('VideoSearchContent', () => {
@@ -105,6 +119,10 @@ describe('VideoSearchContent', () => {
     vi.clearAllMocks()
     // Response cache must not leak responses across tests.
     store.dispatch(clearSearchCache())
+    // Nor the per-keyword feed stack (restore path would skip fetches).
+    store.dispatch(clearFeeds())
+    // Nor a tail-error state (set by the later-page failure test below).
+    store.dispatch(setError(null))
   })
 
   // Must run before the seeded tests: it relies on the store still being
@@ -265,5 +283,155 @@ describe('VideoSearchContent', () => {
       'SEARCH_KEYWORD_EMPTY',
     )
     expect(screen.getByRole('alert')).not.toHaveTextContent('ERR::')
+  })
+
+  it('keeps a later-page failure out of the top alert (tail error row owns it)', () => {
+    seedFinishedSearch()
+    // Deep-scroll shape: page-1 cards already accumulated, the page-2
+    // fetch failed — error set with the entries intact.
+    store.dispatch(setError('ERR::RATE_LIMITED'))
+    renderWithProviders(<Harness />, { route: '/video-search' })
+
+    // Loaded cards stay, the tail error row owns recovery, and the top
+    // Alert stays hidden (it would sit outside the viewport mid-scroll).
+    expect(screen.getByText('シード動画')).toBeInTheDocument()
+    expect(screen.getByText('videoSearch.loadError')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('does not scroll on a keyword switch; a filter change returns to the top', async () => {
+    seedFinishedSearch()
+    vi.mocked(searchVideosApi).mockResolvedValue(response)
+    const { user } = renderWithProviders(<Harness />, {
+      route: '/video-search',
+    })
+    const scrollTo = vi.spyOn(HTMLElement.prototype, 'scrollTo')
+
+    // A new keyword renders in its own stacked container that starts at
+    // the top by itself — no programmatic scrolling, so every keyword's
+    // container keeps its scroll position across switches.
+    await user.type(screen.getByLabelText(PLACEHOLDER), '少年')
+    await user.click(screen.getByRole('button', { name: SEARCH_BUTTON }))
+    await waitFor(() => {
+      expect(searchVideosApi).toHaveBeenCalledWith(
+        '少年',
+        1,
+        DEFAULT_VIDEO_SEARCH_FILTERS,
+      )
+    })
+    expect(scrollTo).not.toHaveBeenCalled()
+
+    // A filter change replaces the active feed's cards in place → top.
+    store.dispatch(setFilter({ order: 'click' }))
+    await waitFor(() => {
+      expect(scrollTo).toHaveBeenCalledWith({ top: 0 })
+    })
+  })
+
+  it('keeps a visited keyword stacked with its cards while viewing another', async () => {
+    seedFinishedSearch()
+    const other = {
+      ...response,
+      entries: [
+        {
+          ...response.entries[0],
+          bvid: 'BVother0000',
+          title: '別キーワード動画',
+        },
+      ],
+    }
+    vi.mocked(searchVideosApi).mockResolvedValue(other)
+    const { user, container } = renderWithProviders(<Harness />, {
+      route: '/video-search',
+    })
+
+    await user.type(screen.getByLabelText(PLACEHOLDER), '別')
+    await user.click(screen.getByRole('button', { name: SEARCH_BUTTON }))
+    await waitFor(() => {
+      expect(screen.getByText('別キーワード動画')).toBeInTheDocument()
+    })
+
+    // Both feeds stay mounted: the visited one hidden with its own scroll
+    // container (cards and scroll position intact), the active one visible.
+    const scrollers = [...container.querySelectorAll('.overflow-y-auto')]
+    expect(scrollers.length).toBe(2)
+    const [seeded, active] = scrollers as HTMLDivElement[]
+    expect(seeded).toHaveStyle({ display: 'none' })
+    expect(seeded).toHaveTextContent('シード動画')
+    expect(active).not.toHaveStyle({ display: 'none' })
+    expect(active).toHaveTextContent('別キーワード動画')
+  })
+
+  it('hides the visited feed before a new keyword fetch resets state', async () => {
+    seedFinishedSearch()
+    // The new keyword's page-1 fetch never settles: the reset window
+    // (entries cleared, slice keyword still the old one) stays open for
+    // the whole test.
+    vi.mocked(searchVideosApi).mockImplementationOnce(
+      () => new Promise<typeof response>(() => {}),
+    )
+    const { user, container } = renderWithProviders(<Harness />, {
+      route: '/video-search',
+    })
+
+    await user.type(screen.getByLabelText(PLACEHOLDER), '次')
+    await user.click(screen.getByRole('button', { name: SEARCH_BUTTON }))
+
+    // The URL drives the container switch synchronously: the visited
+    // container must already be hidden with its stored cards, so the
+    // fetch's skeleton never swaps into it (which would clamp its scroll
+    // position away).
+    await waitFor(() => {
+      expect(container.querySelector('[aria-busy="true"]')).not.toBeNull()
+    })
+    const [seeded, active] = [
+      ...container.querySelectorAll('.overflow-y-auto'),
+    ] as HTMLDivElement[]
+    expect(seeded).toHaveStyle({ display: 'none' })
+    expect(seeded).toHaveTextContent('シード動画')
+    expect(seeded.querySelector('[aria-busy="true"]')).toBeNull()
+    expect(active).not.toHaveStyle({ display: 'none' })
+    expect(active.querySelector('[aria-busy="true"]')).not.toBeNull()
+  })
+
+  it('reuses the stacked card DOM across keyword switches (no thumbnail reload)', async () => {
+    seedFinishedSearch()
+    const other = {
+      ...response,
+      entries: [
+        { ...response.entries[0], bvid: 'BVother0001', title: '別件動画' },
+      ],
+    }
+    vi.mocked(searchVideosApi).mockResolvedValue(other)
+    const { user, container } = renderWithProviders(<Harness />, {
+      route: '/video-search',
+    })
+
+    // The container node itself is keyed and stable across switches —
+    // capture it once and compare the <img> inside it before/after.
+    const seededEl = [...container.querySelectorAll('.overflow-y-auto')].find(
+      (el) => (el as HTMLElement).textContent?.includes('シード動画'),
+    ) as HTMLDivElement
+    const img = seededEl.querySelector('img')
+    expect(img).not.toBeNull()
+
+    // Switch to another keyword, then back via a resubmit (restore path).
+    await user.type(screen.getByLabelText(PLACEHOLDER), '別')
+    await user.click(screen.getByRole('button', { name: SEARCH_BUTTON }))
+    await waitFor(() => {
+      expect(screen.getByText('別件動画')).toBeInTheDocument()
+    })
+    await user.clear(screen.getByLabelText(PLACEHOLDER))
+    await user.type(screen.getByLabelText(PLACEHOLDER), 'seed')
+    await user.click(screen.getByRole('button', { name: SEARCH_BUTTON }))
+    await waitFor(() => {
+      expect(screen.getByText('シード動画')).toBeVisible()
+    })
+
+    // SAME <img> node: React reconciled the grid at its stable position,
+    // so the browser keeps the decoded thumbnails. A remount (component
+    // type swap at the container's child slot) would recreate every
+    // <img> and reload each cover.
+    expect(seededEl.querySelector('img')).toBe(img)
   })
 })

@@ -3,11 +3,13 @@ import { setSettings } from '@/features/settings/settingsSlice'
 import { usePendingDownload } from '@/shared/hooks/usePendingDownload'
 import { mockInvoke, renderWithProviders } from '@/test/test-utils'
 import { openUrl } from '@tauri-apps/plugin-opener'
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor } from '@testing-library/react'
+import { useRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { VideoSearchView } from '../hooks/useVideoSearch'
 import { useVideoSearch } from '../hooks/useVideoSearch'
 import { DEFAULT_VIDEO_SEARCH_FILTERS } from '../types'
+import { VideoSearchFeedTail } from './VideoSearchFeedTail'
 import { VideoSearchResultList } from './VideoSearchResultList'
 
 vi.mock('../hooks/useVideoSearch', () => ({
@@ -23,6 +25,7 @@ const baseState: VideoSearchView = {
   filters: DEFAULT_VIDEO_SEARCH_FILTERS,
   numPages: 2,
   numResults: 40,
+  feeds: {},
   loading: false,
   error: null,
   entries: [
@@ -61,9 +64,33 @@ const baseState: VideoSearchView = {
     },
   ],
   search: vi.fn(),
-  goToPage: vi.fn(),
+  loadMore: vi.fn(),
+  noMore: false,
   searchStarted: true,
   setFilter: vi.fn(),
+}
+
+// happy-dom's IntersectionObserver never computes intersections, so the
+// stub records the latest instance and tests fire its callback by hand.
+class StubObserver {
+  static last: StubObserver | null = null
+  callback: (entries: { isIntersecting: boolean }[]) => void
+  observe = vi.fn()
+  disconnect = vi.fn()
+  constructor(callback: StubObserver['callback']) {
+    this.callback = callback
+    StubObserver.last = this
+  }
+}
+
+/** Harness giving the list a real scroll-root element via ref. */
+function ScrollHarness() {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  return (
+    <div ref={scrollRef}>
+      <VideoSearchResultList scrollRootRef={scrollRef} />
+    </div>
+  )
 }
 
 /** happy-dom's default userAgent tracks the host platform, which would
@@ -123,7 +150,11 @@ describe('VideoSearchResultList', () => {
   })
 
   it('renders card skeletons with an accessible busy state while loading', () => {
-    vi.mocked(useVideoSearch).mockReturnValue({ ...baseState, loading: true })
+    vi.mocked(useVideoSearch).mockReturnValue({
+      ...baseState,
+      loading: true,
+      entries: [],
+    })
     const { container } = renderWithProviders(<VideoSearchResultList />)
 
     // Skeletons are aria-hidden decoration; the busy text carries the state.
@@ -135,6 +166,51 @@ describe('VideoSearchResultList', () => {
     expect(
       screen.queryByRole('button', { name: /少年/ }),
     ).not.toBeInTheDocument()
+  })
+
+  it('keeps the loaded cards and spins at the tail while fetching more', () => {
+    vi.mocked(useVideoSearch).mockReturnValue({ ...baseState, loading: true })
+    const { container } = renderWithProviders(<VideoSearchResultList />)
+
+    expect(screen.getByText('少年 官方版')).toBeInTheDocument()
+    expect(container.querySelector('[aria-busy="true"]')).toBeInTheDocument()
+    expect(screen.getByText('videoSearch.loading')).toBeInTheDocument()
+    // Sentinel still mounted: the next page can auto-load.
+    expect(container.querySelector('.h-px')).toBeInTheDocument()
+  })
+
+  it('shows a tail error row with retry when a later page fails', async () => {
+    const loadMore = vi.fn()
+    vi.mocked(useVideoSearch).mockReturnValue({
+      ...baseState,
+      error: 'ERR::RATE_LIMITED',
+      loadMore,
+    })
+    const { user } = renderWithProviders(<VideoSearchResultList />)
+
+    expect(screen.getByText('videoSearch.loadError')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'videoSearch.retry' }))
+    expect(loadMore).toHaveBeenCalledTimes(1)
+  })
+
+  it('auto-loads the next page when the sentinel enters view', async () => {
+    const loadMore = vi.fn()
+    vi.mocked(useVideoSearch).mockReturnValue({ ...baseState, loadMore })
+    vi.stubGlobal('IntersectionObserver', StubObserver)
+    renderWithProviders(<ScrollHarness />)
+
+    await act(async () => {
+      StubObserver.last!.callback([{ isIntersecting: true }])
+    })
+    expect(loadMore).toHaveBeenCalledTimes(1)
+    vi.unstubAllGlobals()
+  })
+
+  it('drops the sentinel at the last page (no more auto-loading)', () => {
+    vi.mocked(useVideoSearch).mockReturnValue({ ...baseState, noMore: true })
+    const { container } = renderWithProviders(<VideoSearchResultList />)
+
+    expect(container.querySelector('.h-px')).not.toBeInTheDocument()
   })
 
   it('renders the no-results state with a hint after searching', () => {
@@ -528,5 +604,31 @@ describe('VideoSearchResultList', () => {
     expect(vi.mocked(openUrl)).toHaveBeenCalledWith(
       'https://www.bilibili.com/video/BV1De411p77r',
     )
+  })
+})
+
+describe('VideoSearchFeedTail', () => {
+  it('spins for an in-flight refetch of a zero-result feed', () => {
+    vi.mocked(useVideoSearch).mockReturnValue({
+      ...baseState,
+      entries: [],
+      loading: true,
+    })
+    const { container } = renderWithProviders(<VideoSearchFeedTail />)
+
+    expect(container.querySelector('[aria-busy="true"]')).toBeInTheDocument()
+    expect(screen.getByText('videoSearch.loading')).toBeInTheDocument()
+    expect(screen.queryByText('videoSearch.noResults')).not.toBeInTheDocument()
+  })
+
+  it('renders nothing for a failed page-1 refetch (the Alert owns it)', () => {
+    vi.mocked(useVideoSearch).mockReturnValue({
+      ...baseState,
+      entries: [],
+      error: 'ERR::RATE_LIMITED',
+    })
+    const { container } = renderWithProviders(<VideoSearchFeedTail />)
+
+    expect(container).toBeEmptyDOMElement()
   })
 })

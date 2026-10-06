@@ -16,7 +16,7 @@ export type {
   VideoSearchState,
 } from './types'
 export { VideoCardGrid, VideoCardSkeletonGrid } from './ui/VideoCardGrid'
+export { VideoSearchFeedTail } from './ui/VideoSearchFeedTail'
 export { VideoSearchFilterBar } from './ui/VideoSearchFilterBar'
 export { VideoSearchInput } from './ui/VideoSearchInput'
-export { VideoSearchPagination } from './ui/VideoSearchPagination'
 export { VideoSearchResultList } from './ui/VideoSearchResultList'

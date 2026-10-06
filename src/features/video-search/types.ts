@@ -56,18 +56,48 @@ export interface VideoSearchResponse {
   entries: VideoSearchEntry[]
 }
 
+/**
+ * One keyword's accumulated feed — kept per keyword so switching between
+ * searched keywords (history back/forward) restores the loaded pages and
+ * scroll depth without refetching.
+ */
+export interface VideoSearchFeed {
+  /** Filters the feed was loaded under (restored together with it). */
+  filters: VideoSearchFilters
+  /** Cards accumulated across loaded pages (deduped by bvid). */
+  entries: VideoSearchEntry[]
+  /** Last loaded page. */
+  page: number
+  numPages: number
+  numResults: number
+}
+
 /** Redux state of the video search feature. */
 export interface VideoSearchState {
   /** Last submitted (searched) keyword. */
   keyword: string
   page: number
-  /** Filters persist across keyword changes (bilibili behavior). */
+  /** Active filters. Persist toward never-visited keywords (bilibili
+   * behavior); restoring a visited keyword brings back ITS filters with
+   * its feed, keeping the bar consistent with the shown cards. */
   filters: VideoSearchFilters
   results: VideoSearchResponse | null
+  /** Result cards accumulated across pages (infinite scroll), deduped
+   * by bvid. Every page-1 fetch (new keyword, filter change) resets it. */
+  entries: VideoSearchEntry[]
   loading: boolean
   error: string | null
   /** Session response cache per searchCacheKey — back/forward and
    * revisited page/filter combos skip the API call (rate-control
    * mitigation; see videoSearchSlice). */
   cache: Record<string, VideoSearchResponse>
+  /** Accumulated feed per keyword (the "stack"): the active feed mirrors
+   * into keyword/page/filters/results/entries above; visited keywords'
+   * feeds stay here so switching back restores them instantly. */
+  feeds: Record<string, VideoSearchFeed>
+  /** Recency order of `feeds` keys (eviction source of truth — storeFeed
+   * re-inserts a keyword on every store/restore, so the first slot is the
+   * least-recently-stored; JS objects sort integer-like keywords
+   * numerically, breaking Object.keys ordering — see storeFeed). */
+  feedOrder: string[]
 }
