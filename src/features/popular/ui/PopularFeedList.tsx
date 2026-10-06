@@ -64,7 +64,10 @@ export function PopularFeedList({
         </div>
       )}
       {errorRow}
-      {!noMore && <div ref={sentinelRef} className="h-px" aria-hidden="true" />}
+      {/* shrink-0: guard against flex-column scroll containers collapsing the 1px sentinel (see useFeedSentinel) */}
+      {!noMore && (
+        <div ref={sentinelRef} className="h-px shrink-0" aria-hidden="true" />
+      )}
     </div>
   )
 }

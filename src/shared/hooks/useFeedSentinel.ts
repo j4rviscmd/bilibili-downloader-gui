@@ -7,6 +7,9 @@ import { type RefObject, useEffect } from 'react'
  * IntersectionObserver rooted at the scroll container; entering the
  * viewport fires `onReachEnd` (loadMore), which keeps fetching until the
  * viewport is filled — large displays simply accumulate more pages.
+ * The sentinel div MUST carry `shrink-0`: a flex-column scroll container
+ * collapses a shrinkable 1px sentinel to 0px; on WebView2 sub-pixel layout
+ * keeps it below the clip even at max scroll — infinite scroll silently stops.
  */
 export function useFeedSentinel({
   scrollRootRef,
