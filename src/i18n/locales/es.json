@@ -726,6 +726,7 @@
     "previewPlay": "Vista previa del video",
     "previewDownload": "Descargar este video",
     "previewOpenInBrowser": "Abrir en el navegador",
+    "previewPlaybackError": "No se pudo reproducir el video. Vuelve a intentarlo.",
     "resultsCount": "{{count}} resultados",
     "filters": {
       "groupLabel": "Filtros de búsqueda",

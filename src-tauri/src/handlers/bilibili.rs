@@ -4021,6 +4021,120 @@ mod tests {
         assert_eq!(err, "ERR::NO_STREAM");
     }
 
+    #[tokio::test]
+    async fn get_preview_play_url_rerolls_akamai_mirror_host() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/nav"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(nav_wbi_mock_body()))
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/wbi/view"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": { "bvid": "BV1akamai", "title": "t", "pic": "p",
+                              "cid": 9, "pages": [] }
+                })),
+            )
+            .mount(&server)
+            .await;
+        // First playurl response hands out the Akamai mirror (WKWebView h3
+        // playback risk) — consumed once, then the bilivideo mock takes over.
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/player/wbi/playurl"))
+            .and(wiremock::matchers::query_param("cid", "9"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": {
+                        "durl": [
+                            { "order": 1, "length": 1, "size": 1,
+                              "url": "https://upos-hz-mirrorakam.akamaized.net/upgcxcode/9.mp4" }
+                        ]
+                    }
+                })),
+            )
+            .up_to_n_times(1)
+            .expect(1)
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/player/wbi/playurl"))
+            .and(wiremock::matchers::query_param("cid", "9"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": {
+                        "durl": [
+                            { "order": 1, "length": 1, "size": 1,
+                              "url": "https://upos-sz-mirrorcosov.bilivideo.com/upgcxcode/9.mp4" }
+                        ]
+                    }
+                })),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let api = bili_api_mock(&server.uri(), "");
+        let url = get_preview_play_url_with(&api, "BV1akamai").await.unwrap();
+        assert_eq!(
+            url,
+            "https://upos-sz-mirrorcosov.bilivideo.com/upgcxcode/9.mp4"
+        );
+        server.verify().await;
+    }
+
+    #[tokio::test]
+    async fn get_preview_play_url_falls_back_to_akamai_when_host_never_rotates() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/nav"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(nav_wbi_mock_body()))
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/wbi/view"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": { "bvid": "BV1stuck", "title": "t", "pic": "p",
+                              "cid": 4, "pages": [] }
+                })),
+            )
+            .mount(&server)
+            .await;
+        // Akamai-only pool: bounded retries (3 calls) then return the URL
+        // rather than failing the preview.
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/player/wbi/playurl"))
+            .and(wiremock::matchers::query_param("cid", "4"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": {
+                        "durl": [
+                            { "order": 1, "length": 1, "size": 1,
+                              "url": "https://upos-hz-mirrorakam.akamaized.net/upgcxcode/4.mp4" }
+                        ]
+                    }
+                })),
+            )
+            .expect(PREVIEW_PLAYURL_MAX_ATTEMPTS as u64)
+            .mount(&server)
+            .await;
+
+        let api = bili_api_mock(&server.uri(), "");
+        let url = get_preview_play_url_with(&api, "BV1stuck").await.unwrap();
+        assert_eq!(
+            url,
+            "https://upos-hz-mirrorakam.akamaized.net/upgcxcode/4.mp4"
+        );
+        server.verify().await;
+    }
+
     // ---- search_videos (keyword video search) ----
 
     #[test]
@@ -7751,22 +7865,56 @@ async fn get_preview_play_url_with(api: &BiliApi, bvid: &str) -> Result<String, 
         .collect();
     query.push(("w_rid", signature.w_rid));
 
-    let body: XPlayerApiResponse = api
-        .get_q("/x/player/wbi/playurl", &query)
-        .await?
-        .json()
-        .await
-        .map_err(|e| format!("XPlayerApi Failed to parse response JSON: {e}"))?;
+    // Why the retry loop: the playurl CDN host rotates per request between
+    // *.bilivideo.com and upos-*.akamaized.net mirrors. The Akamai mirrors
+    // advertise HTTP/3 (Alt-Svc: h3) and WKWebView upgrades the <video>
+    // media fetch to QUIC, which times out from overseas networks and
+    // aborts playback with MEDIA_ERR_SRC_NOT_SUPPORTED (measured 2026-10:
+    // 12/12 akamaized URLs dead vs 15/15 bilivideo URLs playable, same
+    // bytes over TCP). Re-request until a non-Akamai host is assigned; if
+    // the pool stays Akamai-only for this video, return the last URL
+    // rather than failing the preview outright.
+    let mut attempts_left = PREVIEW_PLAYURL_MAX_ATTEMPTS;
+    loop {
+        let body: XPlayerApiResponse = api
+            .get_q("/x/player/wbi/playurl", &query)
+            .await?
+            .json()
+            .await
+            .map_err(|e| format!("XPlayerApi Failed to parse response JSON: {e}"))?;
 
-    validate_api_response(body.code, body.data.as_ref())?;
+        validate_api_response(body.code, body.data.as_ref())?;
 
-    let url = body
-        .data
-        .and_then(|d| d.durl)
-        .and_then(|segments| segments.into_iter().next().map(|s| s.url))
-        .ok_or_else(|| "ERR::NO_STREAM".to_string())?;
-    log::info!("[BE] get_preview_play_url: resolved MP4 preview for bvid={bvid}");
-    Ok(url)
+        let url = body
+            .data
+            .and_then(|d| d.durl)
+            .and_then(|segments| segments.into_iter().next().map(|s| s.url))
+            .ok_or_else(|| "ERR::NO_STREAM".to_string())?;
+
+        attempts_left -= 1;
+        if !is_akamai_mirror(&url) || attempts_left == 0 {
+            log::info!("[BE] get_preview_play_url: resolved MP4 preview for bvid={bvid}");
+            return Ok(url);
+        }
+        log::info!(
+            "[BE] get_preview_play_url: akamai mirror assigned (WKWebView h3 playback risk), re-requesting, attempts_left={attempts_left}"
+        );
+    }
+}
+
+/// Playurl requests per preview resolve: enough re-rolls for the rotating
+/// CDN pool to hand out a non-Akamai host, bounded to keep worst-case
+/// latency at two extra API calls (see the retry loop in
+/// [`get_preview_play_url_with`]).
+const PREVIEW_PLAYURL_MAX_ATTEMPTS: u8 = 3;
+
+/// True when the URL points at an Akamai CDN mirror (`*.akamaized.net`)
+/// — the host family whose HTTP/3 advertisement breaks WKWebView media
+/// playback (see [`get_preview_play_url_with`]).
+fn is_akamai_mirror(url: &str) -> bool {
+    url::Url::parse(url)
+        .ok()
+        .is_some_and(|u| u.host_str().is_some_and(|h| h.ends_with(".akamaized.net")))
 }
 
 /// Timeout (seconds) for a single subtitle download request.

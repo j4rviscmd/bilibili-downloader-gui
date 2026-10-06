@@ -50,6 +50,11 @@ export function VideoPreviewDialog({
   const previewMuted = useSelector((state) => state.settings.previewMuted)
   const [url, setUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Set when the <video> element itself rejects the resolved URL (media
+  // `error` event — e.g. a CDN fetch failure after the URL resolved fine).
+  // Without this the dead element just sits on a black canvas with a play
+  // button and no message.
+  const [mediaFailed, setMediaFailed] = useState(false)
   // True between the <video> mounting and its first playable frame —
   // the native controls already render in a "playing" posture during
   // that window, so an explicit spinner keeps the loading state honest.
@@ -69,6 +74,7 @@ export function VideoPreviewDialog({
     if (!entry) return
     setUrl(null)
     setError(null)
+    setMediaFailed(false)
     let cancelled = false
     fetchPreviewPlayUrl(entry.bvid)
       .then((resolved) => {
@@ -126,6 +132,9 @@ export function VideoPreviewDialog({
   if (error) {
     const key = mapBackendError(error)
     errorText = key ? t(key) : error.replace(/^ERR::/, '')
+  } else if (mediaFailed) {
+    // Media-element failure has no ERR:: code — generic retry message.
+    errorText = t('videoSearch.previewPlaybackError')
   }
 
   return (
@@ -150,7 +159,7 @@ export function VideoPreviewDialog({
             windows. <video> letterboxes (object-fit default) instead of
             overflowing on shorter ones. */}
         <div className="relative aspect-video max-h-[75vh] w-full overflow-hidden rounded-md bg-black">
-          {url ? (
+          {url && !mediaFailed ? (
             <>
               <video
                 ref={videoRef}
@@ -163,7 +172,10 @@ export function VideoPreviewDialog({
                 onPlaying={() => setBuffering(false)}
                 onCanPlay={() => setBuffering(false)}
                 onSeeked={() => setBuffering(false)}
-                onError={() => setBuffering(false)}
+                onError={() => {
+                  setBuffering(false)
+                  setMediaFailed(true)
+                }}
                 onVolumeChange={handleVolumeChange}
                 src={url}
                 controls
