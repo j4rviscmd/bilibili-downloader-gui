@@ -28,9 +28,13 @@ import { useTranslation } from 'react-i18next'
  * Startup-page Select options: every page except /settings itself.
  * Labels reuse the sidebar nav keys, so no new translation keys.
  */
+// Why: Object.entries preserves key insertion order, so this key order is
+// the dropdown order — it mirrors the PAGE_PATHS sidebar order
+// (src/shared/layout/pages.ts), keeping the '/popular' startup default on
+// top. No test pins the order (the options test sorts both sides).
 export const STARTUP_PAGE_LABEL_KEYS: Record<string, string> = {
-  '/search': 'nav.search',
   '/popular': 'nav.videoSearch',
+  '/search': 'nav.search',
   '/downloads': 'nav.downloads',
   '/history': 'nav.downloadHistory',
   '/favorite': 'nav.favorite',
@@ -57,7 +61,7 @@ export function GeneralSection() {
   const startupPageValue =
     settings.startupPage === '/video-search'
       ? '/popular'
-      : (settings.startupPage ?? '/search')
+      : (settings.startupPage ?? '/popular')
 
   // Show the platform-native modifier in shortcut hints (Cmd on macOS,
   // Ctrl elsewhere). `userAgent` is used because `navigator.platform` is

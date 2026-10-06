@@ -98,6 +98,29 @@ describe('GeneralSection', () => {
     expect(toastSuccess).toHaveBeenCalledWith('settings.save_success')
   })
 
+  it('shows the video-search entry as the startup page when unset or legacy', () => {
+    // setSettings merges, so undefined must be seeded explicitly (earlier
+    // tests leave '/downloads' behind); the trigger must display the
+    // '/popular' default (pre-change: '/search'), never an empty value.
+    seedSettings({ startupPage: undefined })
+    const { unmount } = renderWithProviders(<GeneralSection />)
+
+    expect(
+      screen.getByRole('combobox', { name: 'settings.startupPage_label' }),
+    ).toHaveTextContent('nav.videoSearch')
+    unmount()
+
+    // Pre-/popular settings.json stored '/video-search'; display
+    // normalizes it while the stored value itself is left untouched.
+    seedSettings({ startupPage: '/video-search' })
+    renderWithProviders(<GeneralSection />)
+
+    expect(
+      screen.getByRole('combobox', { name: 'settings.startupPage_label' }),
+    ).toHaveTextContent('nav.videoSearch')
+    expect(store.getState().settings.startupPage).toBe('/video-search')
+  })
+
   it('offers every startup page from the label map', async () => {
     // Guards drift: options come from STARTUP_PAGE_LABEL_KEYS (Radix
     // options carry no `value` attribute in the DOM, so labels are the

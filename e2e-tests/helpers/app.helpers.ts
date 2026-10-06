@@ -111,7 +111,26 @@ export async function waitForUrlInput(): Promise<void> {
 }
 
 /**
- * Loads the fixture video on /search: fill the URL input, blur to submit
+ * Navigate from the startup landing page to the URL-fetch page (/search)
+ * via a JS-initiated click on the sidebar nav button.
+ *
+ * Why a JS click instead of a WebDriver click: the app's default startup
+ * page is /popular (video search), so fresh sessions no longer boot with
+ * the URL form on screen — and native WebDriver clicks on sidebar menu
+ * buttons do not propagate to React on the macOS runner (see the skipped
+ * settings-navigation spec in app-launch.e2e.ts). A DOM click() does.
+ */
+export async function navigateToUrlFetchPage(): Promise<void> {
+  await browser.execute((selector: string) => {
+    const btn = document.querySelector(selector)
+    if (btn instanceof HTMLElement) btn.click()
+  }, S.NAV_SEARCH)
+  await waitForUrlInput()
+}
+
+/**
+ * Navigates to /search first (fresh sessions land on the /popular
+ * default), then fills the URL input and blur-submits
  * (the form fetches on blur — WKWebView's WebDriver does not propagate
  * focus changes, hence the explicit blur via JS), and wait for the part
  * list to render.
@@ -122,8 +141,8 @@ export async function waitForUrlInput(): Promise<void> {
  * relying on state from a previously-run spec file.
  */
 export async function loadFixtureVideo(): Promise<void> {
+  await navigateToUrlFetchPage()
   const input = await browser.$(S.URL_INPUT)
-  await input.waitForExist({ timeout: 10_000 })
   await input.click()
   await input.setValue(FIXTURE_VIDEO_URL)
   await browser.execute(() => {
