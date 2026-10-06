@@ -727,6 +727,7 @@
     "previewDownload": "Télécharger cette vidéo",
     "previewOpenInBrowser": "Ouvrir dans le navigateur",
     "previewPlaybackError": "Échec de la lecture de la vidéo. Veuillez réessayer.",
+    "previewVideoUnavailable": "Impossible de prévisualiser cette vidéo : elle a peut-être été supprimée, rendue privée ou restreinte géographiquement.",
     "resultsCount": "{{count}} résultats",
     "filters": {
       "groupLabel": "Filtres de recherche",
