@@ -727,6 +727,7 @@
     "previewDownload": "この動画をダウンロード",
     "previewOpenInBrowser": "ブラウザで開く",
     "previewPlaybackError": "動画の再生に失敗しました。もう一度お試しください。",
+    "previewVideoUnavailable": "この動画は削除・非公開・地域制限などの理由でプレビューできません。",
     "resultsCount": "{{count}}件",
     "filters": {
       "groupLabel": "検索フィルタ",

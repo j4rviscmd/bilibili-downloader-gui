@@ -128,10 +128,19 @@ export function VideoPreviewDialog({
   // ERR::* codes → translated message; unmapped codes/raw strings fall
   // back to the raw message with the prefix stripped (video-search page
   // convention — see src/pages/video-search/index.tsx).
+  // Why the override: the global video_not_found message ends with "check
+  // the URL", which fits the URL-input page but not a search-result entry
+  // — here the view API refused the video itself (deleted/private/region-
+  // blocked while the search index still lists it), so the URL is fine.
   let errorText: string | null = null
   if (error) {
     const key = mapBackendError(error)
-    errorText = key ? t(key) : error.replace(/^ERR::/, '')
+    errorText =
+      key === 'video.video_not_found'
+        ? t('videoSearch.previewVideoUnavailable')
+        : key
+          ? t(key)
+          : error.replace(/^ERR::/, '')
   } else if (mediaFailed) {
     // Media-element failure has no ERR:: code — generic retry message.
     errorText = t('videoSearch.previewPlaybackError')
