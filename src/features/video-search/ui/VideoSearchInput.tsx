@@ -211,8 +211,15 @@ export function VideoSearchInput({
   // External keyword sync (back/forward changes ?q= outside this input):
   // adopt it into the draft. URL navigation wins over any unsubmitted
   // local edit — the address bar is the source of truth for the results.
+  // Adopting must not open the suggest dropdown (the search already ran on
+  // this keyword) — the suggestion-pick suppression is reused. A
+  // same-value adoption is skipped so the armed flag cannot eat the next
+  // real keystroke's suggest round (React bails out on setDraft then).
   useEffect(() => {
-    if (keyword !== undefined) setDraft(keyword)
+    if (keyword === undefined) return
+    if (inputRef.current?.value === keyword) return
+    suppressNextSuggest.current = true
+    setDraft(keyword)
   }, [keyword])
 
   const submit = (keyword: string) => {

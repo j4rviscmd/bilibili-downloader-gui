@@ -14,6 +14,19 @@ vi.mock('@/features/video-search/api/fetchPopularVideos', () => ({
   fetchPopularVideosApi: vi.fn(),
 }))
 
+// The shared VideoSearchInput loads blank-input panels (history +
+// trending); canned empty lists keep the invoke mock out of the picture
+// (same pattern as the video-search page tests).
+vi.mock('@/features/video-search/api/searchHistory', () => ({
+  getSearchHistoryApi: vi.fn().mockResolvedValue([]),
+  recordSearchApi: vi.fn().mockResolvedValue(undefined),
+  removeSearchHistoryApi: vi.fn().mockResolvedValue([]),
+  clearSearchHistoryApi: vi.fn().mockResolvedValue(undefined),
+}))
+vi.mock('@/features/video-search/api/searchTrending', () => ({
+  searchTrendingApi: vi.fn().mockResolvedValue([]),
+}))
+
 // Tests run without loaded translations, so accessible names are raw keys.
 const PLACEHOLDER = 'videoSearch.placeholder'
 const SEARCH_BUTTON = 'videoSearch.searchButton'

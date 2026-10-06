@@ -672,4 +672,29 @@ describe('VideoSearchInput external keyword sync', () => {
     )
     expect(screen.getByRole('combobox', { name: PLACEHOLDER })).toHaveValue('B')
   })
+
+  it('adopting an external keyword does not open the suggest dropdown', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const view = renderWithProviders(
+        <VideoSearchInput onSearch={vi.fn()} loading={false} keyword="A" />,
+      )
+      // Navigation-driven adoption (back/forward): the search already ran
+      // on this keyword, so no suggest fetch and no listbox may appear.
+      await act(async () => {
+        view.rerender(
+          <VideoSearchInput onSearch={vi.fn()} loading={false} keyword="B" />,
+        )
+        await vi.advanceTimersByTimeAsync(300)
+      })
+
+      expect(screen.getByRole('combobox', { name: PLACEHOLDER })).toHaveValue(
+        'B',
+      )
+      expect(searchSuggestApi).not.toHaveBeenCalled()
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
