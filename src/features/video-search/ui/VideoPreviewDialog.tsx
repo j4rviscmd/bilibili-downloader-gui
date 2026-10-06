@@ -179,6 +179,10 @@ export function VideoPreviewDialog({
                 onVolumeChange={handleVolumeChange}
                 src={url}
                 controls
+                // Suppresses the Download item in the native (Chromium/
+                // WebView2) media-controls overflow (⋮) menu; the dialog's
+                // own download handoff below is the intended path.
+                controlsList="nodownload"
                 autoPlay
                 playsInline
                 className="h-full w-full"
