@@ -190,9 +190,23 @@ export function VideoSearchInput({
     if (!hasDraft) {
       setSuggestions([])
       setActiveIndex(-1)
-      // Deleting the text mid-focus falls back to the panels; with no panel
-      // data yet (or focus elsewhere) keep the list closed.
-      setOpen(history.length > 0 || trending.length > 0)
+      // Deleting the text mid-focus falls back to the panels (bilibili-like:
+      // blank draft = history + trending). The panels may never have loaded:
+      // an input focused WITH a keyword (the results page) takes the
+      // suggest path in handleFocus, so fetch them now instead of staying
+      // closed. Why guarded on draftChanged: history/trending in the deps
+      // re-run this effect whenever a panel load settles — without the
+      // guard each settle would refetch via loadPanels in a loop. Why the
+      // focus check: a programmatic draft clear (keyword sync on a hidden
+      // page) must not fetch or open anything.
+      if (draftChanged && document.activeElement === inputRef.current) {
+        loadPanels()
+      } else {
+        // Not a user-driven blanking: either a panel load just settled
+        // (recompute open — opens now that data arrived) or focus is
+        // elsewhere / panels still empty (stay closed).
+        setOpen(history.length > 0 || trending.length > 0)
+      }
       return
     }
     // Why: window. selects the DOM overload so the timer id stays number for
@@ -205,8 +219,8 @@ export function VideoSearchInput({
     return () => clearTimeout(suggestTimer.current)
     // history/trending are read only for the blank branch's open decision;
     // listing them re-runs the effect when panel loads settle, which merely
-    // recomputes that decision.
-  }, [draft, hasDraft, history, trending, requestSuggest])
+    // recomputes that decision. loadPanels is a stable callback ([] deps).
+  }, [draft, hasDraft, history, trending, requestSuggest, loadPanels])
 
   // External keyword sync (back/forward changes ?q= outside this input):
   // adopt it into the draft. URL navigation wins over any unsubmitted
