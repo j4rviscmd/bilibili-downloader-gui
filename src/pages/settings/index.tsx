@@ -9,6 +9,7 @@ import { NotificationsSection } from '@/features/settings/ui/sections/Notificati
 import { StorageSection } from '@/features/settings/ui/sections/StorageSection'
 import { ToolDefaultsSection } from '@/features/settings/ui/sections/ToolDefaultsSection'
 import { useSettings } from '@/features/settings/useSettings'
+import { usePageTitle } from '@/shared/hooks/usePageTitle'
 import { PageTemplate } from '@/shared/layout'
 import { logger } from '@/shared/lib/logger'
 import type { FC } from 'react'
@@ -87,9 +88,7 @@ export function SettingsContent() {
     }
   })
 
-  useEffect(() => {
-    document.title = `${t('settings.title')} - ${t('app.title')}`
-  }, [t])
+  usePageTitle('settings.title')
 
   const Section = SECTION_BY_CATEGORY[category]
 

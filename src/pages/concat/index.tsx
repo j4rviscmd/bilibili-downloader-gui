@@ -1,6 +1,6 @@
 import { ConcatForm } from '@/features/concat'
+import { usePageTitle } from '@/shared/hooks/usePageTitle'
 import { PageTemplate } from '@/shared/layout'
-import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 /**
@@ -14,9 +14,7 @@ import { useTranslation } from 'react-i18next'
 export function ConcatContent() {
   const { t } = useTranslation()
 
-  useEffect(() => {
-    document.title = `${t('concat.title')} - ${t('app.title')}`
-  }, [t])
+  usePageTitle('concat.title')
 
   return (
     <PageTemplate

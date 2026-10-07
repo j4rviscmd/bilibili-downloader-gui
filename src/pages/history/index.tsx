@@ -4,6 +4,7 @@ import HistoryExportDialog from '@/features/history/ui/HistoryExportDialog'
 import HistoryFilters from '@/features/history/ui/HistoryFilters'
 import HistoryList from '@/features/history/ui/HistoryList'
 import HistorySearch from '@/features/history/ui/HistorySearch'
+import { usePageTitle } from '@/shared/hooks/usePageTitle'
 import { usePendingDownload } from '@/shared/hooks/usePendingDownload'
 import { PageTemplate } from '@/shared/layout'
 import { Button } from '@/shared/ui/button'
@@ -81,13 +82,7 @@ export function HistoryContent() {
     }
   }
 
-  /**
-   * Updates document title on mount or language change.
-   * Sets the page title for browser history and tab display.
-   */
-  useEffect(() => {
-    document.title = `${t('history.title')} - ${t('app.title')}`
-  }, [t])
+  usePageTitle('history.title')
 
   /**
    * Clears all history entries with user confirmation.

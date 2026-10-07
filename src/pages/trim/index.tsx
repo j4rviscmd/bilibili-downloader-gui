@@ -1,6 +1,6 @@
 import { TrimForm } from '@/features/trim'
+import { usePageTitle } from '@/shared/hooks/usePageTitle'
 import { PageTemplate } from '@/shared/layout'
-import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 /**
@@ -12,9 +12,7 @@ import { useTranslation } from 'react-i18next'
 export function TrimContent() {
   const { t } = useTranslation()
 
-  useEffect(() => {
-    document.title = `${t('trim.title')} - ${t('app.title')}`
-  }, [t])
+  usePageTitle('trim.title')
 
   return (
     <PageTemplate title={t('trim.title')} description={t('trim.description')}>

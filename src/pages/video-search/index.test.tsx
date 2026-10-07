@@ -164,6 +164,7 @@ describe('VideoSearchContent', () => {
       1,
       DEFAULT_VIDEO_SEARCH_FILTERS,
     )
+    expect(document.title).toBe('videoSearch.title - app.title')
   })
 
   it('searches and renders results, card click navigates to /search', async () => {
