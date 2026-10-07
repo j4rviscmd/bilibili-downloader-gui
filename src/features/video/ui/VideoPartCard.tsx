@@ -784,24 +784,36 @@ const VideoPartCard = memo(function VideoPartCard({
                 className="text-muted-foreground mt-1.5 flex items-center text-sm"
                 style={{ marginLeft: '2.25rem' }}
               >
-                <button
-                  type="button"
-                  onClick={handleCopyPartName}
-                  className="hover:bg-muted mr-0.5 rounded p-1 transition-colors"
-                  title={t('video.copy_title')}
-                >
-                  {copied ? (
-                    <Check className="h-3.5 w-3.5" />
-                  ) : (
-                    <Copy className="h-3.5 w-3.5" />
-                  )}
-                </button>
+                {/* Why: custom Tooltip plus aria-label instead of a native title
+                    attribute: a title would stack the browser's built-in tooltip
+                    on top of the custom one (same pattern as the IconButton rows
+                    in PartDownloadProgress.tsx). */}
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <span
-                      className="inline-block max-w-[200px] cursor-help truncate font-medium md:max-w-[300px]"
-                      title={videoPart.part}
+                    <button
+                      type="button"
+                      onClick={handleCopyPartName}
+                      className="hover:bg-muted mr-0.5 rounded p-1 transition-colors"
+                      aria-label={t('video.copy_title')}
                     >
+                      {copied ? (
+                        <Check className="h-3.5 w-3.5" />
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" />
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" arrow>
+                    {t('video.copy_title')}
+                  </TooltipContent>
+                </Tooltip>
+                {/* Why: deliberately no title attribute on the truncated part
+                    name: the custom Tooltip already reveals the full text, and a
+                    native title would stack a second browser tooltip on top of
+                    it (regression-tested in VideoPartCard.test.tsx). */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-block max-w-[200px] cursor-help truncate font-medium md:max-w-[300px]">
                       {videoPart.part}
                     </span>
                   </TooltipTrigger>
