@@ -6,6 +6,7 @@ import {
   WatchHistoryList,
   WatchHistorySearch,
 } from '@/features/watch-history'
+import { usePageTitle } from '@/shared/hooks/usePageTitle'
 import { usePendingDownload } from '@/shared/hooks/usePendingDownload'
 import { PageTemplate } from '@/shared/layout'
 import { Alert, AlertDescription } from '@/shared/ui/alert'
@@ -53,9 +54,7 @@ export function WatchHistoryContent() {
 
   const isLoggedIn = Boolean(user.hasCookie && user.data?.isLogin)
 
-  useEffect(() => {
-    document.title = `${t('watchHistory.title')} - ${t('app.title')}`
-  }, [t])
+  usePageTitle('watchHistory.title')
 
   useEffect(() => {
     if (isLoggedIn) {

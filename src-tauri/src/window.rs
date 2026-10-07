@@ -36,9 +36,19 @@ const GEOMETRY_STORE_KEY: &str = "windowGeometry";
 /// The version is always included so it is visible from the first frame,
 /// before the frontend runs. Update availability is NOT reflected here —
 /// the frontend shows the AppBar "update available" button instead
-/// (issue #599).
+/// (issue #599). Debug builds (`tauri dev`) carry a "(dev) " prefix so a dev
+/// window stays distinguishable from a release window; once a page mounts,
+/// the frontend `usePageTitle` hook re-applies the same prefix.
 fn window_title(version: &str) -> String {
-    format!("{WINDOW_TITLE} v{version}")
+    compose_window_title(version, cfg!(debug_assertions))
+}
+
+/// Pure split of [`window_title`] (test seam, issue #646): title composition
+/// over an explicit dev flag so both variants are testable regardless of the
+/// profile the test binary itself runs under.
+fn compose_window_title(version: &str, dev: bool) -> String {
+    let prefix = if dev { "(dev) " } else { "" };
+    format!("{prefix}{WINDOW_TITLE} v{version}")
 }
 
 // Splash window dimensions (logical). Square on all platforms for a consistent
@@ -676,7 +686,28 @@ mod tests {
 
     #[test]
     fn window_title_includes_version() {
-        assert_eq!(window_title("1.57.0"), "Bilibili Downloader v1.57.0");
+        // Profile-dependent wrapper: assert against the same flag the test
+        // binary was built with (cargo test runs debug, so the prefix is on).
+        assert_eq!(
+            window_title("1.57.0"),
+            compose_window_title("1.57.0", cfg!(debug_assertions))
+        );
+    }
+
+    #[test]
+    fn compose_window_title_without_dev_prefix() {
+        assert_eq!(
+            compose_window_title("1.57.0", false),
+            "Bilibili Downloader v1.57.0"
+        );
+    }
+
+    #[test]
+    fn compose_window_title_with_dev_prefix() {
+        assert_eq!(
+            compose_window_title("1.57.0", true),
+            "(dev) Bilibili Downloader v1.57.0"
+        );
     }
 
     #[test]

@@ -6,6 +6,7 @@ import {
   VideoSearchInput,
   VideoSearchResultList,
 } from '@/features/video-search'
+import { usePageTitle } from '@/shared/hooks/usePageTitle'
 import { PageTemplate } from '@/shared/layout'
 import { mapBackendError } from '@/shared/lib/mapBackendError'
 import { Alert, AlertDescription } from '@/shared/ui/alert'
@@ -53,9 +54,7 @@ export function VideoSearchContent() {
   // below — see the comment there for why q, not `keyword`.
   const activeKw = q || keyword
 
-  useEffect(() => {
-    document.title = `${t('videoSearch.title')} - ${t('app.title')}`
-  }, [t])
+  usePageTitle('videoSearch.title')
 
   // Fetch trigger: the URL keyword differs from the last fetched one.
   // Fires on direct URLs, on back/forward (q changes), and after the

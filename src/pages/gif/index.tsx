@@ -1,6 +1,6 @@
 import { GifForm } from '@/features/gif'
+import { usePageTitle } from '@/shared/hooks/usePageTitle'
 import { PageTemplate } from '@/shared/layout'
-import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 /**
@@ -12,9 +12,7 @@ import { useTranslation } from 'react-i18next'
 export function GifContent() {
   const { t } = useTranslation()
 
-  useEffect(() => {
-    document.title = `${t('gif.title')} - ${t('app.title')}`
-  }, [t])
+  usePageTitle('gif.title')
 
   return (
     <PageTemplate title={t('gif.title')} description={t('gif.description')}>

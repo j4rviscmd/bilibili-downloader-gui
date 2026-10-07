@@ -1,6 +1,6 @@
 import { RotationForm } from '@/features/rotation'
+import { usePageTitle } from '@/shared/hooks/usePageTitle'
 import { PageTemplate } from '@/shared/layout'
-import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 /**
@@ -12,9 +12,7 @@ import { useTranslation } from 'react-i18next'
 export function RotationContent() {
   const { t } = useTranslation()
 
-  useEffect(() => {
-    document.title = `${t('rotation.title')} - ${t('app.title')}`
-  }, [t])
+  usePageTitle('rotation.title')
 
   return (
     <PageTemplate

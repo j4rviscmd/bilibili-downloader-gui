@@ -59,6 +59,12 @@ describe('HistoryContent', () => {
     mockWriteTextFile.mockResolvedValue(undefined)
   })
 
+  it('sets document.title', () => {
+    renderWithProviders(<HistoryContent />)
+
+    expect(document.title).toBe('history.title - app.title')
+  })
+
   it('propagates search input to setSearch', async () => {
     const { user } = renderWithProviders(<HistoryContent />)
 

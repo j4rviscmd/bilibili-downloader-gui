@@ -1,6 +1,6 @@
 import { AudioForm } from '@/features/audio'
+import { usePageTitle } from '@/shared/hooks/usePageTitle'
 import { PageTemplate } from '@/shared/layout'
-import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 /**
@@ -12,9 +12,7 @@ import { useTranslation } from 'react-i18next'
 export function AudioContent() {
   const { t } = useTranslation()
 
-  useEffect(() => {
-    document.title = `${t('audio.title')} - ${t('app.title')}`
-  }, [t])
+  usePageTitle('audio.title')
 
   return (
     <PageTemplate title={t('audio.title')} description={t('audio.description')}>

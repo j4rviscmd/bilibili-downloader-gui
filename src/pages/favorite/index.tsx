@@ -3,12 +3,12 @@ import { useFavorite } from '@/features/favorite/hooks/useFavorite'
 import type { FavoriteVideo } from '@/features/favorite/types'
 import FavoriteList from '@/features/favorite/ui/FavoriteList'
 import FolderSelector from '@/features/favorite/ui/FolderSelector'
+import { usePageTitle } from '@/shared/hooks/usePageTitle'
 import { usePendingDownload } from '@/shared/hooks/usePendingDownload'
 import { PageTemplate } from '@/shared/layout'
 import { Button } from '@/shared/ui/button'
 import { toast } from '@/shared/ui/toast'
 import { RefreshCw } from 'lucide-react'
-import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 /**
@@ -47,9 +47,7 @@ export function FavoriteContent() {
     refresh,
   } = useFavorite(mid)
 
-  useEffect(() => {
-    document.title = `${t('favorite.title')} - ${t('app.title')}`
-  }, [t])
+  usePageTitle('favorite.title')
 
   /**
    * Handles download request for a favorite video.

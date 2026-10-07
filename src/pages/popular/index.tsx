@@ -1,7 +1,8 @@
 import { PopularFeedList } from '@/features/popular'
 import { VideoSearchInput, useVideoSearch } from '@/features/video-search'
+import { usePageTitle } from '@/shared/hooks/usePageTitle'
 import { PageTemplate } from '@/shared/layout'
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
@@ -19,9 +20,7 @@ export function PopularContent() {
   const { loading } = useVideoSearch()
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    document.title = `${t('popular.title')} - ${t('app.title')}`
-  }, [t])
+  usePageTitle('popular.title')
 
   const handleSearch = useCallback(
     (kw: string) => {

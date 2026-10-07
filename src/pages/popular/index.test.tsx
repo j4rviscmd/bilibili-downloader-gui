@@ -78,6 +78,7 @@ describe('PopularContent', () => {
 
     expect(fetchPopularVideosApi).toHaveBeenCalledWith(1)
     expect(await screen.findByText('おすすめ 動画')).toBeInTheDocument()
+    expect(document.title).toBe('popular.title - app.title')
   })
 
   // Must run before the handoff test below: it needs the search slice
