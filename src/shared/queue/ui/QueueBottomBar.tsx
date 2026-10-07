@@ -101,7 +101,11 @@ export function QueueBottomBar() {
             to fill leftover width while staying perfectly centered; side
             content changes (rate digits, limit icon) are absorbed by their
             own 1fr tracks and never move the bar. */}
-        <div className="mx-auto grid w-full max-w-6xl grid-cols-[1fr_3fr_1fr] items-center gap-3">
+        {/* Why: The grid cap must mirror PageTemplate.tsx's frame token:
+            this bar is layout chrome mounted below page content on every
+            page (see PageLayout.tsx, issue #691), so a different cap would
+            offset the bar's content from the page edges above. */}
+        <div className="mx-auto grid w-full max-w-[104rem] grid-cols-[1fr_3fr_1fr] items-center gap-3">
           {/* Left zone (flexible, min-w-0): rate + speed-limit live LEFT of
               the bar so the right zone stays avatars-only — the two 1fr
               tracks keep the center cluster centered no matter how the
