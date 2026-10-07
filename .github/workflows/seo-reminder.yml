@@ -1,0 +1,65 @@
+name: SEO Monthly Review Reminder
+
+# Why scheduled + manual: the schedule fires the monthly reminder; the
+# workflow_dispatch trigger lets the workflow be verified on demand.
+on:
+  schedule:
+    # 1st of each month at 00:00 UTC = 09:00 JST
+    - cron: '0 0 1 * *'
+  workflow_dispatch:
+
+# Why top-level read-only: Scorecard Token-Permissions max pattern (see ci.yml);
+# only the reminder job needs issue write access.
+permissions:
+  contents: read
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Create monthly SEO review issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          MONTH=$(date -u +"%Y-%m")
+          # Idempotency guard: skip if this month's issue already exists
+          # (schedule retries and manual dispatches must not spam duplicates)
+          EXISTING=$(gh issue list -R "$REPO" --state open \
+            --search "in:title \"SEO monthly review - $MONTH\"" \
+            --json number --jq 'length')
+          if [ "$EXISTING" != "0" ]; then
+            echo "Issue for $MONTH already exists; skipping."
+            exit 0
+          fi
+          cat > /tmp/issue-body.md <<'EOF'
+          Monthly SEO review time (auto-generated reminder).
+
+          ## Data to collect (Google Search Console)
+
+          1. Open [Search Console](https://search.google.com/search-console) -> **Performance** -> date range **Last 28 days**
+          2. Add a query filter: Query **contains** `bilibili`
+          3. Enable metrics: **Impressions / Clicks / Average position / CTR**
+          4. Copy the top-queries table and totals (screenshot or CSV export)
+          5. **Pages (Indexing)** report: confirm indexed pages reach ~40+ (12 legacy pages + 30 guides)
+
+          ## Then
+
+          Paste the data as a comment in this issue and ask the agent to run the
+          monthly review (e.g. `SEO月次レビューして。データ貼る`) for analysis and
+          next actions.
+
+          ## Reference
+
+          - Ops manual: `docs/README.md` -> "SEO" section
+          - Every January: also request the year-token refresh (guide titles +
+            `updated` frontmatter + the `2026` token in `docs/scripts/check-seo.mjs`)
+          EOF
+          # Why sed: strip the leading indentation the heredoc carries inside YAML
+          sed -i 's/^          //' /tmp/issue-body.md
+          gh issue create -R "$REPO" \
+            --title "SEO monthly review - $MONTH" \
+            --label "chore" \
+            --body-file /tmp/issue-body.md
