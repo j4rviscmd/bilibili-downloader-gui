@@ -19,7 +19,6 @@ const entry: VideoSearchEntry = {
   duration: 100,
   typeid: '',
   typename: '',
-  recommendReason: '高点赞量',
 }
 
 describe('HomeRecommendations', () => {
@@ -37,7 +36,7 @@ describe('HomeRecommendations', () => {
     expect(container.innerHTML).toBe('')
   })
 
-  it('renders the shelf with heading, featured grid, and reason badge', () => {
+  it('renders the shelf with heading and featured grid', () => {
     vi.mocked(useHomeRecommendations).mockReturnValue({
       entries: [entry],
       showSkeleton: false,
@@ -47,7 +46,6 @@ describe('HomeRecommendations', () => {
 
     // Raw key: tests run without loaded translations.
     expect(screen.getByText('popular.recommendationsTitle')).toBeVisible()
-    expect(screen.getByText('高点赞量')).toBeVisible()
     const grid = container.querySelector('ul')
     expect(grid?.className).toContain('xl:grid-cols-2')
     // Featured variant: HORIZONTAL card — large (w-52 aspect-video) thumb
@@ -69,20 +67,5 @@ describe('HomeRecommendations', () => {
     expect(screen.getByText('popular.recommendationsTitle')).toBeVisible()
     expect(container.querySelector('[aria-busy="true"]')).not.toBeNull()
     expect(container.querySelector('ul')?.className).toContain('xl:grid-cols-2')
-  })
-
-  it('renders no reason badge when the entry lacks recommendReason', () => {
-    const noReason = { ...entry, recommendReason: undefined }
-    vi.mocked(useHomeRecommendations).mockReturnValue({
-      entries: [noReason],
-      showSkeleton: false,
-      visible: true,
-    })
-    const { container } = renderWithProviders(<HomeRecommendations />)
-
-    // Card still renders; zone fields are empty too, so the meta row must
-    // carry no badge at all (ReasonBadge hides on missing reason).
-    expect(screen.getByText('Rec 0')).toBeVisible()
-    expect(container.querySelectorAll('ul [data-slot="badge"]')).toHaveLength(0)
   })
 })

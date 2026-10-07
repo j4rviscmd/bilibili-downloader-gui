@@ -179,7 +179,6 @@ describe('PopularContent', () => {
         duration: 100,
         typeid: '',
         typename: '',
-        recommendReason: '高点赞量',
       },
     ])
     renderWithProviders(<Harness />, { route: '/popular' })
@@ -189,7 +188,6 @@ describe('PopularContent', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('popular.feedTitle')).toBeInTheDocument()
     expect(screen.getByText('おすすめ候補')).toBeInTheDocument()
-    expect(screen.getByText('高点赞量')).toBeInTheDocument()
     expect(mockInvoke).toHaveBeenCalledWith('fetch_home_recommendations')
   })
 })
