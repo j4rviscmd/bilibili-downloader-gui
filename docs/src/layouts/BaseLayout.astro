@@ -177,8 +177,10 @@ const pathWithoutLang =
         },
       })}
     />
-    // Why: set:html bypasses Astro's expression escaping — interpolated JSON // would
-    render &quot; entities and break JSON-LD parsing (Astro docs recipe)
+    <!--
+      Why: set:html bypasses Astro's expression escaping — interpolating the
+      JSON object would render &quot; entities and break JSON-LD parsing.
+    -->
     {
       extraJsonLd?.map((obj) => (
         <script type="application/ld+json" set:html={JSON.stringify(obj)} />
