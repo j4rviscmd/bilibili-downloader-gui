@@ -2,12 +2,30 @@
 import BaseLayout from "../layouts/BaseLayout.astro";
 import FAQ from "../components/sections/FAQ.astro";
 import { getCollection } from "astro:content";
+import { useTranslations } from "../i18n/ui";
 
+const t = useTranslations("en");
 const faqEntry = await getCollection("faq", (entry) => entry.id === "en");
 const faqItems = faqEntry[0]?.data.items || [];
+
+// FAQPage structured data for rich results, built from the same yaml items
+const faqJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faqItems.map((item) => ({
+    "@type": "Question",
+    name: item.question,
+    acceptedAnswer: { "@type": "Answer", text: item.answer },
+  })),
+};
 ---
 
-<BaseLayout title="FAQ - Bilibili Downloader GUI" lang="en">
+<BaseLayout
+  title={t("meta.faqTitle")}
+  description={t("meta.faqDescription")}
+  lang="en"
+  extraJsonLd={[faqJsonLd]}
+>
   <FAQ
     items={faqItems.map((item) => ({
       title: item.question,

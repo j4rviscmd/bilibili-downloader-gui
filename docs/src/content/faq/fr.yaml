@@ -11,3 +11,13 @@ items:
     answer: "Oui, les sous-titres peuvent être intégrés aux vidéos. Deux modes sont pris en charge : sous-titres souples (interchangeables dans les lecteurs) et sous-titres codés en dur (gravés en permanence). Les sous-titres générés par IA sont également pris en charge, et la progression du téléchargement est affichée en temps réel.\n\nRemarque : La connexion Firefox est requise."
   - question: Où puis-je consulter la version et les informations sur l'environnement ?
     answer: "Ouvrez la boîte de dialogue À propos depuis le menu de l'application (sur macOS, utilisez le menu de l'application ; sur les autres plateformes, depuis le menu dans l'application). Elle affiche la version de l'application et les informations sur l'environnement Tauri et le système."
+  - question: Que faire si un téléchargement échoue ?
+    answer: "Vérifiez d'abord que la vidéo n'est pas verrouillée régionalement par Bilibili et que l'URL est correcte. Reconnectez-vous ensuite via le cookie Firefox ou le code QR. L'app réessaie automatiquement en cas d'erreur réseau ; si les échecs persistent, attendez un moment et réessayez."
+  - question: La connexion est-elle obligatoire ?
+    answer: "Non. Sans connexion, vous pouvez télécharger jusqu'en 480p. Le 1080p et au-delà exige une connexion, et les sous-titres nécessitent une connexion via Firefox."
+  - question: Ça marche sur iPhone ou Android ?
+    answer: "Non, cette app est une application de bureau pour Windows et macOS. Sur mobile, utilisez la fonction de téléchargement de l'app officielle Bilibili (avec ses limites) ou transférez les vidéos enregistrées sur PC."
+  - question: Est-ce sûr ? Y a-t-il des virus ?
+    answer: "Oui. L'app est open source et tout son code est publié sur GitHub : n'importe qui peut l'inspecter. Aucune publicité n'est incluse."
+  - question: Puis-je n'enregistrer que l'audio en MP3 ?
+    answer: "Oui, vous pouvez extraire et enregistrer seulement l'audio d'une vidéo. Consultez le guide MP3 sur https://j4rviscmd.github.io/bilibili-downloader-gui/fr/guides/download-mp3-audio/ pour plus de détails."

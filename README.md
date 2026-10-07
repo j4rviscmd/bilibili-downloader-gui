@@ -28,6 +28,8 @@ English | [日本語](README.ja.md) | [简体中文](README.zh.md) | [한국어]
 
 No ads, no tracking. 100% free.
 
+**Website:** [Bilibili Downloader GUI](https://j4rviscmd.github.io/bilibili-downloader-gui/) · [How-to guides](https://j4rviscmd.github.io/bilibili-downloader-gui/guides/how-to-download/)
+
 </div>
 
 ## Installation

@@ -28,6 +28,8 @@
 
 Pas de publicités, pas de suivi. 100 % gratuit.
 
+**Site web :** [Téléchargeur de vidéos Bilibili](https://j4rviscmd.github.io/bilibili-downloader-gui/fr/) · [Guides](https://j4rviscmd.github.io/bilibili-downloader-gui/fr/guides/how-to-download/)
+
 </div>
 
 ## Installation

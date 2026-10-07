@@ -11,3 +11,13 @@ items:
     answer: "Yes, subtitles can be embedded into videos. Two modes are supported: soft subtitles (switchable in players) and hard subtitles (permanently burned in). AI-generated subtitles are also supported, and download progress is shown in real time.\n\nNote: Firefox login is required."
   - question: Where can I check the version and environment info?
     answer: "Open the About dialog from the app menu (on macOS, use the app menu; on other platforms, from the in-app menu). It shows the app version and Tauri/system environment information."
+  - question: What should I do if a download fails?
+    answer: "First check that the video is not region-locked by Bilibili and that the URL is correct. Then try logging in again via the Firefox cookie or QR code. The app retries network errors automatically, but if failures continue, wait a while and try again."
+  - question: Is logging in required?
+    answer: "No. Without login you can download in up to 480p. 1080p and above requires login, and subtitle downloads require logging in via Firefox."
+  - question: Does it work on iPhone or Android?
+    answer: "No, this app is a desktop application for Windows and macOS. On phones, use the download feature of the official Bilibili app (with its limitations), or transfer videos saved on a PC."
+  - question: Is it safe to use? Are there any viruses?
+    answer: "Yes. The app is open source and its entire source code is published on GitHub, so anyone can inspect it. No ads are bundled."
+  - question: Can I save just the audio as MP3?
+    answer: "Yes, you can extract and save only the audio from a video. See the MP3 guide at https://j4rviscmd.github.io/bilibili-downloader-gui/guides/download-mp3-audio/ for details."

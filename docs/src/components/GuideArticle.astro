@@ -1,0 +1,157 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { getCollection, render, type CollectionEntry } from "astro:content";
+import { useTranslations, type Lang } from "../i18n/ui";
+
+interface Props {
+  entry: CollectionEntry<"guides">;
+  lang: Lang;
+}
+
+const { entry, lang } = Astro.props;
+const { Content, headings } = await render(entry);
+const t = useTranslations(lang);
+const basePath = import.meta.env.BASE_URL;
+// Why: entry ids are "<lang>/<slug>" (content.config.ts) but en serves from the
+// site root, so the locale dir is stripped here and re-added as /<lang>/ only
+// for non-en; trailing slash matches Astro's directory output and the exact
+// canonical/sitemap URLs asserted by scripts/check-seo.mjs
+const slug = entry.id.split("/").slice(1).join("/");
+const home = lang === "en" ? `${basePath}/` : `${basePath}/${lang}/`;
+const canonical = new URL(`${home}guides/${slug}/`, Astro.site);
+const ogImage = new URL(`${basePath}/app-image(merging)_en.png`, Astro.site);
+const toc = headings.filter((h) => h.depth === 2);
+const related = (
+  await getCollection("guides", (e) => e.id.startsWith(`${lang}/`))
+)
+  .filter((e) => e.id !== entry.id)
+  .sort((a, b) => a.data.order - b.data.order);
+const lastMod = entry.data.updated ?? entry.data.pubDate;
+const dateStr = lastMod.toLocaleDateString(lang === "zh" ? "zh-CN" : lang);
+
+const articleLd = {
+  "@context": "https://schema.org",
+  "@type": "Article",
+  headline: entry.data.title,
+  description: entry.data.description,
+  inLanguage: lang,
+  datePublished: entry.data.pubDate.toISOString(),
+  dateModified: lastMod.toISOString(),
+  keywords: entry.data.keywords.join(", "),
+  author: {
+    "@type": "Organization",
+    name: "j4rviscmd",
+    url: "https://github.com/j4rviscmd",
+  },
+  mainEntityOfPage: canonical.toString(),
+  image: ogImage.toString(),
+};
+const breadcrumbLd = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  itemListElement: [
+    {
+      "@type": "ListItem",
+      position: 1,
+      name: t("hero.title"),
+      item: new URL(home, Astro.site).toString(),
+    },
+    {
+      "@type": "ListItem",
+      position: 2,
+      name: entry.data.title,
+      item: canonical.toString(),
+    },
+  ],
+};
+---
+
+<BaseLayout
+  title={entry.data.title}
+  description={entry.data.description}
+  lang={lang}
+  extraJsonLd={[articleLd, breadcrumbLd]}
+>
+  <article class="container mx-auto max-w-3xl px-4 py-10">
+    <!-- Breadcrumb -->
+    <nav aria-label="Breadcrumb" class="text-muted-foreground mb-6 text-sm">
+      <a href={home}>{t("hero.title")}</a>
+      <span aria-hidden="true"> › </span>
+      <span>{entry.data.title}</span>
+    </nav>
+
+    <h1 class="text-3xl font-bold tracking-tight sm:text-4xl">
+      {entry.data.title}
+    </h1>
+    <p class="text-muted-foreground mt-3 text-sm">
+      <time datetime={lastMod.toISOString()}>
+        {dateStr}
+      </time>
+    </p>
+    <p class="text-muted-foreground mt-4 text-lg">{entry.data.description}</p>
+
+    {
+      toc.length > 0 && (
+        <nav aria-label={t("guides.toc")} class="mt-8 rounded-lg border p-4">
+          <p class="mb-2 text-sm font-semibold">{t("guides.toc")}</p>
+          <ol class="list-decimal space-y-1 pl-5 text-sm">
+            {toc.map((h) => (
+              <li>
+                <a
+                  class="underline-offset-4 hover:underline"
+                  href={`#${h.slug}`}
+                >
+                  {h.text}
+                </a>
+              </li>
+            ))}
+          </ol>
+        </nav>
+      )
+    }
+
+    <div class="guide-prose mt-8">
+      <Content />
+    </div>
+
+    <!-- CTA -->
+    <div class="bg-card mt-12 rounded-lg border p-6 text-center">
+      <h2 class="text-xl font-semibold">{t("hero.title")}</h2>
+      <p class="text-muted-foreground mt-2">{t("hero.description")}</p>
+      <a
+        href={`${home}#download`}
+        class="bg-primary text-primary-foreground mt-4 inline-flex items-center rounded-md px-6 py-3 font-medium"
+      >
+        {t("hero.download")}
+      </a>
+    </div>
+
+    <!-- Related guides -->
+    {
+      related.length > 0 && (
+        <section class="mt-12">
+          <h2 class="mb-4 text-xl font-semibold">{t("guides.related")}</h2>
+          <ul class="grid gap-3 sm:grid-cols-2">
+            {related.map((e) => (
+              <li>
+                <a
+                  href={
+                    lang === "en"
+                      ? `${basePath}/guides/${e.id.replace(/^en\//, "")}/`
+                      : `${basePath}/${lang}/guides/${e.id.split("/").slice(1).join("/")}/`
+                  }
+                  class="hover:bg-accent block rounded-lg border p-4"
+                >
+                  <span class="font-medium">{e.data.title}</span>
+                  <span class="text-muted-foreground mt-1 block text-sm">
+                    {e.data.description}
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )
+    }
+  </article>
+</BaseLayout>
