@@ -139,9 +139,18 @@ export function PageLayoutShell({ children }: PageLayoutShellProps) {
         </Sidebar>
         <SidebarInset>
           <div className="flex h-full w-full flex-col">
-            <header className="bg-accent flex shadow-md">
-              <HistoryNavigation />
-              <AppBar user={user} theme={theme} setTheme={setTheme} />
+            <header className="bg-accent shadow-md">
+              {/* Why: the header contents must ride the same centered rail
+                  as PageTemplate.tsx / QueueBottomBar.tsx (max-w-[104rem],
+                  issue #804 follow-up): with the AppBar's old narrower cap
+                  its username and right-side controls drifted inside the
+                  page content edges on wide windows. History nav sits at
+                  the rail's left edge so all top chrome aligns with the
+                  page rail below. */}
+              <div className="mx-auto flex h-9 w-full max-w-[104rem]">
+                <HistoryNavigation />
+                <AppBar user={user} theme={theme} setTheme={setTheme} />
+              </div>
             </header>
             {children}
             {/* Queue bottom bar (issue #691): common layout element, mounts

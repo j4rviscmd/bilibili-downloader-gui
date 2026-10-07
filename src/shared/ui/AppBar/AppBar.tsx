@@ -46,6 +46,9 @@ type Props = {
  * - GitHub repository stars (with caching)
  * - Language switcher
  * - Theme toggle button
+ *
+ * Horizontal framing (the centered content rail) is owned by the
+ * PageLayoutShell header wrapper, not this component.
  */
 function AppBar({ user, theme, setTheme }: Props) {
   const { t } = useTranslation()
@@ -60,7 +63,7 @@ function AppBar({ user, theme, setTheme }: Props) {
 
   return (
     <>
-      <div className="bg-accent box-border flex h-9 w-full items-center justify-between px-3 sm:mx-auto sm:max-w-7xl sm:px-6">
+      <div className="flex h-9 w-full items-center justify-between px-3 sm:px-6">
         <div className="flex items-center gap-2">
           <UserRound
             className="text-muted-foreground size-4"
