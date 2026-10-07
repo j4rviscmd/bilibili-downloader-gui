@@ -245,6 +245,15 @@ describe('VideoPartCard', () => {
     expect(screen.getByText('2m')).toBeInTheDocument()
     expect(screen.getByText('5s')).toBeInTheDocument()
     expect(screen.getByDisplayValue('My Video Part 1')).toBeInTheDocument()
+    // The part-name span and the copy button rely on the custom Tooltip only:
+    // a native title attribute would stack a second browser tooltip on top of
+    // it (double-tooltip regression this markup guards against). Note the
+    // getByRole name check alone would not catch a revert, because accessible
+    // name computation falls back to the title attribute.
+    expect(screen.getByText('Part 1')).not.toHaveAttribute('title')
+    const copyButton = screen.getByRole('button', { name: 'video.copy_title' })
+    expect(copyButton).toHaveAttribute('aria-label', 'video.copy_title')
+    expect(copyButton).not.toHaveAttribute('title')
   })
 
   it('unchecks the part selection in the store', async () => {
@@ -396,7 +405,7 @@ describe('VideoPartCard', () => {
       configurable: true,
     })
 
-    await user.click(screen.getByTitle('video.copy_title'))
+    await user.click(screen.getByRole('button', { name: 'video.copy_title' }))
 
     await vi.waitFor(() =>
       expect(toastSuccess).toHaveBeenCalledWith('video.title_copied'),
@@ -410,7 +419,7 @@ describe('VideoPartCard', () => {
       configurable: true,
     })
 
-    await user.click(screen.getByTitle('video.copy_title'))
+    await user.click(screen.getByRole('button', { name: 'video.copy_title' }))
 
     await vi.waitFor(() =>
       expect(toastError).toHaveBeenCalledWith('video.copy_failed'),
