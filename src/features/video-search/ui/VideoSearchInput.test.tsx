@@ -354,6 +354,33 @@ describe('VideoSearchInput blank-input panels', () => {
     ).toBeInTheDocument()
   })
 
+  it('clearing the keyword mid-focus falls back to the panels (results page)', async () => {
+    // Why the keyword prop: the results page renders the input with ?q=
+    // prefilled, so focus always takes the suggest path and the panels
+    // never load on focus — the blank transition itself must fetch them.
+    const { user } = renderWithProviders(
+      <VideoSearchInput onSearch={vi.fn()} loading={false} keyword="テスト" />,
+    )
+    mockPanels()
+    vi.mocked(searchSuggestApi).mockResolvedValue([])
+
+    const input = screen.getByRole('combobox', { name: PLACEHOLDER })
+    await user.click(input)
+    await flushPanelUpdates()
+    // Focus with a draft must not touch the panel APIs.
+    expect(getSearchHistoryApi).not.toHaveBeenCalled()
+
+    await user.clear(input)
+    await flushPanelUpdates()
+
+    expect(getSearchHistoryApi).toHaveBeenCalled()
+    expect(searchTrendingApi).toHaveBeenCalled()
+    expect(screen.getByRole('option', { name: '洛天依' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('option', { name: '北京JDG vs 杭州LGD KPL' }),
+    ).toBeInTheDocument()
+  })
+
   it('clicking a history keyword searches and records it', async () => {
     const onSearch = vi.fn()
     const { user } = setup(onSearch)
