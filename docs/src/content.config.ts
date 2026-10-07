@@ -18,4 +18,18 @@ const faq = defineCollection({
   }),
 });
 
-export const collections = { faq };
+// Markdown how-to/comparison guides, one file per locale:
+// src/content/guides/<lang>/<slug>.md (entry id = "<lang>/<slug>")
+const guides = defineCollection({
+  loader: glob({ pattern: "**/*.md", base: "./src/content/guides" }),
+  schema: z.object({
+    title: z.string(),
+    description: z.string(),
+    pubDate: z.coerce.date(),
+    updated: z.coerce.date().optional(),
+    keywords: z.array(z.string()).default([]),
+    order: z.number().default(99),
+  }),
+});
+
+export const collections = { faq, guides };

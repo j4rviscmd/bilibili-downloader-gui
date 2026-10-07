@@ -35,6 +35,28 @@ const t = useTranslations(lang);
       rel="noopener noreferrer"
     >
       GitHub
+      <span
+        class="text-muted-foreground ml-1 inline-flex h-5 items-center"
+        aria-label="GitHub stars"
+      >
+        <span aria-hidden="true">★</span>
+        <span data-github-stars class="tabular-nums">…</span>
+      </span>
     </Button>
   </div>
+
+  <script>
+    // Why: fully static GitHub Pages build (docs/README.md) — fetching client-side
+    // keeps the count current without redeploying the site
+    // Fetch the star count client-side; the placeholder stays if it fails.
+    fetch("https://api.github.com/repos/j4rviscmd/bilibili-downloader-gui")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.stargazers_count != null)
+          document
+            .querySelectorAll("[data-github-stars]")
+            .forEach((el) => (el.textContent = String(d.stargazers_count)));
+      })
+      .catch(() => {});
+  </script>
 </section>

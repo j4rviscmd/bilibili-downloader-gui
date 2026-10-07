@@ -1,0 +1,15 @@
+---
+import GuideArticle from "../../components/GuideArticle.astro";
+import { getCollection } from "astro:content";
+
+export async function getStaticPaths() {
+  const entries = await getCollection("guides", (e) => e.id.startsWith("en/"));
+  return entries.map((entry) => ({
+    params: { slug: entry.id.replace(/^en\//, "") },
+    props: { entry },
+  }));
+}
+const { entry } = Astro.props;
+---
+
+<GuideArticle entry={entry} lang="en" />

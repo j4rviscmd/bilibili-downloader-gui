@@ -112,3 +112,73 @@
     animation: highlight-pulse 0.6s ease-out;
   }
 }
+
+/* Guide article typography: readable long-form content (65ch, fluid).
+   Uses hsl(var(--border)) tokens so light/dark themes both work. */
+.guide-prose {
+  max-width: 65ch;
+  margin-inline: auto;
+  line-height: 1.75;
+}
+.guide-prose h2 {
+  margin-top: 2.5rem;
+  margin-bottom: 1rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.guide-prose h3 {
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+.guide-prose p {
+  margin-block: 1rem;
+}
+.guide-prose ul {
+  list-style: disc;
+}
+.guide-prose ol {
+  list-style: decimal;
+}
+.guide-prose ul,
+.guide-prose ol {
+  margin-block: 1rem;
+  padding-inline-start: 1.5rem;
+}
+.guide-prose li {
+  margin-block: 0.375rem;
+}
+.guide-prose a {
+  text-decoration: underline;
+}
+.guide-prose code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.875em;
+  background: hsl(var(--muted));
+  padding: 0.15em 0.4em;
+  border-radius: 0.25rem;
+}
+.guide-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-block: 1.5rem;
+  font-size: 0.95em;
+}
+.guide-prose th,
+.guide-prose td {
+  border: 1px solid hsl(var(--border));
+  padding: 0.5rem 0.75rem;
+  text-align: start;
+}
+.guide-prose blockquote {
+  border-inline-start: 3px solid hsl(var(--border));
+  padding-inline-start: 1rem;
+  margin-block: 1rem;
+  color: hsl(var(--muted-foreground));
+}
+.guide-prose img {
+  max-width: 100%;
+  height: auto;
+}

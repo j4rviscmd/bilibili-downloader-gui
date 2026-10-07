@@ -130,10 +130,27 @@ export function getLocalizedPath(path: string, lang: Lang): string {
 // 翻訳データ（UI用）
 const translations: Record<Lang, Record<string, unknown>> = {
   en: {
+    meta: {
+      indexTitle:
+        "Bilibili Video Downloader — Free, 4K & Subtitles | Windows & macOS",
+      indexDescription:
+        "Free open-source Bilibili downloader for Windows & macOS. Download videos in up to 4K, embed subtitles in 15 languages, batch-download anime. No ads.",
+      faqTitle: "FAQ | Bilibili Video Downloader",
+      faqDescription:
+        "Frequently asked questions about Bilibili Downloader GUI: what to do when a download fails, login methods (Firefox cookie / QR code), quality limits, subtitles in 15 languages, audio-only MP3 saving, and safety.",
+    },
     nav: {
       home: "Home",
+      guides: "Guides",
       faq: "FAQ",
       architecture: "Architecture",
+    },
+    guides: {
+      title: "Bilibili Download Guides & How-tos",
+      subtitle:
+        "Step-by-step guides: how to download Bilibili videos, downloader comparisons, subtitles, batch anime downloads, and MP3 extraction.",
+      toc: "Table of Contents",
+      related: "Related Guides",
     },
     hero: {
       title: "Bilibili Video Downloader",
@@ -188,10 +205,27 @@ const translations: Record<Lang, Record<string, unknown>> = {
     },
   },
   ja: {
+    meta: {
+      indexTitle:
+        "bilibili動画ダウンローダー【無料・4K・字幕対応】Windows/Mac対応",
+      indexDescription:
+        "bilibili(ビリビリ)の動画・音声・字幕を無料で保存できるオープンソースのダウンローダー。4K高画質、最大15言語の字幕埋め込み、アニメ(番劇)の一括ダウンロードに対応。Windows・macOS対応で広告なし。",
+      faqTitle: "よくある質問|bilibili動画ダウンローダー",
+      faqDescription:
+        "Bilibili Downloader GUIのよくある質問。ダウンロードできない時の対処、ログイン方法(Firefox Cookie/QRコード)、画質の上限、字幕(15言語)、MP3保存、安全性について回答します。",
+    },
     nav: {
       home: "ホーム",
+      guides: "ガイド",
       faq: "よくある質問",
       architecture: "アーキテクチャ",
+    },
+    guides: {
+      title: "bilibiliダウンロードの使い方とガイド",
+      subtitle:
+        "bilibili動画のダウンロード方法、ダウンローダーのおすすめ比較、字幕・一括ダウンロード・MP3保存の手順を解説します。",
+      toc: "目次",
+      related: "関連ガイド",
     },
     hero: {
       title: "Bilibili動画ダウンローダー",
@@ -245,10 +279,26 @@ const translations: Record<Lang, Record<string, unknown>> = {
     },
   },
   zh: {
+    meta: {
+      indexTitle: "bilibili视频下载器【免费·4K·字幕】Windows/Mac版",
+      indexDescription:
+        "免费开源的bilibili视频下载器,支持Windows和macOS。最高4K画质、15种语言字幕嵌入、番剧批量下载,无广告、无需注册。",
+      faqTitle: "常见问题|bilibili视频下载器",
+      faqDescription:
+        "Bilibili Downloader GUI常见问题:下载失败的处理、登录方式(Firefox Cookie/二维码)、画质上限、字幕(15语言)、MP3保存与安全性。",
+    },
     nav: {
       home: "首页",
+      guides: "指南",
       faq: "常见问题",
       architecture: "架构",
+    },
+    guides: {
+      title: "bilibili下载使用指南",
+      subtitle:
+        "bilibili视频下载方法、下载器推荐比较、字幕、番剧批量下载与MP3提取的完整教程。",
+      toc: "目录",
+      related: "相关指南",
     },
     hero: {
       title: "Bilibili视频下载器",
@@ -299,10 +349,26 @@ const translations: Record<Lang, Record<string, unknown>> = {
     },
   },
   ko: {
+    meta: {
+      indexTitle: "bilibili 동영상 다운로더【무료·4K·자막】Windows/Mac",
+      indexDescription:
+        "무료 오픈소스 bilibili 동영상 다운로더. Windows와 macOS를 지원하며 최대 4K 화질, 15개 언어 자막 삽입, 애니메이션 일괄 다운로드를 제공합니다. 광고 없음.",
+      faqTitle: "자주 묻는 질문 | bilibili 동영상 다운로더",
+      faqDescription:
+        "Bilibili Downloader GUI 자주 묻는 질문. 다운로드 실패 대처, 로그인 방식(Firefox 쿠키/QR 코드), 화질 상한, 자막(15개 언어), MP3 저장, 안전성을 안내합니다.",
+    },
     nav: {
       home: "홈",
+      guides: "가이드",
       faq: "자주 묻는 질문",
       architecture: "아키텍처",
+    },
+    guides: {
+      title: "bilibili 다운로드 가이드",
+      subtitle:
+        "bilibili 동영상 다운로드 방법, 다운로더 추천 비교, 자막·일괄 다운로드·MP3 저장 사용법을 안내합니다.",
+      toc: "목차",
+      related: "관련 가이드",
     },
     hero: {
       title: "Bilibili 비디오 다운로더",
@@ -356,10 +422,27 @@ const translations: Record<Lang, Record<string, unknown>> = {
     },
   },
   es: {
+    meta: {
+      indexTitle:
+        "Descargador de vídeos de Bilibili: gratis, 4K y subtítulos | Windows y macOS",
+      indexDescription:
+        "Descargador de vídeos de Bilibili gratuito y de código abierto para Windows y macOS. Descarga hasta 4K, incrusta subtítulos en 15 idiomas y descarga anime por lotes. Sin anuncios.",
+      faqTitle: "Preguntas frecuentes | Descargador de vídeos de Bilibili",
+      faqDescription:
+        "Preguntas frecuentes sobre Bilibili Downloader GUI: qué hacer si falla una descarga, métodos de inicio de sesión (cookie de Firefox / código QR), límites de calidad, subtítulos en 15 idiomas, guardado en MP3 y seguridad.",
+    },
     nav: {
       home: "Inicio",
+      guides: "Guías",
       faq: "Preguntas frecuentes",
       architecture: "Arquitectura",
+    },
+    guides: {
+      title: "Guías para descargar de Bilibili",
+      subtitle:
+        "Guías paso a paso: cómo descargar vídeos de Bilibili, comparativa de descargadores, subtítulos, anime por lotes y extracción a MP3.",
+      toc: "Índice",
+      related: "Guías relacionadas",
     },
     hero: {
       title: "Descargador de videos de Bilibili",
@@ -414,10 +497,27 @@ const translations: Record<Lang, Record<string, unknown>> = {
     },
   },
   fr: {
+    meta: {
+      indexTitle:
+        "Téléchargeur de vidéos Bilibili : gratuit, 4K et sous-titres | Windows et macOS",
+      indexDescription:
+        "Téléchargeur de vidéos Bilibili gratuit et open source pour Windows et macOS. Téléchargez jusqu'en 4K, incorporez des sous-titres en 15 langues, téléchargez les animes par lot. Sans pub.",
+      faqTitle: "FAQ | Téléchargeur de vidéos Bilibili",
+      faqDescription:
+        "Questions fréquentes sur Bilibili Downloader GUI : que faire en cas d'échec, méthodes de connexion (cookie Firefox / code QR), limites de qualité, sous-titres en 15 langues, enregistrement MP3 et sécurité.",
+    },
     nav: {
       home: "Accueil",
+      guides: "Guides",
       faq: "FAQ",
       architecture: "Architecture",
+    },
+    guides: {
+      title: "Guides de téléchargement Bilibili",
+      subtitle:
+        "Guides pas à pas : télécharger des vidéos Bilibili, comparatif des téléchargeurs, sous-titres, anime par lot et extraction MP3.",
+      toc: "Sommaire",
+      related: "Guides associés",
     },
     hero: {
       title: "Téléchargeur de vidéos Bilibili",

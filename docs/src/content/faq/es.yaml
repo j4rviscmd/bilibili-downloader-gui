@@ -11,3 +11,13 @@ items:
     answer: "Sí, los subtítulos se pueden incrustar en los videos. Se admiten dos modos: subtítulos suaves (intercambiables en reproductores) y subtítulos duros (grabados permanentemente). También se admiten subtítulos generados por IA, y el progreso de descarga se muestra en tiempo real.\n\nNota: Se requiere inicio de sesión en Firefox."
   - question: ¿Dónde puedo consultar la versión y la información del entorno?
     answer: "Abre el diálogo Acerca de desde el menú de la aplicación (en macOS, usa el menú de la app; en otras plataformas, desde el menú dentro de la app). Muestra la versión de la aplicación y la información del entorno de Tauri y del sistema."
+  - question: ¿Qué hago si una descarga falla?
+    answer: "Primero comprueba que el vídeo no esté bloqueado por región en Bilibili y que la URL sea correcta. Luego prueba a iniciar sesión de nuevo con la cookie de Firefox o el código QR. La app reintenta los errores de red automáticamente; si los fallos continúan, espera un rato y vuelve a intentarlo."
+  - question: ¿Es necesario iniciar sesión?
+    answer: "No. Sin sesión puedes descargar hasta 480p. Para 1080p o superior se requiere sesión, y los subtítulos exigen iniciar sesión con Firefox."
+  - question: ¿Funciona en iPhone o Android?
+    answer: "No, esta app es una aplicación de escritorio para Windows y macOS. En el móvil usa la función de descarga de la app oficial de Bilibili (con sus limitaciones) o transfiere vídeos guardados en el PC."
+  - question: ¿Es segura? ¿Tiene virus?
+    answer: "Sí. La app es de código abierto y todo su código está publicado en GitHub, así que cualquiera puede inspeccionarlo. No incluye anuncios."
+  - question: ¿Puedo guardar solo el audio en MP3?
+    answer: "Sí, puedes extraer y guardar solo el audio de un vídeo. Consulta la guía de MP3 en https://j4rviscmd.github.io/bilibili-downloader-gui/es/guides/download-mp3-audio/ para más detalles."
