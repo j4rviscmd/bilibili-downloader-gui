@@ -707,6 +707,8 @@
   },
   "popular": {
     "title": "Vídeos populares",
+    "recommendationsTitle": "Para ti",
+    "feedTitle": "Vídeos populares",
     "loadError": "Error al cargar el contenido",
     "retry": "Reintentar"
   },
