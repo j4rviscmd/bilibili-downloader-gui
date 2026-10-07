@@ -221,6 +221,7 @@ pub fn run() {
             search_videos,
             search_suggest,
             fetch_popular_videos,
+            fetch_home_recommendations,
             search_trending,
             get_search_history,
             record_search,
@@ -1494,6 +1495,16 @@ async fn fetch_popular_videos(
 ) -> Result<bilibili::SearchResponse, String> {
     bilibili::fetch_popular_videos(&app, page).await
 }
+
+/// Fetches the personalized web-home recommendation feed (empty when
+/// logged out or on failure — a decorative shelf above the popular feed).
+#[tauri::command]
+async fn fetch_home_recommendations(
+    app: AppHandle,
+) -> Result<Vec<bilibili::SearchResultEntry>, String> {
+    bilibili::fetch_home_recommendations(&app).await
+}
+
 /// Fetches the local search-keyword history (newest first, up to 10).
 #[tauri::command]
 async fn get_search_history(app: AppHandle) -> Result<Vec<SearchHistoryEntry>, String> {

@@ -707,6 +707,8 @@
   },
   "popular": {
     "title": "인기 동영상",
+    "recommendationsTitle": "회원님을 위한 추천",
+    "feedTitle": "인기 동영상",
     "loadError": "피드를 불러오지 못했습니다",
     "retry": "다시 시도"
   },

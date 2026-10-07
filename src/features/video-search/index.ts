@@ -5,6 +5,7 @@
  * `search_videos` Tauri command. Works without login.
  */
 export { fetchPopularVideosApi } from './api/fetchPopularVideos'
+export { useHomeRecommendations } from './hooks/useHomeRecommendations'
 export { useVideoSearch } from './hooks/useVideoSearch'
 export type { VideoSearchView } from './hooks/useVideoSearch'
 export { default as videoSearchReducer } from './model/videoSearchSlice'
@@ -15,6 +16,7 @@ export type {
   VideoSearchResponse,
   VideoSearchState,
 } from './types'
+export { HomeRecommendations } from './ui/HomeRecommendations'
 export { VideoCardGrid, VideoCardSkeletonGrid } from './ui/VideoCardGrid'
 export { VideoSearchFeedTail } from './ui/VideoSearchFeedTail'
 export { VideoSearchFilterBar } from './ui/VideoSearchFilterBar'

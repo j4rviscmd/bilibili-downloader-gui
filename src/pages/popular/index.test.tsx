@@ -1,8 +1,10 @@
+import { store } from '@/app/store'
+import { setUser, type User } from '@/features/user'
 import { fetchPopularVideosApi } from '@/features/video-search'
 import { searchVideosApi } from '@/features/video-search/api/searchVideos'
 import { VideoSearchContent } from '@/pages/video-search'
-import { renderWithProviders } from '@/test/test-utils'
-import { screen } from '@testing-library/react'
+import { mockInvoke, renderWithProviders } from '@/test/test-utils'
+import { act, screen } from '@testing-library/react'
 import { Route, Routes } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PopularContent } from './index'
@@ -120,5 +122,74 @@ describe('PopularContent', () => {
       tids: 0,
     })
     expect(screen.getByText('video-search-route')).toBeInTheDocument()
+  })
+
+  // "For you" shelf tests: seed the user slice on the real singleton store
+  // (the hook gates on user.data.isLogin) and ride the global mockInvoke —
+  // fetchHomeRecommendationsApi calls invoke directly. Order matters: the
+  // success test runs LAST because it seeds the hook's module cache, which
+  // every later render in this file would reuse.
+  const loggedInUser: User = {
+    code: 0,
+    message: '',
+    ttl: 0,
+    data: { uname: 'u', isLogin: true, wbiImg: { imgUrl: '', subUrl: '' } },
+    hasCookie: true,
+  }
+
+  it('shows no shelf and no feed heading when logged out', async () => {
+    vi.mocked(fetchPopularVideosApi).mockResolvedValue(feedPage)
+    renderWithProviders(<Harness />, { route: '/popular' })
+    await screen.findByText('おすすめ 動画')
+
+    expect(mockInvoke).not.toHaveBeenCalled()
+    // Pre-shelf view: neither the shelf nor its companion heading render.
+    expect(
+      screen.queryByText('popular.recommendationsTitle'),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText('popular.feedTitle')).not.toBeInTheDocument()
+  })
+
+  it('hides shelf and feed heading when the recommendations fetch fails', async () => {
+    store.dispatch(setUser(loggedInUser))
+    vi.mocked(fetchPopularVideosApi).mockResolvedValue(feedPage)
+    mockInvoke.mockRejectedValue(new Error('boom'))
+    renderWithProviders(<Harness />, { route: '/popular' })
+    await screen.findByText('おすすめ 動画')
+    await act(async () => {})
+
+    expect(mockInvoke).toHaveBeenCalledWith('fetch_home_recommendations')
+    // Degrade path: the shelf self-hides and takes the heading with it.
+    expect(
+      screen.queryByText('popular.recommendationsTitle'),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText('popular.feedTitle')).not.toBeInTheDocument()
+  })
+
+  it('shows the shelf and the feed heading when recommendations load', async () => {
+    store.dispatch(setUser(loggedInUser))
+    vi.mocked(fetchPopularVideosApi).mockResolvedValue(feedPage)
+    mockInvoke.mockResolvedValue([
+      {
+        bvid: 'BV1rec0',
+        title: 'おすすめ候補',
+        cover: 'https://i0.hdslb.com/bfs/a.jpg',
+        author: 'up0',
+        play: 1000,
+        duration: 100,
+        typeid: '',
+        typename: '',
+        recommendReason: '高点赞量',
+      },
+    ])
+    renderWithProviders(<Harness />, { route: '/popular' })
+
+    expect(
+      await screen.findByText('popular.recommendationsTitle'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('popular.feedTitle')).toBeInTheDocument()
+    expect(screen.getByText('おすすめ候補')).toBeInTheDocument()
+    expect(screen.getByText('高点赞量')).toBeInTheDocument()
+    expect(mockInvoke).toHaveBeenCalledWith('fetch_home_recommendations')
   })
 })

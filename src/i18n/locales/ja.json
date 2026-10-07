@@ -707,6 +707,8 @@
   },
   "popular": {
     "title": "おすすめ動画",
+    "recommendationsTitle": "あなたへのおすすめ",
+    "feedTitle": "人気動画",
     "loadError": "フィードの読み込みに失敗しました",
     "retry": "再試行"
   },

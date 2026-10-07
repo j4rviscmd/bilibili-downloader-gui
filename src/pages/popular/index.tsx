@@ -1,10 +1,29 @@
 import { PopularFeedList } from '@/features/popular'
-import { VideoSearchInput, useVideoSearch } from '@/features/video-search'
+import {
+  HomeRecommendations,
+  useHomeRecommendations,
+  useVideoSearch,
+  VideoSearchInput,
+} from '@/features/video-search'
 import { usePageTitle } from '@/shared/hooks/usePageTitle'
 import { PageTemplate } from '@/shared/layout'
+import { Flame } from 'lucide-react'
 import { useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
+
+/** Companion heading under the "For you" shelf: names the popular grid
+ * so the page reads as two stacked sections. Rendered only when the
+ * shelf is present — logged-out visitors see the exact pre-shelf view. */
+function PopularFeedHeading() {
+  const { t } = useTranslation()
+  return (
+    <h2 className="text-primary flex items-center gap-2 text-base font-semibold">
+      <Flame className="size-4" aria-hidden="true" />
+      {t('popular.feedTitle')}
+    </h2>
+  )
+}
 
 /**
  * Popular (おすすめ) feed page — the video-search feature's default entry
@@ -18,6 +37,7 @@ export function PopularContent() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { loading } = useVideoSearch()
+  const { visible: shelfVisible } = useHomeRecommendations()
   const scrollRef = useRef<HTMLDivElement>(null)
 
   usePageTitle('popular.title')
@@ -47,10 +67,16 @@ export function PopularContent() {
     >
       {/* pt/pb follow the PageTemplate body idiom (see its docstring) —
           horizontal padding comes from the template's body wrapper. The
-          scroll container ref scopes the feed's IntersectionObserver. */}
+          scroll container ref scopes the feed's IntersectionObserver.
+          The shelf (logged-in only, self-hiding) scrolls with the feed;
+          its companion heading keeps the two sections readable. */}
       <div className="flex min-h-0 flex-1 flex-col pt-2 pb-4 sm:pt-3 sm:pb-6">
         <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
-          <PopularFeedList scrollRootRef={scrollRef} />
+          <div className="flex flex-col gap-4">
+            <HomeRecommendations />
+            {shelfVisible && <PopularFeedHeading />}
+            <PopularFeedList scrollRootRef={scrollRef} />
+          </div>
         </div>
       </div>
     </PageTemplate>

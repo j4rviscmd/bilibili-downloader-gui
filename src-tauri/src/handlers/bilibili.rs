@@ -4801,6 +4801,106 @@ mod tests {
         assert_eq!(res.entries.len(), 1);
     }
 
+    fn home_feed_body() -> serde_json::Value {
+        serde_json::json!({"code": 0, "message": "0", "data": {"item": [
+            {"goto": "av", "bvid": "BV1rec0", "title": "Rec 0",
+             "pic": "http://i0.hdslb.com/bfs/a.jpg", "duration": 100,
+             "owner": {"name": "up0"}, "stat": {"view": 1000},
+             "rcmd_reason": {"content": "高点赞量"}},
+            {"goto": "av", "bvid": "BV1rec1", "title": "Rec 1",
+             "pic": "http://i0.hdslb.com/bfs/b.jpg", "duration": 200,
+             "owner": {"name": "up1"}, "stat": {"view": 2000}},
+            {"goto": "live", "id": 123},
+            {"goto": "ogv"},
+            {"goto": "av", "bvid": "BV1ad", "title": "Ad",
+             "business_info": {"archive": {}}},
+            {"goto": "av", "bvid": "BV1rec2", "title": "Rec 2",
+             "pic": "https://i0.hdslb.com/bfs/c.jpg", "duration": 300,
+             "owner": {"name": "up2"}, "stat": {"view": 3000},
+             "rcmd_reason": {"content": ""}}
+        ]}})
+    }
+
+    #[tokio::test]
+    async fn fetch_home_recommendations_with_maps_av_rows_and_drops_mixins() {
+        let server = wiremock::MockServer::start().await;
+        mount_nav_mock(&server).await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path(
+                "/x/web-interface/wbi/index/top/feed/rcmd",
+            ))
+            .and(wiremock::matchers::query_param("ps", "12"))
+            .and(wiremock::matchers::header("Cookie", "SESSDATA=x; buvid3=b"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(home_feed_body()))
+            .mount(&server)
+            .await;
+
+        let res =
+            fetch_home_recommendations_with(&bili_api_mock(&server.uri(), "SESSDATA=x; buvid3=b"))
+                .await
+                .unwrap();
+
+        // live/ogv rows and the business_info ad row are dropped.
+        assert_eq!(res.len(), 3);
+        assert_eq!(res[0].bvid, "BV1rec0");
+        // Same normalization contract as the popular feed: "//" covers get
+        // https prepended; absolute http URLs pass through unchanged.
+        assert_eq!(res[0].cover, "http://i0.hdslb.com/bfs/a.jpg");
+        assert_eq!(res[2].cover, "https://i0.hdslb.com/bfs/c.jpg");
+        assert_eq!(res[0].recommend_reason.as_deref(), Some("高点赞量"));
+        // No rcmd_reason → None; empty reason content → None (no empty chip).
+        assert_eq!(res[1].recommend_reason, None);
+        assert_eq!(res[2].recommend_reason, None);
+        // feed/rcmd carries no zone info — ZoneBadge stays hidden.
+        assert!(res[0].typeid.is_empty() && res[0].typename.is_empty());
+    }
+
+    #[test]
+    fn parse_home_feed_response_maps_error_codes() {
+        let err = parse_home_feed_response(r#"{"code":-352,"message":"risk"}"#).unwrap_err();
+        assert!(err.contains("-352"));
+        // code-0 without data degrades to an empty shelf.
+        let empty = parse_home_feed_response(r#"{"code":0,"message":"0"}"#).unwrap();
+        assert!(empty.is_empty());
+    }
+
+    #[test]
+    fn parse_home_feed_response_caps_at_twelve_av_rows() {
+        let items: Vec<_> = (0..15)
+            .map(|i| {
+                serde_json::json!({"goto": "av", "bvid": format!("BV1rec{i}"),
+                    "title": format!("Rec {i}"), "pic": "", "duration": i,
+                    "owner": {"name": "up"}, "stat": {"view": i}})
+            })
+            .collect();
+        let body = serde_json::json!({"code": 0, "message": "0", "data": {"item": items}});
+        let res = parse_home_feed_response(&body.to_string()).unwrap();
+        // Featured grid contract: ps=12 fills the shelf once — extra rows
+        // (server may return more) are truncated, not spilled.
+        assert_eq!(res.len(), 12);
+        assert_eq!(res.last().unwrap().bvid, "BV1rec11");
+    }
+
+    #[tokio::test]
+    async fn fetch_home_recommendations_with_errors_on_http_failure() {
+        let server = wiremock::MockServer::start().await;
+        mount_nav_mock(&server).await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path(
+                "/x/web-interface/wbi/index/top/feed/rcmd",
+            ))
+            .respond_with(wiremock::ResponseTemplate::new(500))
+            .mount(&server)
+            .await;
+
+        // Transport-level failure surfaces as Err from the seam (the
+        // AppHandle wrapper degrades it to an empty shelf).
+        let err = fetch_home_recommendations_with(&bili_api_mock(&server.uri(), "SESSDATA=x"))
+            .await
+            .unwrap_err();
+        assert_eq!(err, "ERR::API_ERROR");
+    }
+
     /// Canned transport for the anonymous-search seam: serves spi/nav
     /// fixtures and a scripted sequence of search bodies, recording the
     /// cookie each search URL was fetched with. Single-threaded test
@@ -7111,6 +7211,7 @@ fn parse_search_response(response_text: &str, page: i64) -> Result<SearchRespons
                     duration,
                     typeid: item.typeid,
                     typename: item.typename,
+                    recommend_reason: None,
                 }
             })
             .collect(),
@@ -7417,9 +7518,125 @@ fn parse_popular_response(response_text: &str, page: i64) -> Result<SearchRespon
                 duration: item.duration,
                 typeid: item.tid.to_string(),
                 typename: item.tname,
+                recommend_reason: None,
             })
             .collect(),
     })
+}
+
+/// Signed query for the home feed — web-home defaults from the API docs
+/// (fresh_type=4 = most relevant; ps=12 fills the featured grid once).
+fn signed_home_feed_query(mixin_key: &str) -> Vec<(String, String)> {
+    let mut params = std::collections::BTreeMap::from([
+        ("fresh_type".to_string(), "4".to_string()),
+        ("ps".to_string(), "12".to_string()),
+        ("fresh_idx".to_string(), "1".to_string()),
+        ("fresh_idx_1h".to_string(), "1".to_string()),
+        ("brush".to_string(), "1".to_string()),
+        ("fetch_row".to_string(), "1".to_string()),
+        ("web_location".to_string(), "1430650".to_string()),
+    ]);
+    let signature = crate::utils::wbi::generate_wbi_signature(&mut params, mixin_key);
+    // generate_wbi_signature already inserted wts (see signed_search_query).
+    let mut query: Vec<(String, String)> = params.into_iter().collect();
+    query.push(("w_rid".to_string(), signature.w_rid));
+    query
+}
+
+/// Parses a home-feed body into featured entries: keeps `goto == "av"`
+/// rows without `business_info` (drops live/ogv/ad rows), caps at 12.
+fn parse_home_feed_response(response_text: &str) -> Result<Vec<SearchResultEntry>, String> {
+    let body: crate::models::bilibili_api::HomeFeedApiResponse =
+        serde_json::from_str(response_text)
+            .map_err(|e| format!("Failed to parse home feed response: {e}"))?;
+    if body.code != 0 {
+        return Err(format!(
+            "Home feed API error (code {}): {}",
+            body.code, body.message
+        ));
+    }
+    let items = body.data.map(|d| d.item).unwrap_or_default();
+    Ok(items
+        .into_iter()
+        // Why: live/ogv/ad rows are not downloadable videos and this shelf
+        // feeds the same download-hand-off card grid as search/popular.
+        .filter(|i| i.goto == "av" && i.business_info.is_none())
+        .take(12)
+        .map(|i| SearchResultEntry {
+            bvid: i.bvid,
+            title: i.title,
+            cover: normalize_cover_url(&i.pic),
+            author: i.owner.map(|o| o.name).unwrap_or_default(),
+            play: i.stat.map(|s| s.view).unwrap_or(0),
+            duration: i.duration,
+            // feed/rcmd items carry no zone (tid/tname) — empty strings keep
+            // the existing ZoneBadge-hidden behavior.
+            typeid: String::new(),
+            typename: String::new(),
+            recommend_reason: i
+                .rcmd_reason
+                .and_then(|r| (!r.content.is_empty()).then_some(r.content)),
+        })
+        .collect())
+}
+
+/// Fetches the personalized web-home recommendation feed for logged-in
+/// users. Decorative shelf: logged-out and ANY fetch failure return an
+/// empty vector (never an error) so the frontend can uniformly hide the
+/// section while the popular feed below keeps its own error handling.
+pub async fn fetch_home_recommendations(app: &AppHandle) -> Result<Vec<SearchResultEntry>, String> {
+    // Both steps below can fail (cache state inaccessible, client build);
+    // per the never-error contract they degrade to an empty shelf too.
+    let header = match read_cookie(app) {
+        Ok(cookies) => build_cookie_header(&cookies.unwrap_or_default()),
+        Err(e) => {
+            log::warn!("[BE] fetch_home_recommendations: failed to read cookies: {e}");
+            return Ok(Vec::new());
+        }
+    };
+    // Why: /x/web-interface/wbi/index/top/feed/rcmd is personalized only
+    // when logged in (SESSDATA cookie) — anonymous requests yield no
+    // recommendations, so skip the round-trip and return the empty shelf.
+    let logged_in = header
+        .split(';')
+        .any(|c| c.trim_start().starts_with("SESSDATA="));
+    if !logged_in {
+        return Ok(Vec::new());
+    }
+    log::info!("[BE] fetch_home_recommendations: fetching web-home feed");
+    let api = match BiliApi::from_cookie_header(header) {
+        Ok(api) => api,
+        Err(e) => {
+            log::warn!("[BE] fetch_home_recommendations: failed: {e}");
+            return Ok(Vec::new());
+        }
+    };
+    let result = fetch_home_recommendations_with(&api).await;
+    if let Err(e) = &result {
+        log::warn!("[BE] fetch_home_recommendations: failed: {e}");
+    }
+    Ok(result.unwrap_or_default())
+}
+
+/// Transport-injectable core of [`fetch_home_recommendations`] (test seam).
+async fn fetch_home_recommendations_with(api: &BiliApi) -> Result<Vec<SearchResultEntry>, String> {
+    let mixin_key = crate::utils::wbi::fetch_mixin_key(
+        &api.http,
+        &api.base,
+        (!api.cookie_header.is_empty()).then_some(&api.cookie_header),
+    )
+    .await?;
+    let query = signed_home_feed_query(&mixin_key);
+    let borrowed: Vec<(&str, String)> =
+        query.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
+    let response = api
+        .get_q("/x/web-interface/wbi/index/top/feed/rcmd", &borrowed)
+        .await?;
+    let response_text = response
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read home feed response text: {e}"))?;
+    parse_home_feed_response(&response_text)
 }
 
 /// Origin of the suggest API (lives outside api.bilibili.com).
