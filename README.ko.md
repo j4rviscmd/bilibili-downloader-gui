@@ -28,6 +28,8 @@
 
 광고 없음, 추적 없음. 100% 무료.
 
+**공식 사이트:** [bilibili 동영상 다운로더](https://j4rviscmd.github.io/bilibili-downloader-gui/ko/) · [다운로드 가이드](https://j4rviscmd.github.io/bilibili-downloader-gui/ko/guides/how-to-download/)
+
 </div>
 
 ## 설치

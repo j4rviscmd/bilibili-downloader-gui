@@ -1,0 +1,53 @@
+---
+/**
+ * Guides - Landing section listing how-to/comparison guide articles.
+ *
+ * Pulls the current locale's guide entries from the guides content
+ * collection (sorted by frontmatter `order`) and renders them as
+ * link cards. Doubles as an SEO internal-link hub from the landing
+ * page to every guide article.
+ */
+import { getCollection } from "astro:content";
+import { useTranslations, type Lang } from "../../i18n/ui";
+
+interface Props {
+  lang: Lang;
+}
+
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+const basePath = import.meta.env.BASE_URL;
+const guides = (
+  await getCollection("guides", (e) => e.id.startsWith(`${lang}/`))
+).sort((a, b) => a.data.order - b.data.order);
+const href = (id: string) =>
+  lang === "en"
+    ? `${basePath}/guides/${id.replace(/^en\//, "")}/`
+    : `${basePath}/${lang}/guides/${id.split("/").slice(1).join("/")}/`;
+---
+
+<section id="guides" class="container mx-auto px-4 py-20">
+  <h2 class="text-center text-3xl font-bold tracking-tight sm:text-4xl">
+    {t("guides.title")}
+  </h2>
+  <p class="text-muted-foreground mx-auto mt-4 max-w-2xl text-center text-lg">
+    {t("guides.subtitle")}
+  </p>
+  <ul class="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    {
+      guides.map((g) => (
+        <li>
+          <a
+            href={href(g.id)}
+            class="hover:border-primary flex h-full flex-col rounded-lg border p-6"
+          >
+            <span class="font-semibold">{g.data.title}</span>
+            <span class="text-muted-foreground mt-2 text-sm">
+              {g.data.description}
+            </span>
+          </a>
+        </li>
+      ))
+    }
+  </ul>
+</section>

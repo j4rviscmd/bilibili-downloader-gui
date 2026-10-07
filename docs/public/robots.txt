@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://j4rviscmd.github.io/bilibili-downloader-gui/sitemap-index.xml

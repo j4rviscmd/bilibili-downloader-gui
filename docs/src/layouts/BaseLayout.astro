@@ -25,6 +25,8 @@ interface Props {
   description?: string;
   /** Language code for the page (defaults to detecting from URL) */
   lang?: Lang;
+  /** Additional JSON-LD objects rendered after the default SoftwareApplication schema */
+  extraJsonLd?: object[];
 }
 
 const url = Astro.url;
@@ -37,7 +39,7 @@ const basePath = import.meta.env.BASE_URL;
 // made the language switcher navigate to /ja (404) in dev.
 const prefix = basePath;
 
-const { title, description = t("hero.description") } = Astro.props;
+const { title, description = t("hero.description"), extraJsonLd } = Astro.props;
 const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 const siteUrl =
   Astro.site?.toString() ||
@@ -175,6 +177,13 @@ const pathWithoutLang =
         },
       })}
     />
+    // Why: set:html bypasses Astro's expression escaping — interpolated JSON // would
+    render &quot; entities and break JSON-LD parsing (Astro docs recipe)
+    {
+      extraJsonLd?.map((obj) => (
+        <script type="application/ld+json" set:html={JSON.stringify(obj)} />
+      ))
+    }
 
     <!-- Google Fonts: Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -218,6 +227,14 @@ const pathWithoutLang =
         </a>
         <div class="flex items-center gap-4">
           <a
+            href={lang === "en"
+              ? `${prefix}/#guides`
+              : `${prefix}/${lang}/#guides`}
+            class="text-muted-foreground hover:text-foreground text-sm"
+            >{t("nav.guides")}</a
+          >
+
+          <a
             href={lang === "en" ? `${prefix}/faq` : `${prefix}/${lang}/faq`}
             class="text-muted-foreground hover:text-foreground text-sm"
             >{t("nav.faq")}</a
@@ -231,7 +248,6 @@ const pathWithoutLang =
             class="text-muted-foreground hover:text-foreground text-sm"
             >{t("nav.architecture")}</a
           >
-
           <!-- Language Switcher -->
           <!--
             Dropdown menu for switching between supported languages.

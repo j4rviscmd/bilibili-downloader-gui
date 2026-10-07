@@ -28,6 +28,8 @@
 
 広告なし、追跡なし。100%無料。
 
+**公式サイト:** [bilibili動画ダウンローダー](https://j4rviscmd.github.io/bilibili-downloader-gui/ja/) · [ダウンロードガイド](https://j4rviscmd.github.io/bilibili-downloader-gui/ja/guides/how-to-download/)
+
 </div>
 
 ## インストール

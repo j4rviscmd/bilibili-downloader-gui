@@ -1,7 +1,7 @@
 ---
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import FAQ from "../../components/sections/FAQ.astro";
-import { languages, type Lang } from "../../i18n/ui";
+import { languages, useTranslations, type Lang } from "../../i18n/ui";
 import { getCollection } from "astro:content";
 
 export function getStaticPaths() {
@@ -13,12 +13,29 @@ export function getStaticPaths() {
 }
 
 const { lang } = Astro.params;
+const t = useTranslations(lang as Lang);
 
 const faqEntry = await getCollection("faq", (entry) => entry.id === lang);
 const faqItems = faqEntry[0]?.data.items || [];
+
+// FAQPage structured data for rich results, built from the same yaml items
+const faqJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faqItems.map((item) => ({
+    "@type": "Question",
+    name: item.question,
+    acceptedAnswer: { "@type": "Answer", text: item.answer },
+  })),
+};
 ---
 
-<BaseLayout title="FAQ - Bilibili Downloader GUI" lang={lang as Lang}>
+<BaseLayout
+  title={t("meta.faqTitle")}
+  description={t("meta.faqDescription")}
+  lang={lang as Lang}
+  extraJsonLd={[faqJsonLd]}
+>
   <FAQ
     items={faqItems.map((item) => ({
       title: item.question,

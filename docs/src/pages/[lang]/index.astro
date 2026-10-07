@@ -3,8 +3,9 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 import Hero from "../../components/sections/Hero.astro";
 import AppScreenshots from "../../components/sections/AppScreenshots.astro";
 import Features from "../../components/sections/Features.astro";
+import Guides from "../../components/sections/Guides.astro";
 import Download from "../../components/sections/Download.astro";
-import { languages, type Lang } from "../../i18n/ui";
+import { languages, useTranslations, type Lang } from "../../i18n/ui";
 
 export function getStaticPaths() {
   return Object.keys(languages)
@@ -15,11 +16,17 @@ export function getStaticPaths() {
 }
 
 const { lang } = Astro.params;
+const t = useTranslations(lang as Lang);
 ---
 
-<BaseLayout title="Bilibili Downloader GUI" lang={lang as Lang}>
+<BaseLayout
+  title={t("meta.indexTitle")}
+  description={t("meta.indexDescription")}
+  lang={lang as Lang}
+>
   <Hero />
   <AppScreenshots />
   <Features />
+  <Guides lang={lang as Lang} />
   <Download />
 </BaseLayout>

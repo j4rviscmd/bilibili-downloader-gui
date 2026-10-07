@@ -11,3 +11,13 @@ items:
     answer: "是的，可以将字幕嵌入视频中。支持两种模式：软字幕（播放器可切换）和硬字幕（永久烧录）。也支持 AI 生成字幕，并实时显示下载进度。\n\n注意：需要Firefox登录。"
   - question: 在哪里可以查看版本和环境信息？
     answer: "从应用菜单打开“关于”对话框（macOS 上使用应用菜单，其他平台从应用内菜单打开）。可以查看应用版本以及 Tauri 和系统环境信息。"
+  - question: 下载失败怎么办？
+    answer: "首先确认视频没有被Bilibili地区限制、链接是否正确。然后尝试用Firefox Cookie或二维码重新登录。网络错误应用会自动重试,若持续失败,请稍后再试。"
+  - question: 必须登录吗？
+    answer: "不登录也能下载,最高480p。1080p及以上需要登录;字幕下载需要通过Firefox登录。"
+  - question: 手机(iPhone/Android)能用吗？
+    answer: "不能,本应用是Windows和macOS的桌面软件。手机上可使用Bilibili官方App的下载功能(有限制),或将电脑保存的视频传输到手机。"
+  - question: 安全吗?有病毒吗？
+    answer: "安全。本应用是开源软件,源代码全部在GitHub公开,任何人都能审查,也不附带广告。"
+  - question: 可以只保存MP3音频吗？
+    answer: "可以,支持从视频中单独提取音频。详细步骤请看MP3保存指南:https://j4rviscmd.github.io/bilibili-downloader-gui/zh/guides/download-mp3-audio/"

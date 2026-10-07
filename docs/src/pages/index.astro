@@ -3,15 +3,21 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 import Hero from "../components/sections/Hero.astro";
 import AppScreenshots from "../components/sections/AppScreenshots.astro";
 import Features from "../components/sections/Features.astro";
+import Guides from "../components/sections/Guides.astro";
 import Download from "../components/sections/Download.astro";
+import { useTranslations } from "../i18n/ui";
+
+const t = useTranslations("en");
 ---
 
 <BaseLayout
-  title="Bilibili Downloader GUI - Download Videos from Bilibili"
+  title={t("meta.indexTitle")}
+  description={t("meta.indexDescription")}
   lang="en"
 >
   <Hero />
   <AppScreenshots />
   <Features />
+  <Guides lang="en" />
   <Download />
 </BaseLayout>

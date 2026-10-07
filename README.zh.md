@@ -28,6 +28,8 @@
 
 无广告，无追踪。100% 免费。
 
+**官网:** [bilibili视频下载器](https://j4rviscmd.github.io/bilibili-downloader-gui/zh/) · [下载指南](https://j4rviscmd.github.io/bilibili-downloader-gui/zh/guides/how-to-download/)
+
 </div>
 
 ## 安装
