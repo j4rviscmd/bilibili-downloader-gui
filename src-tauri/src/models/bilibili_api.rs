@@ -608,17 +608,13 @@ pub struct HomeFeedItem {
     pub owner: Option<PopularApiOwner>,
     #[serde(default)]
     pub stat: Option<PopularApiStat>,
-    #[serde(default)]
-    pub rcmd_reason: Option<HomeFeedRcmdReason>,
+    // Why: the feed response also carries `rcmd_reason` (a recommender
+    // label, e.g. "高点赞量") — deliberately not modeled: it is raw
+    // Chinese-only API text that cannot be routed through react-i18next
+    // (repo i18n rule), so the #801 chip built on it was removed, not
+    // localized.
 }
 
-/// `rcmd_reason` object of a home feed item (absent when the recommender
-/// has no label to show).
-#[derive(Debug, Clone, Default, Deserialize)]
-pub struct HomeFeedRcmdReason {
-    #[serde(default)]
-    pub content: String,
-}
 // ============================================================================
 // Subtitle APIs
 // ============================================================================

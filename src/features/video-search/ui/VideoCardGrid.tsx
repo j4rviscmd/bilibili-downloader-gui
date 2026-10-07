@@ -2,7 +2,7 @@ import { Badge } from '@/components/ui/badge'
 import { usePendingDownload } from '@/shared/hooks/usePendingDownload'
 import { cn } from '@/shared/lib/utils'
 import { Skeleton } from '@/shared/ui/skeleton'
-import { Play, Sparkles } from 'lucide-react'
+import { Play } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { formatDuration } from '../lib/formatDuration'
@@ -71,25 +71,6 @@ function ZoneBadge({ typeid, typename }: { typeid: string; typename: string }) {
       className="max-w-20 shrink-0 truncate px-1.5 text-[10px]"
     >
       {label}
-    </Badge>
-  )
-}
-
-/**
- * Recommendation reason chip (home feed's `rcmd_reason`, e.g. "高点赞量")
- * — the personalization signal of the featured shelf. Hidden when the
- * API gave no reason, same policy as the zone badge.
- */
-function ReasonBadge({ reason }: { reason?: string }) {
-  if (!reason) return null
-  return (
-    <Badge
-      variant="secondary"
-      title={reason}
-      className="max-w-24 shrink-0 gap-1 truncate px-1.5 text-[10px]"
-    >
-      <Sparkles className="size-3 shrink-0" aria-hidden="true" />
-      {reason}
     </Badge>
   )
 }
@@ -169,7 +150,6 @@ export function VideoCardGrid({
                   pinning right and truncating the author. */}
                 <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
                   <span className="truncate">{entry.author}</span>
-                  <ReasonBadge reason={entry.recommendReason} />
                   <ZoneBadge typeid={entry.typeid} typename={entry.typename} />
                   {!featured && (
                     <span className="ml-auto shrink-0 tabular-nums">
