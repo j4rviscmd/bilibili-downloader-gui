@@ -3987,6 +3987,51 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn get_preview_play_url_upgrades_http_durl_to_https() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/nav"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(nav_wbi_mock_body()))
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/wbi/view"))
+            .and(wiremock::matchers::query_param("bvid", "BV1httppreview"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": { "bvid": "BV1httppreview", "title": "t", "pic": "p",
+                              "cid": 78, "pages": [] }
+                })),
+            )
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/player/wbi/playurl"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": {
+                        "durl": [
+                            { "order": 1, "length": 1, "size": 1,
+                              "url": "http://example.com/preview.mp4" }
+                        ]
+                    }
+                })),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let api = bili_api_mock(&server.uri(), "");
+        let url = get_preview_play_url_with(&api, "BV1httppreview")
+            .await
+            .unwrap();
+        assert_eq!(url, "https://example.com/preview.mp4");
+        server.verify().await;
+    }
+
+    #[tokio::test]
     async fn get_preview_play_url_maps_missing_stream() {
         let server = wiremock::MockServer::start().await;
         wiremock::Mock::given(wiremock::matchers::method("GET"))
@@ -7918,6 +7963,15 @@ async fn get_preview_play_url_with(api: &BiliApi, bvid: &str) -> Result<String, 
             .and_then(|d| d.durl)
             .and_then(|segments| segments.into_iter().next().map(|s| s.url))
             .ok_or_else(|| "ERR::NO_STREAM".to_string())?;
+        // Why: durl URLs occasionally come back http://, and the preview
+        // <video> runs on the tauri:// origin where each webview's
+        // mixed-content handling is unverified — upgrade to https (same CDN
+        // path serves both; cf. the https: prefix assumed for
+        // protocol-relative subtitle URLs in download_subtitle).
+        let url = url
+            .strip_prefix("http://")
+            .map(|rest| format!("https://{rest}"))
+            .unwrap_or(url);
 
         attempts_left -= 1;
         if !is_akamai_mirror(&url) || attempts_left == 0 {
