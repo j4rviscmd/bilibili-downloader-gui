@@ -234,6 +234,11 @@ pub struct SearchResultEntry {
     /// Video zone display name in the source language; the frontend maps
     /// known tids to localized names and falls back to this raw value.
     pub typename: String,
+    /// Personalized recommendation reason label (e.g. "高点赞量") from the
+    /// home feed's `rcmd_reason.content`. Only set by
+    /// `fetch_home_recommendations`; `None` for search/popular entries.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recommend_reason: Option<String>,
 }
 
 /// Optional filters of the `search_videos` Tauri command.

@@ -566,6 +566,59 @@ pub struct PopularApiStat {
     #[serde(default)]
     pub view: i64,
 }
+
+/// Raw body of `/x/web-interface/wbi/index/top/feed/rcmd` (web home feed).
+#[derive(Debug, Clone, Deserialize)]
+pub struct HomeFeedApiResponse {
+    pub code: i64,
+    #[serde(default)]
+    pub message: String,
+    #[serde(default)]
+    pub data: Option<HomeFeedData>,
+}
+
+/// `data` object of the home feed response.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct HomeFeedData {
+    #[serde(default)]
+    pub item: Vec<HomeFeedItem>,
+}
+
+/// One row of the home feed. Mixed rows (live/ogv/ads) lack video fields,
+/// and a malformed row must not fail the whole shelf — everything is
+/// defaulted; non-`av` rows are dropped in the parser.
+#[derive(Debug, Clone, Deserialize)]
+pub struct HomeFeedItem {
+    #[serde(default)]
+    pub goto: String,
+    /// Non-null on ad rows — those carry the archive under
+    /// `business_info.archive` instead and are dropped.
+    #[serde(default)]
+    pub business_info: Option<serde_json::Value>,
+    #[serde(default)]
+    pub bvid: String,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub pic: String,
+    /// Duration in seconds (integer on this API, unlike search's "M:S").
+    #[serde(default)]
+    pub duration: i64,
+    #[serde(default)]
+    pub owner: Option<PopularApiOwner>,
+    #[serde(default)]
+    pub stat: Option<PopularApiStat>,
+    #[serde(default)]
+    pub rcmd_reason: Option<HomeFeedRcmdReason>,
+}
+
+/// `rcmd_reason` object of a home feed item (absent when the recommender
+/// has no label to show).
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct HomeFeedRcmdReason {
+    #[serde(default)]
+    pub content: String,
+}
 // ============================================================================
 // Subtitle APIs
 // ============================================================================

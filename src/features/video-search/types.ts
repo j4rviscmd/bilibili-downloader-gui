@@ -43,6 +43,8 @@ export interface VideoSearchEntry {
   /** Zone display name in the source language; fallback when the tid is
    * not in the known-zones map. */
   typename: string
+  /** Personalized recommendation label (e.g. "高点赞量"); home feed only. */
+  recommendReason?: string
 }
 
 /**
