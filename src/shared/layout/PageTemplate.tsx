@@ -18,7 +18,7 @@ export interface PageTemplateProps {
  * Standardized per-page content frame for sub-pages.
  *
  * Unifies the layout skeleton shared by sub-pages: a centered
- * (max-w-6xl) flex column with a header strip. Chrome (Sidebar / AppBar)
+ * (max-w-[104rem] = 10xl-equivalent; Tailwind container presets stop at 7xl) flex column with a header strip. Chrome (Sidebar / AppBar)
  * is provided separately by PageLayoutShell; this template owns only the
  * per-page frame rendered as the content inside it.
  *
@@ -64,7 +64,7 @@ export function PageTemplate({
   const hasActions = actions !== undefined
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-6xl flex-col overflow-hidden">
+    <div className="mx-auto flex h-full w-full max-w-[104rem] flex-col overflow-hidden">
       <div className="border-border shrink-0 border-b px-4 py-3 sm:px-6">
         {hasActions ? (
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
