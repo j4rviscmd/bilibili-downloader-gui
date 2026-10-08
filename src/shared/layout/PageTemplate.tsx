@@ -65,7 +65,10 @@ export function PageTemplate({
 
   return (
     <div className="mx-auto flex h-full w-full max-w-[104rem] flex-col overflow-hidden">
-      <div className="border-border shrink-0 border-b px-4 py-3 sm:px-6">
+      {/* Why relative: positioning context for absolutely-positioned
+          actions (e.g. the row-centered search box on
+          popular/video-search). */}
+      <div className="border-border relative shrink-0 border-b px-4 py-3 sm:px-6">
         {hasActions ? (
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h1 className="text-xl font-semibold">{title}</h1>

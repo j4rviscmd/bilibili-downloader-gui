@@ -60,7 +60,21 @@ export function PopularContent() {
       actions={
         // Same header pattern as the video-search page: the search box
         // rides the title row and stays reachable while the feed scrolls.
-        <div className="flex w-full flex-1 items-center gap-2 sm:w-auto">
+        // Why CENTERED on the header row via absolute positioning at sm+:
+        // the two pages' h1 titles differ in width, so any in-flow
+        // alignment (flex-1 stretch, mx-auto) would sit the box at a
+        // different x per page — the row centerline (PageTemplate's
+        // relative header) is page-independent, keeping the box
+        // pixel-identical when navigating between them. Why centered via
+        // inset-y-0/left-0/right-0/mx-auto (NOT translate-x/y): a transform
+        // would create a stacking context that traps the suggest dropdown's
+        // z-50 below the video grid's z-10 overlays (transparent dropdown).
+        // Known ceiling: with the largest font preset at the 980px minimum
+        // window width, long-locale titles (fr/es/en) can overlap the box.
+        // Note: 980px = MIN_WIDTH (src-tauri/src/window.rs); font presets
+        // = the 12-20px root font-size setting (src-tauri/src/models/
+        // settings.rs); overlay-trap precedent #790 (86b08ec).
+        <div className="flex w-full items-center gap-2 sm:absolute sm:inset-y-0 sm:right-0 sm:left-0 sm:mx-auto sm:w-1/2 sm:max-w-[40rem]">
           <VideoSearchInput onSearch={handleSearch} loading={loading} />
         </div>
       }

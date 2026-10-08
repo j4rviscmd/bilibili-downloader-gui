@@ -4861,8 +4861,7 @@ mod tests {
         serde_json::json!({"code": 0, "message": "0", "data": {"item": [
             {"goto": "av", "bvid": "BV1rec0", "title": "Rec 0",
              "pic": "http://i0.hdslb.com/bfs/a.jpg", "duration": 100,
-             "owner": {"name": "up0"}, "stat": {"view": 1000},
-             "rcmd_reason": {"content": "高点赞量"}},
+             "owner": {"name": "up0"}, "stat": {"view": 1000}},
             {"goto": "av", "bvid": "BV1rec1", "title": "Rec 1",
              "pic": "http://i0.hdslb.com/bfs/b.jpg", "duration": 200,
              "owner": {"name": "up1"}, "stat": {"view": 2000}},
@@ -4872,8 +4871,7 @@ mod tests {
              "business_info": {"archive": {}}},
             {"goto": "av", "bvid": "BV1rec2", "title": "Rec 2",
              "pic": "https://i0.hdslb.com/bfs/c.jpg", "duration": 300,
-             "owner": {"name": "up2"}, "stat": {"view": 3000},
-             "rcmd_reason": {"content": ""}}
+             "owner": {"name": "up2"}, "stat": {"view": 3000}}
         ]}})
     }
 
@@ -4903,10 +4901,6 @@ mod tests {
         // https prepended; absolute http URLs pass through unchanged.
         assert_eq!(res[0].cover, "http://i0.hdslb.com/bfs/a.jpg");
         assert_eq!(res[2].cover, "https://i0.hdslb.com/bfs/c.jpg");
-        assert_eq!(res[0].recommend_reason.as_deref(), Some("高点赞量"));
-        // No rcmd_reason → None; empty reason content → None (no empty chip).
-        assert_eq!(res[1].recommend_reason, None);
-        assert_eq!(res[2].recommend_reason, None);
         // feed/rcmd carries no zone info — ZoneBadge stays hidden.
         assert!(res[0].typeid.is_empty() && res[0].typename.is_empty());
     }
@@ -7267,7 +7261,6 @@ fn parse_search_response(response_text: &str, page: i64) -> Result<SearchRespons
                     duration,
                     typeid: item.typeid,
                     typename: item.typename,
-                    recommend_reason: None,
                 }
             })
             .collect(),
@@ -7574,7 +7567,6 @@ fn parse_popular_response(response_text: &str, page: i64) -> Result<SearchRespon
                 duration: item.duration,
                 typeid: item.tid.to_string(),
                 typename: item.tname,
-                recommend_reason: None,
             })
             .collect(),
     })
@@ -7629,9 +7621,6 @@ fn parse_home_feed_response(response_text: &str) -> Result<Vec<SearchResultEntry
             // the existing ZoneBadge-hidden behavior.
             typeid: String::new(),
             typename: String::new(),
-            recommend_reason: i
-                .rcmd_reason
-                .and_then(|r| (!r.content.is_empty()).then_some(r.content)),
         })
         .collect())
 }
