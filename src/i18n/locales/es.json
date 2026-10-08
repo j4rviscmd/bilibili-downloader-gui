@@ -730,6 +730,7 @@
     "previewOpenInBrowser": "Abrir en el navegador",
     "previewPlaybackError": "No se pudo reproducir el video. Vuelve a intentarlo.",
     "previewVideoUnavailable": "No se puede previsualizar este video: puede que haya sido eliminado, marcado como privado o restringido por región.",
+    "previewMirrorUnavailable": "No se pudo obtener una URL de vista previa reproducible (problema de CDN). Vuelve a intentarlo en un momento.",
     "resultsCount": "{{count}} resultados",
     "filters": {
       "groupLabel": "Filtros de búsqueda",
