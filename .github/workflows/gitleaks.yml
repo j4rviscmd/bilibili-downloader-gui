@@ -1,14 +1,18 @@
 # Secret scanning for leaked tokens/keys (issue #629)
 name: gitleaks
 
+# Why: pull_request-only — merges are gated pre-merge by the required
+# Secret Scan check, and a push run would only re-scan the squash
+# commit's identical diff (mirrors the ci.yml policy, user decision
+# 2026-10-08). Direct pushes to main (admin/bypass merges) rely on the
+# daily full-history scan below for detection.
 on:
   pull_request:
     branches: [main]
-  push:
-    branches: [main]
-  # Why schedule + workflow_dispatch: gitleaks-action only scans the event
-  # range (PR/push commits) on those triggers — the full-history scan that
-  # issue #629 requires runs exclusively on schedule/dispatch events
+  # Why schedule + workflow_dispatch: gitleaks-action only scans the
+  # event range (PR commits) on those triggers — the full-history scan
+  # that issue #629 requires runs exclusively on schedule/dispatch
+  # events
   schedule:
     - cron: '13 15 * * *' # daily at 00:13 JST
   workflow_dispatch:
@@ -29,8 +33,8 @@ jobs:
     # Why skip: a release-please PR only adds version bumps + CHANGELOG
     # text derived from commits already scanned on their own PRs (a
     # skipped check run still satisfies the required Secret Scan check).
-    # Empty head_ref on push/schedule/dispatch keeps those triggers
-    # (incl. the daily full-history scan) running.
+    # Empty head_ref on schedule/dispatch keeps those triggers (incl.
+    # the daily full-history scan) running.
     if: github.head_ref != 'release-please--branches--main'
     # Why pull-requests write: lets the action comment on the PR when a
     # leak is found (job failure alone would gate the merge either way).

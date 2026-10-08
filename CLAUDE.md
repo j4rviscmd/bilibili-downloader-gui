@@ -137,12 +137,14 @@ into the **required** `ci-status` status check. The `coverage` job
   `.githooks/` (activated by the `prepare` npm script): pre-commit
   formats staged files, pre-push rejects direct pushes to `main`.
 - **gitleaks** (`.github/workflows/gitleaks.yml`) scans for leaked
-  secrets: PR/push events scan the event's commits, and a daily
-  scheduled run scans the full git history. Its `Secret Scan` check is
-  separate from `ci-status` and must be kept **required** in the main
-  branch ruleset. Reviewed false-positive baselines live in
-  `.gitleaksignore` — extend it only after confirming a finding is a
-  dummy/test value, never for a real secret.
+  secrets: PR events scan the PR commits (the pre-merge gate), and a
+  daily scheduled run scans the full git history — no push trigger
+  (user decision 2026-10-08, mirroring the ci.yml pull_request-only
+  policy; direct pushes to main rely on the daily scan). Its
+  `Secret Scan` check is separate from `ci-status` and must be kept
+  **required** in the main branch ruleset. Reviewed false-positive
+  baselines live in `.gitleaksignore` — extend it only after
+  confirming a finding is a dummy/test value, never for a real secret.
 - **CodeQL** (`.github/workflows/codeql.yml`) statically analyzes
   JavaScript/TypeScript, Actions, and Rust (build-mode: none) for
   vulnerability patterns. Advanced setup because default setup does
