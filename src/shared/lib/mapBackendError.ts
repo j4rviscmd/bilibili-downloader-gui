@@ -21,6 +21,9 @@ const VIDEO_ERROR_MAP: Record<string, string> = {
   'ERR::QUALITY_NOT_FOUND': 'video.quality_not_found',
   'ERR::RATE_LIMITED': 'video.rate_limited',
   'ERR::NO_STREAM': 'video.no_stream',
+  // Preview play: only Akamai mirrors were assigned within the retry
+  // budget (see get_preview_play_url in src-tauri/src/handlers/bilibili.rs)
+  'ERR::NO_PLAYABLE_MIRROR': 'videoSearch.previewMirrorUnavailable',
   // Bangumi error codes
   'ERR::BANGUMI_NOT_FOUND': 'video.bangumi_not_found',
   'ERR::BANGUMI_VIP_ONLY': 'video.bangumi_vip_only',

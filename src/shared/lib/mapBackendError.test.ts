@@ -21,6 +21,12 @@ describe('mapBackendError', () => {
     )
   })
 
+  it('maps ERR::NO_PLAYABLE_MIRROR (preview CDN pool exhausted) to its key', () => {
+    expect(mapBackendError('ERR::NO_PLAYABLE_MIRROR')).toBe(
+      'videoSearch.previewMirrorUnavailable',
+    )
+  })
+
   it('maps ERR::NETWORK:: with a dynamic suffix to the fixed network key', () => {
     expect(mapBackendError('ERR::NETWORK::2 segment(s) failed')).toBe(
       'video.network_error',

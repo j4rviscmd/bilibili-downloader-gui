@@ -186,7 +186,7 @@ use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::AppHandle;
 
 /// Builds a reqwest HTTP client with the default user agent.
@@ -4133,7 +4133,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn get_preview_play_url_falls_back_to_akamai_when_host_never_rotates() {
+    async fn get_preview_play_url_fails_when_host_never_rotates() {
         let server = wiremock::MockServer::start().await;
         wiremock::Mock::given(wiremock::matchers::method("GET"))
             .and(wiremock::matchers::path("/x/web-interface/nav"))
@@ -4151,8 +4151,9 @@ mod tests {
             )
             .mount(&server)
             .await;
-        // Akamai-only pool: bounded retries (3 calls) then return the URL
-        // rather than failing the preview.
+        // Akamai-only pool: the attempt cap binds first and the resolve
+        // hard-fails — returning the last URL would hand the <video>
+        // element a known-dead asset (WKWebView QUIC stall).
         wiremock::Mock::given(wiremock::matchers::method("GET"))
             .and(wiremock::matchers::path("/x/player/wbi/playurl"))
             .and(wiremock::matchers::query_param("cid", "4"))
@@ -4167,16 +4168,71 @@ mod tests {
                     }
                 })),
             )
-            .expect(PREVIEW_PLAYURL_MAX_ATTEMPTS as u64)
+            .expect(3)
             .mount(&server)
             .await;
 
         let api = bili_api_mock(&server.uri(), "");
-        let url = get_preview_play_url_with(&api, "BV1stuck").await.unwrap();
-        assert_eq!(
-            url,
-            "https://upos-hz-mirrorakam.akamaized.net/upgcxcode/4.mp4"
-        );
+        let policy = PreviewRetryPolicy {
+            deadline: Duration::from_secs(60),
+            max_attempts: 3,
+        };
+        let err = get_preview_play_url_retry(&api, "BV1stuck", &policy)
+            .await
+            .unwrap_err();
+        assert_eq!(err, "ERR::NO_PLAYABLE_MIRROR");
+        server.verify().await;
+    }
+
+    #[tokio::test]
+    async fn get_preview_play_url_deadline_limits_rerolls() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/nav"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(nav_wbi_mock_body()))
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/wbi/view"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": { "bvid": "BV1faststuck", "title": "t", "pic": "p",
+                              "cid": 5, "pages": [] }
+                })),
+            )
+            .mount(&server)
+            .await;
+        // Zero deadline: the very first re-request is out of budget, so
+        // exactly one playurl call happens regardless of the attempt cap
+        // (the loop must always ask at least once).
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/player/wbi/playurl"))
+            .and(wiremock::matchers::query_param("cid", "5"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": {
+                        "durl": [
+                            { "order": 1, "length": 1, "size": 1,
+                              "url": "https://upos-hz-mirrorakam.akamaized.net/upgcxcode/5.mp4" }
+                        ]
+                    }
+                })),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let api = bili_api_mock(&server.uri(), "");
+        let policy = PreviewRetryPolicy {
+            deadline: Duration::ZERO,
+            max_attempts: 10,
+        };
+        let err = get_preview_play_url_retry(&api, "BV1faststuck", &policy)
+            .await
+            .unwrap_err();
+        assert_eq!(err, "ERR::NO_PLAYABLE_MIRROR");
         server.verify().await;
     }
 
@@ -8084,6 +8140,8 @@ async fn fetch_part_qualities_with(
 /// Returns an error if:
 /// - Video is not found (`ERR::VIDEO_NOT_FOUND`)
 /// - No MP4 stream is returned (`ERR::NO_STREAM`)
+/// - Only Akamai mirrors are assigned within the retry budget
+///   (`ERR::NO_PLAYABLE_MIRROR`)
 pub async fn get_preview_play_url(app: &AppHandle, bvid: &str) -> Result<String, String> {
     log::info!(
         "[BE] get_preview_play_url: requesting preview for bvid={}",
@@ -8103,6 +8161,16 @@ pub async fn get_preview_play_url(app: &AppHandle, bvid: &str) -> Result<String,
 
 /// Transport-injectable core of [`get_preview_play_url`] (test seam).
 async fn get_preview_play_url_with(api: &BiliApi, bvid: &str) -> Result<String, String> {
+    get_preview_play_url_retry(api, bvid, &PREVIEW_RETRY_POLICY).await
+}
+
+/// Budget-injectable core of [`get_preview_play_url_with`] (test seam for
+/// the reroll loop: unit tests pin the attempt cap or a zero deadline).
+async fn get_preview_play_url_retry(
+    api: &BiliApi,
+    bvid: &str,
+    policy: &PreviewRetryPolicy,
+) -> Result<String, String> {
     // The preview always samples page 1: the WBI view response reports its
     // cid at the data root (equal to pages[0].cid for multi-part videos).
     let view = fetch_wbi_view(api, bvid).await?;
@@ -8151,11 +8219,27 @@ async fn get_preview_play_url_with(api: &BiliApi, bvid: &str) -> Result<String, 
     // media fetch to QUIC, which times out from overseas networks and
     // aborts playback with MEDIA_ERR_SRC_NOT_SUPPORTED (measured 2026-10:
     // 12/12 akamaized URLs dead vs 15/15 bilivideo URLs playable, same
-    // bytes over TCP). Re-request until a non-Akamai host is assigned; if
-    // the pool stays Akamai-only for this video, return the last URL
-    // rather than failing the preview outright.
-    let mut attempts_left = PREVIEW_PLAYURL_MAX_ATTEMPTS;
-    loop {
+    // bytes over TCP). Re-request until a non-Akamai host is assigned.
+    // Why a deadline AND a cap: the wall-clock budget keeps the worst-case
+    // user wait fixed while per-request latency varies, while the attempt
+    // cap keeps the loop polite to Bilibili's risk control when responses
+    // are fast (a deadline alone could hammer the playurl API for its
+    // full duration).
+    // Why hard-fail on exhaustion instead of returning the last URL: on
+    // affected networks the Akamai URL is a known-dead asset, so handing
+    // it over just trades this error for a long silent stall inside the
+    // <video> element ending in MEDIA_ERR_SRC_NOT_SUPPORTED.
+    let started = Instant::now();
+    let mut attempts_made = 0usize;
+    while attempts_made < policy.max_attempts {
+        // Deadline is checked before each RE-request (not before the
+        // first), so a zero deadline still yields exactly one attempt
+        // and the preview never fails without asking the API at all.
+        if attempts_made > 0 && started.elapsed() >= policy.deadline {
+            break;
+        }
+        attempts_made += 1;
+
         let body: XPlayerApiResponse = api
             .get_q("/x/player/wbi/playurl", &query)
             .await?
@@ -8190,22 +8274,41 @@ async fn get_preview_play_url_with(api: &BiliApi, bvid: &str) -> Result<String, 
             .map(|rest| format!("https://{rest}"))
             .unwrap_or(url);
 
-        attempts_left -= 1;
-        if !is_akamai_mirror(&url) || attempts_left == 0 {
-            log::info!("[BE] get_preview_play_url: resolved MP4 preview for bvid={bvid}");
+        if !is_akamai_mirror(&url) {
+            log::info!(
+                "[BE] get_preview_play_url: resolved MP4 preview for bvid={bvid} (attempt {attempts_made}, elapsed={:?})",
+                started.elapsed()
+            );
             return Ok(url);
         }
         log::info!(
-            "[BE] get_preview_play_url: akamai mirror assigned (WKWebView h3 playback risk), re-requesting, attempts_left={attempts_left}"
+            "[BE] get_preview_play_url: akamai mirror assigned (WKWebView h3 playback risk), re-requesting, attempt={attempts_made}/{}, elapsed={:?}, deadline={:?}",
+            policy.max_attempts,
+            started.elapsed(),
+            policy.deadline
         );
     }
+    log::warn!(
+        "[BE] get_preview_play_url: no non-Akamai mirror within budget (attempts={attempts_made}, elapsed={:?}), bvid={bvid}",
+        started.elapsed()
+    );
+    Err("ERR::NO_PLAYABLE_MIRROR".to_string())
 }
 
-/// Playurl requests per preview resolve: enough re-rolls for the rotating
-/// CDN pool to hand out a non-Akamai host, bounded to keep worst-case
-/// latency at two extra API calls (see the retry loop in
-/// [`get_preview_play_url_with`]).
-const PREVIEW_PLAYURL_MAX_ATTEMPTS: u8 = 3;
+/// Retry policy for the preview playurl reroll loop (see
+/// [`get_preview_play_url_retry`]). The production budget is 15s of
+/// wall-clock time OR 10 playurl requests, whichever binds first: enough
+/// re-rolls for the rotating CDN pool to hand out a non-Akamai host while
+/// keeping the worst-case user wait and the API load both bounded.
+struct PreviewRetryPolicy {
+    deadline: Duration,
+    max_attempts: usize,
+}
+
+const PREVIEW_RETRY_POLICY: PreviewRetryPolicy = PreviewRetryPolicy {
+    deadline: Duration::from_secs(15),
+    max_attempts: 10,
+};
 
 /// True when the URL points at an Akamai CDN mirror (`*.akamaized.net`)
 /// — the host family whose HTTP/3 advertisement breaks WKWebView media
