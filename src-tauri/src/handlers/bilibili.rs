@@ -4133,7 +4133,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn get_preview_play_url_fails_when_host_never_rotates() {
+    async fn get_preview_play_url_falls_back_to_akamai_when_host_never_rotates() {
         let server = wiremock::MockServer::start().await;
         wiremock::Mock::given(wiremock::matchers::method("GET"))
             .and(wiremock::matchers::path("/x/web-interface/nav"))
@@ -4152,8 +4152,9 @@ mod tests {
             .mount(&server)
             .await;
         // Akamai-only pool: the attempt cap binds first and the resolve
-        // hard-fails — returning the last URL would hand the <video>
-        // element a known-dead asset (WKWebView QUIC stall).
+        // falls back to the last Akamai URL — reachable over TCP on
+        // WebView2/WebKitGTK; a WKWebView stall is surfaced by the FE
+        // media-error handler (issue #814).
         wiremock::Mock::given(wiremock::matchers::method("GET"))
             .and(wiremock::matchers::path("/x/player/wbi/playurl"))
             .and(wiremock::matchers::query_param("cid", "4"))
@@ -4177,10 +4178,13 @@ mod tests {
             deadline: Duration::from_secs(60),
             max_attempts: 3,
         };
-        let err = get_preview_play_url_retry(&api, "BV1stuck", &policy)
+        let url = get_preview_play_url_retry(&api, "BV1stuck", &policy)
             .await
-            .unwrap_err();
-        assert_eq!(err, "ERR::NO_PLAYABLE_MIRROR");
+            .unwrap();
+        assert_eq!(
+            url,
+            "https://upos-hz-mirrorakam.akamaized.net/upgcxcode/4.mp4"
+        );
         server.verify().await;
     }
 
@@ -4229,10 +4233,87 @@ mod tests {
             deadline: Duration::ZERO,
             max_attempts: 10,
         };
-        let err = get_preview_play_url_retry(&api, "BV1faststuck", &policy)
+        let url = get_preview_play_url_retry(&api, "BV1faststuck", &policy)
             .await
-            .unwrap_err();
-        assert_eq!(err, "ERR::NO_PLAYABLE_MIRROR");
+            .unwrap();
+        assert_eq!(
+            url,
+            "https://upos-hz-mirrorakam.akamaized.net/upgcxcode/5.mp4"
+        );
+        server.verify().await;
+    }
+
+    #[tokio::test]
+    async fn get_preview_play_url_fallback_returns_most_recent_akamai_url() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/nav"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(nav_wbi_mock_body()))
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/wbi/view"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": { "bvid": "BV1rotating", "title": "t", "pic": "p",
+                              "cid": 6, "pages": [] }
+                })),
+            )
+            .mount(&server)
+            .await;
+        // The Akamai pool rotates between mirrors: draw 1 gets mirror A,
+        // draws 2+ get mirror B. Pins the "last" in "fall back to the last
+        // Akamai URL": retaining the first assignment instead would return
+        // a stale mirror token.
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/player/wbi/playurl"))
+            .and(wiremock::matchers::query_param("cid", "6"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": {
+                        "durl": [
+                            { "order": 1, "length": 1, "size": 1,
+                              "url": "https://upos-hz-mirrorakam.akamaized.net/upgcxcode/6a.mp4" }
+                        ]
+                    }
+                })),
+            )
+            .up_to_n_times(1)
+            .expect(1)
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/player/wbi/playurl"))
+            .and(wiremock::matchers::query_param("cid", "6"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": {
+                        "durl": [
+                            { "order": 1, "length": 1, "size": 1,
+                              "url": "https://upos-sz-mirrorakam.akamaized.net/upgcxcode/6b.mp4" }
+                        ]
+                    }
+                })),
+            )
+            .expect(2)
+            .mount(&server)
+            .await;
+
+        let api = bili_api_mock(&server.uri(), "");
+        let policy = PreviewRetryPolicy {
+            deadline: Duration::from_secs(60),
+            max_attempts: 3,
+        };
+        let url = get_preview_play_url_retry(&api, "BV1rotating", &policy)
+            .await
+            .unwrap();
+        assert_eq!(
+            url,
+            "https://upos-sz-mirrorakam.akamaized.net/upgcxcode/6b.mp4"
+        );
         server.verify().await;
     }
 
@@ -8129,8 +8210,10 @@ async fn fetch_part_qualities_with(
 /// Returns an error if:
 /// - Video is not found (`ERR::VIDEO_NOT_FOUND`)
 /// - No MP4 stream is returned (`ERR::NO_STREAM`)
-/// - Only Akamai mirrors are assigned within the retry budget
-///   (`ERR::NO_PLAYABLE_MIRROR`)
+///
+/// When only Akamai mirrors are assigned within the retry budget, the last
+/// Akamai URL is returned as a fallback instead of failing (issue #814:
+/// some networks deterministically draw Akamai-only pools).
 pub async fn get_preview_play_url(app: &AppHandle, bvid: &str) -> Result<String, String> {
     log::info!(
         "[BE] get_preview_play_url: requesting preview for bvid={}",
@@ -8214,12 +8297,18 @@ async fn get_preview_play_url_retry(
     // cap keeps the loop polite to Bilibili's risk control when responses
     // are fast (a deadline alone could hammer the playurl API for its
     // full duration).
-    // Why hard-fail on exhaustion instead of returning the last URL: on
-    // affected networks the Akamai URL is a known-dead asset, so handing
-    // it over just trades this error for a long silent stall inside the
-    // <video> element ending in MEDIA_ERR_SRC_NOT_SUPPORTED.
+    // Why return the last Akamai URL on exhaustion instead of failing: on
+    // networks where Bilibili assigns Akamai mirrors deterministically
+    // (issue #814: 50/50 consecutive draws), the reroll budget can never
+    // win and hard-failing made preview permanently unavailable there.
+    // The Akamai asset itself is reachable (same bytes over TCP in the
+    // 2026-10 measurement): WebView2/WebKitGTK play it, possibly with
+    // slower buffering, and when the WKWebView QUIC stall does kill
+    // playback the FE media-error handler (VideoPreviewDialog) swaps in a
+    // retry message instead of leaving a dead black player.
     let started = Instant::now();
     let mut attempts_made = 0usize;
+    let mut last_url: Option<String> = None;
     while attempts_made < policy.max_attempts {
         // Deadline is checked before each RE-request (not before the
         // first), so a zero deadline still yields exactly one attempt
@@ -8276,12 +8365,17 @@ async fn get_preview_play_url_retry(
             started.elapsed(),
             policy.deadline
         );
+        last_url = Some(url);
     }
     log::warn!(
-        "[BE] get_preview_play_url: no non-Akamai mirror within budget (attempts={attempts_made}, elapsed={:?}), bvid={bvid}",
+        "[BE] get_preview_play_url: only Akamai mirrors within budget (attempts={attempts_made}, elapsed={:?}), falling back to last Akamai URL, bvid={bvid}",
         started.elapsed()
     );
-    Err("ERR::NO_PLAYABLE_MIRROR".to_string())
+    // Unwrap safety: every completed loop iteration assigns last_url, and
+    // exhaustion requires at least one completed iteration (policies in
+    // this module all set max_attempts >= 1; request failures exit via
+    // `?` before reaching here).
+    Ok(last_url.expect("reroll loop always retains the last URL"))
 }
 
 /// Retry policy for the preview playurl reroll loop (see

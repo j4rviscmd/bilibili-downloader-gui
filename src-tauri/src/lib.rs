@@ -665,8 +665,9 @@ async fn fetch_part_qualities(
 /// # Errors
 ///
 /// Returns an error if the video is not found (`ERR::VIDEO_NOT_FOUND`)
-/// or no MP4 stream is returned (`ERR::NO_STREAM`), or only Akamai mirrors
-/// are assigned within the retry budget (`ERR::NO_PLAYABLE_MIRROR`).
+/// or no MP4 stream is returned (`ERR::NO_STREAM`). If only Akamai
+/// mirrors are assigned within the retry budget, the last Akamai URL is
+/// returned as a fallback instead of failing (issue #814).
 #[tauri::command]
 async fn get_preview_play_url(app: AppHandle, bvid: String) -> Result<String, String> {
     bilibili::get_preview_play_url(&app, &bvid)
