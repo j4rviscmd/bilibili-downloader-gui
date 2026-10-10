@@ -728,6 +728,7 @@
     "previewPlay": "预览视频",
     "previewDownload": "下载此视频",
     "previewOpenInBrowser": "在浏览器中打开",
+    "previewMuted": "静音预览",
     "previewPlaybackError": "视频播放失败，请重试。",
     "previewVideoUnavailable": "无法预览该视频：可能已被删除、设为私密或受地区限制。",
     "resultsCount": "{{count}}个结果",

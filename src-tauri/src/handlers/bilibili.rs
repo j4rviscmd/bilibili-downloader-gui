@@ -161,6 +161,7 @@ pub struct DownloadOptions {
 use crate::constants::{API_BASE, PLAYURL_FNVAL, PLAYURL_QN, REFERER};
 use crate::handlers::cookie::read_cookie;
 use crate::handlers::history_session::HistorySession;
+use crate::handlers::preview_stream;
 use crate::handlers::settings;
 use crate::models::bilibili_api::{
     BangumiPlayerApiResponse, BangumiPlayerResult, BangumiSeasonApiResponse, PlayerV2ApiResponse,
@@ -3937,7 +3938,7 @@ mod tests {
     // ---- get_preview_play_url (search-result MP4 preview) ----
 
     #[tokio::test]
-    async fn get_preview_play_url_resolves_html5_mp4_durl() {
+    async fn get_preview_play_url_resolves_dash_streams() {
         let server = wiremock::MockServer::start().await;
         wiremock::Mock::given(wiremock::matchers::method("GET"))
             .and(wiremock::matchers::path("/x/web-interface/nav"))
@@ -3956,22 +3957,33 @@ mod tests {
             )
             .mount(&server)
             .await;
-        // Matches ONLY the html5 preview shape: a DASH-shaped request
-        // (fnval=16, no platform param) 404s, pinning the wire format.
+        // Matches the production preview wire shape: the download-path
+        // DASH recipe (fnval bitmap + fourk, no platform param). A request
+        // without these exact params 404s, pinning the wire format.
         wiremock::Mock::given(wiremock::matchers::method("GET"))
             .and(wiremock::matchers::path("/x/player/wbi/playurl"))
             .and(wiremock::matchers::query_param("cid", "77"))
-            .and(wiremock::matchers::query_param("platform", "html5"))
-            .and(wiremock::matchers::query_param("high_quality", "1"))
-            .and(wiremock::matchers::query_param("try_look", "1"))
+            .and(wiremock::matchers::query_param(
+                "fnval",
+                PLAYURL_FNVAL.to_string().as_str(),
+            ))
+            .and(wiremock::matchers::query_param("fourk", "1"))
             .respond_with(
                 wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
                     "code": 0, "message": "0",
                     "data": {
-                        "durl": [
-                            { "order": 1, "length": 1, "size": 1,
-                              "url": "https://example.com/preview.mp4" }
-                        ]
+                        "dash": {
+                            "video": [
+                                { "id": 32, "codecid": 7, "bandwidth": 900,
+                                  "baseUrl": "https://example.com/preview-video.m4s" },
+                                { "id": 64, "codecid": 12, "bandwidth": 1800,
+                                  "baseUrl": "https://example.com/preview-hevc.m4s" }
+                            ],
+                            "audio": [
+                                { "id": 30280, "codecid": 0, "bandwidth": 320,
+                                  "baseUrl": "https://example.com/preview-audio.m4s" }
+                            ]
+                        }
                     }
                 })),
             )
@@ -3980,14 +3992,28 @@ mod tests {
             .await;
 
         // Logged out (empty cookie): the preview must work for guests.
+        // Explicit non-Akamai-preferring policy so the example.com durl is
+        // accepted on attempt 1 (production prefers Akamai); this test pins
+        // the wire format, not mirror-family selection.
         let api = bili_api_mock(&server.uri(), "");
-        let url = get_preview_play_url_with(&api, "BV1preview").await.unwrap();
-        assert_eq!(url, "https://example.com/preview.mp4");
-        server.verify().await;
+        let policy = PreviewRetryPolicy {
+            deadline: Duration::from_secs(60),
+            max_attempts: 3,
+            prefers_akamai_mirrors: false,
+            skip_probe: true,
+        };
+        let (url, audio) = get_preview_play_url_retry(&api, "BV1preview", &policy)
+            .await
+            .unwrap();
+        assert_eq!(url, "https://example.com/preview-video.m4s");
+        assert_eq!(
+            audio,
+            Some("https://example.com/preview-audio.m4s".to_string())
+        );
     }
 
     #[tokio::test]
-    async fn get_preview_play_url_upgrades_http_durl_to_https() {
+    async fn get_preview_play_url_passes_http_durl_through() {
         let server = wiremock::MockServer::start().await;
         wiremock::Mock::given(wiremock::matchers::method("GET"))
             .and(wiremock::matchers::path("/x/web-interface/nav"))
@@ -4024,10 +4050,20 @@ mod tests {
             .await;
 
         let api = bili_api_mock(&server.uri(), "");
-        let url = get_preview_play_url_with(&api, "BV1httppreview")
+        // Same rationale as resolves_html5_mp4_durl: explicit policy keeps
+        // the example.com durl accepted on attempt 1. http durls pass
+        // through byte-stable: the stream:// proxy fetches them via
+        // reqwest, so no webview mixed-content upgrade is needed.
+        let policy = PreviewRetryPolicy {
+            deadline: Duration::from_secs(60),
+            max_attempts: 3,
+            prefers_akamai_mirrors: false,
+            skip_probe: true,
+        };
+        let (url, _audio) = get_preview_play_url_retry(&api, "BV1httppreview", &policy)
             .await
             .unwrap();
-        assert_eq!(url, "https://example.com/preview.mp4");
+        assert_eq!(url, "http://example.com/preview.mp4");
         server.verify().await;
     }
 
@@ -4067,73 +4103,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn get_preview_play_url_rerolls_akamai_mirror_host() {
-        let server = wiremock::MockServer::start().await;
-        wiremock::Mock::given(wiremock::matchers::method("GET"))
-            .and(wiremock::matchers::path("/x/web-interface/nav"))
-            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(nav_wbi_mock_body()))
-            .mount(&server)
-            .await;
-        wiremock::Mock::given(wiremock::matchers::method("GET"))
-            .and(wiremock::matchers::path("/x/web-interface/wbi/view"))
-            .respond_with(
-                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                    "code": 0, "message": "0",
-                    "data": { "bvid": "BV1akamai", "title": "t", "pic": "p",
-                              "cid": 9, "pages": [] }
-                })),
-            )
-            .mount(&server)
-            .await;
-        // First playurl response hands out the Akamai mirror (WKWebView h3
-        // playback risk) — consumed once, then the bilivideo mock takes over.
-        wiremock::Mock::given(wiremock::matchers::method("GET"))
-            .and(wiremock::matchers::path("/x/player/wbi/playurl"))
-            .and(wiremock::matchers::query_param("cid", "9"))
-            .respond_with(
-                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                    "code": 0, "message": "0",
-                    "data": {
-                        "durl": [
-                            { "order": 1, "length": 1, "size": 1,
-                              "url": "https://upos-hz-mirrorakam.akamaized.net/upgcxcode/9.mp4" }
-                        ]
-                    }
-                })),
-            )
-            .up_to_n_times(1)
-            .expect(1)
-            .mount(&server)
-            .await;
-        wiremock::Mock::given(wiremock::matchers::method("GET"))
-            .and(wiremock::matchers::path("/x/player/wbi/playurl"))
-            .and(wiremock::matchers::query_param("cid", "9"))
-            .respond_with(
-                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                    "code": 0, "message": "0",
-                    "data": {
-                        "durl": [
-                            { "order": 1, "length": 1, "size": 1,
-                              "url": "https://upos-sz-mirrorcosov.bilivideo.com/upgcxcode/9.mp4" }
-                        ]
-                    }
-                })),
-            )
-            .expect(1)
-            .mount(&server)
-            .await;
-
-        let api = bili_api_mock(&server.uri(), "");
-        let url = get_preview_play_url_with(&api, "BV1akamai").await.unwrap();
-        assert_eq!(
-            url,
-            "https://upos-sz-mirrorcosov.bilivideo.com/upgcxcode/9.mp4"
-        );
-        server.verify().await;
-    }
-
-    #[tokio::test]
-    async fn get_preview_play_url_falls_back_to_akamai_when_host_never_rotates() {
+    async fn get_preview_play_url_falls_back_when_preferred_family_never_drawn() {
         let server = wiremock::MockServer::start().await;
         wiremock::Mock::given(wiremock::matchers::method("GET"))
             .and(wiremock::matchers::path("/x/web-interface/nav"))
@@ -4151,10 +4121,9 @@ mod tests {
             )
             .mount(&server)
             .await;
-        // Akamai-only pool: the attempt cap binds first and the resolve
-        // falls back to the last Akamai URL — reachable over TCP on
-        // WebView2/WebKitGTK; a WKWebView stall is surfaced by the FE
-        // media-error handler (issue #814).
+        // Unpreferred-only pool (cosov bilivideo, production prefers
+        // akamaized): the attempt cap binds first and the resolve falls
+        // back to the last drawn URL — slow through the proxy but playable.
         wiremock::Mock::given(wiremock::matchers::method("GET"))
             .and(wiremock::matchers::path("/x/player/wbi/playurl"))
             .and(wiremock::matchers::query_param("cid", "4"))
@@ -4164,7 +4133,7 @@ mod tests {
                     "data": {
                         "durl": [
                             { "order": 1, "length": 1, "size": 1,
-                              "url": "https://upos-hz-mirrorakam.akamaized.net/upgcxcode/4.mp4" }
+                              "url": "https://upos-sz-mirrorcosov.bilivideo.com/upgcxcode/4.mp4" }
                         ]
                     }
                 })),
@@ -4177,13 +4146,15 @@ mod tests {
         let policy = PreviewRetryPolicy {
             deadline: Duration::from_secs(60),
             max_attempts: 3,
+            prefers_akamai_mirrors: true,
+            skip_probe: true,
         };
-        let url = get_preview_play_url_retry(&api, "BV1stuck", &policy)
+        let (url, _audio) = get_preview_play_url_retry(&api, "BV1stuck", &policy)
             .await
             .unwrap();
         assert_eq!(
             url,
-            "https://upos-hz-mirrorakam.akamaized.net/upgcxcode/4.mp4"
+            "https://upos-sz-mirrorcosov.bilivideo.com/upgcxcode/4.mp4"
         );
         server.verify().await;
     }
@@ -4209,7 +4180,8 @@ mod tests {
             .await;
         // Zero deadline: the very first re-request is out of budget, so
         // exactly one playurl call happens regardless of the attempt cap
-        // (the loop must always ask at least once).
+        // (the loop must always ask at least once). The draw is the
+        // unpreferred cosov family — the fallback still returns it.
         wiremock::Mock::given(wiremock::matchers::method("GET"))
             .and(wiremock::matchers::path("/x/player/wbi/playurl"))
             .and(wiremock::matchers::query_param("cid", "5"))
@@ -4219,7 +4191,7 @@ mod tests {
                     "data": {
                         "durl": [
                             { "order": 1, "length": 1, "size": 1,
-                              "url": "https://upos-hz-mirrorakam.akamaized.net/upgcxcode/5.mp4" }
+                              "url": "https://upos-sz-mirrorcosov.bilivideo.com/upgcxcode/5.mp4" }
                         ]
                     }
                 })),
@@ -4232,19 +4204,21 @@ mod tests {
         let policy = PreviewRetryPolicy {
             deadline: Duration::ZERO,
             max_attempts: 10,
+            prefers_akamai_mirrors: true,
+            skip_probe: true,
         };
-        let url = get_preview_play_url_retry(&api, "BV1faststuck", &policy)
+        let (url, _audio) = get_preview_play_url_retry(&api, "BV1faststuck", &policy)
             .await
             .unwrap();
         assert_eq!(
             url,
-            "https://upos-hz-mirrorakam.akamaized.net/upgcxcode/5.mp4"
+            "https://upos-sz-mirrorcosov.bilivideo.com/upgcxcode/5.mp4"
         );
         server.verify().await;
     }
 
     #[tokio::test]
-    async fn get_preview_play_url_fallback_returns_most_recent_akamai_url() {
+    async fn get_preview_play_url_fallback_returns_most_recent_url() {
         let server = wiremock::MockServer::start().await;
         wiremock::Mock::given(wiremock::matchers::method("GET"))
             .and(wiremock::matchers::path("/x/web-interface/nav"))
@@ -4262,9 +4236,9 @@ mod tests {
             )
             .mount(&server)
             .await;
-        // The Akamai pool rotates between mirrors: draw 1 gets mirror A,
-        // draws 2+ get mirror B. Pins the "last" in "fall back to the last
-        // Akamai URL": retaining the first assignment instead would return
+        // The unpreferred pool rotates between mirrors: draw 1 gets file A,
+        // draws 2+ get file B. Pins the "last" in "fall back to the last
+        // drawn URL": retaining the first assignment instead would return
         // a stale mirror token.
         wiremock::Mock::given(wiremock::matchers::method("GET"))
             .and(wiremock::matchers::path("/x/player/wbi/playurl"))
@@ -4275,7 +4249,7 @@ mod tests {
                     "data": {
                         "durl": [
                             { "order": 1, "length": 1, "size": 1,
-                              "url": "https://upos-hz-mirrorakam.akamaized.net/upgcxcode/6a.mp4" }
+                              "url": "https://upos-sz-mirrorcosov.bilivideo.com/upgcxcode/6a.mp4" }
                         ]
                     }
                 })),
@@ -4293,7 +4267,7 @@ mod tests {
                     "data": {
                         "durl": [
                             { "order": 1, "length": 1, "size": 1,
-                              "url": "https://upos-sz-mirrorakam.akamaized.net/upgcxcode/6b.mp4" }
+                              "url": "https://upos-sz-mirrorhw.bilivideo.com/upgcxcode/6b.mp4" }
                         ]
                     }
                 })),
@@ -4306,14 +4280,174 @@ mod tests {
         let policy = PreviewRetryPolicy {
             deadline: Duration::from_secs(60),
             max_attempts: 3,
+            prefers_akamai_mirrors: true,
+            skip_probe: true,
         };
-        let url = get_preview_play_url_retry(&api, "BV1rotating", &policy)
+        let (url, _audio) = get_preview_play_url_retry(&api, "BV1rotating", &policy)
             .await
             .unwrap();
         assert_eq!(
             url,
-            "https://upos-sz-mirrorakam.akamaized.net/upgcxcode/6b.mp4"
+            "https://upos-sz-mirrorhw.bilivideo.com/upgcxcode/6b.mp4"
         );
+        server.verify().await;
+    }
+
+    #[tokio::test]
+    async fn get_preview_play_url_prefers_akamai_mirrors_when_policy_allows() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/nav"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(nav_wbi_mock_body()))
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/wbi/view"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": { "bvid": "BV1preferakam", "title": "t", "pic": "p",
+                              "cid": 7, "pages": [] }
+                })),
+            )
+            .mount(&server)
+            .await;
+        // Production shape (prefers_akamai_mirrors: true): a
+        // slow throttled bilivideo edge (cosov) is drawn first and rerolled
+        // away; the akamaized draw wins on the second request.
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/player/wbi/playurl"))
+            .and(wiremock::matchers::query_param("cid", "7"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": {
+                        "durl": [
+                            { "order": 1, "length": 1, "size": 1,
+                              "url": "https://upos-sz-mirrorcosov.bilivideo.com/upgcxcode/7.mp4" }
+                        ]
+                    }
+                })),
+            )
+            .up_to_n_times(1)
+            .expect(1)
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/player/wbi/playurl"))
+            .and(wiremock::matchers::query_param("cid", "7"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": {
+                        "durl": [
+                            { "order": 1, "length": 1, "size": 1,
+                              "url": "https://upos-hz-mirrorakam.akamaized.net/upgcxcode/7.mp4" }
+                        ]
+                    }
+                })),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let api = bili_api_mock(&server.uri(), "");
+        let policy = PreviewRetryPolicy {
+            deadline: Duration::from_secs(60),
+            max_attempts: 10,
+            prefers_akamai_mirrors: true,
+            skip_probe: true,
+        };
+        let (url, _audio) = get_preview_play_url_retry(&api, "BV1preferakam", &policy)
+            .await
+            .unwrap();
+        assert_eq!(
+            url,
+            "https://upos-hz-mirrorakam.akamaized.net/upgcxcode/7.mp4"
+        );
+        server.verify().await;
+    }
+
+    #[tokio::test]
+    async fn get_preview_play_url_rerolls_dead_draws_found_by_probe() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/nav"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(nav_wbi_mock_body()))
+            .mount(&server)
+            .await;
+        let base = server.uri();
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/wbi/view"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": { "bvid": "BV1probedead", "title": "t", "pic": "p",
+                              "cid": 8, "pages": [] }
+                })),
+            )
+            .mount(&server)
+            .await;
+        // The durl URLs point back at this wiremock server so the probe
+        // exercises the real HTTP path: both files declare a tiny total
+        // via Content-Range (so the probe's full-delivery requirement is
+        // satisfiable); /dead.mp4 answers 206 with an EMPTY body (the
+        // dead-edge shape), /live.mp4 delivers its 64 bytes. Draw 1 gets
+        // dead, draws 2+ get live — the probe must reroll away from dead.
+        let durl = |file: &str| {
+            let dead = file == "dead.mp4";
+            wiremock::Mock::given(wiremock::matchers::method("GET"))
+                .and(wiremock::matchers::path(format!("/{file}")))
+                .respond_with(
+                    wiremock::ResponseTemplate::new(206)
+                        .insert_header("Content-Type", "video/mp4")
+                        .insert_header("Content-Range", "bytes 0-63/64")
+                        .set_body_bytes(if dead { Vec::new() } else { vec![7u8; 64] }),
+                )
+                .mount(&server)
+        };
+        let () = durl("dead.mp4").await;
+        let () = durl("live.mp4").await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/player/wbi/playurl"))
+            .and(wiremock::matchers::query_param("cid", "8"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": { "durl": [ { "order": 1, "length": 1, "size": 1,
+                              "url": format!("{base}/dead.mp4") } ] }
+                })),
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/player/wbi/playurl"))
+            .and(wiremock::matchers::query_param("cid", "8"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": { "durl": [ { "order": 1, "length": 1, "size": 1,
+                              "url": format!("{base}/live.mp4") } ] }
+                })),
+            )
+            .mount(&server)
+            .await;
+
+        let api = bili_api_mock(&base, "");
+        // Production shape: probe enabled. The family check must pass too,
+        // so the live URL is served from a path that is_akamai_mirror
+        // ignores (host is 127.0.0.1 → not akamaized → prefers=false).
+        let policy = PreviewRetryPolicy {
+            deadline: Duration::from_secs(60),
+            max_attempts: 10,
+            prefers_akamai_mirrors: false,
+            skip_probe: false,
+        };
+        let (url, _audio) = get_preview_play_url_retry(&api, "BV1probedead", &policy)
+            .await
+            .unwrap();
+        assert_eq!(url, format!("{base}/live.mp4"));
         server.verify().await;
     }
 
@@ -7425,7 +7559,8 @@ async fn fetch_url_via_curl(url: &str, cookie_header: &str) -> Result<String, St
         // Windows release builds.
         #[cfg(target_os = "windows")]
         {
-            use std::os::windows::process::CommandExt;
+            // tokio's AsyncCommand has an inherent creation_flags method on
+            // Windows — no CommandExt import needed (unlike std Command).
             const CREATE_NO_WINDOW: u32 = 0x0800_0000;
             cmd.creation_flags(CREATE_NO_WINDOW);
         }
@@ -8211,28 +8346,81 @@ async fn fetch_part_qualities_with(
 /// - Video is not found (`ERR::VIDEO_NOT_FOUND`)
 /// - No MP4 stream is returned (`ERR::NO_STREAM`)
 ///
-/// When only Akamai mirrors are assigned within the retry budget, the last
-/// Akamai URL is returned as a fallback instead of failing (issue #814:
-/// some networks deterministically draw Akamai-only pools).
-pub async fn get_preview_play_url(app: &AppHandle, bvid: &str) -> Result<String, String> {
+/// When the preferred mirror family is never assigned within the retry
+/// budget, the last drawn URL is returned as a fallback instead of failing
+/// (issue #814: some networks deterministically draw one family only).
+pub async fn get_preview_play_url(app: &AppHandle, bvid: &str) -> Result<PreviewPlayInfo, String> {
     log::info!(
         "[BE] get_preview_play_url: requesting preview for bvid={}",
         bvid
     );
     let cookies = read_cookie(app)?.unwrap_or_default();
     let api = BiliApi::from_cookies(&cookies)?;
-    let result = get_preview_play_url_with(&api, bvid).await;
-    if let Err(e) = &result {
-        // Why: the stages above return ERR::* codes to the FE silently,
-        // which left app.log with "requesting" entries and no outcome —
-        // preview failures were undiagnosable from the log alone.
-        log::warn!("[BE] get_preview_play_url: failed for bvid={bvid}: {e}");
+    match get_preview_play_url_with(&api, bvid).await {
+        Err(e) => {
+            // Why: the stages above return ERR::* codes to the FE silently,
+            // which left app.log with "requesting" entries and no outcome —
+            // preview failures were undiagnosable from the log alone.
+            log::warn!("[BE] get_preview_play_url: failed for bvid={bvid}: {e}");
+            Err(e)
+        }
+        // Why a token, not the raw CDN URL: the webview must fetch previews
+        // through the `stream://` proxy (Sec-Fetch-Dest hotlink blocks,
+        // Referer 403s, and WKWebView QUIC stalls all vanish when reqwest
+        // fetches instead — see handlers/preview_stream.rs). The store also
+        // scopes the signed URL's lifetime. Video and audio ride the SAME
+        // token under two protocol paths so relay-level rotation keeps
+        // both tracks consistent.
+        Ok((url, audio_url)) => {
+            let video = preview_stream::remember_preview_url(bvid, &url, audio_url.as_deref());
+            let audio = audio_url.map(|_| preview_stream::audio_path_of(&video));
+            Ok(PreviewPlayInfo { video, audio })
+        }
     }
-    result
+}
+
+/// `get_preview_play_url` payload: webview-facing proxy paths for the
+/// video track and (DASH previews) the separate audio track.
+#[derive(serde::Serialize)]
+pub struct PreviewPlayInfo {
+    pub video: String,
+    pub audio: Option<String>,
+}
+
+/// Re-resolves a preview CDN URL for an already-tokenized preview
+/// (relay-level rotation when Bilibili's per-URL quota kills the stored
+/// URL mid-playback — see `preview_stream::respond`). Returns the RAW CDN
+/// URL pair, skipping the token store.
+///
+/// Why probe-free (unlike the initial resolve): each 256KB probe consumes
+/// part of the fresh URL's byte quota, and the rotation caller retries the
+/// failed window on the returned URL immediately — that retry IS the
+/// validation, so probing would only burn budget the playback needs
+/// (measured 2026-10-10: a seek window 403'd on a freshly rotated URL
+/// whose budget the probe had eaten).
+pub async fn resolve_preview_cdn_url(
+    app: &AppHandle,
+    bvid: &str,
+) -> Option<(String, Option<String>)> {
+    let cookies = read_cookie(app).ok()?.unwrap_or_default();
+    let api = BiliApi::from_cookies(&cookies).ok()?;
+    let policy = PreviewRetryPolicy {
+        // Rotation must be FAST (the media element is mid-request while
+        // this runs) and cheap — family preference still applies so we
+        // usually land on the fast lane.
+        deadline: Duration::from_secs(6),
+        max_attempts: 4,
+        prefers_akamai_mirrors: true,
+        skip_probe: true,
+    };
+    get_preview_play_url_retry(&api, bvid, &policy).await.ok()
 }
 
 /// Transport-injectable core of [`get_preview_play_url`] (test seam).
-async fn get_preview_play_url_with(api: &BiliApi, bvid: &str) -> Result<String, String> {
+async fn get_preview_play_url_with(
+    api: &BiliApi,
+    bvid: &str,
+) -> Result<(String, Option<String>), String> {
     get_preview_play_url_retry(api, bvid, &PREVIEW_RETRY_POLICY).await
 }
 
@@ -8242,7 +8430,7 @@ async fn get_preview_play_url_retry(
     api: &BiliApi,
     bvid: &str,
     policy: &PreviewRetryPolicy,
-) -> Result<String, String> {
+) -> Result<(String, Option<String>), String> {
     // The preview always samples page 1: the WBI view response reports its
     // cid at the data root (equal to pages[0].cid for multi-part videos).
     let view = fetch_wbi_view(api, bvid).await?;
@@ -8259,20 +8447,18 @@ async fn get_preview_play_url_retry(
     let mut params = BTreeMap::from([
         (id_key.to_string(), id_val),
         ("cid".to_string(), cid.to_string()),
-        ("qn".to_string(), "64".to_string()),
-        // Why: fnval=1 requests the legacy MP4 (durl) container, mutually
-        // exclusive with the DASH shape (fnval=16) the download path uses
-        // — a plain <video> element cannot play separate DASH tracks
-        // (references/bilibili-API-collect/docs/video/videostream_url.md).
-        ("fnval".to_string(), "1".to_string()),
+        ("qn".to_string(), PLAYURL_QN.to_string()),
+        // Why DASH (fnval bitmap + fourk, the download path's recipe): the
+        // html5-platform durl lane is a quota-starved second-class lane for
+        // overseas non-browser clients during peak hours (measured
+        // 2026-10-09: capped/truncated bodies, 503 windows, zero-byte
+        // 206s), while the PC DASH lane the official web player uses keeps
+        // serving. The proxy relays the separate video/audio m4s streams,
+        // so DASH's demux burden (two tracks) is handled BE-side/FE-side
+        // rather than by the <video> element.
+        ("fnval".to_string(), PLAYURL_FNVAL.to_string()),
         ("fnver".to_string(), "0".to_string()),
-        // HTML5 platform = one muxed MP4, no referer hotlink check
-        // (references/bilibili-API-collect/docs/video/videostream_url.md).
-        ("platform".to_string(), "html5".to_string()),
-        ("high_quality".to_string(), "1".to_string()),
-        // Official logged-out player param: guests get 720p/1080p instead
-        // of the 480p cap; ignored server-side when SESSDATA is present.
-        ("try_look".to_string(), "1".to_string()),
+        ("fourk".to_string(), "1".to_string()),
     ]);
     let signature = crate::utils::wbi::generate_wbi_signature(&mut params, &mixin_key);
 
@@ -8286,29 +8472,35 @@ async fn get_preview_play_url_retry(
     query.push(("w_rid", signature.w_rid));
 
     // Why the retry loop: the playurl CDN host rotates per request between
-    // *.bilivideo.com and upos-*.akamaized.net mirrors. The Akamai mirrors
-    // advertise HTTP/3 (Alt-Svc: h3) and WKWebView upgrades the <video>
-    // media fetch to QUIC, which times out from overseas networks and
-    // aborts playback with MEDIA_ERR_SRC_NOT_SUPPORTED (measured 2026-10:
-    // 12/12 akamaized URLs dead vs 15/15 bilivideo URLs playable, same
-    // bytes over TCP). Re-request until a non-Akamai host is assigned.
+    // *.bilivideo.com and upos-*.akamaized.net mirrors, and from overseas
+    // networks the two families differ hugely in throughput (measured
+    // 2026-10-09 from JP: the assigned cosov bilivideo edge 81KB/s or
+    // outright timeouts vs akamaized 701KB/s) — so the loop rerolls toward
+    // the preferred (Akamai) family instead of accepting a slow draw. The
+    // webview never fetches these URLs directly anymore (stream:// proxy,
+    // handlers/preview_stream.rs), so the old WKWebView h3/QUIC reason to
+    // avoid akamaized is obsolete.
     // Why a deadline AND a cap: the wall-clock budget keeps the worst-case
     // user wait fixed while per-request latency varies, while the attempt
     // cap keeps the loop polite to Bilibili's risk control when responses
     // are fast (a deadline alone could hammer the playurl API for its
     // full duration).
-    // Why return the last Akamai URL on exhaustion instead of failing: on
-    // networks where Bilibili assigns Akamai mirrors deterministically
-    // (issue #814: 50/50 consecutive draws), the reroll budget can never
-    // win and hard-failing made preview permanently unavailable there.
-    // The Akamai asset itself is reachable (same bytes over TCP in the
-    // 2026-10 measurement): WebView2/WebKitGTK play it, possibly with
-    // slower buffering, and when the WKWebView QUIC stall does kill
-    // playback the FE media-error handler (VideoPreviewDialog) swaps in a
-    // retry message instead of leaving a dead black player.
+    // Why return the last rerolled-away URL on exhaustion instead of failing:
+    // on networks where Bilibili assigns the unpreferred family
+    // deterministically, the reroll budget can never win and hard-failing
+    // made preview permanently unavailable there (issue #814's original
+    // 50/50 consecutive Akamai draws). The unpreferred family's asset is
+    // still reachable through the proxy — just slower — and when playback
+    // does die the FE media-error handler (VideoPreviewDialog) surfaces a
+    // retry message (logging MediaError code + src) instead of leaving a
+    // dead black player.
     let started = Instant::now();
     let mut attempts_made = 0usize;
-    let mut last_url: Option<String> = None;
+    // Running mirror-family preference: starts at the policy value and
+    // flips once when the preferred family proves undeliverable (see the
+    // dead-draw handling in the loop).
+    let mut prefer_akamai = policy.prefers_akamai_mirrors;
+    let mut last_url: Option<(String, Option<String>)> = None;
     while attempts_made < policy.max_attempts {
         // Deadline is checked before each RE-request (not before the
         // first), so a zero deadline still yields exactly one attempt
@@ -8337,69 +8529,166 @@ async fn get_preview_play_url_retry(
             return Err(e);
         }
 
-        let url = body
-            .data
-            .and_then(|d| d.durl)
-            .and_then(|segments| segments.into_iter().next().map(|s| s.url))
-            .ok_or_else(|| "ERR::NO_STREAM".to_string())?;
-        // Why: durl URLs occasionally come back http://, and the preview
-        // <video> runs on the tauri:// origin where each webview's
-        // mixed-content handling is unverified — upgrade to https (same CDN
-        // path serves both; cf. the https: prefix assumed for
-        // protocol-relative subtitle URLs in download_subtitle).
-        let url = url
-            .strip_prefix("http://")
-            .map(|rest| format!("https://{rest}"))
-            .unwrap_or(url);
+        let (url, audio_url) = select_preview_streams(&body);
+        if url.is_empty() {
+            return Err("ERR::NO_STREAM".to_string());
+        }
+        // No http→https upgrade: the webview never fetches these URLs
+        // directly anymore (stream:// proxy), and reqwest fetches http
+        // URLs as-is. Keeping them byte-stable matters for the
+        // deliverability probe below.
 
-        if !is_akamai_mirror(&url) {
+        let family_ok = is_akamai_mirror(&url) == prefer_akamai;
+        // Why probe: some draws point at dead edges (206 headers, zero
+        // body — persistent per video, measured 2026-10-09), and family
+        // preference cannot see that. Verify the exact transport playback
+        // will use (HTTP/1.1 proxy client) actually delivers bytes before
+        // accepting the draw; dead draws reroll like unpreferred ones.
+        // Tests inject skip_probe because their durl hosts are fixtures.
+        let deliverable = if policy.skip_probe {
+            true
+        } else {
+            preview_stream::probe_url(&url).await
+        };
+        if family_ok && deliverable {
             log::info!(
-                "[BE] get_preview_play_url: resolved MP4 preview for bvid={bvid} (attempt {attempts_made}, elapsed={:?})",
+                "[BE] get_preview_play_url: resolved DASH preview for bvid={bvid} host={} (attempt {attempts_made}, elapsed={:?})",
+                cdn_host(&url),
                 started.elapsed()
             );
-            return Ok(url);
+            return Ok((url, audio_url));
         }
-        log::info!(
-            "[BE] get_preview_play_url: akamai mirror assigned (WKWebView h3 playback risk), re-requesting, attempt={attempts_made}/{}, elapsed={:?}, deadline={:?}",
-            policy.max_attempts,
-            started.elapsed(),
-            policy.deadline
-        );
-        last_url = Some(url);
+        if !deliverable {
+            log::info!(
+                "[BE] get_preview_play_url: dead draw (probe failed), re-requesting, attempt={attempts_made}/{}, elapsed={:?}, host={}",
+                policy.max_attempts,
+                started.elapsed(),
+                cdn_host(&url)
+            );
+            // The preferred family's edge is broken for THIS video (dead,
+            // capped, or hanging): flip the preference once so the other
+            // family's draws get probed for the remaining budget instead
+            // of being family-rejected outright.
+            if family_ok {
+                prefer_akamai = !prefer_akamai;
+                log::info!(
+                    "[BE] get_preview_play_url: preferred mirror family undeliverable, flipping preference to {}",
+                    if prefer_akamai { "akamaized" } else { "non-Akamai" }
+                );
+            }
+        }
+        if !family_ok {
+            log::info!(
+                "[BE] get_preview_play_url: unpreferred mirror family drawn (want {}), re-requesting, attempt={attempts_made}/{}, elapsed={:?}, deadline={:?}, host={}",
+                if prefer_akamai { "akamaized" } else { "non-Akamai" },
+                policy.max_attempts,
+                started.elapsed(),
+                policy.deadline,
+                cdn_host(&url)
+            );
+        }
+        last_url = Some((url, audio_url));
     }
     log::warn!(
-        "[BE] get_preview_play_url: only Akamai mirrors within budget (attempts={attempts_made}, elapsed={:?}), falling back to last Akamai URL, bvid={bvid}",
-        started.elapsed()
+        "[BE] get_preview_play_url: no preferred mirror family within budget (attempts={attempts_made}, elapsed={:?}), falling back to last drawn URL host={}, bvid={bvid}",
+        started.elapsed(),
+        last_url.as_ref().map(|(u, _)| cdn_host(u)).unwrap_or_default()
     );
     // Unwrap safety: every completed loop iteration assigns last_url, and
     // exhaustion requires at least one completed iteration (policies in
     // this module all set max_attempts >= 1; request failures exit via
     // `?` before reaching here).
-    Ok(last_url.expect("reroll loop always retains the last URL"))
+    Ok(last_url.expect("reroll loop always retains the last pair"))
+}
+
+/// Picks the preview streams from one playurl draw.
+///
+/// DASH responses (the production request shape): the highest-bandwidth
+/// AVC video rendition (fallback: highest-bandwidth overall — HEVC etc.)
+/// plus the first selectable audio rendition. durl-only responses (old or
+/// special videos without a DASH manifest): the single muxed MP4, no
+/// separate audio.
+fn select_preview_streams(body: &XPlayerApiResponse) -> (String, Option<String>) {
+    let data = match body.data.as_ref() {
+        Some(d) => d,
+        None => return (String::new(), None),
+    };
+    if let Some(dash) = data.dash.as_ref() {
+        // Why AVC-first (not the user's download VideoCodecPriority from
+        // utils/codec.rs): the webview's <video> element decodes this
+        // stream (VideoPreviewDialog), and H.264 is the one family every
+        // webview decodes — HEVC/AV1 support varies by platform and
+        // installed media extensions. The bandwidth-max fallback covers
+        // AVC-less manifests (HEVC-only 4K/HDR renditions).
+        let video = dash
+            .video
+            .iter()
+            .filter(|v| v.codecid == CODECID_AVC)
+            .max_by_key(|v| v.bandwidth)
+            .or_else(|| dash.video.iter().max_by_key(|v| v.bandwidth))
+            .map(|v| v.base_url.clone());
+        let audio = dash.selectable_audio().first().map(|a| a.base_url.clone());
+        if let Some(video) = video {
+            return (video, audio);
+        }
+    }
+    let durl = data
+        .durl
+        .as_ref()
+        .and_then(|segments| segments.first())
+        .map(|s| s.url.clone())
+        .unwrap_or_default();
+    (durl, None)
 }
 
 /// Retry policy for the preview playurl reroll loop (see
 /// [`get_preview_play_url_retry`]). The production budget is 15s of
 /// wall-clock time OR 10 playurl requests, whichever binds first: enough
-/// re-rolls for the rotating CDN pool to hand out a non-Akamai host while
+/// re-rolls for the rotating CDN pool to hand out a preferred host while
 /// keeping the worst-case user wait and the API load both bounded.
+///
+/// `prefers_akamai_mirrors` steers the reroll toward the desired family:
+/// a draw is kept only when its family matches. Production prefers Akamai
+/// on EVERY platform: from overseas networks the akamaized mirrors are the
+/// faster family (measured 2026-10-09 from a JP network: akamai 701KB/s vs
+/// the assigned cosov bilivideo edge 81KB/s / outright timeouts), and the
+/// three reasons a webview could not play akamaized URLs directly —
+/// WKWebView's HTTP/3/QUIC stall (issue #814), Akamai hdnts Referer 403s,
+/// and `Sec-Fetch-Dest: video` hotlink blocks — are all sidestepped because
+/// the preview is fetched by reqwest through the `stream://` proxy
+/// (handlers/preview_stream.rs). The flag stays injectable so the wiremock
+/// tests pin both loop directions.
 struct PreviewRetryPolicy {
     deadline: Duration,
     max_attempts: usize,
+    prefers_akamai_mirrors: bool,
+    /// Skip the deliverability probe on accepted draws. Production probes
+    /// (dead edges answer 206 headers with zero body — see the loop docs);
+    /// wiremock tests inject `true` because their durl hosts are fixtures
+    /// no HTTP server answers for.
+    skip_probe: bool,
 }
 
 const PREVIEW_RETRY_POLICY: PreviewRetryPolicy = PreviewRetryPolicy {
     deadline: Duration::from_secs(15),
     max_attempts: 10,
+    prefers_akamai_mirrors: true,
+    skip_probe: false,
 };
 
-/// True when the URL points at an Akamai CDN mirror (`*.akamaized.net`)
-/// — the host family whose HTTP/3 advertisement breaks WKWebView media
-/// playback (see [`get_preview_play_url_with`]).
+/// True when the URL points at an Akamai CDN mirror (`*.akamaized.net`) —
+/// see [`PreviewRetryPolicy::prefers_akamai_mirrors`] for when that matters.
 fn is_akamai_mirror(url: &str) -> bool {
+    cdn_host(url).ends_with(".akamaized.net")
+}
+
+/// CDN host of a resolved preview URL for the reroll outcome logs ("" when
+/// the URL somehow fails to parse — the log line stays useful either way).
+fn cdn_host(url: &str) -> String {
     url::Url::parse(url)
         .ok()
-        .is_some_and(|u| u.host_str().is_some_and(|h| h.ends_with(".akamaized.net")))
+        .and_then(|u| u.host_str().map(str::to_string))
+        .unwrap_or_default()
 }
 
 /// Timeout (seconds) for a single subtitle download request.

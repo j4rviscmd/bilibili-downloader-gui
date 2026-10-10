@@ -728,6 +728,7 @@
     "previewPlay": "Vista previa del video",
     "previewDownload": "Descargar este video",
     "previewOpenInBrowser": "Abrir en el navegador",
+    "previewMuted": "Vista previa sin sonido",
     "previewPlaybackError": "No se pudo reproducir el video. Vuelve a intentarlo.",
     "previewVideoUnavailable": "No se puede previsualizar este video: puede que haya sido eliminado, marcado como privado o restringido por región.",
     "resultsCount": "{{count}} resultados",

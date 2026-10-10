@@ -728,6 +728,7 @@
     "previewPlay": "Preview video",
     "previewDownload": "Download this video",
     "previewOpenInBrowser": "Open in browser",
+    "previewMuted": "Muted preview",
     "previewPlaybackError": "Failed to play the video. Please try again.",
     "previewVideoUnavailable": "This video can't be previewed. It may have been deleted, made private, or region-restricted.",
     "resultsCount": "{{count}} results",
