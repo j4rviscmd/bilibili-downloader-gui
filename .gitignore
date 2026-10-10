@@ -42,7 +42,8 @@ e2e-tests/screenshots/
 # Local references (API docs, etc.)
 references/
 
-# Playwright MCP artifacts
+# Playwright tool artifacts (MCP session files, CLI page snapshots)
 .playwright-mcp/
+.playwright-cli/
 # Vitest coverage output (npm run test:coverage)
 coverage/
