@@ -27,6 +27,7 @@ pub mod github;
 pub mod history_session;
 pub mod init;
 pub mod manual_login;
+pub mod preview_stream;
 pub mod qr_login;
 pub mod resolution;
 pub mod rotation;

@@ -15,6 +15,8 @@ afterEach(() => {
 // Mock @tauri-apps/api/core
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
+  convertFileSrc: (path: string, scheme = 'asset') =>
+    `http://${scheme}.localhost/${encodeURIComponent(path)}`,
 }))
 
 // Mock @tauri-apps/plugin-log

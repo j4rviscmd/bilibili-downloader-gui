@@ -1,16 +1,29 @@
 import { invoke } from '@tauri-apps/api/core'
 
+/** Resolved preview tracks from `get_preview_play_url`, as webview-facing
+ * `stream://` proxy paths (feed through `convertFileSrc(path, 'stream')`). */
+export interface PreviewPlayInfo {
+  video: string
+  /** Separate DASH audio track path; null for durl muxed previews (muted
+   * playback) — the backend only reports it when a distinct audio stream
+   * exists. */
+  audio: string | null
+}
+
 /**
- * Resolves a directly playable MP4 preview URL via `get_preview_play_url`.
+ * Resolves preview stream paths via `get_preview_play_url`.
  *
- * The backend requests the HTML5 playurl variant (single muxed MP4, no
- * referer hotlink check, ≤1080p), so the URL feeds a plain `<video>`
- * element. Works logged out (backend sends the official `try_look`
- * guest param).
+ * The backend resolves the PC DASH manifest (the same lane the official web
+ * player uses — the html5 durl lane is quota-starved for overseas
+ * non-browser clients at peak hours) and returns opaque proxy paths for the
+ * best video track and its separate audio track. The webview must fetch
+ * them through the Rust `stream://` proxy (Sec-Fetch-Dest hotlink blocks,
+ * Referer 403s, and WKWebView QUIC stalls all vanish when reqwest fetches
+ * instead — see handlers/preview_stream.rs).
  *
  * @param bvid - Video BV id from a search result entry
  * @throws Error string from the backend, e.g. 'ERR::VIDEO_NOT_FOUND'
  */
-export function fetchPreviewPlayUrl(bvid: string): Promise<string> {
-  return invoke<string>('get_preview_play_url', { bvid })
+export function fetchPreviewPlayUrl(bvid: string): Promise<PreviewPlayInfo> {
+  return invoke<PreviewPlayInfo>('get_preview_play_url', { bvid })
 }

@@ -569,6 +569,7 @@ dependencies = [
  "num-bigint",
  "octocrab",
  "once_cell",
+ "percent-encoding",
  "qrcode",
  "rand 0.9.3",
  "rand_core 0.6.4",

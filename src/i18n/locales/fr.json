@@ -728,6 +728,7 @@
     "previewPlay": "Aperçu de la vidéo",
     "previewDownload": "Télécharger cette vidéo",
     "previewOpenInBrowser": "Ouvrir dans le navigateur",
+    "previewMuted": "Aperçu muet",
     "previewPlaybackError": "Échec de la lecture de la vidéo. Veuillez réessayer.",
     "previewVideoUnavailable": "Impossible de prévisualiser cette vidéo : elle a peut-être été supprimée, rendue privée ou restreinte géographiquement.",
     "resultsCount": "{{count}} résultats",

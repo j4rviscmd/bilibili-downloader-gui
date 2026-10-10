@@ -160,6 +160,17 @@ pub fn run() {
     // window position restoration during development
     #[allow(unused_mut)]
     let mut builder = tauri::Builder::default()
+        // Preview video streaming proxy: the webview plays
+        // `convertFileSrc("preview/{token}", "stream")` and this handler
+        // relays its Range requests to the resolved Bilibili CDN URL via
+        // reqwest (no Sec-Fetch-Dest / Referer / WKWebView-QUIC exposure —
+        // see handlers/preview_stream.rs for why the proxy exists).
+        .register_asynchronous_uri_scheme_protocol("stream", |ctx, request, responder| {
+            let app = ctx.app_handle().clone();
+            tauri::async_runtime::spawn(async move {
+                responder.respond(handlers::preview_stream::respond(&app, request).await);
+            });
+        })
         // CONSTRAINT: single-instance stays DISABLED. Running two app
         // instances side by side is a supported way to download in parallel
         // (issue #560); enabling this plugin would forbid it. Cross-process
@@ -645,13 +656,15 @@ async fn fetch_part_qualities(
         .map_err(|e| e.to_string())
 }
 
-/// Resolves a directly playable MP4 preview URL for a search result.
+/// Resolves preview stream proxy paths for a search result.
 ///
-/// Backs the search page's inline preview player: the HTML5-platform
-/// playurl returns one muxed MP4 with no referer hotlink protection, so
-/// the frontend `<video>` element can stream it directly. Quality is
-/// capped at 1080p by the API; VIP-only tiers are intentionally out of
-/// scope (preview, not a full player).
+/// Backs the search page's inline preview player: the backend resolves
+/// the PC DASH manifest (best AVC video track + its audio track, or the
+/// muxed MP4 for durl-only videos) and stores the CDN URLs under an
+/// opaque short-lived token. The frontend plays the returned `stream://`
+/// proxy paths through the Rust relay instead of touching the CDN
+/// directly (hotlink/Referer blocks and WKWebView QUIC stalls — see
+/// `handlers/preview_stream.rs`).
 ///
 /// # Arguments
 ///
@@ -660,16 +673,21 @@ async fn fetch_part_qualities(
 ///
 /// # Returns
 ///
-/// Returns the MP4 URL string on success.
+/// Returns [`bilibili::PreviewPlayInfo`] (webview-facing proxy paths for
+/// the video track and the separate audio track, `audio: null` for muxed
+/// durl previews) on success.
 ///
 /// # Errors
 ///
 /// Returns an error if the video is not found (`ERR::VIDEO_NOT_FOUND`)
-/// or no MP4 stream is returned (`ERR::NO_STREAM`). If only Akamai
-/// mirrors are assigned within the retry budget, the last Akamai URL is
-/// returned as a fallback instead of failing (issue #814).
+/// or no stream is returned (`ERR::NO_STREAM`). When the preferred
+/// mirror family is never assigned within the retry budget, the last
+/// drawn URL is returned as a fallback instead of failing (issue #814).
 #[tauri::command]
-async fn get_preview_play_url(app: AppHandle, bvid: String) -> Result<String, String> {
+async fn get_preview_play_url(
+    app: AppHandle,
+    bvid: String,
+) -> Result<bilibili::PreviewPlayInfo, String> {
     bilibili::get_preview_play_url(&app, &bvid)
         .await
         .map_err(|e| e.to_string())

@@ -728,6 +728,7 @@
     "previewPlay": "動画をプレビュー",
     "previewDownload": "この動画をダウンロード",
     "previewOpenInBrowser": "ブラウザで開く",
+    "previewMuted": "無音プレビュー",
     "previewPlaybackError": "動画の再生に失敗しました。もう一度お試しください。",
     "previewVideoUnavailable": "この動画は削除・非公開・地域制限などの理由でプレビューできません。",
     "resultsCount": "{{count}}件",
