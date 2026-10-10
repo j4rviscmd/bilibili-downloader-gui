@@ -70,6 +70,14 @@ base16ct = { version = "0.2", features = ["alloc"] }
 num-bigint = "0.4.6"
 argon2 = "0.5"
 aes-gcm = "0.10"
+# Loopback relay server for the preview HLS pipeline: ffmpeg reads its CDN
+# inputs through a 127.0.0.1 hyper http1 server so URL rotation/backoff
+# stays on the Rust side. All three crates are already in the dependency
+# graph via reqwest/tauri — these pins only make the usage explicit.
+hyper = { version = "1", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio", "server", "http1"] }
+http-body-util = "0.1"
+http-body = "1"
 hostname = "0.4"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]

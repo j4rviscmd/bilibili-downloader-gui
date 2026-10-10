@@ -728,7 +728,6 @@
     "previewPlay": "预览视频",
     "previewDownload": "下载此视频",
     "previewOpenInBrowser": "在浏览器中打开",
-    "previewMuted": "静音预览",
     "previewPlaybackError": "视频播放失败，请重试。",
     "previewVideoUnavailable": "无法预览该视频：可能已被删除、设为私密或受地区限制。",
     "resultsCount": "{{count}}个结果",
@@ -776,7 +775,11 @@
       "documentary": "纪录片",
       "movie": "电影",
       "tv": "电视剧"
-    }
+    },
+    "previewGenerating": "生成中… {{percent}}%",
+    "previewCapped": "预览仅限前15分钟",
+    "previewFfmpegMissing": "预览播放需要 ffmpeg，当前不可用。",
+    "previewCdnBusy": "CDN 暂时限制了这个视频，请稍后再试。"
   },
   "watchHistory": {
     "title": "观看历史",

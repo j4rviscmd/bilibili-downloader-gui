@@ -728,7 +728,6 @@
     "previewPlay": "動画をプレビュー",
     "previewDownload": "この動画をダウンロード",
     "previewOpenInBrowser": "ブラウザで開く",
-    "previewMuted": "無音プレビュー",
     "previewPlaybackError": "動画の再生に失敗しました。もう一度お試しください。",
     "previewVideoUnavailable": "この動画は削除・非公開・地域制限などの理由でプレビューできません。",
     "resultsCount": "{{count}}件",
@@ -776,7 +775,11 @@
       "documentary": "ドキュメンタリー",
       "movie": "映画",
       "tv": "テレビドラマ"
-    }
+    },
+    "previewGenerating": "生成中… {{percent}}%",
+    "previewCapped": "プレビューは先頭15分までです",
+    "previewFfmpegMissing": "プレビュー再生にはffmpegが必要ですが、現在利用できません。",
+    "previewCdnBusy": "CDNが一時的にこの動画を制限しています。しばらくしてからもう一度お試しください。"
   },
   "watchHistory": {
     "title": "視聴履歴",

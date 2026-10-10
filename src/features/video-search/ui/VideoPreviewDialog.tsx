@@ -15,11 +15,23 @@ import { mapBackendError } from '@/shared/lib/mapBackendError'
 import CircleIndicator from '@/shared/ui/CircleIndicator'
 import { Skeleton } from '@/shared/ui/skeleton'
 import { convertFileSrc } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 import { openUrl } from '@tauri-apps/plugin-opener'
+import Hls from 'hls.js'
 import { Download, ExternalLink } from 'lucide-react'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import { useTranslation } from 'react-i18next'
-import { fetchPreviewPlayUrl } from '../api/previewPlayUrl'
+import {
+  closePreviewSession,
+  openPreviewSession,
+  type PreviewSessionInfo,
+} from '../api/previewSession'
 import type { VideoSearchEntry } from '../types'
 
 /** Debounce for persisting preview-player volume changes: the native
@@ -28,13 +40,15 @@ import type { VideoSearchEntry } from '../types'
 const VOLUME_SAVE_DEBOUNCE_MS = 500
 
 /**
- * Inline MP4 preview dialog for one search result.
+ * Inline preview dialog for one search result.
  *
- * Opened per entry from a card's thumbnail play button. The URL resolves
- * lazily on open (skeleton while in flight); closing unmounts the
- * `<video>` element, which stops playback. ERR::* codes map to i18n keys
- * and anything else falls back to the raw message with the prefix
- * stripped (video-search page convention).
+ * Opened per entry from a card's thumbnail play button. The backend remuxes
+ * the video to a growing fMP4 HLS playlist via ffmpeg (see
+ * `handlers/preview_hls.rs`); this dialog plays it through hls.js (MSE —
+ * WebView2/Linux) or the webview's native HLS (WKWebView). Closing kills
+ * the remux session. ERR::* codes map to i18n keys and anything else falls
+ * back to the raw message with the prefix stripped (video-search page
+ * convention).
  */
 export function VideoPreviewDialog({
   entry,
@@ -49,69 +63,203 @@ export function VideoPreviewDialog({
   const dispatch = useAppDispatch()
   const previewVolume = useSelector((state) => state.settings.previewVolume)
   const previewMuted = useSelector((state) => state.settings.previewMuted)
-  // Resolved proxy paths for the DASH video track and (when present) its
-  // separate audio track; the audio element is synced to the video master
-  // clock below.
-  const [play, setPlay] = useState<{
-    video: string
-    audio: string | null
-  } | null>(null)
-  // Cleared when the audio track fails to load (durl muxed previews have
-  // none; a mid-session audio error drops to silent playback).
-  const [audioAvailable, setAudioAvailable] = useState(true)
+  const [session, setSession] = useState<PreviewSessionInfo | null>(null)
   const [error, setError] = useState<string | null>(null)
-  // Set when the <video> element itself rejects the resolved URL (media
-  // `error` event — e.g. a CDN fetch failure after the URL resolved fine).
-  // Without this the dead element just sits on a black canvas with a play
-  // button and no message.
+  // Set when the video element or hls.js fatally fails after the session
+  // resolved — shows the retry message instead of a dead black canvas.
   const [mediaFailed, setMediaFailed] = useState(false)
-  // True between the <video> mounting and its first playable frame —
-  // the native controls already render in a "playing" posture during
-  // that window, so an explicit spinner keeps the loading state honest.
+  // Generation progress 0-100 (null once finished/unknown): drives the
+  // "generating" badge while ffmpeg is still ahead of the playhead.
+  const [genPct, setGenPct] = useState<number | null>(null)
+  // True between the <video> mounting and its first playable frame.
   const [buffering, setBuffering] = useState(false)
   // Windows WebView2 (Chromium) native media controls already render a
   // buffering spinner — the custom overlay would double it. macOS
   // WKWebView and Linux WebKitGTK ship none, so the custom one stays
-  // there. userAgent per the GeneralSection convention
-  // (navigator.platform is deprecated). Evaluated per render (not module
-  // level) so tests can stub the UA before mounting.
+  // there. Evaluated per render (not module level) so tests can stub the
+  // UA before mounting.
   const nativeBufferingSpinner =
     typeof navigator !== 'undefined' && /Windows/i.test(navigator.userAgent)
+  // WKWebView plays HLS natively; MSE-based hls.js covers WebView2/Linux.
+  const [useNativeHls] = useState(() => !Hls.isSupported())
   const videoRef = useRef<HTMLVideoElement>(null)
-  const audioRef = useRef<HTMLAudioElement>(null)
   // Guards the one-shot auto-retry below; reset per entry change.
   const retriedRef = useRef(false)
-  // Last known playback position — restored onto the retry-remounted
-  // element so a mid-seek CDN failure doesn't restart the preview.
-  const restoreTimeRef = useRef(0)
-  // Generation of the current entry's resolution cycle, bumped on every
-  // entry change: a still-pending one-shot retry from the PREVIOUS entry
-  // must not write its result over the new entry's (a boolean cancel flag
-  // alone races — the new effect resets it before the old promise
-  // resolves).
+  // Generation of the current entry's open cycle, bumped on every entry
+  // change: a still-pending retry from the PREVIOUS entry must not write
+  // its result over the new entry's (a boolean cancel flag alone races).
   const retryGenRef = useRef(0)
+  // Live session mirror for event handlers/cleanup (state is stale inside
+  // older closures); the ref is the source of truth for token ownership.
+  const sessionInfoRef = useRef<PreviewSessionInfo | null>(null)
+  // First `playing` of the current session applied the start-at-zero
+  // correction (EVENT playlists make hls.js start near the edge).
+  const startedRef = useRef(false)
   const saveTimer = useRef<number | undefined>(undefined)
+
+  /** One-shot retry: closes the current session and opens a fresh one.
+   * Returns false when the retry budget is spent (caller shows the error). */
+  const retryOnce = useCallback((): boolean => {
+    if (retriedRef.current || !entry) return false
+    retriedRef.current = true
+    const gen = retryGenRef.current
+    const old = sessionInfoRef.current
+    sessionInfoRef.current = null
+    if (old) {
+      void closePreviewSession(old.token).catch(() => {})
+    }
+    setSession(null)
+    setMediaFailed(false)
+    setError(null)
+    // The fresh session's EVENT playlist starts near its own edge again,
+    // so the start-at-zero correction must run once more.
+    startedRef.current = false
+    openPreviewSession(entry.bvid)
+      .then((resolved) => {
+        if (retryGenRef.current === gen) {
+          sessionInfoRef.current = resolved
+          setSession(resolved)
+        }
+      })
+      .catch((e: unknown) => {
+        if (retryGenRef.current === gen) setError(String(e))
+      })
+    return true
+  }, [entry])
 
   useEffect(() => {
     if (!entry) return
-    setPlay(null)
+    setSession(null)
+    sessionInfoRef.current = null
     setError(null)
     setMediaFailed(false)
-    setAudioAvailable(true)
+    setGenPct(null)
+    setBuffering(true)
     retriedRef.current = false
     retryGenRef.current += 1
+    startedRef.current = false
     let cancelled = false
-    fetchPreviewPlayUrl(entry.bvid)
+    openPreviewSession(entry.bvid)
       .then((resolved) => {
-        if (!cancelled) setPlay(resolved)
+        if (!cancelled) {
+          sessionInfoRef.current = resolved
+          setSession(resolved)
+        }
       })
       .catch((e: unknown) => {
         if (!cancelled) setError(String(e))
       })
     return () => {
       cancelled = true
+      const token = sessionInfoRef.current?.token
+      sessionInfoRef.current = null
+      if (token) {
+        void closePreviewSession(token).catch(() => {})
+      }
     }
   }, [entry])
+
+  // Generation progress / failure events from the backend remux session.
+  useEffect(() => {
+    if (!entry) return
+    let unlistenProgress: (() => void) | undefined
+    let unlistenCompleted: (() => void) | undefined
+    let unlistenError: (() => void) | undefined
+    void listen<{ token: string; currentSec: number }>(
+      'preview-hls-progress',
+      (event) => {
+        const info = sessionInfoRef.current
+        if (!info || event.payload.token !== info.token) return
+        const pct = Math.min(
+          100,
+          (event.payload.currentSec / Math.max(1, info.cappedAtSec)) * 100,
+        )
+        setGenPct(pct >= 100 ? null : pct)
+      },
+    ).then((fn) => {
+      unlistenProgress = fn
+    })
+    void listen<string>('preview-hls-completed', (event) => {
+      if (sessionInfoRef.current?.token === event.payload) setGenPct(null)
+    }).then((fn) => {
+      unlistenCompleted = fn
+    })
+    // ffmpeg died (CDN/rotation exhaustion included): the playlist stops
+    // growing, which hls.js reports as a non-fatal stall — without this
+    // the dialog would sit on the buffering spinner forever. Same one-shot
+    // retry as the player-level failures (stale tokens are ignored: a
+    // closed session's error must not reopen anything).
+    void listen<string>('preview-hls-error', (event) => {
+      if (sessionInfoRef.current?.token !== event.payload) return
+      if (!retryOnce()) setMediaFailed(true)
+    }).then((fn) => {
+      unlistenError = fn
+    })
+    return () => {
+      unlistenProgress?.()
+      unlistenCompleted?.()
+      unlistenError?.()
+    }
+  }, [entry, retryOnce])
+
+  // Session → player wiring: hls.js (MSE) or the native HLS element path.
+  useEffect(() => {
+    const video = videoRef.current
+    if (!session || !video) return
+    const src = convertFileSrc(session.playlist, 'stream')
+    if (useNativeHls) {
+      video.src = src
+      return
+    }
+    const hls = new Hls({
+      maxBufferLength: 30,
+      // The playlist appears only after ffmpeg writes its first segment,
+      // and a CDN rotation/backoff window can extend that to tens of
+      // seconds. hls.js 1.x ignores the legacy manifestLoading* numbers —
+      // the load POLICY governs retries, and its default errorRetry
+      // budget (1 retry) went manifestLoadError-fatal ~1s after session
+      // open (the bug behind the second verification round).
+      manifestLoadPolicy: {
+        default: {
+          // Must exceed the backend's 25s playlist long-poll window.
+          maxTimeToFirstByteMs: 30_000,
+          maxLoadTimeMs: 60_000,
+          timeoutRetry: {
+            maxNumRetry: 4,
+            retryDelayMs: 500,
+            maxRetryDelayMs: 2_000,
+          },
+          errorRetry: {
+            maxNumRetry: 42,
+            retryDelayMs: 700,
+            maxRetryDelayMs: 2_000,
+          },
+        },
+      },
+    })
+    hls.on(Hls.Events.ERROR, (_event, data) => {
+      if (!data.fatal) return
+      logger.error(
+        `VideoPreviewDialog: hls fatal ${data.type} ${data.details} playlist=${session.playlist}`,
+      )
+      if (!retryOnce()) setMediaFailed(true)
+    })
+    hls.loadSource(src)
+    // Pin the control-bar total to the preview's fixed content length.
+    // EVENT playlists report a GROWING duration (hls.js tracks the
+    // playlist end), so the denominator stretched while ffmpeg generated
+    // (user-reported). `overrides.duration` is hls.js's own hook for
+    // exactly this (MediaAttachingData). Seeks past the generated edge
+    // clamp to the seekable range like a DVR; the capped badge explains
+    // why long videos end at cappedAtSec.
+    hls.attachMedia({
+      media: video,
+      overrides: { duration: session.cappedAtSec },
+    })
+    return () => {
+      hls.destroy()
+    }
+  }, [session, useNativeHls, retryOnce])
 
   // Restore last-used volume/muted from settings onto the freshly mounted
   // <video> (the element is recreated per dialog open, so native state
@@ -126,31 +274,20 @@ export function VideoPreviewDialog({
   // an unchanged volume fires nothing.
   useLayoutEffect(() => {
     const video = videoRef.current
-    const audio = audioRef.current
-    if (!play || !video) return
+    if (!session || !video) return
     if (previewVolume !== undefined) video.volume = previewVolume
     video.muted = previewMuted ?? false
-    if (audio) {
-      audio.volume = previewVolume ?? 1
-      audio.muted = previewMuted ?? false
-    }
-  }, [play, previewVolume, previewMuted])
+  }, [session, previewVolume, previewMuted])
 
   // Cancel an in-flight debounced save when the dialog unmounts
   // (clearTimeout on a null handle is a no-op).
   useEffect(() => () => clearTimeout(saveTimer.current), [])
 
-  // volumechange fires on the muted video's native controls — the audio
-  // element is the audible track, so it both carries the persisted
-  // volume/mute and mirrors whatever the user dragged on the video.
+  // volumechange fires on the video's native controls; the value persists
+  // to settings (debounced, see VOLUME_SAVE_DEBOUNCE_MS).
   const handleVolumeChange = () => {
     const video = videoRef.current
-    const audio = audioRef.current
     if (!video) return
-    if (audio) {
-      audio.volume = video.volume
-      audio.muted = video.muted
-    }
     clearTimeout(saveTimer.current)
     saveTimer.current = window.setTimeout(() => {
       const patch = { previewVolume: video.volume, previewMuted: video.muted }
@@ -161,65 +298,10 @@ export function VideoPreviewDialog({
     }, VOLUME_SAVE_DEBOUNCE_MS)
   }
 
-  // Dual-track sync: the video element is the master clock, the hidden
-  // audio element follows. Webview media elements cannot be wired through
-  // WebAudio across elements, so a drift-correct interval is the standard
-  // approximation (0.3s tolerance ≈ perceptibility threshold for A/V
-  // offset; 500ms poll keeps the correction cadence imperceptible).
-  useEffect(() => {
-    const video = videoRef.current
-    const audio = audioRef.current
-    if (!play?.audio || !video || !audio) return
-    const onPlay = () => {
-      audio.currentTime = video.currentTime
-      void Promise.resolve(audio.play()).catch((err: unknown) => {
-        // AbortError = pause() interrupted play() (rapid play/pause) —
-        // not a dead track; the next video play retries. Anything else
-        // (network/decode/policy) degrades to silent playback.
-        if ((err as { name?: string } | null)?.name !== 'AbortError') {
-          setAudioAvailable(false)
-        }
-      })
-    }
-    const onPause = () => audio.pause()
-    // Why pause during seeking: a video seek fires a burst of range
-    // requests; letting the audio element keep buffering in parallel
-    // doubles that burst against the CDN's per-connection risk control
-    // (measured 2026-10-10: seek-time connection resets). Frozen audio
-    // resumes at the target position once the video lands.
-    const onSeeking = () => audio.pause()
-    const onSeeked = () => {
-      audio.currentTime = video.currentTime
-      if (!video.paused) {
-        void Promise.resolve(audio.play()).catch(() => {})
-      }
-    }
-    const drift = window.setInterval(() => {
-      if (
-        !video.seeking &&
-        Math.abs(audio.currentTime - video.currentTime) > 0.3
-      ) {
-        audio.currentTime = video.currentTime
-      }
-    }, 500)
-    video.addEventListener('play', onPlay)
-    video.addEventListener('pause', onPause)
-    video.addEventListener('seeking', onSeeking)
-    video.addEventListener('seeked', onSeeked)
-    return () => {
-      window.clearInterval(drift)
-      video.removeEventListener('play', onPlay)
-      video.removeEventListener('pause', onPause)
-      video.removeEventListener('seeking', onSeeking)
-      video.removeEventListener('seeked', onSeeked)
-      audio.pause()
-    }
-  }, [play])
-
   // ERR::* codes → translated message; unmapped codes/raw strings fall
   // back to the raw message with the prefix stripped (video-search page
   // convention — see src/pages/video-search/index.tsx).
-  // Why the override: the global video_not_found message ends with "check
+  // Why the video_not_found override: the global message ends with "check
   // the URL", which fits the URL-input page but not a search-result entry
   // — here the view API refused the video itself (deleted/private/region-
   // blocked while the search index still lists it), so the URL is fine.
@@ -229,13 +311,19 @@ export function VideoPreviewDialog({
     errorText =
       key === 'video.video_not_found'
         ? t('videoSearch.previewVideoUnavailable')
-        : key
-          ? t(key)
-          : error.replace(/^ERR::/, '')
+        : error.includes('ERR::PREVIEW_CDN_UNAVAILABLE')
+          ? t('videoSearch.previewCdnBusy')
+          : error.includes('ERR::PREVIEW_FFMPEG_MISSING')
+            ? t('videoSearch.previewFfmpegMissing')
+            : key
+              ? t(key)
+              : error.replace(/^ERR::/, '')
   } else if (mediaFailed) {
-    // Media-element failure has no ERR:: code — generic retry message.
+    // Player failure has no ERR:: code — generic retry message.
     errorText = t('videoSearch.previewPlaybackError')
   }
+
+  const capped = session !== null && session.durationSec > session.cappedAtSec
 
   return (
     <Dialog
@@ -259,14 +347,13 @@ export function VideoPreviewDialog({
             windows. <video> letterboxes (object-fit default) instead of
             overflowing on shorter ones. */}
         <div className="relative aspect-video max-h-[75vh] w-full overflow-hidden rounded-md bg-black">
-          {play && !mediaFailed ? (
+          {session && !mediaFailed ? (
             <>
-              {/* Dual-track DASH: the video m4s carries no audio, so this
-                  element is silent by itself and its native volume/mute
-                  controls stay meaningful — they drive the hidden <audio>
-                  below (synced by the effect above). Muxed durl previews
-                  have no audio element and the muted badge explains the
-                  silence. */}
+              {/* Why the stream:// playlist: the webview never touches the
+                  CDN — the Rust relay feeds ffmpeg, and the generated
+                  segments are served locally (see preview_hls.rs /
+                  preview_stream.rs), which is why CDN failures cannot
+                  kill this element. */}
               <video
                 ref={videoRef}
                 onLoadStart={() => setBuffering(true)}
@@ -275,65 +362,40 @@ export function VideoPreviewDialog({
                 // seeking/seeked pair closes that gap.
                 onWaiting={() => setBuffering(true)}
                 onSeeking={() => setBuffering(true)}
-                onPlaying={() => setBuffering(false)}
-                onCanPlay={() => {
+                onPlaying={() => {
                   setBuffering(false)
-                  // Retry remount: jump back to where the user was (only
-                  // meaningful once; clear so normal canplay events are
-                  // no-ops).
+                  // EVENT playlists make hls.js start near the generation
+                  // edge; jump back to zero once per session (spike-
+                  // verified behavior — see the design spec).
                   const video = videoRef.current
-                  if (video && restoreTimeRef.current > 0) {
-                    video.currentTime = restoreTimeRef.current
-                    restoreTimeRef.current = 0
+                  if (video && !startedRef.current) {
+                    startedRef.current = true
+                    if (video.currentTime > 1) video.currentTime = 0
                   }
                 }}
+                onCanPlay={() => setBuffering(false)}
                 onSeeked={() => setBuffering(false)}
-                onTimeUpdate={(e) => {
-                  // Playback position snapshot for the error-retry remount:
-                  // rapid re-seeks on huge DASH files can trip a CDN window
-                  // failure the demuxer treats as fatal; the retry below
-                  // rebuilds the element and this restores where the user
-                  // was instead of restarting from zero.
-                  restoreTimeRef.current = e.currentTarget.currentTime
-                }}
                 onError={(e) => {
                   setBuffering(false)
-                  // Why log + one-shot retry: the proxy + BE resolved this
-                  // fine, so the media element is the only boundary that
-                  // sees the failure — without recording MediaError code +
-                  // preview path here, intermittent failures leave no
-                  // trace in app.log. Some CDN draws are dead edges (206
-                  // headers, zero bytes — measured 2026-10-09); a single
-                  // re-resolve usually draws a healthy edge, so retry once
-                  // before showing the failure UI.
+                  // Why log + one-shot retry: the session resolved fine, so
+                  // only the player boundary sees the failure — record it
+                  // (MediaError code + playlist path) in app.log. Dead CDN
+                  // draws are handled server-side by URL rotation, so a
+                  // player-level failure is rare; one retry before showing
+                  // the failure UI.
                   const el = e.currentTarget
                   logger.error(
-                    `VideoPreviewDialog: media error code=${el.error?.code} msg=${el.error?.message} path=${play.video}`,
+                    `VideoPreviewDialog: media error code=${el.error?.code} msg=${el.error?.message} playlist=${session?.playlist}`,
                   )
-                  if (!retriedRef.current && entry) {
-                    retriedRef.current = true
-                    // Snapshot the generation: a resolution landing after
-                    // the entry switched (generation bumped) is stale and
-                    // must be dropped.
-                    const gen = retryGenRef.current
-                    setPlay(null)
-                    setMediaFailed(false)
-                    fetchPreviewPlayUrl(entry.bvid)
-                      .then((resolved) => {
-                        if (retryGenRef.current === gen) setPlay(resolved)
-                      })
-                      .catch((err: unknown) => {
-                        if (retryGenRef.current === gen) setError(String(err))
-                      })
+                  if (!retriedRef.current) {
+                    retryOnce()
                     return
                   }
                   setMediaFailed(true)
                 }}
                 onVolumeChange={handleVolumeChange}
-                // Why the proxy: direct CDN playback is blocked by hotlink
-                // heuristics and QUIC stalls (see previewPlayUrl.ts); the
-                // stream:// protocol relays Range requests through reqwest.
-                src={convertFileSrc(play.video, 'stream')}
+                // Native-HLS branch: the effect assigns `src` directly (no
+                // media-source attach); the hls.js branch ignores src.
                 controls
                 // Suppresses the Download item in the native (Chromium/
                 // WebView2) media-controls overflow (⋮) menu; the dialog's
@@ -343,25 +405,16 @@ export function VideoPreviewDialog({
                 playsInline
                 className="h-full w-full"
               />
-              {play.audio && audioAvailable && (
-                <audio
-                  ref={audioRef}
-                  src={convertFileSrc(play.audio, 'stream')}
-                  // A failed audio track degrades to silent playback rather
-                  // than killing the preview (the video lane is the
-                  // user's primary signal).
-                  onError={() => {
-                    logger.error(
-                      `VideoPreviewDialog: audio track error path=${play.audio}`,
-                    )
-                    setAudioAvailable(false)
-                  }}
-                  hidden
-                />
-              )}
-              {!play.audio && (
+              {capped && (
                 <span className="absolute top-2 left-2 rounded-sm bg-black/70 px-1.5 py-0.5 text-xs text-white/90">
-                  {t('videoSearch.previewMuted')}
+                  {t('videoSearch.previewCapped')}
+                </span>
+              )}
+              {genPct !== null && (
+                <span className="absolute top-2 right-2 rounded-sm bg-black/70 px-1.5 py-0.5 text-xs text-white/90">
+                  {t('videoSearch.previewGenerating', {
+                    percent: Math.round(genPct),
+                  })}
                 </span>
               )}
               {/* Overlay only — pointer-events-none keeps the native

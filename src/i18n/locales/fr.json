@@ -728,7 +728,6 @@
     "previewPlay": "Aperçu de la vidéo",
     "previewDownload": "Télécharger cette vidéo",
     "previewOpenInBrowser": "Ouvrir dans le navigateur",
-    "previewMuted": "Aperçu muet",
     "previewPlaybackError": "Échec de la lecture de la vidéo. Veuillez réessayer.",
     "previewVideoUnavailable": "Impossible de prévisualiser cette vidéo : elle a peut-être été supprimée, rendue privée ou restreinte géographiquement.",
     "resultsCount": "{{count}} résultats",
@@ -776,7 +775,11 @@
       "documentary": "Documentaires",
       "movie": "Films",
       "tv": "Séries TV"
-    }
+    },
+    "previewGenerating": "Génération… {{percent}}%",
+    "previewCapped": "Aperçu limité aux 15 premières minutes",
+    "previewFfmpegMissing": "La lecture d'aperçu nécessite ffmpeg, actuellement indisponible.",
+    "previewCdnBusy": "Le CDN limite temporairement cette vidéo. Veuillez réessayer plus tard."
   },
   "watchHistory": {
     "title": "Historique de visionnage",

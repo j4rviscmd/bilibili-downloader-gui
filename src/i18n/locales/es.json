@@ -728,7 +728,6 @@
     "previewPlay": "Vista previa del video",
     "previewDownload": "Descargar este video",
     "previewOpenInBrowser": "Abrir en el navegador",
-    "previewMuted": "Vista previa sin sonido",
     "previewPlaybackError": "No se pudo reproducir el video. Vuelve a intentarlo.",
     "previewVideoUnavailable": "No se puede previsualizar este video: puede que haya sido eliminado, marcado como privado o restringido por región.",
     "resultsCount": "{{count}} resultados",
@@ -776,7 +775,11 @@
       "documentary": "Documentales",
       "movie": "Películas",
       "tv": "Series de TV"
-    }
+    },
+    "previewGenerating": "Generando… {{percent}}%",
+    "previewCapped": "La vista previa se limita a los primeros 15 minutos",
+    "previewFfmpegMissing": "La reproducción de vista previa requiere ffmpeg, que no está disponible.",
+    "previewCdnBusy": "El CDN está limitando temporalmente este vídeo. Inténtalo de nuevo más tarde."
   },
   "watchHistory": {
     "title": "Historial de visualización",

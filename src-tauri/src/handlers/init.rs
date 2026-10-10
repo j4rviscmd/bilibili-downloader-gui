@@ -80,6 +80,9 @@ pub async fn initialize(app: AppHandle) -> Result<(), String> {
     // locks from the download output directory (crashed downloads,
     // issues #560/#595).
     let _ = cleanup::cleanup_part_files(&app).await;
+    // Preview HLS session dirs from crashed sessions (flock-free dirs
+    // only — a live session in another app instance is never touched).
+    let _ = cleanup::cleanup_preview_dirs();
     // Mark in_progress history entries whose owning process is gone as
     // failed (crash recovery, issue #511). Live downloads in another app
     // instance hold their session flock and are never touched.

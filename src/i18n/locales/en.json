@@ -728,7 +728,6 @@
     "previewPlay": "Preview video",
     "previewDownload": "Download this video",
     "previewOpenInBrowser": "Open in browser",
-    "previewMuted": "Muted preview",
     "previewPlaybackError": "Failed to play the video. Please try again.",
     "previewVideoUnavailable": "This video can't be previewed. It may have been deleted, made private, or region-restricted.",
     "resultsCount": "{{count}} results",
@@ -776,7 +775,11 @@
       "documentary": "Documentary",
       "movie": "Movies",
       "tv": "TV Dramas"
-    }
+    },
+    "previewGenerating": "Generating… {{percent}}%",
+    "previewCapped": "Preview limited to the first 15 minutes",
+    "previewFfmpegMissing": "Preview playback needs ffmpeg, which is currently unavailable.",
+    "previewCdnBusy": "The CDN is temporarily limiting this video. Please try again later."
   },
   "watchHistory": {
     "title": "Watch History",

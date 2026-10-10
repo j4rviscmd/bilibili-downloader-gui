@@ -206,6 +206,41 @@ fn staging_is_orphan(staging: &Path) -> bool {
     is_unlocked_orphan(&liveness_lock)
 }
 
+/// Removes abandoned preview HLS session dirs (crashed sessions). A dir
+/// whose `session.lock` flock is free has no live owner — the same
+/// liveness rule as the download staging sidecars. Dirs without the lock
+/// (foreign debris under the preview root) go too.
+pub fn cleanup_preview_dirs_in_dir(root: &Path) -> usize {
+    let Ok(entries) = fs::read_dir(root) else {
+        return 0;
+    };
+    let mut deleted = 0;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let lock = path.join("session.lock");
+        if !lock.exists() || is_unlocked_orphan(&lock) {
+            match fs::remove_dir_all(&path) {
+                Ok(()) => {
+                    log::info!("[BE] cleanup: deleted preview dir {:?}", path);
+                    deleted += 1;
+                }
+                Err(e) => {
+                    log::warn!("[BE] cleanup: failed to delete preview dir {:?}: {e}", path)
+                }
+            }
+        }
+    }
+    deleted
+}
+
+/// App-init wrapper: sweeps the preview HLS session root.
+pub fn cleanup_preview_dirs() -> usize {
+    cleanup_preview_dirs_in_dir(&crate::handlers::preview_hls::preview_root())
+}
+
 /// Pre-#595 inverse of [`part_path`]: `video.part.mp4` -> `video.mp4`.
 /// Returns `None` for names not shaped `{stem}.part.{ext}`.
 fn final_from_part(part: &Path) -> Option<PathBuf> {
@@ -560,5 +595,37 @@ mod tests {
         // Staging files and finals never match the sidecar rule.
         assert!(!is_output_sidecar(Path::new("/d/video.part.mp4")));
         assert!(!is_output_sidecar(Path::new("/d/video.mp4")));
+    }
+
+    // ---- preview HLS session dirs (handlers/preview_hls.rs) ----
+
+    #[test]
+    fn preview_dir_without_lock_is_swept_and_loose_files_are_ignored() {
+        let dir = tempfile::tempdir().unwrap();
+        // Foreign debris under the preview root: no `session.lock` at all
+        // means no liveness claim can exist for it.
+        let lockless = dir.path().join("dead-token");
+        fs::create_dir_all(&lockless).unwrap();
+        fs::write(lockless.join("playlist.m3u8"), b"#EXTM3U").unwrap();
+        // A live session in another app instance holds the flock: untouched.
+        let live = dir.path().join("live-token");
+        fs::create_dir_all(&live).unwrap();
+        let _holder = hold_flock(&live.join("session.lock"));
+        // Non-directory entries are not session dirs (and must not be
+        // removed individually — remove_dir_all would fail on them anyway).
+        fs::write(dir.path().join("stray.txt"), b"x").unwrap();
+
+        assert_eq!(cleanup_preview_dirs_in_dir(dir.path()), 1);
+        assert!(!lockless.exists());
+        assert!(live.exists());
+        assert!(dir.path().join("stray.txt").exists());
+    }
+
+    #[test]
+    fn preview_sweep_of_a_missing_root_is_a_noop() {
+        // First run before any preview ever opened: the root does not
+        // exist, which must not be reported or logged as a failure.
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(cleanup_preview_dirs_in_dir(&dir.path().join("absent")), 0);
     }
 }

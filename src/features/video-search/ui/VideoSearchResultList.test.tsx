@@ -7,6 +7,7 @@ import { openUrl } from '@tauri-apps/plugin-opener'
 import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { useRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { PreviewSessionInfo } from '../api/previewSession'
 import type { VideoSearchView } from '../hooks/useVideoSearch'
 import { useVideoSearch } from '../hooks/useVideoSearch'
 import { DEFAULT_VIDEO_SEARCH_FILTERS } from '../types'
@@ -70,6 +71,18 @@ const baseState: VideoSearchView = {
   searchStarted: true,
   setFilter: vi.fn(),
 }
+
+/** PreviewSessionInfo the backend returns from open_preview_session. */
+const previewSession = (
+  token: string,
+  durationSec = 120,
+  cappedAtSec = 120,
+): PreviewSessionInfo => ({
+  token,
+  playlist: `hls/${token}/playlist.m3u8`,
+  durationSec,
+  cappedAtSec,
+})
 
 // happy-dom's IntersectionObserver never computes intersections, so the
 // stub records the latest instance and tests fire its callback by hand.
@@ -243,7 +256,7 @@ describe('VideoSearchResultList', () => {
   it('opens an inline preview dialog from the thumbnail play button', async () => {
     vi.mocked(useVideoSearch).mockReturnValue(baseState)
     vi.mocked(usePendingDownload).mockReturnValue(vi.fn())
-    mockInvoke.mockResolvedValue({ video: 'preview/opens1', audio: null })
+    mockInvoke.mockResolvedValue(previewSession('opens1'))
 
     const { user } = renderWithProviders(<VideoSearchResultList />)
 
@@ -254,7 +267,7 @@ describe('VideoSearchResultList', () => {
     await user.click(playButtons[0])
 
     await waitFor(() => {
-      expect(mockInvoke).toHaveBeenCalledWith('get_preview_play_url', {
+      expect(mockInvoke).toHaveBeenCalledWith('open_preview_session', {
         bvid: 'BV1De411p77r',
       })
     })
@@ -264,7 +277,7 @@ describe('VideoSearchResultList', () => {
     await waitFor(() => {
       expect(video).toHaveAttribute(
         'src',
-        'http://stream.localhost/preview%2Fopens1',
+        'http://stream.localhost/hls%2Fopens1%2Fplaylist.m3u8',
       )
     })
     // The native overflow (⋮) menu must not offer a Download item; the
@@ -313,7 +326,7 @@ describe('VideoSearchResultList', () => {
     vi.mocked(useVideoSearch).mockReturnValue(baseState)
     const handleDownload = vi.fn()
     vi.mocked(usePendingDownload).mockReturnValue(handleDownload)
-    mockInvoke.mockResolvedValue({ video: 'preview/nodl1', audio: null })
+    mockInvoke.mockResolvedValue(previewSession('nodl1'))
 
     const { user } = renderWithProviders(<VideoSearchResultList />)
 
@@ -321,7 +334,7 @@ describe('VideoSearchResultList', () => {
       screen.getAllByRole('button', { name: 'videoSearch.previewPlay' })[0],
     )
 
-    expect(mockInvoke).toHaveBeenCalledWith('get_preview_play_url', {
+    expect(mockInvoke).toHaveBeenCalledWith('open_preview_session', {
       bvid: 'BV1De411p77r',
     })
     // The play button must stay isolated from the card's download handoff:
@@ -332,7 +345,7 @@ describe('VideoSearchResultList', () => {
   it('closing the preview unmounts the video and a reopen resolves fresh', async () => {
     vi.mocked(useVideoSearch).mockReturnValue(baseState)
     vi.mocked(usePendingDownload).mockReturnValue(vi.fn())
-    mockInvoke.mockResolvedValue({ video: 'preview/reopen1', audio: null })
+    mockInvoke.mockResolvedValue(previewSession('reopen1'))
 
     const { user } = renderWithProviders(<VideoSearchResultList />)
     const [playA, playB] = screen.getAllByRole('button', {
@@ -343,7 +356,7 @@ describe('VideoSearchResultList', () => {
     await waitFor(() => {
       expect(document.querySelector('video')).toHaveAttribute(
         'src',
-        'http://stream.localhost/preview%2Freopen1',
+        'http://stream.localhost/hls%2Freopen1%2Fplaylist.m3u8',
       )
     })
 
@@ -379,7 +392,7 @@ describe('VideoSearchResultList', () => {
     store.dispatch(setSettings({ previewVolume: 0.3, previewMuted: true }))
     vi.mocked(useVideoSearch).mockReturnValue(baseState)
     vi.mocked(usePendingDownload).mockReturnValue(vi.fn())
-    mockInvoke.mockResolvedValue({ video: 'preview/vol0', audio: null })
+    mockInvoke.mockResolvedValue(previewSession('vol0'))
 
     const { user } = renderWithProviders(<VideoSearchResultList />)
     await user.click(
@@ -402,10 +415,7 @@ describe('VideoSearchResultList', () => {
   it('persists volume changes through a debounced settings patch', async () => {
     vi.mocked(useVideoSearch).mockReturnValue(baseState)
     vi.mocked(usePendingDownload).mockReturnValue(vi.fn())
-    mockInvoke.mockResolvedValue({
-      video: 'preview/vol1',
-      audio: 'preview-audio/vol1',
-    })
+    mockInvoke.mockResolvedValue(previewSession('vol1'))
 
     const { user } = renderWithProviders(<VideoSearchResultList />)
     await user.click(
@@ -440,7 +450,7 @@ describe('VideoSearchResultList', () => {
     vi.mocked(usePendingDownload).mockReturnValue(vi.fn())
     // Proxy path shape: the backend returns `preview/{token}` and the
     // component feeds it through convertFileSrc (mocked in setup.ts).
-    mockInvoke.mockResolvedValue({ video: 'preview/deadbeef01', audio: null })
+    mockInvoke.mockResolvedValue(previewSession('deadbeef01'))
 
     const { user } = renderWithProviders(<VideoSearchResultList />)
     await user.click(
@@ -478,7 +488,7 @@ describe('VideoSearchResultList', () => {
     // resolved fine, so this line is the only attribution for intermittent
     // playback failures.
     expect(errorSpy).toHaveBeenCalledWith(
-      'VideoPreviewDialog: media error code=undefined msg=undefined path=preview/deadbeef01',
+      'VideoPreviewDialog: media error code=undefined msg=undefined playlist=hls/deadbeef01/playlist.m3u8',
     )
     errorSpy.mockRestore()
   })
@@ -487,13 +497,18 @@ describe('VideoSearchResultList', () => {
     vi.mocked(useVideoSearch).mockReturnValue(baseState)
     vi.mocked(usePendingDownload).mockReturnValue(vi.fn())
     vi.spyOn(logger, 'error').mockImplementation(() => {})
-    // First draw is a dead edge, the retry draw is healthy.
-    mockInvoke
-      .mockResolvedValueOnce({ video: 'preview/dead1', audio: null })
-      .mockResolvedValueOnce({
-        video: 'preview/alive1',
-        audio: 'preview-audio/alive1',
-      })
+    // First draw is a dead edge, the retry draw is healthy. Dispatch by
+    // command: a bare mockResolvedValueOnce queue is consumed by ANY
+    // invoke call, including the close_preview_session that precedes the
+    // retry's open.
+    let openCalls = 0
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd !== 'open_preview_session') return Promise.resolve(undefined)
+      openCalls += 1
+      return Promise.resolve(
+        previewSession(openCalls === 1 ? 'dead1' : 'alive1'),
+      )
+    })
     // History accumulates across tests in this file — count only this
     // test's resolves (clear keeps the queued implementations).
     mockInvoke.mockClear()
@@ -517,12 +532,12 @@ describe('VideoSearchResultList', () => {
       const el = document.querySelector('video') as HTMLVideoElement
       expect(el).toHaveAttribute(
         'src',
-        'http://stream.localhost/preview%2Falive1',
+        'http://stream.localhost/hls%2Falive1%2Fplaylist.m3u8',
       )
       return el
     })
     expect(
-      mockInvoke.mock.calls.filter(([cmd]) => cmd === 'get_preview_play_url'),
+      mockInvoke.mock.calls.filter(([cmd]) => cmd === 'open_preview_session'),
     ).toHaveLength(2)
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(second).not.toBe(first)
@@ -537,20 +552,20 @@ describe('VideoSearchResultList', () => {
     // until released) → entry B after the switch.
     // Deferred manual promise: Promise.withResolvers needs lib es2024 and
     // the repo targets ES2022.
-    let releaseRetry!: (v: { video: string; audio: string | null }) => void
+    let releaseRetry!: (v: PreviewSessionInfo) => void
     let previewCalls = 0
     mockInvoke.mockImplementation((cmd: string) => {
-      if (cmd !== 'get_preview_play_url') return Promise.resolve(undefined)
+      if (cmd !== 'open_preview_session') return Promise.resolve(undefined)
       previewCalls += 1
       if (previewCalls === 1) {
-        return Promise.resolve({ video: 'preview/a1', audio: null })
+        return Promise.resolve(previewSession('a1'))
       }
       if (previewCalls === 2) {
         return new Promise((resolve) => {
           releaseRetry = resolve
         })
       }
-      return Promise.resolve({ video: 'preview/b1', audio: null })
+      return Promise.resolve(previewSession('b1'))
     })
 
     const { user } = renderWithProviders(<VideoSearchResultList />)
@@ -575,65 +590,26 @@ describe('VideoSearchResultList', () => {
     await waitFor(() => {
       expect(document.querySelector('video')).toHaveAttribute(
         'src',
-        'http://stream.localhost/preview%2Fb1',
+        'http://stream.localhost/hls%2Fb1%2Fplaylist.m3u8',
       )
     })
 
     // A's retry resolves LAST — it must not overwrite B's preview.
     await act(async () => {
-      releaseRetry({ video: 'preview/stale1', audio: null })
+      releaseRetry(previewSession('stale1'))
     })
     expect(document.querySelector('video')).toHaveAttribute(
       'src',
-      'http://stream.localhost/preview%2Fb1',
+      'http://stream.localhost/hls%2Fb1%2Fplaylist.m3u8',
     )
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     vi.mocked(logger.error).mockRestore()
   })
 
-  it('keeps the audio track when rapid pausing aborts audio.play', async () => {
-    vi.mocked(useVideoSearch).mockReturnValue(baseState)
-    vi.mocked(usePendingDownload).mockReturnValue(vi.fn())
-    mockInvoke.mockResolvedValue({
-      video: 'preview/ab1',
-      audio: 'preview-audio/ab1',
-    })
-
-    const { user } = renderWithProviders(<VideoSearchResultList />)
-    await user.click(
-      screen.getAllByRole('button', { name: 'videoSearch.previewPlay' })[0],
-    )
-    await waitFor(() => {
-      expect(document.querySelector('audio')).not.toBeNull()
-    })
-    const video = document.querySelector('video') as HTMLVideoElement
-
-    // First follow is interrupted (rapid play/pause): AbortError must NOT
-    // drop the audio track…
-    const playSpy = vi
-      .spyOn(HTMLMediaElement.prototype, 'play')
-      .mockRejectedValueOnce(
-        Object.assign(new Error('interrupted'), { name: 'AbortError' }),
-      )
-      .mockRejectedValueOnce(
-        Object.assign(new Error('not allowed'), { name: 'NotAllowedError' }),
-      )
-    fireEvent.play(video)
-    await act(async () => {})
-    expect(document.querySelector('audio')).not.toBeNull()
-
-    // …while any other rejection (policy/decode) degrades to silent.
-    fireEvent.play(video)
-    await waitFor(() => {
-      expect(document.querySelector('audio')).toBeNull()
-    })
-    playSpy.mockRestore()
-  })
-
   it('shows a buffering spinner until the media reports playable', async () => {
     vi.mocked(useVideoSearch).mockReturnValue(baseState)
     vi.mocked(usePendingDownload).mockReturnValue(vi.fn())
-    mockInvoke.mockResolvedValue({ video: 'preview/buf1', audio: null })
+    mockInvoke.mockResolvedValue(previewSession('buf1'))
     // macOS has no native buffering spinner — the custom one must show.
     stubUserAgent(MAC_UA)
 
@@ -665,7 +641,7 @@ describe('VideoSearchResultList', () => {
   it('hides the buffering spinner on Windows', async () => {
     vi.mocked(useVideoSearch).mockReturnValue(baseState)
     vi.mocked(usePendingDownload).mockReturnValue(vi.fn())
-    mockInvoke.mockResolvedValue({ video: 'preview/buf2', audio: null })
+    mockInvoke.mockResolvedValue(previewSession('buf2'))
     // Windows WebView2 native controls already render their own spinner.
     stubUserAgent(WINDOWS_UA)
 
@@ -689,7 +665,7 @@ describe('VideoSearchResultList', () => {
   it('shows the spinner for a seek started while paused', async () => {
     vi.mocked(useVideoSearch).mockReturnValue(baseState)
     vi.mocked(usePendingDownload).mockReturnValue(vi.fn())
-    mockInvoke.mockResolvedValue({ video: 'preview/buf3', audio: null })
+    mockInvoke.mockResolvedValue(previewSession('buf3'))
     // Seek-while-paused spinner is likewise macOS/Linux-only.
     stubUserAgent(MAC_UA)
 
@@ -722,7 +698,7 @@ describe('VideoSearchResultList', () => {
     const handleDownload = vi.fn()
     vi.mocked(useVideoSearch).mockReturnValue(baseState)
     vi.mocked(usePendingDownload).mockReturnValue(handleDownload)
-    mockInvoke.mockResolvedValue({ video: 'preview/dl1', audio: null })
+    mockInvoke.mockResolvedValue(previewSession('dl1'))
 
     const { user } = renderWithProviders(<VideoSearchResultList />)
     await user.click(
@@ -745,7 +721,7 @@ describe('VideoSearchResultList', () => {
   it('opens the video page in the browser from the preview dialog', async () => {
     vi.mocked(useVideoSearch).mockReturnValue(baseState)
     vi.mocked(usePendingDownload).mockReturnValue(vi.fn())
-    mockInvoke.mockResolvedValue({ video: 'preview/open1', audio: null })
+    mockInvoke.mockResolvedValue(previewSession('open1'))
 
     const { user } = renderWithProviders(<VideoSearchResultList />)
     await user.click(

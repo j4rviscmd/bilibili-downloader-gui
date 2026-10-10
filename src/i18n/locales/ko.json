@@ -728,7 +728,6 @@
     "previewPlay": "영상 미리보기",
     "previewDownload": "이 영상 다운로드",
     "previewOpenInBrowser": "브라우저에서 열기",
-    "previewMuted": "무음 미리보기",
     "previewPlaybackError": "동영상 재생에 실패했습니다. 다시 시도해 주세요.",
     "previewVideoUnavailable": "이 영상은 삭제·비공개·지역 제한 등의 이유로 미리볼 수 없습니다.",
     "resultsCount": "{{count}}개 결과",
@@ -776,7 +775,11 @@
       "documentary": "다큐멘터리",
       "movie": "영화",
       "tv": "TV 드라마"
-    }
+    },
+    "previewGenerating": "생성 중… {{percent}}%",
+    "previewCapped": "미리보기는 처음 15분까지입니다",
+    "previewFfmpegMissing": "미리보기 재생에는 ffmpeg가 필요하지만 현재 사용할 수 없습니다.",
+    "previewCdnBusy": "CDN이 일시적으로 이 동영상을 제한하고 있습니다. 잠시 후 다시 시도해 주세요."
   },
   "watchHistory": {
     "title": "시청 기록",

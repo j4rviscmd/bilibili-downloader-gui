@@ -3236,6 +3236,62 @@ mod tests {
         }
     }
 
+    /// Preview-selection fixture: builds a playurl body with explicit
+    /// bandwidth/height so the ≤1080p cap logic is exercised exactly.
+    fn preview_body(video_json: &str) -> crate::models::bilibili_api::XPlayerApiResponse {
+        serde_json::from_str(&format!(
+            r#"{{"code":0,"message":"0","data":{{"dash":{{"video":[{video_json}],"audio":null}}}}}}"#
+        ))
+        .unwrap()
+    }
+
+    #[test]
+    fn select_preview_streams_caps_at_1080p() {
+        let body = preview_body(
+            r#"{"id":120,"codecid":7,"bandwidth":9000000,"width":3840,"height":2160,"baseUrl":"https://x/4k.m4s"},
+               {"id":80,"codecid":7,"bandwidth":5000000,"width":1920,"height":1080,"baseUrl":"https://x/1080.m4s"},
+               {"id":80,"codecid":7,"bandwidth":2500000,"width":1280,"height":720,"baseUrl":"https://x/720.m4s"},
+               {"id":32,"codecid":7,"bandwidth":800000,"width":640,"height":360,"baseUrl":"https://x/360.m4s"}"#,
+        );
+        let (url, audio) = select_preview_streams(&body);
+        assert_eq!(url, "https://x/1080.m4s");
+        assert!(audio.is_none());
+    }
+
+    #[test]
+    fn select_preview_streams_all_above_cap_prefers_avc_then_lowest() {
+        // 1440p HEVC + 2160p AVC: AVC wins despite the bigger bytes
+        // (every webview decodes H.264).
+        let body = preview_body(
+            r#"{"id":80,"codecid":12,"bandwidth":6000000,"width":2560,"height":1440,"baseUrl":"https://x/1440.m4s"},
+               {"id":120,"codecid":7,"bandwidth":9000000,"width":3840,"height":2160,"baseUrl":"https://x/2160.m4s"}"#,
+        );
+        let (url, _) = select_preview_streams(&body);
+        assert_eq!(url, "https://x/2160.m4s");
+
+        // No AVC at all: the lowest-bandwidth rendition wins (fewest bytes).
+        let body = preview_body(
+            r#"{"id":80,"codecid":12,"bandwidth":6000000,"width":2560,"height":1440,"baseUrl":"https://x/1440.m4s"},
+               {"id":120,"codecid":12,"bandwidth":9000000,"width":3840,"height":2160,"baseUrl":"https://x/2160.m4s"}"#,
+        );
+        let (url, _) = select_preview_streams(&body);
+        assert_eq!(url, "https://x/1440.m4s");
+    }
+
+    #[test]
+    fn select_preview_streams_treats_unknown_height_as_capped() {
+        // Manifests without width/height (serde default 0) must count as
+        // at-or-below the cap — they are what the height field was added
+        // for, and 0 must not be mistaken for "bigger than 1080p".
+        let body = preview_body(
+            r#"{"id":80,"codecid":7,"bandwidth":1000000,"baseUrl":"https://x/unknown.m4s"},
+               {"id":120,"codecid":7,"bandwidth":9000000,"width":3840,"height":2160,"baseUrl":"https://x/2160.m4s"}"#,
+        );
+        let (url, audio) = select_preview_streams(&body);
+        assert_eq!(url, "https://x/unknown.m4s");
+        assert!(audio.is_none(), "no audio rendition in this draw");
+    }
+
     #[test]
     fn convert_qualities_dedupes_by_highest_codecid_and_sorts_desc() {
         let streams = vec![
@@ -3935,7 +3991,7 @@ mod tests {
         assert_eq!(view_req.headers.get("cookie").unwrap(), "SESSDATA=abc");
     }
 
-    // ---- get_preview_play_url (search-result MP4 preview) ----
+    // ---- preview resolve (search-result HLS lane) ----
 
     #[tokio::test]
     async fn get_preview_play_url_resolves_dash_streams() {
@@ -3952,7 +4008,7 @@ mod tests {
                 wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
                     "code": 0, "message": "0",
                     "data": { "bvid": "BV1preview", "title": "t", "pic": "p",
-                              "cid": 77, "pages": [] }
+                              "cid": 77, "pages": [], "duration": "4:47" }
                 })),
             )
             .mount(&server)
@@ -4002,7 +4058,7 @@ mod tests {
             prefers_akamai_mirrors: false,
             skip_probe: true,
         };
-        let (url, audio) = get_preview_play_url_retry(&api, "BV1preview", &policy)
+        let (url, audio, duration) = get_preview_play_url_retry(&api, "BV1preview", &policy)
             .await
             .unwrap();
         assert_eq!(url, "https://example.com/preview-video.m4s");
@@ -4010,6 +4066,9 @@ mod tests {
             audio,
             Some("https://example.com/preview-audio.m4s".to_string())
         );
+        // Duration rides along for the HLS session cap math (preview_hls):
+        // the view API's "h:mm:ss" string shape must normalize to seconds.
+        assert_eq!(duration, 287);
     }
 
     #[tokio::test]
@@ -4060,7 +4119,7 @@ mod tests {
             prefers_akamai_mirrors: false,
             skip_probe: true,
         };
-        let (url, _audio) = get_preview_play_url_retry(&api, "BV1httppreview", &policy)
+        let (url, _audio, _duration) = get_preview_play_url_retry(&api, "BV1httppreview", &policy)
             .await
             .unwrap();
         assert_eq!(url, "http://example.com/preview.mp4");
@@ -4149,7 +4208,7 @@ mod tests {
             prefers_akamai_mirrors: true,
             skip_probe: true,
         };
-        let (url, _audio) = get_preview_play_url_retry(&api, "BV1stuck", &policy)
+        let (url, _audio, _duration) = get_preview_play_url_retry(&api, "BV1stuck", &policy)
             .await
             .unwrap();
         assert_eq!(
@@ -4207,7 +4266,7 @@ mod tests {
             prefers_akamai_mirrors: true,
             skip_probe: true,
         };
-        let (url, _audio) = get_preview_play_url_retry(&api, "BV1faststuck", &policy)
+        let (url, _audio, _duration) = get_preview_play_url_retry(&api, "BV1faststuck", &policy)
             .await
             .unwrap();
         assert_eq!(
@@ -4283,7 +4342,7 @@ mod tests {
             prefers_akamai_mirrors: true,
             skip_probe: true,
         };
-        let (url, _audio) = get_preview_play_url_retry(&api, "BV1rotating", &policy)
+        let (url, _audio, _duration) = get_preview_play_url_retry(&api, "BV1rotating", &policy)
             .await
             .unwrap();
         assert_eq!(
@@ -4358,7 +4417,7 @@ mod tests {
             prefers_akamai_mirrors: true,
             skip_probe: true,
         };
-        let (url, _audio) = get_preview_play_url_retry(&api, "BV1preferakam", &policy)
+        let (url, _audio, _duration) = get_preview_play_url_retry(&api, "BV1preferakam", &policy)
             .await
             .unwrap();
         assert_eq!(
@@ -4444,11 +4503,236 @@ mod tests {
             prefers_akamai_mirrors: false,
             skip_probe: false,
         };
-        let (url, _audio) = get_preview_play_url_retry(&api, "BV1probedead", &policy)
+        let (url, _audio, _duration) = get_preview_play_url_retry(&api, "BV1probedead", &policy)
             .await
             .unwrap();
         assert_eq!(url, format!("{base}/live.mp4"));
         server.verify().await;
+    }
+
+    #[tokio::test]
+    async fn get_preview_play_url_rerolls_when_the_audio_lane_is_dead() {
+        // A draw whose VIDEO is deliverable but whose AUDIO URL is dead
+        // must reroll: an unprobed dead audio URL kills the whole ffmpeg
+        // session at input open (only in#1 fails — measured 2026-10-10).
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/nav"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(nav_wbi_mock_body()))
+            .mount(&server)
+            .await;
+        let base = server.uri();
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/wbi/view"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": { "bvid": "BV1audiodead", "title": "t", "pic": "p",
+                              "cid": 9, "pages": [] }
+                })),
+            )
+            .mount(&server)
+            .await;
+        // Track files: video always delivers; audio draws dead then live.
+        let track = |file: &str, dead: bool| {
+            wiremock::Mock::given(wiremock::matchers::method("GET"))
+                .and(wiremock::matchers::path(format!("/{file}")))
+                .respond_with(
+                    wiremock::ResponseTemplate::new(206)
+                        .insert_header("Content-Type", "video/mp4")
+                        .insert_header("Content-Range", "bytes 0-63/64")
+                        .set_body_bytes(if dead { Vec::new() } else { vec![7u8; 64] }),
+                )
+                .mount(&server)
+        };
+        let () = track("v.m4s", false).await;
+        let () = track("a-dead.m4s", true).await;
+        let () = track("a-live.m4s", false).await;
+        let dash_body = |audio: &str| {
+            serde_json::json!({
+                "code": 0, "message": "0",
+                "data": { "dash": {
+                    "video": [ { "id": 80, "codecid": 7, "bandwidth": 1000,
+                                 "width": 1280, "height": 720,
+                                 "baseUrl": format!("{base}/v.m4s") } ],
+                    "audio": [ { "id": 30280, "codecid": 0, "bandwidth": 128000,
+                                 "width": 0, "height": 0,
+                                 "baseUrl": format!("{base}/{audio}") } ]
+                } }
+            })
+        };
+        // Draw 1: audio dead. Draws 2+: audio live.
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/player/wbi/playurl"))
+            .and(wiremock::matchers::query_param("cid", "9"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(dash_body("a-dead.m4s")),
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/player/wbi/playurl"))
+            .and(wiremock::matchers::query_param("cid", "9"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(dash_body("a-live.m4s")),
+            )
+            .mount(&server)
+            .await;
+
+        let api = bili_api_mock(&base, "");
+        let policy = PreviewRetryPolicy {
+            deadline: Duration::from_secs(60),
+            max_attempts: 10,
+            prefers_akamai_mirrors: false,
+            skip_probe: false,
+        };
+        let (url, audio, _duration) = get_preview_play_url_retry(&api, "BV1audiodead", &policy)
+            .await
+            .unwrap();
+        // Draw 1 rejected (dead audio), draw 2 accepted with the live pair.
+        assert_eq!(url, format!("{base}/v.m4s"));
+        assert_eq!(
+            audio.as_deref(),
+            Some(format!("{base}/a-live.m4s").as_str())
+        );
+        server.verify().await;
+    }
+
+    #[tokio::test]
+    async fn get_preview_play_url_falls_back_to_video_only_when_audio_never_delivers() {
+        // Every draw: video deliverable, audio dead. The exhausted loop
+        // must return the video-only pair (silent preview) rather than a
+        // last-drawn pair whose dead audio kills ffmpeg at input open.
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/nav"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(nav_wbi_mock_body()))
+            .mount(&server)
+            .await;
+        let base = server.uri();
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/wbi/view"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": { "bvid": "BV1audionevers", "title": "t", "pic": "p",
+                              "cid": 11, "pages": [] }
+                })),
+            )
+            .mount(&server)
+            .await;
+        for (file, dead) in [("v.m4s", false), ("a.m4s", true)] {
+            wiremock::Mock::given(wiremock::matchers::method("GET"))
+                .and(wiremock::matchers::path(format!("/{file}")))
+                .respond_with(
+                    wiremock::ResponseTemplate::new(206)
+                        .insert_header("Content-Type", "video/mp4")
+                        .insert_header("Content-Range", "bytes 0-63/64")
+                        .set_body_bytes(if dead { Vec::new() } else { vec![7u8; 64] }),
+                )
+                .mount(&server)
+                .await;
+        }
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/player/wbi/playurl"))
+            .and(wiremock::matchers::query_param("cid", "11"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": { "dash": {
+                        "video": [ { "id": 80, "codecid": 7, "bandwidth": 1000,
+                                     "width": 1280, "height": 720,
+                                     "baseUrl": format!("{base}/v.m4s") } ],
+                        "audio": [ { "id": 30280, "codecid": 0, "bandwidth": 128000,
+                                     "width": 0, "height": 0,
+                                     "baseUrl": format!("{base}/a.m4s") } ]
+                    } }
+                })),
+            )
+            .mount(&server)
+            .await;
+
+        let api = bili_api_mock(&base, "");
+        let policy = PreviewRetryPolicy {
+            deadline: Duration::from_secs(60),
+            max_attempts: 3,
+            prefers_akamai_mirrors: false,
+            skip_probe: false,
+        };
+        let (url, audio, _duration) = get_preview_play_url_retry(&api, "BV1audionevers", &policy)
+            .await
+            .unwrap();
+        assert_eq!(url, format!("{base}/v.m4s"));
+        assert_eq!(audio, None, "the dead audio lane must be dropped");
+        server.verify().await;
+    }
+
+    #[tokio::test]
+    async fn get_preview_play_url_fails_fast_when_every_draw_is_dead() {
+        // Probes on + every draw refused: opening a session on the
+        // last-drawn pair would spawn a doomed ffmpeg and hammer CDN
+        // rotations for 25s (measured under a full throttle, 2026-10-10)
+        // — the resolve must fail with a distinct code instead.
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/nav"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(nav_wbi_mock_body()))
+            .mount(&server)
+            .await;
+        let base = server.uri();
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/wbi/view"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": { "bvid": "BV1alldead", "title": "t", "pic": "p",
+                              "cid": 12, "pages": [] }
+                })),
+            )
+            .mount(&server)
+            .await;
+        for file in ["/v.m4s", "/a.m4s"] {
+            wiremock::Mock::given(wiremock::matchers::method("GET"))
+                .and(wiremock::matchers::path(file))
+                .respond_with(
+                    wiremock::ResponseTemplate::new(206)
+                        .insert_header("Content-Range", "bytes 0-63/64")
+                        .set_body_bytes(Vec::new()),
+                )
+                .mount(&server)
+                .await;
+        }
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/player/wbi/playurl"))
+            .and(wiremock::matchers::query_param("cid", "12"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": { "dash": {
+                        "video": [ { "id": 80, "codecid": 7, "bandwidth": 1000,
+                                     "width": 1280, "height": 720,
+                                     "baseUrl": format!("{base}/v.m4s") } ],
+                        "audio": [ { "id": 30280, "codecid": 0, "bandwidth": 128000,
+                                     "width": 0, "height": 0,
+                                     "baseUrl": format!("{base}/a.m4s") } ]
+                    } }
+                })),
+            )
+            .mount(&server)
+            .await;
+
+        let api = bili_api_mock(&base, "");
+        let policy = PreviewRetryPolicy {
+            deadline: Duration::from_secs(60),
+            max_attempts: 3,
+            prefers_akamai_mirrors: false,
+            skip_probe: false,
+        };
+        let err = get_preview_play_url_retry(&api, "BV1alldead", &policy)
+            .await
+            .unwrap_err();
+        assert_eq!(err, "ERR::PREVIEW_CDN_UNAVAILABLE");
     }
 
     // ---- search_videos (keyword video search) ----
@@ -5315,6 +5599,7 @@ mod tests {
             cid,
             pages,
             redirect_url: None,
+            duration: None,
         }
     }
 
@@ -8326,67 +8611,6 @@ async fn fetch_part_qualities_with(
     Err("ERR::NO_STREAM".to_string())
 }
 
-/// Resolves a directly playable MP4 URL for previewing a search result.
-///
-/// Search-to-download sanity check: lets the user sample the video before
-/// committing to a download. Requests the HTML5 playurl variant
-/// (`platform=html5`), which returns a single muxed MP4 (audio embedded)
-/// with no referer hotlink protection, so the frontend can feed a plain
-/// `<video>` element without a proxy. Quality is capped server-side at
-/// 1080p (`high_quality=1`); VIP-only tiers are DASH-only and out of scope
-/// by design — entitlements stay enforced by the API either way.
-///
-/// Works logged out (`try_look=1` mirrors the official logged-out player)
-/// and sends the cached Cookie header when present so logged-in users get
-/// the full 1080p preview.
-///
-/// # Errors
-///
-/// Returns an error if:
-/// - Video is not found (`ERR::VIDEO_NOT_FOUND`)
-/// - No MP4 stream is returned (`ERR::NO_STREAM`)
-///
-/// When the preferred mirror family is never assigned within the retry
-/// budget, the last drawn URL is returned as a fallback instead of failing
-/// (issue #814: some networks deterministically draw one family only).
-pub async fn get_preview_play_url(app: &AppHandle, bvid: &str) -> Result<PreviewPlayInfo, String> {
-    log::info!(
-        "[BE] get_preview_play_url: requesting preview for bvid={}",
-        bvid
-    );
-    let cookies = read_cookie(app)?.unwrap_or_default();
-    let api = BiliApi::from_cookies(&cookies)?;
-    match get_preview_play_url_with(&api, bvid).await {
-        Err(e) => {
-            // Why: the stages above return ERR::* codes to the FE silently,
-            // which left app.log with "requesting" entries and no outcome —
-            // preview failures were undiagnosable from the log alone.
-            log::warn!("[BE] get_preview_play_url: failed for bvid={bvid}: {e}");
-            Err(e)
-        }
-        // Why a token, not the raw CDN URL: the webview must fetch previews
-        // through the `stream://` proxy (Sec-Fetch-Dest hotlink blocks,
-        // Referer 403s, and WKWebView QUIC stalls all vanish when reqwest
-        // fetches instead — see handlers/preview_stream.rs). The store also
-        // scopes the signed URL's lifetime. Video and audio ride the SAME
-        // token under two protocol paths so relay-level rotation keeps
-        // both tracks consistent.
-        Ok((url, audio_url)) => {
-            let video = preview_stream::remember_preview_url(bvid, &url, audio_url.as_deref());
-            let audio = audio_url.map(|_| preview_stream::audio_path_of(&video));
-            Ok(PreviewPlayInfo { video, audio })
-        }
-    }
-}
-
-/// `get_preview_play_url` payload: webview-facing proxy paths for the
-/// video track and (DASH previews) the separate audio track.
-#[derive(serde::Serialize)]
-pub struct PreviewPlayInfo {
-    pub video: String,
-    pub audio: Option<String>,
-}
-
 /// Re-resolves a preview CDN URL for an already-tokenized preview
 /// (relay-level rotation when Bilibili's per-URL quota kills the stored
 /// URL mid-playback — see `preview_stream::respond`). Returns the RAW CDN
@@ -8413,14 +8637,30 @@ pub async fn resolve_preview_cdn_url(
         prefers_akamai_mirrors: true,
         skip_probe: true,
     };
-    get_preview_play_url_retry(&api, bvid, &policy).await.ok()
+    get_preview_play_url_retry(&api, bvid, &policy)
+        .await
+        .ok()
+        .map(|(url, audio, _duration)| (url, audio))
 }
 
-/// Transport-injectable core of [`get_preview_play_url`] (test seam).
+/// Resolves the CDN pair + video duration for the HLS preview session
+/// (`preview_hls::open_preview_session_impl`); the raw variant of the
+/// preview resolve — no token store, no proxy paths.
+pub async fn resolve_preview_streams_for_hls(
+    app: &AppHandle,
+    bvid: &str,
+) -> Result<(String, Option<String>, u64), String> {
+    let cookies = read_cookie(app)?.unwrap_or_default();
+    let api = BiliApi::from_cookies(&cookies)?;
+    get_preview_play_url_with(&api, bvid).await
+}
+
+/// Transport-injectable core of [`resolve_preview_streams_for_hls`] (test
+/// seam).
 async fn get_preview_play_url_with(
     api: &BiliApi,
     bvid: &str,
-) -> Result<(String, Option<String>), String> {
+) -> Result<(String, Option<String>, u64), String> {
     get_preview_play_url_retry(api, bvid, &PREVIEW_RETRY_POLICY).await
 }
 
@@ -8430,11 +8670,15 @@ async fn get_preview_play_url_retry(
     api: &BiliApi,
     bvid: &str,
     policy: &PreviewRetryPolicy,
-) -> Result<(String, Option<String>), String> {
+) -> Result<(String, Option<String>, u64), String> {
     // The preview always samples page 1: the WBI view response reports its
     // cid at the data root (equal to pages[0].cid for multi-part videos).
+    // duration rides along for the HLS session cap math (preview_hls).
     let view = fetch_wbi_view(api, bvid).await?;
-    let cid = view.data.map(|d| d.cid).unwrap_or_default();
+    let (cid, duration_sec) = view
+        .data
+        .map(|d| (d.cid, duration_seconds(d.duration.as_ref())))
+        .unwrap_or((0, 0));
 
     let mixin_key = crate::utils::wbi::fetch_mixin_key(
         &api.http,
@@ -8501,6 +8745,14 @@ async fn get_preview_play_url_retry(
     // dead-draw handling in the loop).
     let mut prefer_akamai = policy.prefers_akamai_mirrors;
     let mut last_url: Option<(String, Option<String>)> = None;
+    // Best video-only draw seen (video probe passed, audio did not): at
+    // exhaustion a SILENT preview beats a dead one — the last drawn pair
+    // never passed any probe and its dead audio lane takes the whole
+    // ffmpeg session down at input open (measured 2026-10-10).
+    let mut video_only_fallback: Option<String> = None;
+    // Fully-deliverable pair rerolled away ONLY by mirror-family
+    // preference (#814): the best possible exhaustion fallback.
+    let mut deliverable_rejected: Option<(String, Option<String>)> = None;
     while attempts_made < policy.max_attempts {
         // Deadline is checked before each RE-request (not before the
         // first), so a zero deadline still yields exactly one attempt
@@ -8544,19 +8796,46 @@ async fn get_preview_play_url_retry(
         // preference cannot see that. Verify the exact transport playback
         // will use (HTTP/1.1 proxy client) actually delivers bytes before
         // accepting the draw; dead draws reroll like unpreferred ones.
+        // The AUDIO lane is probed too: an unprobed audio draw that 403s
+        // takes the whole ffmpeg session down at input open (only in#1
+        // fails, video is fine — measured 2026-10-10), so a pair is only
+        // deliverable when BOTH tracks answer.
         // Tests inject skip_probe because their durl hosts are fixtures.
-        let deliverable = if policy.skip_probe {
-            true
+        // Tri-state draw health, single video probe: the audio-dead case
+        // is recorded as a video-only candidate instead of being thrown
+        // away with the fully-dead draws.
+        let (video_ok, audio_dead) = if policy.skip_probe {
+            (true, false)
+        } else if !preview_stream::probe_url(&url).await {
+            (false, false)
+        } else if let Some(audio) = audio_url.as_deref() {
+            let audio_ok = preview_stream::probe_url(audio).await;
+            if !audio_ok {
+                log::info!(
+                    "[BE] get_preview_play_url: audio draw undeliverable (video ok), re-requesting, host={}",
+                    cdn_host(audio)
+                );
+            }
+            (true, !audio_ok)
         } else {
-            preview_stream::probe_url(&url).await
+            (true, false)
         };
+        let deliverable = video_ok && !audio_dead;
+        if audio_dead {
+            video_only_fallback = Some(url.clone());
+        }
+        if deliverable && !family_ok {
+            // Healthy pair the family preference rerolled away (#814):
+            // keep it as the best exhaustion fallback.
+            deliverable_rejected = Some((url.clone(), audio_url.clone()));
+        }
         if family_ok && deliverable {
             log::info!(
                 "[BE] get_preview_play_url: resolved DASH preview for bvid={bvid} host={} (attempt {attempts_made}, elapsed={:?})",
                 cdn_host(&url),
                 started.elapsed()
             );
-            return Ok((url, audio_url));
+            return Ok((url, audio_url, duration_sec.max(0) as u64));
         }
         if !deliverable {
             log::info!(
@@ -8589,6 +8868,45 @@ async fn get_preview_play_url_retry(
         }
         last_url = Some((url, audio_url));
     }
+    // Fallback precedence at exhaustion:
+    // 1. a fully-deliverable pair rerolled away only by family preference
+    //    (#814's original guarantee),
+    // 2. the best VIDEO-ONLY draw (its video lane passed the probe — the
+    //    preview plays silent),
+    // 3. the last drawn pair (never passed any probe; its dead lanes take
+    //    ffmpeg down at input open, but it is better than nothing).
+    if let Some((url, audio_url)) = deliverable_rejected {
+        log::warn!(
+            "[BE] get_preview_play_url: only family-rejected draws within budget (attempts={attempts_made}, elapsed={:?}), falling back to deliverable URL host={}, bvid={bvid}",
+            started.elapsed(),
+            cdn_host(&url)
+        );
+        return Ok((url, audio_url, duration_sec.max(0) as u64));
+    }
+    if let Some(video) = video_only_fallback {
+        log::warn!(
+            "[BE] get_preview_play_url: no deliverable pair within budget (attempts={attempts_made}, elapsed={:?}), falling back to a video-only preview host={}, bvid={bvid}",
+            started.elapsed(),
+            cdn_host(&video)
+        );
+        return Ok((video, None, duration_sec.max(0) as u64));
+    }
+    // With probes on, reaching here means EVERY draw was fully dead: no
+    // deliverable pair and no video-only lane survived. Opening a session
+    // on the last drawn (never-deliverable) pair would spawn a doomed
+    // ffmpeg, hold the manifest long-poll for 25s, and hammer CDN
+    // rotations that deepen the very throttle causing this (measured
+    // 2026-10-10, 8K draws under full refusal). Fail fast with a
+    // distinct code instead; the skip_probe policies (rotation) keep the
+    // last-drawn fallback — their draws are never probed, so "dead" is
+    // not established.
+    if !policy.skip_probe {
+        log::warn!(
+            "[BE] get_preview_play_url: every draw refused delivery (attempts={attempts_made}, elapsed={:?}), bvid={bvid}",
+            started.elapsed()
+        );
+        return Err("ERR::PREVIEW_CDN_UNAVAILABLE".to_string());
+    }
     log::warn!(
         "[BE] get_preview_play_url: no preferred mirror family within budget (attempts={attempts_made}, elapsed={:?}), falling back to last drawn URL host={}, bvid={bvid}",
         started.elapsed(),
@@ -8598,34 +8916,49 @@ async fn get_preview_play_url_retry(
     // exhaustion requires at least one completed iteration (policies in
     // this module all set max_attempts >= 1; request failures exit via
     // `?` before reaching here).
-    Ok(last_url.expect("reroll loop always retains the last pair"))
+    let (last_url, last_audio) = last_url.expect("reroll loop always retains the last pair");
+    Ok((last_url, last_audio, duration_sec.max(0) as u64))
 }
 
 /// Picks the preview streams from one playurl draw.
 ///
 /// DASH responses (the production request shape): the highest-bandwidth
-/// AVC video rendition (fallback: highest-bandwidth overall — HEVC etc.)
-/// plus the first selectable audio rendition. durl-only responses (old or
-/// special videos without a DASH manifest): the single muxed MP4, no
-/// separate audio.
+/// AVC video rendition at or below [`PREVIEW_MAX_HEIGHT`] (fallbacks, in
+/// order: any codec at/below the cap, AVC of any height at the LOWEST
+/// bandwidth, any codec at the lowest bandwidth — when every rendition
+/// exceeds the cap the fewest bytes wins, and AVC stays preferred because
+/// every webview decodes H.264). durl-only responses (old or special
+/// videos without a DASH manifest): the single muxed MP4, no separate
+/// audio.
 fn select_preview_streams(body: &XPlayerApiResponse) -> (String, Option<String>) {
     let data = match body.data.as_ref() {
         Some(d) => d,
         None => return (String::new(), None),
     };
     if let Some(dash) = data.dash.as_ref() {
-        // Why AVC-first (not the user's download VideoCodecPriority from
-        // utils/codec.rs): the webview's <video> element decodes this
-        // stream (VideoPreviewDialog), and H.264 is the one family every
-        // webview decodes — HEVC/AV1 support varies by platform and
-        // installed media extensions. The bandwidth-max fallback covers
-        // AVC-less manifests (HEVC-only 4K/HDR renditions).
+        // height <= 0 marks unknown-height manifests as eligible — the
+        // serde default keeps old manifests without width/height parsing.
+        let capped = |v: &&crate::models::bilibili_api::XPlayerApiResponseVideo| {
+            v.height <= PREVIEW_MAX_HEIGHT
+        };
         let video = dash
             .video
             .iter()
-            .filter(|v| v.codecid == CODECID_AVC)
+            .filter(|v| v.codecid == CODECID_AVC && capped(v))
             .max_by_key(|v| v.bandwidth)
-            .or_else(|| dash.video.iter().max_by_key(|v| v.bandwidth))
+            .or_else(|| {
+                dash.video
+                    .iter()
+                    .filter(|v| capped(v))
+                    .max_by_key(|v| v.bandwidth)
+            })
+            .or_else(|| {
+                dash.video
+                    .iter()
+                    .filter(|v| v.codecid == CODECID_AVC)
+                    .min_by_key(|v| v.bandwidth)
+            })
+            .or_else(|| dash.video.iter().min_by_key(|v| v.bandwidth))
             .map(|v| v.base_url.clone());
         let audio = dash.selectable_audio().first().map(|a| a.base_url.clone());
         if let Some(video) = video {
@@ -8640,6 +8973,11 @@ fn select_preview_streams(body: &XPlayerApiResponse) -> (String, Option<String>)
         .unwrap_or_default();
     (durl, None)
 }
+
+/// Preview rendition height cap: previews remux through ffmpeg at 1080p —
+/// higher renditions would only inflate CDN bytes, temp disk, and URL
+/// rotation frequency without a visible benefit at dialog size.
+const PREVIEW_MAX_HEIGHT: i16 = 1080;
 
 /// Retry policy for the preview playurl reroll loop (see
 /// [`get_preview_play_url_retry`]). The production budget is 15s of

@@ -10,6 +10,7 @@
 //! - **ffmpeg**: Binary validation and installation, A/V merging
 //! - **gif**: Local MP4 to GIF/WebM animation generation
 //! - **github**: GitHub API integration (repository info)
+//! - **preview_hls**: ffmpeg HLS remux sessions for search previews
 //! - **settings**: Application settings persistence
 //! - **trim**: Local MP4 file trimming via ffmpeg stream copy
 //! - **updater**: GitHub release notes fetching
@@ -27,6 +28,7 @@ pub mod github;
 pub mod history_session;
 pub mod init;
 pub mod manual_login;
+pub mod preview_hls;
 pub mod preview_stream;
 pub mod qr_login;
 pub mod resolution;

@@ -74,6 +74,10 @@ pub struct WebInterfaceApiResponseData {
     /// Redirect URL for special content (e.g., bangumi episode)
     #[serde(default, rename = "redirect_url")]
     pub redirect_url: Option<String>,
+    /// Video duration in seconds. Numeric or "h:mm:ss" string shapes on
+    /// the wire — normalized via `duration_seconds` (handlers/bilibili.rs).
+    #[serde(default)]
+    pub duration: Option<serde_json::Value>,
 }
 
 /// Player API response for DASH streams.

@@ -118,8 +118,9 @@ pub use utils::wbi;
 /// - `search_videos`: Keyword search over bilibili videos (no login required)
 /// - `fetch_popular_videos`: Popular video feed for the search page's entry
 ///   view (no login required)
-/// - `get_preview_play_url`: Resolves a playable MP4 preview URL for a
-///   search result (HTML5 platform, ≤1080p, works logged out)
+/// - `open_preview_session`: Starts an ffmpeg HLS remux session for a
+///   search result (≤1080p AVC lane, works logged out)
+/// - `close_preview_session`: Kills a preview session and removes its files
 /// - `get_history`: Retrieves all download history entries
 /// - `add_history_entry`: Adds a new history entry
 /// - `remove_history_entry`: Removes a history entry by ID
@@ -160,11 +161,10 @@ pub fn run() {
     // window position restoration during development
     #[allow(unused_mut)]
     let mut builder = tauri::Builder::default()
-        // Preview video streaming proxy: the webview plays
-        // `convertFileSrc("preview/{token}", "stream")` and this handler
-        // relays its Range requests to the resolved Bilibili CDN URL via
-        // reqwest (no Sec-Fetch-Dest / Referer / WKWebView-QUIC exposure —
-        // see handlers/preview_stream.rs for why the proxy exists).
+        // Preview HLS serving: the webview plays the ffmpeg-generated
+        // playlist via `convertFileSrc("hls/{token}/playlist.m3u8",
+        // "stream")`; this handler serves those local files (the CDN is
+        // only ever read by ffmpeg — see handlers/preview_stream.rs).
         .register_asynchronous_uri_scheme_protocol("stream", |ctx, request, responder| {
             let app = ctx.app_handle().clone();
             tauri::async_runtime::spawn(async move {
@@ -239,7 +239,8 @@ pub fn run() {
             remove_search_history_entry,
             clear_search_history,
             expand_short_url,
-            get_preview_play_url,
+            open_preview_session,
+            close_preview_session,
             cleanup_temp_files,
             trim_video,
             rotate_video,
@@ -656,41 +657,26 @@ async fn fetch_part_qualities(
         .map_err(|e| e.to_string())
 }
 
-/// Resolves preview stream proxy paths for a search result.
+/// Opens an HLS preview session for a search result.
 ///
-/// Backs the search page's inline preview player: the backend resolves
-/// the PC DASH manifest (best AVC video track + its audio track, or the
-/// muxed MP4 for durl-only videos) and stores the CDN URLs under an
-/// opaque short-lived token. The frontend plays the returned `stream://`
-/// proxy paths through the Rust relay instead of touching the CDN
-/// directly (hotlink/Referer blocks and WKWebView QUIC stalls — see
-/// `handlers/preview_stream.rs`).
-///
-/// # Arguments
-///
-/// * `app` - Tauri application handle for cookie cache access
-/// * `bvid` - Bilibili video ID (BV identifier) from the search result
-///
-/// # Returns
-///
-/// Returns [`bilibili::PreviewPlayInfo`] (webview-facing proxy paths for
-/// the video track and the separate audio track, `audio: null` for muxed
-/// durl previews) on success.
-///
-/// # Errors
-///
-/// Returns an error if the video is not found (`ERR::VIDEO_NOT_FOUND`)
-/// or no stream is returned (`ERR::NO_STREAM`). When the preferred
-/// mirror family is never assigned within the retry budget, the last
-/// drawn URL is returned as a fallback instead of failing (issue #814).
+/// Resolves the CDN pair (≤1080p AVC lane), starts ffmpeg remuxing it
+/// through the loopback relay into fMP4 HLS segments, and returns the
+/// `stream://` playlist path plus duration/cap info. Progress/errors are
+/// emitted as `preview-hls-progress` / `preview-hls-error` events.
 #[tauri::command]
-async fn get_preview_play_url(
+async fn open_preview_session(
     app: AppHandle,
     bvid: String,
-) -> Result<bilibili::PreviewPlayInfo, String> {
-    bilibili::get_preview_play_url(&app, &bvid)
-        .await
-        .map_err(|e| e.to_string())
+) -> Result<handlers::preview_hls::PreviewSessionInfo, String> {
+    handlers::preview_hls::open_preview_session_impl(&app, &bvid).await
+}
+
+/// Closes an HLS preview session: kills its ffmpeg child and removes the
+/// generated segments. Called on dialog close/entry switch/unmount.
+#[tauri::command]
+async fn close_preview_session(token: String) -> Result<(), String> {
+    handlers::preview_hls::close_session(&token).await;
+    Ok(())
 }
 
 /// Downloads a Bilibili video with specified quality settings.

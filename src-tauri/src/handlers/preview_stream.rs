@@ -1,50 +1,39 @@
-//! Streaming proxy for search-result video previews (`stream://` custom
-//! protocol).
+//! CDN relay + local HLS serving for search-result video previews.
 //!
-//! Why a proxy: three measured (2026-10-09) CDN behaviors make a webview-side
-//! `<video src="https://cdn...">` unreliable from overseas networks:
+//! Two halves, one store:
 //!
-//! 1. Origin groups `og=cos`/`og=hw` reject media-element requests by
-//!    `Sec-Fetch-Dest: video` (hotlink heuristic; a forbidden header JS can
-//!    never change — same URL succeeds via `fetch()`).
-//! 2. Akamai `hdnts` token auth 403s foreign Referers (the app origin) —
-//!    mitigated by the `no-referrer` meta, but same class of
-//!    request-identity blocking.
-//! 3. WKWebView upgrades media fetches to HTTP/3 on Alt-Svc advertisement
-//!    and stalls on QUIC (issue #814).
+//! 1. **Loopback relay** (ffmpeg's input lane): `preview_hls` registers a
+//!    resolved CDN URL pair under a token, then ffmpeg streams
+//!    `http://127.0.0.1:{port}/cdn/{token}/(video|audio)` from the
+//!    in-process hyper server. Mid-stream CDN deaths (per-URL quota,
+//!    resets) mark the URL spent and the NEXT request rotates to a fresh
+//!    resolve — ffmpeg cannot swap an input URL itself, so all CDN
+//!    robustness must live on this side (see the design spec).
+//! 2. **`stream://` serving**: the generated HLS artifacts
+//!    (`hls/{token}/…`) are served to the webview straight from the
+//!    session temp dir; the webview never touches the CDN.
 //!
-//! Relaying through reqwest sidesteps all three: it sends no `Sec-Fetch-*`
-//! headers, no Referer, and speaks HTTP/1.1/2 only. This also lets the
-//! playurl reroll prefer the fastest mirror family (akamaized) on every
-//! platform instead of avoiding it for WKWebView.
-//!
-//! Flow: `get_preview_play_url` resolves a CDN URL and stores it under a
-//! short-lived opaque token (the raw CDN URL never crosses to the webview).
-//! The webview plays `convertFileSrc("preview/{token}", "stream")` and its
-//! Range requests are answered here by fetching the same byte window from
-//! the CDN and relaying status + bytes.
+//! Why a relay at all: three measured (2026-10-09) CDN behaviors make a
+//! webview-side `<video src="https://cdn...">` unreliable from overseas
+//! networks — `Sec-Fetch-Dest: video` hotlink blocks on `og=cos`/`og=hw`,
+//! Akamai `hdnts` Referer 403s, and WKWebView HTTP/3 stalls (issue #814).
+//! reqwest sidesteps all three (no `Sec-Fetch-*`, no Referer, HTTP/1.1/2
+//! only), which is also why `probe_url` (the resolve reroll's dead-edge
+//! check) measures with the same client configuration.
 
 use std::collections::HashMap;
-use std::sync::{LazyLock, Mutex};
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::{LazyLock, Mutex, OnceLock};
+use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 
 use percent_encoding::percent_decode_str;
-use tauri::http::{header, Request, Response, StatusCode};
+use tauri::http::{header, HeaderValue, Request, Response, StatusCode};
+// hyper/http-body combinators used by the loopback relay (boxed/map_err).
+use http_body_util::BodyExt as _;
 
 use crate::constants::USER_AGENT;
-
-/// Upper bound of bytes relayed per protocol request. Media elements issue
-/// progressive Range requests, so serving bounded windows streams a
-/// multi-hundred-MB MP4 incrementally instead of buffering it whole —
-/// responses stay a few MB regardless of video size.
-const MAX_CHUNK_BYTES: u64 = 4 * 1024 * 1024;
-
-/// Cumulative served bytes that trigger a BACKGROUND URL rotation. The
-/// observed per-URL quota is a few MB (2026-10-10: windows started 403ing
-/// after ~6MB served); rotating just below that keeps the media element's
-/// next request on a fresh URL instead of paying the mid-request
-/// resolve-retry chain that far-seek demuxer timeouts cannot tolerate.
-const PRE_WARM_ROTATE_BYTES: u64 = 5 * 1024 * 1024;
 
 /// How long a token's rotation stays suppressed after a failed rotation
 /// (resolve loop exhausted / refused). Guards against the throttle
@@ -81,19 +70,18 @@ struct StoredPreview {
     /// together with `url`.
     audio_url: Option<String>,
     expires_at: Instant,
-    /// Cumulative bytes relayed from the current `url`. Bilibili enforces
-    /// a per-URL byte quota (a few MB — 2026-10-10 measurements); when
-    /// this crosses PRE_WARM_ROTATE_BYTES the handler proactively swaps
-    /// in a fresh URL so the media element's NEXT window never meets the
-    /// quota wall (a mid-request rotation is too slow for far-seek
-    /// demuxer timeouts).
-    bytes_served: u64,
-    /// True while a background pre-warm rotation is in flight (prevents
-    /// stampedes).
-    rotating: bool,
     /// When a rotation last failed for this token (rotation backoff —
     /// see `begin_rotation`). None = no active backoff.
     rotation_failed_at: Option<Instant>,
+    /// True when the current URL died mid-stream or was refused (quota /
+    /// reset edges). The next loopback GET rotates before serving.
+    spent: bool,
+    /// True right after a rotation swapped this pair in. A fresh URL has
+    /// no quota history, so its immediate refusal means the family/IP is
+    /// unhealthy — that failure starts the rotation backoff (see
+    /// `relay_sequential`), instead of hammering resolve in a ~1Hz loop
+    /// while a CDN throttle deepens (measured 2026-10-10).
+    fresh: bool,
 }
 
 impl PreviewUrlStore {
@@ -112,9 +100,11 @@ impl PreviewUrlStore {
                 url: url.to_string(),
                 audio_url: audio_url.map(str::to_string),
                 expires_at: now + ttl,
-                bytes_served: 0,
-                rotating: false,
                 rotation_failed_at: None,
+                spent: false,
+                // The initial pair passed the resolve probe, so its first
+                // GET failure is the per-URL lottery, not family-level.
+                fresh: false,
             },
         );
         format!("preview/{token}")
@@ -141,9 +131,45 @@ impl PreviewUrlStore {
         if let Some(p) = self.entries.get_mut(token) {
             p.url = url.to_string();
             p.audio_url = audio_url.map(str::to_string);
-            p.bytes_served = 0;
-            p.rotating = false;
             p.rotation_failed_at = None;
+            p.spent = false;
+            // Rotated-in pairs are probe-free: treat their first death
+            // as family-level and start the backoff.
+            p.fresh = true;
+        }
+    }
+
+    /// Marks the token's URL as dead (sequential relay saw the stream fail
+    /// or end short) so the next loopback GET rotates before serving.
+    fn mark_spent(&mut self, token: &str) {
+        if let Some(p) = self.entries.get_mut(token) {
+            p.spent = true;
+        }
+    }
+
+    /// Whether the token's URL is currently marked spent.
+    fn is_spent(&self, token: &str) -> bool {
+        self.entries.get(token).is_some_and(|p| p.spent)
+    }
+
+    /// Clears the fresh flag once a stream starts delivering (the URL
+    /// proved itself; later deaths are the ordinary quota lottery).
+    fn clear_fresh(&mut self, token: &str) {
+        if let Some(p) = self.entries.get_mut(token) {
+            p.fresh = false;
+        }
+    }
+
+    /// Like [`clear_fresh`], but reports whether the flag WAS set — the
+    /// relay uses the return to decide whether a refusal deserves the
+    /// family-level backoff.
+    fn clear_fresh_checked(&mut self, token: &str) -> bool {
+        match self.entries.get_mut(token) {
+            Some(p) if p.fresh => {
+                p.fresh = false;
+                true
+            }
+            _ => false,
         }
     }
 
@@ -170,28 +196,6 @@ impl PreviewUrlStore {
     fn bvid(&self, token: &str) -> Option<String> {
         self.entries.get(token).map(|p| p.bvid.clone())
     }
-
-    /// Clears the in-flight pre-warm guard (e.g. the background resolve
-    /// failed and a later window should be allowed to try again).
-    fn clear_rotating(&mut self, token: &str) {
-        if let Some(p) = self.entries.get_mut(token) {
-            p.rotating = false;
-        }
-    }
-
-    /// Records bytes served from the current URL and reports whether a
-    /// background pre-warm rotation should start (sets `rotating` so only
-    /// one runs per crossing).
-    fn record_served(&mut self, token: &str, bytes: u64) -> bool {
-        let Some(p) = self.entries.get_mut(token) else {
-            return false;
-        };
-        p.bytes_served += bytes;
-        !p.rotating && p.bytes_served >= PRE_WARM_ROTATE_BYTES && {
-            p.rotating = true;
-            true
-        }
-    }
 }
 
 /// `deadline` query param of a playurl URL as unix seconds (the CDN-signed
@@ -212,33 +216,6 @@ fn now_unix() -> u64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or_default()
-}
-
-/// Clamps an incoming Range header to a bounded `bytes=N-M` upstream request.
-///
-/// - absent or malformed → first window from byte 0 (media elements always
-///   Range-request, but a full 200 of a multi-GB file must never happen)
-/// - `bytes=N-` (open-ended) → `bytes=N-{N+MAX_CHUNK_BYTES-1}`
-/// - `bytes=N-M` → kept as-is when it fits the chunk cap, else end clamped
-///
-/// Relaying a capped 206 for an open-ended request is standard partial
-/// content: the client simply issues the next window when it needs more.
-fn clamped_range(requested: Option<&str>) -> (String, u64) {
-    let (start, end) = requested
-        .and_then(|h| h.strip_prefix("bytes="))
-        .and_then(|spec| {
-            let (start, end) = spec.split_once('-')?;
-            let start: u64 = start.parse().ok()?;
-            let end: Option<u64> = end.parse::<u64>().ok();
-            Some((start, end))
-        })
-        .unwrap_or((0, None));
-    // saturating_add: an absurd start (u64 near max) must clamp, not
-    // overflow-panic in debug builds.
-    let last = end
-        .filter(|e| *e < start.saturating_add(MAX_CHUNK_BYTES) && *e >= start)
-        .unwrap_or(start.saturating_add(MAX_CHUNK_BYTES - 1));
-    (format!("bytes={start}-{last}"), start)
 }
 
 /// Shared plain HTTP client for CDN fetches (no cookies — preview URLs are
@@ -280,21 +257,12 @@ fn proxy_client() -> &'static reqwest::Client {
 static STORE: LazyLock<Mutex<PreviewUrlStore>> =
     LazyLock::new(|| Mutex::new(PreviewUrlStore::default()));
 
-/// `get_preview_play_url` calls this: stores the resolved URL and returns
-/// the webview-facing path.
+/// Registers a resolved CDN pair and returns the token path
+/// (`preview/{token}`); `preview_hls::open_session_with` calls this and
+/// derives the loopback/HLS token from it.
 pub fn remember_preview_url(bvid: &str, url: &str, audio_url: Option<&str>) -> String {
     let mut guard = lock_store();
     guard.remember(bvid, url, audio_url, Instant::now())
-}
-
-/// Audio-track proxy path for a remembered video path: same token under
-/// the `preview-audio` prefix (`preview/{token}` →
-/// `preview-audio/{token}`).
-pub fn audio_path_of(video_path: &str) -> String {
-    format!(
-        "preview-audio/{}",
-        video_path.trim_start_matches("preview/")
-    )
 }
 
 fn lock_store() -> std::sync::MutexGuard<'static, PreviewUrlStore> {
@@ -303,130 +271,466 @@ fn lock_store() -> std::sync::MutexGuard<'static, PreviewUrlStore> {
     STORE.lock().unwrap_or_else(|p| p.into_inner())
 }
 
-/// Entry point for the `stream://` protocol handler (lib.rs registration).
-pub async fn respond(app: &tauri::AppHandle, request: Request<Vec<u8>>) -> Response<Vec<u8>> {
-    respond_inner(request, Some(app)).await
+// ---------------------------------------------------------------------------
+// Loopback relay (ffmpeg input lane)
+// ---------------------------------------------------------------------------
+
+/// Body type of the loopback server's responses: the upstream byte stream
+/// piped through without buffering. Custom alias (not BoxBody) because
+/// serving only needs `Send` and the reqwest decoder stream is not
+/// `Sync`; BoxBody would demand it.
+type RelayBody =
+    Pin<Box<dyn http_body::Body<Data = hyper::body::Bytes, Error = reqwest::Error> + Send>>;
+
+/// Streaming client for the loopback relay. CONSTRAINT: no total timeout —
+/// a full m4s body legitimately takes minutes to arrive; only connection
+/// establishment and per-read stalls are bounded (the old windowed
+/// `proxy_client` used a 10s total timeout, which would kill long streams).
+fn stream_client() -> &'static reqwest::Client {
+    static CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
+        reqwest::Client::builder()
+            .http1_only()
+            .connect_timeout(Duration::from_secs(10))
+            .read_timeout(Duration::from_secs(20))
+            .no_gzip()
+            .no_brotli()
+            .build()
+            .expect("streaming client always builds")
+    });
+    &CLIENT
 }
 
-/// App-less core of [`respond`] so tests can exercise the decode/relay
-/// path without an AppHandle (`None` skips the URL-rotation fallback).
-async fn respond_inner(
-    request: Request<Vec<u8>>,
-    app: Option<&tauri::AppHandle>,
-) -> Response<Vec<u8>> {
-    // convertFileSrc percent-encodes the whole path (encodeURIComponent),
-    // so the webview requests /preview%2F{token} — decode before the
-    // prefix strip or the lookup key never matches (same decode tauri's
-    // asset protocol performs on its paths). Tokens are plain hex, so no
-    // traversal is possible through the decoded value (HashMap lookup).
-    let path = percent_decode_str(request.uri().path()).decode_utf8_lossy();
-    // One token, two tracks: /preview/{token} serves the video URL,
-    // /preview-audio/{token} the separate DASH audio m4s (durl muxed
-    // previews have no audio track — that prefix 404s and the FE falls
-    // back to a muted badge).
-    let (token, want_audio) = if let Some(rest) = path.strip_prefix("/preview-audio/") {
-        (rest.to_string(), true)
-    } else {
-        (path.trim_start_matches("/preview/").to_string(), false)
-    };
-    let url = if want_audio {
-        lock_store().lookup_audio(&token, Instant::now())
-    } else {
-        lock_store().lookup(&token, Instant::now())
-    };
-    let Some(url) = url else {
-        return simple_response(StatusCode::NOT_FOUND, "preview token not found or expired");
-    };
-    let range = request
+/// Base URL of the app-wide loopback relay (`http://127.0.0.1:{port}`).
+/// OnceLock (not LazyLock) because the value only exists after a runtime
+/// bind — the ephemeral port is not known at declaration time.
+static LOOPBACK_BASE: OnceLock<String> = OnceLock::new();
+
+/// Ensures the loopback relay server is running and returns its base URL.
+/// ffmpeg reads its CDN inputs from `http://127.0.0.1:{port}/cdn/{token}/…`
+/// so every CDN behavior (rotation, backoff) stays on the Rust side.
+pub fn ensure_loopback(app: &tauri::AppHandle) -> String {
+    // get_or_init (not a bare get + set): concurrent first opens must not
+    // each bind a listener and leak all but the cached one.
+    LOOPBACK_BASE
+        .get_or_init(|| {
+            let listener = match std::net::TcpListener::bind(("127.0.0.1", 0)) {
+                Ok(l) => l,
+                Err(e) => {
+                    log::error!("[BE] preview_stream: loopback bind failed: {e}");
+                    // Empty base → open_session fails with
+                    // ERR::PREVIEW_RELAY_UNAVAILABLE (never retried: the
+                    // failure is not transient in practice).
+                    return String::new();
+                }
+            };
+            let addr = listener.local_addr().expect("bound socket has an addr");
+            let app = app.clone();
+            // std listener → tokio: set nonblocking then convert (avoids a
+            // blocking accept on the async runtime; standard tokio pattern).
+            listener.set_nonblocking(true).ok();
+            let listener = tokio::net::TcpListener::from_std(listener)
+                .expect("nonblocking std listener converts to tokio");
+            tauri::async_runtime::spawn(async move {
+                loop {
+                    let Ok((socket, _)) = listener.accept().await else {
+                        continue;
+                    };
+                    let app = app.clone();
+                    tauri::async_runtime::spawn(async move {
+                        let service = hyper::service::service_fn(move |req| {
+                            let app = app.clone();
+                            async move {
+                                Ok::<_, std::convert::Infallible>(serve_loopback(app, req).await)
+                            }
+                        });
+                        let _ = hyper::server::conn::http1::Builder::new()
+                            .serve_connection(hyper_util::rt::TokioIo::new(socket), service)
+                            .await;
+                    });
+                }
+            });
+            format!("http://{addr}")
+        })
+        .clone()
+}
+
+/// One loopback request: parse `/cdn/{token}/{lane}`, delegate to
+/// [`relay_sequential`] with the production rotation closure.
+async fn serve_loopback(
+    app: tauri::AppHandle,
+    req: hyper::Request<hyper::body::Incoming>,
+) -> hyper::Response<RelayBody> {
+    let path = req.uri().path().to_string();
+    let range = req
         .headers()
         .get(header::RANGE)
-        .and_then(|v| v.to_str().ok());
-    let mut relay = relay_range(proxy_client(), &url, range).await;
-    // Why rotate: Bilibili's CDN enforces per-URL quotas (a URL that
-    // streamed a few MB starts answering 503 / zero-byte 206 / hangs —
-    // measured 2026-10-09; fresh resolves recover). A failed window means
-    // the stored URL is spent: re-resolve the SAME video and retry the
-    // window on the fresh URL so playback continues mid-stream.
-    if relay.status() == StatusCode::BAD_GATEWAY {
-        let Some(app) = app else {
-            return relay;
-        };
-        // Rotation backoff: when the CDN is throttling this client at the
-        // IP/account level (every draw 403s — observed 2026-10-10 after
-        // heavy use), each failed window would otherwise trigger a full
-        // playurl resolve loop, hammering the very risk control that
-        // caused the failure and deepening the throttle. After a failed
-        // rotation, further rotations pause for the cooldown window.
-        if !lock_store().begin_rotation(&token) {
-            return relay;
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_string);
+    if req.method() != hyper::http::Method::GET {
+        return box_body_response(
+            StatusCode::METHOD_NOT_ALLOWED,
+            "loopback relay accepts GET only",
+        );
+    }
+    let (token, lane_audio) = match parse_cdn_path(&path) {
+        Some(pair) => pair,
+        None => return box_body_response(StatusCode::NOT_FOUND, "unknown loopback path"),
+    };
+    let app = &app;
+    relay_sequential(&token, lane_audio, range.as_deref(), move |bvid| async move {
+        crate::handlers::bilibili::resolve_preview_cdn_url(app, &bvid).await
+    })
+    .await
+}
+
+/// Splits `/cdn/{token}/(video|audio)` into (token, is_audio). `None` for
+/// anything else — the loopback server serves exactly these two lanes.
+fn parse_cdn_path(path: &str) -> Option<(String, bool)> {
+    let rest = path.strip_prefix("/cdn/")?;
+    let (token, lane) = rest.split_once('/')?;
+    let audio = match lane {
+        "video" => false,
+        "audio" => true,
+        _ => return None,
+    };
+    Some((token.to_string(), audio))
+}
+
+/// Core of the loopback relay: serves one lane sequentially from the CDN.
+///
+/// - Rotation happens at GET entry when the previous stream marked the URL
+///   spent; the `rotate` closure resolves a fresh URL pair (production
+///   wires `bilibili::resolve_preview_cdn_url`; tests inject a fake).
+/// - The upstream request is one unbounded `Range: bytes=X-` stream — the
+///   request pattern the download path has always used (the measured
+///   per-URL quota punishes windowed re-requests, not sequential reads).
+/// - Mid-body failures end the response early; ffmpeg's `-reconnect*`
+///   re-GETs, the spent mark then routes that GET at a fresh URL.
+async fn relay_sequential<F, Fut>(
+    token: &str,
+    lane_audio: bool,
+    range_header: Option<&str>,
+    rotate: F,
+) -> hyper::Response<RelayBody>
+where
+    // Owned `String` argument: a by-ref closure return would need HRTB
+    // bounds the async-fn shape cannot express.
+    F: Fn(String) -> Fut,
+    Fut: Future<Output = Option<(String, Option<String>)>>,
+{
+    if lock_store().is_spent(token) {
+        if !lock_store().begin_rotation(token) {
+            // Rotation backoff active (IP-level throttle) — make ffmpeg
+            // back off too instead of hammering the resolve loop.
+            return box_body_response(StatusCode::SERVICE_UNAVAILABLE, "rotation backoff");
         }
-        let Some(bvid) = lock_store().bvid(&token) else {
-            return relay;
+        let bvid = lock_store().bvid(token);
+        let rotated = match bvid {
+            Some(b) => rotate(b).await,
+            None => None,
         };
-        let Some((fresh, fresh_audio)) =
-            crate::handlers::bilibili::resolve_preview_cdn_url(app, &bvid).await
-        else {
-            lock_store().rotation_failed(&token);
-            return relay;
-        };
-        log::info!("[BE] preview_stream: rotating spent CDN URL for bvid={bvid} (window retry)");
-        lock_store().rotate(&token, &fresh, fresh_audio.as_deref());
-        // Retry the SAME lane that failed: an audio-lane window
-        // must never be answered with video bytes. A fresh draw
-        // without a separate audio track (durl) 404s the audio
-        // lane, matching how a durl preview that never had one
-        // behaves.
-        match rotation_retry_url(want_audio, &fresh, fresh_audio.as_deref()) {
-            Some(retry) => relay = relay_range(proxy_client(), &retry, range).await,
+        match rotated {
+            Some((fresh, fresh_audio)) => {
+                log::info!("[BE] preview_stream: rotating spent CDN URL for loopback lane");
+                lock_store().rotate(token, &fresh, fresh_audio.as_deref());
+            }
             None => {
-                return simple_response(
-                    StatusCode::NOT_FOUND,
-                    "preview audio track unavailable after rotation",
-                )
+                lock_store().rotation_failed(token);
+                return box_body_response(StatusCode::SERVICE_UNAVAILABLE, "rotation failed");
             }
         }
     }
-    // Pre-warm rotation: count what we just served from the current URL
-    // and, past the quota-proximity threshold, swap in a fresh URL in the
-    // BACKGROUND — before the element's next window can hit the quota
-    // wall (see PRE_WARM_ROTATE_BYTES). Video-lane bytes only: the audio
-    // track is a few hundred KB and rides the video lane's rotation.
-    if relay.status() == StatusCode::PARTIAL_CONTENT && !want_audio {
-        let served = relay.body().len() as u64;
-        if lock_store().record_served(&token, served) {
-            let Some(app) = app.cloned() else {
-                return relay;
-            };
-            let Some(bvid) = lock_store().bvid(&token) else {
-                return relay;
-            };
-            tauri::async_runtime::spawn(async move {
-                match crate::handlers::bilibili::resolve_preview_cdn_url(&app, &bvid).await {
-                    Some((fresh, fresh_audio)) => {
-                        log::info!("[BE] preview_stream: pre-warm rotation for bvid={bvid}");
-                        lock_store().rotate(&token, &fresh, fresh_audio.as_deref());
-                    }
-                    None => {
-                        // Resolve failed; clear the guard so a later
-                        // window can retry the pre-warm.
-                        lock_store().clear_rotating(&token);
-                    }
-                }
-            });
+    let url = if lane_audio {
+        lock_store().lookup_audio(token, Instant::now())
+    } else {
+        lock_store().lookup(token, Instant::now())
+    };
+    let Some(url) = url else {
+        return box_body_response(StatusCode::NOT_FOUND, "preview token not found or expired");
+    };
+    let offset = range_header
+        .and_then(|h| h.strip_prefix("bytes="))
+        .and_then(|s| s.split('-').next())
+        .and_then(|s| s.trim().parse::<u64>().ok())
+        .unwrap_or(0);
+    let upstream = stream_client()
+        .get(&url)
+        .header(header::USER_AGENT, USER_AGENT)
+        .header(header::RANGE, format!("bytes={offset}-"))
+        .send()
+        .await;
+    let upstream = match upstream {
+        Ok(r) if r.status().as_u16() == 206 || r.status().as_u16() == 200 => {
+            lock_store().clear_fresh(token);
+            r
         }
+        other => {
+            log::warn!(
+                "[BE] preview_stream: loopback upstream refused (status={:?})",
+                other.as_ref().map(|r| r.status().as_u16())
+            );
+            lock_store().mark_spent(token);
+            // A freshly rotated (probe-free) URL refusing immediately is
+            // family/IP-level trouble, not the per-URL lottery — start
+            // the rotation backoff so ffmpeg's reconnects wait out the
+            // window instead of driving a resolve-per-second loop that
+            // deepens the very throttle causing it (measured 2026-10-10).
+            if lock_store().clear_fresh_checked(token) {
+                lock_store().rotation_failed(token);
+            }
+            return box_body_response(StatusCode::BAD_GATEWAY, "preview CDN stream refused");
+        }
+    };
+    let content_type = upstream
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("video/mp4")
+        .to_string();
+    // Expected remaining bytes from Content-Range ("bytes X-(total-1)/total")
+    // — the yardstick for detecting a cleanly-truncated body (capped edges
+    // send fewer bytes then EOF without an error).
+    let expected = upstream
+        .headers()
+        .get(header::CONTENT_RANGE)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.rsplit('/').next())
+        .and_then(|v| v.trim().parse::<u64>().ok())
+        .map(|total| total.saturating_sub(offset));
+    let marker = SpentMarker {
+        inner: upstream.bytes_stream(),
+        token: token.to_string(),
+        sent: 0,
+        expected,
+    };
+    let mut builder = hyper::Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, content_type);
+    if let Some(expected) = expected {
+        builder = builder.header(header::CONTENT_LENGTH, expected);
     }
-    relay
+    builder
+        .body(Box::pin(http_body_util::StreamBody::new(marker)) as RelayBody)
+        .unwrap_or_else(|_| box_body_response(StatusCode::BAD_GATEWAY, "invalid relay headers"))
 }
 
-/// Retry URL after a rotation, for the lane that failed: the audio lane
-/// retries on the fresh AUDIO URL. `None` when the fresh draw is a durl
-/// muxed preview — no separate audio track to serve.
-fn rotation_retry_url(want_audio: bool, fresh: &str, fresh_audio: Option<&str>) -> Option<String> {
-    match (want_audio, fresh_audio) {
-        (true, Some(audio)) => Some(audio.to_string()),
-        (true, None) => None,
-        (false, _) => Some(fresh.to_string()),
+/// Wraps the upstream chunk stream: counts delivered bytes and marks the
+/// token spent when the transfer errors or ends short of the expected
+/// length (capped-edge truncation). The next ffmpeg reconnect then hits
+/// the rotation path in [`relay_sequential`].
+struct SpentMarker<S> {
+    inner: S,
+    token: String,
+    sent: u64,
+    expected: Option<u64>,
+}
+
+impl<S> futures::Stream for SpentMarker<S>
+where
+    S: futures::Stream<Item = reqwest::Result<hyper::body::Bytes>> + Unpin,
+{
+    type Item = reqwest::Result<http_body::Frame<hyper::body::Bytes>>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        match futures::StreamExt::poll_next_unpin(&mut self.inner, cx) {
+            Poll::Ready(Some(Ok(chunk))) => {
+                self.sent += chunk.len() as u64;
+                Poll::Ready(Some(Ok(http_body::Frame::data(chunk))))
+            }
+            Poll::Ready(Some(Err(e))) => {
+                log::info!("[BE] preview_stream: loopback stream error mid-body: {e}");
+                lock_store().mark_spent(&self.token);
+                Poll::Ready(Some(Err(e)))
+            }
+            Poll::Ready(None) => {
+                if self.expected.is_some_and(|e| self.sent < e) {
+                    log::info!(
+                        "[BE] preview_stream: loopback stream ended short ({} of {:?} bytes) — marking spent",
+                        self.sent,
+                        self.expected
+                    );
+                    lock_store().mark_spent(&self.token);
+                }
+                Poll::Ready(None)
+            }
+            Poll::Pending => Poll::Pending,
+        }
     }
+}
+
+/// Small text response for the loopback server (errors / control paths).
+fn box_body_response(status: StatusCode, text: &str) -> hyper::Response<RelayBody> {
+    hyper::Response::builder()
+        .status(status)
+        .header(header::CONTENT_TYPE, "text/plain")
+        .body(Box::pin(
+            http_body_util::Full::new(hyper::body::Bytes::from(text.as_bytes().to_vec()))
+                .map_err(|never| -> reqwest::Error { match never {} }),
+        ) as RelayBody)
+        .expect("static response is always valid")
+}
+
+/// Test/app seam for [`relay_sequential`]: parses a loopback path and
+/// collects the streamed body into a plain response (the production
+/// hyper path streams the same bytes without collecting).
+pub async fn handle_cdn_request<F, Fut>(
+    path: &str,
+    range_header: Option<&str>,
+    rotate: F,
+) -> Response<Vec<u8>>
+where
+    F: Fn(String) -> Fut,
+    Fut: Future<Output = Option<(String, Option<String>)>>,
+{
+    let Some((token, lane_audio)) = parse_cdn_path(path) else {
+        return simple_response(StatusCode::NOT_FOUND, "unknown loopback path");
+    };
+    let resp = relay_sequential(&token, lane_audio, range_header, rotate).await;
+    let status = StatusCode::from_u16(resp.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+    let content_type = resp
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream")
+        .to_string();
+    let body = match http_body_util::BodyExt::collect(resp.into_body()).await {
+        Ok(collected) => collected.to_bytes().to_vec(),
+        Err(_) => Vec::new(),
+    };
+    Response::builder()
+        .status(status)
+        .header(header::CONTENT_TYPE, content_type)
+        .body(body)
+        .expect("collected response is always valid")
+}
+
+/// Serves one generated HLS artifact: `{token}/{file}` where file is
+/// whitelisted (playlist.m3u8 / init.mp4 / segNNN.m4s). The token charset
+/// check plus the whitelist make traversal structurally impossible.
+pub(crate) async fn serve_hls_path(rest: &str) -> Response<Vec<u8>> {
+    let Some((token, file)) = rest.split_once('/') else {
+        return simple_response(StatusCode::NOT_FOUND, "malformed hls path");
+    };
+    let token_ok = token.len() == 32 && token.chars().all(|c| c.is_ascii_hexdigit());
+    if !token_ok {
+        return simple_response(StatusCode::NOT_FOUND, "unknown hls token");
+    }
+    let file_ok = matches!(file, "playlist.m3u8" | "init.mp4")
+        || (file.starts_with("seg")
+            && file.ends_with(".m4s")
+            && file[3..file.len() - 4].chars().all(|c| c.is_ascii_digit()));
+    if !file_ok {
+        return simple_response(StatusCode::NOT_FOUND, "unknown hls artifact");
+    }
+    let Some(dir) = crate::handlers::preview_hls::session_dir(token) else {
+        return simple_response(StatusCode::NOT_FOUND, "preview session not found");
+    };
+    let mime = match file {
+        "playlist.m3u8" => "application/vnd.apple.mpegurl",
+        "init.mp4" => "video/mp4",
+        _ => "video/iso.segment",
+    };
+    // Segments appear as ffmpeg writes them; a not-yet-written segment
+    // is a normal race the player retries through. The PLAYLIST is
+    // special: hls.js treats a manifest 404 as immediately fatal (4xx is
+    // never retried — retryForHttpStatus in hls.js; a synthetic empty
+    // playlist is equally fatal via levelEmptyError — both measured
+    // 2026-10-10), so the route HOLDS the request until ffmpeg writes
+    // the real file (long-poll bridging the generation warm-up). On
+    // timeout the 404 stands: a playlist that never appears means the
+    // remux died, and the FE hears preview-hls-error separately.
+    const PLAYLIST_POLL_MS: u64 = 200;
+    const PLAYLIST_POLL_MAX_MS: u64 = 25_000;
+    let path = dir.join(file);
+    if file == "playlist.m3u8" {
+        let mut waited = 0u64;
+        loop {
+            if let Ok(bytes) = tokio::fs::read(&path).await {
+                return hls_ok_response(mime, rewrite_playlist_urls(&bytes, token));
+            }
+            if waited >= PLAYLIST_POLL_MAX_MS {
+                return simple_response(StatusCode::NOT_FOUND, "hls artifact not ready");
+            }
+            tokio::time::sleep(Duration::from_millis(PLAYLIST_POLL_MS)).await;
+            waited += PLAYLIST_POLL_MS;
+        }
+    }
+    match tokio::fs::read(&path).await {
+        Ok(bytes) => hls_ok_response(mime, bytes),
+        Err(_) => simple_response(StatusCode::NOT_FOUND, "hls artifact not ready"),
+    }
+}
+
+/// Rewrites the playlist's relative artifact references to absolute
+/// `/hls/{token}/…` paths. convertFileSrc percent-encodes the WHOLE path
+/// (`hls%2F{token}%2Fplaylist.m3u8` — one URL segment), so RFC-3986
+/// relative resolution sends `seg000.m4s` to the server ROOT, not into
+/// the session; ffmpeg's EXT-X-MAP URI carries the ABSOLUTE Windows
+/// init-segment path (both measured: fragment fetches status 0).
+fn rewrite_playlist_urls(bytes: &[u8], token: &str) -> Vec<u8> {
+    let body = String::from_utf8_lossy(bytes).into_owned();
+    let prefix = format!("/hls/{token}/");
+    // Any URI="…init.mp4" value (relative or absolute) → session path.
+    let mut out = String::with_capacity(body.len());
+    let mut rest = body.as_str();
+    while let Some(start) = rest.find("URI=\"") {
+        let value_start = start + 5;
+        let Some(rel) = rest[value_start..].find('"') else {
+            break;
+        };
+        let value_end = value_start + rel;
+        let value = &rest[value_start..value_end];
+        out.push_str(&rest[..value_start]);
+        if value.ends_with("init.mp4") {
+            out.push_str(&format!("{prefix}init.mp4"));
+        } else {
+            out.push_str(value);
+        }
+        out.push('"');
+        rest = &rest[value_end + 1..];
+    }
+    out.push_str(rest);
+    out.replace("\nseg", &format!("\n{prefix}seg")).into_bytes()
+}
+
+fn hls_ok_response(mime: &str, bytes: Vec<u8>) -> Response<Vec<u8>> {
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, mime)
+        .body(bytes)
+        .expect("static response is always valid")
+}
+
+/// Entry point for the `stream://` protocol handler (lib.rs registration).
+pub async fn respond(_app: &tauri::AppHandle, request: Request<Vec<u8>>) -> Response<Vec<u8>> {
+    respond_inner(request).await
+}
+
+/// Core of [`respond`]: serves the generated-HLS artifact routes. The CDN
+/// is never touched here — ffmpeg reads it through the loopback relay and
+/// only generated files reach the webview.
+async fn respond_inner(request: Request<Vec<u8>>) -> Response<Vec<u8>> {
+    // convertFileSrc percent-encodes the whole path (encodeURIComponent),
+    // so the webview requests /hls%2F{token}%2Ffile — decode before the
+    // prefix strip or the route never matches (same decode tauri's asset
+    // protocol performs on its paths).
+    let path = percent_decode_str(request.uri().path()).decode_utf8_lossy();
+    let mut response = if let Some(rest) = path.strip_prefix("/hls/") {
+        serve_hls_path(rest).await
+    } else {
+        simple_response(StatusCode::NOT_FOUND, "unknown stream path")
+    };
+    // hls.js loads the playlist/segments with XHR, and the app page and this
+    // `stream://` origin always differ (Windows: `http://tauri.localhost` vs
+    // `http://stream.localhost`; elsewhere `tauri://` vs `stream://`), so a
+    // custom-protocol handler MUST answer CORS itself (see the tauri Builder
+    // docs for register_uri_scheme_protocol). `*` is safe here: the route is
+    // token-gated and reachable only from the app webview.
+    response.headers_mut().insert(
+        header::ACCESS_CONTROL_ALLOW_ORIGIN,
+        HeaderValue::from_static("*"),
+    );
+    response
 }
 
 /// Verifies a resolved CDN URL actually delivers bytes before the reroll
@@ -491,180 +795,6 @@ pub async fn probe_url(url: &str) -> bool {
     body.len() as u64 == required && required > 0
 }
 
-/// Fetches the clamped Range window from the CDN and relays the response.
-///
-/// Truncate-tolerant by design: some akamaized edges cap every response
-/// body at ~243KB regardless of the Range asked (measured 2026-10-09:
-/// `bytes=0-65535` complete, larger windows all cut at byte 249,233, then
-/// premature EOF — reqwest surfaces this as "error decoding response
-/// body"). Instead of failing, the relay serves the bytes that DID arrive
-/// as a valid smaller 206 (Content-Range/Length rewritten to the partial
-/// window); the media element simply requests the next window from there.
-/// Continuation offsets past the cap are served fine by the same edge.
-async fn relay_range(
-    client: &reqwest::Client,
-    url: &str,
-    requested_range: Option<&str>,
-) -> Response<Vec<u8>> {
-    let (range_header, start) = clamped_range(requested_range);
-    log::info!(
-        "[BE] preview_stream: relay request range={requested_range:?} -> upstream {range_header}"
-    );
-    let mut window = match fetch_window(client, url, &range_header, false).await {
-        Some(w) => w,
-        None => {
-            // Transport-level send errors (connection reset mid-use —
-            // measured 2026-10-10 on rapid seek fetches) get one
-            // fresh-connection retry before failing the window.
-            log::info!(
-                "[BE] preview_stream: send error, retrying on a fresh connection (start={start})"
-            );
-            match fetch_window(client, url, &range_header, true).await {
-                Some(w) => w,
-                None => {
-                    return simple_response(StatusCode::BAD_GATEWAY, "preview CDN request failed")
-                }
-            }
-        }
-    };
-    if window.body.is_empty() {
-        // Zero-byte 206s were observed as a POOLED-CONNECTION artifact:
-        // the same offset answered 206 with no body on the reused
-        // keep-alive connection (twice, 2026-10-09 bytes=7032188-) —
-        // retry the identical window once on a fresh connection before
-        // giving up.
-        log::info!(
-            "[BE] preview_stream: zero-byte window, retrying on a fresh connection (start={start})"
-        );
-        if let Some(retry) = fetch_window(client, url, &range_header, true).await {
-            window = retry;
-        }
-    }
-    if window.body.is_empty() {
-        log::warn!(
-            "[BE] preview_stream: CDN delivered zero bytes (status={})",
-            window.status
-        );
-        return simple_response(StatusCode::BAD_GATEWAY, "preview CDN delivered no bytes");
-    }
-    if window.truncated {
-        log::info!(
-            "[BE] preview_stream: truncated window served partially ({}B at start={start})",
-            window.body.len()
-        );
-    }
-    let Window {
-        total,
-        content_type,
-        body,
-        ..
-    } = window;
-    let last = start + body.len() as u64 - 1;
-    let mut builder = Response::builder()
-        .status(StatusCode::PARTIAL_CONTENT)
-        .header(header::CONTENT_TYPE, content_type)
-        .header(header::CONTENT_LENGTH, body.len())
-        .header(header::ACCEPT_RANGES, "bytes");
-    if let Some(total) = total {
-        builder = builder.header(
-            header::CONTENT_RANGE,
-            format!("bytes {start}-{last}/{total}"),
-        );
-    }
-    builder
-        .body(body)
-        .unwrap_or_else(|_| simple_response(StatusCode::BAD_GATEWAY, "invalid relay headers"))
-}
-
-/// One upstream window fetch: response metadata plus the collected body
-/// (capped at [`MAX_CHUNK_BYTES`], tolerant of mid-body truncation).
-/// `None` means the request itself failed — nothing to relay.
-async fn fetch_window(
-    client: &reqwest::Client,
-    url: &str,
-    range_header: &str,
-    fresh_connection: bool,
-) -> Option<Window> {
-    let mut request = client
-        .get(url)
-        .header(header::USER_AGENT, USER_AGENT)
-        .header(header::RANGE, range_header);
-    if fresh_connection {
-        request = request.header(header::CONNECTION, "close");
-    }
-    let upstream = match request.send().await {
-        Ok(r) => r,
-        Err(e) => {
-            log::warn!("[BE] preview_stream: CDN request failed: {e:#}");
-            return None;
-        }
-    };
-    let status =
-        StatusCode::from_u16(upstream.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
-    if !status.is_success() {
-        log::warn!("[BE] preview_stream: CDN refused window (status={status})");
-        return Some(Window {
-            status,
-            total: None,
-            content_type: header::HeaderValue::from_static("video/mp4"),
-            body: Vec::new(),
-            truncated: false,
-        });
-    }
-    // Total file size from the upstream Content-Range ("bytes s-e/total") —
-    // needed to rewrite a truthful Content-Range for truncated windows.
-    let total = upstream
-        .headers()
-        .get(header::CONTENT_RANGE)
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.rsplit('/').next())
-        .and_then(|v| v.trim().parse::<u64>().ok());
-    let content_type = upstream
-        .headers()
-        .get(header::CONTENT_TYPE)
-        .cloned()
-        .unwrap_or_else(|| header::HeaderValue::from_static("video/mp4"));
-
-    // Read the stream chunk-wise; an Err mid-body means the edge cut the
-    // transfer — keep what arrived.
-    let mut body: Vec<u8> = Vec::new();
-    let mut truncated = false;
-    let mut stream = upstream.bytes_stream();
-    while let Some(item) = futures::StreamExt::next(&mut stream).await {
-        match item {
-            Ok(chunk) => {
-                // Trim to the cap so a large final chunk cannot overshoot
-                // MAX_CHUNK_BYTES (memory bound is exact).
-                let remaining = (MAX_CHUNK_BYTES - body.len() as u64) as usize;
-                body.extend_from_slice(&chunk[..chunk.len().min(remaining)]);
-                if body.len() as u64 >= MAX_CHUNK_BYTES {
-                    break;
-                }
-            }
-            Err(_) => {
-                truncated = true;
-                break;
-            }
-        }
-    }
-    Some(Window {
-        status,
-        total,
-        content_type,
-        body,
-        truncated,
-    })
-}
-
-/// Outcome of one upstream window fetch (see [`fetch_window`]).
-struct Window {
-    status: StatusCode,
-    total: Option<u64>,
-    content_type: header::HeaderValue,
-    body: Vec<u8>,
-    truncated: bool,
-}
-
 fn simple_response(status: StatusCode, text: &str) -> Response<Vec<u8>> {
     Response::builder()
         .status(status)
@@ -676,110 +806,6 @@ fn simple_response(status: StatusCode, text: &str) -> Response<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn clamped_range_bounds_every_request_shape() {
-        let cap = MAX_CHUNK_BYTES - 1;
-        assert_eq!(clamped_range(None), (format!("bytes=0-{cap}"), 0));
-        assert_eq!(
-            clamped_range(Some("bytes=0-")),
-            (format!("bytes=0-{cap}"), 0)
-        );
-        assert_eq!(
-            clamped_range(Some("bytes=1048576-")),
-            (format!("bytes=1048576-{}", 1048576 + cap), 1048576)
-        );
-        // Bounded within the cap passes through untouched.
-        assert_eq!(
-            clamped_range(Some("bytes=100-199")),
-            ("bytes=100-199".to_string(), 100)
-        );
-        // Bounded beyond the cap is clamped to the cap.
-        assert_eq!(
-            clamped_range(Some("bytes=0-999999999")),
-            (format!("bytes=0-{cap}"), 0)
-        );
-        // Malformed falls back to the first window.
-        assert_eq!(
-            clamped_range(Some("garbage")),
-            (format!("bytes=0-{cap}"), 0)
-        );
-        // end < start (invalid) falls back to a cap-sized window at start.
-        assert_eq!(
-            clamped_range(Some("bytes=50-10")),
-            (format!("bytes=50-{}", 50 + cap), 50)
-        );
-        // Absurd start (u64 near max) saturates instead of overflowing.
-        assert_eq!(
-            clamped_range(Some("bytes=18446744073709551615-")),
-            (
-                "bytes=18446744073709551615-18446744073709551615".to_string(),
-                u64::MAX
-            )
-        );
-    }
-
-    #[tokio::test]
-    async fn respond_decodes_percent_encoded_token_path() {
-        // convertFileSrc runs encodeURIComponent, so the real webview asks
-        // for /preview%2F{token}. A stored token reached through the
-        // encoded path must resolve (BAD_GATEWAY from the unreachable
-        // fetch target below proves the lookup matched — a decode failure
-        // would 404 instead).
-        let path = remember_preview_url("BV1test", "http://127.0.0.1:1/v.mp4", None);
-        let encoded = format!("/{}", path.replace('/', "%2F"));
-        let req = Request::builder().uri(encoded).body(Vec::new()).unwrap();
-        let res = respond_inner(req, None).await;
-        assert_eq!(res.status(), StatusCode::BAD_GATEWAY);
-
-        // Unknown token stays a 404 through the same decode path.
-        let req = Request::builder()
-            .uri("/preview%2F00000000000000000000000000000000")
-            .body(Vec::new())
-            .unwrap();
-        let res = respond_inner(req, None).await;
-        assert_eq!(res.status(), StatusCode::NOT_FOUND);
-    }
-
-    #[tokio::test]
-    async fn respond_relays_range_request_end_to_end() {
-        // End-to-end through the protocol entry point: the request's Range
-        // header must survive respond()'s extraction into the upstream fetch
-        // (a dropped/misnamed header would clamp to bytes=0-4194303 and miss
-        // this matcher).
-        let server = wiremock::MockServer::start().await;
-        wiremock::Mock::given(wiremock::matchers::method("GET"))
-            .and(wiremock::matchers::path("/v.mp4"))
-            .and(wiremock::matchers::header("Range", "bytes=10-19"))
-            .respond_with(
-                wiremock::ResponseTemplate::new(206)
-                    .insert_header("Content-Type", "video/mp4")
-                    .insert_header("Content-Range", "bytes 10-19/643062260")
-                    .insert_header("Content-Length", "10")
-                    .set_body_bytes(b"0123456789".to_vec()),
-            )
-            .expect(1)
-            .mount(&server)
-            .await;
-        let path = remember_preview_url("BV1test", &format!("{}/v.mp4", server.uri()), None);
-        let req = Request::builder()
-            .uri(format!("/{}", path.replace('/', "%2F")))
-            .header(header::RANGE, "bytes=10-19")
-            .body(Vec::new())
-            .unwrap();
-        let res = respond_inner(req, None).await;
-        assert_eq!(res.status(), StatusCode::PARTIAL_CONTENT);
-        assert_eq!(
-            res.headers().get(header::CONTENT_TYPE).unwrap(),
-            "video/mp4"
-        );
-        assert_eq!(
-            res.headers().get(header::CONTENT_RANGE).unwrap(),
-            "bytes 10-19/643062260"
-        );
-        assert_eq!(res.body(), b"0123456789".to_vec().as_slice());
-        server.verify().await;
-    }
 
     #[test]
     fn url_deadline_parses_unix_seconds() {
@@ -823,185 +849,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn relay_range_forwards_status_headers_and_bytes() {
-        let server = wiremock::MockServer::start().await;
-        wiremock::Mock::given(wiremock::matchers::method("GET"))
-            .and(wiremock::matchers::path("/v.mp4"))
-            .and(wiremock::matchers::header("Range", "bytes=0-4194303"))
-            .respond_with(
-                wiremock::ResponseTemplate::new(206)
-                    .insert_header("Content-Type", "video/mp4")
-                    .insert_header("Content-Range", "bytes 0-4194303/643062260")
-                    .insert_header("Content-Length", "4194304")
-                    .insert_header("Accept-Ranges", "bytes")
-                    .set_body_bytes(vec![1u8; 4194304]),
-            )
-            .expect(1)
-            .mount(&server)
-            .await;
-        let client = reqwest::Client::new();
-        let res = relay_range(&client, &format!("{}/v.mp4", server.uri()), None).await;
-        assert_eq!(res.status(), StatusCode::PARTIAL_CONTENT);
-        assert_eq!(
-            res.headers().get(header::CONTENT_RANGE).unwrap(),
-            "bytes 0-4194303/643062260"
-        );
-        assert_eq!(
-            res.headers().get(header::CONTENT_LENGTH).unwrap(),
-            "4194304"
-        );
-        assert_eq!(res.body().len(), 4194304);
-        server.verify().await;
-    }
-
-    #[tokio::test]
-    async fn relay_range_maps_cdn_failure_to_bad_gateway() {
-        // Nothing listens on this port: connection-error path.
-        let client = reqwest::Client::new();
-        let res = relay_range(&client, "http://127.0.0.1:1/v.mp4", None).await;
-        assert_eq!(res.status(), StatusCode::BAD_GATEWAY);
-    }
-
-    #[tokio::test]
-    async fn relay_range_caps_a_range_ignoring_200_to_the_chunk_window() {
-        // 200 full body beyond the chunk cap (upstream ignored Range):
-        // memory stays bounded — the read loop stops at MAX_CHUNK_BYTES
-        // and the relay answers with a capped 206 instead of buffering the
-        // whole entity (the media element continues from the next window).
-        let server = wiremock::MockServer::start().await;
-        wiremock::Mock::given(wiremock::matchers::method("GET"))
-            .and(wiremock::matchers::path("/big.mp4"))
-            .respond_with(wiremock::ResponseTemplate::new(200).set_body_bytes(vec![
-                0u8;
-                MAX_CHUNK_BYTES
-                    as usize
-                    + 1
-            ]))
-            .expect(1)
-            .mount(&server)
-            .await;
-        let client = reqwest::Client::new();
-        let res = relay_range(
-            &client,
-            &format!("{}/big.mp4", server.uri()),
-            Some("bytes=0-"),
-        )
-        .await;
-        assert_eq!(res.status(), StatusCode::PARTIAL_CONTENT);
-        assert_eq!(res.body().len(), MAX_CHUNK_BYTES as usize);
-        assert_eq!(
-            res.headers().get(header::CONTENT_LENGTH).unwrap(),
-            &MAX_CHUNK_BYTES.to_string()
-        );
-        server.verify().await;
-    }
-
-    #[tokio::test]
-    async fn relay_range_serves_truncated_windows_as_partial_206() {
-        // The capped-edge shape (measured 2026-10-09): 206 headers promise
-        // a full window via Content-Range, the body dies early. The relay
-        // must serve the bytes that arrived with a TRUTHFUL rewritten
-        // Content-Range/Length instead of surfacing a decode error.
-        // wiremock cannot send a Content-Length larger than its body (its
-        // hyper server panics on the mismatch), so this drives a raw TCP
-        // listener that hand-writes the truncated response.
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-        let port = listener.local_addr().unwrap().port();
-        std::thread::spawn(move || {
-            if let Ok((mut conn, _)) = listener.accept() {
-                use std::io::{Read, Write};
-                let mut buf = [0u8; 1024];
-                let _ = conn.read(&mut buf);
-                let head = "HTTP/1.1 206 Partial Content\r\n\
-                            Content-Type: video/mp4\r\n\
-                            Content-Range: bytes 0-4194303/922635671\r\n\
-                            Content-Length: 4194304\r\n\
-                            Accept-Ranges: bytes\r\n\r\n";
-                let _ = conn.write_all(head.as_bytes());
-                let _ = conn.write_all(&vec![1u8; 65536]);
-                // Drop the connection with 4MB still owed.
-            }
-        });
-        let client = reqwest::Client::new();
-        let res = relay_range(
-            &client,
-            &format!("http://127.0.0.1:{port}/capped.mp4"),
-            Some("bytes=0-"),
-        )
-        .await;
-        assert_eq!(res.status(), StatusCode::PARTIAL_CONTENT);
-        assert_eq!(res.body().len(), 65536);
-        assert_eq!(
-            res.headers().get(header::CONTENT_RANGE).unwrap(),
-            "bytes 0-65535/922635671"
-        );
-        assert_eq!(res.headers().get(header::CONTENT_LENGTH).unwrap(), "65536");
-    }
-
-    #[tokio::test]
-    async fn relay_range_retries_zero_byte_windows_on_a_fresh_connection() {
-        // The pooled-connection artifact (measured 2026-10-09): the same
-        // offset answers 206 with an empty body on the reused keep-alive
-        // connection, then serves normally on a fresh one. The raw TCP
-        // listener answers the first connection with a zero-body 206 and
-        // the second with real bytes.
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-        let port = listener.local_addr().unwrap().port();
-        std::thread::spawn(move || {
-            for round in 0..2 {
-                if let Ok((mut conn, _)) = listener.accept() {
-                    use std::io::{Read, Write};
-                    let mut buf = [0u8; 2048];
-                    let _ = conn.read(&mut buf);
-                    let head = "HTTP/1.1 206 Partial Content\r\n\
-                                Content-Type: video/mp4\r\n\
-                                Content-Range: bytes 0-65535/65536\r\n\
-                                Content-Length: 65536\r\n\r\n";
-                    let _ = conn.write_all(head.as_bytes());
-                    if round == 1 {
-                        let _ = conn.write_all(&vec![2u8; 65536]);
-                    }
-                    // round 0 closes owing 65536 bytes (zero-body 206)
-                }
-            }
-        });
-        let client = reqwest::Client::new();
-        let res = relay_range(
-            &client,
-            &format!("http://127.0.0.1:{port}/flaky.mp4"),
-            Some("bytes=0-"),
-        )
-        .await;
-        assert_eq!(res.status(), StatusCode::PARTIAL_CONTENT);
-        assert_eq!(res.body().len(), 65536);
-        assert_eq!(
-            res.headers().get(header::CONTENT_RANGE).unwrap(),
-            "bytes 0-65535/65536"
-        );
-    }
-
-    #[test]
-    fn rotation_retry_url_follows_the_failed_lane() {
-        // Audio-lane rotation must retry the fresh AUDIO URL — relaying
-        // the video URL to an <audio> element yields undecodable bytes.
-        assert_eq!(
-            rotation_retry_url(true, "http://v.m4s", Some("http://a.m4s")).as_deref(),
-            Some("http://a.m4s")
-        );
-        assert_eq!(
-            rotation_retry_url(false, "http://v.m4s", Some("http://a.m4s")).as_deref(),
-            Some("http://v.m4s")
-        );
-        // Fresh draw without a separate audio track (durl): the audio
-        // lane has nothing to retry on; the video lane always does.
-        assert_eq!(rotation_retry_url(true, "http://v.mp4", None), None);
-        assert_eq!(
-            rotation_retry_url(false, "http://v.mp4", None).as_deref(),
-            Some("http://v.mp4")
-        );
-    }
-
-    #[tokio::test]
     async fn probe_url_passes_exact_windows_and_rejects_short_or_oversized_bodies() {
         let server = wiremock::MockServer::start().await;
         // Healthy edge: exactly the probe window, total larger (so
@@ -1040,5 +887,370 @@ mod tests {
         assert!(probe_url(&format!("{}/exact.m4s", server.uri())).await);
         assert!(!probe_url(&format!("{}/short.m4s", server.uri())).await);
         assert!(!probe_url(&format!("{}/ignored.m4s", server.uri())).await);
+    }
+
+    // Sequential relay: one unbounded Range stream per GET, offset from the
+    // client's Range header forwarded upstream unchanged.
+    #[tokio::test]
+    async fn loopback_streams_body_and_forwards_range_offset() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/up.m4s"))
+            .and(wiremock::matchers::header("Range", "bytes=100-"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(206)
+                    .insert_header("Content-Type", "video/mp4")
+                    .insert_header("Content-Range", "bytes 100-109/110")
+                    .set_body_bytes(b"ABCDEFGHIJ".to_vec()),
+            )
+            .mount(&server)
+            .await;
+        let path = remember_preview_url("bvid", &format!("{}/up.m4s", server.uri()), None);
+        let token = path.trim_start_matches("preview/").to_string();
+        let resp = handle_cdn_request(
+            &format!("/cdn/{token}/video"),
+            Some("bytes=100-"),
+            |_| async { Option::<(String, Option<String>)>::None },
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "video/mp4"
+        );
+        assert_eq!(resp.body(), b"ABCDEFGHIJ");
+    }
+
+    // Mid-body death marks the lane spent; the NEXT GET rotates and serves
+    // from the fresh URL (this composition is what survives per-URL quota).
+    #[tokio::test]
+    async fn loopback_marks_spent_and_rotates_on_next_get() {
+        let server = wiremock::MockServer::start().await;
+        // First URL: delivers a short body then closes early — a 206 whose
+        // declared range promises more than arrives (capped-edge shape).
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/spent.m4s"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(206)
+                    .insert_header("Content-Type", "video/mp4")
+                    .insert_header("Content-Range", "bytes 0-99/1000")
+                    .set_body_bytes(vec![7u8; 100]),
+            )
+            .mount(&server)
+            .await;
+        // Fresh URL after rotation: serves the offset ffmpeg asks for.
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/fresh.m4s"))
+            .and(wiremock::matchers::header("Range", "bytes=100-"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(206)
+                    .insert_header("Content-Type", "video/mp4")
+                    .insert_header("Content-Range", "bytes 100-149/1000")
+                    .set_body_bytes(b"FRESH".to_vec()),
+            )
+            .mount(&server)
+            .await;
+        let fresh = format!("{}/fresh.m4s", server.uri());
+        let path = remember_preview_url("bvid", &format!("{}/spent.m4s", server.uri()), None);
+        let token = path.trim_start_matches("preview/").to_string();
+
+        // First GET: full (short) body served; the SpentMarker sees the
+        // declared 1000-byte total and marks the URL spent on clean EOF.
+        let first = handle_cdn_request(&format!("/cdn/{token}/video"), None, |_| async {
+            Option::<(String, Option<String>)>::None
+        })
+        .await;
+        assert_eq!(first.status(), StatusCode::OK);
+        assert_eq!(first.body().len(), 100);
+
+        // Second GET: rotation closure hands the fresh URL, served from the
+        // requested offset.
+        let second = handle_cdn_request(&format!("/cdn/{token}/video"), Some("bytes=100-"), {
+            let fresh = fresh.clone();
+            move |_| {
+                let fresh = fresh.clone();
+                async move { Some((fresh.clone(), None)) }
+            }
+        })
+        .await;
+        assert_eq!(second.status(), StatusCode::OK);
+        assert_eq!(second.body(), b"FRESH");
+    }
+
+    // Unknown tokens and non-lane paths never reach the CDN: the relay
+    // answers them from the store/parser alone.
+    #[tokio::test]
+    async fn loopback_rejects_unknown_token_and_unknown_paths() {
+        let unknown = handle_cdn_request(
+            "/cdn/00112233445566778899aabbccddeeff/video",
+            None,
+            |_| async { Option::<(String, Option<String>)>::None },
+        )
+        .await;
+        assert_eq!(unknown.status(), StatusCode::NOT_FOUND);
+        assert_eq!(unknown.body(), b"preview token not found or expired");
+
+        // Only `/cdn/{token}/(video|audio)` exists on the loopback server.
+        let bad_path = handle_cdn_request("/cdn/token/thumbnail", None, |_| async {
+            Option::<(String, Option<String>)>::None
+        })
+        .await;
+        assert_eq!(bad_path.status(), StatusCode::NOT_FOUND);
+        assert_eq!(bad_path.body(), b"unknown loopback path");
+    }
+
+    // durl/muxed previews store no audio URL; ffmpeg only asks for the
+    // audio lane on DASH draws, but a stale request must 404 rather than
+    // silently serve the video track twice.
+    #[tokio::test]
+    async fn loopback_audio_lane_404s_without_a_stored_audio_url() {
+        let path = remember_preview_url("bvid", "http://127.0.0.1:1/muxed.mp4", None);
+        let token = path.trim_start_matches("preview/").to_string();
+        let resp = handle_cdn_request(&format!("/cdn/{token}/audio"), None, |_| async {
+            Option::<(String, Option<String>)>::None
+        })
+        .await;
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    // Rotation admission: a failed resolve starts the backoff window so a
+    // throttled network cannot amplify its own risk control by re-running
+    // the multi-attempt resolve loop on every ffmpeg reconnect; once the
+    // window lapses the next GET rotates and serves again.
+    #[tokio::test]
+    async fn loopback_rotation_failure_backs_off_then_recovers() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
+
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/fresh.m4s"))
+            .respond_with(wiremock::ResponseTemplate::new(206).set_body_bytes(b"FRESH".to_vec()))
+            .mount(&server)
+            .await;
+        let fresh = format!("{}/fresh.m4s", server.uri());
+        let path = remember_preview_url("bvid", "http://127.0.0.1:1/dead.m4s", None);
+        let token = path.trim_start_matches("preview/").to_string();
+        lock_store().mark_spent(&token);
+
+        // Resolve exhausted (IP-level throttle): 503 + the window opens.
+        let failed = handle_cdn_request(&format!("/cdn/{token}/video"), None, |_| async {
+            Option::<(String, Option<String>)>::None
+        })
+        .await;
+        assert_eq!(failed.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(failed.body(), b"rotation failed");
+
+        // Inside the window the relay must not even call the resolve
+        // closure — that is the amplification this guards against.
+        let calls = Arc::new(AtomicUsize::new(0));
+        let sneaky = handle_cdn_request(&format!("/cdn/{token}/video"), None, {
+            let calls = Arc::clone(&calls);
+            let fresh = fresh.clone();
+            move |_| {
+                calls.fetch_add(1, Ordering::SeqCst);
+                let fresh = fresh.clone();
+                async move { Some((fresh, None)) }
+            }
+        })
+        .await;
+        assert_eq!(sneaky.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(sneaky.body(), b"rotation backoff");
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            0,
+            "backoff must suppress the resolve loop"
+        );
+
+        // Backdate the failure past ROTATION_BACKOFF: admitted again.
+        // (Simulated by moving the recorded timestamp, not by sleeping —
+        // the subtraction underflows only on a machine booted within the
+        // backoff window, where CI/local machines realistically never run.)
+        let lapsed = Instant::now()
+            .checked_sub(ROTATION_BACKOFF + Duration::from_secs(1))
+            .expect("machine uptime exceeds the backoff window");
+        lock_store()
+            .entries
+            .get_mut(&token)
+            .expect("token still stored")
+            .rotation_failed_at = Some(lapsed);
+        let recovered = handle_cdn_request(&format!("/cdn/{token}/video"), None, {
+            let fresh = fresh.clone();
+            move |_| {
+                let fresh = fresh.clone();
+                async move { Some((fresh, None)) }
+            }
+        })
+        .await;
+        assert_eq!(recovered.status(), StatusCode::OK);
+        assert_eq!(recovered.body(), b"FRESH");
+    }
+
+    // A refused upstream (quota 403/503, connection reset) ends the lane:
+    // 502 tells ffmpeg to reconnect, and the spent mark routes that
+    // reconnect at the rotation path.
+    #[tokio::test]
+    async fn loopback_maps_refused_upstream_to_502_and_marks_spent() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/refused.m4s"))
+            .respond_with(wiremock::ResponseTemplate::new(503))
+            .mount(&server)
+            .await;
+        let path = remember_preview_url("bvid", &format!("{}/refused.m4s", server.uri()), None);
+        let token = path.trim_start_matches("preview/").to_string();
+        let resp = handle_cdn_request(&format!("/cdn/{token}/video"), None, |_| async {
+            Option::<(String, Option<String>)>::None
+        })
+        .await;
+        assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
+        assert!(
+            lock_store().is_spent(&token),
+            "a refused upstream must mark the URL spent"
+        );
+    }
+
+    // A probe-free freshly rotated URL refusing immediately is family-
+    // level trouble: the refusal must start the rotation backoff so the
+    // next GET answers 503 (waiting out the window) instead of driving a
+    // resolve-per-second loop into a deepening CDN throttle.
+    #[tokio::test]
+    async fn loopback_backs_off_when_a_freshly_rotated_url_refuses() {
+        let server = wiremock::MockServer::start().await;
+        for file in ["/initial.m4s", "/fresh.m4s"] {
+            wiremock::Mock::given(wiremock::matchers::method("GET"))
+                .and(wiremock::matchers::path(file))
+                .respond_with(wiremock::ResponseTemplate::new(503))
+                .mount(&server)
+                .await;
+        }
+        let fresh = format!("{}/fresh.m4s", server.uri());
+        let path = remember_preview_url("bvid", &format!("{}/initial.m4s", server.uri()), None);
+        let token = path.trim_start_matches("preview/").to_string();
+        let no_rotate = |_| async { Option::<(String, Option<String>)>::None };
+
+        // Initial (probed) URL dies: per-URL lottery, no backoff yet.
+        let first = handle_cdn_request(&format!("/cdn/{token}/video"), None, no_rotate).await;
+        assert_eq!(first.status(), StatusCode::BAD_GATEWAY);
+
+        // Next GET rotates (resolve ok) but the fresh URL also refuses:
+        // family-level → rotation_failed → backoff window opens.
+        let second = handle_cdn_request(&format!("/cdn/{token}/video"), None, {
+            let fresh = fresh.clone();
+            move |_| {
+                let fresh = fresh.clone();
+                async move { Some((fresh.clone(), None)) }
+            }
+        })
+        .await;
+        assert_eq!(second.status(), StatusCode::BAD_GATEWAY);
+
+        // Within the backoff window the relay refuses to rotate: ffmpeg
+        // sees 503 and retries later instead of a resolve storm.
+        let third = handle_cdn_request(&format!("/cdn/{token}/video"), None, |_| async {
+            panic!("rotation closure must not run during the backoff window")
+        })
+        .await;
+        assert_eq!(third.status(), StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    // The HLS route rejects malformed tokens, traversal-shaped filenames,
+    // and unregistered sessions before touching the filesystem.
+    #[tokio::test]
+    async fn hls_route_rejects_bad_token_and_file_names() {
+        let not_hex = serve_hls_path("nothex/playlist.m3u8").await;
+        assert_eq!(not_hex.status(), StatusCode::NOT_FOUND);
+        let traversal = serve_hls_path("00112233445566778899aabbccddeeff/../../secret").await;
+        assert_eq!(traversal.status(), StatusCode::NOT_FOUND);
+        let bad_file = serve_hls_path("00112233445566778899aabbccddeeff/other.m3u8").await;
+        assert_eq!(bad_file.status(), StatusCode::NOT_FOUND);
+        // Whitelisted file, valid charset, but no live session: 404.
+        let missing = serve_hls_path("00112233445566778899aabbccddeeff/playlist.m3u8").await;
+        assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+    }
+
+    // convertFileSrc percent-encodes the whole path (encodeURIComponent),
+    // so the webview requests /hls%2F{token}%2Ffile; without the decode the
+    // prefix strip never matches and every artifact 404s as an unknown
+    // stream path. The CORS header is required because the app page and
+    // the stream:// origin always differ (hls.js fetches with XHR).
+    #[tokio::test]
+    async fn stream_route_percent_decodes_paths_and_answers_cors() {
+        let request = Request::builder()
+            .uri("/hls%2F00112233445566778899aabbccddeeff%2Fplaylist.m3u8")
+            .body(Vec::new())
+            .unwrap();
+        let decoded = respond_inner(request).await;
+        // Reaching the hls-route 404 body (rather than the unknown-stream
+        // one) is the proof the decode happened before the prefix strip.
+        assert_eq!(
+            String::from_utf8_lossy(decoded.body()),
+            "preview session not found"
+        );
+        assert_eq!(
+            decoded
+                .headers()
+                .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+                .unwrap(),
+            "*"
+        );
+
+        let unknown =
+            respond_inner(Request::builder().uri("/nope").body(Vec::new()).unwrap()).await;
+        assert_eq!(unknown.status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            String::from_utf8_lossy(unknown.body()),
+            "unknown stream path"
+        );
+        assert_eq!(
+            unknown
+                .headers()
+                .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+                .unwrap(),
+            "*"
+        );
+    }
+
+    // convertFileSrc collapses the path into one percent-encoded URL
+    // segment; relative playlist references must therefore be rewritten
+    // to absolute /hls/{token}/ paths or every fragment fetch lands on
+    // the server root (status 0, measured 2026-10-10).
+    // convertFileSrc collapses the path into one percent-encoded URL
+    // segment; relative playlist references must therefore be rewritten
+    // to absolute /hls/{token}/ paths or every fragment fetch lands on
+    // the server root (status 0, measured 2026-10-10).
+    #[test]
+    fn rewrite_playlist_urls_points_artifacts_at_the_session() {
+        let playlist = concat!(
+            "#EXTM3U\n",
+            "#EXT-X-MAP:URI=\"init.mp4\"\n",
+            "#EXTINF:5.0,\n",
+            "seg000.m4s\n",
+            "#EXTINF:5.0,\n",
+            "seg001.m4s\n",
+        );
+        let out = String::from_utf8(rewrite_playlist_urls(
+            playlist.as_bytes(),
+            "00112233445566778899aabbccddeeff",
+        ))
+        .unwrap();
+        assert!(out.contains("URI=\"/hls/00112233445566778899aabbccddeeff/init.mp4\""));
+        assert!(out.contains("\n/hls/00112233445566778899aabbccddeeff/seg000.m4s"));
+        assert!(out.contains("\n/hls/00112233445566778899aabbccddeeff/seg001.m4s"));
+        // ffmpeg writes the ABSOLUTE init path into EXT-X-MAP when
+        // -hls_fmp4_init_filename is absolute — any value ending in
+        // init.mp4 must be rewritten to the session path.
+        let absolute = concat!(
+            "#EXTM3U\n",
+            "#EXT-X-MAP:URI=\"C:\\Users\\x\\bilibili-dl-preview\\t\\init.mp4\"\n",
+            "#EXTINF:5.0,\n",
+            "seg000.m4s\n",
+        );
+        let out2 = String::from_utf8(rewrite_playlist_urls(
+            absolute.as_bytes(),
+            "00112233445566778899aabbccddeeff",
+        ))
+        .unwrap();
+        assert!(out2.contains("URI=\"/hls/00112233445566778899aabbccddeeff/init.mp4\""));
     }
 }
