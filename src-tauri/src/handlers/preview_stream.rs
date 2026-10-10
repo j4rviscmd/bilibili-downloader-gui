@@ -156,10 +156,7 @@ impl PreviewUrlStore {
         let Some(p) = self.entries.get_mut(token) else {
             return false;
         };
-        match p.rotation_failed_at {
-            Some(at) if at.elapsed() < ROTATION_BACKOFF => false,
-            _ => true,
-        }
+        !matches!(p.rotation_failed_at, Some(at) if at.elapsed() < ROTATION_BACKOFF)
     }
 
     /// Marks a rotation failure, starting the backoff window.

@@ -7559,7 +7559,8 @@ async fn fetch_url_via_curl(url: &str, cookie_header: &str) -> Result<String, St
         // Windows release builds.
         #[cfg(target_os = "windows")]
         {
-            use std::os::windows::process::CommandExt;
+            // tokio's AsyncCommand has an inherent creation_flags method on
+            // Windows — no CommandExt import needed (unlike std Command).
             const CREATE_NO_WINDOW: u32 = 0x0800_0000;
             cmd.creation_flags(CREATE_NO_WINDOW);
         }
