@@ -175,7 +175,7 @@ use crate::models::frontend_dto::{
 };
 pub use crate::models::frontend_dto::{SearchFilters, SearchResponse, SearchResultEntry};
 use crate::models::settings::Settings;
-use crate::utils::downloads::download_url;
+use crate::utils::downloads::{download_url, progress_sidecar_path};
 use crate::utils::paths::get_lib_path;
 use crate::{constants::USER_AGENT, models::frontend_dto::User};
 use reqwest::header;
@@ -1450,6 +1450,12 @@ async fn download_video_impl_with<R: tauri::Runtime>(
         for sub_path in subtitle_paths {
             let _ = tokio::fs::remove_file(&sub_path).await;
         }
+        // Defensive: download_url removes a used checkpoint on success, but
+        // a stale sidecar left by an aborted earlier attempt (e.g. one that
+        // degraded to the single-stream fallback) must not outlive its temp.
+        for temp_path in [&temp_video_path, &temp_audio_path] {
+            let _ = tokio::fs::remove_file(progress_sidecar_path(temp_path)).await;
+        }
 
         // Get actual file size from the staging file (still the merge output)
         let actual_file_size = tokio::fs::metadata(reservation.reserved_path())
@@ -1485,10 +1491,15 @@ async fn download_video_impl_with<R: tauri::Runtime>(
         let _ = tokio::fs::remove_file(lock_sidecar_path(temp_path)).await;
     }
 
-    // On error, clean up temp files
+    // On error, clean up temp files and their checkpoint sidecars (the
+    // checkpoint's lifetime ends with this download_id — a manual retry
+    // gets a fresh temp name).
     if result.is_err() {
         let _ = tokio::fs::remove_file(&temp_video_path).await;
         let _ = tokio::fs::remove_file(&temp_audio_path).await;
+        for temp_path in [&temp_video_path, &temp_audio_path] {
+            let _ = tokio::fs::remove_file(progress_sidecar_path(temp_path)).await;
+        }
         // Clean up any subtitle files that may have been downloaded
         cleanup_subtitle_files(&lib_path, &options.download_id);
     }
@@ -6377,7 +6388,9 @@ fn ensure_free_space(target_path: &Path, needed_bytes: u64) -> Result<(), String
 /// # Retry Settings
 ///
 /// - Maximum attempts: 3
-/// - Backoff strategy: Linear (500ms, 1000ms, 1500ms)
+/// - Backoff strategy: staged (15s before attempt 2, 60s before attempt 3)
+///   so degraded CDN edges get time to recover; unit tests use a 1ms
+///   shortcut (`retry_backoff_ms`)
 /// - Final failure is wrapped as `ERR::NETWORK::{original_message}`;
 ///   whitelisted `ERR::` codes keep their own code so callers and the UI
 ///   can classify them (issue #484)
@@ -6423,7 +6436,18 @@ where
     Fut: std::future::Future<Output = Result<(), anyhow::Error>>,
 {
     const MAX_ATTEMPTS: u8 = 3;
-    const BACKOFF_BASE_MS: u64 = 500;
+    /// Backoff (ms) before the retry after `attempt` (1-based). Staged so
+    /// attempt 3 lands far enough after attempt 2 for a degraded CDN edge
+    /// to recover; see the sleep site for the incident rationale.
+    fn retry_backoff_ms(attempt: u8) -> u64 {
+        const RETRY_BACKOFF_MS: [u64; 2] = [15_000, 60_000];
+        if cfg!(test) {
+            // Keep unit tests fast; the production values are compile-time
+            // constants pinned above, not runtime-computed.
+            return 1;
+        }
+        RETRY_BACKOFF_MS[((attempt as usize).saturating_sub(1)).min(RETRY_BACKOFF_MS.len() - 1)]
+    }
 
     let emit_retrying = |is_retrying: bool| {
         let _ = app.emit(
@@ -6475,7 +6499,13 @@ where
                 }
 
                 log::warn!("[BE] retry_download: attempt {attempt}/{MAX_ATTEMPTS} failed: {msg}");
-                tokio::time::sleep(Duration::from_millis(BACKOFF_BASE_MS * attempt as u64)).await;
+                // Wait long enough for degraded CDN edges to recover: with
+                // the segment checkpoint the re-attempt only refetches the
+                // failed segments, so a longer wait is cheap compared to
+                // hammering a poisoned edge back-to-back (2026-10-10
+                // incident: three attempts inside 24 minutes all failed on
+                // the same byte range while the CDN was recovering).
+                tokio::time::sleep(Duration::from_millis(retry_backoff_ms(attempt))).await;
             }
         }
     }
