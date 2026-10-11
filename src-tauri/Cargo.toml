@@ -88,6 +88,13 @@ log = "0.4"
 tauri-plugin-webdriver = "0.2"
 tauri-plugin-mcp-bridge = "0.11"
 
+[target.'cfg(windows)'.dependencies]
+# Embed-player preview: WebView2 CookieManager COM injection of session
+# cookies as domain cookies (tauri re-exports the same webview2-com types
+# tauri-runtime-wry uses; windows-core supplies the Interface casts).
+webview2-com = "0.38"
+windows-core = "0.61"
+
 [dev-dependencies]
 # Why: declared up front (PR R1 of the test-coverage plan) so later PRs add
 # tests without re-touching Cargo.toml. No test code uses them yet — they are
