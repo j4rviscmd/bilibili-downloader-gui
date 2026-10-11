@@ -4,6 +4,7 @@ import {
   mockInvoke,
   renderWithProviders,
 } from '@/test/test-utils'
+import { openUrl } from '@tauri-apps/plugin-opener'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { Provider } from 'react-redux'
@@ -181,6 +182,68 @@ describe('VideoPreviewDialog (official embed overlay)', () => {
       emitTauriEvent('preview-player-closed', null)
     })
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('pauses the overlay instead of closing it when opening in browser', async () => {
+    stubRect(48, 120, 800, 450)
+    const onClose = vi.fn()
+    const { user } = renderWithProviders(
+      <VideoPreviewDialog entry={entry} onClose={onClose} />,
+    )
+    await waitFor(() => {
+      expect(openCalls()).toHaveLength(1)
+    })
+    mockInvoke.mockClear()
+
+    // i18n is identity-mocked in tests (setup.ts) — the accessible
+    // name is the raw translation key.
+    await user.click(
+      screen.getByRole('button', { name: 'videoSearch.previewOpenInBrowser' }),
+    )
+
+    // The dialog stays up: no close command, no onClose — the overlay
+    // is paused and the handoff goes to the browser.
+    expect(onClose).not.toHaveBeenCalled()
+    expect(closeCalls()).toHaveLength(0)
+    const pauseCalls = mockInvoke.mock.calls.filter(
+      ([cmd]) => cmd === 'pause_preview_player',
+    )
+    expect(pauseCalls).toHaveLength(1)
+    expect(openUrl).toHaveBeenCalledWith(
+      'https://www.bilibili.com/video/BV1De411p77r',
+    )
+  })
+
+  it('still opens the browser when pausing the overlay fails (fail-soft)', async () => {
+    stubRect(48, 120, 800, 450)
+    const onClose = vi.fn()
+    const { user } = renderWithProviders(
+      <VideoPreviewDialog entry={entry} onClose={onClose} />,
+    )
+    await waitFor(() => {
+      expect(openCalls()).toHaveLength(1)
+    })
+    mockInvoke.mockClear()
+    // The overlay died between the click and the pause command: the
+    // backend rejects (ERR::PREVIEW_NO_OVERLAY-style failure) and the
+    // catch must swallow it so the handoff is not blocked.
+    mockInvoke.mockRejectedValueOnce(new Error('ERR::PREVIEW_NO_OVERLAY'))
+
+    await user.click(
+      screen.getByRole('button', { name: 'videoSearch.previewOpenInBrowser' }),
+    )
+
+    // Fail soft: the browser still opens, the dialog stays up, and no
+    // error alert surfaces (vitest also fails on the unhandled
+    // rejection a dropped .catch would produce).
+    await waitFor(() => {
+      expect(openUrl).toHaveBeenCalledWith(
+        'https://www.bilibili.com/video/BV1De411p77r',
+      )
+    })
+    expect(onClose).not.toHaveBeenCalled()
+    expect(closeCalls()).toHaveLength(0)
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('fires no commands when mounted with no entry (always-mounted gate)', async () => {

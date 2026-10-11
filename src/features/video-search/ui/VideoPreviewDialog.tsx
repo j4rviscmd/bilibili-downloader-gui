@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next'
 import {
   closePreviewPlayer,
   openPreviewPlayer,
+  pausePreviewPlayer,
   syncPreviewPlayer,
 } from '../api/previewEmbed'
 import type { VideoSearchEntry } from '../types'
@@ -208,10 +209,11 @@ export function VideoPreviewDialog({
           )}
         </div>
 
-        {/* Preview-to-download handoff: same route as clicking the card
-            body (URL search page with the bvid preloaded), so both entry
-            points behave identically. Both buttons close first — the
-            overlay dies with the dialog, avoiding double audio. */}
+        {/* Preview actions. Download closes first (same handoff route
+            as clicking the card body — the URL search page with the
+            bvid preloaded — and the overlay dies with the dialog).
+            "Open in browser" keeps the dialog: the overlay is only
+            paused, so the browser tab does not double the audio. */}
         <div className="flex justify-end gap-2">
           <Button
             type="button"
@@ -219,7 +221,11 @@ export function VideoPreviewDialog({
             size="sm"
             onClick={() => {
               if (!entry) return
-              onClose()
+              // Why: restores the pause-and-keep-open UX from #789; #821's overlay
+              // rewrite lost the inline player's pause hook and regressed this
+              // handoff to closing the whole dialog.
+              // Fail soft: a lost overlay must not block the handoff.
+              void pausePreviewPlayer().catch(() => {})
               openUrl(buildVideoUrl(entry.bvid, 1)).catch((e) => {
                 logger.error(
                   'VideoPreviewDialog: failed to open video in browser',
