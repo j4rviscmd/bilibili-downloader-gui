@@ -79,6 +79,8 @@ use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use reqwest::header;
 use reqwest::RequestBuilder;
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -657,13 +659,16 @@ pub async fn download_url<R: Runtime>(
     // Initial cancellation check
     check_cancelled(&cancel_token)?;
 
-    // File existence check
-    if output_path.exists() {
-        if is_override {
-            fs::remove_file(&output_path).await?;
-        } else {
-            return Err(anyhow::anyhow!("ERR::FILE_EXISTS"));
-        }
+    // File existence check. With is_override the existing file may be OUR
+    // own temp from a previous attempt of the same retry loop — whether its
+    // bytes are reusable is decided later, once the checkpoint sidecar can
+    // be validated against the discovered total size (see the checkpoint
+    // resume block). Non-override callers keep the historical
+    // ERR::FILE_EXISTS behavior.
+    let file_exists = output_path.exists();
+    let resume_candidate = file_exists && is_override;
+    if file_exists && !is_override {
+        return Err(anyhow::anyhow!("ERR::FILE_EXISTS"));
     }
 
     let filename = output_path
@@ -744,8 +749,62 @@ pub async fn download_url<R: Runtime>(
     //   (#490), so users may raise parallelism safely (issue #491).
     log::info!("[BE] download_url: using concurrency: {}", concurrency);
 
+    // ---- 2b. Segment checkpoint resume ----
+    // A previous attempt of THIS download (same temp path inside the same
+    // retry loop) may have left fully-verified segments on disk. A valid
+    // sidecar lets this attempt fetch only what failed instead of the whole
+    // file (2026-10-10 incident: a 2.1 GB file was re-downloaded three
+    // times because one segment was stuck on a degraded CDN edge).
+    let url_path = url_path_of(&url);
+    let segment_count = segments.len();
+    let checkpoint = if resume_candidate {
+        let sidecar = progress_sidecar_path(&output_path);
+        let existing_len = fs::metadata(&output_path).await.ok().map(|m| m.len());
+        match load_checkpoint(&sidecar).await {
+            Some(cp)
+                if checkpoint_is_applicable(
+                    &cp,
+                    total,
+                    segment_size,
+                    segment_count,
+                    &url_path,
+                    existing_len,
+                ) =>
+            {
+                log::info!(
+                    "[BE] download_url: resuming from checkpoint: {}/{} segment(s) already complete",
+                    cp.completed.len(),
+                    segment_count
+                );
+                Some(cp)
+            }
+            _ => {
+                // No (usable) checkpoint: the existing temp is stale —
+                // remove it and rewrite everything (historical is_override
+                // behavior). The sidecar goes FIRST and unconditionally:
+                // left next to the re-created (zero-filled) preallocated
+                // file, it could validate on a later attempt and skip
+                // segments whose bytes were just discarded here.
+                let _ = fs::remove_file(&sidecar).await;
+                fs::remove_file(&output_path).await?;
+                None
+            }
+        }
+    } else {
+        None
+    };
+    let completed_segments: BTreeSet<u64> = checkpoint
+        .as_ref()
+        .map(|c| c.completed.iter().copied().collect())
+        .unwrap_or_default();
+
     // ---- 3. Pre-allocate file ----
-    preallocate_file(&output_path, total).await?;
+    // Skipped when resuming: the temp already exists at the validated
+    // total size, and preallocate_file's truncate would discard the
+    // checkpointed bytes.
+    if checkpoint.is_none() {
+        preallocate_file(&output_path, total).await?;
+    }
 
     // ---- 4. Setup progress emitter ----
     let id_for_emit = download_id.clone().unwrap_or_else(|| filename.to_string());
@@ -755,16 +814,36 @@ pub async fn download_url<R: Runtime>(
         let _ = emits.set_stage(stage).await;
     }
 
-    let downloaded_total = Arc::new(AtomicU64::new(0));
+    // Checkpointed segments count as downloaded from the start so progress,
+    // the MIN_MEDIA_BYTES floor, and the final size verification all see
+    // the true cumulative total.
+    let skipped_bytes: u64 = segments
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| completed_segments.contains(&(*i as u64)))
+        .map(|(_, (s, e))| e - s + 1)
+        .sum();
+    if skipped_bytes > 0 {
+        emits.update_progress(skipped_bytes);
+    }
+
+    let downloaded_total = Arc::new(AtomicU64::new(skipped_bytes));
     let sem = Arc::new(Semaphore::new(concurrency));
-    let segment_stats: Vec<Arc<SegmentStats>> = segments
+    // Only incomplete segments spawn tasks; the monitor tracks those alone.
+    let spawn_list: Vec<(usize, u64, u64)> = segments
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| !completed_segments.contains(&(*i as u64)))
+        .map(|(i, (s, e))| (i, *s, *e))
+        .collect();
+    let segment_stats: Vec<Arc<SegmentStats>> = spawn_list
         .iter()
         .map(|_| Arc::new(SegmentStats::new()))
         .collect();
 
     // ---- 5. Download segments in parallel ----
     let mut futs = FuturesUnordered::new();
-    for (idx, (s, e)) in segments.iter().cloned().enumerate() {
+    for (task_ord, (idx, s, e)) in spawn_list.iter().copied().enumerate() {
         let cdn_urls_c = cdn_urls.clone();
         let cookie_c = cookie.clone();
         let path_c = output_path.clone();
@@ -774,7 +853,7 @@ pub async fn download_url<R: Runtime>(
         let sem_c = sem.clone();
         let cancel_token_c = cancel_token.clone();
         let host_health_c = host_health.clone();
-        let stats_c = segment_stats[idx].clone();
+        let stats_c = segment_stats[task_ord].clone();
         futs.push(tokio::spawn(async move {
             let _permit = sem_c.acquire().await.unwrap();
 
@@ -1076,7 +1155,7 @@ pub async fn download_url<R: Runtime>(
                                         // Range always 416s and would fail an
                                         // already-complete segment.
                                         stats_c.finished.store(true, Ordering::Relaxed);
-                                        return Ok(());
+                                        return Ok(idx);
                                     }
                                     SlowAction::ResumeSameCdn => {
                                         // Fresh connection, same host, resume
@@ -1152,7 +1231,7 @@ pub async fn download_url<R: Runtime>(
                                 // and fail an already-complete segment.
                                 if received == seg_remaining {
                                     stats_c.finished.store(true, Ordering::Relaxed);
-                                    return Ok(());
+                                    return Ok(idx);
                                 }
                                 // First try resuming the SAME CDN from where it
                                 // broke: connection resets are usually
@@ -1298,7 +1377,7 @@ pub async fn download_url<R: Runtime>(
                         // candidacy.
                         stats_c.finished.store(true, Ordering::Relaxed);
 
-                        return Ok(());
+                        return Ok(idx);
                     }
                     Err(e) => {
                         http_retries += 1;
@@ -1438,11 +1517,29 @@ pub async fn download_url<R: Runtime>(
         }
     });
 
+    // Starts from the checkpointed set and grows as tasks report
+    // completions; every growth rewrites the sidecar.
+    let mut completed_now = completed_segments.clone();
     // Collect results
     let mut seg_errors = 0u32;
     while let Some(res) = futs.next().await {
         match res {
-            Ok(Ok(())) => {}
+            Ok(Ok(idx)) => {
+                // Persist each completion immediately: whatever landed on
+                // disk survives a later attempt (retry_download refetches
+                // the playurl but reuses this temp path) or a crash.
+                completed_now.insert(idx as u64);
+                save_checkpoint(
+                    &progress_sidecar_path(&output_path),
+                    &SegmentCheckpoint {
+                        total_size: total,
+                        segment_size,
+                        url_path: url_path.clone(),
+                        completed: completed_now.iter().copied().collect(),
+                    },
+                )
+                .await;
+            }
             Ok(Err(e)) => {
                 // Propagate invalid-media errors immediately so the caller's
                 // fallback logic runs without retrying the same error URL.
@@ -1500,6 +1597,10 @@ pub async fn download_url<R: Runtime>(
             total
         ));
     }
+
+    // The checkpoint sidecar has served its purpose; a stale one next to a
+    // completed file would only confuse a later attempt.
+    let _ = fs::remove_file(progress_sidecar_path(&output_path)).await;
 
     log::info!(
         "[BE] download_url: download complete, total_bytes={}",
@@ -1944,6 +2045,88 @@ fn calculate_segments(total: u64, segment_size: u64) -> Vec<(u64, u64)> {
         start = end + 1;
     }
     segments
+}
+
+/// Per-segment completion checkpoint stored next to the temp file
+/// (`{temp}.progress.json`), so a `retry_download` attempt re-fetches only
+/// the segments that failed instead of the whole file.
+///
+/// Why segments (not a byte cursor): segments are the atomic unit this
+/// module already verifies — a segment is only recorded after it fully
+/// arrived from a single response with a size check, so a completed segment
+/// carries the same integrity guarantee as in-attempt completion. Identity
+/// is `total_size` + `segment_size` + `url_path` (path only: signed query
+/// params rotate on every playurl refetch, the transcode path does not).
+#[derive(Debug, Serialize, Deserialize)]
+struct SegmentCheckpoint {
+    total_size: u64,
+    segment_size: u64,
+    url_path: String,
+    /// Indices into the segment plan (`calculate_segments` order).
+    completed: Vec<u64>,
+}
+
+/// Path of the checkpoint sidecar for a temp output file.
+pub(crate) fn progress_sidecar_path(path: &Path) -> PathBuf {
+    let mut name = path.file_name().unwrap_or_default().to_os_string();
+    name.push(".progress.json");
+    path.with_file_name(name)
+}
+
+/// Path component of a CDN URL (query stripped) — the checkpoint identity.
+fn url_path_of(url: &str) -> String {
+    reqwest::Url::parse(url)
+        .map(|u| u.path().to_string())
+        .unwrap_or_default()
+}
+
+/// True when a loaded checkpoint matches the current download plan and the
+/// on-disk temp file, so its completed segments can be skipped.
+///
+/// Pure function — fully unit-testable. `existing_len` is the current temp
+/// file length (`None` when absent); a mismatch or a shorter file means the
+/// bytes on disk are not the checkpointed ones, so a full restart is the
+/// only safe move. Torn/corrupt JSON never reaches here (`load_checkpoint`
+/// tolerates it by returning `None`).
+fn checkpoint_is_applicable(
+    cp: &SegmentCheckpoint,
+    total: u64,
+    segment_size: u64,
+    segment_count: usize,
+    url_path: &str,
+    existing_len: Option<u64>,
+) -> bool {
+    cp.total_size == total
+        && cp.segment_size == segment_size
+        && cp.url_path == url_path
+        && existing_len == Some(total)
+        && cp.completed.iter().all(|&i| (i as usize) < segment_count)
+}
+
+/// Reads the checkpoint sidecar, tolerating absence and corruption (a torn
+/// write after a crash just downgrades to a full download).
+async fn load_checkpoint(sidecar: &Path) -> Option<SegmentCheckpoint> {
+    let raw = fs::read(sidecar).await.ok()?;
+    match serde_json::from_slice(&raw) {
+        Ok(cp) => Some(cp),
+        Err(e) => {
+            log::warn!("[BE] download_url: ignoring corrupt checkpoint sidecar: {e}");
+            None
+        }
+    }
+}
+
+/// Best-effort checkpoint write. Failure is logged and ignored: the
+/// checkpoint is an optimization, never a correctness requirement.
+async fn save_checkpoint(sidecar: &Path, cp: &SegmentCheckpoint) {
+    match serde_json::to_vec(cp) {
+        Ok(json) => {
+            if let Err(e) = fs::write(sidecar, &json).await {
+                log::warn!("[BE] download_url: checkpoint write failed: {e}");
+            }
+        }
+        Err(e) => log::warn!("[BE] download_url: checkpoint serialize failed: {e}"),
+    }
 }
 
 /// Pre-allocates the output file to the requested size.
@@ -2830,6 +3013,434 @@ mod tests {
         assert_eq!(std::fs::read(&path).unwrap(), body);
     }
 
+    // ---- segment checkpoint resume ----
+
+    #[test]
+    fn progress_sidecar_path_appends_suffix() {
+        assert_eq!(
+            progress_sidecar_path(Path::new("/tmp/temp_video_x.m4s")),
+            PathBuf::from("/tmp/temp_video_x.m4s.progress.json")
+        );
+    }
+
+    #[test]
+    fn url_path_of_strips_query_and_host() {
+        assert_eq!(
+            url_path_of("https://upos-hz-mirrorakam.akamaized.net/upgcxcode/a.m4s?deadline=1&x=2"),
+            "/upgcxcode/a.m4s"
+        );
+        assert_eq!(url_path_of("not a url"), "");
+    }
+
+    fn cp_fixture() -> SegmentCheckpoint {
+        SegmentCheckpoint {
+            total_size: 100,
+            segment_size: 50,
+            url_path: "/x.m4s".into(),
+            completed: vec![0],
+        }
+    }
+
+    #[test]
+    fn checkpoint_is_applicable_accepts_matching_plan() {
+        assert!(checkpoint_is_applicable(
+            &cp_fixture(),
+            100,
+            50,
+            2,
+            "/x.m4s",
+            Some(100)
+        ));
+    }
+
+    #[test]
+    fn checkpoint_is_applicable_rejects_identity_mismatches() {
+        let cp = cp_fixture();
+        // Wrong total, segment size, path, file length, missing file, and
+        // out-of-range segment indices each force a full restart.
+        assert!(!checkpoint_is_applicable(
+            &cp,
+            101,
+            50,
+            2,
+            "/x.m4s",
+            Some(101)
+        ));
+        assert!(!checkpoint_is_applicable(
+            &cp,
+            100,
+            51,
+            2,
+            "/x.m4s",
+            Some(100)
+        ));
+        assert!(!checkpoint_is_applicable(
+            &cp,
+            100,
+            50,
+            2,
+            "/other.m4s",
+            Some(100)
+        ));
+        assert!(!checkpoint_is_applicable(
+            &cp,
+            100,
+            50,
+            2,
+            "/x.m4s",
+            Some(99)
+        ));
+        assert!(!checkpoint_is_applicable(&cp, 100, 50, 2, "/x.m4s", None));
+        let mut oob = cp_fixture();
+        oob.completed = vec![2]; // only segments 0 and 1 exist
+        assert!(!checkpoint_is_applicable(
+            &oob,
+            100,
+            50,
+            2,
+            "/x.m4s",
+            Some(100)
+        ));
+    }
+
+    /// 8 MiB body: at concurrency 2 the plan is exactly two 4 MiB segments
+    /// (seg0 `bytes=0-4194303`, seg1 `bytes=4194304-8388607`), and seg0's
+    /// range coincides with the CDN probe's `bytes=0-{4 MiB-1}`.
+    fn e2e_body_8m() -> Vec<u8> {
+        (0..8 * 1024 * 1024u32).map(|i| (i % 251) as u8).collect()
+    }
+
+    /// Mounts a 206 for one exact byte range of the 8 MiB body.
+    async fn range_206_mock(server: &wiremock::MockServer, body: &[u8], start: u64, end: u64) {
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::header(
+                "range",
+                format!("bytes={start}-{end}"),
+            ))
+            .respond_with(
+                wiremock::ResponseTemplate::new(206)
+                    .insert_header(
+                        "Content-Range",
+                        format!("bytes {}-{}/{}", start, end, body.len() as u64),
+                    )
+                    .insert_header("Content-Type", "application/octet-stream")
+                    .set_body_bytes(body[start as usize..=(end as usize)].to_vec()),
+            )
+            .mount(server)
+            .await;
+    }
+
+    #[tokio::test]
+    async fn download_url_checkpoint_resume_skips_completed_segments() {
+        let app = tauri::test::mock_app();
+        let body = e2e_body_8m();
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("temp_video_cp.m4s");
+
+        // Attempt 1: seg0 (== probe range) succeeds, seg1 always 403s.
+        let server1 = wiremock::MockServer::start().await;
+        range_206_mock(&server1, &body, 0, 4 * 1024 * 1024 - 1).await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::header("range", "bytes=4194304-8388607"))
+            .respond_with(wiremock::ResponseTemplate::new(403))
+            .mount(&server1)
+            .await;
+
+        let err = download_url(
+            app.handle(),
+            server1.uri(),
+            None,
+            path.clone(),
+            None,
+            true,
+            None,
+            None,
+            false,
+            2,
+            Arc::new(cdn_selector::HostHealth::new()),
+        )
+        .await
+        .unwrap_err();
+        assert!(err.to_string().contains("segment(s) failed"), "got: {err}");
+
+        // The checkpoint recorded seg0 as complete.
+        let sidecar = progress_sidecar_path(&path);
+        let cp: SegmentCheckpoint =
+            serde_json::from_slice(&std::fs::read(&sidecar).unwrap()).unwrap();
+        assert_eq!(cp.total_size, body.len() as u64);
+        assert_eq!(cp.segment_size, 4 * 1024 * 1024);
+        assert_eq!(cp.completed, vec![0]);
+
+        // Attempt 2 (fresh server, seg1 now healthy): only seg1 is fetched —
+        // the seg0 range is requested by the CDN probe alone.
+        let server2 = wiremock::MockServer::start().await;
+        range_206_mock(&server2, &body, 0, 4 * 1024 * 1024 - 1).await;
+        range_206_mock(&server2, &body, 4 * 1024 * 1024, 8 * 1024 * 1024 - 1).await;
+
+        download_url(
+            app.handle(),
+            server2.uri(),
+            None,
+            path.clone(),
+            None,
+            true,
+            None,
+            None,
+            false,
+            2,
+            Arc::new(cdn_selector::HostHealth::new()),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(std::fs::read(&path).unwrap(), body, "byte-exact output");
+        assert!(!sidecar.exists(), "sidecar removed on success");
+        let requests = server2.received_requests().await.unwrap();
+        let seg0_hits = requests
+            .iter()
+            .filter(|r| {
+                r.headers
+                    .get("range")
+                    .map(|v| v == "bytes=0-4194303")
+                    .unwrap_or(false)
+            })
+            .count();
+        let seg1_hits = requests
+            .iter()
+            .filter(|r| {
+                r.headers
+                    .get("range")
+                    .map(|v| v == "bytes=4194304-8388607")
+                    .unwrap_or(false)
+            })
+            .count();
+        assert_eq!(
+            seg0_hits, 1,
+            "probe only — completed segment not re-fetched"
+        );
+        assert_eq!(seg1_hits, 1, "failed segment re-fetched once");
+    }
+
+    #[tokio::test]
+    async fn download_url_stale_checkpoint_triggers_full_redownload() {
+        let app = tauri::test::mock_app();
+        let body = e2e_body_8m();
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("temp_video_stale.m4s");
+
+        // Preallocate-shaped temp + checkpoint whose total_size disagrees
+        // with the plan: the resume must be rejected and every segment
+        // re-fetched.
+        std::fs::write(&path, vec![0u8; body.len()]).unwrap();
+        let stale = SegmentCheckpoint {
+            total_size: 12345,
+            segment_size: 4 * 1024 * 1024,
+            url_path: "/x".into(),
+            completed: vec![0],
+        };
+        std::fs::write(
+            progress_sidecar_path(&path),
+            serde_json::to_vec(&stale).unwrap(),
+        )
+        .unwrap();
+
+        let server = wiremock::MockServer::start().await;
+        range_206_mock(&server, &body, 0, 4 * 1024 * 1024 - 1).await;
+        range_206_mock(&server, &body, 4 * 1024 * 1024, 8 * 1024 * 1024 - 1).await;
+
+        download_url(
+            app.handle(),
+            server.uri(),
+            None,
+            path.clone(),
+            None,
+            true,
+            None,
+            None,
+            false,
+            2,
+            Arc::new(cdn_selector::HostHealth::new()),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(std::fs::read(&path).unwrap(), body);
+        let requests = server.received_requests().await.unwrap();
+        let seg0_hits = requests
+            .iter()
+            .filter(|r| {
+                r.headers
+                    .get("range")
+                    .map(|v| v == "bytes=0-4194303")
+                    .unwrap_or(false)
+            })
+            .count();
+        assert_eq!(
+            seg0_hits, 2,
+            "probe + segment 0: stale checkpoint forced a full fetch"
+        );
+    }
+
+    #[tokio::test]
+    async fn download_url_rejected_checkpoint_discards_sidecar() {
+        let app = tauri::test::mock_app();
+        let body = e2e_body_8m();
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("temp_video_reject.m4s");
+
+        // Preallocate-shaped temp + unusable checkpoint (wrong total_size):
+        // the resume is rejected and the payload discarded. Concurrency 1
+        // makes the plan a single bytes=0-8388607 segment, distinct from
+        // the fixed 4 MiB probe range, so the probe can 206 while the only
+        // segment 403s — zero completions, nothing rewrites the sidecar.
+        std::fs::write(&path, vec![0u8; body.len()]).unwrap();
+        let stale = SegmentCheckpoint {
+            total_size: 12345,
+            segment_size: 8 * 1024 * 1024,
+            url_path: "/x".into(),
+            completed: vec![0],
+        };
+        std::fs::write(
+            progress_sidecar_path(&path),
+            serde_json::to_vec(&stale).unwrap(),
+        )
+        .unwrap();
+
+        let server = wiremock::MockServer::start().await;
+        range_206_mock(&server, &body, 0, 4 * 1024 * 1024 - 1).await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::header("range", "bytes=0-8388607"))
+            .respond_with(wiremock::ResponseTemplate::new(403))
+            .mount(&server)
+            .await;
+
+        let err = download_url(
+            app.handle(),
+            server.uri(),
+            None,
+            path.clone(),
+            None,
+            true,
+            None,
+            None,
+            false,
+            1,
+            Arc::new(cdn_selector::HostHealth::new()),
+        )
+        .await
+        .unwrap_err();
+        assert!(err.to_string().contains("segment(s) failed"), "got: {err}");
+        assert!(
+            !progress_sidecar_path(&path).exists(),
+            "rejected checkpoint must not outlive its payload"
+        );
+    }
+
+    #[tokio::test]
+    async fn download_url_checkpoint_all_complete_downloads_nothing() {
+        let app = tauri::test::mock_app();
+        let body = e2e_body_8m();
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("temp_video_all.m4s");
+
+        // Fully-downloaded temp + checkpoint claiming every segment: no
+        // segment task spawns (empty spawn list), so the CDN probe is the
+        // only request the server ever sees.
+        std::fs::write(&path, &body).unwrap();
+        let done = SegmentCheckpoint {
+            total_size: body.len() as u64,
+            segment_size: 4 * 1024 * 1024,
+            url_path: "/".into(),
+            completed: vec![0, 1],
+        };
+        std::fs::write(
+            progress_sidecar_path(&path),
+            serde_json::to_vec(&done).unwrap(),
+        )
+        .unwrap();
+
+        let server = wiremock::MockServer::start().await;
+        range_206_mock(&server, &body, 0, 4 * 1024 * 1024 - 1).await;
+
+        download_url(
+            app.handle(),
+            server.uri(),
+            None,
+            path.clone(),
+            None,
+            true,
+            None,
+            None,
+            false,
+            2,
+            Arc::new(cdn_selector::HostHealth::new()),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(std::fs::read(&path).unwrap(), body, "bytes untouched");
+        assert!(!progress_sidecar_path(&path).exists());
+        let requests = server.received_requests().await.unwrap();
+        assert_eq!(requests.len(), 1, "probe only; nothing re-fetched");
+    }
+
+    #[tokio::test]
+    async fn download_url_corrupt_sidecar_tolerated_as_full_redownload() {
+        let app = tauri::test::mock_app();
+        let body = e2e_body_8m();
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("temp_video_corrupt.m4s");
+
+        // Preallocate-shaped temp + a torn checkpoint write (crash mid
+        // `save_checkpoint`): the corrupt JSON must downgrade to a full
+        // download, never an error nor a partial skip.
+        std::fs::write(&path, vec![0u8; body.len()]).unwrap();
+        std::fs::write(
+            progress_sidecar_path(&path),
+            br#"{"total_size":8388608,"segment_size":4194304,"url_path":"/","#,
+        )
+        .unwrap();
+
+        let server = wiremock::MockServer::start().await;
+        range_206_mock(&server, &body, 0, 4 * 1024 * 1024 - 1).await;
+        range_206_mock(&server, &body, 4 * 1024 * 1024, 8 * 1024 * 1024 - 1).await;
+
+        download_url(
+            app.handle(),
+            server.uri(),
+            None,
+            path.clone(),
+            None,
+            true,
+            None,
+            None,
+            false,
+            2,
+            Arc::new(cdn_selector::HostHealth::new()),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(std::fs::read(&path).unwrap(), body, "byte-exact output");
+        assert!(
+            !progress_sidecar_path(&path).exists(),
+            "corrupt sidecar does not outlive the download"
+        );
+        let requests = server.received_requests().await.unwrap();
+        let seg0_hits = requests
+            .iter()
+            .filter(|r| {
+                r.headers
+                    .get("range")
+                    .map(|v| v == "bytes=0-4194303")
+                    .unwrap_or(false)
+            })
+            .count();
+        assert_eq!(
+            seg0_hits, 2,
+            "probe + segment 0: corrupt JSON must skip nothing"
+        );
+    }
     #[tokio::test]
     async fn download_url_pre_cancelled_id_errors_immediately() {
         // register -> cancel drops the token but flags the id, so
