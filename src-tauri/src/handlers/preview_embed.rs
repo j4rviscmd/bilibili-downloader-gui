@@ -487,6 +487,19 @@ pub async fn open_preview_player(
             .skip_taskbar(true)
             .shadow(false)
             .background_color(tauri::webview::Color(0, 0, 0, 255))
+            // Why not focusable/focused: the overlay must never take
+            // foreground or keyboard focus — otherwise Win+Arrow (and every
+            // keyboard shortcut aimed at the main window) would act on the
+            // overlay instead. focusable(false) keeps mouse input (player
+            // controls work) while blocking click activation
+            // (WS_EX_NOACTIVATE); focused(false) stops the WebView2
+            // controller from stealing focus with a programmatic MoveFocus
+            // right after creation (wry default — programmatic focus
+            // bypasses WS_EX_NOACTIVATE).
+            // Note: parent() returns Result, so the chain turns fallible
+            // there (map_err + ?); infallible setters stay above it.
+            .focusable(false)
+            .focused(false)
             .parent(&main)
             .map_err(|e| e.to_string())?
             .build()
