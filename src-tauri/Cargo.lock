@@ -567,6 +567,7 @@ dependencies = [
  "log",
  "md5",
  "num-bigint",
+ "objc2-app-kit 0.2.2",
  "octocrab",
  "once_cell",
  "percent-encoding",

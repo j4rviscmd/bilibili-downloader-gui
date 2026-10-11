@@ -212,16 +212,15 @@ fn to_rect(dto: OverlayRectDto) -> OverlayRect {
     }
 }
 
-/// Sizes + positions the child over the given rect, with the one-pass
-/// frame correction. Reads scale/origin on every call so monitor moves
-/// and main-window moves re-derive them.
+/// Sizes + positions the child over the given rect. Reads scale/origin
+/// on every call so monitor moves and main-window moves re-derive them.
 fn apply_rect(
     main: &tauri::WebviewWindow,
     child: &tauri::WebviewWindow,
     rect: OverlayRect,
 ) -> Result<(), String> {
     let scale = main.scale_factor().map_err(|e| e.to_string())?;
-    let origin = main.inner_position().map_err(|e| e.to_string())?;
+    let origin = viewport_origin(main, scale)?;
     let (pos, size) = overlay_target(origin, scale, rect);
     child
         .set_size(tauri::Size::Physical(size))
@@ -229,13 +228,87 @@ fn apply_rect(
     child
         .set_position(tauri::Position::Physical(pos))
         .map_err(|e| e.to_string())?;
-    let client = child.inner_position().map_err(|e| e.to_string())?;
-    let outer = child.outer_position().map_err(|e| e.to_string())?;
-    let fixed = corrected_outer_position(pos, client, outer);
-    child
-        .set_position(tauri::Position::Physical(fixed))
-        .map_err(|e| e.to_string())?;
+    // Windows-only one-pass frame correction: Windows decorates even a
+    // `decorations(false)` child with an invisible frame (see
+    // corrected_outer_position). On macOS the borderless child has
+    // client == outer, and child.inner_position() lags one set_position
+    // behind (WKWebView async layout — measured 2026-10-11), so the
+    // correction there oscillated between two wrong positions instead of
+    // converging.
+    #[cfg(windows)]
+    {
+        let client = child.inner_position().map_err(|e| e.to_string())?;
+        let outer = child.outer_position().map_err(|e| e.to_string())?;
+        let fixed = corrected_outer_position(pos, client, outer);
+        child
+            .set_position(tauri::Position::Physical(fixed))
+            .map_err(|e| e.to_string())?;
+    }
     Ok(())
+}
+
+/// Screen-space origin (physical px) of the main webview's CSS viewport.
+///
+/// `inner_position()` is NOT the viewport origin on macOS: the main
+/// window uses a full-size content view, so the content rect starts at
+/// the frame origin while the WKWebView's layout viewport is pushed
+/// below the title bar (measured 2026-10-11: inner == outer ==
+/// (0, 62) physical, but CSS (0,0) sits at (0, 126)). Derive the
+/// title-bar inset from NSWindow.contentLayoutRect and add it to the
+/// frame origin; this also tracks fullscreen (inset 0) for free. On
+/// Windows/Linux `inner_position()` already is the client-area origin.
+fn viewport_origin(
+    main: &tauri::WebviewWindow,
+    scale: f64,
+) -> Result<tauri::PhysicalPosition<i32>, String> {
+    #[cfg(target_os = "macos")]
+    {
+        let outer = main.outer_position().map_err(|e| e.to_string())?;
+        let inset = titlebar_inset_physical(main, scale)?;
+        Ok(tauri::PhysicalPosition::new(outer.x, outer.y + inset))
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = scale;
+        main.inner_position().map_err(|e| e.to_string())
+    }
+}
+
+/// Title-bar height of the main window in physical px: NSWindow frame
+/// height minus contentLayoutRect height. Runs on the main thread —
+/// AppKit getters must not be called from worker threads (apply_rect is
+/// reached from async commands and the window-event hook alike).
+#[cfg(target_os = "macos")]
+fn titlebar_inset_physical(main: &tauri::WebviewWindow, scale: f64) -> Result<i32, String> {
+    use std::sync::mpsc;
+    let (tx, rx) = mpsc::channel();
+    let app = main.app_handle().clone();
+    let main = main.clone();
+    app.run_on_main_thread(move || {
+        use objc2_app_kit::NSWindow;
+        let inset = (|| -> i32 {
+            let Ok(raw) = main.ns_window() else {
+                return 0;
+            };
+            if raw.is_null() {
+                return 0;
+            }
+            let ns: &NSWindow = unsafe { &*(raw as *const NSWindow) };
+            let frame = ns.frame();
+            let layout = unsafe { ns.contentLayoutRect() };
+            // Why: frame()/contentLayoutRect() report AppKit points,
+            // not physical px — multiplying by scale is the
+            // points→physical conversion.
+            ((frame.size.height - layout.size.height) * scale).round() as i32
+        })();
+        let _ = tx.send(inset);
+    })
+    .map_err(|e| e.to_string())?;
+    // Why: a plain recv() would hang forever if the main thread never
+    // services the closure — the deadlock the attach_hooks spawn
+    // guards against. The cap degrades that case to an Err instead.
+    rx.recv_timeout(std::time::Duration::from_secs(1))
+        .map_err(|e| e.to_string())
 }
 
 /// Applies the chrome-hiding style in the overlay page. The evals are
@@ -292,7 +365,12 @@ fn attach_hooks(app: &tauri::AppHandle, main: &tauri::WebviewWindow, child: &tau
         ) else {
             return;
         };
-        let _ = apply_rect(&main, &child, rect);
+        // Why spawn: this hook runs on the main-thread event loop, while
+        // apply_rect's macOS title-bar read marshals back to the main
+        // thread — calling it synchronously would deadlock.
+        tauri::async_runtime::spawn(async move {
+            let _ = apply_rect(&main, &child, rect);
+        });
     });
 }
 
