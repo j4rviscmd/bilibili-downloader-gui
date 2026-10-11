@@ -525,6 +525,9 @@ const PAUSE_PLAYBACK: &str =
 // Why async: WebviewWindowBuilder::build() must run on the main thread's event
 // loop — a synchronous command would occupy the main thread and deadlock the
 // window creation (same constraint documented on finish_splash in window.rs).
+// Why coverage(off): creates and drives a real OS overlay window on the
+// event loop — injection cost outweighs value (issue #646 policy 4).
+#[cfg_attr(coverage, coverage(off))]
 pub async fn open_preview_player(
     app: tauri::AppHandle,
     bvid: String,
@@ -578,6 +581,11 @@ pub async fn open_preview_player(
             // there (map_err + ?); infallible setters stay above it.
             .focusable(false)
             .focused(false)
+            // Why visible(false): with no builder position the OS creates
+            // the window at CW_USEDEFAULT (top-left, 800×600 default) and
+            // visible — a black frame flashed there until apply_rect moved
+            // it (same pattern as the splash window in window.rs).
+            .visible(false)
             .parent(&main)
             .map_err(|e| e.to_string())?
             .build()
@@ -589,6 +597,10 @@ pub async fn open_preview_player(
     };
     let rect = to_rect(rect);
     apply_rect(&main, &child, rect)?;
+    // Reveal only after apply_rect pins the rect, so the overlay never
+    // paints at the creation-time default location; no-op on the
+    // reuse path (window already visible).
+    child.show().map_err(|e| e.to_string())?;
     lock_overlay().replace(OverlayState { rect });
     Ok(())
 }
