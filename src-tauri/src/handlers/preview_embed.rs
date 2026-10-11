@@ -311,26 +311,6 @@ fn titlebar_inset_physical(main: &tauri::WebviewWindow, scale: f64) -> Result<i3
         .map_err(|e| e.to_string())
 }
 
-/// Applies the chrome-hiding style in the overlay page. The evals are
-/// fired as a burst over the first seconds of a load: an eval racing an
-/// in-flight navigation can land on the outgoing document (a no-op),
-/// and the script must land before the page's first paint so the
-/// loading cover hides the page while the player boots (user decision
-/// 2026-10-11 — the half-loaded page used to be visible for seconds).
-/// The script itself is idempotent and hooks DOMContentLoaded when the
-/// new document is still loading.
-fn schedule_chrome_hider(child: &tauri::WebviewWindow) {
-    for delay_ms in [0u64, 150, 300, 500, 750, 1100, 1600, 2400, 3400] {
-        let child = child.clone();
-        tauri::async_runtime::spawn(async move {
-            if delay_ms > 0 {
-                tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
-            }
-            let _ = child.eval(HIDE_VIDEO_PAGE_CHROME);
-        });
-    }
-}
-
 fn attach_hooks(app: &tauri::AppHandle, main: &tauri::WebviewWindow, child: &tauri::WebviewWindow) {
     use tauri::Emitter;
     // Direct close (Alt+F4): clear state and tell the dialog to close.
@@ -377,16 +357,37 @@ fn attach_hooks(app: &tauri::AppHandle, main: &tauri::WebviewWindow, child: &tau
 /// Window label of the overlay (single instance; retargeted per video).
 const PREVIEW_PLAYER_LABEL: &str = "preview-player";
 
-/// Evaluated in the overlay webview after (re)navigation: strips the
-/// video page chrome so the overlay shows the player only, full-bleed.
+/// Runs in the overlay webview at document-created — registered as the
+/// builder's `initialization_script` (WebView2:
+/// `AddScriptToExecuteOnDocumentCreated`, which wry registers before
+/// the first navigation; WKWebView/webkitgtk: user scripts). It
+/// therefore executes before any page script and before the first
+/// paint, on EVERY top-level navigation: the initial load and each
+/// `location.replace` retarget alike. It strips the video page chrome
+/// so the overlay shows the player only, full-bleed.
 ///
-/// Why eval and not the builder's `initialization_script`: that hook
-/// never fired for this webview's external pages (measured 2026-10-11 —
-/// marker scripts absent on every load), while a post-navigation eval
-/// applies reliably. The script is idempotent and self-schedules on
-/// DOMContentLoaded for in-flight navigations; the MutationObserver
-/// re-applies after bilibili's SPA hydration churns the DOM. The player
-/// is never restyled — its own mini-mode close control and its own
+/// History: an earlier version applied this script through a timer
+/// burst of post-navigation evals, which races the page's first paint —
+/// the raw page stayed visible for the gap until the next eval landed
+/// (user report 2026-10-11). A first `initialization_script` attempt
+/// had measured "never fired" (2026-10-11), but the delivery was fine
+/// and the script body was not: at document-created the parser has not
+/// produced <html> yet, so the old body's appendChild/MutationObserver
+/// calls threw immediately and left no marker. The body is now
+/// document-start-safe (root-poll install at the tail).
+///
+/// Dead end — do not retry: installing the styles via `document.write`
+/// into the pre-parse input stream (to beat the first paint by
+/// construction) starves the parser in WebView2 — flakily: sometimes
+/// the network HTML never parses and the document sits in
+/// readyState 'loading' forever (measured 2026-10-12 via a
+/// WebMessageReceived state beacon; the same build could also load
+/// fine). The root poll lands within ~4ms of <html> existing, which
+/// beat the first paint on every observed load.
+///
+/// The script is idempotent; the MutationObserver re-applies after
+/// bilibili's SPA hydration churns the DOM. The player is never
+/// restyled — its own mini-mode close control and its own
 /// web-fullscreen toggle get clicked instead. A page-level loading
 /// cover (black + spinner) hides everything until that switch has
 /// happened.
@@ -398,6 +399,11 @@ const PREVIEW_PLAYER_LABEL: &str = "preview-player";
 /// bilibili's page classes — a redesign degrades to showing the page
 /// again, never to a broken player.
 const HIDE_VIDEO_PAGE_CHROME: &str = r#"(() => {
+  /* Main frame only: WebView2's document-created hook (unlike the eval
+     delivery this replaced) injects this script into every subframe as
+     well, and the reveal logic below assumes the top-level video page —
+     a subframe would sit on the loading cover until the 25s fallback. */
+  if (window !== window.top) return;
   const css = `
     #biliMainHeader, .right-container, .video-info-container, #danmukuBox,
     .video-toolbar-container, #commentapp, .recommend-container, .tag-list,
@@ -504,11 +510,21 @@ const HIDE_VIDEO_PAGE_CHROME: &str = r#"(() => {
     unmini();
     enterTheater();
   };
-  run();
-  document.addEventListener('DOMContentLoaded', () => run());
-  new MutationObserver(() => run()).observe(document.documentElement, {
-    childList: true, subtree: true,
-  });
+  /* Document-start safety: the initialization script runs before the
+     parser has produced <html>, so poll a few ms until the root
+     element exists, then install + observe. */
+  const arm = () => {
+    if (!document.documentElement) {
+      setTimeout(arm, 4);
+      return;
+    }
+    run();
+    document.addEventListener('DOMContentLoaded', () => run());
+    new MutationObserver(() => run()).observe(document.documentElement, {
+      childList: true, subtree: true,
+    });
+  };
+  arm();
 })();"#;
 
 /// Evaluated in the overlay webview to stop playback without closing
@@ -547,7 +563,8 @@ pub async fn open_preview_player(
             existing
                 .eval(format!("location.replace('{url}')"))
                 .map_err(|e| e.to_string())?;
-            schedule_chrome_hider(&existing);
+            // No re-injection needed: the init script re-runs at
+            // document-created on the new document.
             existing
         }
         None => {
@@ -568,6 +585,10 @@ pub async fn open_preview_player(
             .skip_taskbar(true)
             .shadow(false)
             .background_color(tauri::webview::Color(0, 0, 0, 255))
+            // Why initialization_script: re-runs at document-created on
+            // every top-level navigation, so the loading cover lands
+            // before the first paint (see HIDE_VIDEO_PAGE_CHROME).
+            .initialization_script(HIDE_VIDEO_PAGE_CHROME)
             // Why not focusable/focused: the overlay must never take
             // foreground or keyboard focus — otherwise Win+Arrow (and every
             // keyboard shortcut aimed at the main window) would act on the
@@ -591,7 +612,6 @@ pub async fn open_preview_player(
             .build()
             .map_err(|e| e.to_string())?;
             attach_hooks(&app, &main, &child);
-            schedule_chrome_hider(&child);
             child
         }
     };
