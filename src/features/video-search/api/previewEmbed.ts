@@ -36,6 +36,14 @@ export function syncPreviewPlayer(rect: PreviewRect): Promise<void> {
   return invoke('sync_preview_player', { rect })
 }
 
+/**
+ * Pauses playback in the overlay without closing it ("open in
+ * browser" keeps the dialog up; pausing avoids double audio).
+ */
+export function pausePreviewPlayer(): Promise<void> {
+  return invoke('pause_preview_player')
+}
+
 /** Closes the overlay (dialog closed / entry switched). */
 export function closePreviewPlayer(): Promise<void> {
   return invoke('close_preview_player')

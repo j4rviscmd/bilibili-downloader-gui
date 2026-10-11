@@ -228,6 +228,7 @@ pub fn run() {
             expand_short_url,
             handlers::preview_embed::open_preview_player,
             handlers::preview_embed::sync_preview_player,
+            handlers::preview_embed::pause_preview_player,
             handlers::preview_embed::close_preview_player,
             cleanup_temp_files,
             trim_video,

@@ -433,6 +433,14 @@ const HIDE_VIDEO_PAGE_CHROME: &str = r#"(() => {
   });
 })();"#;
 
+/// Evaluated in the overlay webview to stop playback without closing
+/// the window: Bilibili's player drives HTML5 media elements (DASH
+/// plays video and audio as separate elements), so pausing every
+/// element halts both tracks. The player UI follows the elements'
+/// own `pause` events.
+const PAUSE_PLAYBACK: &str =
+    r#"document.querySelectorAll('video,audio').forEach((e) => e.pause())"#;
+
 /// Opens (or retargets) the official-player overlay window over the
 /// dialog's placeholder rect.
 #[tauri::command]
@@ -514,6 +522,21 @@ pub async fn sync_preview_player(
     apply_rect(&main, &child, rect)?;
     lock_overlay().replace(OverlayState { rect });
     Ok(())
+}
+
+/// Pauses playback in the overlay without closing it ("open in
+/// browser" keeps the preview dialog up; pausing avoids double audio).
+#[tauri::command]
+pub async fn pause_preview_player(app: tauri::AppHandle) -> Result<(), String> {
+    // Nothing open (e.g. a stale click after the overlay died) — the
+    // overlay-gone case is fail-soft, matching sync's stale-resize arm.
+    if lock_overlay().is_none() {
+        return Ok(());
+    }
+    let Some(child) = app.get_webview_window(PREVIEW_PLAYER_LABEL) else {
+        return Ok(());
+    };
+    child.eval(PAUSE_PLAYBACK).map_err(|e| e.to_string())
 }
 
 /// Closes the overlay (dialog closed / entry switched).

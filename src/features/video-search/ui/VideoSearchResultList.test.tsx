@@ -312,16 +312,27 @@ describe('VideoSearchResultList', () => {
     const browserButton = await screen.findByRole('button', {
       name: /videoSearch\.previewOpenInBrowser/,
     })
+    await waitFor(() => {
+      expect(mockInvoke).toHaveBeenCalledWith(
+        'open_preview_player',
+        expect.objectContaining({ bvid: 'BV1De411p77r' }),
+      )
+    })
+    // History is file-global here (no reset between tests) — clear so
+    // the no-close assertion below sees only this handoff's window.
+    mockInvoke.mockClear()
+
     await user.click(browserButton)
 
     expect(vi.mocked(openUrl)).toHaveBeenCalledWith(
       'https://www.bilibili.com/video/BV1De411p77r',
     )
-    // Both handoffs close the dialog — the overlay dies with it, so the
-    // browser is the only thing playing the video.
+    // The dialog stays up: the overlay is only paused, so the browser
+    // is the only thing playing the video (no double audio).
     await waitFor(() => {
-      expect(mockInvoke).toHaveBeenCalledWith('close_preview_player')
+      expect(mockInvoke).toHaveBeenCalledWith('pause_preview_player')
     })
+    expect(mockInvoke).not.toHaveBeenCalledWith('close_preview_player')
   })
 })
 
