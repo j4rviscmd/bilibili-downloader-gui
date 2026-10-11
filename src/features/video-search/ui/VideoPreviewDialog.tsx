@@ -116,7 +116,11 @@ export function VideoPreviewDialog({
       return
     const el = placeholderEl
     let timer: number | undefined
-    const ro = new ResizeObserver(() => {
+    // Why: shared by both event sources so they feed one debounce timer —
+    // one window resize can fire the observer and the viewport listener
+    // together, and separate timers would sync twice (see the coalescing
+    // test in VideoPreviewDialog.test.tsx).
+    const schedule = () => {
       window.clearTimeout(timer)
       timer = window.setTimeout(() => {
         const r = el.getBoundingClientRect()
@@ -127,11 +131,22 @@ export function VideoPreviewDialog({
           height: r.height,
         }).catch(() => {})
       }, SYNC_DEBOUNCE_MS)
-    })
+    }
+    const ro = new ResizeObserver(schedule)
     ro.observe(el)
+    // Why a viewport resize listener alongside the observer: ResizeObserver
+    // reports size changes only. While the dialog's size caps
+    // (max-w-7xl / max-h-[75vh]) hold the placeholder at a constant size,
+    // a main-window resize still recenters the dialog — the overlay used to
+    // stay glued to the stale rect and render offset from the dialog. The
+    // viewport resize event covers that position-only change; pure window
+    // moves keep the placeholder rect valid and stay with the backend's
+    // Moved/Resized hook.
+    window.addEventListener('resize', schedule)
     return () => {
       window.clearTimeout(timer)
       ro.disconnect()
+      window.removeEventListener('resize', schedule)
     }
   }, [entry, placeholderEl])
 

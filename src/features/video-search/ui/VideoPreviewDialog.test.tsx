@@ -223,6 +223,62 @@ describe('VideoPreviewDialog (official embed overlay)', () => {
     ])
   })
 
+  it('re-syncs on viewport resize when only the placeholder moved (size-capped recenter)', async () => {
+    vi.stubGlobal('ResizeObserver', MockResizeObserver)
+    stubRect(333, 130, 1077, 605)
+    renderWithProviders(<VideoPreviewDialog entry={entry} onClose={() => {}} />)
+    await waitFor(() => {
+      expect(openCalls()).toHaveLength(1)
+    })
+    mockInvoke.mockClear()
+
+    // Main window resized: the dialog recenters the placeholder while its
+    // size caps keep it 1077x605, so ResizeObserver never fires. The
+    // viewport resize event must carry the fresh rect — the overlay used to
+    // stay glued to the stale one and render offset from the dialog.
+    stubRect(741.7, 376.1, 1077, 605)
+    vi.useFakeTimers()
+    act(() => {
+      window.dispatchEvent(new Event('resize'))
+    })
+    vi.advanceTimersByTime(100)
+
+    expect(syncCalls()).toHaveLength(1)
+    expect(syncCalls()[0]).toEqual([
+      'sync_preview_player',
+      { rect: { x: 741.7, y: 376.1, width: 1077, height: 605 } },
+    ])
+  })
+
+  it('coalesces a viewport resize with observer entries into one sync (shared schedule)', async () => {
+    vi.stubGlobal('ResizeObserver', MockResizeObserver)
+    stubRect(48, 120, 800, 450)
+    renderWithProviders(<VideoPreviewDialog entry={entry} onClose={() => {}} />)
+    await waitFor(() => {
+      expect(openCalls()).toHaveLength(1)
+    })
+    mockInvoke.mockClear()
+
+    // A real window resize can push the placeholder past its size caps in
+    // the same interaction: the observer and the viewport listener both
+    // fire inside one debounce window. Sharing `schedule` must collapse
+    // them into a single set_position carrying the latest rect.
+    stubRect(160, 200, 640, 360)
+    const observer = MockResizeObserver.instances.at(-1)!
+    vi.useFakeTimers()
+    act(() => {
+      observer.callback([], {} as ResizeObserver)
+      window.dispatchEvent(new Event('resize'))
+    })
+    vi.advanceTimersByTime(100)
+
+    expect(syncCalls()).toHaveLength(1)
+    expect(syncCalls()[0]).toEqual([
+      'sync_preview_player',
+      { rect: { x: 160, y: 200, width: 640, height: 360 } },
+    ])
+  })
+
   it('drops a pending debounced sync when the entry goes null first', async () => {
     vi.stubGlobal('ResizeObserver', MockResizeObserver)
     stubRect(48, 120, 800, 450)
@@ -241,6 +297,35 @@ describe('VideoPreviewDialog (official embed overlay)', () => {
     // Dialog closes before the debounce elapses: the cleanup must clear
     // the pending timer so no stale geometry sync lands after the close.
     rerender(wrapped(<VideoPreviewDialog entry={null} onClose={() => {}} />))
+    vi.advanceTimersByTime(200)
+
+    expect(syncCalls()).toHaveLength(0)
+    expect(closeCalls()).toHaveLength(1)
+  })
+
+  it('drops a pending viewport-resize sync and detaches the listener on close', async () => {
+    vi.stubGlobal('ResizeObserver', MockResizeObserver)
+    stubRect(48, 120, 800, 450)
+    const { rerender } = render(
+      wrapped(<VideoPreviewDialog entry={entry} onClose={() => {}} />),
+    )
+    await waitFor(() => {
+      expect(openCalls()).toHaveLength(1)
+    })
+    mockInvoke.mockClear()
+
+    vi.useFakeTimers()
+    act(() => {
+      window.dispatchEvent(new Event('resize'))
+    })
+    // Dialog closes before the debounce elapses: the cleanup must clear
+    // the pending timer AND remove the viewport listener, or later
+    // resizes keep syncing a stale rect over the closed overlay.
+    rerender(wrapped(<VideoPreviewDialog entry={null} onClose={() => {}} />))
+    vi.advanceTimersByTime(200)
+    act(() => {
+      window.dispatchEvent(new Event('resize'))
+    })
     vi.advanceTimersByTime(200)
 
     expect(syncCalls()).toHaveLength(0)
