@@ -152,6 +152,20 @@ pub fn show_splash(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Shows the main window after its frontend has mounted. Called via
+/// `show_main` from App's first effect — the window is created hidden by
+/// `create_main_window`, so without this call it never appears.
+#[tauri::command]
+// Why coverage(off): directly drives the OS window (show/focus); no headless equivalent — injection cost outweighs value (issue #646 policy 4).
+#[cfg_attr(coverage, coverage(off))]
+pub fn show_main(app: AppHandle) -> Result<(), String> {
+    if let Some(main) = app.get_webview_window("main") {
+        main.show().map_err(|e| format!("{e}"))?;
+        main.set_focus().map_err(|e| format!("{e}"))?;
+    }
+    Ok(())
+}
+
 /// Creates the main application window with saved or default geometry.
 ///
 /// Built resizable (no splash-time lock) so the OS-native maximize clamps to
@@ -169,7 +183,13 @@ pub fn create_main_window(
     let mut builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
         .title(window_title(&app.package_info().version.to_string()))
         .theme(theme.or(Some(Theme::Light)))
-        .min_inner_size(MIN_WIDTH, MIN_HEIGHT);
+        .min_inner_size(MIN_WIDTH, MIN_HEIGHT)
+        // Why visible(false): until the webview's first paint the window
+        // shows WebView2's default white background, which flashed between
+        // the splash closing and the app UI appearing. The frontend reveals
+        // the window via `show_main` once React has mounted (same pattern as
+        // the splash window's `show_splash`).
+        .visible(false);
 
     // Maximized restoration branches by platform because the correct approach
     // differs between Windows and macOS.
@@ -197,14 +217,14 @@ pub fn create_main_window(
         {
             // Why: set the saved (pre-maximize normal) geometry as inner_size
             // so un-maximizing auto-restores the previous size. Build
-            // invisible, then maximize, then show so the normal-size frame
-            // never flashes on screen.
+            // invisible and maximized so the normal-size frame never flashes
+            // on screen; the reveal is deferred to `show_main`.
             if let Some(geo) = &geometry {
                 builder = builder
                     .inner_size(geo.width, geo.height)
                     .position(geo.x, geo.y);
             }
-            builder = builder.visible(false).maximized(true);
+            builder = builder.maximized(true);
         }
         #[cfg(not(target_os = "windows"))]
         {
@@ -222,17 +242,11 @@ pub fn create_main_window(
         };
     }
 
-    let window = builder.build()?;
+    builder.build()?;
 
-    // Why: on Windows the window was built invisible (visible(false)) to avoid
-    // flashing the normal-size frame before maximization is applied. Reveal it
-    // once the maximized frame is in place.
-    #[cfg(target_os = "windows")]
-    if should_maximize {
-        let _ = window.show();
-    }
-
-    window.set_focus()?;
+    // No show()/set_focus() here: the window stays hidden until the frontend
+    // has painted and invoked `show_main` (see show_main above). On Windows,
+    // that show() also flushes the pending maximized frame built above.
     Ok(())
 }
 

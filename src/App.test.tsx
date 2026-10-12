@@ -3,9 +3,10 @@ import { mockInvoke, renderWithProviders } from '@/test/test-utils'
 import { screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Routing smoke: every page is replaced by a marker so this file asserts
-// ONLY the route table — which page component each path mounts. Page
-// internals are covered by their own suites.
+// Routing smoke: every page is replaced by a marker so the routing tests
+// assert ONLY the route table — which page component each path mounts.
+// Page internals are covered by their own suites. The window-reveal
+// describe below covers App's useRevealMainWindow wiring.
 vi.mock('@/pages', () => ({
   default: () => <div>page:index</div>,
 }))
@@ -54,18 +55,18 @@ function expectVisible(marker: string) {
   expect(el).toBeVisible()
 }
 
-describe('App routing', () => {
-  beforeEach(() => {
-    // The real layout shell's GitHubStars chains .then on invoke() and
-    // formats the star count; the bare vi.fn() from setup returns
-    // undefined, so give the relevant commands concrete payloads.
-    mockInvoke.mockImplementation((cmd: string) =>
-      cmd === 'get_repo_stars'
-        ? Promise.resolve(1234)
-        : Promise.resolve(undefined),
-    )
-  })
+// Shared by both describes: the real layout shell's GitHubStars chains
+// .then on invoke() and formats the star count; the bare vi.fn() from
+// setup returns undefined, so give the relevant commands concrete payloads.
+beforeEach(() => {
+  mockInvoke.mockImplementation((cmd: string) =>
+    cmd === 'get_repo_stars'
+      ? Promise.resolve(1234)
+      : Promise.resolve(undefined),
+  )
+})
 
+describe('App routing', () => {
   it.each([
     ['/', 'page:index'],
     ['/init', 'page:init'],
@@ -90,5 +91,16 @@ describe('App routing', () => {
 
     expect(screen.getByText('page:search')).toBeInTheDocument()
     expect(screen.queryByText('page:index')).not.toBeInTheDocument()
+  })
+})
+
+describe('App window reveal', () => {
+  it('invokes show_main on mount to reveal the hidden main window', () => {
+    renderWithProviders(<App />)
+
+    // The Rust side builds the main window with visible(false) (anti-flash);
+    // App's useRevealMainWindow is the only reveal path — without this
+    // invoke the app never becomes visible.
+    expect(mockInvoke).toHaveBeenCalledWith('show_main')
   })
 })

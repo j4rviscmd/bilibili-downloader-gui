@@ -11,6 +11,7 @@ import { UpdateNotification } from '@/features/updater'
 import IndexPage from '@/pages'
 import ErrorPage from '@/pages/error'
 import InitPage from '@/pages/init'
+import { useRevealMainWindow } from '@/shared/hooks/useRevealMainWindow'
 import { PersistentPageLayout } from '@/shared/layout/PersistentPageLayout'
 import { Toaster } from '@/shared/ui/toaster'
 import '@/styles/global.css'
@@ -24,6 +25,7 @@ function App() {
   useFontSizeShortcuts()
   useTaskbarProgress()
   useDownloadCompletionNotifications()
+  useRevealMainWindow()
 
   useEffect(() => {
     if (import.meta.env.DEV) return
