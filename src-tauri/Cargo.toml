@@ -106,6 +106,35 @@ windows-core = "0.61"
 # no extra code is compiled in. NSResponder is required too: it gates
 # the NSWindow class and frame()/contentLayoutRect() themselves.
 objc2-app-kit = { version = "0.2", features = ["NSWindow", "NSResponder"] }
+# Preview overlay session cookies: WKHTTPCookieStore is the only macOS API
+# that stores a DOMAIN cookie with its leading dot intact — tauri's
+# `Webview::set_cookie` round-trips through the `cookie` crate's
+# `domain()` getter, which strips the dot, and the cookie then lands
+# host-only for `bilibili.com` (measured 2026-10-12: the preview page's
+# requests carried no session → logged-out player). wry already builds
+# objc2-web-kit 0.3.1 and objc2-foundation 0.3.1 (and tauri builds objc2 /
+# block2), so these add no new compiled code.
+objc2 = "0.6"
+objc2-foundation = { version = "0.3.1", features = ["NSDictionary", "NSHTTPCookie", "NSString"] }
+objc2-web-kit = { version = "0.3.1", features = [
+  "WKHTTPCookieStore",
+  "WKWebView",
+  "WKWebViewConfiguration",
+  "WKWebsiteDataStore",
+  "block2",
+] }
+block2 = "0.6"
+
+[target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))'.dependencies]
+# Same defect as the macOS arm above: the portable `set_cookie` path
+# writes a host-only cookie, so the preview's Linux/BSD build injects
+# session cookies through WebKitGTK's own cookie manager instead.
+# Versions are pinned to the copies tauri-runtime-wry already builds —
+# a different webkit2gtk minor would be a separate crate instance and
+# `PlatformWebview::inner()` would not type-check against it.
+webkit2gtk = "=2.0.2"
+soup3 = "0.5"
+gio = "0.18"
 
 [dev-dependencies]
 # Why: declared up front (PR R1 of the test-coverage plan) so later PRs add

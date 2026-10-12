@@ -92,6 +92,29 @@ fn overlay_bounds_for(main: &tauri::Window, rect: OverlayRect) -> Result<tauri::
     }
 }
 
+/// Domain of every injected session cookie.
+///
+/// The LEADING DOT is load-bearing: it makes these domain cookies, which
+/// the engine sends to every `bilibili.com` host (the player page's
+/// `www.`, its API's `api.`, …). Without it they degrade to host-only
+/// cookies for the bare host `bilibili.com`, which the page's own
+/// requests never receive — measured 2026-10-12: the store read back
+/// `domain=bilibili.com`, the page's nav API answered `isLogin:0` and
+/// the quality menu capped at 480p.
+///
+/// This constant exists because the `cookie` crate's `Cookie::domain()`
+/// getter returns the RFC 6265 canonical form with the dot stripped, so
+/// `Webview::set_cookie` cannot express a domain cookie at all. Every
+/// platform therefore writes through its native cookie store (Windows
+/// WebView2 CookieManager, macOS WKHTTPCookieStore, Linux/BSD WebKitGTK
+/// cookie manager) and passes this string — see
+/// `cookie_domain_survives_as_a_domain_cookie` for the regression guard.
+const COOKIE_DOMAIN: &str = ".bilibili.com";
+
+/// Path of every injected session cookie: bilibili serves everything
+/// the player needs under `/`.
+const COOKIE_PATH: &str = "/";
+
 /// Session cookie pairs to mirror into the webview, filtered to the
 /// Bilibili domain (the Firefox import may carry other hosts).
 pub fn bilibili_cookie_pairs(
@@ -115,9 +138,14 @@ pub fn bilibili_cookie_pairs(
 /// Returns the injected pair count (0 when logged out — the player then
 /// degrades to anonymous quality, which still plays).
 ///
-/// Windows uses the WebView2 CookieManager directly: tauri's `set_cookie`
-/// loses the domain dot and produces host-only cookies the player
-/// subdomain never receives (measured 2026-10-11 — see the module docs).
+/// Every platform writes the cookies through its native cookie store
+/// rather than tauri's `Webview::set_cookie`: that API round-trips the
+/// domain through the `cookie` crate's `domain()` getter, whose
+/// canonical form drops the leading dot, so the cookie lands host-only
+/// and the player's own hosts never receive it (measured 2026-10-11 on
+/// Windows, 2026-10-12 on macOS — the macOS player showed a logged-out,
+/// 480p-capped page while the app itself was logged in). See
+/// [`COOKIE_DOMAIN`].
 pub fn inject_session_cookies(app: &tauri::AppHandle) -> Result<usize, String> {
     let entries = crate::handlers::cookie::read_cookie(app)?.unwrap_or_default();
     let pairs = bilibili_cookie_pairs(&entries);
@@ -137,12 +165,20 @@ pub fn inject_session_cookies(app: &tauri::AppHandle) -> Result<usize, String> {
         .ok_or("ERR::PREVIEW_NO_MAIN_WINDOW")?;
     #[cfg(windows)]
     inject_pairs_win(&main, &pairs)?;
-    #[cfg(not(windows))]
-    inject_pairs_portable(&main, &pairs)?;
+    #[cfg(target_os = "macos")]
+    inject_pairs_mac(&main, &pairs)?;
+    #[cfg(any(
+        target_os = "linux",
+        target_os = "dragonfly",
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd"
+    ))]
+    inject_pairs_gtk(&main, &pairs)?;
     Ok(pairs.len())
 }
 
-/// Windows: domain cookies (`.bilibili.com`) via the WebView2
+/// Windows: domain cookies ([`COOKIE_DOMAIN`]) via the WebView2
 /// CookieManager COM API.
 #[cfg(windows)]
 fn inject_pairs_win(webview: &tauri::Webview, pairs: &[(String, String)]) -> Result<(), String> {
@@ -158,8 +194,8 @@ fn inject_pairs_win(webview: &tauri::Webview, pairs: &[(String, String)]) -> Res
                 let core = unsafe { controller.CoreWebView2() }.map_err(|e| e.to_string())?;
                 let core2: w32::ICoreWebView2_2 = core.cast().map_err(|e| e.to_string())?;
                 let manager = unsafe { core2.CookieManager() }.map_err(|e| e.to_string())?;
-                let domain = windows_core::HSTRING::from(".bilibili.com");
-                let path = windows_core::HSTRING::from("/");
+                let domain = windows_core::HSTRING::from(COOKIE_DOMAIN);
+                let path = windows_core::HSTRING::from(COOKIE_PATH);
                 for (name, value) in pairs {
                     let n = windows_core::HSTRING::from(name.as_str());
                     let v = windows_core::HSTRING::from(value.as_str());
@@ -176,23 +212,170 @@ fn inject_pairs_win(webview: &tauri::Webview, pairs: &[(String, String)]) -> Res
         .map_err(|e| e.to_string())?
 }
 
-/// macOS/Linux: tauri's `set_cookie` (WKHTTPCookieStore / soup cookie
-/// jar). Domain-dot behavior on these engines is a live-verification
-/// item (macOS e2e); worst case the player degrades to anonymous.
-#[cfg(not(windows))]
-fn inject_pairs_portable(
-    webview: &tauri::Webview,
-    pairs: &[(String, String)],
-) -> Result<(), String> {
-    for (name, value) in pairs {
-        let cookie = tauri::webview::cookie::Cookie::build((name.as_str(), value.as_str()))
-            .domain(".bilibili.com")
-            .path("/")
-            .secure(true)
-            .build();
-        webview.set_cookie(cookie).map_err(|e| e.to_string())?;
-    }
-    Ok(())
+/// macOS: domain cookies ([`COOKIE_DOMAIN`]) written straight into the
+/// WKHTTPCookieStore of the webview's data store.
+///
+/// Same workaround as the Windows arm: tauri's `set_cookie` reaches the
+/// store through wry's NSHTTPCookie conversion, which builds the domain
+/// from the `cookie` crate's dot-stripping getter — the store then holds
+/// `bilibili.com` (host-only) instead of `.bilibili.com` and the page's
+/// requests go out without the session (measured 2026-10-12: store
+/// readback `domain=bilibili.com`, page `nav` answered `isLogin:0`,
+/// quality capped at 480p).
+#[cfg(target_os = "macos")]
+fn inject_pairs_mac(webview: &tauri::Webview, pairs: &[(String, String)]) -> Result<(), String> {
+    use objc2::rc::Retained;
+    use objc2::runtime::AnyObject;
+    use objc2_foundation::{
+        ns_string, NSHTTPCookie, NSHTTPCookieDomain, NSHTTPCookieName, NSHTTPCookiePath,
+        NSHTTPCookiePropertyKey, NSHTTPCookieSecure, NSHTTPCookieValue, NSMutableDictionary,
+        NSString,
+    };
+    use objc2_web_kit::{WKHTTPCookieStore, WKWebView};
+    use std::cell::Cell;
+    use std::rc::Rc;
+
+    let pairs = pairs.to_vec();
+    let (tx, rx) = std::sync::mpsc::channel::<Result<(), String>>();
+    webview
+        .with_webview(move |pw| {
+            let result = (|| -> Result<(), String> {
+                let raw = pw.inner();
+                if raw.is_null() {
+                    return Err("ERR::PREVIEW_NO_WEBVIEW".to_string());
+                }
+                // Safety: with_webview runs on the main thread and
+                // inner() is the WKWebView backing this webview for as
+                // long as it exists (the injection does not outlive it).
+                let wk: &WKWebView = unsafe { &*(raw as *const WKWebView) };
+                let store: Retained<WKHTTPCookieStore> =
+                    unsafe { wk.configuration().websiteDataStore().httpCookieStore() };
+                // Why the counter instead of blocking in here: this
+                // closure runs on the main thread and the store's
+                // completion handlers are dispatched on the main queue,
+                // so waiting here would deadlock. The caller (a worker
+                // thread) waits on the channel instead; the main run loop
+                // keeps spinning, so the handlers fire and only the last
+                // one wakes the caller — by then every cookie is stored.
+                let remaining = Rc::new(Cell::new(pairs.len()));
+                for (name, value) in &pairs {
+                    let name = NSString::from_str(name);
+                    let value = NSString::from_str(value);
+                    let path = NSString::from_str(COOKIE_PATH);
+                    let domain = NSString::from_str(COOKIE_DOMAIN);
+                    // Safety: the property keys are extern statics (plain
+                    // reads of `&'static NSHTTPCookiePropertyKey`) and
+                    // cookieWithProperties copies what it needs out of the
+                    // dictionary; this runs on the main thread (see the
+                    // with_webview note above).
+                    let cookie = unsafe {
+                        let properties: Retained<
+                            NSMutableDictionary<NSHTTPCookiePropertyKey, AnyObject>,
+                        > = NSMutableDictionary::from_slices(
+                            &[
+                                NSHTTPCookieName,
+                                NSHTTPCookieValue,
+                                NSHTTPCookiePath,
+                                NSHTTPCookieDomain,
+                            ],
+                            &[&name, &value, &path, &domain],
+                        );
+                        let secure: &'static NSString = ns_string!("TRUE");
+                        properties.insert(NSHTTPCookieSecure, secure);
+                        NSHTTPCookie::cookieWithProperties(&properties)
+                    }
+                    .ok_or("ERR::PREVIEW_COOKIE_INVALID")?;
+                    let tx = tx.clone();
+                    let remaining = Rc::clone(&remaining);
+                    let stored = block2::RcBlock::new(move || {
+                        let left = remaining.get() - 1;
+                        remaining.set(left);
+                        if left == 0 {
+                            let _ = tx.send(Ok(()));
+                        }
+                    });
+                    unsafe { store.setCookie_completionHandler(&cookie, Some(&stored)) };
+                }
+                Ok(())
+            })();
+            if let Err(e) = result {
+                let _ = tx.send(Err(e));
+            }
+        })
+        .map_err(|e| e.to_string())?;
+    // Why: a plain recv() would hang forever if a store completion handler
+    // never fires. The cap degrades that case to an Err instead; 10s (not
+    // the 1s used elsewhere) leaves room for every cookie's async callback.
+    rx.recv_timeout(std::time::Duration::from_secs(10))
+        .map_err(|e| e.to_string())?
+}
+
+/// Linux/BSD: domain cookies ([`COOKIE_DOMAIN`]) written into
+/// WebKitGTK's own cookie manager.
+///
+/// The same wry defect applies here — `cookie_into_soup_cookie` builds
+/// the SoupCookie from the `cookie` crate's dot-stripping getter — so
+/// the portable `set_cookie` path is equally host-only on this engine.
+/// CAUTION: compile-checked by CI (ubuntu) only; the GTK runtime path
+/// has no automated verification (E2E runs on macOS/Windows).
+#[cfg(any(
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "openbsd",
+    target_os = "netbsd"
+))]
+fn inject_pairs_gtk(webview: &tauri::Webview, pairs: &[(String, String)]) -> Result<(), String> {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+    use webkit2gtk::{CookieManagerExt, WebViewExt, WebsiteDataManagerExt};
+
+    let pairs = pairs.to_vec();
+    let (tx, rx) = std::sync::mpsc::channel::<Result<(), String>>();
+    webview
+        .with_webview(move |pw| {
+            let result = (|| -> Result<(), String> {
+                let manager = pw
+                    .inner()
+                    .website_data_manager()
+                    .and_then(|data| data.cookie_manager())
+                    .ok_or("ERR::PREVIEW_NO_COOKIE_MANAGER")?;
+                // Why a counter: add_cookie is asynchronous, and the
+                // caller must not create the player webview before the
+                // session is in the store (the WebKitGTK callbacks need
+                // the main loop this closure runs on to stay free).
+                let remaining = Arc::new(AtomicUsize::new(pairs.len()));
+                for (name, value) in &pairs {
+                    let mut cookie = soup3::Cookie::new(
+                        name.as_str(),
+                        value.as_str(),
+                        COOKIE_DOMAIN,
+                        COOKIE_PATH,
+                        -1,
+                    );
+                    cookie.set_secure(true);
+                    let tx = tx.clone();
+                    let remaining = Arc::clone(&remaining);
+                    manager.add_cookie(&mut cookie, None::<&gio::Cancellable>, move |res| {
+                        if let Err(e) = res {
+                            let _ = tx.send(Err(format!("ERR::PREVIEW_COOKIE_INVALID: {e}")));
+                        }
+                        if remaining.fetch_sub(1, Ordering::AcqRel) == 1 {
+                            let _ = tx.send(Ok(()));
+                        }
+                    });
+                }
+                Ok(())
+            })();
+            if let Err(e) = result {
+                let _ = tx.send(Err(e));
+            }
+        })
+        .map_err(|e| e.to_string())?;
+    // Why: same guard as the macOS arm — add_cookie callbacks can be dropped
+    // by the engine, so the cap degrades a hang to an Err instead.
+    rx.recv_timeout(std::time::Duration::from_secs(10))
+        .map_err(|e| e.to_string())?
 }
 
 /// Serialized rect from the webview (CSS px relative to the viewport).
@@ -894,6 +1077,33 @@ mod tests {
                 ("SESSDATA".to_string(), "v-SESSDATA".to_string()),
                 ("bili_jct".to_string(), "v-bili_jct".to_string()),
             ]
+        );
+    }
+
+    /// The injection's domain must reach the store as a DOMAIN cookie.
+    ///
+    /// This pins the two facts the native platform paths exist for: tauri's
+    /// `set_cookie` cannot carry the leading dot (the `cookie` crate's
+    /// `domain()` getter returns the RFC 6265 canonical form without it),
+    /// and [`COOKIE_DOMAIN`] itself keeps it. Losing the dot turns the
+    /// session cookies host-only for the bare host `bilibili.com`, which
+    /// `www.` / `api.bilibili.com` never receive — the preview player then
+    /// runs logged-out at 480p (user report 2026-10-12, macOS).
+    #[test]
+    fn cookie_domain_survives_as_a_domain_cookie() {
+        let cookie = tauri::webview::cookie::Cookie::build(("SESSDATA", "x"))
+            .domain(COOKIE_DOMAIN)
+            .path(COOKIE_PATH)
+            .secure(true)
+            .build();
+        assert_eq!(
+            cookie.domain(),
+            Some("bilibili.com"),
+            "the crate getter strips the dot — this is why no platform uses Webview::set_cookie"
+        );
+        assert!(
+            COOKIE_DOMAIN.starts_with('.'),
+            "the dot is what makes the injected cookies domain cookies"
         );
     }
 
