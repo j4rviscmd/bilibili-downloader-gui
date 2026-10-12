@@ -35,7 +35,8 @@ const SYNC_DEBOUNCE_MS = 50
  * rect, inside the main window — one OS window, so app switchers and
  * z-order follow the main app. Opening measures the rect after the
  * dialog layout settles, resizing keeps the overlay glued, closing
- * removes the webview.
+ * hides the overlay (its page is killed and the webview reused for
+ * the next preview).
  */
 export function VideoPreviewDialog({
   entry,

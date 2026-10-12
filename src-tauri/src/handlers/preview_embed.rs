@@ -496,6 +496,9 @@ pub async fn open_preview_player(
     // Re-apply so a retarget onto a moved dialog re-glues; on first
     // creation this is a no-op (the bounds were the creation bounds).
     webview.set_bounds(bounds).map_err(|e| e.to_string())?;
+    // Re-show for the reuse path: close_preview_player hides the overlay
+    // instead of destroying it (see there why). No-op on first creation.
+    webview.show().map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -532,10 +535,30 @@ pub async fn pause_preview_player(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 /// Closes the overlay (dialog closed / entry switched).
+///
+/// Why hide + navigate instead of `close()`: on macOS a dropped webview
+/// does not go away — AppKit retains subviews, so the WKWebView stays in
+/// the parent view (window-close path: measured 2026-10-12 with weak
+/// refs, #831; the in-window webview has the same retention via the
+/// parent NSView) while tauri's manager forgets it. The page would keep
+/// running its JS and audio in the background, and the next open would
+/// stack a second webview over the dead one. Instead this takes the
+/// webview off screen immediately, pauses the media (instant silence),
+/// and navigates to about:blank, which destroys the document — the only
+/// reliable kill for the page's scripts and player. The hidden webview
+/// is intentionally kept and reused by the next open (the retarget arm
+/// in open_preview_player), so repeated previews leak nothing.
 #[tauri::command]
 pub async fn close_preview_player(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(webview) = app.get_webview(PREVIEW_PLAYER_LABEL) {
-        let _ = webview.close();
+        // Instant UX: the overlay disappears from screen first.
+        let _ = webview.hide();
+        // Audio stops now; the blank navigation that follows kills the
+        // document itself (a pause alone would let the player auto-resume).
+        // It commits in the background — nothing closes the webview, so the
+        // navigation cannot be raced by teardown.
+        let _ = webview.eval(PAUSE_PLAYBACK);
+        let _ = webview.eval("location.replace('about:blank')");
     }
     Ok(())
 }
