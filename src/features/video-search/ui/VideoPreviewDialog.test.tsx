@@ -161,6 +161,83 @@ describe('VideoPreviewDialog (official embed overlay)', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert')).toBeTruthy()
     })
+    // A local overlay failure keeps the generic retry message.
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'videoSearch.previewOpenFailed',
+    )
+  })
+
+  it('shows the preview-specific message when the video is refused', async () => {
+    // Why: a deleted / private / region-restricted video comes back as
+    // ERR::VIDEO_NOT_FOUND from the backend gate before the overlay opens
+    // (preview_embed.rs ensure_preview_available). The generic "couldn't
+    // open" text would invite a retry that can never succeed, and the
+    // global video_not_found text ("check the URL") is wrong for a
+    // search-result entry — the URL is fine, the video is not.
+    stubRect(48, 120, 800, 450)
+    // invoke rejects with the plain backend string, not an Error.
+    mockInvoke.mockRejectedValue('ERR::VIDEO_NOT_FOUND')
+    renderWithProviders(<VideoPreviewDialog entry={entry} onClose={() => {}} />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'videoSearch.previewVideoUnavailable',
+      )
+    })
+    expect(screen.queryByText('videoSearch.previewOpenFailed')).toBeNull()
+    expect(screen.queryByText('video.video_not_found')).toBeNull()
+  })
+
+  it('drops a refusal that lands after the entry already switched', async () => {
+    stubRect(48, 120, 800, 450)
+    // Hold every open pending so A's rejection can be landed deliberately,
+    // after B has taken over the dialog. Deferred manual promise:
+    // Promise.withResolvers needs lib es2024 and tsconfig.app.json pins
+    // ES2022 (same note as VideoSearchInput.test.tsx).
+    const rejectOpen: Array<(e: unknown) => void> = []
+    mockInvoke.mockImplementation((cmd: string) =>
+      cmd === 'open_preview_player'
+        ? new Promise((_resolve, reject) => rejectOpen.push(reject))
+        : Promise.resolve(undefined),
+    )
+    const entryB: VideoSearchEntry = { ...entry, bvid: 'BV1De411p77s' }
+    const { rerender } = render(
+      wrapped(<VideoPreviewDialog entry={entry} onClose={() => {}} />),
+    )
+    await waitFor(() => {
+      expect(openCalls()).toHaveLength(1)
+    })
+
+    rerender(wrapped(<VideoPreviewDialog entry={entryB} onClose={() => {}} />))
+    await waitFor(() => {
+      expect(openCalls()).toHaveLength(2)
+    })
+
+    // A's refusal resolves last. The dialog is showing B, so the stale
+    // "can't be previewed" alert must not surface over B's overlay —
+    // same cancellation flag as the pending-open case, on the error path.
+    await act(async () => {
+      rejectOpen[0]('ERR::VIDEO_NOT_FOUND')
+      // Drain the rejection through the await/catch microtasks, so the
+      // negative assertion below cannot pass vacuously.
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('still surfaces the retry message when the rejection carries no message', async () => {
+    stubRect(48, 120, 800, 450)
+    // invoke can reject with a message-less error: the state must stay
+    // distinguishable from "no failure", or the placeholder is a silent
+    // black box (the pre-change truthiness render had exactly that hole).
+    mockInvoke.mockRejectedValue('')
+    renderWithProviders(<VideoPreviewDialog entry={entry} onClose={() => {}} />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'videoSearch.previewOpenFailed',
+      )
+    })
   })
 
   it('syncs the overlay when the placeholder resizes (debounced)', async () => {

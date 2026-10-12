@@ -8,6 +8,7 @@ import {
 import { buildVideoUrl } from '@/features/video/lib/utils'
 import { usePendingDownload } from '@/shared/hooks/usePendingDownload'
 import { logger } from '@/shared/lib/logger'
+import { mapBackendError } from '@/shared/lib/mapBackendError'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { Download, ExternalLink } from 'lucide-react'
@@ -62,7 +63,10 @@ export function VideoPreviewDialog({
   const [placeholderEl, setPlaceholderEl] = useState<HTMLDivElement | null>(
     null,
   )
-  const [error, setError] = useState(false)
+  // Rejected open, as the raw backend string (null = no failure). Kept
+  // raw rather than a boolean so the refused-video code can be told apart
+  // from a local overlay failure (see errorText below).
+  const [error, setError] = useState<string | null>(null)
 
   // Whether an entry has been previewed since mount — gates the close
   // call so an always-mounted dialog (entry starts null) does not fire a
@@ -83,7 +87,7 @@ export function VideoPreviewDialog({
       return
     }
     hadEntryRef.current = true
-    setError(false)
+    setError(null)
     let cancelled = false
     const open = async () => {
       const el = placeholderEl
@@ -96,8 +100,11 @@ export function VideoPreviewDialog({
           width: r.width,
           height: r.height,
         })
-      } catch {
-        if (!cancelled) setError(true)
+      } catch (e) {
+        // Why this shape: invoke rejects with a plain string for backend
+        // ERR::* codes and an Error elsewhere (same normalization as
+        // app/lib/invokeErrorHandler).
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e))
       }
     }
     const id = requestAnimationFrame(() =>
@@ -190,6 +197,25 @@ export function VideoPreviewDialog({
     return () => unlisten?.()
   }, [entry])
 
+  // ERR::* code → message. Only the refused-video code gets preview-
+  // specific text: the global video_not_found message ends with "check
+  // the URL", which fits the URL-input page but not a search-result
+  // entry — the view API refused the video itself (deleted / private /
+  // region-restricted while the search index still lists it), so the URL
+  // is fine. Everything else keeps the generic retry message: overlay
+  // failures are local (missing main window, URL parse) and their code
+  // alone would not tell the user anything actionable.
+  // Why `!== null` and not a truthiness check: `error` is only ever set
+  // from a catch, so an empty rejection message must still render
+  // feedback instead of a silent black box.
+  let errorText: string | null = null
+  if (error !== null) {
+    errorText =
+      mapBackendError(error) === 'video.video_not_found'
+        ? t('videoSearch.previewVideoUnavailable')
+        : t('videoSearch.previewOpenFailed')
+  }
+
   return (
     <Dialog
       open={entry !== null}
@@ -213,12 +239,12 @@ export function VideoPreviewDialog({
             positions the player window over (see preview_embed.rs). */}
         <div className="relative aspect-video max-h-[75vh] w-full overflow-hidden rounded-md bg-black">
           <div ref={setPlaceholderEl} className="h-full w-full" />
-          {error && (
+          {errorText && (
             <div
               role="alert"
               className="text-muted-foreground absolute inset-0 flex items-center justify-center p-4 text-center text-sm"
             >
-              {t('videoSearch.previewOpenFailed')}
+              {errorText}
             </div>
           )}
         </div>

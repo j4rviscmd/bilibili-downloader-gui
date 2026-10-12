@@ -27,6 +27,8 @@
 //! 2026-10-11 with input delivery verified correct at every layer. The
 //! full page has none of these quirks.
 
+use crate::handlers::bilibili::{fetch_wbi_view, BiliApi};
+use crate::handlers::cookie::read_cookie;
 use tauri::Manager;
 
 /// Official video page URL for one search result. The bvid is validated
@@ -455,6 +457,19 @@ const HIDE_VIDEO_PAGE_CHROME: &str = r#"(() => {
      the artifact. Arms only in web mode; re-arms if bpx swaps the
      <video> element (isConnected guard). Engines without rVFC degrade
      to the old immediate reveal.
+     A presented frame alone is NOT sufficient (user report 2026-10-12,
+     second round), and no DOM-side condition can repair it: frame
+     capture that day showed the cover lifting onto a video painted as a
+     small quad in the preview area's top-left for ~1s while the DOM was
+     already at its final size — the player's control bar spanned the
+     full area and the <video> rect matched the player container, so
+     rect-stability, a settle delay and a container-width ratio were all
+     satisfied (each was tried and reverted, the ratio even pinned the
+     cover up entirely), and forcing the video onto its own composited
+     layer (transform: translateZ(0)) changed nothing either. Raising
+     the gate further only delays a reveal that stays wrong, so it is
+     left as-is; the residual artifact is a WebView2 compositing issue
+     (Windows-only) that the fade below reduces but does not remove.
      pointerdown reveals as well: with autoplay blocked the player's
      big play button sits under the cover — a blind click must not wait
      out the 25s fallback. The handler uncovers directly (like the
@@ -499,6 +514,12 @@ const HIDE_VIDEO_PAGE_CHROME: &str = r#"(() => {
       return;
     }
     run();
+    /* Why a real timer next to run()'s own fallback check: run() is
+       driven by DOM mutations, so a page that stops mutating after the
+       gate armed (autoplay blocked, player paused) would never reach
+       that check and the cover would stay up forever. reveal() is
+       idempotent (uncovering is one-shot). */
+    setTimeout(reveal, REVEAL_FALLBACK_MS);
     document.addEventListener('DOMContentLoaded', () => run());
     new MutationObserver(() => run()).observe(document.documentElement, {
       childList: true, subtree: true,
@@ -565,6 +586,35 @@ fn hook_esc_relay(webview: &tauri::Webview, app: &tauri::AppHandle) -> Result<()
         .map_err(|e| e.to_string())
 }
 
+/// Whether the overlay may show this video at all.
+///
+/// Why a pre-check: Bilibili answers HTTP 200 for the page of a bvid it
+/// refuses (deleted / private / region-restricted) and renders the 404
+/// client-side, so the page URL carries no signal (measured 2026-10-12).
+/// The overlay would sit on its loading cover and then reveal whatever
+/// Bilibili falls back to — reported 2026-10-12: spins, then the top
+/// page. The view API is the only way to know before showing anything.
+///
+/// Fail-open: only a definitive `-404` (`ERR::VIDEO_NOT_FOUND`) blocks
+/// the preview. A transient failure (network, risk control, minted
+/// voucher, `ERR::API_ERROR`) must never turn into "preview is broken" —
+/// the page itself may still play.
+///
+/// Takes the api rather than the AppHandle so wiremock tests can point
+/// it at a local server (same seam as `fetch_wbi_view`).
+async fn ensure_preview_available(api: &BiliApi, bvid: &str) -> Result<(), String> {
+    match fetch_wbi_view(api, bvid).await {
+        Ok(_) => Ok(()),
+        Err(e) if e == "ERR::VIDEO_NOT_FOUND" => Err(e),
+        Err(e) => {
+            log::warn!(
+                "[BE] ensure_preview_available: check for bvid={bvid} failed ({e}); opening the preview anyway"
+            );
+            Ok(())
+        }
+    }
+}
+
 /// Opens (or retargets) the official-player overlay webview over the
 /// dialog's placeholder rect.
 #[tauri::command]
@@ -580,9 +630,22 @@ pub async fn open_preview_player(
     bvid: String,
     rect: OverlayRectDto,
 ) -> Result<(), String> {
-    // Cookies first: the child starts loading as soon as it is built.
-    inject_session_cookies(&app)?;
+    // bvid validation first: a malformed id needs no network round trip.
     let url = video_page_url(&bvid)?;
+    // Gate before any webview work: a refused video must not open at all
+    // (see ensure_preview_available). Cookies are optional here — the
+    // WBI-signed view API accepts anonymous requests, which is also the
+    // player's own logged-out state.
+    let cookies = read_cookie(&app).ok().flatten().unwrap_or_default();
+    match BiliApi::from_cookies(&cookies) {
+        Ok(api) => ensure_preview_available(&api, &bvid).await?,
+        // Fail-open: an unbuildable client cannot prove the video is gone.
+        Err(e) => {
+            log::warn!("[BE] open_preview_player: availability check skipped for bvid={bvid} ({e})")
+        }
+    }
+    // Cookies next: the child starts loading as soon as it is built.
+    inject_session_cookies(&app)?;
     let main = app
         .get_window("main")
         .ok_or("ERR::PREVIEW_NO_MAIN_WINDOW")?;
@@ -879,5 +942,92 @@ mod tests {
         assert!(handle.get_webview_window("main").is_none());
         // The lookup used by inject_session_cookies.
         assert_eq!(handle.get_webview("main").unwrap().label(), "main");
+    }
+
+    // ---- availability gate (wiremock) ----
+
+    /// Mounts the `/x/web-interface/nav` hop every WBI call starts with.
+    async fn mount_nav(server: &wiremock::MockServer) {
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/nav"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0", "ttl": 1,
+                    "data": { "isLogin": false, "mid": 0, "uname": "",
+                              "wbi_img": { "img_url": "i", "sub_url": "s" } }
+                })),
+            )
+            .mount(server)
+            .await;
+    }
+
+    /// Mounts the view response the gate reads.
+    async fn mount_view(server: &wiremock::MockServer, body: serde_json::Value) {
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/wbi/view"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(body))
+            .mount(server)
+            .await;
+    }
+
+    /// Gate api over `server`, logged out (empty Cookie header): the
+    /// check must work for anonymous sessions too — that is also the
+    /// state the preview degrades to.
+    fn gate_api(server: &wiremock::MockServer) -> BiliApi {
+        BiliApi::new(reqwest::Client::new(), server.uri(), "")
+    }
+
+    #[tokio::test]
+    async fn availability_gate_blocks_refused_video() {
+        let server = wiremock::MockServer::start().await;
+        mount_nav(&server).await;
+        // -404 is what Bilibili answers for deleted / private /
+        // region-blocked videos (`validate_api_response`).
+        mount_view(
+            &server,
+            serde_json::json!({ "code": -404, "message": "啥都木有" }),
+        )
+        .await;
+
+        let err = ensure_preview_available(&gate_api(&server), "BV1deleted0")
+            .await
+            .unwrap_err();
+        assert_eq!(err, "ERR::VIDEO_NOT_FOUND");
+    }
+
+    #[tokio::test]
+    async fn availability_gate_allows_playable_video() {
+        let server = wiremock::MockServer::start().await;
+        mount_nav(&server).await;
+        mount_view(
+            &server,
+            serde_json::json!({
+                "code": 0, "message": "0",
+                "data": { "title": "playable", "pic": "p", "cid": 1, "pages": [] }
+            }),
+        )
+        .await;
+
+        assert!(ensure_preview_available(&gate_api(&server), "BV1playable0")
+            .await
+            .is_ok());
+    }
+
+    #[tokio::test]
+    async fn availability_gate_fails_open_on_other_api_errors() {
+        let server = wiremock::MockServer::start().await;
+        mount_nav(&server).await;
+        // Risk control / minted voucher answers are not proof the video is
+        // gone: blocking the preview on them would break a preview the
+        // page itself can still play.
+        mount_view(
+            &server,
+            serde_json::json!({ "code": -412, "message": "request was intercepted" }),
+        )
+        .await;
+
+        assert!(ensure_preview_available(&gate_api(&server), "BV1riskctl00")
+            .await
+            .is_ok());
     }
 }
