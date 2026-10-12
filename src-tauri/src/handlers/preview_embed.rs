@@ -29,17 +29,22 @@
 
 use tauri::Manager;
 
-/// Official video page URL for one search result. The bvid is validated
+/// Official video page URL for one preview target. The bvid is validated
 /// because it is interpolated into a URL — search entries are ours, but
-/// the trust boundary is here.
-pub fn video_page_url(bvid: &str) -> Result<String, String> {
+/// the trust boundary is here. `page` appends `?p=N` for multi-part
+/// videos (part > 1), mirroring the frontend `buildVideoUrl`.
+pub fn video_page_url(bvid: &str, page: Option<i32>) -> Result<String, String> {
     let body_ok = bvid.len() == 12
         && bvid.starts_with("BV")
         && bvid[2..].bytes().all(|b| b.is_ascii_alphanumeric());
     if !body_ok {
         return Err(format!("ERR::INVALID_BVID: {bvid}"));
     }
-    Ok(format!("https://www.bilibili.com/video/{bvid}"))
+    let page_query = page
+        .filter(|p| *p > 1)
+        .map(|p| format!("?p={p}"))
+        .unwrap_or_default();
+    Ok(format!("https://www.bilibili.com/video/{bvid}{page_query}"))
 }
 
 /// A rect in CSS/logical pixels relative to the main webview viewport,
@@ -578,11 +583,13 @@ fn hook_esc_relay(webview: &tauri::Webview, app: &tauri::AppHandle) -> Result<()
 pub async fn open_preview_player(
     app: tauri::AppHandle,
     bvid: String,
+    // Multi-part page (1-indexed); None/<=1 plays the first page.
+    page: Option<i32>,
     rect: OverlayRectDto,
 ) -> Result<(), String> {
     // Cookies first: the child starts loading as soon as it is built.
     inject_session_cookies(&app)?;
-    let url = video_page_url(&bvid)?;
+    let url = video_page_url(&bvid, page)?;
     let main = app
         .get_window("main")
         .ok_or("ERR::PREVIEW_NO_MAIN_WINDOW")?;
@@ -730,16 +737,31 @@ mod tests {
 
     #[test]
     fn video_page_url_builds_official_url() {
-        let url = video_page_url("BV1rZhC63Ek6").unwrap();
+        let url = video_page_url("BV1rZhC63Ek6", None).unwrap();
         assert_eq!(url, "https://www.bilibili.com/video/BV1rZhC63Ek6");
     }
 
     #[test]
+    fn video_page_url_appends_page_query_only_past_first_page() {
+        assert_eq!(
+            video_page_url("BV1rZhC63Ek6", Some(3)).unwrap(),
+            "https://www.bilibili.com/video/BV1rZhC63Ek6?p=3"
+        );
+        // First page and invalid pages carry no query (buildVideoUrl parity).
+        for page in [None, Some(1), Some(0), Some(-2)] {
+            assert_eq!(
+                video_page_url("BV1rZhC63Ek6", page).unwrap(),
+                "https://www.bilibili.com/video/BV1rZhC63Ek6"
+            );
+        }
+    }
+
+    #[test]
     fn video_page_url_rejects_malformed_bvids() {
-        assert!(video_page_url("https://evil.example/").is_err());
-        assert!(video_page_url("bv1rzhc63ek6").is_err()); // not BV-prefixed
-        assert!(video_page_url("BV1rZhC63Ek").is_err()); // 11 chars
-        assert!(video_page_url("BV1rZhC63Ek6'alert(1)").is_err());
+        assert!(video_page_url("https://evil.example/", None).is_err());
+        assert!(video_page_url("bv1rzhc63ek6", None).is_err()); // not BV-prefixed
+        assert!(video_page_url("BV1rZhC63Ek", None).is_err()); // 11 chars
+        assert!(video_page_url("BV1rZhC63Ek6'alert(1)", None).is_err());
     }
 
     #[test]

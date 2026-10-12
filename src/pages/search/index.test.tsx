@@ -19,9 +19,39 @@ vi.mock('@/features/video/ui/DownloadButton', () => ({
   default: () => <div data-testid="download-button" />,
 }))
 vi.mock('@/features/video/ui/VideoPartCard', () => ({
-  default: ({ page }: { page: number }) => (
-    <div data-testid="video-part-card">part {page}</div>
+  default: ({
+    page,
+    onThumbnailClick,
+  }: {
+    page: number
+    onThumbnailClick: () => void
+  }) => (
+    <div data-testid="video-part-card">
+      part {page}
+      <button onClick={onThumbnailClick}>open-preview</button>
+    </div>
   ),
+}))
+// The shared preview dialog is a leaf covered by its own tests; the
+// stub echoes the props the page wires (target entry, hidden download,
+// close) so the composition stays observable here.
+vi.mock('@/features/video-search/ui/VideoPreviewDialog', () => ({
+  VideoPreviewDialog: ({
+    entry,
+    onClose,
+    showDownload,
+  }: {
+    entry: { bvid: string; title: string; page?: number } | null
+    onClose: () => void
+    showDownload?: boolean
+  }) =>
+    entry ? (
+      <div data-testid="preview-dialog">
+        {entry.bvid}|{entry.title}|p{entry.page}
+        {showDownload === false ? '|no-download' : ''}
+        <button onClick={onClose}>close-preview</button>
+      </div>
+    ) : null,
 }))
 vi.mock('@/features/video/ui/VideoPartCardSkeleton', () => ({
   default: () => <div data-testid="part-skeleton" />,
@@ -208,6 +238,36 @@ describe('SearchContent', () => {
     expect(
       screen.queryByText('video.pagination_previous'),
     ).not.toBeInTheDocument()
+  })
+
+  it('opens the shared preview dialog for the clicked part, without a download action', async () => {
+    store.dispatch(setInput(initialInput))
+    seedVideo(3)
+
+    const { user } = renderWithProviders(<SearchContent />, {
+      route: '/search',
+    })
+
+    // Part 2 (list index 1): the thumbnail click must carry the video
+    // bvid, the part name as title and the 1-indexed page into the
+    // page-owned dialog.
+    const secondCard = screen.getAllByTestId('video-part-card')[1]!
+    await user.click(
+      within(secondCard).getByRole('button', { name: 'open-preview' }),
+    )
+
+    const dialog = screen.getByTestId('preview-dialog')
+    expect(dialog).toHaveTextContent('BV1test|Part 2|p2')
+    // The download handoff would navigate back to this very page, so
+    // the page mounts the dialog with the download action hidden.
+    expect(dialog).toHaveTextContent('|no-download')
+
+    // onClose clears the target again (the dialog stays mounted, gated
+    // on a null entry).
+    await user.click(
+      within(dialog).getByRole('button', { name: 'close-preview' }),
+    )
+    expect(screen.queryByTestId('preview-dialog')).toBeNull()
   })
 
   it('paginates the part list and persists the page in the store', async () => {

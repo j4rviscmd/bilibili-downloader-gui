@@ -22,7 +22,6 @@ import {
 } from '@/features/video/lib/constants'
 import { buildVideoFormSchema2 } from '@/features/video/lib/formSchema'
 import { getStatusVisual } from '@/features/video/lib/statusVisual'
-import { buildVideoUrl } from '@/features/video/lib/utils'
 import {
   defaultSubtitleConfig,
   setAccordionOpen,
@@ -59,8 +58,7 @@ import { Skeleton } from '@/shared/ui/skeleton'
 import { Textarea } from '@/shared/ui/textarea'
 import { toast } from '@/shared/ui/toast'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { openUrl } from '@tauri-apps/plugin-opener'
-import { Check, Copy, ImageOff, Info } from 'lucide-react'
+import { Check, Copy, ImageOff, Info, Play } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -77,6 +75,8 @@ type Props = {
   page: number
   /** Whether the title is a duplicate of another part's title. */
   isDuplicate?: boolean
+  /** Opens the shared preview dialog for this part (owned by the page). */
+  onThumbnailClick: () => void
 }
 
 /** Props for the UnavailableEpisodeWarning component. */
@@ -180,6 +180,7 @@ const VideoPartCard = memo(function VideoPartCard({
   video,
   page,
   isDuplicate,
+  onThumbnailClick,
 }: Props) {
   const { onValid2, videoId } = useVideoInfo()
   const { t } = useTranslation()
@@ -583,14 +584,6 @@ const VideoPartCard = memo(function VideoPartCard({
   }, [videoPart.part, t])
 
   /**
-   * Opens the video in browser when thumbnail is clicked.
-   */
-  const handleThumbnailClick = useCallback(() => {
-    const url = buildVideoUrl(video.bvid, page)
-    openUrl(url)
-  }, [video.bvid, page])
-
-  /**
    * Handles subtitle configuration changes.
    * Dispatches the updated config to Redux store.
    * Scrolls card into view when switching from off to soft/hard mode.
@@ -704,25 +697,33 @@ const VideoPartCard = memo(function VideoPartCard({
                   />
                 </div>
                 {videoPart.thumbnail.url ? (
-                  <TooltipProvider delayDuration={200}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <img
-                          src={videoPart.thumbnail.url}
-                          alt={t('video.thumbnail_alt', {
-                            part: videoPart.part,
-                          })}
-                          className="h-16 w-24 cursor-pointer rounded-lg object-cover md:h-20 md:w-32"
-                          loading="lazy"
-                          referrerPolicy="no-referrer"
-                          onClick={handleThumbnailClick}
-                        />
-                      </TooltipTrigger>
-                      <TooltipContent side="top">
-                        <p className="text-sm">{t('video.open_in_browser')}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+                  // Why group/thumb + sibling button: same reveal pattern
+                  // as the video search grid's play overlay
+                  // (VideoCardGrid) — the scrim + play icon appear on
+                  // hover/focus-visible, so the control stays hidden
+                  // until wanted but is keyboard-discoverable.
+                  <span className="group/thumb relative shrink-0">
+                    <img
+                      src={videoPart.thumbnail.url}
+                      alt={t('video.thumbnail_alt', {
+                        part: videoPart.part,
+                      })}
+                      className="block h-16 w-24 rounded-lg object-cover md:h-20 md:w-32"
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
+                    />
+                    <button
+                      type="button"
+                      onClick={onThumbnailClick}
+                      aria-label={t('videoSearch.previewPlay')}
+                      className="focus-visible:ring-ring/50 absolute inset-0 flex items-center justify-center rounded-lg bg-black/0 text-white opacity-0 transition outline-none group-hover/thumb:bg-black/40 group-hover/thumb:opacity-100 focus-visible:bg-black/40 focus-visible:opacity-100 focus-visible:ring-[3px]"
+                    >
+                      <Play
+                        className="size-8 fill-current drop-shadow"
+                        aria-hidden
+                      />
+                    </button>
+                  </span>
                 ) : (
                   <div className="bg-muted flex h-16 w-24 items-center justify-center rounded-lg md:h-20 md:w-32">
                     <ImageOff className="text-muted-foreground/50 h-8 w-8" />

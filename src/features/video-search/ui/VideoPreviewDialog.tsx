@@ -19,7 +19,7 @@ import {
   pausePreviewPlayer,
   syncPreviewPlayer,
 } from '../api/previewEmbed'
-import type { VideoSearchEntry } from '../types'
+import type { PreviewTarget } from '../types'
 
 /** Debounce for overlay syncs: the placeholder fires ResizeObserver
  * entries continuously while the dialog/window resizes, and every sync
@@ -34,8 +34,8 @@ const SYNC_DEBOUNCE_MS = 50
 const PREVIEW_ESC_EVENT = 'preview:esc'
 
 /**
- * Preview dialog for one search result, played by Bilibili's official
- * video page.
+ * Preview dialog for one video target (keyword-search card or URL-search
+ * part card), played by Bilibili's official video page.
  *
  * The video area is a black placeholder: the backend positions an
  * embedded child webview (the real www.bilibili.com video page,
@@ -49,10 +49,15 @@ const PREVIEW_ESC_EVENT = 'preview:esc'
 export function VideoPreviewDialog({
   entry,
   onClose,
+  showDownload = true,
 }: {
-  /** Entry to preview; `null` keeps the dialog closed. */
-  entry: VideoSearchEntry | null
+  /** Target to preview; `null` keeps the dialog closed. */
+  entry: PreviewTarget | null
   onClose: () => void
+  /** Why hideable: the Download action hands off to the URL search page
+   * (`usePendingDownload` navigates to /search) — meaningless there,
+   * where the user already has the video's parts open. */
+  showDownload?: boolean
 }) {
   const { t } = useTranslation()
   const handleDownload = usePendingDownload()
@@ -90,12 +95,16 @@ export function VideoPreviewDialog({
       if (!el) return
       const r = el.getBoundingClientRect()
       try {
-        await openPreviewPlayer(entry.bvid, {
-          x: r.x,
-          y: r.y,
-          width: r.width,
-          height: r.height,
-        })
+        await openPreviewPlayer(
+          entry.bvid,
+          {
+            x: r.x,
+            y: r.y,
+            width: r.width,
+            height: r.height,
+          },
+          entry.page ?? 1,
+        )
       } catch {
         if (!cancelled) setError(true)
       }
@@ -225,9 +234,11 @@ export function VideoPreviewDialog({
 
         {/* Preview actions. Download closes first (same handoff route
             as clicking the card body — the URL search page with the
-            bvid preloaded — and the overlay dies with the dialog).
-            "Open in browser" keeps the dialog: the overlay is only
-            paused, so the browser tab does not double the audio. */}
+            bvid preloaded — and the overlay dies with the dialog);
+            hidden on the URL search page itself, where that handoff
+            would go nowhere. "Open in browser" keeps the dialog: the
+            overlay is only paused, so the browser tab does not double
+            the audio. */}
         <div className="flex justify-end gap-2">
           <Button
             type="button"
@@ -240,7 +251,7 @@ export function VideoPreviewDialog({
               // handoff to closing the whole dialog.
               // Fail soft: a lost overlay must not block the handoff.
               void pausePreviewPlayer().catch(() => {})
-              openUrl(buildVideoUrl(entry.bvid, 1)).catch((e) => {
+              openUrl(buildVideoUrl(entry.bvid, entry.page ?? 1)).catch((e) => {
                 logger.error(
                   'VideoPreviewDialog: failed to open video in browser',
                   e,
@@ -251,18 +262,20 @@ export function VideoPreviewDialog({
             <ExternalLink aria-hidden />
             {t('videoSearch.previewOpenInBrowser')}
           </Button>
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => {
-              if (!entry) return
-              onClose()
-              handleDownload(entry.bvid, null, 1)
-            }}
-          >
-            <Download aria-hidden />
-            {t('videoSearch.previewDownload')}
-          </Button>
+          {showDownload && (
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                if (!entry) return
+                onClose()
+                handleDownload(entry.bvid, null, entry.page ?? 1)
+              }}
+            >
+              <Download aria-hidden />
+              {t('videoSearch.previewDownload')}
+            </Button>
+          )}
         </div>
       </DialogContent>
     </Dialog>

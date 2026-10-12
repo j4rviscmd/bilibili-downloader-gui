@@ -46,6 +46,19 @@ export interface VideoSearchEntry {
 }
 
 /**
+ * Minimal target the shared `VideoPreviewDialog` plays. Satisfied
+ * structurally by `VideoSearchEntry` (keyword search cards) and by the
+ * URL search page's part cards, so both pages feed the same dialog.
+ */
+export interface PreviewTarget {
+  bvid: string
+  /** Dialog title (video or part display name). */
+  title: string
+  /** Multi-part page number (1-indexed); omitted plays the first page. */
+  page?: number
+}
+
+/**
  * Wire shape of the `search_videos` response (camelCase, like watch history
  * DTOs).
  */

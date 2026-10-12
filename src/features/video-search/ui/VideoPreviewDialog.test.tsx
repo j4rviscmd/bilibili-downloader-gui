@@ -92,6 +92,7 @@ describe('VideoPreviewDialog (official embed overlay)', () => {
       {
         bvid: 'BV1De411p77r',
         rect: { x: 48, y: 120, width: 800, height: 450 },
+        page: 1,
       },
     ])
     // The player lives in its own overlay webview — no <video> here.
@@ -217,6 +218,45 @@ describe('VideoPreviewDialog (official embed overlay)', () => {
     expect(openUrl).toHaveBeenCalledWith(
       'https://www.bilibili.com/video/BV1De411p77r',
     )
+  })
+
+  it('plays the requested multi-part page and opens the same page in browser', async () => {
+    stubRect(48, 120, 800, 450)
+    const { user } = renderWithProviders(
+      <VideoPreviewDialog entry={{ ...entry, page: 3 }} onClose={() => {}} />,
+    )
+    await waitFor(() => {
+      expect(openCalls()).toHaveLength(1)
+    })
+    expect(openCalls()[0]![1]).toMatchObject({ page: 3 })
+
+    await user.click(
+      screen.getByRole('button', { name: 'videoSearch.previewOpenInBrowser' }),
+    )
+    expect(openUrl).toHaveBeenCalledWith(
+      'https://www.bilibili.com/video/BV1De411p77r?p=3',
+    )
+  })
+
+  it('hides the download action when showDownload is false', async () => {
+    stubRect(48, 120, 800, 450)
+    renderWithProviders(
+      <VideoPreviewDialog
+        entry={entry}
+        onClose={() => {}}
+        showDownload={false}
+      />,
+    )
+    await waitFor(() => {
+      expect(openCalls()).toHaveLength(1)
+    })
+
+    expect(
+      screen.queryByRole('button', { name: 'videoSearch.previewDownload' }),
+    ).toBeNull()
+    expect(
+      screen.getByRole('button', { name: 'videoSearch.previewOpenInBrowser' }),
+    ).toBeTruthy()
   })
 
   it('still opens the browser when pausing the overlay fails (fail-soft)', async () => {

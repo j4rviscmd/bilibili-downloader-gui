@@ -10,6 +10,7 @@ export { useVideoSearch } from './hooks/useVideoSearch'
 export type { VideoSearchView } from './hooks/useVideoSearch'
 export { default as videoSearchReducer } from './model/videoSearchSlice'
 export type {
+  PreviewTarget,
   VideoSearchEntry,
   VideoSearchFilters,
   VideoSearchOrder,
@@ -18,6 +19,7 @@ export type {
 } from './types'
 export { HomeRecommendations } from './ui/HomeRecommendations'
 export { VideoCardGrid, VideoCardSkeletonGrid } from './ui/VideoCardGrid'
+export { VideoPreviewDialog } from './ui/VideoPreviewDialog'
 export { VideoSearchFeedTail } from './ui/VideoSearchFeedTail'
 export { VideoSearchFilterBar } from './ui/VideoSearchFilterBar'
 export { VideoSearchInput } from './ui/VideoSearchInput'
