@@ -8,6 +8,7 @@ import {
 import { buildVideoUrl } from '@/features/video/lib/utils'
 import { usePendingDownload } from '@/shared/hooks/usePendingDownload'
 import { logger } from '@/shared/lib/logger'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { Download, ExternalLink } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
@@ -24,6 +25,13 @@ import type { VideoSearchEntry } from '../types'
  * entries continuously while the dialog/window resizes, and every sync
  * is a set_bounds round-trip — coalesce a drag into occasional updates. */
 const SYNC_DEBOUNCE_MS = 50
+
+// Event the Rust backend emits when Esc is pressed inside the player
+// webview (Windows relay; see handlers/preview_embed.rs). While the
+// player holds keyboard focus the main webview never sees the key, so
+// this is the only Esc path that works. Kept in sync with the
+// `app.emit("preview:esc", ())` call on the Rust side.
+const PREVIEW_ESC_EVENT = 'preview:esc'
 
 /**
  * Preview dialog for one search result, played by Bilibili's official
@@ -157,6 +165,30 @@ export function VideoPreviewDialog({
     },
     [],
   )
+
+  // Esc pressed inside the player webview (Windows relay): keyboard
+  // focus lives in the overlay while a preview plays, so Radix's own
+  // Esc handling cannot fire — the backend relays the key as an event
+  // and we close through the same onClose path. Registered only while
+  // an entry is open; the ref keeps the latest onClose without
+  // re-registering on parent re-renders.
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+  useEffect(() => {
+    if (!entry) return
+    let unlisten: UnlistenFn | undefined
+    listen(PREVIEW_ESC_EVENT, () => onCloseRef.current())
+      .then((fn) => {
+        unlisten = fn
+      })
+      .catch((e) =>
+        logger.error(
+          'VideoPreviewDialog: failed to register preview:esc listener',
+          e,
+        ),
+      )
+    return () => unlisten?.()
+  }, [entry])
 
   return (
     <Dialog
