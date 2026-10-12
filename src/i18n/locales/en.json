@@ -774,6 +774,7 @@
       "movie": "Movies",
       "tv": "TV Dramas"
     },
+    "previewVideoUnavailable": "This video can't be previewed. It may have been deleted, made private, or region-restricted.",
     "previewOpenFailed": "Couldn't open the preview player. Please try again."
   },
   "watchHistory": {

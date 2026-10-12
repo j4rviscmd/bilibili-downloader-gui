@@ -774,6 +774,7 @@
       "movie": "Films",
       "tv": "Séries TV"
     },
+    "previewVideoUnavailable": "Impossible de prévisualiser cette vidéo : elle a peut-être été supprimée, rendue privée ou restreinte géographiquement.",
     "previewOpenFailed": "Impossible d'ouvrir le lecteur d'aperçu. Veuillez réessayer."
   },
   "watchHistory": {

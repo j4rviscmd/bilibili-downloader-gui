@@ -774,6 +774,7 @@
       "movie": "映画",
       "tv": "テレビドラマ"
     },
+    "previewVideoUnavailable": "この動画は削除・非公開・地域制限などの理由でプレビューできません。",
     "previewOpenFailed": "プレビュープレイヤーを開けませんでした。もう一度お試しください。"
   },
   "watchHistory": {

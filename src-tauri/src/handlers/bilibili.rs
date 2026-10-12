@@ -301,7 +301,12 @@ impl BiliApi {
     }
 
     /// Production constructor from raw cookie entries.
-    fn from_cookies(cookies: &[CookieEntry]) -> Result<Self, String> {
+    ///
+    /// Why `pub(crate)`: the preview availability gate (preview_embed.rs)
+    /// builds its client from the cookie cache, which may be empty when
+    /// logged out — `build_cookie_header_from_cache` rejects that case,
+    /// while the WBI-signed view API accepts anonymous requests.
+    pub(crate) fn from_cookies(cookies: &[CookieEntry]) -> Result<Self, String> {
         Self::from_cookie_header(build_cookie_header(cookies))
     }
 
@@ -5879,7 +5884,14 @@ fn duration_seconds(value: Option<&serde_json::Value>) -> i64 {
 ///
 /// Takes a pre-built [`BiliApi`] (instead of cookie entries) so wiremock
 /// tests can point `base` at a local server.
-async fn fetch_wbi_view(api: &BiliApi, bvid: &str) -> Result<WebInterfaceApiResponse, String> {
+///
+/// Why `pub(crate)`: the preview availability gate (preview_embed.rs)
+/// reuses it, and the api-injectable form is the only seam that gate can
+/// be tested through — `fetch_video_title_by_bvid` hardcodes production.
+pub(crate) async fn fetch_wbi_view(
+    api: &BiliApi,
+    bvid: &str,
+) -> Result<WebInterfaceApiResponse, String> {
     let mixin_key = crate::utils::wbi::fetch_mixin_key(
         &api.http,
         &api.base,

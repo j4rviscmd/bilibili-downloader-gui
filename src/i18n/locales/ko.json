@@ -774,6 +774,7 @@
       "movie": "영화",
       "tv": "TV 드라마"
     },
+    "previewVideoUnavailable": "이 영상은 삭제·비공개·지역 제한 등의 이유로 미리볼 수 없습니다.",
     "previewOpenFailed": "미리보기 플레이어를 열 수 없습니다. 다시 시도해 주세요."
   },
   "watchHistory": {
