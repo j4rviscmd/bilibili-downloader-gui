@@ -250,6 +250,7 @@ pub fn run() {
             check_cookie_refresh,
             refresh_cookie,
             window::show_splash,
+            window::show_main,
             window::finish_splash,
             init::initialize,
             init::get_init_result,
