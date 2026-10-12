@@ -28,6 +28,7 @@ export function useHomeRecommendations() {
     () => cachedEntries ?? [],
   )
   const [loaded, setLoaded] = useState(() => cachedEntries !== null)
+  const [refreshing, setRefreshing] = useState(false)
 
   useEffect(() => {
     if (!isLoggedIn || loaded) return
@@ -57,10 +58,35 @@ export function useHomeRecommendations() {
     }
   }, [isLoggedIn, loaded])
 
+  /**
+   * Manual refresh (the shelf's update button): re-fetches and swaps in
+   * the new list. An empty result — the backend's only failure shape, it
+   * never errors — or a rejection keeps the previous entries, so a
+   * failed refresh never wipes the shelf (and its button) off-screen.
+   */
+  const refresh = async () => {
+    setRefreshing(true)
+    try {
+      const next = await fetchHomeRecommendationsApi()
+      if (next.length === 0) return
+      // Seed the module cache too: a remount during the transient →
+      // stacked handover then shows the refreshed list, not the old one.
+      cachedEntries = next
+      setEntries(next)
+    } catch {
+      // Same degrade-not-error stance as the initial fetch above: keep
+      // the old list (the backend logs the failure).
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
   const showSkeleton = isLoggedIn && !loaded
   return {
     entries,
     showSkeleton,
+    refreshing,
+    refresh,
     /** Shelf presence: skeleton or loaded entries. The page gates the
      * popular grid's companion heading on this so the logged-out view
      * stays exactly as it was. */

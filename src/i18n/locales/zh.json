@@ -707,6 +707,7 @@
   "popular": {
     "title": "热门视频",
     "recommendationsTitle": "为你推荐",
+    "refreshRecommendations": "刷新推荐",
     "feedTitle": "热门视频",
     "loadError": "加载内容失败",
     "retry": "重试"
