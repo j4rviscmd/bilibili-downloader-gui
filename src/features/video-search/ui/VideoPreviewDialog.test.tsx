@@ -1,9 +1,5 @@
 import { store } from '@/app/store'
-import {
-  emitTauriEvent,
-  mockInvoke,
-  renderWithProviders,
-} from '@/test/test-utils'
+import { mockInvoke, renderWithProviders } from '@/test/test-utils'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import type { ReactElement } from 'react'
@@ -97,7 +93,7 @@ describe('VideoPreviewDialog (official embed overlay)', () => {
         rect: { x: 48, y: 120, width: 800, height: 450 },
       },
     ])
-    // The player lives in its own overlay window — no <video> here.
+    // The player lives in its own overlay webview — no <video> here.
     expect(document.querySelector('video')).toBeNull()
   })
 
@@ -169,21 +165,6 @@ describe('VideoPreviewDialog (official embed overlay)', () => {
     ])
   })
 
-  it('closes the dialog when the overlay window is closed directly', async () => {
-    stubRect(48, 120, 800, 450)
-    const onClose = vi.fn()
-    renderWithProviders(<VideoPreviewDialog entry={entry} onClose={onClose} />)
-    await waitFor(() => {
-      expect(openCalls()).toHaveLength(1)
-    })
-
-    // Alt+F4 on the player window → backend emits preview-player-closed.
-    await act(async () => {
-      emitTauriEvent('preview-player-closed', null)
-    })
-    expect(onClose).toHaveBeenCalledTimes(1)
-  })
-
   it('pauses the overlay instead of closing it when opening in browser', async () => {
     stubRect(48, 120, 800, 450)
     const onClose = vi.fn()
@@ -224,10 +205,10 @@ describe('VideoPreviewDialog (official embed overlay)', () => {
       expect(openCalls()).toHaveLength(1)
     })
     mockInvoke.mockClear()
-    // The overlay died between the click and the pause command: the
-    // backend rejects (ERR::PREVIEW_NO_OVERLAY-style failure) and the
-    // catch must swallow it so the handoff is not blocked.
-    mockInvoke.mockRejectedValueOnce(new Error('ERR::PREVIEW_NO_OVERLAY'))
+    // The pause command can still reject — e.g. the overlay webview
+    // closes between the lookup and the eval — and the catch must
+    // swallow it so the handoff is not blocked.
+    mockInvoke.mockRejectedValueOnce(new Error('eval failed: webview closed'))
 
     await user.click(
       screen.getByRole('button', { name: 'videoSearch.previewOpenInBrowser' }),

@@ -8,7 +8,6 @@ import {
 import { buildVideoUrl } from '@/features/video/lib/utils'
 import { usePendingDownload } from '@/shared/hooks/usePendingDownload'
 import { logger } from '@/shared/lib/logger'
-import { listen } from '@tauri-apps/api/event'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { Download, ExternalLink } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
@@ -23,18 +22,20 @@ import type { VideoSearchEntry } from '../types'
 
 /** Debounce for overlay syncs: the placeholder fires ResizeObserver
  * entries continuously while the dialog/window resizes, and every sync
- * is a set_position round-trip — coalesce a drag into occasional updates. */
+ * is a set_bounds round-trip — coalesce a drag into occasional updates. */
 const SYNC_DEBOUNCE_MS = 50
 
 /**
  * Preview dialog for one search result, played by Bilibili's official
  * video page.
  *
- * The video area is a black placeholder: the backend positions a
- * frame-less child window (the real www.bilibili.com video page,
+ * The video area is a black placeholder: the backend positions an
+ * embedded child webview (the real www.bilibili.com video page,
  * first-party so the injected session cookies apply) exactly over its
- * rect. Opening measures the rect after the dialog layout settles,
- * resizing keeps the overlay glued, closing removes the window.
+ * rect, inside the main window — one OS window, so app switchers and
+ * z-order follow the main app. Opening measures the rect after the
+ * dialog layout settles, resizing keeps the overlay glued, closing
+ * removes the webview.
  */
 export function VideoPreviewDialog({
   entry,
@@ -53,12 +54,6 @@ export function VideoPreviewDialog({
     null,
   )
   const [error, setError] = useState(false)
-  // Latest onClose for the event listener (subscription is mount-once).
-  const onCloseRef = useRef(onClose)
-
-  useEffect(() => {
-    onCloseRef.current = onClose
-  }, [onClose])
 
   // Whether an entry has been previewed since mount — gates the close
   // call so an always-mounted dialog (entry starts null) does not fire a
@@ -108,7 +103,8 @@ export function VideoPreviewDialog({
   }, [entry, placeholderEl])
 
   // Keep the overlay glued to the placeholder on dialog/window layout
-  // changes. The backend follows main-window moves on its own.
+  // changes. Window moves need no sync: the overlay webview's bounds
+  // are window-relative.
   useEffect(() => {
     // Why: jsdom ships no ResizeObserver (see MockResizeObserver in
     // VideoPreviewDialog.test.tsx) — feature-detect so a missing observer
@@ -140,9 +136,7 @@ export function VideoPreviewDialog({
     // (max-w-7xl / max-h-[75vh]) hold the placeholder at a constant size,
     // a main-window resize still recenters the dialog — the overlay used to
     // stay glued to the stale rect and render offset from the dialog. The
-    // viewport resize event covers that position-only change; pure window
-    // moves keep the placeholder rect valid and stay with the backend's
-    // Moved/Resized hook.
+    // viewport resize event covers that position-only change.
     window.addEventListener('resize', schedule)
     return () => {
       window.clearTimeout(timer)
@@ -150,19 +144,6 @@ export function VideoPreviewDialog({
       window.removeEventListener('resize', schedule)
     }
   }, [entry, placeholderEl])
-
-  // The overlay window closed directly (Alt+F4) — close the dialog too.
-  useEffect(() => {
-    let unlisten: (() => void) | undefined
-    void listen('preview-player-closed', () => onCloseRef.current()).then(
-      (fn) => {
-        unlisten = fn
-      },
-    )
-    return () => {
-      unlisten?.()
-    }
-  }, [])
 
   // Component unmount with a preview still open (page navigation while
   // the dialog is up): the entry→null arm above never runs.

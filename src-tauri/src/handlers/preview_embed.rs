@@ -1,12 +1,22 @@
 //! Official-page preview: plays search-result previews through
-//! Bilibili's real video page (`www.bilibili.com/video/…`) in a
-//! frame-less child window overlaid on the preview dialog's video area.
+//! Bilibili's real video page (`www.bilibili.com/video/…`) in a child
+//! webview embedded in the main window, overlaid on the preview
+//! dialog's video area.
 //!
-//! Why a child window and not an in-page iframe: the WebView2 runtime
+//! Why an in-window child webview and not a separate OS window: a second
+//! window shows up as its own entry in window-level app switchers (AltTab
+//! & co. — tao's skip_taskbar is unimplemented on macOS), loses z-order to
+//! the main window on activation (reported 2026-10-12: focusing the main
+//! window left the video area black), and needs screen-space geometry
+//! tracking. As a sibling webview inside the main window there is exactly
+//! one app window: switchers, Mission Control, fullscreen and z-order all
+//! follow the main window by construction, and bounds are window-relative.
+//!
+//! Why a separate webview and not an in-page iframe: the WebView2 runtime
 //! blocks third-party frames from touching cookies at the engine level
 //! (measured 2026-10-11 — `document.cookie` stays empty and the page's
 //! APIs answer logged-out even with Edge tracking prevention disabled),
-//! so an embedded iframe can never authenticate. As a top-level window
+//! so an embedded iframe can never authenticate. As a top-level document
 //! the page is first-party: the stored session cookies log it in.
 //!
 //! Why the video page and not the official embed player
@@ -16,11 +26,6 @@
 //! stick (center-click play/pause goes dead until reload) — measured
 //! 2026-10-11 with input delivery verified correct at every layer. The
 //! full page has none of these quirks.
-
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    LazyLock, Mutex,
-};
 
 use tauri::Manager;
 
@@ -47,39 +52,37 @@ pub struct OverlayRect {
     pub height: f64,
 }
 
-/// Physical top-left + size for the overlay window: the viewport origin
-/// (client-area origin of the main window) plus the scaled logical rect.
-/// The scale factor is read on every apply so monitor moves re-derive it.
-pub fn overlay_target(
-    viewport_origin: tauri::PhysicalPosition<i32>,
-    scale: f64,
-    rect: OverlayRect,
-) -> (tauri::PhysicalPosition<i32>, tauri::PhysicalSize<u32>) {
-    (
-        tauri::PhysicalPosition::new(
-            viewport_origin.x + (rect.x * scale).round() as i32,
-            viewport_origin.y + (rect.y * scale).round() as i32,
-        ),
-        tauri::PhysicalSize::new(
-            (rect.width * scale).round() as u32,
-            (rect.height * scale).round() as u32,
-        ),
-    )
+/// Bounds for the overlay webview inside the main window, in logical px.
+/// The dialog measures the placeholder in CSS px relative to the main
+/// webview's viewport, while the webview's coordinate origin is the
+/// window's content-view top-left — on macOS that sits the title-bar
+/// inset above the CSS viewport's (0,0) (see `titlebar_inset_physical`);
+/// other platforms share the origin, so callers pass 0.
+pub fn overlay_bounds(rect: OverlayRect, titlebar_inset_logical: f64) -> tauri::Rect {
+    tauri::Rect {
+        position: tauri::Position::Logical(tauri::LogicalPosition::new(
+            rect.x,
+            rect.y + titlebar_inset_logical,
+        )),
+        size: tauri::Size::Logical(tauri::LogicalSize::new(rect.width, rect.height)),
+    }
 }
 
-/// One-pass frame correction: Windows decorates even a `decorations(false)`
-/// child window with an invisible frame, so the CLIENT origin lands a few
-/// px off the outer position (measured ≈8px/1px at 1.5 DPI, 2026-10-11).
-/// Shift the outer position by the observed client-vs-desired delta.
-pub fn corrected_outer_position(
-    desired: tauri::PhysicalPosition<i32>,
-    current_client: tauri::PhysicalPosition<i32>,
-    current_outer: tauri::PhysicalPosition<i32>,
-) -> tauri::PhysicalPosition<i32> {
-    tauri::PhysicalPosition::new(
-        current_outer.x + (desired.x - current_client.x),
-        current_outer.y + (desired.y - current_client.y),
-    )
+/// Current overlay bounds for `rect`: reads the scale factor and (macOS)
+/// title-bar inset fresh on every call so monitor moves and fullscreen
+/// transitions re-derive the offset.
+fn overlay_bounds_for(main: &tauri::Window, rect: OverlayRect) -> Result<tauri::Rect, String> {
+    #[cfg(target_os = "macos")]
+    {
+        let scale = main.scale_factor().map_err(|e| e.to_string())?;
+        let inset = titlebar_inset_physical(main, scale)? as f64 / scale;
+        Ok(overlay_bounds(rect, inset))
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = main;
+        Ok(overlay_bounds(rect, 0.0))
+    }
 }
 
 /// Session cookie pairs to mirror into the webview, filtered to the
@@ -101,7 +104,7 @@ pub fn bilibili_cookie_pairs(
 }
 
 /// Mirrors the stored Bilibili session into the webview cookie store so
-/// the first-party player window authenticates as the logged-in user.
+/// the first-party player webview authenticates as the logged-in user.
 /// Returns the injected pair count (0 when logged out — the player then
 /// degrades to anonymous quality, which still plays).
 ///
@@ -187,22 +190,6 @@ pub struct OverlayRectDto {
     pub height: f64,
 }
 
-struct OverlayState {
-    rect: OverlayRect,
-}
-
-static OVERLAY: LazyLock<Mutex<Option<OverlayState>>> = LazyLock::new(|| Mutex::new(None));
-
-/// Whether the main-window follow hook is attached. `on_window_event`
-/// has no unsubscribe and the main window lives for the whole process,
-/// so every overlay reopen would stack another Moved/Resized listener
-/// that re-runs apply_rect on each drag event.
-static MAIN_HOOK_ATTACHED: AtomicBool = AtomicBool::new(false);
-
-fn lock_overlay() -> std::sync::MutexGuard<'static, Option<OverlayState>> {
-    OVERLAY.lock().unwrap_or_else(|p| p.into_inner())
-}
-
 fn to_rect(dto: OverlayRectDto) -> OverlayRect {
     OverlayRect {
         x: dto.x,
@@ -212,74 +199,17 @@ fn to_rect(dto: OverlayRectDto) -> OverlayRect {
     }
 }
 
-/// Sizes + positions the child over the given rect. Reads scale/origin
-/// on every call so monitor moves and main-window moves re-derive them.
-fn apply_rect(
-    main: &tauri::WebviewWindow,
-    child: &tauri::WebviewWindow,
-    rect: OverlayRect,
-) -> Result<(), String> {
-    let scale = main.scale_factor().map_err(|e| e.to_string())?;
-    let origin = viewport_origin(main, scale)?;
-    let (pos, size) = overlay_target(origin, scale, rect);
-    child
-        .set_size(tauri::Size::Physical(size))
-        .map_err(|e| e.to_string())?;
-    child
-        .set_position(tauri::Position::Physical(pos))
-        .map_err(|e| e.to_string())?;
-    // Windows-only one-pass frame correction: Windows decorates even a
-    // `decorations(false)` child with an invisible frame (see
-    // corrected_outer_position). On macOS the borderless child has
-    // client == outer, and child.inner_position() lags one set_position
-    // behind (WKWebView async layout — measured 2026-10-11), so the
-    // correction there oscillated between two wrong positions instead of
-    // converging.
-    #[cfg(windows)]
-    {
-        let client = child.inner_position().map_err(|e| e.to_string())?;
-        let outer = child.outer_position().map_err(|e| e.to_string())?;
-        let fixed = corrected_outer_position(pos, client, outer);
-        child
-            .set_position(tauri::Position::Physical(fixed))
-            .map_err(|e| e.to_string())?;
-    }
-    Ok(())
-}
-
-/// Screen-space origin (physical px) of the main webview's CSS viewport.
-///
-/// `inner_position()` is NOT the viewport origin on macOS: the main
-/// window uses a full-size content view, so the content rect starts at
-/// the frame origin while the WKWebView's layout viewport is pushed
-/// below the title bar (measured 2026-10-11: inner == outer ==
-/// (0, 62) physical, but CSS (0,0) sits at (0, 126)). Derive the
-/// title-bar inset from NSWindow.contentLayoutRect and add it to the
-/// frame origin; this also tracks fullscreen (inset 0) for free. On
-/// Windows/Linux `inner_position()` already is the client-area origin.
-fn viewport_origin(
-    main: &tauri::WebviewWindow,
-    scale: f64,
-) -> Result<tauri::PhysicalPosition<i32>, String> {
-    #[cfg(target_os = "macos")]
-    {
-        let outer = main.outer_position().map_err(|e| e.to_string())?;
-        let inset = titlebar_inset_physical(main, scale)?;
-        Ok(tauri::PhysicalPosition::new(outer.x, outer.y + inset))
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        let _ = scale;
-        main.inner_position().map_err(|e| e.to_string())
-    }
-}
-
 /// Title-bar height of the main window in physical px: NSWindow frame
-/// height minus contentLayoutRect height. Runs on the main thread —
-/// AppKit getters must not be called from worker threads (apply_rect is
-/// reached from async commands and the window-event hook alike).
+/// height minus contentLayoutRect height. The overlay webview's origin
+/// is the window's content-view top (full-size content view), while the
+/// main webview's CSS viewport starts this inset lower (measured
+/// 2026-10-11: CSS (0,0) sits 64 physical px below the frame top), so
+/// the overlay's y offset within the window adds this inset. Tracks
+/// fullscreen (inset 0) for free. Runs on the main thread — AppKit
+/// getters must not be called from worker threads (reached from async
+/// commands).
 #[cfg(target_os = "macos")]
-fn titlebar_inset_physical(main: &tauri::WebviewWindow, scale: f64) -> Result<i32, String> {
+fn titlebar_inset_physical(main: &tauri::Window, scale: f64) -> Result<i32, String> {
     use std::sync::mpsc;
     let (tx, rx) = mpsc::channel();
     let app = main.app_handle().clone();
@@ -305,56 +235,12 @@ fn titlebar_inset_physical(main: &tauri::WebviewWindow, scale: f64) -> Result<i3
     })
     .map_err(|e| e.to_string())?;
     // Why: a plain recv() would hang forever if the main thread never
-    // services the closure — the deadlock the attach_hooks spawn
-    // guards against. The cap degrades that case to an Err instead.
+    // services the closure. The cap degrades that case to an Err instead.
     rx.recv_timeout(std::time::Duration::from_secs(1))
         .map_err(|e| e.to_string())
 }
 
-fn attach_hooks(app: &tauri::AppHandle, main: &tauri::WebviewWindow, child: &tauri::WebviewWindow) {
-    use tauri::Emitter;
-    // Direct close (Alt+F4): clear state and tell the dialog to close.
-    let app_for_destroy = app.clone();
-    child.on_window_event(move |event| {
-        if matches!(event, tauri::WindowEvent::Destroyed) {
-            lock_overlay().take();
-            let _ = app_for_destroy.emit("preview-player-closed", ());
-        }
-    });
-    // Owned windows do NOT follow their owner on Windows (measured
-    // 2026-10-11): follow manually on main-window moves/resizes. This
-    // fires often during drags — if live verification shows jitter,
-    // throttle here (e.g. 30ms) before touching callers.
-    if MAIN_HOOK_ATTACHED.swap(true, Ordering::SeqCst) {
-        return; // Already attached by a previous overlay.
-    }
-    let app_for_sync = app.clone();
-    main.on_window_event(move |event| {
-        if !matches!(
-            event,
-            tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_)
-        ) {
-            return;
-        }
-        let Some(rect) = lock_overlay().as_ref().map(|s| s.rect) else {
-            return;
-        };
-        let (Some(main), Some(child)) = (
-            app_for_sync.get_webview_window("main"),
-            app_for_sync.get_webview_window(PREVIEW_PLAYER_LABEL),
-        ) else {
-            return;
-        };
-        // Why spawn: this hook runs on the main-thread event loop, while
-        // apply_rect's macOS title-bar read marshals back to the main
-        // thread — calling it synchronously would deadlock.
-        tauri::async_runtime::spawn(async move {
-            let _ = apply_rect(&main, &child, rect);
-        });
-    });
-}
-
-/// Window label of the overlay (single instance; retargeted per video).
+/// Webview label of the overlay (single instance; retargeted per video).
 const PREVIEW_PLAYER_LABEL: &str = "preview-player";
 
 /// Runs in the overlay webview at document-created — registered as the
@@ -466,7 +352,7 @@ const HIDE_VIDEO_PAGE_CHROME: &str = r#"(() => {
   };
   const startedAt = Date.now();
   const REVEAL_FALLBACK_MS = 25000;
-  /* The overlay window creation makes bilibili's player enter its mini
+  /* The overlay webview creation makes bilibili's player enter its mini
      mode at load (measured 2026-10-11: data-screen="mini", 320x180 at
      the bottom-right, seek bar unusable) — the player's own close
      control restores the normal in-page player, which is the layout the
@@ -528,21 +414,22 @@ const HIDE_VIDEO_PAGE_CHROME: &str = r#"(() => {
 })();"#;
 
 /// Evaluated in the overlay webview to stop playback without closing
-/// the window: Bilibili's player drives HTML5 media elements (DASH
+/// the webview: Bilibili's player drives HTML5 media elements (DASH
 /// plays video and audio as separate elements), so pausing every
 /// element halts both tracks. The player UI follows the elements'
 /// own `pause` events.
 const PAUSE_PLAYBACK: &str =
     r#"document.querySelectorAll('video,audio').forEach((e) => e.pause())"#;
 
-/// Opens (or retargets) the official-player overlay window over the
+/// Opens (or retargets) the official-player overlay webview over the
 /// dialog's placeholder rect.
 #[tauri::command]
-// Why async: WebviewWindowBuilder::build() must run on the main thread's event
-// loop — a synchronous command would occupy the main thread and deadlock the
-// window creation (same constraint documented on finish_splash in window.rs).
-// Why coverage(off): creates and drives a real OS overlay window on the
-// event loop — injection cost outweighs value (issue #646 policy 4).
+// Why async: webview creation must run on the main thread's event loop
+// (add_child marshals there internally) — a synchronous command would
+// occupy the main thread and deadlock the creation (same constraint
+// documented on finish_splash in window.rs).
+// Why coverage(off): creates and drives a real webview on the event
+// loop — injection cost outweighs value (issue #646 policy 4).
 #[cfg_attr(coverage, coverage(off))]
 pub async fn open_preview_player(
     app: tauri::AppHandle,
@@ -553,11 +440,13 @@ pub async fn open_preview_player(
     inject_session_cookies(&app)?;
     let url = video_page_url(&bvid)?;
     let main = app
-        .get_webview_window("main")
+        .get_window("main")
         .ok_or("ERR::PREVIEW_NO_MAIN_WINDOW")?;
-    let child = match app.get_webview_window(PREVIEW_PLAYER_LABEL) {
+    let rect = to_rect(rect);
+    let bounds = overlay_bounds_for(&main, rect)?;
+    let webview = match app.get_webview(PREVIEW_PLAYER_LABEL) {
         Some(existing) => {
-            // Reuse the window for the new video. The URL came from
+            // Reuse the webview for the new video. The URL came from
             // video_page_url (validated, no quotes) so interpolation is
             // safe.
             existing
@@ -569,105 +458,84 @@ pub async fn open_preview_player(
         }
         None => {
             let parsed: tauri::Url = url.parse().map_err(|e| format!("ERR::PREVIEW_URL: {e}"))?;
-            let child = tauri::WebviewWindowBuilder::new(
-                &app,
-                PREVIEW_PLAYER_LABEL,
-                tauri::WebviewUrl::External(parsed),
-            )
-            .title("preview")
-            .decorations(false)
-            .resizable(false)
-            // Why: this is an overlay glued to the dialog's black video
-            // placeholder, not a user window — hidden from the taskbar/alt-tab,
-            // no native shadow (it would draw a visible outline over the
-            // placeholder), and a black window background so the pre-paint
-            // frame matches the page's loading cover instead of flashing white.
-            .skip_taskbar(true)
-            .shadow(false)
-            .background_color(tauri::webview::Color(0, 0, 0, 255))
             // Why initialization_script: re-runs at document-created on
             // every top-level navigation, so the loading cover lands
             // before the first paint (see HIDE_VIDEO_PAGE_CHROME).
+            // Why no background_color on macOS: wry maps it to
+            // drawsBackground=NO, and the child WKWebView then composites
+            // nothing at all — the page loads (URL advances) but the
+            // overlay stays the placeholder's black (measured 2026-10-12,
+            // macOS 26). The default opaque background renders fine; the
+            // brief pre-document white is covered by the init script's
+            // black loading cover at document-created.
+            // Why background_color black on Windows: the pre-paint frame
+            // matches the loading cover instead of flashing white
+            // (carried over from the overlay-window version, measured
+            // 2026-10-11).
+            // Why focused(false): the WebView2 controller otherwise
+            // issues a programmatic MoveFocus at creation and steals
+            // keyboard focus from the main webview (wry default; same
+            // workaround the overlay-window version needed, measured
+            // 2026-10-11). Creation passes the final bounds, so no
+            // invisible-first + reveal dance is needed.
+            #[allow(unused_mut)]
+            let mut builder = tauri::webview::WebviewBuilder::new(
+                PREVIEW_PLAYER_LABEL,
+                tauri::WebviewUrl::External(parsed),
+            )
             .initialization_script(HIDE_VIDEO_PAGE_CHROME)
-            // Why not focusable/focused: the overlay must never take
-            // foreground or keyboard focus — otherwise Win+Arrow (and every
-            // keyboard shortcut aimed at the main window) would act on the
-            // overlay instead. focusable(false) keeps mouse input (player
-            // controls work) while blocking click activation
-            // (WS_EX_NOACTIVATE); focused(false) stops the WebView2
-            // controller from stealing focus with a programmatic MoveFocus
-            // right after creation (wry default — programmatic focus
-            // bypasses WS_EX_NOACTIVATE).
-            // Note: parent() returns Result, so the chain turns fallible
-            // there (map_err + ?); infallible setters stay above it.
-            .focusable(false)
-            .focused(false)
-            // Why visible(false): with no builder position the OS creates
-            // the window at CW_USEDEFAULT (top-left, 800×600 default) and
-            // visible — a black frame flashed there until apply_rect moved
-            // it (same pattern as the splash window in window.rs).
-            .visible(false)
-            .parent(&main)
-            .map_err(|e| e.to_string())?
-            .build()
-            .map_err(|e| e.to_string())?;
-            attach_hooks(&app, &main, &child);
-            child
+            .focused(false);
+            #[cfg(windows)]
+            {
+                builder = builder.background_color(tauri::webview::Color(0, 0, 0, 255));
+            }
+            main.add_child(builder, bounds.position, bounds.size)
+                .map_err(|e| e.to_string())?
         }
     };
-    let rect = to_rect(rect);
-    apply_rect(&main, &child, rect)?;
-    // Reveal only after apply_rect pins the rect, so the overlay never
-    // paints at the creation-time default location; no-op on the
-    // reuse path (window already visible).
-    child.show().map_err(|e| e.to_string())?;
-    lock_overlay().replace(OverlayState { rect });
+    // Re-apply so a retarget onto a moved dialog re-glues; on first
+    // creation this is a no-op (the bounds were the creation bounds).
+    webview.set_bounds(bounds).map_err(|e| e.to_string())?;
     Ok(())
 }
 
 /// Re-positions the overlay for a new placeholder rect (dialog/layout
-/// changes measured by the webview).
+/// changes measured by the webview). Window moves need no sync: the
+/// webview's bounds are window-relative.
 #[tauri::command]
 pub async fn sync_preview_player(
     app: tauri::AppHandle,
     rect: OverlayRectDto,
 ) -> Result<(), String> {
-    if lock_overlay().is_none() {
-        return Ok(()); // Nothing open (a stale resize after close).
-    }
     let main = app
-        .get_webview_window("main")
+        .get_window("main")
         .ok_or("ERR::PREVIEW_NO_MAIN_WINDOW")?;
-    let child = app
-        .get_webview_window(PREVIEW_PLAYER_LABEL)
-        .ok_or("ERR::PREVIEW_NO_OVERLAY")?;
-    let rect = to_rect(rect);
-    apply_rect(&main, &child, rect)?;
-    lock_overlay().replace(OverlayState { rect });
-    Ok(())
+    // Nothing open (a stale resize after close) — fail-soft, matching
+    // pause's stale-click arm.
+    let Some(webview) = app.get_webview(PREVIEW_PLAYER_LABEL) else {
+        return Ok(());
+    };
+    webview
+        .set_bounds(overlay_bounds_for(&main, to_rect(rect))?)
+        .map_err(|e| e.to_string())
 }
 
 /// Pauses playback in the overlay without closing it ("open in
 /// browser" keeps the preview dialog up; pausing avoids double audio).
 #[tauri::command]
 pub async fn pause_preview_player(app: tauri::AppHandle) -> Result<(), String> {
-    // Nothing open (e.g. a stale click after the overlay died) — the
-    // overlay-gone case is fail-soft, matching sync's stale-resize arm.
-    if lock_overlay().is_none() {
-        return Ok(());
-    }
-    let Some(child) = app.get_webview_window(PREVIEW_PLAYER_LABEL) else {
+    // Nothing open (e.g. a stale click after close) — fail-soft.
+    let Some(webview) = app.get_webview(PREVIEW_PLAYER_LABEL) else {
         return Ok(());
     };
-    child.eval(PAUSE_PLAYBACK).map_err(|e| e.to_string())
+    webview.eval(PAUSE_PLAYBACK).map_err(|e| e.to_string())
 }
 
 /// Closes the overlay (dialog closed / entry switched).
 #[tauri::command]
 pub async fn close_preview_player(app: tauri::AppHandle) -> Result<(), String> {
-    lock_overlay().take();
-    if let Some(child) = app.get_webview_window(PREVIEW_PLAYER_LABEL) {
-        let _ = child.close();
+    if let Some(webview) = app.get_webview(PREVIEW_PLAYER_LABEL) {
+        let _ = webview.close();
     }
     Ok(())
 }
@@ -691,51 +559,50 @@ mod tests {
     }
 
     #[test]
-    fn overlay_target_scales_logical_rect_to_physical() {
-        let (pos, size) = overlay_target(
-            tauri::PhysicalPosition::new(30, 45),
-            1.5,
+    fn overlay_bounds_maps_css_rect_unchanged_without_inset() {
+        // Windows/Linux: webview origin == CSS viewport origin.
+        let b = overlay_bounds(
             OverlayRect {
-                x: 100.0,
-                y: 40.0,
+                x: 48.0,
+                y: 120.0,
                 width: 800.0,
                 height: 450.0,
             },
+            0.0,
         );
-        assert_eq!(pos, tauri::PhysicalPosition::new(180, 105)); // 30+150, 45+60
-        assert_eq!(size, tauri::PhysicalSize::new(1200, 675));
+        assert_eq!(
+            b.position,
+            tauri::Position::Logical(tauri::LogicalPosition::new(48.0, 120.0))
+        );
+        assert_eq!(
+            b.size,
+            tauri::Size::Logical(tauri::LogicalSize::new(800.0, 450.0))
+        );
     }
 
     #[test]
-    fn overlay_target_rounds_fractional_physical_values() {
-        // 1.5 DPI turns whole logical px into physical halves
-        // (85.0 * 1.5 = 127.5): the overlay must land on the rounded
-        // pixel, not truncate toward zero.
-        let (pos, size) = overlay_target(
-            tauri::PhysicalPosition::new(10, 20),
-            1.5,
+    fn overlay_bounds_shifts_y_by_titlebar_inset_only() {
+        // macOS: CSS (0,0) sits the title-bar inset below the window's
+        // content-view top. x must stay untouched and fractional logical
+        // values must survive — the webview is positioned in the same
+        // logical space as the CSS rect, so no physical rounding exists.
+        let b = overlay_bounds(
             OverlayRect {
-                x: 85.0,
-                y: 84.0,
-                width: 501.0,
-                height: 333.0,
+                x: 741.7,
+                y: 376.1,
+                width: 1077.0,
+                height: 605.0,
             },
+            28.0,
         );
-        assert_eq!(pos, tauri::PhysicalPosition::new(138, 146)); // 10+128, 20+126
-        assert_eq!(size, tauri::PhysicalSize::new(752, 500)); // 751.5, 499.5
-    }
-
-    #[test]
-    fn corrected_outer_position_shifts_by_frame_delta() {
-        // Client landed 8px right / 1px below the outer position
-        // (measured Windows frame at 1.5 DPI): the outer position must
-        // move back by exactly that.
-        let fixed = corrected_outer_position(
-            tauri::PhysicalPosition::new(180, 105),
-            tauri::PhysicalPosition::new(188, 106),
-            tauri::PhysicalPosition::new(180, 105),
+        assert_eq!(
+            b.position,
+            tauri::Position::Logical(tauri::LogicalPosition::new(741.7, 404.1))
         );
-        assert_eq!(fixed, tauri::PhysicalPosition::new(172, 104));
+        assert_eq!(
+            b.size,
+            tauri::Size::Logical(tauri::LogicalSize::new(1077.0, 605.0))
+        );
     }
 
     #[test]

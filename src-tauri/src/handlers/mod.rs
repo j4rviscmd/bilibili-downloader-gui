@@ -10,7 +10,7 @@
 //! - **ffmpeg**: Binary validation and installation, A/V merging
 //! - **gif**: Local MP4 to GIF/WebM animation generation
 //! - **github**: GitHub API integration (repository info)
-//! - **preview_embed**: Official-player preview overlay window + session cookie injection
+//! - **preview_embed**: Official-player in-window preview overlay webview + session cookie injection
 //! - **settings**: Application settings persistence
 //! - **trim**: Local MP4 file trimming via ffmpeg stream copy
 //! - **updater**: GitHub release notes fetching
