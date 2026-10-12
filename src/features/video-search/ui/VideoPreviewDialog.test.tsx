@@ -1,4 +1,5 @@
 import { store } from '@/app/store'
+import { emitTauriEvent } from '@/test/tauriEvents'
 import { mockInvoke, renderWithProviders } from '@/test/test-utils'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { act, render, screen, waitFor } from '@testing-library/react'
@@ -111,6 +112,29 @@ describe('VideoPreviewDialog (official embed overlay)', () => {
     await waitFor(() => {
       expect(closeCalls()).toHaveLength(1)
     })
+  })
+
+  it('closes via the preview:esc event relayed from the player webview', async () => {
+    stubRect(48, 120, 800, 450)
+    const onClose = vi.fn()
+    const { rerender } = render(
+      wrapped(<VideoPreviewDialog entry={entry} onClose={onClose} />),
+    )
+    // Let the async listen() registration settle before dispatching.
+    await act(async () => {})
+
+    act(() => {
+      emitTauriEvent('preview:esc', null)
+    })
+    expect(onClose).toHaveBeenCalledTimes(1)
+
+    // Closing (entry → null) detaches the listener: a stray relayed Esc
+    // while the dialog is already closed must not call onClose again.
+    rerender(wrapped(<VideoPreviewDialog entry={null} onClose={onClose} />))
+    act(() => {
+      emitTauriEvent('preview:esc', null)
+    })
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
   it('closes the overlay on unmount with a preview still open', async () => {

@@ -297,6 +297,25 @@ const HIDE_VIDEO_PAGE_CHROME: &str = r#"(() => {
      well, and the reveal logic below assumes the top-level video page —
      a subframe would sit on the loading cover until the 25s fallback. */
   if (window !== window.top) return;
+  /* Esc relay (Windows builds): while the player webview holds
+     keyboard focus, Esc never reaches the app's main webview, so the
+     preview dialog cannot close on it. Forward the key to the Rust host
+     via WebView2 host messaging; it re-emits the preview:esc tauri
+     event the dialog closes on. window.chrome.webview exists only
+     under WebView2, so other platforms see a dead no-op. Skipped while
+     the player is in real fullscreen — the browser consumes that Esc
+     itself to exit fullscreen, and only the next Esc closes the
+     preview. Capture phase so the player's own stopPropagation cannot
+     swallow the key first. */
+  document.addEventListener(
+    'keydown',
+    (e) => {
+      if (e.key === 'Escape' && !document.fullscreenElement) {
+        window.chrome?.webview?.postMessage('preview:esc');
+      }
+    },
+    true,
+  );
   const css = `
     #biliMainHeader, .right-container, .video-info-container, #danmukuBox,
     .video-toolbar-container, #commentapp, .recommend-container, .tag-list,
@@ -428,6 +447,56 @@ const HIDE_VIDEO_PAGE_CHROME: &str = r#"(() => {
 const PAUSE_PLAYBACK: &str =
     r#"document.querySelectorAll('video,audio').forEach((e) => e.pause())"#;
 
+/// Beacons the init script sends via `window.chrome.webview.postMessage`
+/// when Esc is pressed in the player page (see HIDE_VIDEO_PAGE_CHROME).
+#[cfg(windows)]
+const ESC_BEACON: &str = "preview:esc";
+
+/// Windows: relays Esc pressed inside the player page to the app as the
+/// `preview:esc` tauri event (consumed by VideoPreviewDialog).
+///
+/// Why host messaging: the player page is a remote origin and can never
+/// call the tauri IPC, but WebView2's postMessage/WebMessageReceived pair
+/// is available to every page in the webview (same COM access pattern as
+/// inject_pairs_win). Attached once, in open_preview_player's creation
+/// arm — the only place the webview comes into existence (it is reused,
+/// never recreated, for later previews), so per-open attachment would
+/// stack duplicate handlers. Never unregistered — the webview outlives
+/// every preview.
+#[cfg(windows)]
+fn hook_esc_relay(webview: &tauri::Webview, app: &tauri::AppHandle) -> Result<(), String> {
+    use tauri::Emitter;
+
+    let app = app.clone();
+    webview
+        .with_webview(move |pw| {
+            use webview2_com::WebMessageReceivedEventHandler;
+            use windows_core::PWSTR;
+
+            let controller = pw.controller();
+            let Ok(core) = (unsafe { controller.CoreWebView2() }) else {
+                return;
+            };
+            let handler = WebMessageReceivedEventHandler::create(Box::new(move |_, args| {
+                let Some(args) = args else { return Ok(()) };
+                let mut raw = PWSTR::null();
+                // RAII: frees the COM-allocated string on drop.
+                let message = webview2_com::CoTaskMemPWSTR::from(unsafe {
+                    args.TryGetWebMessageAsString(&mut raw)?;
+                    raw
+                });
+                if message.to_string() == ESC_BEACON {
+                    let _ = app.emit(ESC_BEACON, ());
+                }
+                Ok(())
+            }));
+            // Token unused: the handler is never removed (the webview
+            // outlives every preview).
+            let _ = unsafe { core.add_WebMessageReceived(&handler, std::ptr::null_mut()) };
+        })
+        .map_err(|e| e.to_string())
+}
+
 /// Opens (or retargets) the official-player overlay webview over the
 /// dialog's placeholder rect.
 #[tauri::command]
@@ -496,8 +565,16 @@ pub async fn open_preview_player(
             {
                 builder = builder.background_color(tauri::webview::Color(0, 0, 0, 255));
             }
-            main.add_child(builder, bounds.position, bounds.size)
-                .map_err(|e| e.to_string())?
+            let webview = main
+                .add_child(builder, bounds.position, bounds.size)
+                .map_err(|e| e.to_string())?;
+            // Esc relay (Windows): attach at the only place the webview
+            // is created — every later open reuses it, so this is once
+            // per webview (see hook_esc_relay for why re-attaching
+            // would be wrong).
+            #[cfg(windows)]
+            hook_esc_relay(&webview, &app)?;
+            webview
         }
     };
     // Re-apply so a retarget onto a moved dialog re-glues; on first
@@ -506,6 +583,15 @@ pub async fn open_preview_player(
     // Re-show for the reuse path: close_preview_player hides the overlay
     // instead of destroying it (see there why). No-op on first creation.
     webview.show().map_err(|e| e.to_string())?;
+    // Hand keyboard focus to the player up front: the Bilibili page runs
+    // its own key handlers (space/arrows/m/f…), so focusing the overlay
+    // on open makes the player keyboard-operable without a click first.
+    // Both arms land here, so a retarget re-focuses as well. Deliberate
+    // and ordered, unlike the creation-time MoveFocus that focused(false)
+    // above suppresses (it raced the dialog's own focus management).
+    // Trade-off: while the player holds focus, Tab acts in the player
+    // page; Esc is relayed back on Windows (see hook_esc_relay).
+    webview.set_focus().map_err(|e| e.to_string())?;
     Ok(())
 }
 
