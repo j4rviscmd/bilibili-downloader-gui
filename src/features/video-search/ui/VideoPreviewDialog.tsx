@@ -34,7 +34,8 @@ const SYNC_DEBOUNCE_MS = 50
  * frame-less child window (the real www.bilibili.com video page,
  * first-party so the injected session cookies apply) exactly over its
  * rect. Opening measures the rect after the dialog layout settles,
- * resizing keeps the overlay glued, closing removes the window.
+ * resizing keeps the overlay glued, closing hides the overlay (its page
+ * is killed and the window reused for the next preview).
  */
 export function VideoPreviewDialog({
   entry,
