@@ -618,8 +618,9 @@ pub async fn open_preview_player(
     let rect = to_rect(rect);
     apply_rect(&main, &child, rect)?;
     // Reveal only after apply_rect pins the rect, so the overlay never
-    // paints at the creation-time default location; no-op on the
-    // reuse path (window already visible).
+    // paints at the creation-time default location. On the reuse path
+    // this also re-reveals the window close_preview_player hid (a no-op
+    // when retargeting an already-visible overlay).
     child.show().map_err(|e| e.to_string())?;
     lock_overlay().replace(OverlayState { rect });
     Ok(())
@@ -663,11 +664,31 @@ pub async fn pause_preview_player(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 /// Closes the overlay (dialog closed / entry switched).
+///
+/// Why hide + navigate instead of `close()`: on macOS the child window and
+/// its WKWebView never deallocate on close — measured 2026-10-12 with weak
+/// refs, both objects stay alive (NSWindow pre-close retainCount was 11;
+/// detaching from the parent's childWindows and closing still left it and
+/// the webview alive), so the page keeps running its JS and audio in the
+/// background. The upstream chain (tao keeps `releasedWhenClosed = NO`,
+/// AppKit/WebKit retains) is not fixable from this crate. Instead this
+/// takes the window off screen immediately, pauses the media (instant
+/// silence), and navigates to about:blank, which destroys the document —
+/// the only reliable kill for the page's scripts and player. The hidden
+/// window is intentionally kept and reused by the next open (the retarget
+/// arm in open_preview_player), so repeated previews leak nothing.
 #[tauri::command]
 pub async fn close_preview_player(app: tauri::AppHandle) -> Result<(), String> {
     lock_overlay().take();
     if let Some(child) = app.get_webview_window(PREVIEW_PLAYER_LABEL) {
-        let _ = child.close();
+        // Instant UX: the overlay disappears from screen first.
+        let _ = child.hide();
+        // Audio stops now; the blank navigation that follows kills the
+        // document itself (a pause alone would let the player auto-resume).
+        // It commits in the background — nothing closes the window, so the
+        // navigation cannot be raced by teardown.
+        let _ = child.eval(PAUSE_PLAYBACK);
+        let _ = child.eval("location.replace('about:blank')");
     }
     Ok(())
 }
