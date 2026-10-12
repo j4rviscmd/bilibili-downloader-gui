@@ -728,9 +728,6 @@
     "previewPlay": "Preview video",
     "previewDownload": "Download this video",
     "previewOpenInBrowser": "Open in browser",
-    "previewPlaybackError": "Failed to play the video. Please try again.",
-    "previewVideoUnavailable": "This video can't be previewed. It may have been deleted, made private, or region-restricted.",
-    "previewMirrorUnavailable": "Couldn't get a playable preview URL (CDN issue). Please try again in a moment.",
     "resultsCount": "{{count}} results",
     "filters": {
       "groupLabel": "Search filters",
@@ -776,7 +773,8 @@
       "documentary": "Documentary",
       "movie": "Movies",
       "tv": "TV Dramas"
-    }
+    },
+    "previewOpenFailed": "Couldn't open the preview player. Please try again."
   },
   "watchHistory": {
     "title": "Watch History",

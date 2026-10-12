@@ -183,11 +183,15 @@ describe('PopularContent', () => {
     ])
     renderWithProviders(<Harness />, { route: '/popular' })
 
+    // Why await the card too: the heading is gated by the page-level hook
+    // instance while the shelf's own instance resolves in a separate
+    // setState tick (shared inflight promise) — a synchronous getByText
+    // here races that render and flakes.
     expect(
       await screen.findByText('popular.recommendationsTitle'),
     ).toBeInTheDocument()
+    expect(await screen.findByText('おすすめ候補')).toBeInTheDocument()
     expect(screen.getByText('popular.feedTitle')).toBeInTheDocument()
-    expect(screen.getByText('おすすめ候補')).toBeInTheDocument()
     expect(mockInvoke).toHaveBeenCalledWith('fetch_home_recommendations')
   })
 })

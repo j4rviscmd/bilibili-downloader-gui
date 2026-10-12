@@ -51,6 +51,11 @@ pub fn cleanup_temp_files(app: &AppHandle, max_age_hours: Option<u64>) -> Cleanu
 ///   means the owner died, and the file is deleted immediately regardless of
 ///   age. A live download (another app instance included) holds the sidecar
 ///   lock and is never touched.
+/// - `temp_video_*.m4s.progress.json` / `temp_audio_*.m4s.progress.json`:
+///   segment-checkpoint sidecars; removable exactly when their payload temp
+///   is gone or orphaned (liveness is the payload's own rule — see
+///   `media_temp_is_orphan`: the `.lock` sidecar flock, with the payload's
+///   own flock as the pre-#595 fallback).
 /// - `temp_video_*.m4s.lock` / `temp_audio_*.m4s.lock`: unlocked sidecars
 ///   (e.g. a crash between payload removal and sidecar removal) are swept.
 /// - `temp_sub_*.srt`: no lock is held on these; they keep the legacy
@@ -73,6 +78,19 @@ pub fn cleanup_temp_files_in_dir(dir: &Path, max_age_hours: Option<u64>) -> Clea
                     // An unlocked sidecar is provably dead — a live download
                     // always holds its flock.
                     if is_unlocked_orphan(&path) {
+                        delete_file(&path, &mut result);
+                    }
+                    continue;
+                }
+                if is_media_progress_sidecar(&path) {
+                    // A checkpoint sidecar is dead when its payload temp is
+                    // gone or itself orphaned; a live payload's lock (see
+                    // `media_temp_is_orphan`) protects it. No age rule: the
+                    // payload governs.
+                    let dead = temp_from_progress_sidecar(&path)
+                        .map(|temp| !temp.exists() || media_temp_is_orphan(&temp))
+                        .unwrap_or(true);
+                    if dead {
                         delete_file(&path, &mut result);
                     }
                     continue;
@@ -223,6 +241,27 @@ fn is_media_temp_lock(path: &Path) -> bool {
     };
     (name.starts_with("temp_video_") || name.starts_with("temp_audio_"))
         && name.ends_with(".m4s.lock")
+}
+
+/// `temp_video_*.m4s.progress.json` / `temp_audio_*.m4s.progress.json`
+/// checkpoint sidecars (segment resume state). Their liveness is the
+/// payload temp's — `media_temp_is_orphan` (`.lock` sidecar flock, payload
+/// flock as the pre-#595 fallback); the sidecar itself carries no lock.
+fn is_media_progress_sidecar(path: &Path) -> bool {
+    let name = match path.file_name().and_then(|n| n.to_str()) {
+        Some(n) => n,
+        None => return false,
+    };
+    (name.starts_with("temp_video_") || name.starts_with("temp_audio_"))
+        && name.ends_with(".m4s.progress.json")
+}
+
+/// Payload temp path of a progress sidecar (`X.m4s.progress.json` ->
+/// `X.m4s`). Returns `None` for names without the suffix.
+fn temp_from_progress_sidecar(sidecar: &Path) -> Option<PathBuf> {
+    let name = sidecar.file_name()?.to_str()?;
+    let stem = name.strip_suffix(".progress.json")?;
+    Some(sidecar.with_file_name(stem))
 }
 
 /// Output sidecar locks in the download dir (`video.mp4.lock`). Outputs are
@@ -411,6 +450,70 @@ mod tests {
         );
         assert!(!path.exists());
         assert!(!lock_sidecar_path(&path).exists());
+    }
+
+    #[test]
+    fn progress_sidecar_swept_when_payload_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        // Checkpoint sidecar whose payload temp is already gone (crash
+        // between payload removal and sidecar removal).
+        let sidecar = dir.path().join("temp_video_dl-9.m4s.progress.json");
+        fs::write(&sidecar, b"{}").unwrap();
+
+        let result = cleanup_temp_files_in_dir(dir.path(), None);
+        assert_eq!(result.deleted_count, 1, "orphan checkpoint sidecar");
+        assert!(!sidecar.exists());
+    }
+
+    #[test]
+    fn progress_sidecar_kept_while_payload_live() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("temp_audio_dl-10.m4s");
+        fs::write(&path, b"x").unwrap();
+        // Live download: flock held on the payload's lock sidecar.
+        let _holder = hold_flock(&lock_sidecar_path(&path));
+        let progress = dir.path().join("temp_audio_dl-10.m4s.progress.json");
+        fs::write(&progress, b"{}").unwrap();
+
+        let result = cleanup_temp_files_in_dir(dir.path(), None);
+        assert_eq!(
+            result.deleted_count, 0,
+            "live download keeps its checkpoint"
+        );
+        assert!(progress.exists());
+    }
+
+    #[test]
+    fn progress_sidecar_swept_with_orphaned_payload() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("temp_video_dl-11.m4s");
+        fs::write(&path, b"x").unwrap();
+        // Crashed download: unlocked lock sidecar + progress sidecar.
+        fs::write(lock_sidecar_path(&path), b"").unwrap();
+        let progress = dir.path().join("temp_video_dl-11.m4s.progress.json");
+        fs::write(&progress, b"{}").unwrap();
+
+        let result = cleanup_temp_files_in_dir(dir.path(), None);
+        assert_eq!(
+            result.deleted_count, 3,
+            "orphaned payload + lock sidecar + checkpoint all swept"
+        );
+        assert!(!path.exists());
+        assert!(!progress.exists());
+    }
+
+    #[test]
+    fn unrelated_progress_json_files_are_not_swept() {
+        // Only OUR checkpoint sidecars (temp_video_/temp_audio_ prefix)
+        // match the new rule: a user file merely sharing the suffix must
+        // survive the sweep.
+        let dir = tempfile::tempdir().unwrap();
+        let notes = dir.path().join("notes.progress.json");
+        fs::write(&notes, b"{}").unwrap();
+
+        let result = cleanup_temp_files_in_dir(dir.path(), None);
+        assert_eq!(result.deleted_count, 0);
+        assert!(notes.exists());
     }
 
     #[test]

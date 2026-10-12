@@ -23,7 +23,10 @@ tauri-build = { version = "2", features = [] }
 # on macOS (no-op on Windows/Linux). Used by the splash window to render
 # rounded corners. App Store distribution is not a target (GitHub Releases
 # only), so private API use is acceptable here.
-tauri = { version = "2", features = ["macos-private-api"] }
+# unstable: gates Window::add_child (multiple webviews in one window), used
+# by the preview overlay (handlers/preview_embed.rs) to embed the player
+# page in the main window instead of a separate OS window.
+tauri = { version = "2", features = ["macos-private-api", "unstable"] }
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
@@ -35,6 +38,10 @@ reqwest = { version = "0.12.24", features = ["json", "stream", "blocking", "gzip
 # with a precise error instead of an opaque reqwest "builder error". Already
 # present transitively via reqwest; pinning here makes the usage explicit.
 url = "2"
+# Why: convertFileSrc percent-encodes (encodeURIComponent) the paths the
+# stream:// protocol handler receives, so the handler must percent-decode
+# them. Already present transitively via tauri; pinned here explicitly.
+percent-encoding = "2"
 tokio = { version = "1.47.1", features = ["full"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 octocrab = "0.42"
@@ -83,6 +90,22 @@ log = "0.4"
 # Their dev-only registration is gated by #[cfg(debug_assertions)] in lib.rs.
 tauri-plugin-webdriver = "0.2"
 tauri-plugin-mcp-bridge = "0.11"
+
+[target.'cfg(windows)'.dependencies]
+# Embed-player preview: WebView2 CookieManager COM injection of session
+# cookies as domain cookies (tauri re-exports the same webview2-com types
+# tauri-runtime-wry uses; windows-core supplies the Interface casts).
+webview2-com = "0.38"
+windows-core = "0.61"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# Preview overlay positioning: NSWindow.contentLayoutRect gives the
+# title-bar inset that tao's inner_position() does not report (the main
+# window's webview starts below the title bar). 0.2.x is the copy wry's
+# objc2-web-kit already builds (tao uses 0.3.x as a separate node), so
+# no extra code is compiled in. NSResponder is required too: it gates
+# the NSWindow class and frame()/contentLayoutRect() themselves.
+objc2-app-kit = { version = "0.2", features = ["NSWindow", "NSResponder"] }
 
 [dev-dependencies]
 # Why: declared up front (PR R1 of the test-coverage plan) so later PRs add

@@ -4,6 +4,13 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Why no-referrer: Akamai hdnts token auth on upos-*.akamaized.net
+         mirrors 403s any foreign Referer (measured 2026-10-09: none/bilibili
+         = 206, app-origin localhost = 403), which killed <video> preview
+         playback on those mirrors with MEDIA_ERR_SRC_NOT_SUPPORTED. Applies
+         document-wide; the remaining subresources (hdslb thumbnails, Google
+         Fonts) are Referer-insensitive. -->
+    <meta name="referrer" content="no-referrer" />
     <title>Bilibili Downloader</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <!-- Caution: crossorigin is required on THIS preconnect only. Font files

@@ -10,10 +10,10 @@
 //! - **ffmpeg**: Binary validation and installation, A/V merging
 //! - **gif**: Local MP4 to GIF/WebM animation generation
 //! - **github**: GitHub API integration (repository info)
+//! - **preview_embed**: Official-player in-window preview overlay webview + session cookie injection
 //! - **settings**: Application settings persistence
 //! - **trim**: Local MP4 file trimming via ffmpeg stream copy
 //! - **updater**: GitHub release notes fetching
-
 pub mod audio;
 pub mod bilibili;
 pub mod cleanup;
@@ -27,6 +27,7 @@ pub mod github;
 pub mod history_session;
 pub mod init;
 pub mod manual_login;
+pub mod preview_embed;
 pub mod qr_login;
 pub mod resolution;
 pub mod rotation;

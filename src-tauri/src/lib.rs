@@ -118,8 +118,6 @@ pub use utils::wbi;
 /// - `search_videos`: Keyword search over bilibili videos (no login required)
 /// - `fetch_popular_videos`: Popular video feed for the search page's entry
 ///   view (no login required)
-/// - `get_preview_play_url`: Resolves a playable MP4 preview URL for a
-///   search result (HTML5 platform, ≤1080p, works logged out)
 /// - `get_history`: Retrieves all download history entries
 /// - `add_history_entry`: Adds a new history entry
 /// - `remove_history_entry`: Removes a history entry by ID
@@ -228,7 +226,10 @@ pub fn run() {
             remove_search_history_entry,
             clear_search_history,
             expand_short_url,
-            get_preview_play_url,
+            handlers::preview_embed::open_preview_player,
+            handlers::preview_embed::sync_preview_player,
+            handlers::preview_embed::pause_preview_player,
+            handlers::preview_embed::close_preview_player,
             cleanup_temp_files,
             trim_video,
             rotate_video,
@@ -641,35 +642,6 @@ async fn fetch_part_qualities(
     cid: i64,
 ) -> Result<(Vec<Quality>, Vec<Quality>, bool), String> {
     bilibili::fetch_part_qualities(&app, &bvid, cid)
-        .await
-        .map_err(|e| e.to_string())
-}
-
-/// Resolves a directly playable MP4 preview URL for a search result.
-///
-/// Backs the search page's inline preview player: the HTML5-platform
-/// playurl returns one muxed MP4 with no referer hotlink protection, so
-/// the frontend `<video>` element can stream it directly. Quality is
-/// capped at 1080p by the API; VIP-only tiers are intentionally out of
-/// scope (preview, not a full player).
-///
-/// # Arguments
-///
-/// * `app` - Tauri application handle for cookie cache access
-/// * `bvid` - Bilibili video ID (BV identifier) from the search result
-///
-/// # Returns
-///
-/// Returns the MP4 URL string on success.
-///
-/// # Errors
-///
-/// Returns an error if the video is not found (`ERR::VIDEO_NOT_FOUND`)
-/// or no MP4 stream is returned (`ERR::NO_STREAM`), or only Akamai mirrors
-/// are assigned within the retry budget (`ERR::NO_PLAYABLE_MIRROR`).
-#[tauri::command]
-async fn get_preview_play_url(app: AppHandle, bvid: String) -> Result<String, String> {
-    bilibili::get_preview_play_url(&app, &bvid)
         .await
         .map_err(|e| e.to_string())
 }

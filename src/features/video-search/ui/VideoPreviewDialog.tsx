@@ -1,4 +1,3 @@
-import { useAppDispatch, useSelector } from '@/app/store'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -6,34 +5,46 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { callPatchSettings } from '@/features/settings/api/settingApi'
-import { setSettings } from '@/features/settings/settingsSlice'
 import { buildVideoUrl } from '@/features/video/lib/utils'
 import { usePendingDownload } from '@/shared/hooks/usePendingDownload'
 import { logger } from '@/shared/lib/logger'
-import { mapBackendError } from '@/shared/lib/mapBackendError'
-import CircleIndicator from '@/shared/ui/CircleIndicator'
-import { Skeleton } from '@/shared/ui/skeleton'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { Download, ExternalLink } from 'lucide-react'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { fetchPreviewPlayUrl } from '../api/previewPlayUrl'
+import {
+  closePreviewPlayer,
+  openPreviewPlayer,
+  pausePreviewPlayer,
+  syncPreviewPlayer,
+} from '../api/previewEmbed'
 import type { VideoSearchEntry } from '../types'
 
-/** Debounce for persisting preview-player volume changes: the native
- * volume slider fires volumechange continuously while dragged, and each
- * patch_settings is a locked disk write — coalesce a drag into one save. */
-const VOLUME_SAVE_DEBOUNCE_MS = 500
+/** Debounce for overlay syncs: the placeholder fires ResizeObserver
+ * entries continuously while the dialog/window resizes, and every sync
+ * is a set_bounds round-trip — coalesce a drag into occasional updates. */
+const SYNC_DEBOUNCE_MS = 50
+
+// Event the Rust backend emits when Esc is pressed inside the player
+// webview (Windows relay; see handlers/preview_embed.rs). While the
+// player holds keyboard focus the main webview never sees the key, so
+// this is the only Esc path that works. Kept in sync with the
+// `app.emit("preview:esc", ())` call on the Rust side.
+const PREVIEW_ESC_EVENT = 'preview:esc'
 
 /**
- * Inline MP4 preview dialog for one search result.
+ * Preview dialog for one search result, played by Bilibili's official
+ * video page.
  *
- * Opened per entry from a card's thumbnail play button. The URL resolves
- * lazily on open (skeleton while in flight); closing unmounts the
- * `<video>` element, which stops playback. ERR::* codes map to i18n keys
- * and anything else falls back to the raw message with the prefix
- * stripped (video-search page convention).
+ * The video area is a black placeholder: the backend positions an
+ * embedded child webview (the real www.bilibili.com video page,
+ * first-party so the injected session cookies apply) exactly over its
+ * rect, inside the main window — one OS window, so app switchers and
+ * z-order follow the main app. Opening measures the rect after the
+ * dialog layout settles, resizing keeps the overlay glued, closing
+ * hides the overlay (its page is killed and the webview reused for
+ * the next preview).
  */
 export function VideoPreviewDialog({
   entry,
@@ -45,106 +56,139 @@ export function VideoPreviewDialog({
 }) {
   const { t } = useTranslation()
   const handleDownload = usePendingDownload()
-  const dispatch = useAppDispatch()
-  const previewVolume = useSelector((state) => state.settings.previewVolume)
-  const previewMuted = useSelector((state) => state.settings.previewMuted)
-  const [url, setUrl] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  // Set when the <video> element itself rejects the resolved URL (media
-  // `error` event — e.g. a CDN fetch failure after the URL resolved fine).
-  // Without this the dead element just sits on a black canvas with a play
-  // button and no message.
-  const [mediaFailed, setMediaFailed] = useState(false)
-  // True between the <video> mounting and its first playable frame —
-  // the native controls already render in a "playing" posture during
-  // that window, so an explicit spinner keeps the loading state honest.
-  const [buffering, setBuffering] = useState(false)
-  // Windows WebView2 (Chromium) native media controls already render a
-  // buffering spinner — the custom overlay would double it. macOS
-  // WKWebView and Linux WebKitGTK ship none, so the custom one stays
-  // there. userAgent per the GeneralSection convention
-  // (navigator.platform is deprecated). Evaluated per render (not module
-  // level) so tests can stub the UA before mounting.
-  const nativeBufferingSpinner =
-    typeof navigator !== 'undefined' && /Windows/i.test(navigator.userAgent)
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const saveTimer = useRef<number | undefined>(undefined)
+  // The placeholder element as state (callback ref): the dialog's portal
+  // can attach it a pass AFTER the effects run, and both overlay effects
+  // need it — a plain ref would read null on the first pass.
+  const [placeholderEl, setPlaceholderEl] = useState<HTMLDivElement | null>(
+    null,
+  )
+  const [error, setError] = useState(false)
 
+  // Whether an entry has been previewed since mount — gates the close
+  // call so an always-mounted dialog (entry starts null) does not fire a
+  // pointless close command on every app start.
+  const hadEntryRef = useRef(false)
+
+  // Open/retarget the overlay once the dialog layout settles. Double
+  // rAF waits out the open transition so the rect matches what the user
+  // sees; a cancellation flag drops the pending open on rapid switches.
   useEffect(() => {
-    if (!entry) return
-    setUrl(null)
-    setError(null)
-    setMediaFailed(false)
+    if (!entry) {
+      // Dialog closed: take the overlay down (also on unmount via the
+      // mount-once effect below — this arm covers entry→null).
+      if (hadEntryRef.current) {
+        hadEntryRef.current = false
+        void closePreviewPlayer().catch(() => {})
+      }
+      return
+    }
+    hadEntryRef.current = true
+    setError(false)
     let cancelled = false
-    fetchPreviewPlayUrl(entry.bvid)
-      .then((resolved) => {
-        if (!cancelled) setUrl(resolved)
-      })
-      .catch((e: unknown) => {
-        if (!cancelled) setError(String(e))
-      })
+    const open = async () => {
+      const el = placeholderEl
+      if (!el) return
+      const r = el.getBoundingClientRect()
+      try {
+        await openPreviewPlayer(entry.bvid, {
+          x: r.x,
+          y: r.y,
+          width: r.width,
+          height: r.height,
+        })
+      } catch {
+        if (!cancelled) setError(true)
+      }
+    }
+    const id = requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        if (!cancelled) void open()
+      }),
+    )
     return () => {
       cancelled = true
+      cancelAnimationFrame(id)
     }
-  }, [entry])
+  }, [entry, placeholderEl])
 
-  // Restore last-used volume/muted from settings onto the freshly mounted
-  // <video> (the element is recreated per dialog open, so native state
-  // resets to 1.0). LAYOUT effect on purpose: volume cannot be passed as
-  // a JSX prop, and Chromium-based webviews (Windows WebView2) sync their
-  // controls synchronously, so the pre-paint apply fully hides the jump
-  // there. WKWebView (macOS) still paints its slider at max and animates
-  // down — its UA controls sync on the asynchronously dispatched
-  // volumechange; accepted as a platform quirk after a measured
-  // two-frame-hidden workaround failed to suppress it. Re-asserting store
-  // values after our own debounced save round-trip is a no-op: assigning
-  // an unchanged volume fires nothing.
-  useLayoutEffect(() => {
-    const video = videoRef.current
-    if (!url || !video) return
-    if (previewVolume !== undefined) video.volume = previewVolume
-    video.muted = previewMuted ?? false
-  }, [url, previewVolume, previewMuted])
+  // Keep the overlay glued to the placeholder on dialog/window layout
+  // changes. Window moves need no sync: the overlay webview's bounds
+  // are window-relative.
+  useEffect(() => {
+    // Why: jsdom ships no ResizeObserver (see MockResizeObserver in
+    // VideoPreviewDialog.test.tsx) — feature-detect so a missing observer
+    // cannot stop the dialog from mounting; the overlay just stops following.
+    if (!entry || !placeholderEl || typeof ResizeObserver === 'undefined')
+      return
+    const el = placeholderEl
+    let timer: number | undefined
+    // Why: shared by both event sources so they feed one debounce timer —
+    // one window resize can fire the observer and the viewport listener
+    // together, and separate timers would sync twice (see the coalescing
+    // test in VideoPreviewDialog.test.tsx).
+    const schedule = () => {
+      window.clearTimeout(timer)
+      timer = window.setTimeout(() => {
+        const r = el.getBoundingClientRect()
+        void syncPreviewPlayer({
+          x: r.x,
+          y: r.y,
+          width: r.width,
+          height: r.height,
+        }).catch(() => {})
+      }, SYNC_DEBOUNCE_MS)
+    }
+    const ro = new ResizeObserver(schedule)
+    ro.observe(el)
+    // Why a viewport resize listener alongside the observer: ResizeObserver
+    // reports size changes only. While the dialog's size caps
+    // (max-w-7xl / max-h-[75vh]) hold the placeholder at a constant size,
+    // a main-window resize still recenters the dialog — the overlay used to
+    // stay glued to the stale rect and render offset from the dialog. The
+    // viewport resize event covers that position-only change.
+    window.addEventListener('resize', schedule)
+    return () => {
+      window.clearTimeout(timer)
+      ro.disconnect()
+      window.removeEventListener('resize', schedule)
+    }
+  }, [entry, placeholderEl])
 
-  // Cancel an in-flight debounced save when the dialog unmounts
-  // (clearTimeout on a null handle is a no-op).
-  useEffect(() => () => clearTimeout(saveTimer.current), [])
+  // Component unmount with a preview still open (page navigation while
+  // the dialog is up): the entry→null arm above never runs.
+  useEffect(
+    () => () => {
+      if (hadEntryRef.current) {
+        hadEntryRef.current = false
+        void closePreviewPlayer().catch(() => {})
+      }
+    },
+    [],
+  )
 
-  // volumechange fires on both volume slider and mute-toggle interactions
-  // with the native controls — a single listener persists whichever moved.
-  const handleVolumeChange = () => {
-    const video = videoRef.current
-    if (!video) return
-    clearTimeout(saveTimer.current)
-    saveTimer.current = window.setTimeout(() => {
-      const patch = { previewVolume: video.volume, previewMuted: video.muted }
-      dispatch(setSettings(patch))
-      callPatchSettings(patch).catch((e) => {
-        logger.error('VideoPreviewDialog: failed to persist preview volume', e)
+  // Esc pressed inside the player webview (Windows relay): keyboard
+  // focus lives in the overlay while a preview plays, so Radix's own
+  // Esc handling cannot fire — the backend relays the key as an event
+  // and we close through the same onClose path. Registered only while
+  // an entry is open; the ref keeps the latest onClose without
+  // re-registering on parent re-renders.
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+  useEffect(() => {
+    if (!entry) return
+    let unlisten: UnlistenFn | undefined
+    listen(PREVIEW_ESC_EVENT, () => onCloseRef.current())
+      .then((fn) => {
+        unlisten = fn
       })
-    }, VOLUME_SAVE_DEBOUNCE_MS)
-  }
-
-  // ERR::* codes → translated message; unmapped codes/raw strings fall
-  // back to the raw message with the prefix stripped (video-search page
-  // convention — see src/pages/video-search/index.tsx).
-  // Why the override: the global video_not_found message ends with "check
-  // the URL", which fits the URL-input page but not a search-result entry
-  // — here the view API refused the video itself (deleted/private/region-
-  // blocked while the search index still lists it), so the URL is fine.
-  let errorText: string | null = null
-  if (error) {
-    const key = mapBackendError(error)
-    errorText =
-      key === 'video.video_not_found'
-        ? t('videoSearch.previewVideoUnavailable')
-        : key
-          ? t(key)
-          : error.replace(/^ERR::/, '')
-  } else if (mediaFailed) {
-    // Media-element failure has no ERR:: code — generic retry message.
-    errorText = t('videoSearch.previewPlaybackError')
-  }
+      .catch((e) =>
+        logger.error(
+          'VideoPreviewDialog: failed to register preview:esc listener',
+          e,
+        ),
+      )
+    return () => unlisten?.()
+  }, [entry])
 
   return (
     <Dialog
@@ -165,61 +209,25 @@ export function VideoPreviewDialog({
         </DialogHeader>
         {/* max-h keeps the 16:9 box inside short windows; 75vh lets the
             7xl box hit its full 16:9 height (~693px) on ≥924px-tall
-            windows. <video> letterboxes (object-fit default) instead of
-            overflowing on shorter ones. */}
+            windows. The black stand-in defines the rect the backend
+            positions the player window over (see preview_embed.rs). */}
         <div className="relative aspect-video max-h-[75vh] w-full overflow-hidden rounded-md bg-black">
-          {url && !mediaFailed ? (
-            <>
-              <video
-                ref={videoRef}
-                onLoadStart={() => setBuffering(true)}
-                // waiting covers seek-buffering while PLAYING; a seek
-                // started while PAUSED fires no waiting (spec), so the
-                // seeking/seeked pair closes that gap.
-                onWaiting={() => setBuffering(true)}
-                onSeeking={() => setBuffering(true)}
-                onPlaying={() => setBuffering(false)}
-                onCanPlay={() => setBuffering(false)}
-                onSeeked={() => setBuffering(false)}
-                onError={() => {
-                  setBuffering(false)
-                  setMediaFailed(true)
-                }}
-                onVolumeChange={handleVolumeChange}
-                src={url}
-                controls
-                // Suppresses the Download item in the native (Chromium/
-                // WebView2) media-controls overflow (⋮) menu; the dialog's
-                // own download handoff below is the intended path.
-                controlsList="nodownload"
-                autoPlay
-                playsInline
-                className="h-full w-full"
-              />
-              {/* Overlay only — pointer-events-none keeps the native
-                  controls usable while buffering. Suppressed on Windows
-                  (see nativeBufferingSpinner). */}
-              {buffering && !nativeBufferingSpinner && (
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                  <CircleIndicator size="lg" className="text-white/90" />
-                </div>
-              )}
-            </>
-          ) : errorText ? (
+          <div ref={setPlaceholderEl} className="h-full w-full" />
+          {error && (
             <div
               role="alert"
-              className="text-muted-foreground flex h-full items-center justify-center p-4 text-center text-sm"
+              className="text-muted-foreground absolute inset-0 flex items-center justify-center p-4 text-center text-sm"
             >
-              {errorText}
+              {t('videoSearch.previewOpenFailed')}
             </div>
-          ) : (
-            <Skeleton className="h-full w-full rounded-none" />
           )}
         </div>
 
-        {/* Preview-to-download handoff: same route as clicking the card
-            body (URL search page with the bvid preloaded), so both entry
-            points behave identically. Closing first stops playback. */}
+        {/* Preview actions. Download closes first (same handoff route
+            as clicking the card body — the URL search page with the
+            bvid preloaded — and the overlay dies with the dialog).
+            "Open in browser" keeps the dialog: the overlay is only
+            paused, so the browser tab does not double the audio. */}
         <div className="flex justify-end gap-2">
           <Button
             type="button"
@@ -227,9 +235,11 @@ export function VideoPreviewDialog({
             size="sm"
             onClick={() => {
               if (!entry) return
-              // The browser starts the same video — pause the preview
-              // so audio doesn't double.
-              videoRef.current?.pause()
+              // Why: restores the pause-and-keep-open UX from #789; #821's overlay
+              // rewrite lost the inline player's pause hook and regressed this
+              // handoff to closing the whole dialog.
+              // Fail soft: a lost overlay must not block the handoff.
+              void pausePreviewPlayer().catch(() => {})
               openUrl(buildVideoUrl(entry.bvid, 1)).catch((e) => {
                 logger.error(
                   'VideoPreviewDialog: failed to open video in browser',
