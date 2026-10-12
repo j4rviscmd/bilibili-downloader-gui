@@ -13,6 +13,8 @@ import {
   VideoForm1,
   VideoInfoProvider,
 } from '@/features/video'
+import type { PreviewTarget } from '@/features/video-search'
+import { VideoPreviewDialog } from '@/features/video-search'
 import VideoPartCard from '@/features/video/ui/VideoPartCard'
 import VideoPartCardSkeleton from '@/features/video/ui/VideoPartCardSkeleton'
 import {
@@ -148,6 +150,10 @@ function PaginatedPartList({
   const { t } = useTranslation()
   const totalPages = Math.ceil(video.parts.length / PARTS_PER_PAGE)
 
+  // Part preview dialog (shared with the video search page): the list
+  // owns one dialog instance, same pattern as VideoCardGrid.
+  const [preview, setPreview] = useState<PreviewTarget | null>(null)
+
   // Calculate the range of parts for the current page
   const pageRange = useMemo(() => {
     const startIndex = (currentPage - 1) * PARTS_PER_PAGE
@@ -224,6 +230,13 @@ function PaginatedPartList({
             video={video}
             page={i + 1}
             isDuplicate={duplicateIndices.includes(i)}
+            onThumbnailClick={() =>
+              setPreview({
+                bvid: video.bvid,
+                title: part.part,
+                page: i + 1,
+              })
+            }
           />
           {i < pageRange.endIndex && <Separator className="my-3" />}
         </div>,
@@ -302,6 +315,15 @@ function PaginatedPartList({
           <DownloadButton />
         </div>
       </CardFooter>
+      {/* Why showDownload=false: the download action hands off to this
+          very page (usePendingDownload navigates to /search) — here the
+          user already has the parts open, so only the preview and
+          browser actions make sense. */}
+      <VideoPreviewDialog
+        entry={preview}
+        onClose={() => setPreview(null)}
+        showDownload={false}
+      />
     </>
   )
 }

@@ -19,13 +19,15 @@ export interface PreviewRect {
  *
  * @param bvid - Video BV id from a search result entry
  * @param rect - Current placeholder rect measured by the dialog
+ * @param page - Multi-part page number (1-indexed)
  * @throws Error string from the backend, e.g. 'ERR::INVALID_BVID'
  */
 export function openPreviewPlayer(
   bvid: string,
   rect: PreviewRect,
+  page: number,
 ): Promise<void> {
-  return invoke('open_preview_player', { bvid, rect })
+  return invoke('open_preview_player', { bvid, rect, page })
 }
 
 /**

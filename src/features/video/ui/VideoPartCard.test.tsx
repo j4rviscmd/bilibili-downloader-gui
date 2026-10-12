@@ -15,7 +15,6 @@ import { setInput } from '@/features/video/model/inputSlice'
 import type { Input, PartInput, Video } from '@/features/video/types'
 import { TooltipProvider } from '@/shared/animate-ui/radix/tooltip'
 import { renderWithProviders, resetQueue, seedSession } from '@/test/test-utils'
-import { openUrl } from '@tauri-apps/plugin-opener'
 import { fireEvent, screen } from '@testing-library/react'
 import { Provider } from 'react-redux'
 import { MemoryRouter } from 'react-router'
@@ -45,7 +44,6 @@ import { toast } from '@/shared/ui/toast'
 
 const toastSuccess = toast.success as unknown as Mock
 const toastError = toast.error as unknown as Mock
-const mockOpenUrl = openUrl as unknown as Mock
 
 /** Minimal single-part video the card is rendered against. */
 const video: Video = {
@@ -143,6 +141,8 @@ type SetupOptions = {
   video?: Video
   /** onValid2 spy installed into the mocked useVideoInfo value. */
   onValid2?: Mock
+  /** Preview-dialog opener passed down to the card (page-owned). */
+  onThumbnailClick?: () => void
 }
 
 /** Seeds the input slice plus both mocked hooks, then renders the card. */
@@ -152,6 +152,7 @@ function setup({
   isDuplicate,
   video: videoFixture,
   onValid2,
+  onThumbnailClick = vi.fn(),
 }: SetupOptions = {}) {
   store.dispatch(
     setInput({
@@ -173,6 +174,7 @@ function setup({
         video={videoFixture ?? video}
         page={1}
         isDuplicate={isDuplicate}
+        onThumbnailClick={onThumbnailClick}
       />
     </TooltipProvider>,
   )
@@ -335,7 +337,7 @@ describe('VideoPartCard', () => {
       <Provider store={store}>
         <MemoryRouter>
           <TooltipProvider>
-            <VideoPartCard video={video} page={1} />
+            <VideoPartCard video={video} page={1} onThumbnailClick={() => {}} />
           </TooltipProvider>
         </MemoryRouter>
       </Provider>,
@@ -373,14 +375,16 @@ describe('VideoPartCard', () => {
 
   // --- Thumbnail ------------------------------------------------------------
 
-  it('renders the thumbnail and opens the video in the browser on click', async () => {
-    const { user } = setup({ video: thumbVideo })
+  it('renders the thumbnail and reports play-overlay clicks to the page', async () => {
+    const onThumbnailClick = vi.fn()
+    const { user } = setup({ video: thumbVideo, onThumbnailClick })
 
-    await user.click(screen.getByRole('img'))
-
-    expect(mockOpenUrl).toHaveBeenCalledWith(
-      'https://www.bilibili.com/video/BV1xx411c7XD',
+    // The hover-revealed overlay button is the sole trigger.
+    await user.click(
+      screen.getByRole('button', { name: 'videoSearch.previewPlay' }),
     )
+
+    expect(onThumbnailClick).toHaveBeenCalledTimes(1)
   })
 
   // --- Part name / duration row ----------------------------------------------
@@ -861,7 +865,7 @@ describe('VideoPartCard', () => {
     const { user } = renderWithProviders(
       <div data-part-list>
         <TooltipProvider>
-          <VideoPartCard video={video} page={1} />
+          <VideoPartCard video={video} page={1} onThumbnailClick={() => {}} />
         </TooltipProvider>
       </div>,
     )
@@ -890,7 +894,7 @@ describe('VideoPartCard', () => {
     seedSession('BVother', [{ partIndex: 1, cid: 999, status: 'running' }])
     renderWithProviders(
       <TooltipProvider>
-        <VideoPartCard video={video} page={1} />
+        <VideoPartCard video={video} page={1} onThumbnailClick={() => {}} />
       </TooltipProvider>,
     )
 

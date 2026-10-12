@@ -365,7 +365,6 @@
     "bangumi_preview_badge": "予告",
     "bangumi_preview_tooltip": "プレミアム会員権限が必要です。冒頭6分のみダウンロードされます。",
     "bangumi_durl_not_supported": "このエピソード形式はサポートされていません。",
-    "open_in_browser": "ブラウザで開く",
     "navigation_disabled_tooltip": "ダウンロード完了までお待ちください"
   },
   "progress": {
