@@ -499,6 +499,15 @@ pub async fn open_preview_player(
     // Re-show for the reuse path: close_preview_player hides the overlay
     // instead of destroying it (see there why). No-op on first creation.
     webview.show().map_err(|e| e.to_string())?;
+    // Hand keyboard focus to the player up front: the Bilibili page runs
+    // its own key handlers (space/arrows/m/f…), so focusing the overlay
+    // on open makes the player keyboard-operable without a click first.
+    // Both arms land here, so a retarget re-focuses as well. Deliberate
+    // and ordered, unlike the creation-time MoveFocus that focused(false)
+    // above suppresses (it raced the dialog's own focus management).
+    // Trade-off: while the player holds focus, Esc/Tab act in the player
+    // page — Esc no longer closes the dialog until its chrome is clicked.
+    webview.set_focus().map_err(|e| e.to_string())?;
     Ok(())
 }
 
