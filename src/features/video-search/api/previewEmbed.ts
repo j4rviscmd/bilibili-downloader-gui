@@ -9,7 +9,7 @@ export interface PreviewRect {
 }
 
 /**
- * Opens the official video page in an overlay window over the
+ * Opens the official video page in an embedded overlay webview over the
  * placeholder rect.
  *
  * The backend injects the stored session cookies before the page loads,
@@ -29,8 +29,8 @@ export function openPreviewPlayer(
 }
 
 /**
- * Re-positions the overlay after dialog/layout changes (the backend
- * handles main-window moves via its own Moved/Resized listener).
+ * Re-positions the overlay after dialog/layout changes. Window moves
+ * need no sync: the overlay webview's bounds are window-relative.
  */
 export function syncPreviewPlayer(rect: PreviewRect): Promise<void> {
   return invoke('sync_preview_player', { rect })
