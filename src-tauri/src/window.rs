@@ -312,7 +312,11 @@ pub(crate) fn register_main_window_events(app: &AppHandle) {
                 true
             };
             if should_open {
-                if let Some(win) = app.get_webview_window("main") {
+                // Why get_webview and not get_webview_window: sibling
+                // webviews on main (the preview-player overlay, kept after
+                // the first preview) make get_webview_window return None —
+                // see preview_embed.rs inject_session_cookies.
+                if let Some(win) = app.get_webview("main") {
                     win.open_devtools();
                 }
             }
@@ -367,7 +371,12 @@ fn read_window_theme_at(settings_path: &Path) -> Option<Theme> {
 // Why coverage(off): reads the live window state and writes the real app-data store — injection cost outweighs value (issue #646 policy 4).
 #[cfg_attr(coverage, coverage(off))]
 pub fn save_window_geometry(app: &AppHandle) {
-    let Some(window) = app.get_webview_window("main") else {
+    // Why get_window and not get_webview_window: sibling webviews on main
+    // (the preview-player overlay, kept after the first preview) make
+    // get_webview_window return None, which silently skipped every save
+    // for the rest of the session — see preview_embed.rs
+    // inject_session_cookies.
+    let Some(window) = app.get_window("main") else {
         return;
     };
 
