@@ -41,6 +41,10 @@
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
+  /* Brand accents for decorative gradients/blobs only (not text carriers):
+     bilibili pink #FB7299 and bilibili blue #00AEEC */
+  --color-brand: hsl(343 94% 72%);
+  --color-brand-blue: hsl(194 100% 46%);
 }
 
 @layer base {
@@ -50,47 +54,51 @@
 
   :root {
     --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
+    --foreground: 340 20% 12%;
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
+    --card-foreground: 340 20% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 240 5.9% 10%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
+    --popover-foreground: 340 20% 12%;
+    /* Why: deep bilibili pink instead of the shadcn near-black default —
+       hsl(340 72% 46%) keeps white label text at ~5.4:1 contrast */
+    --primary: 340 72% 46%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 343 100% 96%;
+    --secondary-foreground: 340 72% 32%;
+    --muted: 340 20% 96%;
+    --muted-foreground: 340 5% 42%;
+    --accent: 343 100% 95%;
+    --accent-foreground: 340 72% 36%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 5.9% 10%;
-    --radius: 0.5rem;
+    --border: 340 15% 89%;
+    --input: 340 15% 89%;
+    --ring: 340 72% 46%;
+    --radius: 0.75rem;
   }
 
   .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
+    /* Rose-tinted dark base (vs zinc) so the brand pink reads warm, not neon */
+    --background: 336 18% 7%;
+    --foreground: 340 20% 96%;
+    --card: 336 16% 10%;
+    --card-foreground: 340 20% 96%;
+    --popover: 336 16% 10%;
+    --popover-foreground: 340 20% 96%;
+    /* #FB7299-tier pink with a near-black foreground: ~6:1 contrast both ways */
+    --primary: 343 92% 68%;
+    --primary-foreground: 340 70% 10%;
+    --secondary: 336 12% 15%;
+    --secondary-foreground: 343 80% 85%;
+    --muted: 336 12% 15%;
+    --muted-foreground: 340 8% 68%;
+    --accent: 336 14% 17%;
+    --accent-foreground: 343 80% 88%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
+    --border: 336 12% 18%;
+    --input: 336 12% 18%;
+    --ring: 343 92% 68%;
   }
 
   * {

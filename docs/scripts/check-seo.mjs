@@ -83,6 +83,10 @@ for (const loc of locales) {
     !!html?.includes(`guides/how-to-download`),
   );
   check(
+    `index ${loc}: links to search guide`,
+    !!html?.includes(`guides/search-and-download`),
+  );
+  check(
     `index ${loc}: nav guides link (#guides anchor)`,
     !!html?.includes(`#guides`),
   );
@@ -100,13 +104,14 @@ for (const loc of locales) {
     );
 }
 
-// --- Section: guides (added Task 4; all 5 slugs x 6 locales from Task 6) ---
+// --- Section: guides (added Task 4; all 6 slugs x 6 locales from Task 6) ---
 const guideSlugs = [
   "how-to-download",
   "best-downloaders",
   "download-with-subtitles",
   "download-bangumi-batch",
   "download-mp3-audio",
+  "search-and-download",
 ];
 const guideUrl = (loc, slug) =>
   `${SITE}/${loc === "en" ? "" : `${loc}/`}guides/${slug}/`;

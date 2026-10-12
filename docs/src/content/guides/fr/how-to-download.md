@@ -64,6 +64,8 @@ Pourquoi la recommander :
 
 Vidéo et audio sont fusionnés automatiquement — aucune étape supplémentaire.
 
+Envie de vous passer du navigateur ? L'app propose aussi une recherche intégrée : voir [rechercher et télécharger dans l'app](/bilibili-downloader-gui/fr/guides/search-and-download/).
+
 ### Choisir la qualité (480p–4K et le rôle de la connexion)
 
 La qualité disponible dépend de l'état de connexion à Bilibili et du niveau d'abonnement :

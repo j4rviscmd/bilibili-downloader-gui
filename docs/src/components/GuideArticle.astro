@@ -19,7 +19,8 @@ const basePath = import.meta.env.BASE_URL;
 const slug = entry.id.split("/").slice(1).join("/");
 const home = lang === "en" ? `${basePath}/` : `${basePath}/${lang}/`;
 const canonical = new URL(`${home}guides/${slug}/`, Astro.site);
-const ogImage = new URL(`${basePath}/app-image(merging)_en.png`, Astro.site);
+// Why: og-image.png is the PNG kept for OGP crawler compatibility (see README)
+const ogImage = new URL(`${basePath}/og-image.png`, Astro.site);
 const toc = headings.filter((h) => h.depth === 2);
 const related = (
   await getCollection("guides", (e) => e.id.startsWith(`${lang}/`))

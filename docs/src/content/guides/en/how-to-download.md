@@ -65,6 +65,8 @@ Why we recommend it:
 
 Video and audio streams are merged automatically — no extra steps needed.
 
+Want to skip the browser entirely? The app also has built-in search — see [search and download inside the app](/bilibili-downloader-gui/guides/search-and-download/).
+
 ### Choosing quality (480p–4K and how login affects it)
 
 Available quality depends on your Bilibili login state and membership tier:

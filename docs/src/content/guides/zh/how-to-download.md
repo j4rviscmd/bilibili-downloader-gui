@@ -60,6 +60,8 @@ bilibili创立于2009年,以"弹幕"文化著称,主推动画、番剧、游戏�
 
 音视频自动合并,无需额外操作。
 
+另外,也可以省去寻找URL的步骤,直接在应用内搜索。详见[应用内搜索下载指南](/bilibili-downloader-gui/zh/guides/search-and-download/)。
+
 ### 画质选择(480p〜4K与登录的关系)
 
 可用画质取决于bilibili登录状态与会员等级:
