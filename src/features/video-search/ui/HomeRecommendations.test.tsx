@@ -30,6 +30,8 @@ describe('HomeRecommendations', () => {
     vi.mocked(useHomeRecommendations).mockReturnValue({
       entries: [],
       showSkeleton: false,
+      refreshing: false,
+      refresh: vi.fn(),
       visible: false,
     })
     const { container } = renderWithProviders(<HomeRecommendations />)
@@ -40,6 +42,8 @@ describe('HomeRecommendations', () => {
     vi.mocked(useHomeRecommendations).mockReturnValue({
       entries: [entry],
       showSkeleton: false,
+      refreshing: false,
+      refresh: vi.fn(),
       visible: true,
     })
     const { container } = renderWithProviders(<HomeRecommendations />)
@@ -50,7 +54,8 @@ describe('HomeRecommendations', () => {
     expect(grid?.className).toContain('xl:grid-cols-2')
     // Featured variant: HORIZONTAL card — large (w-52 aspect-video) thumb
     // left, title/meta right, saving row height vs a stacked card.
-    const cardButton = container.querySelector('button')
+    // Scoped to the grid: the heading's update button precedes it in DOM.
+    const cardButton = container.querySelector('ul button')
     expect(cardButton?.className).not.toContain('flex-col')
     expect(cardButton?.querySelector('img')?.className).toContain('w-52')
     expect(grid?.className).not.toContain('md:grid-cols-2')
@@ -60,6 +65,8 @@ describe('HomeRecommendations', () => {
     vi.mocked(useHomeRecommendations).mockReturnValue({
       entries: [],
       showSkeleton: true,
+      refreshing: false,
+      refresh: vi.fn(),
       visible: true,
     })
     const { container } = renderWithProviders(<HomeRecommendations />)
@@ -67,5 +74,48 @@ describe('HomeRecommendations', () => {
     expect(screen.getByText('popular.recommendationsTitle')).toBeVisible()
     expect(container.querySelector('[aria-busy="true"]')).not.toBeNull()
     expect(container.querySelector('ul')?.className).toContain('xl:grid-cols-2')
+  })
+
+  it('re-fetches when the update button is clicked', async () => {
+    const refresh = vi.fn()
+    vi.mocked(useHomeRecommendations).mockReturnValue({
+      entries: [entry],
+      showSkeleton: false,
+      refreshing: false,
+      refresh,
+      visible: true,
+    })
+    const { user } = renderWithProviders(<HomeRecommendations />)
+
+    // Raw key: tests run without loaded translations.
+    await user.click(
+      screen.getByRole('button', { name: 'popular.refreshRecommendations' }),
+    )
+
+    expect(refresh).toHaveBeenCalledTimes(1)
+  })
+
+  it('disables the update button and spins its icon while refreshing', () => {
+    vi.mocked(useHomeRecommendations).mockReturnValue({
+      entries: [entry],
+      showSkeleton: false,
+      refreshing: true,
+      refresh: vi.fn(),
+      visible: true,
+    })
+    const { container } = renderWithProviders(<HomeRecommendations />)
+
+    const button = screen.getByRole('button', {
+      name: 'popular.refreshRecommendations',
+    })
+    expect(button).toBeDisabled()
+    expect(button.querySelector('svg')?.getAttribute('class')).toContain(
+      'animate-spin',
+    )
+    // Busy state is announced on the region (matches the skeleton branch).
+    expect(container.querySelector('section')).toHaveAttribute(
+      'aria-busy',
+      'true',
+    )
   })
 })

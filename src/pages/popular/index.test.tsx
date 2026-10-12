@@ -183,14 +183,15 @@ describe('PopularContent', () => {
     ])
     renderWithProviders(<Harness />, { route: '/popular' })
 
-    // Why await the card too: the heading is gated by the page-level hook
-    // instance while the shelf's own instance resolves in a separate
-    // setState tick (shared inflight promise) — a synchronous getByText
-    // here races that render and flakes.
-    expect(
-      await screen.findByText('popular.recommendationsTitle'),
-    ).toBeInTheDocument()
+    // Why await the CARD first: the heading string also exists in the
+    // skeleton branch, so findByText can resolve on the skeleton's h2 —
+    // which the settled (loaded) re-render replaces with a new node. The
+    // follow-up toBeInTheDocument would then run on the detached skeleton
+    // h2 ("element could not be found"). The card only exists once the
+    // shelf has settled, so awaiting it makes the heading assertions
+    // deterministic.
     expect(await screen.findByText('おすすめ候補')).toBeInTheDocument()
+    expect(screen.getByText('popular.recommendationsTitle')).toBeInTheDocument()
     expect(screen.getByText('popular.feedTitle')).toBeInTheDocument()
     expect(mockInvoke).toHaveBeenCalledWith('fetch_home_recommendations')
   })

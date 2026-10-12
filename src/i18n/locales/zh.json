@@ -365,7 +365,6 @@
     "bangumi_preview_badge": "预告",
     "bangumi_preview_tooltip": "需要大会员权限。仅下载前6分钟内容。",
     "bangumi_durl_not_supported": "此剧集格式不支持。",
-    "open_in_browser": "在浏览器中打开",
     "navigation_disabled_tooltip": "请等待下载完成"
   },
   "progress": {
@@ -708,6 +707,7 @@
   "popular": {
     "title": "热门视频",
     "recommendationsTitle": "为你推荐",
+    "refreshRecommendations": "刷新推荐",
     "feedTitle": "热门视频",
     "loadError": "加载内容失败",
     "retry": "重试"
