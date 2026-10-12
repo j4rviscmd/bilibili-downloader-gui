@@ -346,7 +346,10 @@ fn inject_pairs_gtk(webview: &tauri::Webview, pairs: &[(String, String)]) -> Res
                 // the main loop this closure runs on to stay free).
                 let remaining = Arc::new(AtomicUsize::new(pairs.len()));
                 for (name, value) in &pairs {
-                    let mut cookie = soup3::Cookie::new(
+                    // Why `soup::` and not `soup3::`: the package is named
+                    // `soup3` but its lib target is `soup` — the same path
+                    // wry itself uses for this crate.
+                    let mut cookie = soup::Cookie::new(
                         name.as_str(),
                         value.as_str(),
                         COOKIE_DOMAIN,
