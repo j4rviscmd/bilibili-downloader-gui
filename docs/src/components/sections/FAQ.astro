@@ -4,24 +4,43 @@
  *
  * Displays a list of questions and answers using an accordion pattern.
  * Automatically localizes the section title based on the current URL.
+ * In `preview` mode (landing page) a "view all" link to the full FAQ
+ * page is rendered below the items — structured data stays on /faq only,
+ * so the FAQPage JSON-LD is never duplicated across pages.
  */
 import Accordion from "../ui/Accordion.astro";
+import Button from "../ui/Button.astro";
 import { getLangFromUrl, useTranslations } from "../../i18n/ui";
 
 interface Props {
   /** Array of FAQ items with title and content */
   items: { title: string; content: string }[];
+  /** Landing-page mode: adds a link to the full FAQ page */
+  preview?: boolean;
 }
 
-const { items } = Astro.props;
+const { items, preview = false } = Astro.props;
 const url = Astro.url;
 const lang = getLangFromUrl(url);
 const t = useTranslations(lang);
+const basePath = import.meta.env.BASE_URL;
+const faqHref = lang === "en" ? `${basePath}/faq/` : `${basePath}/${lang}/faq/`;
 ---
 
 <section class="container mx-auto px-4 py-16">
-  <h2 class="text-center text-3xl font-bold">{t("nav.faq")}</h2>
+  <h2 class="text-center text-3xl font-bold tracking-tight sm:text-4xl">
+    {t("nav.faq")}
+  </h2>
   <div class="mx-auto mt-10 max-w-2xl">
     <Accordion items={items} />
+    {
+      preview && (
+        <div class="mt-8 text-center">
+          <Button href={faqHref} variant="outline">
+            {t("faqSection.viewAll")}
+          </Button>
+        </div>
+      )
+    }
   </div>
 </section>

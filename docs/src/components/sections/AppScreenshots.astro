@@ -1,10 +1,11 @@
 ---
 /**
- * AppScreenshots - Application screenshot showcase with dark mode support.
+ * AppScreenshots - Downloads screenshot and demo video.
  *
- * Displays two application screenshots side by side. Automatically switches
- * between light and dark themed images based on the current theme.
- * Uses MutationObserver to detect theme changes.
+ * The search screenshot lives in the Hero; this section shows the
+ * downloads/merge screen next to the demo video. Each screenshot is a
+ * lazy theme pair — only the active theme's image is ever fetched (see
+ * the note inside the markup).
  */
 import { getLangFromUrl, useTranslations } from "../../i18n/ui";
 
@@ -17,65 +18,41 @@ const basePath = import.meta.env.BASE_URL;
 
 <section class="container mx-auto px-4 py-8">
   <div
-    class="flex flex-col items-center gap-6 md:flex-row md:items-start md:justify-center md:gap-8"
+    class="flex flex-col items-center gap-8 md:flex-row md:items-start md:justify-center"
   >
     <div class="w-full max-w-2xl">
+      <!--
+        Theme pair: each <img> carries loading="lazy", and the theme-hidden
+        one is display:none — a lazy image that never intersects is never
+        fetched, so only the active theme's screenshot downloads.
+      -->
       <img
-        id="screenshot-searched"
-        src={`${basePath}/app-image(searched)_en_light.png`}
-        alt={t("hero.title")}
-        class="w-full rounded-lg border shadow-lg"
+        src={`${basePath}/app-downloads-light.webp`}
+        alt={t("screenshots.downloadsAlt")}
+        width="1600"
+        height="869"
         loading="lazy"
+        class="w-full rounded-xl border shadow-lg dark:hidden"
+      />
+      <img
+        src={`${basePath}/app-downloads.webp`}
+        alt={t("screenshots.downloadsAlt")}
+        width="1600"
+        height="869"
+        loading="lazy"
+        class="hidden w-full rounded-xl border shadow-lg dark:block"
       />
     </div>
     <div class="w-full max-w-2xl">
-      <img
-        id="screenshot-merging"
-        src={`${basePath}/app-image(merging)_en_light.png`}
-        alt={t("hero.title")}
-        class="w-full rounded-lg border shadow-lg"
-        loading="lazy"
-      />
+      <video
+        id="app-demo"
+        src={`${basePath}/app-demo_en.mp4`}
+        class="w-full rounded-xl border shadow-lg"
+        controls
+        autoplay
+        muted
+        loop
+        playsinline></video>
     </div>
   </div>
-  <div class="mt-8 flex w-full justify-center">
-    <video
-      id="app-demo"
-      src={`${basePath}/app-demo_en.mp4`}
-      class="w-full max-w-3xl rounded-lg border shadow-lg"
-      controls
-      autoplay
-      muted
-      loop
-      playsinline></video>
-  </div>
 </section>
-
-<script define:vars={{ basePath }}>
-  function updateScreenshots() {
-    const isDark = document.documentElement.classList.contains("dark");
-    const suffix = isDark ? "" : "_light";
-
-    const searchedImg = document.getElementById("screenshot-searched");
-    const mergingImg = document.getElementById("screenshot-merging");
-
-    if (searchedImg) {
-      searchedImg.src = `${basePath}/app-image(searched)_en${suffix}.png`;
-    }
-    if (mergingImg) {
-      mergingImg.src = `${basePath}/app-image(merging)_en${suffix}.png`;
-    }
-  }
-
-  updateScreenshots();
-
-  const observer = new MutationObserver((mutations) => {
-    if (mutations.some((m) => m.attributeName === "class")) {
-      updateScreenshots();
-    }
-  });
-
-  observer.observe(document.documentElement, { attributes: true });
-
-  window.addEventListener("beforeunload", () => observer.disconnect());
-</script>

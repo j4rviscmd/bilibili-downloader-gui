@@ -1,48 +1,126 @@
 ---
 /**
- * Hero - Main hero section with title, description, and CTAs.
+ * Hero - Two-column hero with brand gradient and theme-aware screenshot.
  *
- * Displays the page headline, description, and call-to-action buttons.
- * The download button triggers a highlight animation on the download section.
+ * Left: eyebrow badge, headline, description, CTAs (download + GitHub with
+ * live star count), trust badges. Right: app screenshot framed by a
+ * bilibili-pink/blue gradient. Fully static — the only script is the
+ * client-side star-count fetch.
  */
+import Badge from "../ui/Badge.astro";
 import Button from "../ui/Button.astro";
+import { BadgeCheck, Captions, MonitorPlay, Search } from "lucide-react";
 import { getLangFromUrl, useTranslations } from "../../i18n/ui";
 
 const url = Astro.url;
 const lang = getLangFromUrl(url);
 const t = useTranslations(lang);
+const basePath = import.meta.env.BASE_URL;
+
+const trustItems = [
+  { Icon: BadgeCheck, label: t("hero.trust.free") },
+  { Icon: MonitorPlay, label: t("hero.trust.quality") },
+  { Icon: Captions, label: t("hero.trust.subtitle") },
+  { Icon: Search, label: t("hero.trust.search") },
+];
 ---
 
-<section class="container mx-auto px-4 py-20 text-center">
-  <h1 class="text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl">
-    {t("hero.title")}
-  </h1>
-  <p class="text-muted-foreground mx-auto mt-6 max-w-2xl text-lg">
-    {t("hero.description")}
-  </p>
-  <div class="mt-10 flex w-full flex-wrap justify-center gap-4">
-    <Button
-      href="#download"
-      size="lg"
-      onclick="event.preventDefault(); const target = document.getElementById('download'); target.classList.remove('highlight'); void target.offsetWidth; target.classList.add('highlight'); location.hash = '#download';"
+<section class="relative overflow-hidden">
+  <!-- Decorative brand gradient blobs (purely visual) -->
+  <div aria-hidden="true" class="pointer-events-none absolute inset-0 -z-10">
+    <div
+      class="bg-brand/20 dark:bg-brand/15 absolute -top-24 -left-24 h-96 w-96 rounded-full blur-3xl"
     >
-      {t("hero.download")}
-    </Button>
-    <Button
-      href="https://github.com/j4rviscmd/bilibili-downloader-gui"
-      variant="outline"
-      size="lg"
-      rel="noopener noreferrer"
+    </div>
+    <div
+      class="bg-brand-blue/15 dark:bg-brand-blue/10 absolute top-24 -right-24 h-96 w-96 rounded-full blur-3xl"
     >
-      GitHub
-      <span
-        class="text-muted-foreground ml-1 inline-flex h-5 items-center"
-        aria-label="GitHub stars"
+    </div>
+  </div>
+
+  <div
+    class="container mx-auto grid items-center gap-12 px-4 py-16 md:py-24 lg:grid-cols-2"
+  >
+    <div>
+      <Badge variant="secondary">{t("hero.badge")}</Badge>
+      <h1 class="mt-5 text-4xl font-bold tracking-tight sm:text-5xl">
+        {t("hero.title")}
+      </h1>
+      <p class="text-muted-foreground mt-6 max-w-xl text-lg">
+        {t("hero.description")}
+      </p>
+      <div class="mt-8 flex w-full flex-wrap gap-4">
+        <Button
+          href="#download"
+          size="lg"
+          onclick="event.preventDefault(); const target = document.getElementById('download'); target.classList.remove('highlight'); void target.offsetWidth; target.classList.add('highlight'); location.hash = '#download';"
+        >
+          {t("hero.download")}
+        </Button>
+        <Button
+          href="https://github.com/j4rviscmd/bilibili-downloader-gui"
+          variant="outline"
+          size="lg"
+          rel="noopener noreferrer"
+        >
+          GitHub
+          <span
+            class="text-muted-foreground ml-1 inline-flex h-5 items-center"
+            aria-label="GitHub stars"
+          >
+            <span aria-hidden="true">★</span>
+            <span data-github-stars class="tabular-nums">…</span>
+          </span>
+        </Button>
+      </div>
+      <ul class="mt-10 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {
+          trustItems.map(({ Icon, label }) => (
+            <li class="flex items-center gap-2.5 text-sm font-medium">
+              <span class="bg-primary/10 text-primary flex h-6 w-6 shrink-0 items-center justify-center rounded-md">
+                <Icon className="h-4 w-4" aria-hidden="true" />
+              </span>
+              {label}
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+
+    <div class="relative mx-auto w-full max-w-2xl">
+      <div
+        aria-hidden="true"
+        class="from-brand/30 to-brand-blue/30 absolute -inset-3 -z-10 rounded-3xl bg-gradient-to-br blur-xl dark:opacity-60"
       >
-        <span aria-hidden="true">★</span>
-        <span data-github-stars class="tabular-nums">…</span>
-      </span>
-    </Button>
+      </div>
+      <!--
+        Theme pair: each <img> carries loading="lazy", and the theme-hidden
+        one is display:none — a lazy image that never intersects is never
+        fetched, so only the active theme's screenshot downloads.
+      -->
+      <!-- Note: fetchpriority="high" next to loading="lazy" is deliberate —
+        this screenshot renders above the fold, so once lazy-loading permits
+        the fetch it must win bandwidth priority; don't remove either
+        attribute to "fix" the apparent contradiction -->
+      <img
+        src={`${basePath}/app-search-light.webp`}
+        alt={t("screenshots.searchAlt")}
+        width="1600"
+        height="869"
+        loading="lazy"
+        fetchpriority="high"
+        class="w-full rounded-xl border shadow-2xl dark:hidden"
+      />
+      <img
+        src={`${basePath}/app-search.webp`}
+        alt={t("screenshots.searchAlt")}
+        width="1600"
+        height="869"
+        loading="lazy"
+        fetchpriority="high"
+        class="hidden w-full rounded-xl border shadow-2xl dark:block"
+      />
+    </div>
   </div>
 
   <script>

@@ -46,7 +46,8 @@ const siteUrl =
   "https://j4rviscmd.github.io/bilibili-downloader-gui/";
 
 // OGP image URL
-const ogImageUrl = new URL(`${basePath}/app-image(merging)_en.png`, siteUrl);
+// Why: PNG (not the WebP screenshots) for maximum OGP crawler compatibility
+const ogImageUrl = new URL(`${basePath}/og-image.png`, siteUrl);
 
 /**
  * Language code to locale mapping for OGP meta tags.

@@ -4,10 +4,19 @@ import Hero from "../components/sections/Hero.astro";
 import AppScreenshots from "../components/sections/AppScreenshots.astro";
 import Features from "../components/sections/Features.astro";
 import Guides from "../components/sections/Guides.astro";
+import FAQ from "../components/sections/FAQ.astro";
 import Download from "../components/sections/Download.astro";
 import { useTranslations } from "../i18n/ui";
+import { getCollection } from "astro:content";
 
 const t = useTranslations("en");
+
+// Landing-page FAQ preview: first 4 items only (full list + FAQPage
+// JSON-LD live on /faq to avoid duplicating structured data)
+const faqEntry = await getCollection("faq", (entry) => entry.id === "en");
+const faqPreviewItems = (faqEntry[0]?.data.items || [])
+  .slice(0, 4)
+  .map((item) => ({ title: item.question, content: item.answer }));
 ---
 
 <BaseLayout
@@ -19,5 +28,6 @@ const t = useTranslations("en");
   <AppScreenshots />
   <Features />
   <Guides lang="en" />
+  <FAQ items={faqPreviewItems} preview />
   <Download />
 </BaseLayout>
