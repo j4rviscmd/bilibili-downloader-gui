@@ -4,6 +4,7 @@
   "timezone": "Asia/Tokyo",
   "dependencyDashboard": false,
   "schedule": ["before 6am on Monday"],
+  "automergeStrategy": "squash",
   "lockFileMaintenance": {
     "enabled": true
   },
@@ -21,8 +22,8 @@
       "groupName": "tauri-cargo"
     },
     {
-      "description": "Automerge non-major updates once CI passes; majors stay manual",
-      "matchUpdateTypes": ["minor", "patch"],
+      "description": "Automerge non-major updates and GitHub Actions pin/digest updates once CI passes; majors and lock file maintenance stay manual",
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
       "automerge": true
     },
     {
