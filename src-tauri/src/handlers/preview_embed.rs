@@ -117,14 +117,21 @@ pub fn inject_session_cookies(app: &tauri::AppHandle) -> Result<usize, String> {
     if pairs.is_empty() {
         return Ok(0);
     }
+    // Why get_webview and not get_webview_window: once the preview-player
+    // child webview is attached to the main window (i.e. after the first
+    // preview; it is kept and reused, see close_preview_player), tauri's
+    // is_webview_window check — "every webview on this window shares the
+    // window's label" — fails and get_webview_window("main") returns None,
+    // making every later open fail with ERR::PREVIEW_NO_MAIN_WINDOW
+    // (measured 2026-10-12, tauri 2.11.1). The webview registry lookup is
+    // immune to sibling webviews.
     let main = app
-        .get_webview_window("main")
+        .get_webview("main")
         .ok_or("ERR::PREVIEW_NO_MAIN_WINDOW")?;
-    let webview: &tauri::Webview = main.as_ref();
     #[cfg(windows)]
-    inject_pairs_win(webview, &pairs)?;
+    inject_pairs_win(&main, &pairs)?;
     #[cfg(not(windows))]
-    inject_pairs_portable(webview, &pairs)?;
+    inject_pairs_portable(&main, &pairs)?;
     Ok(pairs.len())
 }
 
@@ -683,5 +690,40 @@ mod tests {
             entry("evilbilibili.com", "c"),
         ])
         .is_empty());
+    }
+
+    #[test]
+    fn main_webview_lookup_survives_sibling_overlay_webview() {
+        // Regression (measured 2026-10-12, tauri 2.11.1): after the first
+        // preview, the kept preview-player child webview stays attached to
+        // the main window, and get_webview_window("main") — which requires
+        // every webview on the window to share the window's label —
+        // returns None from then on, failing every later open with
+        // ERR::PREVIEW_NO_MAIN_WINDOW. The webview-registry lookup
+        // inject_session_cookies uses must keep resolving in that state.
+        let app = tauri::test::mock_app();
+        let handle = app.handle();
+        tauri::WebviewWindowBuilder::new(handle, "main", tauri::WebviewUrl::default())
+            .build()
+            .unwrap();
+        // Reproduce the post-preview state: a sibling child webview on
+        // main, kept for reuse by close_preview_player.
+        handle
+            .get_window("main")
+            .unwrap()
+            .add_child(
+                tauri::webview::WebviewBuilder::new(
+                    PREVIEW_PLAYER_LABEL,
+                    tauri::WebviewUrl::default(),
+                ),
+                tauri::Position::Logical(tauri::LogicalPosition::new(0.0, 0.0)),
+                tauri::Size::Logical(tauri::LogicalSize::new(10.0, 10.0)),
+            )
+            .unwrap();
+        // Documents the tauri quirk the production code works around; if
+        // this ever turns Some, get_webview_window becomes usable again.
+        assert!(handle.get_webview_window("main").is_none());
+        // The lookup used by inject_session_cookies.
+        assert_eq!(handle.get_webview("main").unwrap().label(), "main");
     }
 }
