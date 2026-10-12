@@ -61,6 +61,12 @@ npm run build && node scripts/check-seo.mjs
   name real competitor products, companies, or URLs in guide content
 - All UI strings (including `meta.*` page titles) must exist in all six
   locales in `src/i18n/ui.ts`
+- Screenshots ship as WebP pairs in `public/`: `app-search`(-light).webp
+  (Hero) and `app-downloads`(-light).webp (screenshots section) — the
+  no-suffix file is the dark theme, `-light` the light one. Regenerate
+  both variants together (`magick <src>.png -resize 1600x <name>.webp`)
+  and keep `og-image.png` (1200px wide, PNG for OGP crawler compatibility)
+  in sync with the search screenshot
 
 ### Search Console setup (one-time, manual)
 

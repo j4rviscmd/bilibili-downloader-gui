@@ -4,8 +4,10 @@ import Hero from "../../components/sections/Hero.astro";
 import AppScreenshots from "../../components/sections/AppScreenshots.astro";
 import Features from "../../components/sections/Features.astro";
 import Guides from "../../components/sections/Guides.astro";
+import FAQ from "../../components/sections/FAQ.astro";
 import Download from "../../components/sections/Download.astro";
 import { languages, useTranslations, type Lang } from "../../i18n/ui";
+import { getCollection } from "astro:content";
 
 export function getStaticPaths() {
   return Object.keys(languages)
@@ -17,6 +19,13 @@ export function getStaticPaths() {
 
 const { lang } = Astro.params;
 const t = useTranslations(lang as Lang);
+
+// Landing-page FAQ preview: first 4 items only (full list + FAQPage
+// JSON-LD live on /faq to avoid duplicating structured data)
+const faqEntry = await getCollection("faq", (entry) => entry.id === lang);
+const faqPreviewItems = (faqEntry[0]?.data.items || [])
+  .slice(0, 4)
+  .map((item) => ({ title: item.question, content: item.answer }));
 ---
 
 <BaseLayout
@@ -28,5 +37,6 @@ const t = useTranslations(lang as Lang);
   <AppScreenshots />
   <Features />
   <Guides lang={lang as Lang} />
+  <FAQ items={faqPreviewItems} preview />
   <Download />
 </BaseLayout>

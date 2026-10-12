@@ -1,53 +1,145 @@
 ---
 /**
- * Features - Feature showcase section with hover cards.
+ * Features - Bento-grid feature showcase.
  *
- * Displays a grid of feature cards that reveal detailed descriptions
- * on hover. Features are loaded from translation files and rendered
- * using the client-side FeaturesSection component.
+ * Renders all cards statically (no client JS, no hover popovers): each
+ * card shows its icon, title, and full description. The two newest
+ * capabilities (in-app search, personalized recommendations) get featured
+ * cards with a brand-gradient border, a "New" badge, and — for search —
+ * a link to its how-to guide.
  */
-import { FeaturesSection } from "./FeaturesSection";
+import {
+  AudioWaveform,
+  Captions,
+  Clapperboard,
+  Download,
+  Layers,
+  Link2,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  Tv,
+  Wrench,
+  Zap,
+} from "lucide-react";
 import { getLangFromUrl, useTranslations } from "../../i18n/ui";
 
 const url = Astro.url;
 const lang = getLangFromUrl(url);
 const t = useTranslations(lang);
-
-/**
- * Feature configuration with icon and coming-soon status.
- */
-const featureConfig = {
-  download: { icon: "📥" },
-  quality: { icon: "🎬" },
-  subtitle: { icon: "💬" },
-  cdn: { icon: "⚡" },
-  batch: { icon: "📦" },
-  bangumi: { icon: "📺" },
-  hires: { icon: "🎵" },
-  localTools: { icon: "🛠️" },
-  bilibili: { icon: "🔗" },
-  autoupdate: { icon: "🔄" },
-  adfree: { icon: "🚫" },
-} as const;
+const basePath = import.meta.env.BASE_URL;
 
 // Caution: every key here must exist under features.list.* and
 // features.descriptions.* in all 6 languages in src/i18n/ui.ts; a missing key
 // falls back to English, then renders the raw dot-key to users (see
 // useTranslations in src/i18n/ui.ts)
-// Note: New badges were retired in this change, but FeatureCard.tsx /
-// FeaturesSection.tsx still support the `isNew` prop (commit cfa1232); do not
-// remove that prop as dead code based on this file alone
-const features = Object.entries(featureConfig).map(([key, config]) => ({
-  key,
-  ...config,
+const iconMap = {
+  search: Search,
+  recommend: Sparkles,
+  download: Download,
+  quality: Clapperboard,
+  subtitle: Captions,
+  cdn: Zap,
+  batch: Layers,
+  bangumi: Tv,
+  hires: AudioWaveform,
+  localTools: Wrench,
+  bilibili: Link2,
+  autoupdate: RefreshCw,
+  adfree: ShieldCheck,
+} as const;
+
+type FeatureKey = keyof typeof iconMap;
+
+interface FeatureDef {
+  /** Featured cards span 2 columns and get the brand-gradient border */
+  featured?: boolean;
+  isNew?: boolean;
+  /** Optional deep link (e.g. to a how-to guide) */
+  href?: string;
+}
+
+// Only cards that deviate from the default need an entry; every other
+// feature renders as a plain card.
+const featureConfig: Partial<Record<FeatureKey, FeatureDef>> = {
+  search: {
+    featured: true,
+    isNew: true,
+    href:
+      lang === "en"
+        ? `${basePath}/guides/search-and-download/`
+        : `${basePath}/${lang}/guides/search-and-download/`,
+  },
+  recommend: { featured: true, isNew: true },
+  localTools: { featured: true },
+};
+
+const features = (Object.keys(iconMap) as FeatureKey[]).map((key) => ({
+  ...featureConfig[key],
+  Icon: iconMap[key],
   title: t(`features.list.${key}`),
   description: t(`features.descriptions.${key}`),
 }));
 ---
 
-<FeaturesSection
-  title={t("features.title")}
-  hoverHint={t("features.hoverHint")}
-  features={features}
-  client:load
-/>
+<section class="container mx-auto px-4 py-16" id="features">
+  <h2 class="text-center text-3xl font-bold tracking-tight sm:text-4xl">
+    {t("features.title")}
+  </h2>
+  <ul class="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    {
+      features.map(({ Icon, title, description, featured, isNew, href }) => {
+        const card = (
+          <div
+            class:list={[
+              "bg-card flex h-full flex-col gap-3 p-6",
+              featured && "rounded-[calc(var(--radius)-1px)]",
+            ]}
+          >
+            <div class="flex items-center gap-3">
+              <span
+                class:list={[
+                  "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
+                  featured
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-primary/10 text-primary",
+                ]}
+              >
+                <Icon className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <h3 class="font-semibold">
+                {title}
+                {isNew && (
+                  <span class="bg-primary/10 text-primary ml-2 rounded-full px-2 py-0.5 text-xs font-semibold">
+                    {t("features.newBadge")}
+                  </span>
+                )}
+              </h3>
+            </div>
+            <p class="text-muted-foreground text-sm whitespace-pre-line">
+              {description}
+            </p>
+            {href && (
+              <a
+                href={href}
+                class="text-primary mt-auto inline-flex items-center gap-1 pt-2 text-sm font-medium underline-offset-4 hover:underline"
+              >
+                {t("features.readGuide")}
+                <span aria-hidden="true">→</span>
+              </a>
+            )}
+          </div>
+        );
+
+        return featured ? (
+          <li class="from-brand to-brand-blue rounded-2xl bg-gradient-to-br p-px sm:col-span-2">
+            {card}
+          </li>
+        ) : (
+          <li class="bg-card rounded-2xl border shadow-sm">{card}</li>
+        );
+      })
+    }
+  </ul>
+</section>

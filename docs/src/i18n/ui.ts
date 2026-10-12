@@ -134,7 +134,7 @@ const translations: Record<Lang, Record<string, unknown>> = {
       indexTitle:
         "Bilibili Video Downloader — Free, 4K & Subtitles | Windows & macOS",
       indexDescription:
-        "Free open-source Bilibili downloader for Windows & macOS. Download videos in up to 4K, embed subtitles in 15 languages, batch-download anime. No ads.",
+        "Free open-source Bilibili downloader for Windows & macOS. Search videos inside the app, download in up to 4K, embed subtitles in 15 languages, batch-download anime. No ads.",
       faqTitle: "FAQ | Bilibili Video Downloader",
       faqDescription:
         "Frequently asked questions about Bilibili Downloader GUI: what to do when a download fails, login methods (Firefox cookie / QR code), quality limits, subtitles in 15 languages, audio-only MP3 saving, and safety.",
@@ -156,11 +156,21 @@ const translations: Record<Lang, Record<string, unknown>> = {
       title: "Bilibili Video Downloader",
       description: "Download videos from Bilibili with ease",
       download: "Download Now",
+      badge: "Free & Open Source",
+      trust: {
+        free: "100% free, no ads",
+        quality: "Up to 4K + Hi-Res audio",
+        subtitle: "Subtitles in 15 languages",
+        search: "Built-in video search",
+      },
     },
     features: {
       title: "Features",
-      hoverHint: "Hover for details",
+      newBadge: "New",
+      readGuide: "Read the guide",
       list: {
+        search: "In-App Video Search",
+        recommend: "Personalized Recommendations",
         download: "Video & Audio Download",
         quality: "Multiple Quality Options",
         subtitle: "Subtitle Download",
@@ -174,6 +184,10 @@ const translations: Record<Lang, Record<string, unknown>> = {
         adfree: "Ad-free",
       },
       descriptions: {
+        search:
+          "Search bilibili right inside the app — keyword search with suggestions, an infinite-scroll popular feed, and hover previews. No URL copying needed.",
+        recommend:
+          'Signed in? A "For you" shelf surfaces bilibili\'s real recommendation engine in 12 large cards, each tagged with why it was recommended.',
         download:
           "Save your favorite videos and music from Bilibili to watch offline anytime, anywhere.",
         quality:
@@ -203,13 +217,22 @@ const translations: Record<Lang, Record<string, unknown>> = {
       linux: "Linux",
       comingSoon: "Coming Soon",
     },
+    screenshots: {
+      searchAlt:
+        "Video search screen of Bilibili Downloader GUI showing keyword search results and the popular feed",
+      downloadsAlt:
+        "Downloads screen of Bilibili Downloader GUI with an active download and automatic audio/video merge",
+    },
+    faqSection: {
+      viewAll: "View all FAQs",
+    },
   },
   ja: {
     meta: {
       indexTitle:
         "bilibili動画ダウンローダー【無料・4K・字幕対応】Windows/Mac対応",
       indexDescription:
-        "bilibili(ビリビリ)の動画・音声・字幕を無料で保存できるオープンソースのダウンローダー。4K高画質、最大15言語の字幕埋め込み、アニメ(番劇)の一括ダウンロードに対応。Windows・macOS対応で広告なし。",
+        "bilibili(ビリビリ)の動画・音声・字幕を無料で保存できるオープンソースのダウンローダー。アプリ内検索でそのまま動画を探して、4K高画質・最大15言語の字幕埋め込み・アニメ(番劇)の一括ダウンロードに対応。Windows・macOS対応で広告なし。",
       faqTitle: "よくある質問|bilibili動画ダウンローダー",
       faqDescription:
         "Bilibili Downloader GUIのよくある質問。ダウンロードできない時の対処、ログイン方法(Firefox Cookie/QRコード)、画質の上限、字幕(15言語)、MP3保存、安全性について回答します。",
@@ -231,11 +254,21 @@ const translations: Record<Lang, Record<string, unknown>> = {
       title: "Bilibili動画ダウンローダー",
       description: "Bilibiliから動画を簡単にダウンロード",
       download: "今すぐダウンロード",
+      badge: "無料・オープンソース",
+      trust: {
+        free: "完全無料・広告なし",
+        quality: "最大4K+ハイレゾ音声",
+        subtitle: "15言語の字幕対応",
+        search: "アプリ内動画検索",
+      },
     },
     features: {
       title: "機能",
-      hoverHint: "詳細を見る",
+      newBadge: "新機能",
+      readGuide: "使い方ガイドを見る",
       list: {
+        search: "アプリ内動画検索",
+        recommend: "あなたへのおすすめ",
         download: "動画・音声ダウンロード",
         quality: "複数の画質オプション",
         subtitle: "字幕ダウンロード",
@@ -249,21 +282,25 @@ const translations: Record<Lang, Record<string, unknown>> = {
         adfree: "広告なし",
       },
       descriptions: {
+        search:
+          "URLをコピーせず、アプリの中でそのままbilibiliを検索。サジェスト付きキーワード検索、無限スクロールの人気フィード、ホバープレビューに対応しています。",
+        recommend:
+          "ログイン中は、bilibiliのレコメンドエンジンによる「あなたへのおすすめ」を大型カード12件で表示。おすすめの理由もバッジでわかります。",
         download:
           "お気に入りの動画や音楽をBilibiliから保存して、いつでもどこでもオフラインで視聴できます。",
         quality:
           "360pから4Kまで選べる画質。端末やインターネット速度に合わせて最適な画質を選べます。\n利用可能な最高画質はBilibiliの会員ランクによって異なります。",
         subtitle:
-          "最大15言語の字幕をダウンロード。字幕別ファイル（soft）または動画埋め込み（hard）を選択可能。AI生成字幕にも対応。",
+          "最大15言語の字幕をダウンロード。字幕別ファイル(soft)または動画埋め込み(hard)を選択可能。AI生成字幕にも対応。",
         cdn: "最も高速なサーバーを自動で選択。ネットワークエラー時は自動でリトライします。遅いダウンロードで待たされるストレスから解放されます。",
         batch:
           "シリーズや講座など、1本の動画の複数パートをまとめてダウンロード。欲しいエピソードだけ選べます。",
         bangumi:
-          "Bilibiliの公式コンテンツ（アニメ、ドラマ、バラエティ番組など）をダウンロード。",
+          "Bilibiliの公式コンテンツ(アニメ、ドラマ、バラエティ番組など)をダウンロード。",
         hires:
           "Dolby Atmos、Hi-Res Lossless対応。最高品質の音声で楽しめます。\n利用にはBilibiliプレミアム会員が必要です。",
         localTools:
-          "トリム — ロスレスコピーまたは再エンコードで切り抜き\n結合 — 複数MP4を1つに統合（コーデック不一致時は再エンコード）\n音声抽出 — MP3/M4Aで書き出し、ビットレート選択可能",
+          "トリム — ロスレスコピーまたは再エンコードで切り抜き\n結合 — 複数MP4を1つに統合(コーデック不一致時は再エンコード)\n音声抽出 — MP3/M4Aで書き出し、ビットレート選択可能",
         bilibili:
           "お気に入りや視聴履歴の参照とダウンロード、b23.tv短縮URLの自動展開に対応。",
         autoupdate: "署名検証付きのアップデーターとリリースノートを内蔵。",
@@ -277,12 +314,21 @@ const translations: Record<Lang, Record<string, unknown>> = {
       linux: "Linux",
       comingSoon: "近日対応予定",
     },
+    screenshots: {
+      searchAlt:
+        "Bilibili Downloader GUIの動画検索画面。キーワード検索結果と人気フィードの表示",
+      downloadsAlt:
+        "Bilibili Downloader GUIのダウンロード画面。ダウンロードの進行と音声・動画の自動結合の様子",
+    },
+    faqSection: {
+      viewAll: "よくある質問をすべて見る",
+    },
   },
   zh: {
     meta: {
       indexTitle: "bilibili视频下载器【免费·4K·字幕】Windows/Mac版",
       indexDescription:
-        "免费开源的bilibili视频下载器,支持Windows和macOS。最高4K画质、15种语言字幕嵌入、番剧批量下载,无广告、无需注册。",
+        "免费开源的bilibili视频下载器,支持Windows和macOS。在应用内直接搜索视频,最高4K画质、15种语言字幕嵌入、番剧批量下载,无广告、无需注册。",
       faqTitle: "常见问题|bilibili视频下载器",
       faqDescription:
         "Bilibili Downloader GUI常见问题:下载失败的处理、登录方式(Firefox Cookie/二维码)、画质上限、字幕(15语言)、MP3保存与安全性。",
@@ -304,11 +350,21 @@ const translations: Record<Lang, Record<string, unknown>> = {
       title: "Bilibili视频下载器",
       description: "轻松下载Bilibili视频",
       download: "立即下载",
+      badge: "免费开源",
+      trust: {
+        free: "完全免费,无广告",
+        quality: "最高4K+Hi-Res音频",
+        subtitle: "15种语言字幕",
+        search: "应用内视频搜索",
+      },
     },
     features: {
       title: "功能",
-      hoverHint: "悬停查看详情",
+      newBadge: "新功能",
+      readGuide: "查看使用指南",
       list: {
+        search: "应用内视频搜索",
+        recommend: "专属推荐",
         download: "视频和音频下载",
         quality: "多种画质选项",
         subtitle: "字幕下载",
@@ -322,6 +378,10 @@ const translations: Record<Lang, Record<string, unknown>> = {
         adfree: "无广告",
       },
       descriptions: {
+        search:
+          "无需复制链接,直接在应用内搜索bilibili。支持带联想的关键词搜索、无限滚动的热门内容流和悬停预览。",
+        recommend:
+          "登录后,「为你推荐」版块以12张大卡片呈现bilibili真实推荐引擎的结果,每张卡片都标注推荐理由。",
         download: "从Bilibili保存您喜爱的视频和音乐，随时随地离线观看。",
         quality:
           "从360p到4K画质任您选择。根据您的设备和网络速度选择最佳画质。\n最高可用画质取决于您的Bilibili会员等级。",
@@ -347,12 +407,21 @@ const translations: Record<Lang, Record<string, unknown>> = {
       linux: "Linux",
       comingSoon: "即将支持",
     },
+    screenshots: {
+      searchAlt:
+        "Bilibili Downloader GUI的视频搜索界面,显示关键词搜索结果与热门内容流",
+      downloadsAlt:
+        "Bilibili Downloader GUI的下载界面,显示下载进度与音视频自动合并",
+    },
+    faqSection: {
+      viewAll: "查看全部常见问题",
+    },
   },
   ko: {
     meta: {
       indexTitle: "bilibili 동영상 다운로더【무료·4K·자막】Windows/Mac",
       indexDescription:
-        "무료 오픈소스 bilibili 동영상 다운로더. Windows와 macOS를 지원하며 최대 4K 화질, 15개 언어 자막 삽입, 애니메이션 일괄 다운로드를 제공합니다. 광고 없음.",
+        "무료 오픈소스 bilibili 동영상 다운로더. 앱 내 검색으로 바로 영상을 찾고 최대 4K 화질, 15개 언어 자막 삽입, 애니메이션 일괄 다운로드를 지원합니다. Windows·macOS, 광고 없음.",
       faqTitle: "자주 묻는 질문 | bilibili 동영상 다운로더",
       faqDescription:
         "Bilibili Downloader GUI 자주 묻는 질문. 다운로드 실패 대처, 로그인 방식(Firefox 쿠키/QR 코드), 화질 상한, 자막(15개 언어), MP3 저장, 안전성을 안내합니다.",
@@ -374,11 +443,21 @@ const translations: Record<Lang, Record<string, unknown>> = {
       title: "Bilibili 비디오 다운로더",
       description: "Bilibili에서 비디오를 쉽게 다운로드",
       download: "지금 다운로드",
+      badge: "무료 오픈소스",
+      trust: {
+        free: "완전 무료, 광고 없음",
+        quality: "최대 4K + 하이레즈 오디오",
+        subtitle: "15개 언어 자막",
+        search: "앱 내 동영상 검색",
+      },
     },
     features: {
       title: "기능",
-      hoverHint: "상세 정보 보기",
+      newBadge: "신규",
+      readGuide: "사용 가이드 보기",
       list: {
+        search: "앱 내 동영상 검색",
+        recommend: "맞춤 추천",
         download: "비디오 및 오디오 다운로드",
         quality: "다양한 화질 옵션",
         subtitle: "자막 다운로드",
@@ -392,6 +471,10 @@ const translations: Record<Lang, Record<string, unknown>> = {
         adfree: "광고 없음",
       },
       descriptions: {
+        search:
+          "URL을 복사하지 않고 앱 안에서 바로 bilibili를 검색하세요. 자동완성 키워드 검색, 무한 스크롤 인기 피드, 마우스 오버 미리보기를 지원합니다.",
+        recommend:
+          "로그인하면 '당신을 위한 추천' 코너가 bilibili 추천 엔진의 결과를 12개의 큰 카드로 보여줍니다. 추천 이유 배지도 함께 표시됩니다.",
         download:
           "Bilibili에서 좋아하는 비디오와 음악을 저장하여 언제 어디서나 오프라인으로 시청하세요.",
         quality:
@@ -420,13 +503,22 @@ const translations: Record<Lang, Record<string, unknown>> = {
       linux: "Linux",
       comingSoon: "곧 지원 예정",
     },
+    screenshots: {
+      searchAlt:
+        "Bilibili Downloader GUI 동영상 검색 화면. 키워드 검색 결과와 인기 피드 표시",
+      downloadsAlt:
+        "Bilibili Downloader GUI 다운로드 화면. 진행 중인 다운로드와 오디오·비디오 자동 병합",
+    },
+    faqSection: {
+      viewAll: "전체 FAQ 보기",
+    },
   },
   es: {
     meta: {
       indexTitle:
         "Descargador de vídeos de Bilibili: gratis, 4K y subtítulos | Windows y macOS",
       indexDescription:
-        "Descargador de vídeos de Bilibili gratuito y de código abierto para Windows y macOS. Descarga hasta 4K, incrusta subtítulos en 15 idiomas y descarga anime por lotes. Sin anuncios.",
+        "Descargador de Bilibili gratuito y de código abierto para Windows y macOS. Busca vídeos dentro de la app, descarga hasta 4K, incrusta subtítulos en 15 idiomas y descarga anime por lotes. Sin anuncios.",
       faqTitle: "Preguntas frecuentes | Descargador de vídeos de Bilibili",
       faqDescription:
         "Preguntas frecuentes sobre Bilibili Downloader GUI: qué hacer si falla una descarga, métodos de inicio de sesión (cookie de Firefox / código QR), límites de calidad, subtítulos en 15 idiomas, guardado en MP3 y seguridad.",
@@ -448,11 +540,21 @@ const translations: Record<Lang, Record<string, unknown>> = {
       title: "Descargador de videos de Bilibili",
       description: "Descarga videos de Bilibili fácilmente",
       download: "Descargar ahora",
+      badge: "Gratis y de código abierto",
+      trust: {
+        free: "100% gratis, sin anuncios",
+        quality: "Hasta 4K + audio Hi-Res",
+        subtitle: "Subtítulos en 15 idiomas",
+        search: "Búsqueda de vídeos integrada",
+      },
     },
     features: {
       title: "Características",
-      hoverHint: "Pasa el cursor para más detalles",
+      newBadge: "Nuevo",
+      readGuide: "Ver la guía",
       list: {
+        search: "Búsqueda de vídeos en la app",
+        recommend: "Recomendaciones personalizadas",
         download: "Descarga de video y audio",
         quality: "Múltiples opciones de calidad",
         subtitle: "Descarga de subtítulos",
@@ -466,6 +568,10 @@ const translations: Record<Lang, Record<string, unknown>> = {
         adfree: "Sin publicidad",
       },
       descriptions: {
+        search:
+          "Busca en Bilibili directamente en la app: búsqueda por palabra clave con sugerencias, feed popular con desplazamiento infinito y vistas previas al pasar el cursor. Sin copiar URLs.",
+        recommend:
+          "Con sesión iniciada, un estante «Para ti» muestra el motor de recomendaciones real de Bilibili en 12 tarjetas grandes, cada una con la razón de la recomendación.",
         download:
           "Guarda tus videos y música favoritos de Bilibili para verlos sin conexión en cualquier momento y lugar.",
         quality:
@@ -495,13 +601,22 @@ const translations: Record<Lang, Record<string, unknown>> = {
       linux: "Linux",
       comingSoon: "Próximamente",
     },
+    screenshots: {
+      searchAlt:
+        "Pantalla de búsqueda de vídeos de Bilibili Downloader GUI con resultados de palabras clave y el feed popular",
+      downloadsAlt:
+        "Pantalla de descargas de Bilibili Downloader GUI con una descarga activa y fusión automática de audio/vídeo",
+    },
+    faqSection: {
+      viewAll: "Ver todas las preguntas frecuentes",
+    },
   },
   fr: {
     meta: {
       indexTitle:
         "Téléchargeur de vidéos Bilibili : gratuit, 4K et sous-titres | Windows et macOS",
       indexDescription:
-        "Téléchargeur de vidéos Bilibili gratuit et open source pour Windows et macOS. Téléchargez jusqu'en 4K, incorporez des sous-titres en 15 langues, téléchargez les animes par lot. Sans pub.",
+        "Téléchargeur Bilibili gratuit et open source pour Windows et macOS. Cherchez vos vidéos dans l'app, téléchargez jusqu'en 4K, incorporez des sous-titres en 15 langues et téléchargez les animes par lot. Sans pub.",
       faqTitle: "FAQ | Téléchargeur de vidéos Bilibili",
       faqDescription:
         "Questions fréquentes sur Bilibili Downloader GUI : que faire en cas d'échec, méthodes de connexion (cookie Firefox / code QR), limites de qualité, sous-titres en 15 langues, enregistrement MP3 et sécurité.",
@@ -523,11 +638,21 @@ const translations: Record<Lang, Record<string, unknown>> = {
       title: "Téléchargeur de vidéos Bilibili",
       description: "Téléchargez des vidéos de Bilibili facilement",
       download: "Télécharger maintenant",
+      badge: "Gratuit et open source",
+      trust: {
+        free: "100% gratuit, sans pub",
+        quality: "Jusqu'à 4K + audio Hi-Res",
+        subtitle: "Sous-titres en 15 langues",
+        search: "Recherche vidéo intégrée",
+      },
     },
     features: {
       title: "Fonctionnalités",
-      hoverHint: "Survolez pour plus de détails",
+      newBadge: "Nouveau",
+      readGuide: "Voir le guide",
       list: {
+        search: "Recherche vidéo dans l'app",
+        recommend: "Recommandations personnalisées",
         download: "Téléchargement vidéo et audio",
         quality: "Plusieurs options de qualité",
         subtitle: "Téléchargement de sous-titres",
@@ -541,6 +666,10 @@ const translations: Record<Lang, Record<string, unknown>> = {
         adfree: "Sans publicité",
       },
       descriptions: {
+        search:
+          "Cherchez sur Bilibili directement dans l'app : recherche par mot-clé avec suggestions, fil populaire en défilement infini et aperçus au survol. Sans copier d'URL.",
+        recommend:
+          "Connecté, une étagère « Pour vous » affiche le vrai moteur de recommandations de Bilibili en 12 grandes cartes, chacune avec la raison de la recommandation.",
         download:
           "Enregistrez vos vidéos et musiques préférées de Bilibili pour les regarder hors ligne quand vous voulez.",
         quality:
@@ -569,6 +698,15 @@ const translations: Record<Lang, Record<string, unknown>> = {
       windows: "Windows",
       linux: "Linux",
       comingSoon: "Bientôt disponible",
+    },
+    screenshots: {
+      searchAlt:
+        "Écran de recherche vidéo de Bilibili Downloader GUI avec les résultats de mots-clés et le fil populaire",
+      downloadsAlt:
+        "Écran de téléchargements de Bilibili Downloader GUI avec un téléchargement actif et la fusion automatique audio/vidéo",
+    },
+    faqSection: {
+      viewAll: "Voir toutes les questions fréquentes",
     },
   },
 };
