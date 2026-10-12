@@ -283,7 +283,9 @@ const PREVIEW_PLAYER_LABEL: &str = "preview-player";
 /// restyled — its own mini-mode close control and its own
 /// web-fullscreen toggle get clicked instead. A page-level loading
 /// cover (black + spinner) hides everything until that switch has
-/// happened.
+/// happened and the first video frame has been presented (frame gate
+/// at the tail of the script; see there for the Windows artifact it
+/// hides).
 ///
 /// Why hide page chrome instead of a player-only URL: the official
 /// embed player and the blackboard html5player both render a broken
@@ -348,7 +350,7 @@ const HIDE_VIDEO_PAGE_CHROME: &str = r#"(() => {
      web-fullscreen layout is confirmed — the page must never show its
      own chrome or the un-switched player (user decision 2026-10-11:
      reveal only once the switch is complete). Own style tag so the
-     reveal removes it without touching the chrome-hiding CSS. The
+     reveal can fade it out without touching the chrome-hiding CSS. The
      fallback timer reveals anyway when the player never reaches the
      layout, so the window cannot stick on the spinner forever. */
   const coverCss = `
@@ -373,8 +375,39 @@ const HIDE_VIDEO_PAGE_CHROME: &str = r#"(() => {
     s.textContent = coverCss;
     (document.head || document.documentElement).appendChild(s);
   };
+  /* Why fade instead of removing the cover outright: while content
+     sits above the video, Chromium keeps it in in-tree compositing;
+     removing the occluder promotes it to the DirectComposition
+     overlay path, and that promotion's first presents can carry the
+     pre-layout quad — the same top-left expansion the frame gate
+     below hides for playback start (user report 2026-10-12: the gate
+     alone did not remove it). Fading keeps a semi-transparent layer
+     above the video until its quads have settled, then drops both
+     tags. */
+  /* Why: the flag makes the fade one-shot — run() re-invokes uncover()
+     on every observer tick once __previewRevealed is set, and the
+     rVFC/pointerdown/fallback paths can race each other; without it
+     each call would stack another fade tag + removal timer. */
+  let uncovering = false;
   const uncover = () => {
-    document.querySelector('style[data-preview-cover]')?.remove();
+    if (uncovering) return;
+    uncovering = true;
+    const fade = document.createElement('style');
+    fade.setAttribute('data-preview-fade', '1');
+    fade.textContent = `
+      html::before, html::after {
+        transition: opacity 250ms linear !important;
+        opacity: 0 !important;
+      }
+    `;
+    (document.head || document.documentElement).appendChild(fade);
+    /* Note: the teardown timer (300ms) must outlast the 250ms opacity
+       transition above — that ~50ms slack is what guarantees the tags
+       are dropped only after the fade has fully run. */
+    window.setTimeout(() => {
+      document.querySelector('style[data-preview-cover]')?.remove();
+      fade.remove();
+    }, 300);
   };
   const startedAt = Date.now();
   const REVEAL_FALLBACK_MS = 25000;
@@ -411,10 +444,45 @@ const HIDE_VIDEO_PAGE_CHROME: &str = r#"(() => {
       btn.click();
     }
   };
+  /* Frame gate: WebView2's compositor can present the first decoded
+     video frame at its pre-layout size anchored at the element's
+     top-left for a frame or two before the layout quad applies — seen
+     as the video briefly expanding from the preview area's top-left
+     right after playback starts (user report 2026-10-12, Windows only;
+     macOS WKWebView does not show it). Holding the cover until
+     requestVideoFrameCallback reports a presented frame, plus one more
+     rAF for the mis-composited frames to land behind the cover, hides
+     the artifact. Arms only in web mode; re-arms if bpx swaps the
+     <video> element (isConnected guard). Engines without rVFC degrade
+     to the old immediate reveal.
+     pointerdown reveals as well: with autoplay blocked the player's
+     big play button sits under the cover — a blind click must not wait
+     out the 25s fallback. The handler uncovers directly (like the
+     rVFC path): run() re-runs only on DOM mutations, and a click
+     swallowed by the cover on a paused player may never produce one. */
+  const reveal = () => {
+    window.__previewRevealed = true;
+    uncover();
+  };
+  let gatedVideo = null;
+  const armFrameGate = () => {
+    if (window.__previewRevealed) return;
+    if (gatedVideo && gatedVideo.isConnected) return;
+    const v = document.querySelector('video');
+    if (!v) return;
+    gatedVideo = v;
+    if (typeof v.requestVideoFrameCallback !== 'function') {
+      reveal();
+      return;
+    }
+    v.requestVideoFrameCallback(() => requestAnimationFrame(reveal));
+  };
+  document.addEventListener('pointerdown', reveal, { capture: true, once: true });
   const run = () => {
     apply();
     const state = document.querySelector('.bpx-player-container')?.getAttribute('data-screen');
-    if (state === 'web' || Date.now() - startedAt > REVEAL_FALLBACK_MS) {
+    if (state === 'web') armFrameGate();
+    if (Date.now() - startedAt > REVEAL_FALLBACK_MS) {
       window.__previewRevealed = true;
     }
     if (window.__previewRevealed) uncover();
