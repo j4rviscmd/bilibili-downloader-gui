@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { store } from '@/app/store'
 import { setUser, type User } from '@/features/user'
 import { mockInvoke, renderHookWithStore } from '@/test/test-utils'
+import type { VideoSearchEntry } from '../types'
 
 // `cachedEntries` is module-scoped, so each test re-imports a fresh module
 // via `vi.resetModules()` + dynamic import to control the cache lifetime
@@ -119,5 +120,127 @@ describe('useHomeRecommendations', () => {
     expect(second.result.current.entries[0]?.bvid).toBe('BV1one')
     first.unmount()
     second.unmount()
+  })
+
+  it('refresh re-fetches and swaps in the new list', async () => {
+    store.dispatch(setUser(loggedInUser))
+    mockInvoke
+      .mockResolvedValueOnce([entry('BV1old')])
+      .mockResolvedValueOnce([entry('BV1new')])
+    const { useHomeRecommendations } = await importFresh()
+
+    const { result } = renderHookWithStore(useHomeRecommendations)
+    await act(() => Promise.resolve())
+
+    await act(() => result.current.refresh())
+
+    expect(mockInvoke).toHaveBeenCalledTimes(2)
+    expect(result.current.entries.map((e) => e.bvid)).toEqual(['BV1new'])
+    expect(result.current.refreshing).toBe(false)
+  })
+
+  it('keeps the previous entries when a refresh result is empty', async () => {
+    // Backend failure shape: any error degrades to an empty list, never a
+    // rejection — swapping it in would wipe the shelf and its button.
+    store.dispatch(setUser(loggedInUser))
+    mockInvoke
+      .mockResolvedValueOnce([entry('BV1old')])
+      .mockResolvedValueOnce([])
+    const { useHomeRecommendations } = await importFresh()
+
+    const { result } = renderHookWithStore(useHomeRecommendations)
+    await act(() => Promise.resolve())
+
+    await act(() => result.current.refresh())
+
+    expect(mockInvoke).toHaveBeenCalledTimes(2)
+    expect(result.current.entries.map((e) => e.bvid)).toEqual(['BV1old'])
+  })
+
+  it('keeps the module cache intact when a refresh result is empty', async () => {
+    // The cache write sits *after* the empty-check and outside the catch,
+    // so a failed refresh must leave the cached list alone — otherwise a
+    // remount (transient → stacked handover) would show an empty shelf
+    // and drop the refresh button.
+    store.dispatch(setUser(loggedInUser))
+    mockInvoke
+      .mockResolvedValueOnce([entry('BV1old')])
+      .mockResolvedValueOnce([])
+    const { useHomeRecommendations } = await importFresh()
+
+    const first = renderHookWithStore(useHomeRecommendations)
+    await act(() => Promise.resolve())
+    await act(() => first.result.current.refresh())
+    first.unmount()
+
+    const second = renderHookWithStore(useHomeRecommendations)
+    await act(() => Promise.resolve())
+
+    expect(mockInvoke).toHaveBeenCalledTimes(2)
+    expect(second.result.current.entries.map((e) => e.bvid)).toEqual(['BV1old'])
+  })
+
+  it('keeps the previous entries when the refresh request rejects', async () => {
+    store.dispatch(setUser(loggedInUser))
+    mockInvoke
+      .mockResolvedValueOnce([entry('BV1old')])
+      .mockRejectedValueOnce(new Error('boom'))
+    const { useHomeRecommendations } = await importFresh()
+
+    const { result } = renderHookWithStore(useHomeRecommendations)
+    await act(() => Promise.resolve())
+
+    await act(() => result.current.refresh())
+
+    expect(result.current.entries.map((e) => e.bvid)).toEqual(['BV1old'])
+    expect(result.current.refreshing).toBe(false)
+  })
+
+  it('flags refreshing while the refresh request is in flight', async () => {
+    store.dispatch(setUser(loggedInUser))
+    let settle: (value: VideoSearchEntry[]) => void = () => {}
+    mockInvoke.mockResolvedValueOnce([entry('BV1old')]).mockImplementationOnce(
+      () =>
+        new Promise<VideoSearchEntry[]>((resolve) => {
+          settle = resolve
+        }),
+    )
+    const { useHomeRecommendations } = await importFresh()
+
+    const { result } = renderHookWithStore(useHomeRecommendations)
+    await act(() => Promise.resolve())
+
+    let refreshed!: Promise<void>
+    act(() => {
+      refreshed = result.current.refresh()
+    })
+    expect(result.current.refreshing).toBe(true)
+
+    await act(async () => {
+      settle([entry('BV1new')])
+      await refreshed
+    })
+    expect(result.current.refreshing).toBe(false)
+    expect(result.current.entries[0]?.bvid).toBe('BV1new')
+  })
+
+  it('seeds the module cache so a remount shows the refreshed list', async () => {
+    store.dispatch(setUser(loggedInUser))
+    mockInvoke
+      .mockResolvedValueOnce([entry('BV1old')])
+      .mockResolvedValueOnce([entry('BV1new')])
+    const { useHomeRecommendations } = await importFresh()
+
+    const first = renderHookWithStore(useHomeRecommendations)
+    await act(() => Promise.resolve())
+    await act(() => first.result.current.refresh())
+    first.unmount()
+
+    // Transient → stacked handover: cached refresh result, no third fetch.
+    const second = renderHookWithStore(useHomeRecommendations)
+    await act(() => Promise.resolve())
+
+    expect(mockInvoke).toHaveBeenCalledTimes(2)
+    expect(second.result.current.entries[0]?.bvid).toBe('BV1new')
   })
 })
