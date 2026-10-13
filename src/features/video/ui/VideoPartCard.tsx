@@ -56,10 +56,9 @@ import {
 } from '@/shared/ui/form'
 import { Skeleton } from '@/shared/ui/skeleton'
 import { Textarea } from '@/shared/ui/textarea'
-import { toast } from '@/shared/ui/toast'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Check, Copy, ImageOff, Info, Play } from 'lucide-react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ImageOff, Info, Play, RotateCcw } from 'lucide-react'
+import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { useDispatch, useSelector } from 'react-redux'
@@ -184,7 +183,6 @@ const VideoPartCard = memo(function VideoPartCard({
 }: Props) {
   const { onValid2, videoId } = useVideoInfo()
   const { t } = useTranslation()
-  const [copied, setCopied] = useState(false)
   const disabled = video.parts.length === 0
   const videoPart = video.parts[page - 1]
   const min = Math.floor(videoPart.duration / 60)
@@ -326,7 +324,7 @@ const VideoPartCard = memo(function VideoPartCard({
   const queueBadge = downloadStatus.status ? (
     <span
       data-status={downloadStatus.status}
-      className="bg-muted ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium"
+      className="bg-muted inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium"
     >
       <span
         className={cn(
@@ -338,6 +336,25 @@ const VideoPartCard = memo(function VideoPartCard({
       {t(getStatusVisual(downloadStatus.status).labelKey)}
     </span>
   ) : null
+
+  /**
+   * Duration overlay on the thumbnail (m:ss, e.g. 2:05). Standard video-card
+   * convention: on the image, so the card no longer needs a metadata row.
+   */
+  // Note: pointer-events-none is load-bearing, not cosmetic: on the thumbnail
+  // branch the badge sits on top of the full-inset preview button and would
+  // otherwise swallow clicks aimed at that corner.
+  const durationBadge = (
+    <span className="pointer-events-none absolute right-1 bottom-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] leading-none font-medium text-white tabular-nums">
+      {min}:{String(sec).padStart(2, '0')}
+    </span>
+  )
+
+  // Shared slot classes for both thumbnail branches. Why explicit size: the
+  // grid's thumb track is auto-sized, so a bare h-full/w-full item collapses
+  // it to the icon width instead of filling the slot.
+  const thumbSlotClass =
+    'relative h-20 w-36 self-center [grid-area:thumb] md:h-auto md:max-h-30 md:w-48 md:self-stretch'
 
   /**
    * Controlled value for the Accordion component derived from Redux state.
@@ -569,21 +586,6 @@ const VideoPartCard = memo(function VideoPartCard({
   )
 
   /**
-   * Copies the video part name to clipboard.
-   * Shows a success toast and resets the copied state after 2 seconds.
-   */
-  const handleCopyPartName = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(videoPart.part)
-      setCopied(true)
-      toast.success(t('video.title_copied'))
-      setTimeout(() => setCopied(false), 2000)
-    } catch {
-      toast.error(t('video.copy_failed'))
-    }
-  }, [videoPart.part, t])
-
-  /**
    * Handles subtitle configuration changes.
    * Dispatches the updated config to Redux store.
    * Scrolls card into view when switching from off to soft/hard mode.
@@ -670,6 +672,65 @@ const VideoPartCard = memo(function VideoPartCard({
     [onValid2, page],
   )
 
+  // Live title value drives the reset button's disabled state.
+  const isDefaultTitle = form.watch('title') === videoPart.defaultTitle
+
+  /**
+   * Restores the backend-built default part title and flushes the save
+   * immediately (same contract as the debounced auto-save, no blur needed).
+   */
+  const handleResetTitle = useCallback(() => {
+    cancelPendingTitleValidation()
+    form.setValue('title', videoPart.defaultTitle, { shouldValidate: true })
+    void form.handleSubmit(onSubmit)()
+  }, [cancelPendingTitleValidation, form, onSubmit, videoPart.defaultTitle])
+
+  /**
+   * Bangumi preview badge for the title row; the tooltip carries the
+   * longer paywall-preview explanation.
+   */
+  const previewBadge = (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+          {t('video.bangumi_preview_badge')}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="whitespace-nowrap">
+        <p className="text-sm">{t('video.bangumi_preview_tooltip')}</p>
+      </TooltipContent>
+    </Tooltip>
+  )
+
+  /**
+   * Reset-to-default title button for the title row. Why the span wrapper
+   * inside TooltipTrigger: a disabled button's pointer-events: none would
+   * swallow hover, leaving this tooltip (the button's only label)
+   * unreachable.
+   */
+  const resetTitleControl = (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span>
+          <button
+            type="button"
+            onClick={handleResetTitle}
+            disabled={isDefaultTitle}
+            aria-label={t('video.reset_title')}
+            className="text-muted-foreground hover:bg-muted focus-visible:ring-ring/50 inline-flex size-6 items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-[3px] disabled:pointer-events-none disabled:opacity-50"
+          >
+            <RotateCcw className="size-3.5" aria-hidden />
+          </button>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top" arrow>
+        {isDefaultTitle
+          ? t('video.reset_title_already_default')
+          : t('video.reset_title')}
+      </TooltipContent>
+    </Tooltip>
+  )
+
   return (
     <div ref={cardRef} className="p-3 md:p-4">
       <Form {...form}>
@@ -681,173 +742,129 @@ const VideoPartCard = memo(function VideoPartCard({
           <form
             onSubmit={form.handleSubmit(onSubmit)}
             onBlur={form.handleSubmit(onSubmit)}
-            className="space-y-2"
+            className="grid grid-cols-[auto_auto_minmax(0,1fr)] gap-x-3 gap-y-2 [grid-template-areas:'check_thumb_col''acc_acc_acc'] md:[grid-template-areas:'check_thumb_col''check_thumb_acc']"
           >
-            {/* Thumbnail and Title Section */}
-            <div>
-              <div className="flex items-center gap-3">
-                <div className="relative">
-                  <span className="text-muted-foreground bg-muted absolute -top-6 left-1/2 -translate-x-1/2 rounded-full px-1.5 text-[10px] leading-4 font-medium tabular-nums">
-                    P{page}
-                  </span>
-                  <Checkbox
-                    checked={selected}
-                    onCheckedChange={handleSelectedChange}
-                    size="lg"
+            {/* Why: minmax(0,1fr) track plus min-w-0 on the col/acc children:
+                grid items default to min-width:auto and refuse to shrink
+                below their content's width, so without both the card would
+                overflow the list column instead of fitting it. */}
+            <div className="flex flex-col items-center justify-center gap-2 self-center [grid-area:check] md:max-h-30 md:self-stretch">
+              {/* Why in-flow badge + thumb-mirrored sizing (self-stretch
+                  with the same max-h-30 cap as the thumbnail): the cell
+                  always occupies the thumbnail's box, so the centered
+                  badge + checkbox sit at the thumbnail's middle in both
+                  accordion states — nothing jumps when options expand. */}
+              <span className="text-muted-foreground bg-muted rounded-full px-1.5 text-[10px] leading-4 font-medium tabular-nums">
+                P{page}
+              </span>
+              <Checkbox
+                checked={selected}
+                onCheckedChange={handleSelectedChange}
+                size="lg"
+              />
+            </div>
+            {videoPart.thumbnail.url ? (
+              // Why group/thumb + sibling button: same reveal pattern
+              // as the video search grid's play overlay
+              // (VideoCardGrid) — the scrim + play icon appear on
+              // hover/focus-visible, so the control stays hidden
+              // until wanted but is keyboard-discoverable.
+              <span className={cn('group/thumb', thumbSlotClass)}>
+                <img
+                  src={videoPart.thumbnail.url}
+                  alt={t('video.thumbnail_alt', {
+                    part: videoPart.part,
+                  })}
+                  className="block h-full w-full rounded-lg object-cover"
+                  loading="lazy"
+                  referrerPolicy="no-referrer"
+                />
+                <button
+                  type="button"
+                  onClick={onThumbnailClick}
+                  aria-label={t('videoSearch.previewPlay')}
+                  className="focus-visible:ring-ring/50 absolute inset-0 flex items-center justify-center rounded-lg bg-black/0 text-white opacity-0 transition outline-none group-hover/thumb:bg-black/40 group-hover/thumb:opacity-100 focus-visible:bg-black/40 focus-visible:opacity-100 focus-visible:ring-[3px]"
+                >
+                  <Play
+                    className="size-8 fill-current drop-shadow"
+                    aria-hidden
                   />
-                </div>
-                {videoPart.thumbnail.url ? (
-                  // Why group/thumb + sibling button: same reveal pattern
-                  // as the video search grid's play overlay
-                  // (VideoCardGrid) — the scrim + play icon appear on
-                  // hover/focus-visible, so the control stays hidden
-                  // until wanted but is keyboard-discoverable.
-                  <span className="group/thumb relative shrink-0">
-                    <img
-                      src={videoPart.thumbnail.url}
-                      alt={t('video.thumbnail_alt', {
-                        part: videoPart.part,
-                      })}
-                      className="block h-16 w-24 rounded-lg object-cover md:h-20 md:w-32"
-                      loading="lazy"
-                      referrerPolicy="no-referrer"
-                    />
-                    <button
-                      type="button"
-                      onClick={onThumbnailClick}
-                      aria-label={t('videoSearch.previewPlay')}
-                      className="focus-visible:ring-ring/50 absolute inset-0 flex items-center justify-center rounded-lg bg-black/0 text-white opacity-0 transition outline-none group-hover/thumb:bg-black/40 group-hover/thumb:opacity-100 focus-visible:bg-black/40 focus-visible:opacity-100 focus-visible:ring-[3px]"
-                    >
-                      <Play
-                        className="size-8 fill-current drop-shadow"
-                        aria-hidden
-                      />
-                    </button>
-                  </span>
-                ) : (
-                  <div className="bg-muted flex h-16 w-24 items-center justify-center rounded-lg md:h-20 md:w-32">
-                    <ImageOff className="text-muted-foreground/50 h-8 w-8" />
-                  </div>
-                )}
-
-                {/* Title Input */}
-                <div className="flex-1">
-                  <FormField
-                    control={form.control}
-                    name="title"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-sm font-medium">
-                          {t('video.title_label')}
-                        </FormLabel>
-                        <FormControl>
-                          <Textarea
-                            placeholder={t('video.title_placeholder')}
-                            className="min-h-[52px] resize-none"
-                            rows={3}
-                            value={field.value}
-                            onChange={(e) => {
-                              field.onChange(e.target.value)
-
-                              // Debounce validation so it only fires after
-                              // the user pauses typing, avoiding noisy
-                              // per-keystroke error flashes. When valid, also
-                              // flush the auto-save so the download-ready
-                              // state updates without requiring blur.
-                              cancelPendingTitleValidation()
-                              titleDebounceRef.current = setTimeout(() => {
-                                void form.trigger('title').then((isValid) => {
-                                  if (isValid) {
-                                    void form.handleSubmit(onSubmit)()
-                                  }
-                                })
-                              }, 500)
-                            }}
-                            onBlur={() => {
-                              // Cancel any not-yet-fired debounce timer so the
-                              // form-level onBlur flushes the save once. If the
-                              // timer already fired, the extra dispatch is
-                              // idempotent (same title value).
-                              cancelPendingTitleValidation()
-                              field.onBlur()
-                            }}
-                          />
-                        </FormControl>
-                        {selected && <FormMessage />}
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </div>
-
-              {/* Video Part Name and Duration */}
+                </button>
+                {durationBadge}
+              </span>
+            ) : (
               <div
-                className="text-muted-foreground mt-1.5 flex items-center text-sm"
-                style={{ marginLeft: '2.25rem' }}
-              >
-                {/* Why: custom Tooltip plus aria-label instead of a native title
-                    attribute: a title would stack the browser's built-in tooltip
-                    on top of the custom one (same pattern as the IconButton rows
-                    in PartDownloadProgress.tsx). */}
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      onClick={handleCopyPartName}
-                      className="hover:bg-muted mr-0.5 rounded p-1 transition-colors"
-                      aria-label={t('video.copy_title')}
-                    >
-                      {copied ? (
-                        <Check className="h-3.5 w-3.5" />
-                      ) : (
-                        <Copy className="h-3.5 w-3.5" />
-                      )}
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" arrow>
-                    {t('video.copy_title')}
-                  </TooltipContent>
-                </Tooltip>
-                {/* Why: deliberately no title attribute on the truncated part
-                    name: the custom Tooltip already reveals the full text, and a
-                    native title would stack a second browser tooltip on top of
-                    it (regression-tested in VideoPartCard.test.tsx). */}
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-block max-w-[200px] cursor-help truncate font-medium md:max-w-[300px]">
-                      {videoPart.part}
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">
-                    <p className="text-sm">{videoPart.part}</p>
-                  </TooltipContent>
-                </Tooltip>
-                <span className="px-1">/</span>
-                {min > 0 && <span>{min}m</span>}
-                <span>{sec}s</span>
-                {queueBadge}
-                {isPreview && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900 dark:text-amber-200">
-                        {t('video.bangumi_preview_badge')}
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="whitespace-nowrap">
-                      <p className="text-sm">
-                        {t('video.bangumi_preview_tooltip')}
-                      </p>
-                    </TooltipContent>
-                  </Tooltip>
+                className={cn(
+                  'bg-muted flex items-center justify-center rounded-lg',
+                  thumbSlotClass,
                 )}
+              >
+                <ImageOff className="text-muted-foreground/50 h-8 w-8" />
+                {durationBadge}
               </div>
+            )}
+
+            {/* Title Input */}
+            <div className="min-w-0 [grid-area:col]">
+              <FormField
+                control={form.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <div className="flex items-center gap-2">
+                      <FormLabel className="text-sm font-medium">
+                        {t('video.title_label')}
+                      </FormLabel>
+                      <div className="ml-auto flex items-center gap-2">
+                        {resetTitleControl}
+                        {isPreview && previewBadge}
+                        {queueBadge}
+                      </div>
+                    </div>
+                    <FormControl>
+                      <Textarea
+                        placeholder={t('video.title_placeholder')}
+                        className="min-h-[52px] resize-none"
+                        rows={3}
+                        value={field.value}
+                        onChange={(e) => {
+                          field.onChange(e.target.value)
+
+                          // Debounce validation so it only fires after
+                          // the user pauses typing, avoiding noisy
+                          // per-keystroke error flashes. When valid, also
+                          // flush the auto-save so the download-ready
+                          // state updates without requiring blur.
+                          cancelPendingTitleValidation()
+                          titleDebounceRef.current = setTimeout(() => {
+                            void form.trigger('title').then((isValid) => {
+                              if (isValid) {
+                                void form.handleSubmit(onSubmit)()
+                              }
+                            })
+                          }, 500)
+                        }}
+                        onBlur={() => {
+                          // Cancel any not-yet-fired debounce timer so the
+                          // form-level onBlur flushes the save once. If the
+                          // timer already fired, the extra dispatch is
+                          // idempotent (same title value).
+                          cancelPendingTitleValidation()
+                          field.onBlur()
+                        }}
+                      />
+                    </FormControl>
+                    {selected && <FormMessage />}
+                  </FormItem>
+                )}
+              />
             </div>
 
             {/* Options Accordion */}
             <TooltipProvider delayDuration={200}>
               <Accordion
                 type="multiple"
-                className="w-full"
+                className="w-full min-w-0 [grid-area:acc]"
                 value={accordionValue}
                 onValueChange={handleAccordionChange}
               >
@@ -1083,7 +1100,7 @@ const VideoPartCard = memo(function VideoPartCard({
 
             {/* Duplicate Warning */}
             {selected && isDuplicate && (
-              <div className="text-destructive mt-1 text-sm">
+              <div className="text-destructive col-span-full mt-1 text-sm">
                 {t('validation.video.title.duplicate')}
               </div>
             )}
