@@ -10,7 +10,8 @@
 #             publish matrix uploads all assets to the draft. finalize-release
 #             uploads fixed-name assets, publishes the draft (reusing the
 #             tag created above), and rewrites the body with GitHub-generated
-#             notes.
+#             notes filtered down to user-facing PR types (the in-app update
+#             dialog renders this body; see finalize-release).
 #   dispatch: recovery path. Resolves an existing (possibly draft) release by
 #             tag and re-runs publish+finalize idempotently. Note: "Re-run
 #             failed jobs" only helps when release-please itself failed
@@ -443,10 +444,21 @@ jobs:
               repo: context.repo.repo,
               tag_name: tagName,
             });
+            // GitHub notes list EVERY merged PR in the tag range — including
+            // non-release-triggering types (the `chore(main): release` PR
+            // itself, docs/ci/test/style/refactor/build chores). The in-app
+            // update dialog renders this body verbatim (get_release_notes),
+            // so drop those bullets. Fail-open by design: unknown types stay
+            // visible; only the documented non-trigger set is excluded.
+            const NON_USER_FACING = /^\* (?:chore|docs|ci|test|style|refactor|build)(?:\([^)]*\))?:/;
+            const body = notes.body
+              .split('\n')
+              .filter(line => !NON_USER_FACING.test(line))
+              .join('\n');
             await github.rest.repos.updateRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
               release_id: releaseId,
-              body: notes.body,
+              body,
             });
-            core.info('Release notes rewritten with GitHub-generated notes');
+            core.info('Release notes rewritten with GitHub-generated notes (non-user-facing PRs excluded)');
