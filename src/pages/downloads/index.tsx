@@ -80,6 +80,7 @@ export function DownloadsContent() {
     <PageTemplate
       title={t('queue.title')}
       description={t('queue.description')}
+      bodyScroll
       actions={
         <div className="flex items-center gap-2">
           <TooltipProvider delayDuration={300}>
@@ -135,7 +136,7 @@ export function DownloadsContent() {
       }
     >
       {rows.length === 0 ? (
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 py-12 text-center">
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 py-12 text-center">
           <div className="bg-muted flex size-14 items-center justify-center rounded-full">
             <Download className="text-muted-foreground size-6" />
           </div>
@@ -144,9 +145,7 @@ export function DownloadsContent() {
           </p>
         </div>
       ) : (
-        /* pr-5 reserves space so the scrollbar gutter does not overlap the
-           rows (pattern from issue #700). */
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto py-3 pr-5">
+        <div className="space-y-4 py-3">
           {sections.map((section) => (
             <QueueSection
               key={section.key}

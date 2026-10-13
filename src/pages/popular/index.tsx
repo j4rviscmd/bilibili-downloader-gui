@@ -57,6 +57,8 @@ export function PopularContent() {
   return (
     <PageTemplate
       title={t('popular.title')}
+      bodyScroll
+      scrollRef={scrollRef}
       actions={
         // Same header pattern as the video-search page: the search box
         // rides the title row and stays reachable while the feed scrolls.
@@ -79,18 +81,16 @@ export function PopularContent() {
         </div>
       }
     >
-      {/* pt/pb follow the PageTemplate body idiom (see its docstring) —
-          horizontal padding comes from the template's body wrapper. The
-          scroll container ref scopes the feed's IntersectionObserver.
-          The shelf (logged-in only, self-hiding) scrolls with the feed;
-          its companion heading keeps the two sections readable. */}
-      <div className="flex min-h-0 flex-1 flex-col pt-2 pb-4 sm:pt-3 sm:pb-6">
-        <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
-          <div className="flex flex-col gap-4">
-            <HomeRecommendations />
-            {shelfVisible && <PopularFeedHeading />}
-            <PopularFeedList scrollRootRef={scrollRef} />
-          </div>
+      {/* Whole-page scroll: the template's full-width scroll container
+          (wired via scrollRef) owns the scrolling and scopes the feed's
+          IntersectionObserver. The shelf (logged-in only, self-hiding)
+          scrolls with the feed; its companion heading keeps the two
+          sections readable. */}
+      <div className="pt-2 pb-4 sm:pt-3 sm:pb-6">
+        <div className="flex flex-col gap-4">
+          <HomeRecommendations />
+          {shelfVisible && <PopularFeedHeading />}
+          <PopularFeedList scrollRootRef={scrollRef} />
         </div>
       </div>
     </PageTemplate>

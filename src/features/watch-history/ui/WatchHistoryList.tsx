@@ -17,6 +17,10 @@ type Props = {
   onLoadMore: () => void
   /** Callback when user clicks download on an entry */
   onDownload: (entry: WatchHistoryEntry) => void
+  /** The page-level scroll container (PageTemplate `bodyScroll`):
+   *  Virtuoso rides it via `customScrollParent` instead of its own
+   *  internal scroller, so the scrollbar sits at the window edge. */
+  scrollParent: HTMLElement | null
   /** Whether download buttons should be disabled */
   disabled?: boolean
 }
@@ -39,6 +43,7 @@ const DEFAULT_ITEM_HEIGHT = 100
  *   hasMore={cursor ? !cursor.isEnd : false}
  *   onLoadMore={fetchMore}
  *   onDownload={handleDownload}
+ *   scrollParent={scrollEl}
  * />
  * ```
  */
@@ -49,13 +54,18 @@ export function WatchHistoryList({
   hasMore,
   onLoadMore,
   onDownload,
+  scrollParent,
   disabled,
 }: Props) {
   const { t } = useTranslation()
 
   if (loading) {
+    // Why min-h-[50vh] instead of the old h-full: in bodyScroll mode
+    // the rail only has a min-height floor (see PageTemplate), so a
+    // percentage height collapses to content height and the spinner
+    // would hug the top instead of sitting mid-viewport.
     return (
-      <div className="flex h-full items-center justify-center">
+      <div className="flex min-h-[50vh] items-center justify-center">
         <CircleIndicator size="lg" />
       </div>
     )
@@ -71,11 +81,15 @@ export function WatchHistoryList({
 
   return (
     <Virtuoso
-      style={{ height: '100%' }}
+      // Why the paired fallback: scrollParent is null until the
+      // template's scroller mounts (first render) and in standalone
+      // tests — Virtuoso then needs its own height:100% scroller
+      // instead of riding the page-level one.
+      customScrollParent={scrollParent ?? undefined}
+      style={scrollParent ? undefined : { height: '100%' }}
       data={entries}
       itemContent={(_index, entry) => (
-        // Why: pr-3 reserves space so the Virtuoso scrollbar gutter does not overlap the right-aligned download button on each WatchHistoryItem.
-        <div className="py-1 pr-3">
+        <div className="py-1">
           <WatchHistoryItem
             entry={entry}
             onDownload={onDownload}

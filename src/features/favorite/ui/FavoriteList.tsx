@@ -18,6 +18,10 @@ type Props = {
   onLoadMore: () => void
   /** Callback invoked when the user requests to download a video. */
   onDownload: (video: FavoriteVideo) => void
+  /** The page-level scroll container (PageTemplate `bodyScroll`):
+   *  Virtuoso rides it via `customScrollParent` instead of its own
+   *  internal scroller, so the scrollbar sits at the window edge. */
+  scrollParent: HTMLElement | null
   /** Whether download buttons should be disabled. */
   disabled?: boolean
 }
@@ -61,6 +65,7 @@ const EmptyStateIcon = () => (
  *   hasMore={hasMore}
  *   onLoadMore={loadMore}
  *   onDownload={onDownload}
+ *   scrollParent={scrollEl}
  *   disabled={hasActiveDownloads}
  * />
  * ```
@@ -72,13 +77,18 @@ function FavoriteList({
   hasMore,
   onLoadMore,
   onDownload,
+  scrollParent,
   disabled,
 }: Props) {
   const { t } = useTranslation()
 
   if ((loading || foldersLoading) && videos.length === 0) {
+    // Why min-h-[50vh] instead of the old h-full: in bodyScroll mode
+    // the rail only has a min-height floor (see PageTemplate), so a
+    // percentage height collapses to content height and the spinner
+    // would hug the top instead of sitting mid-viewport.
     return (
-      <div className="flex h-full items-center justify-center">
+      <div className="flex min-h-[50vh] items-center justify-center">
         <CircleIndicator size="lg" />
       </div>
     )
@@ -99,7 +109,12 @@ function FavoriteList({
 
   return (
     <Virtuoso
-      style={{ height: '100%' }}
+      // Why the paired fallback: scrollParent is null until the
+      // template's scroller mounts (first render) and in standalone
+      // tests — Virtuoso then needs its own height:100% scroller
+      // instead of riding the page-level one.
+      customScrollParent={scrollParent ?? undefined}
+      style={scrollParent ? undefined : { height: '100%' }}
       data={videos}
       endReached={() => {
         if (hasMore && !loading) {
@@ -107,8 +122,7 @@ function FavoriteList({
         }
       }}
       itemContent={(_index, video) => (
-        // Why: pr-3 reserves space so the Virtuoso scrollbar gutter does not overlap the right-aligned download button on each FavoriteItem.
-        <div className="py-1 pr-3">
+        <div className="py-1">
           <FavoriteItem
             video={video}
             onDownload={onDownload}

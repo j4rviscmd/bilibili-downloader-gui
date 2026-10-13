@@ -13,7 +13,7 @@ import { Alert, AlertDescription } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
 import { toast } from '@/shared/ui/toast'
 import { AlertCircle, RefreshCw } from 'lucide-react'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 /**
@@ -34,6 +34,10 @@ import { useTranslation } from 'react-i18next'
  */
 export function WatchHistoryContent() {
   const { t } = useTranslation()
+  // Why a state (not a ref): Virtuoso's customScrollParent needs the
+  // element as a prop, so the ref callback is a setState that re-renders
+  // the list once PageTemplate's scroll container mounts.
+  const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null)
   const user = useSelector((state) => state.user)
   const handleDownload = usePendingDownload()
 
@@ -97,6 +101,8 @@ export function WatchHistoryContent() {
   return (
     <PageTemplate
       title={t('watchHistory.title')}
+      bodyScroll
+      scrollRef={setScrollEl}
       actions={
         <>
           <div className="flex flex-1 items-center gap-2">
@@ -120,25 +126,26 @@ export function WatchHistoryContent() {
       }
     >
       {/* Error */}
-      {/* Why: render OUTSIDE the virtualized list's flex-1 wrapper so the Alert is a sibling, not a list item. shrink-0 keeps it from being squeezed by the min-h-0 flex-1 list below (commit 1c6b98f, watch-history refresh feature). */}
+      {/* Why: render OUTSIDE the virtualized list so the Alert is a
+          sibling, not a list item (commit 1c6b98f, watch-history refresh
+          feature). */}
       {error && (
-        <Alert variant="destructive" className="my-3 shrink-0">
+        <Alert variant="destructive" className="my-3">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
       {/* List */}
-      <div className="min-h-0 flex-1">
-        <WatchHistoryList
-          entries={entries}
-          loading={loading}
-          loadingMore={loadingMore}
-          hasMore={!!cursor && !cursor.isEnd}
-          onLoadMore={fetchMore}
-          onDownload={onDownload}
-        />
-      </div>
+      <WatchHistoryList
+        entries={entries}
+        loading={loading}
+        loadingMore={loadingMore}
+        hasMore={!!cursor && !cursor.isEnd}
+        onLoadMore={fetchMore}
+        onDownload={onDownload}
+        scrollParent={scrollEl}
+      />
     </PageTemplate>
   )
 }
