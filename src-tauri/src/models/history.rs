@@ -37,6 +37,10 @@ pub struct HistoryEntry {
     /// Thumbnail URL (original Bilibili URL).
     /// Frontend fetches and converts to base64 on-demand via API.
     pub thumbnail_url: Option<String>,
+    /// Video duration in seconds. Absent for entries recorded before this
+    /// field existed and when the source reports no duration.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub duration: Option<u64>,
     /// Version for data migration support.
     #[serde(default = "default_version")]
     pub version: String,
@@ -145,6 +149,36 @@ mod tests {
 
         let out = serde_json::to_string(&entry).unwrap();
         assert!(!out.contains("bvid"), "None bvid is skipped on serialize");
+    }
+
+    #[test]
+    fn history_entry_roundtrips_duration() {
+        // duration is a later addition: legacy entries deserialize to None
+        // and stay key-less on disk.
+        let legacy: HistoryEntry = serde_json::from_str(
+            r#"{
+                "id": "old-1", "title": "t", "url": "u",
+                "downloadedAt": "2026-01-01T00:00:00Z", "status": "completed"
+            }"#,
+        )
+        .unwrap();
+        assert!(legacy.duration.is_none());
+        let out = serde_json::to_string(&legacy).unwrap();
+        assert!(
+            !out.contains("duration"),
+            "None duration is skipped on serialize"
+        );
+
+        let entry: HistoryEntry = serde_json::from_str(
+            r#"{
+                "id": "new-1", "title": "t", "url": "u",
+                "downloadedAt": "2026-10-13T00:00:00Z", "status": "completed",
+                "duration": 287
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(entry.duration, Some(287));
+        assert_eq!(serde_json::to_value(&entry).unwrap()["duration"], 287);
     }
 
     #[test]
