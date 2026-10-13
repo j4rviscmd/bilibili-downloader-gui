@@ -870,6 +870,7 @@
     "section_downloading": "En cours",
     "section_queued": "En file",
     "section_finished": "Terminés et annulés",
+    "breakdown": "Terminés : {{done}}, erreurs : {{error}}, annulés : {{cancelled}}",
     "clear_finished": "Effacer les terminés",
     "open_downloads": "Ouvrir la page des téléchargements"
   },

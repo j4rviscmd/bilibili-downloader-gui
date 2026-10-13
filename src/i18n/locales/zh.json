@@ -870,6 +870,7 @@
     "section_downloading": "下载中",
     "section_queued": "待下载",
     "section_finished": "已完成・已取消",
+    "breakdown": "已完成 {{done}}・错误 {{error}}・已取消 {{cancelled}}",
     "clear_finished": "清除已完成",
     "open_downloads": "打开下载页面"
   },

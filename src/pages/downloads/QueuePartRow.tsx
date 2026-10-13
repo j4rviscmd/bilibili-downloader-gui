@@ -97,6 +97,8 @@ function MarqueeTitle({ title }: { title: string }) {
 
 type Props = {
   row: QueuePartRow
+  /** 1-based position of this row within its section (drain order). */
+  position: number
 }
 
 /**
@@ -108,7 +110,7 @@ type Props = {
  * `data-status` keeps the E2E anchor name the abolished compact row used
  * (the row carries the status attribute itself here).
  */
-export function QueuePartRow({ row }: Props) {
+export function QueuePartRow({ row, position }: Props) {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const { item, status } = row
@@ -233,8 +235,11 @@ export function QueuePartRow({ row }: Props) {
       </span>
     ) : null
 
+  // Rounded hover surface: the row is the click/hover target (cancel,
+  // open-file), so it gets its own affordance instead of relying on the
+  // section card's plain background.
   return (
-    <div className="space-y-1 py-1.5">
+    <div className="hover:bg-accent/50 space-y-1 rounded-lg px-2 py-1.5 transition-colors">
       <div className="flex items-center gap-2 text-sm">
         {item.thumbnailUrl ? (
           <img
@@ -248,6 +253,13 @@ export function QueuePartRow({ row }: Props) {
           <div className="bg-muted flex h-9 w-16 shrink-0 items-center justify-center rounded-md">
             <ImageOff className="text-muted-foreground/50 h-4 w-4" />
           </div>
+        )}
+        {status === 'pending' && (
+          /* Drain-order chip: the queue runs one item at a time, so this
+             is the actual start order for waiting rows. */
+          <span className="bg-muted text-muted-foreground inline-flex min-w-[26px] shrink-0 items-center justify-center rounded-md px-1.5 py-0.5 text-xs font-medium tabular-nums">
+            #{position}
+          </span>
         )}
         <MarqueeTitle title={displayTitle} />
         {qualityBadge}
@@ -278,6 +290,24 @@ export function QueuePartRow({ row }: Props) {
           flat
           suppressStatusLabels
         />
+      )}
+      {/* Overall transfer bar for running rows: the row model's weighted
+          percentage (audio+video+merge shares, computed by
+          selectQueuePartRows) at a glance — the stage line above carries
+          the exact per-stage numbers. */}
+      {status === 'running' && (
+        <div
+          // Note: raw blue-500 (not a theme token) mirrors the downloading
+          // section's accent in QueueSection.tsx TONES — running rows only
+          // render inside that section; keep the two in sync.
+          className="mx-2 h-0.5 overflow-hidden rounded-full bg-blue-500/15"
+          aria-hidden
+        >
+          <div
+            className="h-full rounded-full bg-blue-500"
+            style={{ width: `${row.percentage}%` }}
+          />
+        </div>
       )}
     </div>
   )
