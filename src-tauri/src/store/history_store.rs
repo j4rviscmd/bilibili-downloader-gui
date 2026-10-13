@@ -265,6 +265,7 @@ mod tests {
             file_size: None,
             quality: None,
             thumbnail_url: None,
+            duration: None,
             version: "1.0".into(),
         }
     }

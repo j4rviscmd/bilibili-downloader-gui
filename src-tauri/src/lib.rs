@@ -1051,6 +1051,36 @@ fn escape_csv(s: &str) -> String {
     }
 }
 
+/// Formats history entries as CSV (header row + one row per entry; `None`
+/// fields become empty cells). Extracted from `export_history` so the
+/// column layout is unit-testable without an AppHandle.
+fn history_to_csv(entries: &[HistoryEntry]) -> String {
+    let mut csv = String::from(
+        "id,title,bvid,url,downloaded_at,status,file_size,quality,duration,thumbnail_url,version\n",
+    );
+    for entry in entries {
+        csv.push_str(&format!(
+            "{},{},{},{},{},{},{},{},{},{},{}\n",
+            escape_csv(&entry.id),
+            escape_csv(&entry.title),
+            entry.bvid.as_deref().map(escape_csv).unwrap_or_default(),
+            escape_csv(&entry.url),
+            escape_csv(&entry.downloaded_at),
+            escape_csv(&entry.status),
+            entry.file_size.map(|s| s.to_string()).unwrap_or_default(),
+            entry.quality.as_deref().map(escape_csv).unwrap_or_default(),
+            entry.duration.map(|d| d.to_string()).unwrap_or_default(),
+            entry
+                .thumbnail_url
+                .as_deref()
+                .map(escape_csv)
+                .unwrap_or_default(),
+            escape_csv(&entry.version),
+        ));
+    }
+    csv
+}
+
 /// Exports history entries in JSON or CSV format.
 ///
 /// Serializes all history entries to the specified format.
@@ -1076,31 +1106,7 @@ async fn export_history(app: AppHandle, format: String) -> Result<String, String
 
     match format.as_str() {
         "json" => serde_json::to_string_pretty(&entries).map_err(|e| e.to_string()),
-        "csv" => {
-            let mut csv = String::from(
-                "id,title,bvid,url,downloaded_at,status,file_size,quality,thumbnail_url,version\n",
-            );
-            for entry in entries {
-                csv.push_str(&format!(
-                    "{},{},{},{},{},{},{},{},{},{}\n",
-                    escape_csv(&entry.id),
-                    escape_csv(&entry.title),
-                    entry.bvid.as_deref().map(escape_csv).unwrap_or_default(),
-                    escape_csv(&entry.url),
-                    escape_csv(&entry.downloaded_at),
-                    escape_csv(&entry.status),
-                    entry.file_size.map(|s| s.to_string()).unwrap_or_default(),
-                    entry.quality.as_deref().map(escape_csv).unwrap_or_default(),
-                    entry
-                        .thumbnail_url
-                        .as_deref()
-                        .map(escape_csv)
-                        .unwrap_or_default(),
-                    escape_csv(&entry.version),
-                ));
-            }
-            Ok(csv)
-        }
+        "csv" => Ok(history_to_csv(&entries)),
         _ => Err(format!("Invalid format: {}. Supported: json, csv", format)),
     }
 }
@@ -1949,4 +1955,52 @@ async fn check_cookie_refresh(app: AppHandle) -> Result<CookieRefreshInfo, Strin
 #[tauri::command]
 async fn refresh_cookie(app: AppHandle) -> Result<Session, String> {
     qr_login::refresh_cookie(&app).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn history_csv_rows_include_duration_column() {
+        let entry = HistoryEntry {
+            id: "a-1".into(),
+            title: "t".into(),
+            bvid: None,
+            url: "u".into(),
+            downloaded_at: "2026-10-13T00:00:00Z".into(),
+            status: "completed".into(),
+            error_message: None,
+            file_size: None,
+            quality: None,
+            duration: None,
+            thumbnail_url: None,
+            version: "1.0".into(),
+        };
+
+        // Header pins the column order (duration sits between quality and
+        // thumbnail_url).
+        assert_eq!(
+            history_to_csv(&[]),
+            "id,title,bvid,url,downloaded_at,status,file_size,quality,duration,thumbnail_url,version\n"
+        );
+
+        // Legacy entry (no duration) renders an empty cell.
+        assert_eq!(
+            history_to_csv(&[entry.clone()]),
+            "id,title,bvid,url,downloaded_at,status,file_size,quality,duration,thumbnail_url,version\n\
+             a-1,t,,u,2026-10-13T00:00:00Z,completed,,,,,1.0\n"
+        );
+
+        // New entries carry the duration in seconds.
+        let with_duration = HistoryEntry {
+            duration: Some(287),
+            ..entry
+        };
+        assert_eq!(
+            history_to_csv(&[with_duration]),
+            "id,title,bvid,url,downloaded_at,status,file_size,quality,duration,thumbnail_url,version\n\
+             a-1,t,,u,2026-10-13T00:00:00Z,completed,,,287,,1.0\n"
+        );
+    }
 }
