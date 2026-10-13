@@ -336,6 +336,13 @@ fn initial_entry(options: &crate::handlers::bilibili::DownloadOptions) -> Histor
             .as_ref()
             .map(crate::handlers::bilibili::quality_to_string),
         thumbnail_url: options.thumbnail_url.clone(),
+        // 0 is the "unknown duration" convention (subtitle clamping reads
+        // it the same way); store None so the UI badge stays hidden.
+        // Note: the 0 sentinel originates in the wire parser —
+        // `duration_seconds()` in handlers/bilibili.rs returns 0 for
+        // absent, null, or unparseable API values, so every "no duration"
+        // path funnels to 0 before reaching here.
+        duration: (options.duration_seconds > 0).then_some(options.duration_seconds as u64),
         version: "1.0".to_string(),
     }
 }
@@ -498,6 +505,7 @@ mod tests {
             file_size: None,
             quality: None,
             thumbnail_url: None,
+            duration: None,
             version: "1.0".into(),
         }
     }
@@ -518,6 +526,29 @@ mod tests {
         // locked_json's store locks must not be swept as session locks.
         assert!(!is_session_lock(Path::new("history.json.lock")));
         assert!(!is_session_lock(Path::new("hist_video.part.mp4")));
+    }
+
+    #[test]
+    fn initial_entry_maps_duration_from_options() {
+        let options = |duration_seconds: i64| crate::handlers::bilibili::DownloadOptions {
+            bvid: "BV1dur".into(),
+            cid: 1,
+            filename: "video.mp4".into(),
+            quality: None,
+            audio_quality: None,
+            download_id: "dl-1".into(),
+            parent_id: None,
+            duration_seconds,
+            thumbnail_url: None,
+            page: None,
+            subtitle: None,
+            ep_id: None,
+        };
+
+        // Known duration is carried into the entry.
+        assert_eq!(initial_entry(&options(287)).duration, Some(287));
+        // Unknown (0) stays None.
+        assert_eq!(initial_entry(&options(0)).duration, None);
     }
 
     #[test]
