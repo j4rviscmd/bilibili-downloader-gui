@@ -870,6 +870,7 @@
     "section_downloading": "Downloading",
     "section_queued": "Queued",
     "section_finished": "Finished",
+    "breakdown": "Done: {{done}}, errors: {{error}}, cancelled: {{cancelled}}",
     "clear_finished": "Clear Finished",
     "open_downloads": "Open the downloads page"
   },

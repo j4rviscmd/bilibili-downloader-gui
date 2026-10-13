@@ -17,7 +17,7 @@ import {
   resetQueue,
   seedSession,
 } from '@/test/test-utils'
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/shared/ui/toast', () => ({
@@ -81,13 +81,14 @@ describe('DownloadsContent', () => {
     expect(screen.getByText('queue.section_downloading')).toBeInTheDocument()
     expect(screen.getByText('queue.section_queued')).toBeInTheDocument()
     expect(screen.getByText('queue.section_finished')).toBeInTheDocument()
-    // Section headers carry their row counts.
-    expect(screen.getByText('queue.section_queued').textContent).toContain(
-      '(1)',
-    )
-    expect(screen.getByText('queue.section_finished').textContent).toContain(
-      '(2)',
-    )
+    // Section headers carry their row counts in the header pill (the
+    // h2 itself stays title-only).
+    const queuedHead = screen.getByText('queue.section_queued')
+      .parentElement as HTMLElement
+    expect(within(queuedHead).getByText('1')).toBeInTheDocument()
+    const finishedHead = screen.getByText('queue.section_finished')
+      .parentElement as HTMLElement
+    expect(within(finishedHead).getByText('2')).toBeInTheDocument()
   })
 
   it('shows the actually saved file name on a finished part', () => {
@@ -251,5 +252,123 @@ describe('DownloadsContent', () => {
     expect(
       screen.queryByText('video.download_cancelled'),
     ).not.toBeInTheDocument()
+  })
+
+  it('collapses and re-expands a section from its header chevron', async () => {
+    seedSession('BVfold', [
+      { partIndex: 1, cid: 1, status: 'pending' },
+      { partIndex: 2, cid: 2, status: 'pending' },
+    ])
+    const { user } = renderWithProviders(
+      <TooltipProvider>
+        <DownloadsContent />
+      </TooltipProvider>,
+      { route: '/downloads' },
+    )
+
+    const toggle = screen.getByRole('button', { name: 'queue.section_queued' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByText('#1')).not.toBeVisible()
+    await user.click(toggle)
+    expect(screen.getByText('#1')).toBeInTheDocument()
+  })
+
+  it('numbers queued rows with their 1-based drain position', () => {
+    seedSession('BVpos', [
+      { partIndex: 1, cid: 1, status: 'running' },
+      { partIndex: 2, cid: 2, status: 'pending' },
+      { partIndex: 3, cid: 3, status: 'pending' },
+    ])
+
+    renderWithProviders(
+      <TooltipProvider>
+        <DownloadsContent />
+      </TooltipProvider>,
+      { route: '/downloads' },
+    )
+
+    // Only pending rows carry the chip; the running row does not.
+    expect(screen.getByText('#1')).toBeInTheDocument()
+    expect(screen.getByText('#2')).toBeInTheDocument()
+    expect(screen.queryByText('#3')).not.toBeInTheDocument()
+  })
+
+  it('shows the settled-status breakdown in the finished header', () => {
+    seedSession('BVmix', [
+      { partIndex: 1, cid: 1, status: 'done' },
+      { partIndex: 2, cid: 2, status: 'error' },
+      { partIndex: 3, cid: 3, status: 'cancelled' },
+    ])
+    seedSession('BVallDone', [{ partIndex: 1, cid: 9, status: 'done' }])
+
+    renderWithProviders(
+      <TooltipProvider>
+        <DownloadsContent />
+      </TooltipProvider>,
+      { route: '/downloads' },
+    )
+
+    // done 2 / error 1 / cancelled 1 across both sessions.
+    const breakdown = screen.getByLabelText('queue.breakdown')
+    expect(within(breakdown).getByText('2')).toBeInTheDocument()
+    expect(within(breakdown).getAllByText('1').length).toBe(2)
+  })
+
+  it('hides the settled-status breakdown when every settled part is done', () => {
+    seedSession('BVallDoneOnly', [
+      { partIndex: 1, cid: 1, status: 'done' },
+      { partIndex: 2, cid: 2, status: 'done' },
+    ])
+
+    renderWithProviders(
+      <TooltipProvider>
+        <DownloadsContent />
+      </TooltipProvider>,
+      { route: '/downloads' },
+    )
+
+    // The breakdown exists to flag error/cancelled parts; an all-done
+    // section carries no warning signal. Count pill still shows.
+    expect(screen.queryByLabelText('queue.breakdown')).not.toBeInTheDocument()
+    const finishedHead = screen.getByText('queue.section_finished')
+      .parentElement as HTMLElement
+    expect(within(finishedHead).getByText('2')).toBeInTheDocument()
+  })
+
+  it('renders the overall transfer bar on running rows from stage entries', () => {
+    const parentId = seedSession('BVbar', [
+      { partIndex: 1, cid: 1, status: 'running' },
+    ])
+    store.dispatch(
+      setProgress({
+        downloadId: `${parentId}-p1`,
+        stage: 'audio',
+        percentage: 60,
+        transferRate: 100,
+      } as never),
+    )
+    store.dispatch(
+      setProgress({
+        downloadId: `${parentId}-p1`,
+        stage: 'video',
+        percentage: 40,
+        transferRate: 200,
+      } as never),
+    )
+
+    renderWithProviders(
+      <TooltipProvider>
+        <DownloadsContent />
+      </TooltipProvider>,
+      { route: '/downloads' },
+    )
+
+    // ALL_STAGES weighting: audio/video own 45% each, merge 10% → 45%.
+    const fill = document.querySelector<HTMLElement>(
+      '[class*="h-0.5"] [style*="width"]',
+    )
+    expect(fill?.style.width).toBe('45%')
   })
 })

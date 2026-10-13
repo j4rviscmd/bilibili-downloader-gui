@@ -1,5 +1,5 @@
 import { useAppDispatch, useSelector } from '@/app/store'
-import { QueuePartRow } from '@/pages/downloads/QueuePartRow'
+import { QueueSection, type SectionKey } from '@/pages/downloads/QueueSection'
 import {
   Tooltip,
   TooltipContent,
@@ -39,7 +39,9 @@ export function DownloadsContent() {
   // Section split (verification decision): downloading (incl. the brief
   // cancelling window — still in flight until the backend confirms),
   // queued, and settled (done/cancelled/error). Rows keep their drain
-  // order within a section.
+  // order within a section. Each section renders as a QueueSection card
+  // (rounded container, tinted by its unambiguous tone — settled stays
+  // neutral because it mixes done/error/cancelled).
   const sections = useMemo(() => {
     const downloading: QueuePartRowModel[] = []
     const queued: QueuePartRowModel[] = []
@@ -53,11 +55,13 @@ export function DownloadsContent() {
         settled.push(row)
       }
     }
-    return [
-      { key: 'section_downloading', rows: downloading },
-      { key: 'section_queued', rows: queued },
-      { key: 'section_finished', rows: settled },
-    ].filter((section) => section.rows.length > 0)
+    return (
+      [
+        { key: 'section_downloading', rows: downloading },
+        { key: 'section_queued', rows: queued },
+        { key: 'section_finished', rows: settled },
+      ] satisfies { key: SectionKey; rows: QueuePartRowModel[] }[]
+    ).filter((section) => section.rows.length > 0)
   }, [rows])
 
   const hasSettled = rows.some((r) =>
@@ -144,19 +148,11 @@ export function DownloadsContent() {
            rows (pattern from issue #700). */
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto py-3 pr-5">
           {sections.map((section) => (
-            <section key={section.key}>
-              <h2 className="text-muted-foreground mb-1 px-1 text-xs font-semibold tracking-wide uppercase">
-                {t(`queue.${section.key}`)}
-                <span className="ml-1.5 tabular-nums">
-                  ({section.rows.length})
-                </span>
-              </h2>
-              <div className="divide-y">
-                {section.rows.map((row) => (
-                  <QueuePartRow key={row.item.downloadId} row={row} />
-                ))}
-              </div>
-            </section>
+            <QueueSection
+              key={section.key}
+              sectionKey={section.key}
+              rows={section.rows}
+            />
           ))}
         </div>
       )}
