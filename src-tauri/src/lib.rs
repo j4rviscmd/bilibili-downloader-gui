@@ -1987,7 +1987,7 @@ mod tests {
 
         // Legacy entry (no duration) renders an empty cell.
         assert_eq!(
-            history_to_csv(&[entry.clone()]),
+            history_to_csv(std::slice::from_ref(&entry)),
             "id,title,bvid,url,downloaded_at,status,file_size,quality,duration,thumbnail_url,version\n\
              a-1,t,,u,2026-10-13T00:00:00Z,completed,,,,,1.0\n"
         );
