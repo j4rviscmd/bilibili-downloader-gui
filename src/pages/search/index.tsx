@@ -256,7 +256,12 @@ function PaginatedPartList({
           The footer sticks to the scrollport bottom so the pagination
           and download button stay reachable while parts scroll under
           them (same invariant as the old card-local scroll region). */}
-      <CardContent className="space-y-0">{pageParts}</CardContent>
+      {/* data-part-list stays on the list container: E2E selectors scope
+          to it (helpers/selectors.ts DATA_PART_LIST) and use its
+          existence as the parts-loaded signal. */}
+      <CardContent data-part-list className="space-y-0">
+        {pageParts}
+      </CardContent>
       <CardFooter className="bg-card sticky bottom-0 z-10 flex flex-col gap-3 rounded-b-xl border-t pt-3">
         {totalPages > 1 && (
           <Pagination className="w-auto">
