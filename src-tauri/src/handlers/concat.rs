@@ -174,18 +174,16 @@ fn write_concat_list(input_paths: &[String]) -> Result<std::path::PathBuf, Strin
     Ok(list_path)
 }
 
-/// Removes the temporary concat list file and its parent directory
-/// (`bilibili-dl-concat`) if empty.
+/// Removes the temporary concat list file.
+///
+/// Why: the shared `bilibili-dl-concat` parent is intentionally NEVER
+/// removed. Deleting it when empty raced a concurrent `write_concat_list`
+/// (its `create_dir_all` → `write` window saw the directory vanish:
+/// "write filelist No such file or directory" — observed flaking the CI
+/// Rust Test job). An empty directory in the OS temp dir costs nothing;
+/// the race cost real failures.
 fn cleanup_list(path: &std::path::Path) {
     let _ = std::fs::remove_file(path);
-    if let Some(parent) = path.parent() {
-        if parent
-            .file_name()
-            .is_some_and(|n| n == "bilibili-dl-concat")
-        {
-            let _ = std::fs::remove_dir(parent);
-        }
-    }
 }
 
 /// Runs ffmpeg with the given args, emitting progress events.
@@ -552,7 +550,7 @@ mod tests {
     }
 
     #[test]
-    fn cleanup_list_removes_file_and_owned_dir() {
+    fn cleanup_list_removes_only_the_list_file() {
         let tmp = tempfile::tempdir().unwrap();
         let dir = tmp.path().join("bilibili-dl-concat");
         std::fs::create_dir_all(&dir).unwrap();
@@ -561,15 +559,9 @@ mod tests {
 
         cleanup_list(&list);
         assert!(!list.exists());
-        assert!(!dir.exists(), "owned empty dir removed");
-
-        // A list outside bilibili-dl-concat must not nuke its parent
-        let other_dir = tmp.path().join("elsewhere");
-        std::fs::create_dir_all(&other_dir).unwrap();
-        let other = other_dir.join("filelist.txt");
-        std::fs::write(&other, b"x").unwrap();
-        cleanup_list(&other);
-        assert!(other_dir.exists(), "foreign parent kept");
+        // The shared parent stays: removing it when empty raced a
+        // concurrent write_concat_list (see cleanup_list's doc comment).
+        assert!(dir.exists(), "shared parent dir kept");
     }
 
     // ---- PR⑧: executor E2E (issue #646) ----
