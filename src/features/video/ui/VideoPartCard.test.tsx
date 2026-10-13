@@ -36,15 +36,6 @@ vi.mock('@/features/video/api/fetchVideoInfo', () => ({
   fetchBangumiPartQualities: vi.fn(),
   fetchSubtitlesForPart: vi.fn(),
 }))
-vi.mock('@/shared/ui/toast', () => ({
-  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
-}))
-
-import { toast } from '@/shared/ui/toast'
-
-const toastSuccess = toast.success as unknown as Mock
-const toastError = toast.error as unknown as Mock
-
 /** Minimal single-part video the card is rendered against. */
 const video: Video = {
   title: 'My Video',
@@ -167,8 +158,8 @@ function setup({
   )
   vi.mocked(usePartDownloadStatus).mockReturnValue(createMockStatus(status))
   return renderWithProviders(
-    // The app wraps cards in a global TooltipProvider; the part-name
-    // Tooltip relies on it and would throw bare.
+    // The app wraps cards in a global TooltipProvider; the card's bare
+    // Tooltips (reset button, preview badge) rely on it and would throw bare.
     <TooltipProvider>
       <VideoPartCard
         video={videoFixture ?? video}
@@ -182,7 +173,7 @@ function setup({
 
 // --- Video fixtures for the extended tests below -----------------------------
 
-/** Part under a minute long, with a thumbnail. */
+/** Single part with a thumbnail URL (125s duration). */
 const thumbVideo: Video = {
   ...video,
   parts: [
@@ -193,7 +184,7 @@ const thumbVideo: Video = {
   ],
 }
 
-/** Part under a minute long (no minute span rendered). */
+/** Part under a minute long (minute field zero-pads to 0:42). */
 const shortVideo: Video = {
   ...video,
   parts: [{ ...video.parts[0]!, duration: 42 }],
@@ -238,24 +229,17 @@ describe('VideoPartCard', () => {
     resetQueue()
   })
 
-  it('renders the page badge, default title, part name and duration', () => {
+  it('renders the page badge, default title and duration overlay', () => {
     setup()
 
     expect(screen.getByText('P1')).toBeInTheDocument()
-    expect(screen.getByText('Part 1')).toBeInTheDocument()
-    // 125s renders as separate "2m" and "5s" spans
-    expect(screen.getByText('2m')).toBeInTheDocument()
-    expect(screen.getByText('5s')).toBeInTheDocument()
     expect(screen.getByDisplayValue('My Video Part 1')).toBeInTheDocument()
-    // The part-name span and the copy button rely on the custom Tooltip only:
-    // a native title attribute would stack a second browser tooltip on top of
-    // it (double-tooltip regression this markup guards against). Note the
-    // getByRole name check alone would not catch a revert, because accessible
-    // name computation falls back to the title attribute.
-    expect(screen.getByText('Part 1')).not.toHaveAttribute('title')
-    const copyButton = screen.getByRole('button', { name: 'video.copy_title' })
-    expect(copyButton).toHaveAttribute('aria-label', 'video.copy_title')
-    expect(copyButton).not.toHaveAttribute('title')
+    // 125s renders as an m:ss badge on the thumbnail
+    expect(screen.getByText('2:05')).toBeInTheDocument()
+    // The copy affordance left with the part-name row (replaced by reset)
+    expect(
+      screen.queryByRole('button', { name: 'video.copy_title' }),
+    ).not.toBeInTheDocument()
   })
 
   it('unchecks the part selection in the store', async () => {
@@ -387,13 +371,20 @@ describe('VideoPartCard', () => {
     expect(onThumbnailClick).toHaveBeenCalledTimes(1)
   })
 
-  // --- Part name / duration row ----------------------------------------------
+  // --- Duration badge / title reset ------------------------------------------
 
-  it('shows only the seconds span for parts shorter than a minute', () => {
+  it('zero-pads the seconds field for parts shorter than a minute', () => {
     setup({ video: shortVideo })
 
-    expect(screen.getByText('42s')).toBeInTheDocument()
-    expect(screen.queryByText('0m')).toBeNull()
+    expect(screen.getByText('0:42')).toBeInTheDocument()
+  })
+
+  it('renders the duration overlay on the thumbnail image branch too', () => {
+    setup({ video: thumbVideo })
+
+    // 2:05 is already pinned for the ImageOff fallback; this covers the
+    // real-thumbnail spot (the badge is rendered in two separate branches)
+    expect(screen.getByText('2:05')).toBeInTheDocument()
   })
 
   it('shows the bangumi preview badge when the part is a preview', () => {
@@ -402,32 +393,64 @@ describe('VideoPartCard', () => {
     expect(screen.getByText('video.bangumi_preview_badge')).toBeInTheDocument()
   })
 
-  it('copies the part name to the clipboard and toasts success', async () => {
-    const { user } = setup()
-    Object.defineProperty(navigator, 'clipboard', {
-      value: { writeText: vi.fn().mockResolvedValue(undefined) },
-      configurable: true,
-    })
+  it('resets an edited title back to the default and saves it', async () => {
+    const onValid2 = vi.fn()
+    const { user } = setup({ onValid2, partInput: { title: 'Renamed Part' } })
 
-    await user.click(screen.getByRole('button', { name: 'video.copy_title' }))
+    const reset = screen.getByRole('button', { name: 'video.reset_title' })
+    expect(reset).toBeEnabled()
+    await user.click(reset)
 
+    expect(screen.getByDisplayValue('My Video Part 1')).toBeInTheDocument()
     await vi.waitFor(() =>
-      expect(toastSuccess).toHaveBeenCalledWith('video.title_copied'),
+      expect(onValid2).toHaveBeenCalledWith(0, 'My Video Part 1', '', ''),
+    )
+    // form.watch is live: restoring the default re-disables the button
+    expect(reset).toBeDisabled()
+  })
+
+  it('clears a validation error and saves when resetting a too-short title', async () => {
+    const onValid2 = vi.fn()
+    const { user } = setup({ onValid2 })
+
+    // A one-char title trips the min(2) rule once the debounce validates
+    fireEvent.change(screen.getByDisplayValue('My Video Part 1'), {
+      target: { value: 'X' },
+    })
+    expect(
+      await screen.findByText('validation.video.title.min', undefined, {
+        timeout: 3000,
+      }),
+    ).toBeInTheDocument()
+
+    // The invalid title itself never saves (debounced validation failed)
+    expect(onValid2).toHaveBeenCalledTimes(0)
+
+    await user.click(screen.getByRole('button', { name: 'video.reset_title' }))
+
+    // shouldValidate: true clears the error while the flush lands the save
+    expect(screen.getByDisplayValue('My Video Part 1')).toBeInTheDocument()
+    expect(screen.queryByText('validation.video.title.min')).toBeNull()
+    await vi.waitFor(() =>
+      expect(onValid2).toHaveBeenCalledWith(0, 'My Video Part 1', '', ''),
     )
   })
 
-  it('toasts an error when copying the part name fails', async () => {
+  it('disables the reset button while the title is already the default', async () => {
     const { user } = setup()
-    Object.defineProperty(navigator, 'clipboard', {
-      value: { writeText: vi.fn().mockRejectedValue(new Error('denied')) },
-      configurable: true,
-    })
 
-    await user.click(screen.getByRole('button', { name: 'video.copy_title' }))
+    const reset = screen.getByRole('button', { name: 'video.reset_title' })
+    expect(reset).toBeDisabled()
 
-    await vi.waitFor(() =>
-      expect(toastError).toHaveBeenCalledWith('video.copy_failed'),
-    )
+    // The tooltip is the icon button's only label. Hover the trigger span,
+    // not the button: a disabled button's pointer-events: none would swallow
+    // the hover and leave the explanation unreachable.
+    await user.hover(reset.parentElement!)
+    expect(
+      await screen.findByText('video.reset_title_already_default', undefined, {
+        timeout: 3000,
+      }),
+    ).toBeInTheDocument()
   })
 
   // --- Default title computation ----------------------------------------------
