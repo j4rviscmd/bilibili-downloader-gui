@@ -886,7 +886,9 @@ describe('VideoPartCard', () => {
     vi.mocked(useVideoInfo).mockReturnValue(createMockVideoInfo())
     vi.mocked(usePartDownloadStatus).mockReturnValue(createMockStatus())
     const { user } = renderWithProviders(
-      <div data-part-list>
+      // Scroller-scoped reveal: the card must live inside a scrollable
+      // ancestor for scrollElementWithinScroller to act.
+      <div className="overflow-y-auto">
         <TooltipProvider>
           <VideoPartCard video={video} page={1} onThumbnailClick={() => {}} />
         </TooltipProvider>

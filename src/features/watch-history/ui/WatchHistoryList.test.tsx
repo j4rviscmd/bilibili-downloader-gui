@@ -23,16 +23,24 @@ vi.mock('react-virtuoso', () => ({
     itemContent,
     endReached,
     components,
+    customScrollParent,
+    style,
   }: {
     data: unknown[]
     itemContent: (index: number, item: unknown) => React.ReactNode
     endReached?: () => void
     components?: { Footer?: () => React.ReactNode }
+    customScrollParent?: HTMLElement | undefined
+    style?: { height?: string } | undefined
   }) => {
     Promise.resolve().then(() => endReached?.())
     const Footer = components?.Footer
     return (
-      <div data-virtuoso-scroller>
+      <div
+        data-virtuoso-scroller
+        data-rides-scroll-parent={customScrollParent ? 'yes' : 'no'}
+        data-own-height={style?.height ?? 'unset'}
+      >
         {data.map((item, i) => (
           <div key={i}>{itemContent(i, item)}</div>
         ))}
@@ -67,6 +75,7 @@ function renderList(
       hasMore={false}
       onLoadMore={onLoadMore}
       onDownload={onDownload}
+      scrollParent={null}
       {...overrides}
     />,
   )
@@ -96,6 +105,9 @@ describe('WatchHistoryList', () => {
     renderList({ entries: [] })
 
     expect(screen.getByText('watchHistory.empty')).toBeInTheDocument()
+    // Whole-page scroll: the empty state carries its own min-height floor
+    // instead of relying on a flex-constrained list region.
+    expect(document.querySelector('.min-h-\\[400px\\]')).not.toBeNull()
   })
 
   it('renders every entry and requests the next page at the end', async () => {
@@ -128,6 +140,7 @@ describe('WatchHistoryList', () => {
       hasMore: true,
       onLoadMore: vi.fn(),
       onDownload: vi.fn(),
+      scrollParent: null,
     }
     const { rerender } = renderWithProviders(<WatchHistoryList {...props} />)
 
@@ -140,5 +153,25 @@ describe('WatchHistoryList', () => {
     expect(document.querySelector('.py-4')).toBeNull()
     const scroller = document.querySelector('[data-virtuoso-scroller]')!
     expect(scroller.lastElementChild?.textContent).toContain('A watched video')
+  })
+
+  it('rides the page scroll container via customScrollParent when provided', () => {
+    renderList({
+      scrollParent: document.createElement('div'),
+    })
+
+    // The page-level container owns the scrolling: Virtuoso must not
+    // bring its own scroller height in this mode.
+    const scroller = document.querySelector('[data-virtuoso-scroller]')!
+    expect(scroller).toHaveAttribute('data-rides-scroll-parent', 'yes')
+    expect(scroller).toHaveAttribute('data-own-height', 'unset')
+  })
+
+  it('falls back to its own scroller height without a scroll parent', () => {
+    renderList()
+
+    const scroller = document.querySelector('[data-virtuoso-scroller]')!
+    expect(scroller).toHaveAttribute('data-rides-scroll-parent', 'no')
+    expect(scroller).toHaveAttribute('data-own-height', '100%')
   })
 })

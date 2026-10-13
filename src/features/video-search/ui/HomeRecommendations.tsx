@@ -36,10 +36,10 @@ export function HomeRecommendations() {
   if (entries.length === 0) return null
   return (
     <section className="flex flex-col gap-2" aria-busy={refreshing}>
-      {/* pr-5 (20px) keeps the update button's hover target clear of the
-          overlay scrollbar, same inset the form pages give their scroll
-          containers (audio/gif/resolution/rotation/trim/downloads). */}
-      <div className="flex items-center justify-between gap-2 pr-5">
+      {/* No scrollbar gutter inset: the popular page scrolls in the
+          full-width page container, so the overlay scrollbar rides the
+          window edge, clear of this header row. */}
+      <div className="flex items-center justify-between gap-2">
         <h2 className="text-primary flex items-center gap-2 text-base font-semibold">
           <Sparkles className="size-4" aria-hidden="true" />
           {t('popular.recommendationsTitle')}

@@ -9,6 +9,7 @@ import { PageTemplate } from '@/shared/layout'
 import { Button } from '@/shared/ui/button'
 import { toast } from '@/shared/ui/toast'
 import { RefreshCw } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 /**
@@ -30,6 +31,10 @@ import { useTranslation } from 'react-i18next'
  */
 export function FavoriteContent() {
   const { t } = useTranslation()
+  // Why a state (not a ref): Virtuoso's customScrollParent needs the
+  // element as a prop, so the ref callback is a setState that re-renders
+  // the list once PageTemplate's scroll container mounts.
+  const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null)
   const user = useSelector((state) => state.user)
   const handleDownload = usePendingDownload()
 
@@ -84,6 +89,8 @@ export function FavoriteContent() {
   return (
     <PageTemplate
       title={t('favorite.title')}
+      bodyScroll
+      scrollRef={setScrollEl}
       actions={
         <>
           <div className="flex flex-1 items-center gap-2">
@@ -108,16 +115,15 @@ export function FavoriteContent() {
         </>
       }
     >
-      <div className="min-h-0 flex-1">
-        <FavoriteList
-          videos={videos}
-          loading={loading}
-          foldersLoading={foldersLoading}
-          hasMore={hasMore}
-          onLoadMore={loadMore}
-          onDownload={onDownload}
-        />
-      </div>
+      <FavoriteList
+        videos={videos}
+        loading={loading}
+        foldersLoading={foldersLoading}
+        hasMore={hasMore}
+        onLoadMore={loadMore}
+        onDownload={onDownload}
+        scrollParent={scrollEl}
+      />
     </PageTemplate>
   )
 }

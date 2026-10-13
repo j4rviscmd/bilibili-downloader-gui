@@ -195,4 +195,18 @@ describe('PopularContent', () => {
     expect(screen.getByText('popular.feedTitle')).toBeInTheDocument()
     expect(mockInvoke).toHaveBeenCalledWith('fetch_home_recommendations')
   })
+
+  it('renders the feed inside the page-level scroll container', async () => {
+    vi.mocked(fetchPopularVideosApi).mockResolvedValue(feedPage)
+    const { container } = renderWithProviders(<Harness />, {
+      route: '/popular',
+    })
+
+    const card = await screen.findByText('おすすめ 動画')
+    // Whole-page scroll: the template's full-width scroller owns the
+    // scrolling (the feed sentinel observes it as its root).
+    const scroller = container.querySelector('.overflow-y-auto')
+    expect(scroller).not.toBeNull()
+    expect(scroller!.contains(card)).toBe(true)
+  })
 })

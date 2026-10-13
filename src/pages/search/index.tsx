@@ -23,6 +23,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
+import { scrollElementWithinScroller } from '@/shared/lib/scroll'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
 import {
@@ -187,19 +188,14 @@ function PaginatedPartList({
       // Use setTimeout to wait for React re-render to complete
       // The DOM elements may not have correct positions immediately after state changes
       setTimeout(() => {
-        const cardContent = document.querySelector('[data-part-list]')
-        const targetPart = document.querySelector(
+        // Whole-page scroll: reveal the part by scrolling ONLY the page
+        // scroller (scrollIntoView would drag the overflow-hidden app
+        // shell along — see scrollElementWithinScroller's docstring).
+        const targetPart = document.querySelector<HTMLElement>(
           `[data-part-index="${scrollToPartIndex}"]`,
         )
-        if (cardContent && targetPart) {
-          const containerRect = cardContent.getBoundingClientRect()
-          const targetRect = targetPart.getBoundingClientRect()
-          const scrollOffset =
-            targetRect.top - containerRect.top + cardContent.scrollTop - 20
-          cardContent.scrollTo({
-            top: scrollOffset,
-            behavior: 'smooth',
-          })
+        if (targetPart) {
+          scrollElementWithinScroller(targetPart, 20)
         }
       }, 100)
     }
@@ -255,18 +251,13 @@ function PaginatedPartList({
 
   return (
     <>
-      {/* The list is the flex-1 scroll region of the Step 2 card: its
-          height is whatever remains after the header, status bar and
-          footer — so the pagination and download button stay visible at
-          any font scale (the old fixed 100dvh-rem budget clipped them
-          when the root font size was raised). */}
-      <CardContent
-        data-part-list
-        className="min-h-0 flex-1 space-y-0 overflow-y-auto"
-      >
-        {pageParts}
-      </CardContent>
-      <CardFooter className="flex flex-col gap-3">
+      {/* Whole-page scroll: the list is plain flow content in the
+          page-level scroll container (scrollbar at the window edge).
+          The footer sticks to the scrollport bottom so the pagination
+          and download button stay reachable while parts scroll under
+          them (same invariant as the old card-local scroll region). */}
+      <CardContent className="space-y-0">{pageParts}</CardContent>
+      <CardFooter className="bg-card sticky bottom-0 z-10 flex flex-col gap-3 rounded-b-xl border-t pt-3">
         {totalPages > 1 && (
           <Pagination className="w-auto">
             <PaginationContent>
@@ -352,6 +343,23 @@ function SearchContentInner() {
   const user = useSelector((state: RootState) => state.user)
   const isLoggedIn = user.hasCookie && user.data?.isLogin
   const [isQrLoginDialogOpen, setIsQrLoginDialogOpen] = useState(false)
+  // Page-level scroll container (whole-page scroll, Qiita-style): its
+  // scrollbar rides the window edge. State (not a ref) because the page
+  // change reset below reads it inside a callback.
+  const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null)
+  // Stacked Step 1 height, re-measured live: it positions the Step 2
+  // header's sticky offset (the header stacks right below the pinned
+  // Step 1 card) and shrinks/grows when the logged-out login Alert
+  // toggles or font presets change.
+  const step1Ref = useRef<HTMLDivElement>(null)
+  const [step1Height, setStep1Height] = useState(0)
+  useEffect(() => {
+    const el = step1Ref.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => setStep1Height(el.offsetHeight))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   // Fetch in flight that the UI should reflect (explicit submit). The
   // silent auto-fetch on input pause is excluded — it must stay invisible.
@@ -507,12 +515,10 @@ function SearchContentInner() {
       setSearchParams(newParams, { replace: true })
       // Persist page so the sidebar Home button restores it
       dispatch(setHomePage(page))
-      const cardContent = document.querySelector('[data-part-list]')
-      if (cardContent) {
-        cardContent.scrollTop = 0
-      }
+      // Reset to the new page's first part
+      if (scrollEl) scrollEl.scrollTop = 0
     },
-    [searchParams, setSearchParams, dispatch],
+    [searchParams, setSearchParams, dispatch, scrollEl],
   )
 
   /**
@@ -606,114 +612,145 @@ function SearchContentInner() {
   }, [pageRange])
 
   return (
-    <div className="flex h-full flex-col">
-      {/* Step 1: Fixed Area (outside scroll) */}
-      {/* Why: Unlike the sub-pages framed by PageTemplate, search owns its
-          content wrappers, so this Step 1 area and the Step 2 area below
-          must repeat PageTemplate.tsx's max-width token and change in
-          lockstep — a mismatch misaligns the stacked areas and the queue
-          bar below on wide screens. */}
-      <div className="mx-auto w-full max-w-[104rem] px-3 pt-3 pb-3 sm:px-6">
-        {/* Login Benefits Info - shown only when not logged in */}
-        {!isLoggedIn && (
-          <Alert variant="info" className="mb-3">
-            <Info />
-            <AlertTitle>{t('video.login_benefits_title')}</AlertTitle>
-            <AlertDescription className="flex flex-wrap">
-              <Trans
-                i18nKey="video.login_benefits_description"
-                components={{
-                  1: (
-                    <button
-                      type="button"
-                      onClick={() => setIsQrLoginDialogOpen(true)}
-                      className="inline cursor-pointer text-blue-600 underline hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-                    />
-                  ),
-                  2: (
-                    <button
-                      type="button"
-                      onClick={() => openUrl('https://www.bilibili.com')}
-                      className="inline cursor-pointer text-blue-600 underline hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-                    />
-                  ),
-                }}
-              />
-              <span className="mt-1 w-full text-xs opacity-80">
-                {t('video.login_benefits_restart_note')}
-              </span>
-            </AlertDescription>
-          </Alert>
-        )}
+    <div className="flex h-full w-full flex-col overflow-hidden">
+      {/* Stacked Step 1 (sticky inside the page scroll container): the
+          URL input stays reachable while Step 2 scrolls UNDER it — the
+          classic stacking effect, content filling the space below the
+          pinned card. The scroll container spans the full inset width
+          (Qiita-style, mirroring PageTemplate's `bodyScroll` mode), so
+          the scrollbar rides the window edge. This page owns its
+          wrappers (no PageTemplate header), so it repeats
+          PageTemplate.tsx's max-w-[104rem] rail token and must stay in
+          lockstep with it — a mismatch misaligns the stacked areas and
+          the queue bar on wide screens. Why bg-background on the sticky
+          rail-width wrapper: content must not show through between the
+          pinned card and the scrolling list beneath it. Vertical gaps
+          live on the SCROLLING side (rail pt-3 above, step-2 wrapper
+          pt-3 below) so they scroll away and the pinned card abuts the
+          scrollport edge flush when stuck. */}
+      <div
+        ref={setScrollEl}
+        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
+      >
+        <div className="mx-auto flex min-h-full w-full max-w-[104rem] flex-col pt-3">
+          <div
+            ref={step1Ref}
+            className="bg-background sticky top-0 z-20 w-full px-3 sm:px-6"
+          >
+            {/* Login Benefits Info - shown only when not logged in */}
+            {!isLoggedIn && (
+              <Alert variant="info" className="mb-3">
+                <Info />
+                <AlertTitle>{t('video.login_benefits_title')}</AlertTitle>
+                <AlertDescription className="flex flex-wrap">
+                  <Trans
+                    i18nKey="video.login_benefits_description"
+                    components={{
+                      1: (
+                        <button
+                          type="button"
+                          onClick={() => setIsQrLoginDialogOpen(true)}
+                          className="inline cursor-pointer text-blue-600 underline hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                        />
+                      ),
+                      2: (
+                        <button
+                          type="button"
+                          onClick={() => openUrl('https://www.bilibili.com')}
+                          className="inline cursor-pointer text-blue-600 underline hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                        />
+                      ),
+                    }}
+                  />
+                  <span className="mt-1 w-full text-xs opacity-80">
+                    {t('video.login_benefits_restart_note')}
+                  </span>
+                </AlertDescription>
+              </Alert>
+            )}
 
-        {/* QR Code Login Dialog */}
-        <QRCodeLoginDialog
-          open={isQrLoginDialogOpen}
-          onOpenChange={setIsQrLoginDialogOpen}
-        />
+            {/* QR Code Login Dialog */}
+            <QRCodeLoginDialog
+              open={isQrLoginDialogOpen}
+              onOpenChange={setIsQrLoginDialogOpen}
+            />
 
-        {/* Step 1: URL Input Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-display text-lg">
-              {t('video.step1_title')}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <VideoForm1 />
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Step 2: Paginated Area */}
-      {/* Hidden while a silent auto-fetch is in flight: the debounced
+            {/* Step 1: URL Input Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="font-display text-lg">
+                  {t('video.step1_title')}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <VideoForm1 />
+              </CardContent>
+            </Card>
+          </div>
+          {/* Step 2: Paginated Area */}
+          {/* Hidden while a silent auto-fetch is in flight: the debounced
           fetch on input pause must stay invisible, so Step 2 only
           appears once its data actually arrived (or on an explicit
           submit's fetch, which shows the skeleton as before). The same
           gate applies to the skeletons below: with a previous video
           still displayed, a silent refetch keeps the old list mounted
           instead of flashing skeletons mid-typing. */}
-      {(video.parts.length > 0 || isExplicitFetching) && (
-        <div className="mx-auto flex min-h-0 w-full max-w-[104rem] flex-1 flex-col px-3 pb-3 sm:px-6">
-          <Card className="flex min-h-0 flex-1 flex-col">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="font-display text-lg">
-                  {t('video.step2_title')}
-                </CardTitle>
-                {isExplicitFetching ? (
-                  <div className="flex items-center gap-2">
-                    <Skeleton className="h-10 w-[88px]" />
-                    <Skeleton className="h-8 w-[68px]" />
-                    <Skeleton className="h-8 w-[68px]" />
+          {(video.parts.length > 0 || isExplicitFetching) && (
+            <div className="px-3 pt-3 sm:px-6">
+              {/* pt-3 on this wrapper owns the resting-state gap below
+                  the sticky Step 1 card: being on the scrolling side,
+                  the gap scrolls away so content abuts the pinned card
+                  directly (stacked look). */}
+              <Card className="mb-3">
+                {/* Why sticky: the title row (download / select buttons)
+                    stays reachable while parts scroll under it, stacking
+                    directly below the pinned Step 1 card (z-10 under its
+                    z-20; opaque bg-card so parts don't show through).
+                    top = measured Step 1 height — a fixed offset would
+                    drift when the login Alert toggles. */}
+                <CardHeader
+                  className="bg-card sticky z-10"
+                  style={{ top: step1Height }}
+                >
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="font-display text-lg">
+                      {t('video.step2_title')}
+                    </CardTitle>
+                    {isExplicitFetching ? (
+                      <div className="flex items-center gap-2">
+                        <Skeleton className="h-10 w-[88px]" />
+                        <Skeleton className="h-8 w-[68px]" />
+                        <Skeleton className="h-8 w-[68px]" />
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <DownloadButton />
+                        <TooltipButton
+                          label={t('video.select_all_page')}
+                          onClick={handleSelectAllCurrentPage}
+                        />
+                        <TooltipButton
+                          label={t('video.deselect_all_page')}
+                          onClick={handleDeselectAllCurrentPage}
+                        />
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <DownloadButton />
-                    <TooltipButton
-                      label={t('video.select_all_page')}
-                      onClick={handleSelectAllCurrentPage}
-                    />
-                    <TooltipButton
-                      label={t('video.deselect_all_page')}
-                      onClick={handleDeselectAllCurrentPage}
-                    />
-                  </div>
-                )}
-              </div>
-            </CardHeader>
-            <PaginatedPartList
-              video={video}
-              duplicateIndices={duplicateIndices}
-              isFetching={isExplicitFetching}
-              currentPage={currentPage}
-              onPageChange={handlePageChange}
-              scrollToPartIndex={scrollToPartIndex}
-              scrollRequestId={scrollRequestId}
-            />
-          </Card>
+                </CardHeader>
+                <PaginatedPartList
+                  video={video}
+                  duplicateIndices={duplicateIndices}
+                  isFetching={isExplicitFetching}
+                  currentPage={currentPage}
+                  onPageChange={handlePageChange}
+                  scrollToPartIndex={scrollToPartIndex}
+                  scrollRequestId={scrollRequestId}
+                />
+              </Card>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   )
 }

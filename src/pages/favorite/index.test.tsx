@@ -18,14 +18,20 @@ vi.mock('@/features/favorite/ui/FavoriteList', () => ({
     videos: unknown[]
     hasMore: boolean
     onDownload: (v: unknown) => void
-  }) => (
-    <div>
-      <div data-testid="fav-list">
-        count={props.videos.length} hasMore={String(props.hasMore)}
+    scrollParent: HTMLElement | null
+  }) => {
+    // Record the element the page hands to the list so the ref handoff
+    // (template scroller → Virtuoso customScrollParent) stays observable.
+    lastScrollParent = props.scrollParent
+    return (
+      <div>
+        <div data-testid="fav-list">
+          count={props.videos.length} hasMore={String(props.hasMore)}
+        </div>
+        <button onClick={() => props.onDownload(mockVideo)}>download</button>
       </div>
-      <button onClick={() => props.onDownload(mockVideo)}>download</button>
-    </div>
-  ),
+    )
+  },
 }))
 vi.mock('@/features/favorite/ui/FolderSelector', () => ({
   default: (props: {
@@ -52,6 +58,9 @@ const mockVideo = {
   bvid: 'BV1fav',
   page: 2,
 } as FavoriteVideo
+
+/** Last scrollParent the page handed to the (mocked) list. */
+let lastScrollParent: HTMLElement | null = null
 
 const mockFolders = [{ id: 1, title: 'Default' }] as unknown as FavoriteFolder[]
 
@@ -187,5 +196,17 @@ describe('FavoriteContent', () => {
       cid: null,
       page: 2,
     })
+  })
+
+  it('hosts the list in the page-level scroller and hands that scroller to it', () => {
+    renderWithProviders(<FavoriteContent />, { route: '/favorite' })
+
+    // Whole-page scroll: the element passed as scrollParent is the
+    // template's overflow-y-auto container and contains the list.
+    expect(lastScrollParent).toBeInstanceOf(HTMLElement)
+    expect(lastScrollParent!.className).toContain('overflow-y-auto')
+    expect(lastScrollParent!.contains(screen.getByTestId('fav-list'))).toBe(
+      true,
+    )
   })
 })

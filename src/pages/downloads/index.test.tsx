@@ -31,13 +31,23 @@ describe('DownloadsContent', () => {
   })
 
   it('shows the empty state when the queue has no parts', () => {
-    renderWithProviders(<DownloadsContent />, { route: '/downloads' })
+    const { container } = renderWithProviders(<DownloadsContent />, {
+      route: '/downloads',
+    })
 
     expect(screen.getByText('queue.title')).toBeInTheDocument()
     expect(screen.getByText('queue.empty')).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: 'downloadStatus.cancel_all' }),
     ).toBeDisabled()
+
+    // Whole-page scroll: the empty block is flow content in the
+    // template's scroller (flex-1 against the min-h-full rail keeps it
+    // centered instead of collapsing at the top).
+    const scroller = container.querySelector('.overflow-y-auto')
+    expect(scroller).not.toBeNull()
+    expect(scroller!.textContent).toContain('queue.empty')
+    expect(scroller!.querySelector('.flex-1')).not.toBeNull()
   })
 
   it('renders a flat drain-ordered list with one row per part', () => {
@@ -47,7 +57,7 @@ describe('DownloadsContent', () => {
     ])
     seedSession('BVsecond', [{ partIndex: 1, cid: 9, status: 'done' }])
 
-    renderWithProviders(
+    const { container } = renderWithProviders(
       <TooltipProvider>
         <DownloadsContent />
       </TooltipProvider>,
@@ -61,6 +71,12 @@ describe('DownloadsContent', () => {
     expect(
       screen.getAllByText('downloadStatus.status_downloading').length,
     ).toBeGreaterThan(0)
+
+    // Whole-page scroll: the section cards are flow content inside the
+    // template's scroll container.
+    expect(
+      container.querySelectorAll('.overflow-y-auto [data-status]').length,
+    ).toBe(3)
   })
 
   it('splits rows into Downloading / Queued / Finished sections', () => {

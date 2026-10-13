@@ -16,14 +16,20 @@ vi.mock('@/features/watch-history/ui/WatchHistoryList', () => ({
     entries: unknown[]
     hasMore: boolean
     onDownload: (e: unknown) => void
-  }) => (
-    <div>
-      <div data-testid="wh-list">
-        count={props.entries.length} hasMore={String(props.hasMore)}
+    scrollParent: HTMLElement | null
+  }) => {
+    // Record the element the page hands to the list so the ref handoff
+    // (template scroller → Virtuoso customScrollParent) stays observable.
+    lastScrollParent = props.scrollParent
+    return (
+      <div>
+        <div data-testid="wh-list">
+          count={props.entries.length} hasMore={String(props.hasMore)}
+        </div>
+        <button onClick={() => props.onDownload(mockEntry)}>download</button>
       </div>
-      <button onClick={() => props.onDownload(mockEntry)}>download</button>
-    </div>
-  ),
+    )
+  },
 }))
 vi.mock('@/features/watch-history/ui/WatchHistoryFilters', () => ({
   WatchHistoryFilters: (props: {
@@ -58,6 +64,9 @@ const mockEntry = {
   cid: 42,
   page: 3,
 } as WatchHistoryEntry
+
+/** Last scrollParent the page handed to the (mocked) list. */
+let lastScrollParent: HTMLElement | null = null
 
 function createMockUseWatchHistory(
   overrides: Partial<ReturnType<typeof useWatchHistory>> = {},
@@ -213,5 +222,17 @@ describe('WatchHistoryContent', () => {
       cid: 42,
       page: 3,
     })
+  })
+
+  it('hosts the list in the page-level scroller and hands that scroller to it', () => {
+    renderWithProviders(<WatchHistoryContent />, {
+      route: '/watch-history',
+    })
+
+    // Whole-page scroll: the element passed as scrollParent is the
+    // template's overflow-y-auto container and contains the list.
+    expect(lastScrollParent).toBeInstanceOf(HTMLElement)
+    expect(lastScrollParent!.className).toContain('overflow-y-auto')
+    expect(lastScrollParent!.contains(screen.getByTestId('wh-list'))).toBe(true)
   })
 })

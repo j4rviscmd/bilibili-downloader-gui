@@ -423,4 +423,87 @@ describe('SearchContent', () => {
     expect(store.getState().input.homePage).toBe(1)
     expect(screen.getAllByTestId('video-part-card')).toHaveLength(3)
   })
+
+  it('renders the page content inside the full-width scroll container', () => {
+    seedVideo(PARTS_PER_PAGE + 2)
+
+    const { container } = renderWithProviders(<SearchContent />, {
+      route: '/search',
+    })
+
+    // Stacked Step 1 (URL input) sticks to the top INSIDE the page
+    // scroller with an opaque background, so Step 2 scrolls under it
+    // (classic stacking effect). The scroller spans the full inset
+    // width (mirrors PageTemplate bodyScroll) wrapping the centered
+    // max-w-[104rem] rail, so the scrollbar rides the window edge.
+    const scroller = container.querySelector('.overflow-y-auto')
+    expect(scroller).not.toBeNull()
+    const form = screen.getByTestId('video-form1')
+    expect(scroller!.contains(form)).toBe(true)
+    const sticky = form.closest('div.sticky')
+    expect(sticky).not.toBeNull()
+    expect(sticky!.className).toContain('top-0')
+    expect(sticky!.className).toContain('bg-background')
+    const rail = scroller!.querySelector('.max-w-\\[104rem\\]')
+    expect(rail).not.toBeNull()
+    expect(rail!.contains(screen.getAllByTestId('video-part-card')[0]!)).toBe(
+      true,
+    )
+  })
+
+  it('keeps the pagination footer sticky at the scrollport bottom', () => {
+    seedVideo(PARTS_PER_PAGE + 2)
+
+    renderWithProviders(<SearchContent />, { route: '/search' })
+
+    // The list footer (download button + pagination) sticks to the page
+    // scroller's bottom so it stays reachable while parts scroll under
+    // it (same invariant as the old card-local scroll region).
+    const footerButton = screen.getAllByTestId('download-button')[1]!
+    const footer = footerButton.closest('div.sticky')
+    expect(footer).not.toBeNull()
+    expect(footer!.className).toContain('bottom-0')
+    expect(footer!.textContent).toContain('video.pagination_next')
+  })
+
+  it('resets the page scroller to the top on page change', async () => {
+    seedVideo(PARTS_PER_PAGE + 2)
+
+    const { container, user } = renderWithProviders(<SearchContent />, {
+      route: '/search',
+    })
+
+    const scroller = container.querySelector<HTMLElement>('.overflow-y-auto')!
+    scroller.scrollTop = 500
+    const footer = screen.getByText('video.pagination_next').closest('ul')!
+    await user.click(within(footer).getByText('2'))
+
+    // performPageChange rewinds the whole-page scroller to the new
+    // page's first part.
+    expect(scroller.scrollTop).toBe(0)
+  })
+
+  it('scrolls the deep-linked part into view once its page settles', async () => {
+    seedVideo(PARTS_PER_PAGE + 2) // 12 parts; ?p=12 targets index 11 on page 2
+    const scrollTo = vi.fn()
+    Element.prototype.scrollTo = scrollTo
+
+    const { container } = renderWithProviders(<SearchContent />, {
+      route: '/search?p=12',
+    })
+
+    await vi.waitFor(() => expect(scrollTo).toHaveBeenCalledTimes(1), {
+      timeout: 2000,
+    })
+    // The reveal scrolls ONLY the page scroller (scrollElementWithin-
+    // Scroller): scrollIntoView would drag the overflow-hidden app
+    // shell along and strand it scrolled (no scrollbar to recover).
+    // In happy-dom all rects are 0, so the computed top is just the
+    // sticky/breathing offsets.
+    expect(scrollTo).toHaveBeenCalledWith(
+      expect.objectContaining({ behavior: 'smooth' }),
+    )
+    const scroller = container.querySelector('.overflow-y-auto')!
+    expect(scrollTo.mock.instances[0]).toBe(scroller)
+  })
 })

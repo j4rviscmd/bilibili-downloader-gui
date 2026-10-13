@@ -45,6 +45,7 @@ import {
 } from '@/shared/animate-ui/radix/tooltip'
 import { logger } from '@/shared/lib/logger'
 import { mapBackendError } from '@/shared/lib/mapBackendError'
+import { scrollElementWithinScroller } from '@/shared/lib/scroll'
 import { cn } from '@/shared/lib/utils'
 import {
   Form,
@@ -408,19 +409,15 @@ const VideoPartCard = memo(function VideoPartCard({
   const cardRef = useRef<HTMLDivElement>(null)
 
   /**
-   * Scrolls the [data-part-list] container so this card's top is visible.
+   * Reveals this card by scrolling only its owning page scroller (never
+   * outer overflow-hidden boxes — see scrollElementWithinScroller).
    * Uses a timeout to allow the expand animation (350ms) to settle.
    */
   const scrollCardIntoView = useCallback(() => {
     setTimeout(() => {
-      const container = document.querySelector('[data-part-list]')
-      const item = cardRef.current
-      if (!container || !item) return
-      const containerRect = container.getBoundingClientRect()
-      const itemRect = item.getBoundingClientRect()
-      const scrollOffset =
-        itemRect.top - containerRect.top + container.scrollTop - 8
-      container.scrollTo({ top: scrollOffset, behavior: 'smooth' })
+      if (cardRef.current) {
+        scrollElementWithinScroller(cardRef.current, 8)
+      }
     }, 400)
   }, [])
 
