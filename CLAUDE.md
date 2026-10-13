@@ -191,7 +191,8 @@ version — both are maintained by release-please, never edit by hand):
   `latest.json` once — matrix jobs never write it, avoiding the
   per-job merge race — uploads fixed-name assets, publishes the draft
   — reusing the eager tag — then rewrites notes with GitHub-generated
-  ones).
+  ones, excluding non-release-triggering PR types: the in-app update
+  dialog renders the release body, so only user-facing changes appear).
 - Release-triggering commit types are `feat:`, `fix:`, `perf:`, and
   `revert:`. Changes with no end-user impact (dev-only code, CI,
   tooling, docs) must use a non-triggering type (`chore:`, `style:`,
