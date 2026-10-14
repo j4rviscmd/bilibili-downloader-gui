@@ -4,9 +4,7 @@ import { useInit } from '@/features/init'
 import { QRCodeLoginDialog } from '@/features/login'
 import type { Video } from '@/features/video'
 import {
-  deselectPageAll,
   PARTS_PER_PAGE,
-  selectPageAll,
   setHomePage,
   useVideoInfo,
   VideoInfoProvider,
@@ -15,12 +13,12 @@ import type { PreviewTarget } from '@/features/video-search'
 import { VideoPreviewDialog } from '@/features/video-search'
 import VideoPartCard from '@/features/video/ui/VideoPartCard'
 import { scrollElementWithinScroller } from '@/shared/lib/scroll'
-import { Button } from '@/shared/ui/button'
 import { Skeleton } from '@/shared/ui/skeleton'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router'
+import BatchSettingsBar from './BatchSettingsBar'
 import CommandBar from './CommandBar'
 import DownloadDock from './DownloadDock'
 import VideoHeroCard from './VideoHeroCard'
@@ -478,16 +476,6 @@ function SearchContentInner() {
     // but the early return on prevUrl === input.url prevents infinite loops
   }, [input.url, setSearchParams, searchParams])
 
-  // Select all parts on current page
-  const handleSelectAllCurrentPage = useCallback(() => {
-    dispatch(selectPageAll(pageRange))
-  }, [pageRange])
-
-  // Deselect all parts on current page
-  const handleDeselectAllCurrentPage = useCallback(() => {
-    dispatch(deselectPageAll(pageRange))
-  }, [pageRange])
-
   // Shared preview dialog (hero thumbnail + part thumbnails)
   const [preview, setPreview] = useState<PreviewTarget | null>(null)
 
@@ -542,6 +530,7 @@ function SearchContentInner() {
                         })
                       }
                     />
+                    <BatchSettingsBar pageRange={pageRange} />
                     <div className="mt-5 mb-2 flex flex-wrap items-baseline gap-2.5 px-0.5">
                       <h3 className="text-sm font-bold">
                         {t('search.parts_title')}
@@ -553,22 +542,6 @@ function SearchContentInner() {
                           total: video.parts.length,
                         })}
                       </span>
-                      <div className="ml-auto flex gap-1.5">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={handleSelectAllCurrentPage}
-                        >
-                          {t('video.select_all_page')}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={handleDeselectAllCurrentPage}
-                        >
-                          {t('video.deselect_all_page')}
-                        </Button>
-                      </div>
                     </div>
                     <PaginatedPartList
                       video={video}

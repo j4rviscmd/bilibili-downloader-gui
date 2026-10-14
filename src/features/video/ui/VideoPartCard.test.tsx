@@ -281,6 +281,28 @@ describe('VideoPartCard', () => {
     expect(screen.getByText('video.bangumi_audio_embedded')).toBeInTheDocument()
   })
 
+  it('shows the auto-adjust pill when the selected quality is unavailable', () => {
+    // Batch-target scenario: videoQuality=1080p but this part tops out at
+    // 720p60 — the download will resolve below the selection.
+    setup({
+      partInput: {
+        videoQuality: '80',
+        videoQualities: [{ id: 74, quality: '720p60' }],
+        audioQualities: [],
+        subtitles: [],
+      },
+    })
+
+    expect(screen.getByText('video.quality_auto_adjusted')).toBeInTheDocument()
+  })
+
+  it('hides the auto-adjust pill while qualities are unfetched', () => {
+    setup({ partInput: { videoQuality: '80' } })
+    expect(
+      screen.queryByText('video.quality_auto_adjusted'),
+    ).not.toBeInTheDocument()
+  })
+
   it('keeps all inputs editable while the part is queued or downloading', () => {
     // Replace semantics (verification decision): the enqueued payload is a
     // snapshot, so edits are safe — the user changes quality and presses

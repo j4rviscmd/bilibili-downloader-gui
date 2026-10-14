@@ -38,7 +38,9 @@
     "open_in_browser": "在浏览器中打开",
     "selected_count": "已选 {{count}} 项",
     "parts_title": "分P",
-    "showing_range": "{{total}} 项中的第 {{from}}–{{to}} 项"
+    "showing_range": "{{total}} 项中的第 {{from}}–{{to}} 项",
+    "batch_title": "批量设置",
+    "batch_applies": "应用于已选中的 {{count}} 个分P"
   },
   "nav": {
     "search": "URL获取",
@@ -282,6 +284,7 @@
     "quality_note": "* 4K / HDR10 / 杜比视界 / 8K 需要登录大会员账号。其他高码率清晰度可能因登录状态或地区不可用。",
     "quality_requires_vip_or_login": "需要登录；部分选项还需要大会员",
     "quality_unavailable_logged_in": "当前账号无法在此视频使用该选项；更高档位可能需要大会员",
+    "quality_auto_adjusted": "将以下一个最接近的可用清晰度下载",
     "audio_quality_label": "音质",
     "audio_quality_description": "选择要下载的音频音质。",
     "audio_quality_note": "* 部分高品质音频（Dolby Atmos / Hi-Res）可能需要登录或受地区限制而不可用。\n* 我们会尽可能获取接近所选音质的版本；若不可用，则使用当前可用的最高音质。",

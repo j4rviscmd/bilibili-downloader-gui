@@ -317,6 +317,17 @@ const VideoPartCard = memo(function VideoPartCard({
   }, [resolvedQuality])
 
   /**
+   * Pre-download prediction: the part's selected (batch or manual) video
+   * quality is not in this part's fetched availability, so the download
+   * will resolve to the nearest quality below it. Drives the amber pill
+   * next to the title (batch target landing on a part that lacks it).
+   */
+  const willAdjustQuality = useMemo(() => {
+    if (!partInput?.videoQuality || !videoQualities) return false
+    return !videoQualities.some((q) => String(q.id) === partInput.videoQuality)
+  }, [partInput?.videoQuality, videoQualities])
+
+  /**
    * Queue status badge (issue #691): resolved by `videoId`+`cid`, so only
    * this part's own queue item can light it up. Rendered only when the part
    * has a queue item — never-downloaded parts show no badge. `data-status`
@@ -815,6 +826,11 @@ const VideoPartCard = memo(function VideoPartCard({
                       <div className="ml-auto flex items-center gap-2">
                         {resetTitleControl}
                         {isPreview && previewBadge}
+                        {willAdjustQuality && (
+                          <span className="inline-flex shrink-0 items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                            {t('video.quality_auto_adjusted')}
+                          </span>
+                        )}
                         {queueBadge}
                       </div>
                     </div>

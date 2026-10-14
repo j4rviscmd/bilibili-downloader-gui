@@ -630,7 +630,7 @@ describe('SearchContent', () => {
       route: '/search',
     })
 
-    const dock = container.querySelector('[data-download-dock]')!
+    const dock = container.querySelector<HTMLElement>('[data-download-dock]')!
     expect(dock).not.toBeNull()
     // Fixed-height box: the scroller above must not resize when the
     // selection (and thus the dock's right-hand content) changes.
