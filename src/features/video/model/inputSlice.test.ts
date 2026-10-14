@@ -19,6 +19,7 @@ describe('inputSlice', () => {
     partInputs: [],
     pendingDownload: null,
     homePage: 1,
+    outputDirOverride: null,
   }
 
   describe('defaultSubtitleConfig', () => {

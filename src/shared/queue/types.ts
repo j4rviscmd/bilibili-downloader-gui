@@ -97,6 +97,11 @@ export type DownloadPartPayload = {
   epId: number | null
   /** Subtitle options (already filtered to the selected languages) */
   subtitle: DownloadSubtitleOptions | null
+  /**
+   * Per-download output directory override (batch-settings temporary
+   * override). Null keeps the settings' dl_output_path.
+   */
+  outputDir?: string | null
 }
 
 /**

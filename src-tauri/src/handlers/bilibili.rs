@@ -156,6 +156,11 @@ pub struct DownloadOptions {
     /// Episode ID for bangumi content (optional)
     #[serde(default)]
     pub ep_id: Option<i64>,
+    /// Per-download output directory override. When set, the file lands
+    /// here instead of the settings' dl_output_path (the batch-settings
+    /// temporary override; settings themselves are never written).
+    #[serde(default)]
+    pub output_dir: Option<String>,
 }
 
 use crate::constants::{API_BASE, PLAYURL_FNVAL, PLAYURL_QN, REFERER};
@@ -760,7 +765,10 @@ async fn download_video_impl(app: &AppHandle, options: &DownloadOptions) -> Resu
     // retry); threading it keeps every HTTP hop on one injectable seam.
     let api = BiliApi::from_cookie_header(cookie_header)?;
 
-    let output_path = build_output_path(app, &options.filename).await?;
+    let output_path = match options.output_dir.as_deref() {
+        Some(dir) => build_output_path_in(Some(dir), &options.filename)?,
+        None => build_output_path(app, &options.filename).await?,
+    };
     let lib_path = get_lib_path(app);
 
     let download_id = options.download_id.clone();
@@ -2243,6 +2251,7 @@ mod tests {
             page: Some(1),
             subtitle: None,
             ep_id,
+            output_dir: None,
         }
     }
 

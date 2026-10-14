@@ -457,6 +457,8 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
           thumbnailUrl: pi.thumbnailUrl ?? null,
           page: pi.page,
           epId: video.parts[idx]?.epId ?? null,
+          // Batch-settings temporary override; null keeps settings.
+          outputDir: input.outputDirOverride ?? null,
           subtitle: {
             mode: pi.subtitle.mode,
             selectedLans: pi.subtitle.selectedLans,

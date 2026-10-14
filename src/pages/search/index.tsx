@@ -21,6 +21,7 @@ import { useNavigate, useSearchParams } from 'react-router'
 import BatchSettingsBar from './BatchSettingsBar'
 import CommandBar from './CommandBar'
 import DownloadDock from './DownloadDock'
+import RecentUrls from './RecentUrls'
 import VideoHeroCard from './VideoHeroCard'
 
 // Shared inline-link styling for the two buttons inside the notice.
@@ -556,8 +557,9 @@ function SearchContentInner() {
               </div>
             </>
           ) : (
-            <div className="flex flex-1 flex-col items-center justify-center px-6 pb-6">
+            <div className="flex flex-1 flex-col items-center gap-8 px-6 pb-6">
               <CommandBar variant="hero" />
+              <RecentUrls onRefetch={(url) => void onValid1(url)} />
             </div>
           )}
         </div>

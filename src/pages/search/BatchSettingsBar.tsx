@@ -7,6 +7,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import { openDirectoryDialog } from '@/features/settings/lib/directoryDialog'
+import { useSettings } from '@/features/settings/useSettings'
 import { useVideoInfo } from '@/features/video'
 import {
   fetchBangumiPartQualities,
@@ -24,6 +31,7 @@ import {
 import {
   deselectPageAll,
   selectPageAll,
+  setOutputDirOverride,
   setPartQualities,
   setPartSubtitles,
   setQualitiesLoading,
@@ -32,7 +40,7 @@ import {
   updateSubtitleConfig,
 } from '@/features/video/model/inputSlice'
 import { Button } from '@/shared/ui/button'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, FolderOpen, Info } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -222,6 +230,19 @@ export function BatchSettingsBar({
     [selectedIndices, dispatch],
   )
 
+  const { settings } = useSettings()
+  const outputDirOverride = useSelector(
+    (state: RootState) => state.input.outputDirOverride,
+  )
+  const outputDirLabel = outputDirOverride ?? settings.dlOutputPath ?? ''
+  const pickOutputDir = useCallback(async () => {
+    const dir = await openDirectoryDialog(
+      'search.output_dir_picker',
+      outputDirOverride ?? settings.dlOutputPath,
+    )
+    if (dir) dispatch(setOutputDirOverride(dir))
+  }, [dispatch, outputDirOverride, settings.dlOutputPath])
+
   const label = (id: number) =>
     VIDEO_QUALITIES_MAP[id] ?? AUDIO_QUALITIES_MAP[id] ?? String(id)
 
@@ -252,6 +273,38 @@ export function BatchSettingsBar({
           >
             {t('video.deselect_all_page')}
           </Button>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t('search.help_label')}
+              >
+                <Info className="size-4" aria-hidden />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="end"
+              className="w-85 text-xs leading-relaxed"
+            >
+              <p className="font-semibold">{t('search.help_quality_title')}</p>
+              <p className="text-muted-foreground mb-2">
+                {t('search.help_quality_body')}
+              </p>
+              <p className="font-semibold">{t('search.help_subtitle_title')}</p>
+              <p className="text-muted-foreground mb-2">
+                {t('search.help_subtitle_body')}
+              </p>
+              <p className="font-semibold">{t('search.help_override_title')}</p>
+              <p className="text-muted-foreground mb-2">
+                {t('search.help_override_body')}
+              </p>
+              <p className="font-semibold">{t('search.help_output_title')}</p>
+              <p className="text-muted-foreground">
+                {t('search.help_output_body')}
+              </p>
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
       <div className="flex flex-wrap gap-x-5 gap-y-2.5 border-t px-4 py-2.5">
@@ -325,6 +378,35 @@ export function BatchSettingsBar({
             </div>
           </div>
         )}
+        <div className="flex flex-col">
+          <span className="text-muted-foreground mb-1 text-[11px] font-semibold">
+            {t('search.output_dir_label')}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void pickOutputDir()}
+              className="bg-card hover:bg-muted inline-flex h-10 max-w-70 items-center gap-1.5 rounded-lg border px-3 text-left text-[12px] font-semibold transition-colors"
+            >
+              <FolderOpen
+                className="size-3.5 shrink-0 opacity-60"
+                aria-hidden
+              />
+              <span className="truncate font-mono text-[11px] font-normal">
+                {outputDirLabel || '—'}
+              </span>
+            </button>
+            {outputDirOverride && (
+              <button
+                type="button"
+                onClick={() => dispatch(setOutputDirOverride(null))}
+                className="text-muted-foreground hover:text-foreground text-[11px] font-medium underline"
+              >
+                {t('search.output_dir_reset')}
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )

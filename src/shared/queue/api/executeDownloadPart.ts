@@ -37,6 +37,9 @@ export const executeDownloadPart: PartExecutor = async (payload, ids) => {
       page: payload.page,
       epId: payload.epId,
       subtitle: payload.subtitle,
+      // Batch-settings temporary override; null keeps the settings'
+      // dl_output_path.
+      outputDir: payload.outputDir ?? null,
     },
   })
   logger.info(

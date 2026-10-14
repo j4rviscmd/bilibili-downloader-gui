@@ -45,6 +45,7 @@ describe('executeDownloadPart', () => {
         thumbnailUrl: 'https://img/t.jpg',
         page: 3,
         epId: 42,
+        outputDir: null,
         subtitle: payload.subtitle,
       },
     })

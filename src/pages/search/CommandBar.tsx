@@ -1,5 +1,6 @@
 import { useVideoInfo, VideoForm1 } from '@/features/video'
-import { Play } from 'lucide-react'
+import { buildVideoFormSchema1 } from '@/features/video/lib/formSchema'
+import { ClipboardPaste, Play } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 /**
@@ -37,6 +38,12 @@ function FormatChip({
  * auto-fetch, b23.tv expansion, explicit submit — stays single-sourced
  * instead of being duplicated per variant.
  *
+ * The hero also exposes a paste button: it reads the clipboard, and when
+ * the text parses as a valid video URL it feeds it into the same
+ * auto-fetch pipeline (the input's 500ms debounce fires on change).
+ * Invalid clipboard content is ignored — pasting stays a hint, never an
+ * error surface.
+ *
  * @example
  * ```tsx
  * <CommandBar variant={video.parts.length > 0 ? 'compact' : 'hero'} />
@@ -44,7 +51,20 @@ function FormatChip({
  */
 export function CommandBar({ variant }: { variant: 'hero' | 'compact' }) {
   const { t } = useTranslation()
-  const { video } = useVideoInfo()
+  const { video, onValid1 } = useVideoInfo()
+  const pasteFromClipboard = async () => {
+    try {
+      const text = (await navigator.clipboard.readText()).trim()
+      if (!text) return
+      // Reuse the URL form schema: same acceptance as typing it in.
+      const schema = buildVideoFormSchema1(t)
+      if (schema.safeParse({ url: text }).success) {
+        await onValid1(text)
+      }
+    } catch {
+      // Clipboard access can be denied — the manual input stays available.
+    }
+  }
 
   if (variant === 'hero') {
     return (
@@ -64,7 +84,19 @@ export function CommandBar({ variant }: { variant: 'hero' | 'compact' }) {
             {t('search.paste_hint')}
           </span>
         </div>
-        <VideoForm1 />
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1 text-left">
+            <VideoForm1 />
+          </div>
+          <button
+            type="button"
+            onClick={() => void pasteFromClipboard()}
+            className="bg-card hover:bg-muted text-foreground mt-0.5 inline-flex h-10 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-semibold transition-colors"
+          >
+            <ClipboardPaste className="size-4 opacity-70" aria-hidden />
+            {t('search.paste_button')}
+          </button>
+        </div>
         <div
           role="group"
           className="mt-3.5 flex flex-wrap justify-center gap-2"

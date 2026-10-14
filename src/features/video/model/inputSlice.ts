@@ -25,6 +25,7 @@ const initialState: Input = {
   partInputs: [],
   pendingDownload: null,
   homePage: 1,
+  outputDirOverride: null,
 }
 
 /**
@@ -56,6 +57,14 @@ export const inputSlice = createSlice({
      */
     setUrl: (state, action: PayloadAction<string>) => {
       state.url = action.payload
+    },
+
+    /**
+     * Sets the batch-settings output directory override (null = keep the
+     * settings' dl_output_path).
+     */
+    setOutputDirOverride: (state, action: PayloadAction<string | null>) => {
+      state.outputDirOverride = action.payload
     },
     /**
      * Initializes part input settings from fetched video metadata.
@@ -432,6 +441,7 @@ export const {
   setAccordionOpen,
   setHomePage,
   setInput,
+  setOutputDirOverride,
   setPartQualities,
   setPartSubtitles,
   setPendingDownload,

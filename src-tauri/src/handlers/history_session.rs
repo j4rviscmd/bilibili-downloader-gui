@@ -543,6 +543,7 @@ mod tests {
             page: None,
             subtitle: None,
             ep_id: None,
+            output_dir: None,
         };
 
         // Known duration is carried into the entry.

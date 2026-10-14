@@ -86,8 +86,12 @@ export type Input = {
   pendingDownload: PendingDownload | null
   /** Last viewed home page number (1-indexed). Used to restore page on home button click during downloads. */
   homePage: number
+  /**
+   * Batch-settings output directory override for the NEXT enqueue (null
+   * keeps the settings' dlOutputPath). Cleared on every video refetch.
+   */
+  outputDirOverride?: string | null
 }
-
 /**
  * Video metadata fetched from Bilibili.
  */
