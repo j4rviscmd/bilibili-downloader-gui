@@ -20,6 +20,26 @@
   "common": {
     "copy": "コピー"
   },
+  "search": {
+    "hero_title": "BilibiliのURLを貼り付け",
+    "hero_subtitle": "動画・番組・ショートリンクに対応。貼り付けると自動で情報を取得します。",
+    "url_label": "動画URL",
+    "paste_hint": "⌘V で貼り付け · Enter で取得",
+    "formats_label": "対応URL形式",
+    "format_video": "動画",
+    "format_bangumi": "番組",
+    "format_short": "ショート",
+    "type_video": "動画",
+    "type_bangumi": "番組",
+    "parts_count": "{{count}}パート",
+    "total_duration": "合計 {{duration}}",
+    "preview": "プレビュー",
+    "preview_part": "{{part}} をプレビュー",
+    "open_in_browser": "ブラウザで開く",
+    "selected_count": "{{count}}件選択",
+    "parts_title": "パート",
+    "showing_range": "{{total}}件中 {{from}}〜{{to}}件"
+  },
   "nav": {
     "search": "URL取得",
     "downloads": "ダウンロード",

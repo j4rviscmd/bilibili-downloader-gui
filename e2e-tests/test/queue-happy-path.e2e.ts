@@ -47,7 +47,7 @@ describe('queue happy paths', () => {
     const list = await browser.$(S.DATA_PART_LIST)
     await list.waitForExist({ timeout: 10_000 })
 
-    const button = await browser.$(S.HEADER_DOWNLOAD_BUTTON)
+    const button = await browser.$(S.DOWNLOAD_DOCK_BUTTON)
     await button.waitForClickable({ timeout: 10_000 })
     await button.click()
 

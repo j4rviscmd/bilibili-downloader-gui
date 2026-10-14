@@ -294,7 +294,9 @@ function VideoForm1() {
                     className="pr-10"
                     autoComplete="url"
                     type="url"
-                    required
+                    // Why: stable id so the hero command bar's visible
+                    // <label htmlFor="url"> actually focuses this field.
+                    id="url"
                     placeholder={placeholder}
                     // Why: a silent auto-fetch must not lock the field — the user
                     // has to stay able to keep typing or correct the URL mid-flight.

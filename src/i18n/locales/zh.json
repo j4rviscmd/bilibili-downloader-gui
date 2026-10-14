@@ -20,6 +20,26 @@
   "common": {
     "copy": "复制"
   },
+  "search": {
+    "hero_title": "粘贴Bilibili链接",
+    "hero_subtitle": "支持视频、番剧和短链接。粘贴后自动获取信息。",
+    "url_label": "视频链接",
+    "paste_hint": "Ctrl/⌘+V 粘贴 · Enter 获取",
+    "formats_label": "支持的链接格式",
+    "format_video": "视频",
+    "format_bangumi": "番剧",
+    "format_short": "短链接",
+    "type_video": "视频",
+    "type_bangumi": "番剧",
+    "parts_count": "{{count}} 个分P",
+    "total_duration": "共 {{duration}}",
+    "preview": "预览",
+    "preview_part": "预览 {{part}}",
+    "open_in_browser": "在浏览器中打开",
+    "selected_count": "已选 {{count}} 项",
+    "parts_title": "分P",
+    "showing_range": "{{total}} 项中的第 {{from}}–{{to}} 项"
+  },
   "nav": {
     "search": "URL获取",
     "downloads": "下载",

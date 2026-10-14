@@ -68,18 +68,13 @@ export const DIALOG_CONTENT = '[data-slot="dialog-content"]'
 /** Title element inside a shadcn/ui dialog. */
 export const DIALOG_TITLE = '[data-slot="dialog-title"]'
 
-// -- Home Page: Step 1 (URL Input) --
+// -- Home Page: URL Entry (hero / compact command bar) --
 
 /** Text input field for entering a Bilibili video URL. */
 export const URL_INPUT = 'input[name="url"]'
 
-/** Title element of the first card on the home page (Step 1: URL input). */
-export const STEP1_CARD_TITLE = '[data-slot="card-title"]'
-
-// -- Home Page: Step 2 (Video Parts) --
-
-/** Title element of the second card on the home page (Step 2: video parts). */
-export const STEP2_CARD_TITLE = '[data-slot="card-title"]:nth-of-type(2)'
+/** Headline of the empty-state URL hero. */
+export const URL_HERO_TITLE = '[data-hero-title]'
 
 /** Container element that holds the list of downloadable video parts. */
 export const DATA_PART_LIST = '[data-part-list]'
@@ -97,16 +92,13 @@ export const DATA_PART_LIST = '[data-part-list]'
  */
 export const DATA_PART_INDEX = (index: number) => `[data-part-index="${index}"]`
 
-// -- Home Page: Login Alert --
+// -- Home Page: Login Notice --
 
-/** Alert banner prompting the user to log in for additional benefits. */
-export const LOGIN_ALERT = '[data-slot="alert"][role="alert"]'
+/** Slim banner prompting the user to log in for additional benefits. */
+export const LOGIN_NOTICE = '[data-login-notice]'
 
-/** Title text inside the login benefits alert. */
-export const LOGIN_ALERT_TITLE = '[data-slot="alert-title"]'
-
-/** Description text inside the login benefits alert. */
-export const LOGIN_ALERT_DESCRIPTION = '[data-slot="alert-description"]'
+/** Primary text inside the login notice. */
+export const LOGIN_NOTICE_TEXT = '[data-login-notice-text]'
 
 // -- Download Button --
 
@@ -114,13 +106,13 @@ export const LOGIN_ALERT_DESCRIPTION = '[data-slot="alert-description"]'
 export const DOWNLOAD_BUTTON = '[data-slot="ripple-button"]'
 
 /**
- * The Step-2 card header DownloadButton instance.
- *
- * Two DownloadButtons render at once (card header + card footer) running
- * the same download() handler; scoping to the header disambiguates.
+ * The DownloadButton instance in the bottom dock. Exactly one
+ * DownloadButton renders on the page (the duplicated header/footer
+ * buttons were consolidated into the dock); scoping to the dock keeps
+ * the selector unambiguous.
  */
-export const HEADER_DOWNLOAD_BUTTON =
-  '[data-slot="card-header"] [data-slot="ripple-button"]'
+export const DOWNLOAD_DOCK_BUTTON =
+  '[data-download-dock] [data-slot="ripple-button"]'
 
 // -- Download Session UI --
 

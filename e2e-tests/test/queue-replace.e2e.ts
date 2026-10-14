@@ -99,7 +99,7 @@ async function enqueueParts(indexes: number[]) {
       await checkbox.click()
     }
   }
-  const button = await browser.$(S.HEADER_DOWNLOAD_BUTTON)
+  const button = await browser.$(S.DOWNLOAD_DOCK_BUTTON)
   await button.waitForClickable({ timeout: 10_000 })
   await button.click()
 }
@@ -114,7 +114,7 @@ describe('queue replace semantics', () => {
 
     // Baseline: download all three parts to a settled done state so the
     // matrix below always re-enqueues against SETTLED rows first.
-    const button = await browser.$(S.HEADER_DOWNLOAD_BUTTON)
+    const button = await browser.$(S.DOWNLOAD_DOCK_BUTTON)
     await button.waitForClickable({ timeout: 10_000 })
     await button.click()
     await gotoDownloads()

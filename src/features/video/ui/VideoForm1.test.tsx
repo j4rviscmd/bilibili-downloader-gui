@@ -48,6 +48,17 @@ describe('VideoForm1', () => {
     ).toBeInTheDocument()
   })
 
+  it('assigns the stable id "url" so the hero label can target the input', () => {
+    setup()
+
+    // The search page's hero command bar renders <label htmlFor="url">;
+    // this id ties that external label to the input (a11y +
+    // click-to-focus). See index.test.tsx for the label side.
+    expect(
+      screen.getByPlaceholderText('video.url_placeholder_example'),
+    ).toHaveAttribute('id', 'url')
+  })
+
   it('submits a valid URL to onValid1', async () => {
     const { user: actor, onValid1 } = setup()
 

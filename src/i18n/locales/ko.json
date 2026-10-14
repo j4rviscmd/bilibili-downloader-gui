@@ -20,6 +20,26 @@
   "common": {
     "copy": "복사"
   },
+  "search": {
+    "hero_title": "Bilibili URL 붙여넣기",
+    "hero_subtitle": "영상·번귬·단축 링크를 지원합니다. 붙여넣으면 자동으로 정보를 가져옵니다.",
+    "url_label": "영상 URL",
+    "paste_hint": "Ctrl/⌘+V 붙여넣기 · Enter 가져오기",
+    "formats_label": "지원 URL 형식",
+    "format_video": "영상",
+    "format_bangumi": "번귬",
+    "format_short": "단축 링크",
+    "type_video": "영상",
+    "type_bangumi": "번귬",
+    "parts_count": "{{count}}개 파트",
+    "total_duration": "총 {{duration}}",
+    "preview": "미리보기",
+    "preview_part": "{{part}} 미리보기",
+    "open_in_browser": "브라우저에서 열기",
+    "selected_count": "{{count}}개 선택됨",
+    "parts_title": "파트",
+    "showing_range": "{{total}}개 중 {{from}}–{{to}}"
+  },
   "nav": {
     "search": "URL 가져오기",
     "downloads": "다운로드",

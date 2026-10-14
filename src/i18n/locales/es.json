@@ -20,6 +20,26 @@
   "common": {
     "copy": "Copiar"
   },
+  "search": {
+    "hero_title": "Pega una URL de Bilibili",
+    "hero_subtitle": "Admite vídeos, bangumi y enlaces cortos. La información se obtiene automáticamente al pegar.",
+    "url_label": "URL del vídeo",
+    "paste_hint": "Pega con Ctrl/⌘+V · obtén con Enter",
+    "formats_label": "Formatos de URL admitidos",
+    "format_video": "Vídeo",
+    "format_bangumi": "Bangumi",
+    "format_short": "Enlace corto",
+    "type_video": "Vídeo",
+    "type_bangumi": "Bangumi",
+    "parts_count": "{{count}} partes",
+    "total_duration": "Total {{duration}}",
+    "preview": "Vista previa",
+    "preview_part": "Vista previa de {{part}}",
+    "open_in_browser": "Abrir en el navegador",
+    "selected_count": "{{count}} seleccionados",
+    "parts_title": "Partes",
+    "showing_range": "{{from}}–{{to}} de {{total}}"
+  },
   "nav": {
     "search": "Obtener por URL",
     "downloads": "Descargas",

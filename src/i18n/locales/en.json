@@ -20,6 +20,26 @@
   "common": {
     "copy": "Copy"
   },
+  "search": {
+    "hero_title": "Paste a Bilibili URL",
+    "hero_subtitle": "Videos, bangumi and short links are supported. Info is fetched automatically on paste.",
+    "url_label": "Video URL",
+    "paste_hint": "Paste with Ctrl/⌘+V · fetch with Enter",
+    "formats_label": "Supported URL formats",
+    "format_video": "Video",
+    "format_bangumi": "Bangumi",
+    "format_short": "Short link",
+    "type_video": "Video",
+    "type_bangumi": "Bangumi",
+    "parts_count": "{{count}} parts",
+    "total_duration": "Total {{duration}}",
+    "preview": "Preview",
+    "preview_part": "Preview {{part}}",
+    "open_in_browser": "Open in browser",
+    "selected_count": "{{count}} selected",
+    "parts_title": "Parts",
+    "showing_range": "{{from}}–{{to}} of {{total}}"
+  },
   "nav": {
     "search": "Fetch by URL",
     "downloads": "Downloads",
