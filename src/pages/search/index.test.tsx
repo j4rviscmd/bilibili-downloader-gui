@@ -304,12 +304,12 @@ describe('SearchContent', () => {
       route: '/search',
     })
 
-    await user.click(screen.getByText('video.select_all_page'))
+    await user.click(screen.getByText('video.select_all'))
     expect(store.getState().input.partInputs.every((p) => p.selected)).toBe(
       true,
     )
 
-    await user.click(screen.getByText('video.deselect_all_page'))
+    await user.click(screen.getByText('video.deselect_all'))
     expect(store.getState().input.partInputs.some((p) => p.selected)).toBe(
       false,
     )
@@ -406,7 +406,7 @@ describe('SearchContent', () => {
       route: '/search',
     })
 
-    await user.click(screen.getByText('video.select_all_page'))
+    await user.click(screen.getByText('video.select_all'))
     const footer = screen.getByText('video.pagination_next').closest('ul')!
     await user.click(within(footer).getByText('2'))
 
@@ -632,7 +632,7 @@ describe('SearchContent', () => {
     expect(screen.getByText('video.no_parts_selected')).toBeInTheDocument()
     expect(screen.queryByTestId('download-button')).toBeNull()
 
-    await user.click(screen.getByText('video.select_all_page'))
+    await user.click(screen.getByText('video.select_all'))
 
     expect(within(dock).getByText(/search\.selected_count/)).toBeInTheDocument()
     expect(within(dock).getByText(/search\.total_duration/)).toBeInTheDocument()

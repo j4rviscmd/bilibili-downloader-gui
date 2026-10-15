@@ -341,8 +341,6 @@
     "reload_after_error": "Recharger la page pour réessayer",
     "select_all": "Tout sélectionner",
     "deselect_all": "Tout désélectionner",
-    "select_all_page": "Sélectionner la page",
-    "deselect_all_page": "Désélectionner la page",
     "pagination_previous": "Précédent",
     "pagination_next": "Suivant",
     "no_parts_selected": "Aucune partie sélectionnée pour le téléchargement",

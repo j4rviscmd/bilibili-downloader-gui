@@ -59,7 +59,7 @@ function seed(selected: boolean[]) {
 /** Harness: the bar needs the video-info context (useVideoInfo). */
 function Harness() {
   useVideoInfo()
-  return <BatchSettingsBar pageRange={{ startIndex: 0, endIndex: 1 }} />
+  return <BatchSettingsBar />
 }
 
 function renderBar() {
@@ -100,7 +100,7 @@ describe('BatchSettingsBar', () => {
     renderBar()
     expect(screen.getByText('search.batch_title')).toBeInTheDocument()
     expect(screen.getByText(/search\.batch_applies/)).toBeInTheDocument()
-    expect(screen.getByText('video.select_all_page')).toBeInTheDocument()
+    expect(screen.getByText('video.select_all')).toBeInTheDocument()
   })
 
   it('applies a batch quality target to all selected parts', async () => {

@@ -342,8 +342,6 @@
     "reload_after_error": "刷新页面后重试",
     "select_all": "全选",
     "deselect_all": "取消全选",
-    "select_all_page": "选择本页",
-    "deselect_all_page": "取消本页",
     "pagination_previous": "上一页",
     "pagination_next": "下一页",
     "no_parts_selected": "未选择要下载的内容",

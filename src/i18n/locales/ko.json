@@ -341,8 +341,6 @@
     "reload_after_error": "페이지 새로고침 후 재시도",
     "select_all": "전체 선택",
     "deselect_all": "전체 해제",
-    "select_all_page": "페이지 선택",
-    "deselect_all_page": "페이지 해제",
     "pagination_previous": "이전",
     "pagination_next": "다음",
     "no_parts_selected": "다운로드할 파트가 선택되지 않았습니다",

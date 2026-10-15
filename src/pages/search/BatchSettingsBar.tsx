@@ -67,11 +67,7 @@ import { useTranslation } from 'react-i18next'
  * - Changing a value overwrites the selected parts' partInputs
  *   (individual overrides lose to an explicit batch change, per spec).
  */
-export function BatchSettingsBar({
-  pageRange,
-}: {
-  pageRange: { startIndex: number; endIndex: number }
-}) {
+export function BatchSettingsBar() {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const { video, input } = useVideoInfo()
@@ -282,19 +278,37 @@ export function BatchSettingsBar({
           {t('search.batch_applies', { count: selectedIndices.length })}
         </span>
         <div className="ml-auto flex items-center gap-1.5">
+          {/* Whole-video range, regardless of the visible page: the batch
+              bar applies to every selected part, and paging through to
+              select each page's parts first would defeat the point. The
+              range-based reducer is reused with the full range. */}
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => dispatch(selectPageAll(pageRange))}
+            onClick={() =>
+              dispatch(
+                selectPageAll({
+                  startIndex: 0,
+                  endIndex: input.partInputs.length - 1,
+                }),
+              )
+            }
           >
-            {t('video.select_all_page')}
+            {t('video.select_all')}
           </Button>
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => dispatch(deselectPageAll(pageRange))}
+            onClick={() =>
+              dispatch(
+                deselectPageAll({
+                  startIndex: 0,
+                  endIndex: input.partInputs.length - 1,
+                }),
+              )
+            }
           >
-            {t('video.deselect_all_page')}
+            {t('video.deselect_all')}
           </Button>
           <Popover>
             <PopoverTrigger asChild>
