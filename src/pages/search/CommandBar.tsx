@@ -114,8 +114,15 @@ export function CommandBar({ variant }: { variant: 'hero' | 'compact' }) {
 
   return (
     <div className="bg-background sticky top-0 z-20 flex items-center gap-2.5 border-b px-4 py-2.5 sm:px-6">
-      <div className="min-w-0 flex-1">
-        <VideoForm1 />
+      {/* Same unified container as the hero cmdbar: lead link icon +
+          borderless input, focus ring on the wrapper. Mirrors the
+          mockup's .cb-input so the URL field reads as the same control
+          in both states. */}
+      <div className="bg-card border-border focus-within:border-brand-strong focus-within:ring-brand-strong/35 flex min-w-0 flex-1 items-center gap-2.5 rounded-[10px] border px-2.5 py-1 transition-all focus-within:ring-3 [&_input]:h-auto [&_input]:rounded-none [&_input]:border-0 [&_input]:bg-transparent! [&_input]:px-0 [&_input]:py-1.5 [&_input]:shadow-none [&_input]:focus-visible:ring-0 [&_input]:focus-visible:outline-none">
+        <Link2 className="text-muted-foreground size-4 shrink-0" aria-hidden />
+        <div className="min-w-0 flex-1">
+          <VideoForm1 />
+        </div>
       </div>
       {video.parts.length > 0 && (
         <span className="text-brand-strong bg-brand-strong/10 border-brand-strong/30 dark:text-brand rounded-full border px-2 py-0.5 text-[10px] font-bold tracking-wide whitespace-nowrap">
