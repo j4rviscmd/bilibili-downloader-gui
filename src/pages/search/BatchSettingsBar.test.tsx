@@ -95,6 +95,26 @@ describe('BatchSettingsBar', () => {
     })
   })
 
+  it('keeps the last values on the triggers when every part is deselected', async () => {
+    seed([true, true])
+    const { user } = renderBar()
+
+    // Pick a non-default quality so the trigger value is distinctive.
+    const trigger = await screen.findByRole('button', {
+      name: 'video.quality_label',
+    })
+    await user.click(trigger)
+    await user.click(await screen.findByText('480p'))
+
+    // Deselect all: triggers must keep 480p and only become disabled.
+    await user.click(screen.getByText('video.deselect_all'))
+    const qualityTrigger = screen.getByRole('button', {
+      name: 'video.quality_label',
+    })
+    expect(qualityTrigger).toHaveTextContent('480p')
+    expect(qualityTrigger).toBeDisabled()
+  })
+
   it('renders with the summary and page controls when nothing is selected', () => {
     seed([false, false])
     renderBar()

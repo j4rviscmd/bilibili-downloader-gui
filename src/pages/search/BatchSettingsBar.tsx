@@ -48,7 +48,7 @@ import {
 import { cn } from '@/lib/utils'
 import { Button } from '@/shared/ui/button'
 import { ChevronDown, FolderOpen, Info } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 /**
@@ -195,6 +195,16 @@ export function BatchSettingsBar() {
   const effectiveSubMode = first?.subtitle?.mode ?? 'off'
   const effectiveSubLangs = first?.subtitle?.selectedLans ?? []
 
+  // Deselecting every part empties the derivation source (first/union), so
+  // the triggers used to blank to "—". Keep the last values shown while
+  // parts were selected: with the controls disabled, a blank reads as
+  // "no setting" rather than "nothing selected". Purely cosmetic — nothing
+  // is applied while the selection is empty.
+  const lastTargetsRef = useRef<{
+    video: number | null
+    audio: number | null
+    sub: string
+  }>({ video: null, audio: null, sub: '' })
   const applyVideo = useCallback(
     (id: number) => {
       setVideoOverride(id)
@@ -269,6 +279,23 @@ export function BatchSettingsBar() {
     displaySubMode === 'off'
       ? modeLabel
       : `${modeLabel} ${langLabels.join(displaySubMode === 'soft' ? ' + ' : ' → ')}`
+
+  // Remember what was on screen while at least one part was selected.
+  useEffect(() => {
+    if (selectedIndices.length === 0) return
+    lastTargetsRef.current = {
+      video: targetVideo,
+      audio: targetAudio,
+      sub: subSummary,
+    }
+  }, [selectedIndices.length, targetVideo, targetAudio, subSummary])
+
+  const emptySelection = selectedIndices.length === 0
+  const shownVideo = targetVideo ?? lastTargetsRef.current.video
+  const shownAudio = targetAudio ?? lastTargetsRef.current.audio
+  const shownSub = emptySelection
+    ? lastTargetsRef.current.sub || subSummary
+    : subSummary
 
   return (
     <div className="bg-card/95 sticky top-14 z-15 mt-3 rounded-xl border shadow-sm backdrop-blur">
@@ -347,7 +374,7 @@ export function BatchSettingsBar() {
       <div className="flex flex-wrap gap-x-5 gap-y-2.5 border-t px-4 py-2.5">
         <BatchDropdown
           label={t('video.quality_label')}
-          value={targetVideo != null ? label(targetVideo) : ''}
+          value={shownVideo != null ? label(shownVideo) : ''}
           options={VIDEO_LADDER_IDS.map((id) => {
             const inUnion = videoUnion.includes(id)
             const isVip = VIP_VIDEO_IDS.has(id)
@@ -370,7 +397,7 @@ export function BatchSettingsBar() {
         />
         <BatchDropdown
           label={t('video.audio_quality_label')}
-          value={targetAudio != null ? label(targetAudio) : ''}
+          value={shownAudio != null ? label(shownAudio) : ''}
           options={AUDIO_LADDER_IDS.map((id) => {
             const inUnion = audioUnion.includes(id)
             const isVip = VIP_AUDIO_IDS.has(id)
@@ -402,7 +429,7 @@ export function BatchSettingsBar() {
               aria-label={t('video.subtitle')}
               className="bg-card hover:bg-muted data-[state=open]:border-brand-strong/40 inline-flex h-10 items-center justify-between gap-2 rounded-lg border px-3 text-[13px] font-semibold disabled:opacity-50"
             >
-              <span className="max-w-60 truncate">{subSummary || '—'}</span>
+              <span className="max-w-60 truncate">{shownSub || '—'}</span>
               <ChevronDown className="size-3.5 opacity-60" aria-hidden />
             </DropdownMenuTrigger>
             <DropdownMenuContent
