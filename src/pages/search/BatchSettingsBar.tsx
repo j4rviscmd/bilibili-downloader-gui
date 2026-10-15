@@ -44,6 +44,7 @@ import {
   updatePartInputByIndex,
   updateSubtitleConfig,
 } from '@/features/video/model/inputSlice'
+import { cn } from '@/lib/utils'
 import { Button } from '@/shared/ui/button'
 import { ChevronDown, FolderOpen, Info } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -403,7 +404,11 @@ export function BatchSettingsBar({
                   onClick={() =>
                     applySubtitle(mode, mode === 'off' ? [] : displaySubLangs)
                   }
-                  className="flex justify-between gap-4"
+                  className={cn(
+                    'flex justify-between gap-4',
+                    displaySubMode === mode &&
+                      'text-brand-strong dark:text-brand font-bold',
+                  )}
                 >
                   <span>
                     {t(
@@ -426,6 +431,7 @@ export function BatchSettingsBar({
                   <DropdownMenuSeparator />
                   {[...langUnion.entries()].map(([lan, lanDoc]) => {
                     const idx = displaySubLangs.indexOf(lan)
+                    const selected = idx >= 0
                     return (
                       <DropdownMenuItem
                         key={lan}
@@ -435,19 +441,28 @@ export function BatchSettingsBar({
                           e.preventDefault()
                         }}
                         onClick={() => {
-                          // Default to soft when no mode is set yet — the
-                          // user can pre-select languages then pick a mode.
-                          applySubtitle(
-                            displaySubMode ?? 'soft',
-                            idx >= 0
-                              ? displaySubLangs.filter((l) => l !== lan)
-                              : [...displaySubLangs, lan],
-                          )
+                          const newLangs = selected
+                            ? displaySubLangs.filter((l) => l !== lan)
+                            : [...displaySubLangs, lan]
+                          // While mode is "off", a language click only
+                          // stores the local selection (mockup behavior:
+                          // pre-select then pick a mode). Dispatching here
+                          // would set parts to mode=off WITH languages —
+                          // a nonsensical state.
+                          if (displaySubMode === 'off') {
+                            setSubLangs(newLangs)
+                            return
+                          }
+                          applySubtitle(displaySubMode ?? 'soft', newLangs)
                         }}
-                        className="flex justify-between gap-4"
+                        className={cn(
+                          'flex justify-between gap-4',
+                          selected &&
+                            'text-brand-strong dark:text-brand font-bold',
+                        )}
                       >
                         <span>{lanDoc}</span>
-                        {idx >= 0 && (
+                        {selected && (
                           <span className="text-muted-foreground text-[10px] font-semibold">
                             {displaySubMode === 'soft'
                               ? '✓'
