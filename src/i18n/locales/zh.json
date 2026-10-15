@@ -26,6 +26,7 @@
     "url_label": "视频链接",
     "paste_hint": "<kbd>Ctrl/⌘+V</kbd> 粘贴 · <kbd>Enter</kbd> 获取",
     "login_notice_why": "需要登录才能解锁更高画质和音质",
+    "fetch_cta": "获取",
     "formats_label": "支持的链接格式",
     "format_video": "视频",
     "format_bangumi": "番剧",

@@ -26,6 +26,7 @@
     "url_label": "動画URL",
     "paste_hint": "<kbd>⌘V</kbd> で貼り付け · <kbd>Enter</kbd> で取得",
     "login_notice_why": "高画質・高音質の解放にはログインが必要",
+    "fetch_cta": "取得",
     "formats_label": "対応URL形式",
     "format_video": "動画",
     "format_bangumi": "番組",
