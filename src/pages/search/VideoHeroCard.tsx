@@ -1,8 +1,14 @@
 import type { Video } from '@/features/video'
 import { formatDuration } from '@/features/video-search/lib/formatDuration'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/shared/animate-ui/radix/tooltip'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { ExternalLink } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
+import { Trans, useTranslation } from 'react-i18next'
 
 /**
  * Loaded-video summary card: thumbnail (static, Part 1's — the API only
@@ -24,7 +30,14 @@ import { useTranslation } from 'react-i18next'
  * <VideoHeroCard video={video} />
  * ```
  */
-export function VideoHeroCard({ video }: { video: Video }) {
+export function VideoHeroCard({
+  video,
+  onOpenLogin,
+}: {
+  video: Video
+  /** Opens the QR login dialog from the quality-limit tooltip. */
+  onOpenLogin?: () => void
+}) {
   const { t } = useTranslation()
   const first = video.parts[0]
   const totalSeconds = video.parts.reduce((s, p) => s + p.duration, 0)
@@ -71,9 +84,40 @@ export function VideoHeroCard({ video }: { video: Video }) {
             })}
           </span>
           {video.isLimitedQuality && (
-            <span className="text-brand-strong bg-brand-strong/10 dark:text-brand rounded-full px-2.5 py-0.5 text-[11px] font-semibold">
-              {t('video.quality_limited_title')}
-            </span>
+            /* Hover/focus explanation: the chip alone ("quality
+               limited") names the symptom without the fix. The tooltip
+               reuses the login notice's copy and opens the QR dialog
+               from its link. A button trigger keeps it keyboard-
+               reachable (hover-only reveals are inaccessible). */
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="text-brand-strong bg-brand-strong/10 dark:text-brand rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
+                  >
+                    {t('video.quality_limited_title')}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" arrow className="max-w-72">
+                  <Trans
+                    i18nKey="video.login_benefits_description"
+                    components={{
+                      1: (
+                        <button
+                          type="button"
+                          onClick={onOpenLogin}
+                          className="cursor-pointer font-semibold underline"
+                        />
+                      ),
+                    }}
+                  />
+                  <p className="mt-1 text-[11px] opacity-80">
+                    {t('search.login_notice_why')}
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
         </div>
         <div className="mt-auto flex gap-2 px-0.5">

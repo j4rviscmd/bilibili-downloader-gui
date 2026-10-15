@@ -548,7 +548,10 @@ function SearchContentInner() {
                   <LoadedSkeleton />
                 ) : (
                   <>
-                    <VideoHeroCard video={video} />
+                    <VideoHeroCard
+                      video={video}
+                      onOpenLogin={() => setIsQrLoginDialogOpen(true)}
+                    />
                     <BatchSettingsBar />
                     <div className="mt-5 mb-2 flex flex-wrap items-baseline gap-2.5 px-0.5">
                       <h3 className="text-sm font-bold">
