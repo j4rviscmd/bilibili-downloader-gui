@@ -161,6 +161,22 @@ function subtitleSelected(
     pi.subtitle.selectedLans.includes(lan.replace(/^ai-/, ''))
   )
 }
+
+/**
+ * Returns the user's priority index for a subtitle's language (0-based).
+ * Checks the exact lan code first, then its ai-stripped form — the
+ * per-part SubtitleSection stores actual codes (ai-ja) while the batch
+ * dropdown stores base codes (ja).
+ *
+ * @private
+ */
+function subtitlePriority(
+  selectedLans: readonly string[],
+  lan: string,
+): number {
+  const exact = selectedLans.indexOf(lan)
+  return exact !== -1 ? exact : selectedLans.indexOf(lan.replace(/^ai-/, ''))
+}
 export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
   const { t } = useTranslation()
   const progress = useSelector((state) => state.progress)
@@ -478,13 +494,19 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
           // Batch-settings temporary override; null keeps settings.
           outputDir: input.outputDirOverride ?? null,
           subtitle: (() => {
-            // Match by exact or ai-stripped code, then sort manual
-            // subtitles before AI ones: hard-sub burns only the FIRST
-            // entry (backend .next()), so without this the choice
-            // depends on bilibili's API return order.
+            // Match by exact or ai-stripped code, then sort by the
+            // user's priority order (selectedLans index) with manual
+            // subtitles before AI ones for the same language. Hard-sub
+            // burns only the FIRST entry (backend .next()).
             const matched = (pi.subtitles ?? [])
               .filter((s) => subtitleSelected(pi, s.lan))
-              .sort((a, b) => Number(a.isAi) - Number(b.isAi))
+              .sort((a, b) => {
+                const pri =
+                  subtitlePriority(pi.subtitle.selectedLans, a.lan) -
+                  subtitlePriority(pi.subtitle.selectedLans, b.lan)
+                if (pri !== 0) return pri
+                return Number(a.isAi) - Number(b.isAi)
+              })
             return {
               mode: pi.subtitle.mode,
               selectedLans: matched.map((s) => s.lan),
