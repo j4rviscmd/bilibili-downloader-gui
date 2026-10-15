@@ -72,11 +72,13 @@ export function CommandBar({ variant }: { variant: 'hero' | 'compact' }) {
             <Trans i18nKey="search.paste_hint" components={{ kbd: <Kbd /> }} />
           </span>
         </div>
-        {/* Unified command bar: one bordered container wrapping the
-            input, paste button and fetch CTA — the mockup's .cmdbar.
-            VideoForm1's inner Input border/radius is stripped via the
-            [&_input] overrides; the focus ring sits on this wrapper. */}
-        <div className="group/cmdbar focus-within:border-brand-strong focus-within:ring-brand-strong/35 bg-card border-border flex items-center gap-2 rounded-xl border-[1.5px] p-1.5 pl-3.5 shadow-sm transition-all focus-within:ring-4 [&_input]:rounded-none [&_input]:border-0 [&_input]:shadow-none [&_input]:focus-visible:outline-none">
+        {/* Unified command bar: one bordered container wrapping the input
+            and fetch CTA — the mockup's .cmdbar. The [&_input] overrides
+            neutralize the shadcn Input's own chrome (border, radius, fixed
+            height, horizontal padding, dark translucent background, focus
+            ring) so the input sits bare inside the bar and the focus ring
+            lands on this wrapper instead. */}
+        <div className="group/cmdbar focus-within:border-brand-strong focus-within:ring-brand-strong/35 bg-card border-border flex items-center gap-2 rounded-xl border-[1.5px] p-1.5 pl-3.5 shadow-sm transition-all focus-within:ring-4 [&_input]:h-auto [&_input]:rounded-none [&_input]:border-0 [&_input]:bg-transparent [&_input]:px-0 [&_input]:py-2 [&_input]:text-[14.5px] [&_input]:shadow-none [&_input]:focus-visible:ring-0 [&_input]:focus-visible:outline-none [&_input::placeholder]:opacity-75">
           <Link2
             className="text-muted-foreground size-4 shrink-0"
             aria-hidden
