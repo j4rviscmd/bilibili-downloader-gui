@@ -42,7 +42,6 @@
     "showing_range": "{{from}}–{{to}} of {{total}}",
     "batch_title": "Batch settings",
     "batch_applies": "Applied to {{count}} selected parts",
-    "paste_button": "Paste",
     "recent_title": "Recently fetched URLs",
     "recent_downloaded": "{{count}} downloaded",
     "recent_refetch": "Fetch again",

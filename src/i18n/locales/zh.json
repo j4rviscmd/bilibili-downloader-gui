@@ -42,7 +42,6 @@
     "showing_range": "{{total}} 项中的第 {{from}}–{{to}} 项",
     "batch_title": "批量设置",
     "batch_applies": "应用于已选中的 {{count}} 个分P",
-    "paste_button": "粘贴",
     "recent_title": "最近获取的链接",
     "recent_downloaded": "已下载 {{count}}",
     "recent_refetch": "重新获取",

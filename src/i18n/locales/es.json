@@ -42,7 +42,6 @@
     "showing_range": "{{from}}–{{to}} de {{total}}",
     "batch_title": "Ajustes por lote",
     "batch_applies": "Se aplica a {{count}} partes seleccionados",
-    "paste_button": "Pegar",
     "recent_title": "URL recientes",
     "recent_downloaded": "{{count}} descargados",
     "recent_refetch": "Obtener de nuevo",

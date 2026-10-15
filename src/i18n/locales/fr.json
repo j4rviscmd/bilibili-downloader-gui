@@ -42,7 +42,6 @@
     "showing_range": "{{from}}–{{to}} sur {{total}}",
     "batch_title": "Réglages groupés",
     "batch_applies": "Appliqué à {{count}} parties sélectionnées",
-    "paste_button": "Coller",
     "recent_title": "URL récentes",
     "recent_downloaded": "{{count}} téléchargés",
     "recent_refetch": "Récupérer à nouveau",

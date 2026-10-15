@@ -1,7 +1,6 @@
 import { Kbd } from '@/components/ui/kbd'
 import { useVideoInfo, VideoForm1 } from '@/features/video'
-import { buildVideoFormSchema1 } from '@/features/video/lib/formSchema'
-import { ClipboardPaste, Link2, Play, RefreshCw } from 'lucide-react'
+import { Link2, Play, RefreshCw } from 'lucide-react'
 import { Trans, useTranslation } from 'react-i18next'
 
 /**
@@ -53,21 +52,6 @@ export function CommandBar({ variant }: { variant: 'hero' | 'compact' }) {
   const { t } = useTranslation()
   const { video, onValid1 } = useVideoInfo()
 
-  /** Reads the clipboard and fetches it when it parses as a video URL. */
-  const pasteFromClipboard = async () => {
-    try {
-      const text = (await navigator.clipboard.readText()).trim()
-      if (!text) return
-      // Reuse the URL form schema: same acceptance as typing it in.
-      const schema = buildVideoFormSchema1(t)
-      if (schema.safeParse({ url: text }).success) {
-        await onValid1(text)
-      }
-    } catch {
-      // Clipboard access can be denied — the manual input stays available.
-    }
-  }
-
   if (variant === 'hero') {
     return (
       <div className="w-full max-w-2xl text-center">
@@ -102,14 +86,6 @@ export function CommandBar({ variant }: { variant: 'hero' | 'compact' }) {
           </div>
           <button
             type="button"
-            onClick={() => void pasteFromClipboard()}
-            className="bg-muted text-foreground hover:bg-card inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-semibold transition-colors"
-          >
-            <ClipboardPaste className="size-4 opacity-70" aria-hidden />
-            {t('search.paste_button')}
-          </button>
-          <button
-            type="button"
             onClick={() => {
               const el = document.querySelector<HTMLInputElement>('#url')
               if (el?.value) void onValid1(el.value.trim())
@@ -117,7 +93,7 @@ export function CommandBar({ variant }: { variant: 'hero' | 'compact' }) {
             className="bg-brand-strong text-brand-foreground inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-3.5 text-[13px] font-semibold transition-[filter] hover:brightness-106 active:translate-y-px"
           >
             <RefreshCw className="size-4" aria-hidden />
-            {t('search.fetch_info')}
+            {t('video.fetch_info')}
           </button>
         </div>
         <div

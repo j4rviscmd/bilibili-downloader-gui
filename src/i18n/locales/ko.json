@@ -42,7 +42,6 @@
     "showing_range": "{{total}}개 중 {{from}}–{{to}}",
     "batch_title": "일괄 설정",
     "batch_applies": "선택한 {{count}}개 파트에 적용",
-    "paste_button": "붙여넣기",
     "recent_title": "최근 가져온 URL",
     "recent_downloaded": "{{count}}개 다운로드됨",
     "recent_refetch": "다시 가져오기",
