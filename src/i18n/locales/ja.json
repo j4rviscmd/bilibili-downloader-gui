@@ -44,7 +44,7 @@
     "batch_title": "一括設定",
     "batch_applies": "選択中の{{count}}パートに適用",
     "recent_title": "最近取得したURL",
-    "recent_downloaded": "DL済み {{count}}",
+    "recent_downloaded": "ダウンロード済み {{count}}",
     "recent_refetch": "再取得",
     "recent_more": "ダウンロード履歴をすべて見る",
     "recent_just_now": "たった今",
