@@ -299,7 +299,7 @@
     "url_label": "URL",
     "url_description": "비디오 URL을 입력하세요.",
     "fetching_info": "비디오 정보를 가져오는 중...",
-    "url_placeholder_example": "예: https://www.bilibili.com/video/BV1xxxxxx",
+    "url_placeholder_example": "https://www.bilibili.com/video/BV…",
     "title_label": "제목",
     "title_placeholder": "URL 입력 후 자동으로 채워집니다",
     "title_description": "BiliBili 영상 제목을 입력하세요. 파일명으로 사용됩니다.",

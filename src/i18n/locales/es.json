@@ -299,7 +299,7 @@
     "url_label": "URL",
     "url_description": "Introduce la URL del video.",
     "fetching_info": "Obteniendo información del video...",
-    "url_placeholder_example": "ej: https://www.bilibili.com/video/BV1xxxxxx",
+    "url_placeholder_example": "https://www.bilibili.com/video/BV…",
     "title_label": "Título",
     "title_placeholder": "El título se rellenará automáticamente tras introducir la URL",
     "title_description": "Introduce el título del video de BiliBili. Se usará como nombre del archivo.",
