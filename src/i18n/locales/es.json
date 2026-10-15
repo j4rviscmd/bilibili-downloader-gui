@@ -54,6 +54,7 @@
     "reason_vip": "VIP",
     "reason_login": "Iniciar sesión",
     "reason_unavailable": "N/D",
+    "subtitle_priority": "#{{count}}",
     "help_label": "Cómo funcionan los ajustes por lote",
     "help_quality_title": "Calidad y audio",
     "help_quality_body": "Se tratan como objetivos. Las partes que no pueden usar el objetivo descargan con la calidad disponible más cercana y muestran ⚠ en su fila.",

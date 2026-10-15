@@ -5,6 +5,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -255,10 +256,20 @@ export function BatchSettingsBar({
   // first selected part's effective config.
   const displaySubMode = subMode ?? effectiveSubMode
   const displaySubLangs = subLangs.length > 0 ? subLangs : effectiveSubLangs
+  const modeLabel = t(
+    displaySubMode === 'soft'
+      ? 'video.subtitle_soft'
+      : displaySubMode === 'hard'
+        ? 'video.subtitle_hard'
+        : 'video.subtitle_off',
+  )
+  const langLabels = displaySubLangs
+    .map((l) => langUnion.get(l))
+    .filter(Boolean)
   const subSummary =
     displaySubMode === 'off'
-      ? t('video.subtitle_off')
-      : `${t(displaySubMode === 'soft' ? 'video.subtitle_soft' : 'video.subtitle_hard')} · ${displaySubLangs.length}`
+      ? modeLabel
+      : `${modeLabel} ${langLabels.join(displaySubMode === 'soft' ? ' + ' : ' → ')}`
 
   return (
     <div className="bg-card/95 sticky top-14 z-15 mt-3 rounded-xl border shadow-sm backdrop-blur">
@@ -360,69 +371,94 @@ export function BatchSettingsBar({
           onSelect={(id) => applyAudio(id)}
           disabled={selectedIndices.length === 0}
         />
-        <BatchDropdown
-          label={t('video.subtitle')}
-          value={subSummary}
-          options={[
-            { id: 0, label: t('video.subtitle_off') },
-            { id: 1, label: t('video.subtitle_soft') },
-            { id: 2, label: t('video.subtitle_hard') },
-          ]}
-          onSelect={(id) => {
-            const mode = (['off', 'soft', 'hard'] as const)[id]!
-            applySubtitle(
-              mode,
-              mode === 'off'
-                ? []
-                : subLangs.length > 0
-                  ? subLangs
-                  : effectiveSubLangs,
-            )
-          }}
-          disabled={selectedIndices.length === 0}
-        />
-        {displaySubMode !== 'off' && langUnion.size > 0 && (
-          <div className="flex flex-col">
-            <span className="text-muted-foreground mb-1 text-[11px] font-semibold">
-              {t('video.subtitle_select_multiple')}
-            </span>
-            <div className="flex flex-wrap gap-1.5">
-              {[...langUnion.entries()].map(([lan, lanDoc]) => {
-                const on = subLangs.includes(lan)
-                return (
-                  <button
-                    key={lan}
-                    type="button"
-                    aria-pressed={on}
-                    onClick={() =>
-                      applySubtitle(
-                        displaySubMode ?? 'soft',
-                        on
-                          ? (subLangs.length > 0
-                              ? subLangs
-                              : effectiveSubLangs
-                            ).filter((l) => l !== lan)
-                          : [
-                              ...(subLangs.length > 0
-                                ? subLangs
-                                : effectiveSubLangs),
-                              lan,
-                            ],
-                      )
-                    }
-                    className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                      on
-                        ? 'border-brand-strong/40 bg-brand-strong/10 text-brand-strong dark:text-brand'
-                        : 'border-border text-muted-foreground hover:bg-muted'
-                    }`}
-                  >
-                    {lanDoc}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        )}
+        {/* Compound subtitle menu: mode section + separator + language
+            section. Language items keep the menu open (multi-select in
+            one visit); mode changes update the language display
+            immediately (✓ for soft, 優先度 N for hard). */}
+        <div className="flex flex-col">
+          <span className="text-muted-foreground mb-1 text-[11px] font-semibold">
+            {t('video.subtitle')}
+          </span>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              disabled={selectedIndices.length === 0}
+              aria-label={t('video.subtitle')}
+              className="bg-card hover:bg-muted data-[state=open]:border-brand-strong/40 inline-flex h-10 items-center justify-between gap-2 rounded-lg border px-3 text-[13px] font-semibold disabled:opacity-50"
+            >
+              <span className="max-w-60 truncate">{subSummary || '—'}</span>
+              <ChevronDown className="size-3.5 opacity-60" aria-hidden />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="start"
+              className="max-h-96 w-64 overflow-y-auto"
+            >
+              {(['off', 'soft', 'hard'] as const).map((mode) => (
+                <DropdownMenuItem
+                  key={mode}
+                  onClick={() =>
+                    applySubtitle(mode, mode === 'off' ? [] : displaySubLangs)
+                  }
+                  className="flex justify-between gap-4"
+                >
+                  <span>
+                    {t(
+                      mode === 'off'
+                        ? 'video.subtitle_off'
+                        : mode === 'soft'
+                          ? 'video.subtitle_soft'
+                          : 'video.subtitle_hard',
+                    )}
+                  </span>
+                  {displaySubMode === mode && (
+                    <span className="text-muted-foreground text-[10px] font-semibold">
+                      ✓
+                    </span>
+                  )}
+                </DropdownMenuItem>
+              ))}
+              {langUnion.size > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  {[...langUnion.entries()].map(([lan, lanDoc]) => {
+                    const idx = displaySubLangs.indexOf(lan)
+                    return (
+                      <DropdownMenuItem
+                        key={lan}
+                        disabled={displaySubMode === 'off'}
+                        onSelect={(e) => {
+                          // Keep the menu open: language selection is
+                          // multi-select in one visit.
+                          e.preventDefault()
+                        }}
+                        onClick={() => {
+                          if (displaySubMode === 'off') return
+                          applySubtitle(
+                            displaySubMode,
+                            idx >= 0
+                              ? displaySubLangs.filter((l) => l !== lan)
+                              : [...displaySubLangs, lan],
+                          )
+                        }}
+                        className="flex justify-between gap-4"
+                      >
+                        <span>{lanDoc}</span>
+                        {idx >= 0 && (
+                          <span className="text-muted-foreground text-[10px] font-semibold">
+                            {displaySubMode === 'soft'
+                              ? '✓'
+                              : t('search.subtitle_priority', {
+                                  count: idx + 1,
+                                })}
+                          </span>
+                        )}
+                      </DropdownMenuItem>
+                    )
+                  })}
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
         <div className="flex flex-col">
           <span className="text-muted-foreground mb-1 text-[11px] font-semibold">
             {t('search.output_dir_label')}

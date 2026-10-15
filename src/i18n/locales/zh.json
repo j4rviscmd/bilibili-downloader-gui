@@ -54,6 +54,7 @@
     "reason_vip": "大会员",
     "reason_login": "需登录",
     "reason_unavailable": "不可用",
+    "subtitle_priority": "优先 {{count}}",
     "help_label": "批量设置的工作方式",
     "help_quality_title": "清晰度与音质",
     "help_quality_body": "作为目标值处理。无法满足的分P会自动调整为最接近的可用设置，并在该行显示⚠。",

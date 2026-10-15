@@ -54,6 +54,7 @@
     "reason_vip": "大会員",
     "reason_login": "ログイン",
     "reason_unavailable": "利用不可",
+    "subtitle_priority": "優先度 {{count}}",
     "help_label": "一括設定の動作",
     "help_quality_title": "画質・音質",
     "help_quality_body": "目標値として扱います。利用できないパートは最も近い設定へ自動調整し、該当行に⚠を表示します。",

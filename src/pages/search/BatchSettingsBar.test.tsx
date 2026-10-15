@@ -142,21 +142,23 @@ describe('BatchSettingsBar', () => {
     seed([true, true])
     const { user } = renderBar()
 
-    // Default part subtitle mode is off → switch to soft; the union
-    // chips (ja from P1, zh-Hans from both) render once data lands.
+    // Open the compound subtitle menu; switch to soft mode. The language
+    // section (ja from P1, zh-Hans from both) renders INSIDE the menu.
     const subtitleTrigger = await screen.findByRole('button', {
       name: 'video.subtitle',
     })
     await user.click(subtitleTrigger)
     await user.click(await screen.findByText('video.subtitle_soft'))
 
-    expect(
-      await screen.findByRole('button', { name: 'ja' }),
-    ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'zh-Hans' })).toBeInTheDocument()
-
     const state = store.getState().input
     expect(state.partInputs[0]!.subtitle.mode).toBe('soft')
     expect(state.partInputs[1]!.subtitle.mode).toBe('soft')
+
+    // Re-open the menu: language items are visible with mode-dependent
+    // display (soft = multi-select).
+    await user.click(subtitleTrigger)
+    expect(await screen.findByText('ja')).toBeInTheDocument()
+    expect(screen.getByText('zh-Hans')).toBeInTheDocument()
+    await user.keyboard('{Escape}')
   })
 })

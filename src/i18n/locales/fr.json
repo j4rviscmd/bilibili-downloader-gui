@@ -54,6 +54,7 @@
     "reason_vip": "VIP",
     "reason_login": "Connexion",
     "reason_unavailable": "N/D",
+    "subtitle_priority": "n°{{count}}",
     "help_label": "Fonctionnement des réglages groupés",
     "help_quality_title": "Qualité et audio",
     "help_quality_body": "Traités comme objectifs. Les parties ne pouvant pas utiliser la cible téléchargent au réglage disponible le plus proche et affichent ⚠ sur leur ligne.",
