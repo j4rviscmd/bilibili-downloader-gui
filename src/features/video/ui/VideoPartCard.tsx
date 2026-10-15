@@ -8,6 +8,7 @@ import {
   AccordionTrigger,
 } from '@/components/animate-ui/components/radix/accordion'
 import { useVideoInfo } from '@/features/video'
+import { formatDuration } from '@/features/video-search/lib/formatDuration'
 import {
   fetchBangumiPartQualities,
   fetchPartQualities,
@@ -186,8 +187,6 @@ const VideoPartCard = memo(function VideoPartCard({
   const { t } = useTranslation()
   const disabled = video.parts.length === 0
   const videoPart = video.parts[page - 1]
-  const min = Math.floor(videoPart.duration / 60)
-  const sec = videoPart.duration % 60
 
   // Badge/status scope: videoId+cid (latest queue item wins). videoId is
   // null only before a valid URL resolves; the parts list is empty then, so
@@ -358,7 +357,7 @@ const VideoPartCard = memo(function VideoPartCard({
   // otherwise swallow clicks aimed at that corner.
   const durationBadge = (
     <span className="pointer-events-none absolute right-1 bottom-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] leading-none font-medium text-white tabular-nums">
-      {min}:{String(sec).padStart(2, '0')}
+      {formatDuration(videoPart.duration)}
     </span>
   )
 
