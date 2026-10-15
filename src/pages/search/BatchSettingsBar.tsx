@@ -45,7 +45,7 @@ import {
 } from '@/features/video/model/inputSlice'
 import { Button } from '@/shared/ui/button'
 import { ChevronDown, FolderOpen, Info } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 /**
@@ -174,31 +174,32 @@ export function BatchSettingsBar({
     return labels
   }, [selectedIndices, input.partInputs])
 
-  // Batch targets initialize once from the first selected part's current
-  // values (falling back to the top of each union).
-  const [targetVideo, setTargetVideo] = useState<number | null>(null)
-  const [targetAudio, setTargetAudio] = useState<number | null>(null)
-  const [subMode, setSubMode] = useState<'off' | 'soft' | 'hard'>('soft')
+  // Batch targets: the trigger shows the EFFECTIVE value (first selected
+  // part's setting, falling back to the top of each union = the account's
+  // best-effort default) so the user always sees what a download would
+  // use. An explicit dropdown pick stores an override in state AND
+  // dispatches to every selected part; merely changing the selection
+  // never dispatches.
+  const [videoOverride, setVideoOverride] = useState<number | null>(null)
+  const [audioOverride, setAudioOverride] = useState<number | null>(null)
+  const [subMode, setSubMode] = useState<'off' | 'soft' | 'hard' | null>(null)
   const [subLangs, setSubLangs] = useState<string[]>([])
-  const initialized = useRef(false)
-  useEffect(() => {
-    if (initialized.current || selectedIndices.length === 0) return
-    const first = input.partInputs[selectedIndices[0]!]
-    if (!first) return
-    initialized.current = true
-    setTargetVideo(
-      first.videoQuality ? Number(first.videoQuality) : (videoUnion[0] ?? null),
-    )
-    setTargetAudio(
-      first.audioQuality ? Number(first.audioQuality) : (audioUnion[0] ?? null),
-    )
-    setSubMode(first.subtitle?.mode ?? 'off')
-    setSubLangs(first.subtitle?.selectedLans ?? [])
-  }, [selectedIndices, input.partInputs, videoUnion, audioUnion])
+  const first =
+    selectedIndices.length > 0
+      ? input.partInputs[selectedIndices[0]!]
+      : undefined
+  const targetVideo =
+    videoOverride ??
+    (first?.videoQuality ? Number(first.videoQuality) : (videoUnion[0] ?? null))
+  const targetAudio =
+    audioOverride ??
+    (first?.audioQuality ? Number(first.audioQuality) : (audioUnion[0] ?? null))
+  const effectiveSubMode = first?.subtitle?.mode ?? 'off'
+  const effectiveSubLangs = first?.subtitle?.selectedLans ?? []
 
   const applyVideo = useCallback(
     (id: number) => {
-      setTargetVideo(id)
+      setVideoOverride(id)
       selectedIndices.forEach((i) =>
         dispatch(
           updatePartInputByIndex({ index: i, videoQuality: String(id) }),
@@ -209,7 +210,7 @@ export function BatchSettingsBar({
   )
   const applyAudio = useCallback(
     (id: number) => {
-      setTargetAudio(id)
+      setAudioOverride(id)
       selectedIndices.forEach((i) =>
         dispatch(
           updatePartInputByIndex({ index: i, audioQuality: String(id) }),
@@ -250,10 +251,14 @@ export function BatchSettingsBar({
   const label = (id: number) =>
     VIDEO_QUALITIES_MAP[id] ?? AUDIO_QUALITIES_MAP[id] ?? String(id)
 
+  // Subtitle display: an explicit override wins; otherwise reflect the
+  // first selected part's effective config.
+  const displaySubMode = subMode ?? effectiveSubMode
+  const displaySubLangs = subLangs.length > 0 ? subLangs : effectiveSubLangs
   const subSummary =
-    subMode === 'off'
+    displaySubMode === 'off'
       ? t('video.subtitle_off')
-      : `${t(subMode === 'soft' ? 'video.subtitle_soft' : 'video.subtitle_hard')} · ${subLangs.length}`
+      : `${t(displaySubMode === 'soft' ? 'video.subtitle_soft' : 'video.subtitle_hard')} · ${displaySubLangs.length}`
 
   return (
     <div className="bg-card/95 sticky top-14 z-15 mt-3 rounded-xl border shadow-sm backdrop-blur">
@@ -365,11 +370,18 @@ export function BatchSettingsBar({
           ]}
           onSelect={(id) => {
             const mode = (['off', 'soft', 'hard'] as const)[id]!
-            applySubtitle(mode, mode === 'off' ? [] : subLangs)
+            applySubtitle(
+              mode,
+              mode === 'off'
+                ? []
+                : subLangs.length > 0
+                  ? subLangs
+                  : effectiveSubLangs,
+            )
           }}
           disabled={selectedIndices.length === 0}
         />
-        {subMode !== 'off' && langUnion.size > 0 && (
+        {displaySubMode !== 'off' && langUnion.size > 0 && (
           <div className="flex flex-col">
             <span className="text-muted-foreground mb-1 text-[11px] font-semibold">
               {t('video.subtitle_select_multiple')}
@@ -384,10 +396,18 @@ export function BatchSettingsBar({
                     aria-pressed={on}
                     onClick={() =>
                       applySubtitle(
-                        subMode,
+                        displaySubMode ?? 'soft',
                         on
-                          ? subLangs.filter((l) => l !== lan)
-                          : [...subLangs, lan],
+                          ? (subLangs.length > 0
+                              ? subLangs
+                              : effectiveSubLangs
+                            ).filter((l) => l !== lan)
+                          : [
+                              ...(subLangs.length > 0
+                                ? subLangs
+                                : effectiveSubLangs),
+                              lan,
+                            ],
                       )
                     }
                     className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${

@@ -3,7 +3,7 @@ import { setVideo, useVideoInfo, VideoInfoProvider } from '@/features/video'
 import { initPartInputs } from '@/features/video/model/inputSlice'
 import type { Video } from '@/features/video/types'
 import { mockInvoke, renderWithProviders } from '@/test/test-utils'
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import BatchSettingsBar from './BatchSettingsBar'
 
@@ -127,10 +127,14 @@ describe('BatchSettingsBar', () => {
       name: 'video.quality_label',
     })
     await user.click(trigger)
-    // 1080p+ / 1080p60 come from P1 only; both parts offer 720p60.
-    expect(await screen.findByText('1080p60')).toBeInTheDocument()
-    expect(screen.getByText('1080p+')).toBeInTheDocument()
-    expect(screen.getByText('720p60')).toBeInTheDocument()
+    // Full ladder renders: P1-only tiers (1080p+ / 1080p60) and shared
+    // tiers both appear. The trigger value also matches one of them.
+    const menu = await screen.findByRole('menu')
+    const items = within(menu).getAllByText('1080p60')
+    expect(items.length).toBeGreaterThanOrEqual(1)
+    expect(within(menu).getByText('1080p+')).toBeInTheDocument()
+    expect(within(menu).getByText('720p60')).toBeInTheDocument()
+    expect(within(menu).getByText('8K')).toBeInTheDocument()
     await user.keyboard('{Escape}')
   })
 
