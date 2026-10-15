@@ -84,18 +84,26 @@ export function BatchSettingsBar({
     [input.partInputs],
   )
 
-  // Lazily fetch qualities/subtitles for selected parts that have none
-  // yet (same requests the per-part accordion issues on first open).
+  // Sample size for the batch bar's eager quality/subtitle fetch. Parts
+  // of the same video typically share the same quality ladder, so a few
+  // are enough to build a representative union. Without this cap,
+  // selecting 100 parts would fire 200 concurrent API calls and get
+  // rate-limited by bilibili. Parts outside the sample still fetch
+  // individually when their accordion opens (the existing lazy path).
+  // ponytail: 5 is a guess; raise if quality ladders actually vary more
+  // across parts than expected.
+  const FETCH_SAMPLE = 5
+
   useEffect(() => {
     if (video.parts.length === 0) return
-    const missing = selectedIndices.filter(
-      (i) => input.partInputs[i]?.videoQualities === undefined,
-    )
-    if (missing.length === 0) return
-    missing.forEach((i) =>
+    const sample = selectedIndices
+      .filter((i) => input.partInputs[i]?.videoQualities === undefined)
+      .slice(0, FETCH_SAMPLE)
+    if (sample.length === 0) return
+    sample.forEach((i) =>
       dispatch(setQualitiesLoading({ index: i, loading: true })),
     )
-    missing.forEach(async (i) => {
+    sample.forEach(async (i) => {
       const part = video.parts[i]
       if (!part) return
       try {
@@ -125,14 +133,14 @@ export function BatchSettingsBar({
 
   useEffect(() => {
     if (video.parts.length === 0) return
-    const missing = selectedIndices.filter(
-      (i) => input.partInputs[i]?.subtitles === undefined,
-    )
-    if (missing.length === 0) return
-    missing.forEach((i) =>
+    const sample = selectedIndices
+      .filter((i) => input.partInputs[i]?.subtitles === undefined)
+      .slice(0, FETCH_SAMPLE)
+    if (sample.length === 0) return
+    sample.forEach((i) =>
       dispatch(setSubtitlesLoading({ index: i, loading: true })),
     )
-    missing.forEach(async (i) => {
+    sample.forEach(async (i) => {
       const part = video.parts[i]
       if (!part) return
       try {
