@@ -521,16 +521,7 @@ function SearchContentInner() {
                   <LoadedSkeleton />
                 ) : (
                   <>
-                    <VideoHeroCard
-                      video={video}
-                      onThumbnailClick={() =>
-                        setPreview({
-                          bvid: video.bvid,
-                          title: video.parts[0].part,
-                          page: 1,
-                        })
-                      }
-                    />
+                    <VideoHeroCard video={video} />
                     <BatchSettingsBar pageRange={pageRange} />
                     <div className="mt-5 mb-2 flex flex-wrap items-baseline gap-2.5 px-0.5">
                       <h3 className="text-sm font-bold">

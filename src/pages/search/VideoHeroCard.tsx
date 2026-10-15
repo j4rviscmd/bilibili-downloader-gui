@@ -1,33 +1,30 @@
 import type { Video } from '@/features/video'
 import { formatDuration } from '@/features/video-search/lib/formatDuration'
 import { openUrl } from '@tauri-apps/plugin-opener'
-import { ExternalLink, Play } from 'lucide-react'
+import { ExternalLink } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-// Shared styling for the hero action buttons (preview / open in browser).
-const actionButtonClass =
-  'bg-card hover:bg-muted inline-flex min-h-8.5 items-center gap-1.5 rounded-lg border px-2.75 py-1.5 text-xs font-medium transition-colors'
-
 /**
- * Loaded-video summary card: thumbnail (click = preview), title, IDs,
- * part count and total duration. Gives the "did I fetch the right video?"
- * check within the first second of landing.
+ * Loaded-video summary card: thumbnail (static, Part 1's — the API only
+ * provides one per video), title, IDs, part count and total duration.
+ * Gives the "did I fetch the right video?" check within the first second
+ * of landing.
  *
- * The title is read-only here: filenames are edited per part row, and for
+ * No preview action here by design: the hero only has Part 1's data, so
+ * a preview would silently play Part 1 regardless of what the user
+ * wants. Each part row carries its own preview button with the correct
+ * context. The Part-1 duration badge is likewise omitted — the card's
+ * "total" chip is the honest number.
+ *
+ * The title is read-only: filenames are edited per part row, and for
  * single-part videos the part row's title IS the filename (same data).
  *
  * @example
  * ```tsx
- * <VideoHeroCard video={video} onThumbnailClick={() => setPreview(...)} />
+ * <VideoHeroCard video={video} />
  * ```
  */
-export function VideoHeroCard({
-  video,
-  onThumbnailClick,
-}: {
-  video: Video
-  onThumbnailClick: () => void
-}) {
+export function VideoHeroCard({ video }: { video: Video }) {
   const { t } = useTranslation()
   const first = video.parts[0]
   const totalSeconds = video.parts.reduce((s, p) => s + p.duration, 0)
@@ -39,12 +36,7 @@ export function VideoHeroCard({
 
   return (
     <section className="bg-card flex gap-4 rounded-xl border p-4 shadow-sm">
-      <button
-        type="button"
-        onClick={onThumbnailClick}
-        aria-label={t('search.preview_part', { part: first.part })}
-        className="group/thumb bg-muted relative aspect-video w-40 shrink-0 cursor-pointer overflow-hidden rounded-lg text-left md:w-62"
-      >
+      <div className="bg-muted relative aspect-video w-40 shrink-0 overflow-hidden rounded-lg md:w-62">
         {first.thumbnail.url ? (
           <img
             src={first.thumbnail.url}
@@ -54,13 +46,7 @@ export function VideoHeroCard({
             referrerPolicy="no-referrer"
           />
         ) : null}
-        <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition-opacity duration-200 group-hover/thumb:bg-black/40 group-hover/thumb:opacity-100">
-          <Play className="size-8 fill-current drop-shadow" aria-hidden />
-        </span>
-        <span className="absolute right-1.5 bottom-1.5 rounded bg-black/75 px-1.5 py-0.5 text-[10px] font-semibold text-white tabular-nums">
-          {formatDuration(first.duration)}
-        </span>
-      </button>
+      </div>
 
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <h2 className="px-0.5 text-base leading-snug font-bold tracking-tight">
@@ -93,16 +79,8 @@ export function VideoHeroCard({
         <div className="mt-auto flex gap-2 px-0.5">
           <button
             type="button"
-            onClick={onThumbnailClick}
-            className={actionButtonClass}
-          >
-            <Play className="size-3.5 fill-current" aria-hidden />
-            {t('search.preview')}
-          </button>
-          <button
-            type="button"
             onClick={() => void openUrl(watchUrl)}
-            className={actionButtonClass}
+            className="bg-card hover:bg-muted inline-flex min-h-8.5 items-center gap-1.5 rounded-lg border px-2.75 py-1.5 text-xs font-medium transition-colors"
           >
             <ExternalLink className="size-3.5" aria-hidden />
             {t('search.open_in_browser')}

@@ -577,8 +577,9 @@ describe('SearchContent', () => {
     expect(within(hero).getByText('BV1test')).toBeInTheDocument()
     expect(within(hero).getByText('search.parts_count')).toBeInTheDocument()
     expect(within(hero).getByText('search.total_duration')).toBeInTheDocument()
-    // First-part duration badge on the thumbnail (60s → 1:00).
-    expect(within(hero).getByText('1:00')).toBeInTheDocument()
+    // No Part-1 duration badge on the thumbnail: it would mislead on
+    // multi-part videos where only the "total" chip is the honest number.
+    expect(within(hero).queryByText('1:00')).toBeNull()
     // Fixture has no quality restriction → no limited-quality chip.
     expect(within(hero).queryByText('video.quality_limited_title')).toBeNull()
   })
@@ -591,22 +592,16 @@ describe('SearchContent', () => {
     expect(screen.getByText('video.quality_limited_title')).toBeInTheDocument()
   })
 
-  it('opens the page preview dialog from the hero card thumbnail', async () => {
+  it('does not render a preview button on the hero card', () => {
     seedVideo(3)
 
-    const { user } = renderWithProviders(<SearchContent />, {
-      route: '/search',
-    })
+    renderWithProviders(<SearchContent />, { route: '/search' })
 
-    // The thumbnail click targets the first part (page 1) through the
-    // page-owned dialog, download action hidden as everywhere on /search.
-    await user.click(
-      screen.getByRole('button', { name: 'search.preview_part' }),
-    )
-
-    const dialog = screen.getByTestId('preview-dialog')
-    expect(dialog).toHaveTextContent('BV1test|Part 1|p1')
-    expect(dialog).toHaveTextContent('|no-download')
+    // The hero only has Part 1's data — a preview there would silently
+    // play Part 1. Each part row carries its own preview button instead.
+    expect(
+      screen.queryByRole('button', { name: 'search.preview_part' }),
+    ).toBeNull()
   })
 
   it('opens the watch page in the browser from the hero card', async () => {
