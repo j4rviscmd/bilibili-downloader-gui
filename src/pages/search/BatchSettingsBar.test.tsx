@@ -1,4 +1,5 @@
 import { store } from '@/app/store'
+import { setUser } from '@/features/user/userSlice'
 import { setVideo, useVideoInfo, VideoInfoProvider } from '@/features/video'
 import { initPartInputs } from '@/features/video/model/inputSlice'
 import type { Video } from '@/features/video/types'
@@ -93,6 +94,15 @@ describe('BatchSettingsBar', () => {
       }
       return []
     })
+    store.dispatch(
+      setUser({
+        code: 0,
+        message: '',
+        ttl: 0,
+        data: { uname: '', isLogin: false, wbiImg: { imgUrl: '', subUrl: '' } },
+        hasCookie: false,
+      }),
+    )
   })
 
   it('defaults the quality targets to the best tier of the login state, not per-part data', async () => {
@@ -104,6 +114,22 @@ describe('BatchSettingsBar', () => {
     expect(
       await screen.findByRole('button', { name: 'video.quality_label' }),
     ).toHaveTextContent('480p')
+
+    // Logged in → the standard top tier (1080p). Enhanced tiers (1080p+/
+    // 1080p60) are explicit picks: videos without them would leave the
+    // trigger pointing at an option the list marks unavailable.
+    store.dispatch(
+      setUser({
+        code: 0,
+        message: '',
+        ttl: 0,
+        data: { uname: 'u', isLogin: true, wbiImg: { imgUrl: '', subUrl: '' } },
+        hasCookie: true,
+      }),
+    )
+    expect(
+      await screen.findByRole('button', { name: 'video.quality_label' }),
+    ).toHaveTextContent('1080p')
   })
 
   it('keeps the last values on the triggers when every part is deselected', async () => {
@@ -144,8 +170,8 @@ describe('BatchSettingsBar', () => {
       name: 'video.quality_label',
     })
     await user.click(trigger)
-    const item = await screen.findByText('1080p')
-    await user.click(item)
+    const menu = await screen.findByRole('menu')
+    await user.click(within(menu).getByText('1080p'))
 
     const state = store.getState().input
     expect(state.partInputs[0]!.videoQuality).toBe('80')

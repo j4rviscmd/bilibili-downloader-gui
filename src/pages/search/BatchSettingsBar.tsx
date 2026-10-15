@@ -180,14 +180,16 @@ export function BatchSettingsBar() {
   // span hundreds (a per-part fetch of all of them would trip rate limits).
   // The static ladder + gates answer "best tier this login state can use";
   // the download itself falls back per part to the nearest available tier.
+  // Enhanced tiers (1080p+/1080p60) and VIP tiers are explicit picks, not
+  // defaults: many videos lack them, and a default pointing at a tier the
+  // option list marks 利用不可 reads as a contradiction.
   const bestVideoForLogin = useMemo(
     () =>
       VIDEO_LADDER_IDS.find(
         (id) =>
           !VIP_VIDEO_IDS.has(id) &&
-          (isLoggedIn
-            ? true
-            : !LOGIN_REQUIRED_VIDEO_IDS.has(id) && id <= ANON_MAX_VIDEO_ID),
+          !LOGIN_REQUIRED_VIDEO_IDS.has(id) &&
+          (isLoggedIn || id <= ANON_MAX_VIDEO_ID),
       ) ?? null,
     [isLoggedIn],
   )
