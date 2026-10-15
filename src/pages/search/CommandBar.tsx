@@ -64,7 +64,7 @@ export function CommandBar({ variant }: { variant: 'hero' | 'compact' }) {
         <p className="text-muted-foreground mt-1 text-sm">
           {t('search.hero_subtitle')}
         </p>
-        <div className="mt-5 flex items-center justify-between px-1 text-xs font-semibold">
+        <div className="mt-5 mb-1.5 flex items-center justify-between px-1 text-xs font-semibold">
           <label htmlFor="url">{t('search.url_label')}</label>
           {/* Rich <kbd> chips: the locale string embeds literal <kbd> tags
               that Trans swaps for the styled Kbd component. */}
