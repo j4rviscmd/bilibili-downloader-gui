@@ -92,7 +92,7 @@ export function CommandBar({ variant }: { variant: 'hero' | 'compact' }) {
               const el = document.querySelector<HTMLInputElement>('#url')
               if (el?.value) void onValid1(el.value.trim())
             }}
-            className="bg-brand-strong text-brand-foreground inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-3.5 text-[13px] font-semibold transition-[filter] hover:brightness-106 active:translate-y-px"
+            className="bg-brand-strong text-brand-foreground inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-3.5 text-[13px] font-semibold transition-opacity hover:opacity-90"
           >
             {t('search.fetch_cta')}
             <RefreshCw className="size-4" aria-hidden />
