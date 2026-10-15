@@ -312,17 +312,20 @@ export const inputSlice = createSlice({
       } = action.payload
       const target = state.partInputs[index]
       if (target) {
-        target.videoQualities = videoQualities
-        target.audioQualities = audioQualities
+        // Stream id 0 is a manifest placeholder (seen on audio entries), not
+        // a selectable quality: stored as-is it leaked into the default
+        // selection and rendered as a bare "0" on the batch trigger.
+        target.videoQualities = videoQualities.filter((q) => q.id > 0)
+        target.audioQualities = audioQualities.filter((q) => q.id > 0)
         target.qualitiesLoading = false
         // Undefined on the success path, which clears a previous error
         target.qualitiesError = qualitiesError
         target.audioAbsent = audioAbsent
-        if (videoQualities.length > 0 && !target.videoQuality) {
-          target.videoQuality = String(videoQualities[0].id)
+        if (target.videoQualities.length > 0 && !target.videoQuality) {
+          target.videoQuality = String(target.videoQualities[0]!.id)
         }
-        if (audioQualities.length > 0 && !target.audioQuality) {
-          target.audioQuality = String(audioQualities[0].id)
+        if (target.audioQualities.length > 0 && !target.audioQuality) {
+          target.audioQuality = String(target.audioQualities[0]!.id)
         }
         if (isPreview !== undefined) {
           target.isPreview = isPreview

@@ -118,6 +118,39 @@ describe('part field updates', () => {
     expect(input().partInputs.every((p) => p.title !== 'Ghost')).toBe(true)
   })
 
+  it('drops id-0 placeholder streams and derives no default from them', () => {
+    store.dispatch(
+      initPartInputs([
+        {
+          cid: 1,
+          page: 1,
+          title: 'Part 1',
+          videoQuality: '',
+          audioQuality: '',
+          selected: true,
+          duration: 60,
+        },
+      ]),
+    )
+    store.dispatch(
+      setPartQualities({
+        index: 0,
+        videoQualities: [
+          { quality: '360p', id: 16 },
+          { quality: 'placeholder', id: 0 },
+        ],
+        audioQualities: [{ quality: 'placeholder', id: 0 }],
+      }),
+    )
+
+    const part = input().partInputs[0]!
+    expect(part.videoQualities?.map((q) => q.id)).toEqual([16])
+    expect(part.audioQualities ?? []).toEqual([])
+    // The default must come from a real stream, never the placeholder.
+    expect(part.videoQuality).toBe('16')
+    expect(part.audioQuality).toBe('')
+  })
+
   it('setPartQualities applies the isPreview flag only when provided', () => {
     seedParts()
     store.dispatch(
