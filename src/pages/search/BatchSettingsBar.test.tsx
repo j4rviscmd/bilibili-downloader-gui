@@ -95,23 +95,36 @@ describe('BatchSettingsBar', () => {
     })
   })
 
+  it('defaults the quality targets to the best tier of the login state, not per-part data', async () => {
+    seed([true, true])
+    renderBar()
+
+    // Anonymous → platform cap is 480p, even though the selected parts'
+    // ladders (fetched sample) top out at 1080p+/1080p60.
+    expect(
+      await screen.findByRole('button', { name: 'video.quality_label' }),
+    ).toHaveTextContent('480p')
+  })
+
   it('keeps the last values on the triggers when every part is deselected', async () => {
     seed([true, true])
     const { user } = renderBar()
 
-    // Pick a non-default quality so the trigger value is distinctive.
+    // Pick a value that is not the login-state default so the retention is
+    // distinguishable (the anonymous default is 480p).
     const trigger = await screen.findByRole('button', {
       name: 'video.quality_label',
     })
     await user.click(trigger)
-    await user.click(await screen.findByText('480p'))
+    const menu = await screen.findByRole('menu')
+    await user.click(within(menu).getByText('360p'))
 
-    // Deselect all: triggers must keep 480p and only become disabled.
+    // Deselect all: the trigger must keep 360p and only become disabled.
     await user.click(screen.getByText('video.deselect_all'))
     const qualityTrigger = screen.getByRole('button', {
       name: 'video.quality_label',
     })
-    expect(qualityTrigger).toHaveTextContent('480p')
+    expect(qualityTrigger).toHaveTextContent('360p')
     expect(qualityTrigger).toBeDisabled()
   })
 

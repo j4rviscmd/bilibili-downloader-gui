@@ -38,7 +38,6 @@ const loginLinkClass =
  * @private
  */
 function LoginNotice({ onOpenQr }: { onOpenQr: () => void }) {
-  const { t } = useTranslation()
   return (
     <div
       data-login-notice

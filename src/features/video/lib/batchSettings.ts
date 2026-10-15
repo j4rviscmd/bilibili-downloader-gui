@@ -32,6 +32,14 @@ export const VIP_VIDEO_IDS: ReadonlySet<number> = new Set([127, 126, 125, 120])
 export const VIP_AUDIO_IDS: ReadonlySet<number> = new Set([30251, 30250])
 
 /**
+ * Highest video tier an anonymous (logged-out) session can use: 32 = 480p.
+ * Same platform rule the login notice quotes ("画質は480p以下に制限されます").
+ * Used by the batch bar's login-state default, which must not depend on
+ * per-part fetched ladders (select-all can span hundreds of parts).
+ */
+export const ANON_MAX_VIDEO_ID = 32
+
+/**
  * Common Bilibili subtitle language codes with display labels.
  *
  * A fixed list shown in the batch dropdown (same full-ladder approach

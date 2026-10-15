@@ -22,6 +22,7 @@ import {
   fetchSubtitlesForPart,
 } from '@/features/video/api/fetchVideoInfo'
 import {
+  ANON_MAX_VIDEO_ID,
   AUDIO_LADDER_IDS,
   LOGIN_REQUIRED_VIDEO_IDS,
   SUBTITLE_LANGUAGES,
@@ -172,12 +173,29 @@ export function BatchSettingsBar() {
     [selectedIndices, input.partInputs],
   )
 
-  // Batch targets: the trigger shows the EFFECTIVE value (first selected
-  // part's setting, falling back to the top of each union = the account's
-  // best-effort default) so the user always sees what a download would
-  // use. An explicit dropdown pick stores an override in state AND
-  // dispatches to every selected part; merely changing the selection
-  // never dispatches.
+  // An explicit dropdown pick stores an override in state AND dispatches
+  // to every selected part; merely changing the selection never dispatches.
+  // Login-state best-effort defaults. Per-part ladders must NOT drive the
+  // trigger: the eager fetch samples only a few parts, and select-all can
+  // span hundreds (a per-part fetch of all of them would trip rate limits).
+  // The static ladder + gates answer "best tier this login state can use";
+  // the download itself falls back per part to the nearest available tier.
+  const bestVideoForLogin = useMemo(
+    () =>
+      VIDEO_LADDER_IDS.find(
+        (id) =>
+          !VIP_VIDEO_IDS.has(id) &&
+          (isLoggedIn
+            ? true
+            : !LOGIN_REQUIRED_VIDEO_IDS.has(id) && id <= ANON_MAX_VIDEO_ID),
+      ) ?? null,
+    [isLoggedIn],
+  )
+  const bestAudioForLogin = useMemo(
+    () => AUDIO_LADDER_IDS.find((id) => !VIP_AUDIO_IDS.has(id)) ?? null,
+    [],
+  )
+
   const [videoOverride, setVideoOverride] = useState<number | null>(null)
   const [audioOverride, setAudioOverride] = useState<number | null>(null)
   const [subMode, setSubMode] = useState<'off' | 'soft' | 'hard' | null>(null)
@@ -186,12 +204,8 @@ export function BatchSettingsBar() {
     selectedIndices.length > 0
       ? input.partInputs[selectedIndices[0]!]
       : undefined
-  const targetVideo =
-    videoOverride ??
-    (first?.videoQuality ? Number(first.videoQuality) : (videoUnion[0] ?? null))
-  const targetAudio =
-    audioOverride ??
-    (first?.audioQuality ? Number(first.audioQuality) : (audioUnion[0] ?? null))
+  const targetVideo = videoOverride ?? bestVideoForLogin
+  const targetAudio = audioOverride ?? bestAudioForLogin
   const effectiveSubMode = first?.subtitle?.mode ?? 'off'
   const effectiveSubLangs = first?.subtitle?.selectedLans ?? []
 
@@ -200,11 +214,7 @@ export function BatchSettingsBar() {
   // parts were selected: with the controls disabled, a blank reads as
   // "no setting" rather than "nothing selected". Purely cosmetic — nothing
   // is applied while the selection is empty.
-  const lastTargetsRef = useRef<{
-    video: number | null
-    audio: number | null
-    sub: string
-  }>({ video: null, audio: null, sub: '' })
+  const lastSubSummaryRef = useRef('')
   const applyVideo = useCallback(
     (id: number) => {
       setVideoOverride(id)
@@ -280,21 +290,17 @@ export function BatchSettingsBar() {
       ? modeLabel
       : `${modeLabel} ${langLabels.join(displaySubMode === 'soft' ? ' + ' : ' → ')}`
 
-  // Remember what was on screen while at least one part was selected.
+  // Subtitle has no login-state default (it mirrors the first selected
+  // part's config), so remember its last summary: deselecting every part
+  // must not blank the trigger. Purely cosmetic — nothing is applied while
+  // the selection is empty.
   useEffect(() => {
-    if (selectedIndices.length === 0) return
-    lastTargetsRef.current = {
-      video: targetVideo,
-      audio: targetAudio,
-      sub: subSummary,
-    }
-  }, [selectedIndices.length, targetVideo, targetAudio, subSummary])
+    if (selectedIndices.length > 0) lastSubSummaryRef.current = subSummary
+  }, [selectedIndices.length, subSummary])
 
   const emptySelection = selectedIndices.length === 0
-  const shownVideo = targetVideo ?? lastTargetsRef.current.video
-  const shownAudio = targetAudio ?? lastTargetsRef.current.audio
   const shownSub = emptySelection
-    ? lastTargetsRef.current.sub || subSummary
+    ? lastSubSummaryRef.current || subSummary
     : subSummary
 
   return (
@@ -374,7 +380,7 @@ export function BatchSettingsBar() {
       <div className="flex flex-wrap gap-x-5 gap-y-2.5 border-t px-4 py-2.5">
         <BatchDropdown
           label={t('video.quality_label')}
-          value={shownVideo != null ? label(shownVideo) : ''}
+          value={targetVideo != null ? label(targetVideo) : ''}
           options={VIDEO_LADDER_IDS.map((id) => {
             const inUnion = videoUnion.includes(id)
             const isVip = VIP_VIDEO_IDS.has(id)
@@ -397,7 +403,7 @@ export function BatchSettingsBar() {
         />
         <BatchDropdown
           label={t('video.audio_quality_label')}
-          value={shownAudio != null ? label(shownAudio) : ''}
+          value={targetAudio != null ? label(targetAudio) : ''}
           options={AUDIO_LADDER_IDS.map((id) => {
             const inUnion = audioUnion.includes(id)
             const isVip = VIP_AUDIO_IDS.has(id)
