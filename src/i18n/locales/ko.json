@@ -374,7 +374,7 @@
     "quality_limited_notice": "로그인 Cookie가 없어 낮은 화질만 이용 가능",
     "quality_limited_notice_detail": "다운로드는 가능하지만 480p 이하로 제한됩니다. 설정에서 Firefox Cookie를 추가하면 더 높은 화질 옵션이 해제됩니다.",
     "login_benefits_title": "고화질 다운로드",
-    "login_benefits_description": "<1>로그인</1>하면 1080p 이상 화질을 선택하고 즐겨찾기·시청 기록을 사용할 수 있습니다 (QR 코드 / 쿠키 붙여넣기 / <2>bilibili.com</2> Firefox 로그인 자동 감지)",
+    "login_benefits_description": "<1>로그인</1>하면 1080p 이상 화질을 선택하고 즐겨찾기·시청 기록을 사용할 수 있습니다",
     "login_with_qr_description": "",
     "login_benefits_restart_note": "※ Firefox 쿠키 자동 감지를 사용하는 경우 로그인 후 앱 재시작이 필요합니다.",
     "cancel_all": "전체 취소",

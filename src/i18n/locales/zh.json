@@ -374,7 +374,7 @@
     "quality_limited_notice": "由于缺少登录Cookie，仅可用较低画质",
     "quality_limited_notice_detail": "您仍然可以下载，但画质将限制为480p或以下。在设置中添加Firefox的Cookie可解锁更高画质选项。",
     "login_benefits_title": "高清下载",
-    "login_benefits_description": "<1>登录</1>后可选择1080p及以上画质，并使用收藏和观看历史（二维码 / Cookie粘贴 / 自动检测<2>bilibili.com</2>的Firefox登录）",
+    "login_benefits_description": "<1>登录</1>后可选择1080p及以上画质，并使用收藏和观看历史",
     "login_with_qr_description": "",
     "login_benefits_restart_note": "※使用Firefox Cookie自动检测时，登录后需要重启应用。",
     "cancel_all": "全部取消",

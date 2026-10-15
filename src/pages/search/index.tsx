@@ -14,7 +14,6 @@ import { VideoPreviewDialog } from '@/features/video-search'
 import VideoPartCard from '@/features/video/ui/VideoPartCard'
 import { scrollElementWithinScroller } from '@/shared/lib/scroll'
 import { Skeleton } from '@/shared/ui/skeleton'
-import { openUrl } from '@tauri-apps/plugin-opener'
 import { Info } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
@@ -58,13 +57,6 @@ function LoginNotice({ onOpenQr }: { onOpenQr: () => void }) {
                 <button
                   type="button"
                   onClick={onOpenQr}
-                  className={loginLinkClass}
-                />
-              ),
-              2: (
-                <button
-                  type="button"
-                  onClick={() => void openUrl('https://www.bilibili.com')}
                   className={loginLinkClass}
                 />
               ),

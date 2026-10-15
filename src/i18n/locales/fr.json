@@ -374,7 +374,7 @@
     "quality_limited_notice": "Qualité inférieure disponible en raison de l'absence de cookies de connexion",
     "quality_limited_notice_detail": "Vous pouvez toujours télécharger, mais la qualité sera limitée à 480p ou moins. Ajoutez les cookies Firefox dans les paramètres pour débloquer les options de qualité supérieure.",
     "login_benefits_title": "Télécharger en HD",
-    "login_benefits_description": "<1>Connectez-vous</1> pour débloquer la 1080p+, les favoris et l'historique de visionnage (code QR / collage de cookie / détection automatique de votre connexion Firefox à <2>bilibili.com</2>)",
+    "login_benefits_description": "<1>Connectez-vous</1> pour débloquer la 1080p+, les favoris et l'historique de visionnage",
     "login_with_qr_description": "",
     "login_benefits_restart_note": "Note : la détection automatique Firefox nécessite un redémarrage de l’application après la connexion.",
     "cancel_all": "Tout annuler",

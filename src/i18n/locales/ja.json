@@ -374,7 +374,7 @@
     "quality_limited_notice": "ログインCookieがないため低画質のみ利用可能",
     "quality_limited_notice_detail": "ダウンロードは可能ですが、480p以下に制限されます。設定でFirefoxのCookieを追加すると高画質オプションが解放されます。",
     "login_benefits_title": "高画質でダウンロード",
-    "login_benefits_description": "<1>アプリにログイン</1>すると、1080p以上の高画質が選択でき、お気に入り・視聴履歴も使えるようになります（QRコード / Cookie貼り付け / <2>bilibili.com</2>へのFirefoxログインを自動検出）",
+    "login_benefits_description": "<1>アプリにログイン</1>すると、1080p以上の高画質が選択でき、お気に入り・視聴履歴も使えるようになります",
     "login_with_qr_description": "",
     "login_benefits_restart_note": "※FirefoxのCookie自動検出を利用する場合は、ログイン後にアプリの再起動が必要です。",
     "cancel_all": "すべてキャンセル",

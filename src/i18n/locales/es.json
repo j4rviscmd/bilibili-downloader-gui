@@ -374,7 +374,7 @@
     "quality_limited_notice": "Menor calidad disponible debido a cookies de inicio de sesión faltantes",
     "quality_limited_notice_detail": "Todavía puede descargar, pero la calidad se limitará a 480p o inferior. Agregue cookies de Firefox en configuración para desbloquear opciones de mayor calidad.",
     "login_benefits_title": "Descargar en HD",
-    "login_benefits_description": "<1>Inicia sesión</1> para desbloquear calidad 1080p+, favoritos e historial (código QR / pegado de cookie / detección automática de tu sesión de Firefox en <2>bilibili.com</2>)",
+    "login_benefits_description": "<1>Inicia sesión</1> para desbloquear calidad 1080p+, favoritos e historial",
     "login_with_qr_description": "",
     "login_benefits_restart_note": "Nota: la detección automática de Firefox requiere reiniciar la app después de iniciar sesión.",
     "cancel_all": "Cancelar todo",

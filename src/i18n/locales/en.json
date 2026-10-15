@@ -374,7 +374,7 @@
     "quality_limited_notice": "Lower quality available due to missing login cookies",
     "quality_limited_notice_detail": "You can still download, but quality will be limited to 480p or below. Add Firefox cookies in settings to unlock higher quality options.",
     "login_benefits_title": "Download in HD",
-    "login_benefits_description": "<1>Log in</1> to unlock 1080p+ quality, favorites, and watch history (QR code / cookie paste / auto-detect your <2>bilibili.com</2> Firefox login)",
+    "login_benefits_description": "<1>Log in</1> to unlock 1080p+ quality, favorites, and watch history",
     "login_with_qr_description": "",
     "login_benefits_restart_note": "Note: Firefox auto-detection requires an app restart after you log in.",
     "cancel_all": "Cancel All",
