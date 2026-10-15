@@ -40,6 +40,34 @@ export const VIP_AUDIO_IDS: ReadonlySet<number> = new Set([30251, 30250])
 export const ANON_MAX_VIDEO_ID = 32
 
 /**
+ * Priority (index) of a fetched subtitle language inside the user's
+ * selection, or -1 when not selected.
+ *
+ * Matching handles bilibili's AI prefix ("ai-ja" is covered by selecting
+ * "ja") and the Chinese alias: AI subtitles come back as "ai-zh"
+ * (auto-generated SIMPLIFIED Chinese), whose stripped base "zh" is not a
+ * fixed-list code — without the alias to "zh-Hans", batch soft-sub
+ * selections silently matched nothing and downloads embedded no subtitles.
+ */
+export function selectedLanPriority(
+  selectedLans: readonly string[],
+  lan: string,
+): number {
+  const base = lan.replace(/^ai-/, '')
+  const aliased = base === 'zh' ? 'zh-Hans' : base
+  const exact = selectedLans.indexOf(lan)
+  return exact !== -1 ? exact : selectedLans.indexOf(aliased)
+}
+
+/** True when a fetched subtitle language is covered by the selection. */
+export function matchesSelectedLan(
+  selectedLans: readonly string[],
+  lan: string,
+): boolean {
+  return selectedLanPriority(selectedLans, lan) >= 0
+}
+
+/**
  * Common Bilibili subtitle language codes with display labels.
  *
  * A fixed list shown in the batch dropdown (same full-ladder approach

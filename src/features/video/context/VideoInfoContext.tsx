@@ -5,6 +5,10 @@ import {
   useLazyFetchVideoInfoQuery,
 } from '@/features/video/api/videoApi'
 import {
+  matchesSelectedLan,
+  selectedLanPriority,
+} from '@/features/video/lib/batchSettings'
+import {
   buildVideoFormSchema1,
   buildVideoFormSchema2,
 } from '@/features/video/lib/formSchema'
@@ -144,39 +148,6 @@ type VideoInfoProviderProps = {
  * ```
  */
 
-/**
- * Matches a subtitle's lan code against the part's selected languages,
- * handling the AI-prefix variant: the batch dropdown stores base codes
- * (e.g., "ja") while bilibili returns "ai-ja" for AI-generated
- * subtitles. A base code matches both its manual and AI variant.
- *
- * @private
- */
-function subtitleSelected(
-  pi: { subtitle: { selectedLans: string[] } },
-  lan: string,
-): boolean {
-  return (
-    pi.subtitle.selectedLans.includes(lan) ||
-    pi.subtitle.selectedLans.includes(lan.replace(/^ai-/, ''))
-  )
-}
-
-/**
- * Returns the user's priority index for a subtitle's language (0-based).
- * Checks the exact lan code first, then its ai-stripped form — the
- * per-part SubtitleSection stores actual codes (ai-ja) while the batch
- * dropdown stores base codes (ja).
- *
- * @private
- */
-function subtitlePriority(
-  selectedLans: readonly string[],
-  lan: string,
-): number {
-  const exact = selectedLans.indexOf(lan)
-  return exact !== -1 ? exact : selectedLans.indexOf(lan.replace(/^ai-/, ''))
-}
 export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
   const { t } = useTranslation()
   const progress = useSelector((state) => state.progress)
@@ -502,11 +473,13 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
             // subtitles before AI ones for the same language. Hard-sub
             // burns only the FIRST entry (backend .next()).
             const matched = (pi.subtitles ?? [])
-              .filter((s) => subtitleSelected(pi, s.lan))
+              .filter((s) =>
+                matchesSelectedLan(pi.subtitle.selectedLans, s.lan),
+              )
               .sort((a, b) => {
                 const pri =
-                  subtitlePriority(pi.subtitle.selectedLans, a.lan) -
-                  subtitlePriority(pi.subtitle.selectedLans, b.lan)
+                  selectedLanPriority(pi.subtitle.selectedLans, a.lan) -
+                  selectedLanPriority(pi.subtitle.selectedLans, b.lan)
                 if (pri !== 0) return pri
                 return Number(a.isAi) - Number(b.isAi)
               })
