@@ -481,7 +481,11 @@ function SearchContentInner() {
   // Shared preview dialog (hero thumbnail + part thumbnails)
   const [preview, setPreview] = useState<PreviewTarget | null>(null)
 
-  const hasContent = video.parts.length > 0 || isExplicitFetching
+  // Any in-flight fetch — explicit 取得 press OR the debounced auto-fetch —
+  // swaps the empty state for the fetching view (compact bar + skeleton),
+  // per the mockup's state B. Keeping the hero visible until data lands
+  // left the only feedback as the input's inline spinner.
+  const hasContent = video.parts.length > 0 || isFetching
   const isLoaded = video.parts.length > 0 && !isExplicitFetching
   const totalSelectedSeconds = useMemo(
     () =>
