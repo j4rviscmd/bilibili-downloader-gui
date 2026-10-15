@@ -1,7 +1,9 @@
 import { getHistory } from '@/features/history/api/historyApi'
 import type { HistoryEntry } from '@/features/history/model/historySlice'
+import { ChevronRight } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router'
 
 /**
  * One recent-URL row derived from download history: the newest entry per
@@ -61,6 +63,12 @@ export function groupRecentUrls(
 }
 
 /**
+ * Rows shown before the "view all" row that links to the download
+ * history page.
+ */
+const RECENT_LIMIT = 3
+
+/**
  * Recent URLs list for the empty state. Data comes from the existing
  * download history (history.json via get_history) — no new persistence.
  *
@@ -75,13 +83,14 @@ export function RecentUrls({
   onRefetch: (url: string) => void
 }) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const [rows, setRows] = useState<RecentUrl[] | null>(null)
 
   useEffect(() => {
     let cancelled = false
     getHistory()
       .then((entries) => {
-        if (!cancelled) setRows(groupRecentUrls(entries))
+        if (!cancelled) setRows(groupRecentUrls(entries, RECENT_LIMIT))
       })
       .catch(() => {
         if (!cancelled) setRows([])
@@ -155,6 +164,17 @@ export function RecentUrls({
             </span>
           </button>
         ))}
+        {/* 4th row: single entry point to the full download history
+            (browse, re-download, inspect failures) without leaving the
+            page cluttered. */}
+        <button
+          type="button"
+          onClick={() => void navigate('/history')}
+          className="text-brand-strong dark:text-brand hover:bg-muted flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold transition-colors"
+        >
+          {t('search.recent_more')}
+          <ChevronRight className="size-3.5" aria-hidden />
+        </button>
       </div>
     </div>
   )

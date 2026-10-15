@@ -46,6 +46,7 @@
     "recent_title": "URL récentes",
     "recent_downloaded": "{{count}} téléchargés",
     "recent_refetch": "Récupérer à nouveau",
+    "recent_more": "Voir tout l'historique de téléchargement",
     "recent_just_now": "à l'instant",
     "recent_hours_ago": "il y a {{count}} h",
     "recent_days_ago": "il y a {{count}} j",

@@ -46,6 +46,7 @@
     "recent_title": "最近取得したURL",
     "recent_downloaded": "DL済み {{count}}",
     "recent_refetch": "再取得",
+    "recent_more": "ダウンロード履歴をすべて見る",
     "recent_just_now": "たった今",
     "recent_hours_ago": "{{count}}時間前",
     "recent_days_ago": "{{count}}日前",

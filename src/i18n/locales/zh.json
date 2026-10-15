@@ -46,6 +46,7 @@
     "recent_title": "最近获取的链接",
     "recent_downloaded": "已下载 {{count}}",
     "recent_refetch": "重新获取",
+    "recent_more": "查看全部下载历史",
     "recent_just_now": "刚刚",
     "recent_hours_ago": "{{count}}小时前",
     "recent_days_ago": "{{count}}天前",

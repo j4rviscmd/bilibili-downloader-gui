@@ -199,11 +199,13 @@ function VideoForm1() {
    */
   function handleClear(onChange: (value: string) => void): void {
     // Cancel the pending auto action (expand/silent fetch) so it cannot
-    // fire for the just-cleared value
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current)
-    }
-    form.setValue('url', '', { shouldValidate: true })
+    // fire for the just-cleared value. clearTimeout no-ops for a spent id.
+    clearTimeout(debounceRef.current ?? undefined)
+    // Clearing is not a validation failure: skip validation and drop any
+    // stale error, or the empty field would immediately show
+    // "enter a valid URL" right after the user cleared it.
+    form.setValue('url', '', { shouldValidate: false })
+    form.clearErrors('url')
     onChange('')
     markFetched('')
   }

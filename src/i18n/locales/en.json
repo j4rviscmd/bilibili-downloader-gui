@@ -46,6 +46,7 @@
     "recent_title": "Recently fetched URLs",
     "recent_downloaded": "{{count}} downloaded",
     "recent_refetch": "Fetch again",
+    "recent_more": "View all download history",
     "recent_just_now": "just now",
     "recent_hours_ago": "{{count}}h ago",
     "recent_days_ago": "{{count}}d ago",
