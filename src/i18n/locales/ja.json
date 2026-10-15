@@ -640,7 +640,6 @@
     },
     "video": {
       "url": {
-        "min": "URLは2文字以上で入力してください。",
         "max": "URLは1000文字以内で入力してください。",
         "invalid": "有効なURLを入力してください。",
         "domain": "bilibili.com のURLのみ有効です。",

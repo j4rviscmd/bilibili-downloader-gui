@@ -640,7 +640,6 @@
     },
     "video": {
       "url": {
-        "min": "URL은 최소 2자여야 합니다.",
         "max": "URL은 최대 1000자여야 합니다.",
         "invalid": "유효한 URL을 입력하세요.",
         "domain": "bilibili.com URL만 허용됩니다.",

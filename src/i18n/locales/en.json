@@ -640,7 +640,6 @@
     },
     "video": {
       "url": {
-        "min": "URL must be at least 2 characters.",
         "max": "URL must be at most 1000 characters.",
         "invalid": "Please enter a valid URL.",
         "domain": "Only bilibili.com URLs are allowed.",

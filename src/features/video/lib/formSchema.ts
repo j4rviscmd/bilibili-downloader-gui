@@ -98,7 +98,6 @@ export const buildVideoFormSchema1 = (t: TFunction) =>
   z.object({
     url: z
       .string()
-      .min(2, { message: t('validation.video.url.min') })
       .max(1000, { message: t('validation.video.url.max') })
       .url({ message: t('validation.video.url.invalid') })
       .superRefine((value, ctx) => {

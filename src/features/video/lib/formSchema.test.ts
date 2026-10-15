@@ -33,10 +33,10 @@ describe('buildVideoFormSchema1 — url', () => {
     expect(parseUrl(url).success).toBe(true)
   })
 
-  it('rejects a url shorter than 2 characters', () => {
+  it('rejects a 1-character url as invalid (no separate min-length rule)', () => {
     const result = parseUrl('a')
     expect(result.success).toBe(false)
-    expect(issueKeys(result)).toContain('validation.video.url.min')
+    expect(issueKeys(result)).toContain('validation.video.url.invalid')
   })
 
   it('rejects a url longer than 1000 characters', () => {

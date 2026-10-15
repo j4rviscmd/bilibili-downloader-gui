@@ -271,8 +271,9 @@ function VideoForm1() {
    */
   const handleFormBlur = useCallback(() => {
     const currentUrl = form.getValues('url').trim()
-    // Skip form submission for short URLs - they will be auto-expanded
-    if (isShortUrl(currentUrl)) return
+    // Skip empty (nothing to validate or fetch) and short URLs (they
+    // auto-expand) — blur alone must not surface an error.
+    if (!currentUrl || isShortUrl(currentUrl)) return
     form.handleSubmit(onSubmit)()
   }, [form, isShortUrl, onSubmit])
 
