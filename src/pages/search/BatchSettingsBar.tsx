@@ -175,18 +175,6 @@ export function BatchSettingsBar({
       ),
     [selectedIndices, input.partInputs],
   )
-  const langUnion = useMemo(() => {
-    const available = new Set<string>()
-    for (const i of selectedIndices) {
-      for (const s of input.partInputs[i]?.subtitles ?? []) {
-        // Normalize "ai-ja" → "ja": AI-generated and manual subtitles
-        // share the same language slot — the user picks a language, not
-        // a generation method.
-        available.add(s.lan.replace(/^ai-/, ''))
-      }
-    }
-    return available
-  }, [selectedIndices, input.partInputs])
 
   // Batch targets: the trigger shows the EFFECTIVE value (first selected
   // part's setting, falling back to the top of each union = the account's
@@ -442,20 +430,17 @@ export function BatchSettingsBar({
               ))}
               <DropdownMenuSeparator />
               {SUBTITLE_LANGUAGES.map(({ lan, label }) => {
-                const available = langUnion.has(lan)
                 const idx = displaySubLangs.indexOf(lan)
                 const selected = idx >= 0
                 return (
                   <DropdownMenuItem
                     key={lan}
-                    disabled={!available}
                     onSelect={(e) => {
                       // Keep the menu open: language selection is
                       // multi-select in one visit.
                       e.preventDefault()
                     }}
                     onClick={() => {
-                      if (!available) return
                       const newLangs = selected
                         ? displaySubLangs.filter((l) => l !== lan)
                         : [...displaySubLangs, lan]
@@ -476,7 +461,7 @@ export function BatchSettingsBar({
                     )}
                   >
                     <span>{label}</span>
-                    {selected ? (
+                    {selected && (
                       <span className="text-muted-foreground text-[10px] font-semibold">
                         {displaySubMode === 'soft'
                           ? '✓'
@@ -484,11 +469,7 @@ export function BatchSettingsBar({
                               count: idx + 1,
                             })}
                       </span>
-                    ) : !available ? (
-                      <span className="text-muted-foreground text-[10px] font-semibold">
-                        {t('search.reason_unavailable')}
-                      </span>
-                    ) : null}
+                    )}
                   </DropdownMenuItem>
                 )
               })}
