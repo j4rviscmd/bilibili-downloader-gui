@@ -112,9 +112,6 @@ export function VideoHeroCard({
                       ),
                     }}
                   />
-                  <p className="mt-1 text-[11px] opacity-80">
-                    {t('search.login_notice_why')}
-                  </p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>

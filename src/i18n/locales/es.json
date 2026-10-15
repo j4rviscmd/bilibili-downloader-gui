@@ -25,7 +25,6 @@
     "hero_subtitle": "Admite vídeos, bangumi y enlaces cortos. La información se obtiene automáticamente al pegar.",
     "url_label": "URL del vídeo",
     "paste_hint": "Pega con <kbd>Ctrl/⌘+V</kbd> · obtén con <kbd>Enter</kbd>",
-    "login_notice_why": "Inicia sesión para desbloquear mayor calidad de vídeo y audio",
     "fetch_cta": "Obtener",
     "formats_label": "Formatos de URL admitidos",
     "format_video": "Vídeo",

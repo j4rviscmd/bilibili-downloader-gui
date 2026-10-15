@@ -25,7 +25,6 @@
     "hero_subtitle": "Videos, bangumi and short links are supported. Info is fetched automatically on paste.",
     "url_label": "Video URL",
     "paste_hint": "Paste with <kbd>Ctrl/⌘+V</kbd> · fetch with <kbd>Enter</kbd>",
-    "login_notice_why": "Login is required to unlock higher video and audio quality",
     "fetch_cta": "Fetch",
     "formats_label": "Supported URL formats",
     "format_video": "Video",

@@ -63,11 +63,6 @@ function LoginNotice({ onOpenQr }: { onOpenQr: () => void }) {
             }}
           />
         </span>
-        {/* Supplementary reason stacks under the main sentence — same
-            reading column, not pushed to the banner's right edge. */}
-        <span className="text-muted-foreground mt-px block text-[11px]">
-          {t('search.login_notice_why')}
-        </span>
       </div>
     </div>
   )
