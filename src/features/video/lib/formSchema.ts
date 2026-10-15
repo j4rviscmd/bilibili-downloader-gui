@@ -99,8 +99,21 @@ export const buildVideoFormSchema1 = (t: TFunction) =>
     url: z
       .string()
       .max(1000, { message: t('validation.video.url.max') })
-      .url({ message: t('validation.video.url.invalid') })
       .superRefine((value, ctx) => {
+        // An empty field is not an error: clearing the input (or blurring
+        // an untouched field) must not flash a message. RHF re-validates
+        // on change once an error was shown, so a strict schema here made
+        // the clear button re-raise "enter a valid URL". Submit paths
+        // no-op on empty instead (VideoForm1.onSubmit).
+        if (value.trim() === '') return
+
+        if (!z.string().url().safeParse(value).success) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: t('validation.video.url.invalid'),
+          })
+          return
+        }
         try {
           const { hostname, pathname } = new URL(value)
 

@@ -90,8 +90,12 @@ export const selectHasDuplicates = createSelector(
  * @returns A selector that checks if the URL is valid
  */
 export const selectIsForm1Valid = (tFn: TFunction) => (state: RootState) => {
+  const url = state.input.url.trim()
+  // The schema accepts '' (so the input can be cleared without an error
+  // flash); the download gate still requires a real URL.
+  if (url === '') return false
   const schema1 = buildVideoFormSchema1(tFn)
-  return schema1.safeParse({ url: state.input.url }).success
+  return schema1.safeParse({ url }).success
 }
 
 /**

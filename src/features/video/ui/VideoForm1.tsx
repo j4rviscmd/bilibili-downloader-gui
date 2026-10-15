@@ -173,6 +173,9 @@ function VideoForm1() {
 
     const trimmedUrl = data.url.trim()
 
+    // Empty is valid by design (schema) but there is nothing to fetch.
+    if (!trimmedUrl) return
+
     // Skip submission for short URLs - they will be auto-expanded
     if (isShortUrl(trimmedUrl)) return
 

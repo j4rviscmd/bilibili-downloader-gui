@@ -379,7 +379,10 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
 
   const schema1 = buildVideoFormSchema1(t)
   const schema2 = buildVideoFormSchema2(t)
-  const isForm1Valid = schema1.safeParse({ url: input.url }).success
+  // Schema accepts '' (no error flash when the input is cleared); the
+  // download gate below still requires a real URL.
+  const isForm1Valid =
+    input.url.trim() !== '' && schema1.safeParse({ url: input.url }).success
 
   // Canonical queue-match videoId (same derivation the enqueue path uses).
   // Memoized on the raw inputs so consumers get a stable string.

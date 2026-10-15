@@ -95,6 +95,19 @@ describe('VideoForm1', () => {
     ).toBeEnabled()
   })
 
+  it('shows no validation error after clearing a previously invalid input', async () => {
+    const { user: actor } = setup()
+    const input = screen.getByPlaceholderText('video.url_placeholder_example')
+
+    // Fail a submit so the field re-validates on change, then clear it:
+    // an empty field must not flash "enter a valid URL".
+    await actor.type(input, 'not-a-url{Enter}')
+    expect(screen.getByText('validation.video.url.invalid')).toBeInTheDocument()
+
+    await actor.click(screen.getByRole('button'))
+    expect(screen.queryByText('validation.video.url.invalid')).toBeNull()
+  })
+
   it('clears the input via the clear button', async () => {
     const { user: actor } = setup()
 
