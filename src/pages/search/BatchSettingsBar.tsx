@@ -395,6 +395,11 @@ export function BatchSettingsBar({
               {(['off', 'soft', 'hard'] as const).map((mode) => (
                 <DropdownMenuItem
                   key={mode}
+                  onSelect={(e) => {
+                    // Keep the menu open: switching the mode immediately
+                    // re-renders the language section (✓ ↔ 優先度 N).
+                    e.preventDefault()
+                  }}
                   onClick={() =>
                     applySubtitle(mode, mode === 'off' ? [] : displaySubLangs)
                   }
@@ -424,16 +429,16 @@ export function BatchSettingsBar({
                     return (
                       <DropdownMenuItem
                         key={lan}
-                        disabled={displaySubMode === 'off'}
                         onSelect={(e) => {
                           // Keep the menu open: language selection is
                           // multi-select in one visit.
                           e.preventDefault()
                         }}
                         onClick={() => {
-                          if (displaySubMode === 'off') return
+                          // Default to soft when no mode is set yet — the
+                          // user can pre-select languages then pick a mode.
                           applySubtitle(
-                            displaySubMode,
+                            displaySubMode ?? 'soft',
                             idx >= 0
                               ? displaySubLangs.filter((l) => l !== lan)
                               : [...displaySubLangs, lan],
