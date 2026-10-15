@@ -224,6 +224,7 @@ function SearchContentInner() {
   const [searchParams, setSearchParams] = useSearchParams()
   const {
     video,
+    videoId,
     duplicateIndices,
     onValid1,
     isFetching,
@@ -242,8 +243,32 @@ function SearchContentInner() {
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null)
 
   // Fetch in flight that the UI should reflect (explicit submit). The
-  // silent auto-fetch on input pause is excluded — it must stay invisible.
+  // silent auto-fetch on input pause is excluded from the dock gating
+  // below — but NOT from the fetching view: any fetch swaps the empty
+  // state for the skeleton screen (mockup state B).
   const isExplicitFetching = isFetching && !isSilentFetching
+
+  // Canonical id of the video currently in the store, derived the same
+  // way the context derives `videoId` from the typed URL (videos use the
+  // bvid, bangumi the first part's av id).
+  const loadedVideoId = useMemo(
+    () =>
+      video.parts.length === 0
+        ? null
+        : video.contentType === 'bangumi'
+          ? `av${video.parts[0]?.aid ?? ''}`
+          : video.bvid,
+    [video],
+  )
+  // Fetching a DIFFERENT video while one is already loaded: the store
+  // still holds the previous video's parts, so without this the stale
+  // content stayed on screen (with only the input spinner as feedback)
+  // until the new data landed. Same-video refetch keeps the content.
+  const isSwitchingVideo =
+    isFetching &&
+    loadedVideoId !== null &&
+    videoId !== null &&
+    videoId !== loadedVideoId
 
   // Page state management:
   // - `p` parameter: part number (for initial display and part selection)
@@ -486,7 +511,8 @@ function SearchContentInner() {
   // per the mockup's state B. Keeping the hero visible until data lands
   // left the only feedback as the input's inline spinner.
   const hasContent = video.parts.length > 0 || isFetching
-  const isLoaded = video.parts.length > 0 && !isExplicitFetching
+  const isLoaded =
+    video.parts.length > 0 && !isExplicitFetching && !isSwitchingVideo
   const totalSelectedSeconds = useMemo(
     () =>
       input.partInputs
@@ -518,7 +544,7 @@ function SearchContentInner() {
             <>
               <CommandBar variant="compact" />
               <div className="px-3 pt-3 sm:px-6">
-                {video.parts.length === 0 ? (
+                {video.parts.length === 0 || isSwitchingVideo ? (
                   <LoadedSkeleton />
                 ) : (
                   <>
