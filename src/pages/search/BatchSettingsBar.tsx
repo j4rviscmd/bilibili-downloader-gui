@@ -21,8 +21,12 @@ import {
   fetchSubtitlesForPart,
 } from '@/features/video/api/fetchVideoInfo'
 import {
+  AUDIO_LADDER_IDS,
   LOGIN_REQUIRED_VIDEO_IDS,
   unionIds,
+  VIDEO_LADDER_IDS,
+  VIP_AUDIO_IDS,
+  VIP_VIDEO_IDS,
 } from '@/features/video/lib/batchSettings'
 import {
   AUDIO_QUALITIES_MAP,
@@ -311,22 +315,43 @@ export function BatchSettingsBar({
         <BatchDropdown
           label={t('video.quality_label')}
           value={targetVideo != null ? label(targetVideo) : ''}
-          options={videoUnion.map((id) => ({
-            id,
-            label: label(id),
-            disabled: !isLoggedIn && LOGIN_REQUIRED_VIDEO_IDS.has(id),
-            disabledReason:
-              !isLoggedIn && LOGIN_REQUIRED_VIDEO_IDS.has(id)
-                ? t('video.quality_requires_vip_or_login')
-                : undefined,
-          }))}
+          options={VIDEO_LADDER_IDS.map((id) => {
+            const inUnion = videoUnion.includes(id)
+            const isVip = VIP_VIDEO_IDS.has(id)
+            const needsLogin = !isLoggedIn && LOGIN_REQUIRED_VIDEO_IDS.has(id)
+            return {
+              id,
+              label: label(id),
+              disabled: !inUnion || isVip || needsLogin,
+              disabledReason: isVip
+                ? t('search.reason_vip')
+                : needsLogin
+                  ? t('search.reason_login')
+                  : !inUnion
+                    ? t('search.reason_unavailable')
+                    : undefined,
+            }
+          })}
           disabled={selectedIndices.length === 0}
           onSelect={(id) => applyVideo(id)}
         />
         <BatchDropdown
           label={t('video.audio_quality_label')}
           value={targetAudio != null ? label(targetAudio) : ''}
-          options={audioUnion.map((id) => ({ id, label: label(id) }))}
+          options={AUDIO_LADDER_IDS.map((id) => {
+            const inUnion = audioUnion.includes(id)
+            const isVip = VIP_AUDIO_IDS.has(id)
+            return {
+              id,
+              label: label(id),
+              disabled: !inUnion || isVip,
+              disabledReason: isVip
+                ? t('search.reason_vip')
+                : !inUnion
+                  ? t('search.reason_unavailable')
+                  : undefined,
+            }
+          })}
           onSelect={(id) => applyAudio(id)}
           disabled={selectedIndices.length === 0}
         />
@@ -459,7 +484,14 @@ function BatchDropdown({
               onClick={() => onSelect(o.id)}
               className="flex justify-between gap-4"
             >
-              <span>{o.label}</span>
+              <span className="flex min-w-0 flex-1 items-center justify-between gap-3">
+                <span>{o.label}</span>
+                {o.disabledReason && (
+                  <span className="text-muted-foreground text-[10px] font-semibold">
+                    {o.disabledReason}
+                  </span>
+                )}
+              </span>
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>

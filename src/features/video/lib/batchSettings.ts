@@ -1,4 +1,7 @@
-import { VIDEO_QUALITIES_ORDER } from '@/features/video/lib/constants'
+import {
+  AUDIO_QUALITIES_ORDER,
+  VIDEO_QUALITIES_ORDER,
+} from '@/features/video/lib/constants'
 
 /**
  * Video quality ladder ids in descending quality order (qn table).
@@ -16,7 +19,31 @@ export const VIDEO_LADDER_IDS: readonly number[] = VIDEO_QUALITIES_ORDER
  * Why a Set: dynamic membership checks against fetched ids, and the same
  * check runs per option row.
  */
+
+/**
+ * Quality ids that require a logged-in (non-anonymous) session per
+ * Bilibili platform rules: 112 = 1080p+, 116 = 1080p60. Used to annotate
+ * batch options when the account is logged out.
+ *
+ * Why a Set: dynamic membership checks against fetched ids, and the same
+ * check runs per option row.
+ */
 export const LOGIN_REQUIRED_VIDEO_IDS: ReadonlySet<number> = new Set([112, 116])
+
+/**
+ * Quality ids that require a VIP (大会員) membership per Bilibili
+ * platform rules. Annotated on batch options as "大会員" — static ladder
+ * knowledge, not from the API (the app has no vip status field).
+ *
+ * Why a Set: dynamic membership checks against fetched ids.
+ */
+export const VIP_VIDEO_IDS: ReadonlySet<number> = new Set([127, 126, 125, 120])
+export const VIP_AUDIO_IDS: ReadonlySet<number> = new Set([30251, 30250])
+
+/**
+ * Audio quality ladder ids in descending quality order.
+ */
+export const AUDIO_LADDER_IDS: readonly number[] = AUDIO_QUALITIES_ORDER
 
 /**
  * Unions per-part availability into the batch option list, in ladder
