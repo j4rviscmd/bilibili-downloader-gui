@@ -33,7 +33,8 @@ function FormatChip({
  *
  * `hero` is the empty-state centerpiece (brand mark, headline, visible
  * label, accepted-format chips, unified command bar). `compact` is the
- * sticky bar shown once a video is loaded (input + content-type chip).
+ * sticky bar shown once a video is loaded (the URL input; the
+ * video's type and part count live in the hero card above the list).
  * Both variants embed `VideoForm1` so the input engine — validation,
  * the 500ms silent auto-fetch, b23.tv expansion, explicit submit —
  * stays single-sourced instead of being duplicated per variant.
@@ -50,7 +51,7 @@ function FormatChip({
  */
 export function CommandBar({ variant }: { variant: 'hero' | 'compact' }) {
   const { t } = useTranslation()
-  const { video, onValid1 } = useVideoInfo()
+  const { onValid1 } = useVideoInfo()
 
   if (variant === 'hero') {
     return (
@@ -124,16 +125,6 @@ export function CommandBar({ variant }: { variant: 'hero' | 'compact' }) {
           <VideoForm1 />
         </div>
       </div>
-      {video.parts.length > 0 && (
-        <span className="text-brand-strong bg-brand-strong/10 border-brand-strong/30 dark:text-brand rounded-full border px-2 py-0.5 text-[10px] font-bold tracking-wide whitespace-nowrap">
-          {t(
-            video.contentType === 'bangumi'
-              ? 'search.type_bangumi'
-              : 'search.type_video',
-          )}
-          ･{t('search.parts_count', { count: video.parts.length })}
-        </span>
-      )}
     </div>
   )
 }

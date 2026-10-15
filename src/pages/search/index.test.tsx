@@ -548,11 +548,19 @@ describe('SearchContent', () => {
     // The compact bar still embeds the form: the input engine (validation,
     // silent auto-fetch, submit) never unmounts across the state switch.
     expect(screen.getByTestId('video-form1')).toBeInTheDocument()
-    expect(screen.getByText(/search\.type_video/)).toBeInTheDocument()
+    // The type/part-count chips belong to the hero card, not the sticky
+    // bar (the bar only says which URL is loaded).
+    const sticky = screen
+      .getByTestId('video-form1')
+      .closest<HTMLElement>('div.sticky')!
+    expect(within(sticky).queryByText(/search\.type_video/)).toBeNull()
+    expect(within(sticky).queryByText('search.parts_count')).toBeNull()
+    const hero = screen.getByText('Test Video').closest<HTMLElement>('section')!
+    expect(within(hero).getByText(/search\.type_video/)).toBeInTheDocument()
     expect(screen.queryByText(/search\.type_bangumi/)).toBeNull()
   })
 
-  it('labels the compact chip as bangumi and shows the season on the hero card', () => {
+  it('labels the hero card chip as bangumi and shows the season', () => {
     seedVideo(2, { contentType: 'bangumi', seasonTitle: 'Test Season' })
 
     renderWithProviders(<SearchContent />, { route: '/search' })

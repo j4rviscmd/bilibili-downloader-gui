@@ -75,6 +75,16 @@ export function VideoHeroCard({
           <span className="font-mono text-[11px]">{video.bvid}</span>
         </div>
         <div className="flex flex-wrap gap-1.5 px-0.5">
+          {/* Content type moved here from the compact bar: the sticky bar
+              only needs to say WHICH video is loaded, and this row is the
+              single place that describes it. */}
+          <span className="bg-muted text-muted-foreground rounded-full px-2.5 py-0.5 text-[11px] font-semibold">
+            {t(
+              video.contentType === 'bangumi'
+                ? 'search.type_bangumi'
+                : 'search.type_video',
+            )}
+          </span>
           <span className="bg-muted text-muted-foreground rounded-full px-2.5 py-0.5 text-[11px] font-semibold">
             {t('search.parts_count', { count: video.parts.length })}
           </span>
