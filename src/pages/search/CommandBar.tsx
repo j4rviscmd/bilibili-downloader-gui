@@ -1,6 +1,6 @@
 import { useVideoInfo, VideoForm1 } from '@/features/video'
 import { buildVideoFormSchema1 } from '@/features/video/lib/formSchema'
-import { ClipboardPaste, Play } from 'lucide-react'
+import { ClipboardPaste, Link2, Play, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 /**
@@ -32,17 +32,16 @@ function FormatChip({
  * URL entry bar for the search page.
  *
  * `hero` is the empty-state centerpiece (brand mark, headline, visible
- * label, accepted-format chips). `compact` is the sticky bar shown once a
- * video is loaded (input + content-type chip). Both variants embed
- * `VideoForm1` so the input engine — validation, the 500ms silent
- * auto-fetch, b23.tv expansion, explicit submit — stays single-sourced
- * instead of being duplicated per variant.
+ * label, accepted-format chips, unified command bar). `compact` is the
+ * sticky bar shown once a video is loaded (input + content-type chip).
+ * Both variants embed `VideoForm1` so the input engine — validation,
+ * the 500ms silent auto-fetch, b23.tv expansion, explicit submit —
+ * stays single-sourced instead of being duplicated per variant.
  *
- * The hero also exposes a paste button: it reads the clipboard, and when
- * the text parses as a valid video URL it feeds it into the same
- * auto-fetch pipeline (the input's 500ms debounce fires on change).
- * Invalid clipboard content is ignored — pasting stays a hint, never an
- * error surface.
+ * The hero's command bar visually wraps the input, paste button, and
+ * fetch CTA in ONE bordered container (matching the mockup's .cmdbar).
+ * VideoForm1's inner shadcn Input border is stripped via descendant
+ * selectors; the focus ring lands on the wrapper instead.
  *
  * @example
  * ```tsx
@@ -52,6 +51,8 @@ function FormatChip({
 export function CommandBar({ variant }: { variant: 'hero' | 'compact' }) {
   const { t } = useTranslation()
   const { video, onValid1 } = useVideoInfo()
+
+  /** Reads the clipboard and fetches it when it parses as a video URL. */
   const pasteFromClipboard = async () => {
     try {
       const text = (await navigator.clipboard.readText()).trim()
@@ -84,17 +85,36 @@ export function CommandBar({ variant }: { variant: 'hero' | 'compact' }) {
             {t('search.paste_hint')}
           </span>
         </div>
-        <div className="flex items-start gap-2">
+        {/* Unified command bar: one bordered container wrapping the
+            input, paste button and fetch CTA — the mockup's .cmdbar.
+            VideoForm1's inner Input border/radius is stripped via the
+            [&_input] overrides; the focus ring sits on this wrapper. */}
+        <div className="group/cmdbar focus-within:border-brand-strong focus-within:ring-brand-strong/35 bg-card border-border flex items-center gap-2 rounded-xl border-[1.5px] p-1.5 pl-3.5 shadow-sm transition-all focus-within:ring-4 [&_input]:rounded-none [&_input]:border-0 [&_input]:shadow-none [&_input]:focus-visible:outline-none">
+          <Link2
+            className="text-muted-foreground size-4 shrink-0"
+            aria-hidden
+          />
           <div className="min-w-0 flex-1 text-left">
             <VideoForm1 />
           </div>
           <button
             type="button"
             onClick={() => void pasteFromClipboard()}
-            className="bg-card hover:bg-muted text-foreground mt-0.5 inline-flex h-10 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-semibold transition-colors"
+            className="bg-muted text-foreground hover:bg-card inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-semibold transition-colors"
           >
             <ClipboardPaste className="size-4 opacity-70" aria-hidden />
             {t('search.paste_button')}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const el = document.querySelector<HTMLInputElement>('#url')
+              if (el?.value) void onValid1(el.value.trim())
+            }}
+            className="bg-brand-strong text-brand-foreground inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-3.5 text-[13px] font-semibold transition-[filter] hover:brightness-106 active:translate-y-px"
+          >
+            <RefreshCw className="size-4" aria-hidden />
+            {t('search.fetch_info')}
           </button>
         </div>
         <div
