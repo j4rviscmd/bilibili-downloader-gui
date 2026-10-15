@@ -59,7 +59,7 @@
     "help_quality_title": "Qualité et audio",
     "help_quality_body": "Traités comme objectifs. Les parties ne pouvant pas utiliser la cible téléchargent au réglage disponible le plus proche et affichent ⚠ sur leur ligne.",
     "help_subtitle_title": "Sous-titres",
-    "help_subtitle_body": "Le soft-sub intègre toutes les langues sélectionnées ; le hard-sub grave une langue par ordre de priorité.",
+    "help_subtitle_body": "Le soft-sub intègre toutes les langues sélectionnées. Le hard-sub grave une langue par ordre de priorité (les parties sans la première langue passent à la deuxième). Quand des sous-titres du créateur et de l'IA existent pour la même langue, la version du créateur est privilégiée.",
     "help_override_title": "Réglages par partie",
     "help_override_body": "Modifiez chaque partie depuis sa propre ligne ; un changement groupé écrase les modifications.",
     "help_output_title": "Emplacement d'enregistrement",

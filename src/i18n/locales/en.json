@@ -59,7 +59,7 @@
     "help_quality_title": "Quality & audio",
     "help_quality_body": "Treated as targets. Parts that cannot use the target download at the nearest available setting below it and show a ⚠ on their row.",
     "help_subtitle_title": "Subtitles",
-    "help_subtitle_body": "Soft-sub embeds every selected language the part has; hard-sub burns one language in priority order.",
+    "help_subtitle_body": "Soft-sub embeds every selected language. Hard-sub burns one language in priority order (parts without the first language fall back to the second). When both uploader and AI subtitles exist for the same language, the uploader version is preferred.",
     "help_override_title": "Per-part overrides",
     "help_override_body": "Change any part's settings from its own row; an explicit batch change overwrites overrides.",
     "help_output_title": "Save location",

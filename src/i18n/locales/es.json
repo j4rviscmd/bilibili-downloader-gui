@@ -59,7 +59,7 @@
     "help_quality_title": "Calidad y audio",
     "help_quality_body": "Se tratan como objetivos. Las partes que no pueden usar el objetivo descargan con la calidad disponible más cercana y muestran ⚠ en su fila.",
     "help_subtitle_title": "Subtítulos",
-    "help_subtitle_body": "Soft-sub incrusta todos los idiomas seleccionados; hard-sub graba un idioma por orden de prioridad.",
+    "help_subtitle_body": "Soft-sub incrusta todos los idiomas seleccionados. Hard-sub graba un idioma por orden de prioridad (las partes sin el primer idioma pasan al segundo). Cuando existen subtítulos del creador y de IA para el mismo idioma, se prefiere la versión del creador.",
     "help_override_title": "Ajustes por parte",
     "help_override_body": "Cambia cualquier parte desde su propia fila; un cambio por lote sobrescribe las modificaciones.",
     "help_output_title": "Ubicación de guardado",

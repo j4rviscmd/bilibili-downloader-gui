@@ -59,7 +59,7 @@
     "help_quality_title": "清晰度与音质",
     "help_quality_body": "作为目标值处理。无法满足的分P会自动调整为最接近的可用设置，并在该行显示⚠。",
     "help_subtitle_title": "字幕",
-    "help_subtitle_body": "软字幕会嵌入所选的所有语言；硬字幕按优先顺序烧录一种语言。",
+    "help_subtitle_body": "软字幕会嵌入所选的所有语言。硬字幕按优先顺序烧录一种语言（没有第1语言的分P会使用第2语言）。同一语言同时存在投稿者字幕和AI字幕时，优先使用投稿者字幕。",
     "help_override_title": "分P级覆盖",
     "help_override_body": "可在各行单独覆盖设置；批量更改会覆盖这些覆盖。",
     "help_output_title": "保存位置",
