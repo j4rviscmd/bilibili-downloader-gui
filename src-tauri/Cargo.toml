@@ -89,7 +89,7 @@ log = "0.4"
 # selectors (with a manifest warning), so these are plain desktop deps.
 # Their dev-only registration is gated by #[cfg(debug_assertions)] in lib.rs.
 tauri-plugin-webdriver = "0.2"
-tauri-plugin-mcp-bridge = "0.11"
+tauri-plugin-mcp-bridge = "0.13"
 
 [target.'cfg(windows)'.dependencies]
 # Embed-player preview: WebView2 CookieManager COM injection of session
