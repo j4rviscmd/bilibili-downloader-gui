@@ -48,7 +48,7 @@ import {
 } from '@/features/video/model/inputSlice'
 import { cn } from '@/lib/utils'
 import { Button } from '@/shared/ui/button'
-import { ChevronDown, FolderOpen, Info } from 'lucide-react'
+import { ChevronDown, FolderOpen, Info, SlidersVertical } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -308,6 +308,7 @@ export function BatchSettingsBar() {
   return (
     <div className="bg-card/95 sticky top-14 z-15 mt-3 rounded-xl border shadow-sm backdrop-blur">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5">
+        <SlidersVertical className="text-brand size-3.5 shrink-0" aria-hidden />
         <span className="text-xs font-bold">{t('search.batch_title')}</span>
         <span className="text-muted-foreground text-[11px]">
           {t('search.batch_applies', { count: selectedIndices.length })}
