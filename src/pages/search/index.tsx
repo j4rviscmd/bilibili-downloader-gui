@@ -548,7 +548,7 @@ function SearchContentInner() {
               </div>
             </>
           ) : (
-            <div className="flex flex-1 flex-col items-center gap-8 px-6 pb-6">
+            <div className="flex flex-1 flex-col items-center justify-center gap-8 px-6 pb-6">
               <CommandBar variant="hero" />
               <RecentUrls onRefetch={(url) => void onValid1(url)} />
             </div>
