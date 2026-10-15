@@ -180,10 +180,9 @@ describe('SearchContent', () => {
 
     expect(screen.getByText('search.hero_title')).toBeInTheDocument()
     expect(screen.getByTestId('video-form1')).toBeInTheDocument()
-    // Default user state is logged out → the slim login notice is shown.
-    expect(
-      screen.getByText('video.login_benefits_restart_note'),
-    ).toBeInTheDocument()
+    // Default user state is logged out → the login notice with its
+    // why-reason sub-label is shown inside the empty-state column.
+    expect(screen.getByText('search.login_notice_why')).toBeInTheDocument()
   })
 
   it('hides the login benefits alert once the user is logged in', () => {
@@ -204,7 +203,7 @@ describe('SearchContent', () => {
     renderWithProviders(<SearchContent />, { route: '/search' })
 
     expect(
-      screen.queryByText('video.login_benefits_restart_note'),
+      screen.queryByText('search.login_notice_why'),
     ).not.toBeInTheDocument()
   })
 

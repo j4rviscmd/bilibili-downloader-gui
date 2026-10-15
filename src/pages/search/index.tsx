@@ -15,6 +15,7 @@ import VideoPartCard from '@/features/video/ui/VideoPartCard'
 import { scrollElementWithinScroller } from '@/shared/lib/scroll'
 import { Skeleton } from '@/shared/ui/skeleton'
 import { openUrl } from '@tauri-apps/plugin-opener'
+import { Info } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router'
@@ -42,32 +43,40 @@ function LoginNotice({ onOpenQr }: { onOpenQr: () => void }) {
   return (
     <div
       data-login-notice
-      className="bg-brand-strong/10 border-brand-strong/30 text-foreground mx-3 mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-lg border px-3.5 py-2 text-xs sm:mx-6"
+      className="bg-brand-strong/10 border-brand-strong/30 text-foreground flex w-full max-w-2xl items-start gap-2.5 rounded-lg border px-3.5 py-2 text-xs"
     >
-      <span data-login-notice-text>
-        <Trans
-          i18nKey="video.login_benefits_description"
-          components={{
-            1: (
-              <button
-                type="button"
-                onClick={onOpenQr}
-                className={loginLinkClass}
-              />
-            ),
-            2: (
-              <button
-                type="button"
-                onClick={() => void openUrl('https://www.bilibili.com')}
-                className={loginLinkClass}
-              />
-            ),
-          }}
-        />
-      </span>
-      <span className="text-muted-foreground w-full text-[11px] opacity-80">
-        {t('video.login_benefits_restart_note')}
-      </span>
+      <Info
+        className="text-brand-strong dark:text-brand mt-0.5 size-4 shrink-0"
+        aria-hidden
+      />
+      <div className="min-w-0">
+        <span data-login-notice-text>
+          <Trans
+            i18nKey="video.login_benefits_description"
+            components={{
+              1: (
+                <button
+                  type="button"
+                  onClick={onOpenQr}
+                  className={loginLinkClass}
+                />
+              ),
+              2: (
+                <button
+                  type="button"
+                  onClick={() => void openUrl('https://www.bilibili.com')}
+                  className={loginLinkClass}
+                />
+              ),
+            }}
+          />
+        </span>
+        {/* Supplementary reason stacks under the main sentence — same
+            reading column, not pushed to the banner's right edge. */}
+        <span className="text-muted-foreground mt-px block text-[11px]">
+          {t('search.login_notice_why')}
+        </span>
+      </div>
     </div>
   )
 }
@@ -504,10 +513,6 @@ function SearchContentInner() {
         className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
       >
         <div className="mx-auto flex min-h-full w-full max-w-[104rem] flex-col pt-3">
-          {!isLoggedIn && (
-            <LoginNotice onOpenQr={() => setIsQrLoginDialogOpen(true)} />
-          )}
-
           <QRCodeLoginDialog
             open={isQrLoginDialogOpen}
             onOpenChange={setIsQrLoginDialogOpen}
@@ -548,9 +553,12 @@ function SearchContentInner() {
               </div>
             </>
           ) : (
-            <div className="flex flex-1 flex-col items-center justify-center gap-8 px-6 pb-6">
+            <div className="flex flex-1 flex-col items-center justify-center gap-8 px-6 pt-3 pb-6">
               <CommandBar variant="hero" />
               <RecentUrls onRefetch={(url) => void onValid1(url)} />
+              {!isLoggedIn && (
+                <LoginNotice onOpenQr={() => setIsQrLoginDialogOpen(true)} />
+              )}
             </div>
           )}
         </div>

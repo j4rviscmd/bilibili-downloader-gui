@@ -127,7 +127,7 @@ export function RecentUrls({
             key={r.url}
             type="button"
             onClick={() => onRefetch(r.url)}
-            className="hover:bg-muted flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors"
+            className="group/recent hover:bg-muted flex min-h-11 w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors"
           >
             {r.thumbnailUrl ? (
               <img
@@ -150,7 +150,7 @@ export function RecentUrls({
                 {relative.get(r.url)}
               </span>
             </span>
-            <span className="text-brand-strong dark:text-brand shrink-0 text-xs font-semibold">
+            <span className="text-brand-strong dark:text-brand focus-within/recent:opacity-100 shrink-0 text-xs font-semibold opacity-0 transition-opacity group-hover/recent:opacity-100">
               {t('search.recent_refetch')}
             </span>
           </button>

@@ -1,7 +1,8 @@
+import { Kbd } from '@/components/ui/kbd'
 import { useVideoInfo, VideoForm1 } from '@/features/video'
 import { buildVideoFormSchema1 } from '@/features/video/lib/formSchema'
 import { ClipboardPaste, Link2, Play, RefreshCw } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
+import { Trans, useTranslation } from 'react-i18next'
 
 /**
  * Accepted URL format chip (empty-state guidance).
@@ -70,7 +71,7 @@ export function CommandBar({ variant }: { variant: 'hero' | 'compact' }) {
   if (variant === 'hero') {
     return (
       <div className="w-full max-w-2xl text-center">
-        <div className="bg-brand text-brand-foreground mx-auto mb-4 flex size-13 items-center justify-center rounded-xl shadow-lg">
+        <div className="bg-brand text-brand-foreground shadow-brand/40 mx-auto mb-4 flex size-13 items-center justify-center rounded-xl shadow-[0_6px_20px_-6px]">
           <Play className="size-6 fill-current" aria-hidden />
         </div>
         <h2 data-hero-title className="text-xl font-bold tracking-tight">
@@ -81,8 +82,10 @@ export function CommandBar({ variant }: { variant: 'hero' | 'compact' }) {
         </p>
         <div className="mt-5 flex items-center justify-between px-1 text-xs font-semibold">
           <label htmlFor="url">{t('search.url_label')}</label>
+          {/* Rich <kbd> chips: the locale string embeds literal <kbd> tags
+              that Trans swaps for the styled Kbd component. */}
           <span className="text-muted-foreground font-normal">
-            {t('search.paste_hint')}
+            <Trans i18nKey="search.paste_hint" components={{ kbd: <Kbd /> }} />
           </span>
         </div>
         {/* Unified command bar: one bordered container wrapping the
