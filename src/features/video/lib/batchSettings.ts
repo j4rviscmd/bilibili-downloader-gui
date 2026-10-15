@@ -12,21 +12,14 @@ import {
 export const VIDEO_LADDER_IDS: readonly number[] = VIDEO_QUALITIES_ORDER
 
 /**
- * Quality ids that require a logged-in (non-anonymous) session per
- * Bilibili platform rules: 112 = 1080p+, 116 = 1080p60. Used to annotate
- * batch options when the account is logged out.
- *
- * Why a Set: dynamic membership checks against fetched ids, and the same
- * check runs per option row.
+ * Audio quality ladder ids in descending quality order.
  */
+export const AUDIO_LADDER_IDS: readonly number[] = AUDIO_QUALITIES_ORDER
 
 /**
  * Quality ids that require a logged-in (non-anonymous) session per
  * Bilibili platform rules: 112 = 1080p+, 116 = 1080p60. Used to annotate
  * batch options when the account is logged out.
- *
- * Why a Set: dynamic membership checks against fetched ids, and the same
- * check runs per option row.
  */
 export const LOGIN_REQUIRED_VIDEO_IDS: ReadonlySet<number> = new Set([112, 116])
 
@@ -34,16 +27,31 @@ export const LOGIN_REQUIRED_VIDEO_IDS: ReadonlySet<number> = new Set([112, 116])
  * Quality ids that require a VIP (大会員) membership per Bilibili
  * platform rules. Annotated on batch options as "大会員" — static ladder
  * knowledge, not from the API (the app has no vip status field).
- *
- * Why a Set: dynamic membership checks against fetched ids.
  */
 export const VIP_VIDEO_IDS: ReadonlySet<number> = new Set([127, 126, 125, 120])
 export const VIP_AUDIO_IDS: ReadonlySet<number> = new Set([30251, 30250])
 
 /**
- * Audio quality ladder ids in descending quality order.
+ * Common Bilibili subtitle language codes with display labels.
+ *
+ * A fixed list shown in the batch dropdown (same full-ladder approach
+ * as qualities); languages absent from the selected parts' fetched
+ * subtitles render disabled. Native names — not localized — because
+ * they identify the content itself (a Japanese speaker selecting
+ * "Japanese" sees 日本語 regardless of the app language).
  */
-export const AUDIO_LADDER_IDS: readonly number[] = AUDIO_QUALITIES_ORDER
+export const SUBTITLE_LANGUAGES: readonly { lan: string; label: string }[] = [
+  { lan: 'zh-Hans', label: '中文(简体)' },
+  { lan: 'zh-Hant', label: '中文(繁體)' },
+  { lan: 'ja', label: '日本語' },
+  { lan: 'en', label: 'English' },
+  { lan: 'ko', label: '한국어' },
+  { lan: 'th', label: 'ไทย' },
+  { lan: 'vi', label: 'Tiếng Việt' },
+  { lan: 'id', label: 'Bahasa Indonesia' },
+  { lan: 'es', label: 'Español' },
+  { lan: 'ru', label: 'Русский' },
+]
 
 /**
  * Unions per-part availability into the batch option list, in ladder

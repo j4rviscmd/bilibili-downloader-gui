@@ -138,7 +138,7 @@ describe('BatchSettingsBar', () => {
     await user.keyboard('{Escape}')
   })
 
-  it('applies subtitle mode changes and shows the language union', async () => {
+  it('applies subtitle mode changes and shows the language list', async () => {
     seed([true, true])
     const { user } = renderBar()
 
@@ -149,11 +149,13 @@ describe('BatchSettingsBar', () => {
     })
     await user.click(subtitleTrigger)
 
-    // Switch to soft mode — the language section renders INSIDE the
-    // menu (ja from P1, zh-Hans from both) without closing it.
+    // Switch to soft mode — languages from the FIXED list render in the
+    // menu; available ones (ja, zh-Hans) are enabled, the rest disabled.
     await user.click(await screen.findByText('video.subtitle_soft'))
-    expect(await screen.findByText('ja')).toBeInTheDocument()
-    expect(screen.getByText('zh-Hans')).toBeInTheDocument()
+    expect(await screen.findByText('日本語')).toBeInTheDocument()
+    expect(screen.getByText('中文(简体)')).toBeInTheDocument()
+    expect(screen.getByText('한국어')).toBeInTheDocument()
+    expect(screen.getByText('ไทย')).toBeInTheDocument()
 
     const state = store.getState().input
     expect(state.partInputs[0]!.subtitle.mode).toBe('soft')

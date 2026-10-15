@@ -24,6 +24,7 @@ import {
 import {
   AUDIO_LADDER_IDS,
   LOGIN_REQUIRED_VIDEO_IDS,
+  SUBTITLE_LANGUAGES,
   unionIds,
   VIDEO_LADDER_IDS,
   VIP_AUDIO_IDS,
@@ -175,13 +176,16 @@ export function BatchSettingsBar({
     [selectedIndices, input.partInputs],
   )
   const langUnion = useMemo(() => {
-    const labels = new Map<string, string>()
+    const available = new Set<string>()
     for (const i of selectedIndices) {
       for (const s of input.partInputs[i]?.subtitles ?? []) {
-        if (!labels.has(s.lan)) labels.set(s.lan, s.lanDoc)
+        // Normalize "ai-ja" → "ja": AI-generated and manual subtitles
+        // share the same language slot — the user picks a language, not
+        // a generation method.
+        available.add(s.lan.replace(/^ai-/, ''))
       }
     }
-    return labels
+    return available
   }, [selectedIndices, input.partInputs])
 
   // Batch targets: the trigger shows the EFFECTIVE value (first selected
@@ -272,9 +276,11 @@ export function BatchSettingsBar({
         ? 'video.subtitle_hard'
         : 'video.subtitle_off',
   )
-  const langLabels = displaySubLangs
-    .map((l) => langUnion.get(l))
-    .filter(Boolean)
+  // Fixed-list labels keep the trigger consistent with the dropdown
+  // even before subtitles are fetched (the lazy fetch hasn't landed yet).
+  const langLabels = displaySubLangs.map(
+    (l) => SUBTITLE_LANGUAGES.find((s) => s.lan === l)?.label ?? l,
+  )
   const subSummary =
     displaySubMode === 'off'
       ? modeLabel
@@ -434,56 +440,58 @@ export function BatchSettingsBar({
                   )}
                 </DropdownMenuItem>
               ))}
-              {langUnion.size > 0 && (
-                <>
-                  <DropdownMenuSeparator />
-                  {[...langUnion.entries()].map(([lan, lanDoc]) => {
-                    const idx = displaySubLangs.indexOf(lan)
-                    const selected = idx >= 0
-                    return (
-                      <DropdownMenuItem
-                        key={lan}
-                        onSelect={(e) => {
-                          // Keep the menu open: language selection is
-                          // multi-select in one visit.
-                          e.preventDefault()
-                        }}
-                        onClick={() => {
-                          const newLangs = selected
-                            ? displaySubLangs.filter((l) => l !== lan)
-                            : [...displaySubLangs, lan]
-                          // While mode is "off", a language click only
-                          // stores the local selection (mockup behavior:
-                          // pre-select then pick a mode). Dispatching here
-                          // would set parts to mode=off WITH languages —
-                          // a nonsensical state.
-                          if (displaySubMode === 'off') {
-                            setSubLangs(newLangs)
-                            return
-                          }
-                          applySubtitle(displaySubMode ?? 'soft', newLangs)
-                        }}
-                        className={cn(
-                          'flex justify-between gap-4',
-                          selected &&
-                            'text-brand-strong dark:text-brand font-bold',
-                        )}
-                      >
-                        <span>{lanDoc}</span>
-                        {selected && (
-                          <span className="text-muted-foreground text-[10px] font-semibold">
-                            {displaySubMode === 'soft'
-                              ? '✓'
-                              : t('search.subtitle_priority', {
-                                  count: idx + 1,
-                                })}
-                          </span>
-                        )}
-                      </DropdownMenuItem>
-                    )
-                  })}
-                </>
-              )}
+              <DropdownMenuSeparator />
+              {SUBTITLE_LANGUAGES.map(({ lan, label }) => {
+                const available = langUnion.has(lan)
+                const idx = displaySubLangs.indexOf(lan)
+                const selected = idx >= 0
+                return (
+                  <DropdownMenuItem
+                    key={lan}
+                    disabled={!available}
+                    onSelect={(e) => {
+                      // Keep the menu open: language selection is
+                      // multi-select in one visit.
+                      e.preventDefault()
+                    }}
+                    onClick={() => {
+                      if (!available) return
+                      const newLangs = selected
+                        ? displaySubLangs.filter((l) => l !== lan)
+                        : [...displaySubLangs, lan]
+                      // While mode is "off", a language click only
+                      // stores the local selection (mockup behavior:
+                      // pre-select then pick a mode). Dispatching here
+                      // would set parts to mode=off WITH languages —
+                      // a nonsensical state.
+                      if (displaySubMode === 'off') {
+                        setSubLangs(newLangs)
+                        return
+                      }
+                      applySubtitle(displaySubMode ?? 'soft', newLangs)
+                    }}
+                    className={cn(
+                      'flex justify-between gap-4',
+                      selected && 'text-brand-strong dark:text-brand font-bold',
+                    )}
+                  >
+                    <span>{label}</span>
+                    {selected ? (
+                      <span className="text-muted-foreground text-[10px] font-semibold">
+                        {displaySubMode === 'soft'
+                          ? '✓'
+                          : t('search.subtitle_priority', {
+                              count: idx + 1,
+                            })}
+                      </span>
+                    ) : !available ? (
+                      <span className="text-muted-foreground text-[10px] font-semibold">
+                        {t('search.reason_unavailable')}
+                      </span>
+                    ) : null}
+                  </DropdownMenuItem>
+                )
+              })}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
