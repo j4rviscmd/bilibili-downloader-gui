@@ -143,6 +143,24 @@ type VideoInfoProviderProps = {
  * </VideoInfoProvider>
  * ```
  */
+
+/**
+ * Matches a subtitle's lan code against the part's selected languages,
+ * handling the AI-prefix variant: the batch dropdown stores base codes
+ * (e.g., "ja") while bilibili returns "ai-ja" for AI-generated
+ * subtitles. A base code matches both its manual and AI variant.
+ *
+ * @private
+ */
+function subtitleSelected(
+  pi: { subtitle: { selectedLans: string[] } },
+  lan: string,
+): boolean {
+  return (
+    pi.subtitle.selectedLans.includes(lan) ||
+    pi.subtitle.selectedLans.includes(lan.replace(/^ai-/, ''))
+  )
+}
 export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
   const { t } = useTranslation()
   const progress = useSelector((state) => state.progress)
@@ -461,9 +479,14 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
           outputDir: input.outputDirOverride ?? null,
           subtitle: {
             mode: pi.subtitle.mode,
-            selectedLans: pi.subtitle.selectedLans,
+            // Pass the ACTUAL matched lan codes (ai-ja etc.), not just
+            // the batch-selected base codes — the backend keys subtitle
+            // processing off these.
+            selectedLans: (pi.subtitles ?? [])
+              .filter((s) => subtitleSelected(pi, s.lan))
+              .map((s) => s.lan),
             subtitles: (pi.subtitles ?? []).filter((s) =>
-              pi.subtitle.selectedLans.includes(s.lan),
+              subtitleSelected(pi, s.lan),
             ),
           },
         },
