@@ -477,18 +477,20 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
           epId: video.parts[idx]?.epId ?? null,
           // Batch-settings temporary override; null keeps settings.
           outputDir: input.outputDirOverride ?? null,
-          subtitle: {
-            mode: pi.subtitle.mode,
-            // Pass the ACTUAL matched lan codes (ai-ja etc.), not just
-            // the batch-selected base codes — the backend keys subtitle
-            // processing off these.
-            selectedLans: (pi.subtitles ?? [])
+          subtitle: (() => {
+            // Match by exact or ai-stripped code, then sort manual
+            // subtitles before AI ones: hard-sub burns only the FIRST
+            // entry (backend .next()), so without this the choice
+            // depends on bilibili's API return order.
+            const matched = (pi.subtitles ?? [])
               .filter((s) => subtitleSelected(pi, s.lan))
-              .map((s) => s.lan),
-            subtitles: (pi.subtitles ?? []).filter((s) =>
-              subtitleSelected(pi, s.lan),
-            ),
-          },
+              .sort((a, b) => Number(a.isAi) - Number(b.isAi))
+            return {
+              mode: pi.subtitle.mode,
+              selectedLans: matched.map((s) => s.lan),
+              subtitles: matched,
+            }
+          })(),
         },
       })
     })
