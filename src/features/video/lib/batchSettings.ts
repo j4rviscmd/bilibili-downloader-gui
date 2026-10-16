@@ -43,20 +43,34 @@ export const ANON_MAX_VIDEO_ID = 32
  * Priority (index) of a fetched subtitle language inside the user's
  * selection, or -1 when not selected.
  *
- * Matching handles bilibili's AI prefix ("ai-ja" is covered by selecting
- * "ja") and the Chinese aliases: AI subtitles come back as "ai-zh" and
- * legacy uploads as "zh-CN" — both SIMPLIFIED Chinese, neither a
- * fixed-list code. Without aliasing them to "zh-Hans", batch soft-sub
- * selections silently matched nothing and downloads embedded no subtitles.
+ * Matching normalizes both sides: bilibili emits AI prefixes ("ai-ja"),
+ * legacy Chinese codes ("zh-CN"), and region-qualified forms ("en-US")
+ * that the fixed selection list never contains. Normalization maps those
+ * onto the list's codes — AI prefix stripped, Chinese variants resolved
+ * to their script (simplified → zh-Hans, traditional → zh-Hant), and any
+ * other region suffix dropped ("en-US" → "en"). Without this, batch
+ * soft-sub selections silently matched nothing and downloads embedded no
+ * subtitles.
  */
+function normalizeLan(lan: string): string {
+  const base = lan.replace(/^ai-/, '')
+  if (base === 'zh' || base === 'zh-CN') return 'zh-Hans'
+  if (base === 'zh-Hant' || base === 'zh-TW' || base === 'zh-HK')
+    return 'zh-Hant'
+  if (base === 'zh-Hans') return 'zh-Hans'
+  // Region-qualified forms (en-US) match their base language; the zh
+  // script codes are handled above so the split never touches them.
+  return base.split('-')[0] ?? base
+}
+
 export function selectedLanPriority(
   selectedLans: readonly string[],
   lan: string,
 ): number {
-  const base = lan.replace(/^ai-/, '')
-  const aliased = base === 'zh' || base === 'zh-CN' ? 'zh-Hans' : base
   const exact = selectedLans.indexOf(lan)
-  return exact !== -1 ? exact : selectedLans.indexOf(aliased)
+  if (exact !== -1) return exact
+  const norm = normalizeLan(lan)
+  return selectedLans.findIndex((s) => normalizeLan(s) === norm)
 }
 
 /** True when a fetched subtitle language is covered by the selection. */

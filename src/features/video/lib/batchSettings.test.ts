@@ -83,6 +83,15 @@ describe('subtitle language matching', () => {
     expect(selectedLanPriority(['ja', 'zh-Hans'], 'zh-CN')).toBe(1)
   })
 
+  it('drops region suffixes and maps traditional Chinese variants', () => {
+    // Documented real-world form: en-US must match a plain "en" pick.
+    expect(matchesSelectedLan(['en'], 'en-US')).toBe(true)
+    expect(selectedLanPriority(['ja', 'en'], 'en-US')).toBe(1)
+    // Traditional variants collapse to zh-Hant — never to zh-Hans.
+    expect(matchesSelectedLan(['zh-Hant'], 'zh-TW')).toBe(true)
+    expect(matchesSelectedLan(['zh-Hans'], 'zh-TW')).toBe(false)
+  })
+
   it('keeps the exact code winning over the aliased form for priority', () => {
     expect(selectedLanPriority(['zh-Hans', 'ja'], 'ja')).toBe(1)
     expect(selectedLanPriority(['ja', 'zh-Hans'], 'ai-zh')).toBe(1)
