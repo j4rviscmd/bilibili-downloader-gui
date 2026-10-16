@@ -483,6 +483,18 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
                 if (pri !== 0) return pri
                 return Number(a.isAi) - Number(b.isAi)
               })
+            // Silent no-op guard: subtitles exist and a mode is set but
+            // nothing matched — the selection and the fetched codes are
+            // drifting apart (this is how the zh-CN/ai-zh bug hid).
+            if (
+              pi.subtitle.mode !== 'off' &&
+              matched.length === 0 &&
+              (pi.subtitles?.length ?? 0) > 0
+            ) {
+              logger.warn(
+                `subtitle selection matched nothing: fetched=[${pi.subtitles!.map((s) => s.lan).join(',')}] selected=[${pi.subtitle.selectedLans.join(',')}]`,
+              )
+            }
             return {
               mode: pi.subtitle.mode,
               selectedLans: matched.map((s) => s.lan),

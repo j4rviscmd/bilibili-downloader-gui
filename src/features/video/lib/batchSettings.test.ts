@@ -76,6 +76,13 @@ describe('subtitle language matching', () => {
     expect(matchesSelectedLan(['zh-Hant'], 'ai-zh')).toBe(false)
   })
 
+  it('aliases the legacy zh-CN code to zh-Hans', () => {
+    // Older uploads still report "zh-CN" for simplified Chinese.
+    expect(matchesSelectedLan(['zh-Hans'], 'zh-CN')).toBe(true)
+    expect(matchesSelectedLan(['zh-Hant'], 'zh-CN')).toBe(false)
+    expect(selectedLanPriority(['ja', 'zh-Hans'], 'zh-CN')).toBe(1)
+  })
+
   it('keeps the exact code winning over the aliased form for priority', () => {
     expect(selectedLanPriority(['zh-Hans', 'ja'], 'ja')).toBe(1)
     expect(selectedLanPriority(['ja', 'zh-Hans'], 'ai-zh')).toBe(1)

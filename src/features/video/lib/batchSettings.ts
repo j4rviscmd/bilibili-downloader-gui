@@ -44,9 +44,9 @@ export const ANON_MAX_VIDEO_ID = 32
  * selection, or -1 when not selected.
  *
  * Matching handles bilibili's AI prefix ("ai-ja" is covered by selecting
- * "ja") and the Chinese alias: AI subtitles come back as "ai-zh"
- * (auto-generated SIMPLIFIED Chinese), whose stripped base "zh" is not a
- * fixed-list code — without the alias to "zh-Hans", batch soft-sub
+ * "ja") and the Chinese aliases: AI subtitles come back as "ai-zh" and
+ * legacy uploads as "zh-CN" — both SIMPLIFIED Chinese, neither a
+ * fixed-list code. Without aliasing them to "zh-Hans", batch soft-sub
  * selections silently matched nothing and downloads embedded no subtitles.
  */
 export function selectedLanPriority(
@@ -54,7 +54,7 @@ export function selectedLanPriority(
   lan: string,
 ): number {
   const base = lan.replace(/^ai-/, '')
-  const aliased = base === 'zh' ? 'zh-Hans' : base
+  const aliased = base === 'zh' || base === 'zh-CN' ? 'zh-Hans' : base
   const exact = selectedLans.indexOf(lan)
   return exact !== -1 ? exact : selectedLans.indexOf(aliased)
 }
