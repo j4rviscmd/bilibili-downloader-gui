@@ -521,9 +521,21 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
                 `subtitle selection matched nothing: fetched=[${pi.subtitles!.map((s) => s.lan).join(',')}] selected=[${pi.subtitle.selectedLans.join(',')}]`,
               )
             }
+            // Unfetched part (panel never opened): pass the SELECTED
+            // language codes through with empty tracks — the backend
+            // fetches the part's subtitles itself and matches, so a
+            // batch soft-sub selection still lands without a frontend
+            // pre-fetch. Dropping the lans here would silently disable
+            // subtitles (empty selected_lans → MergeMode::None).
+            const selectedLans =
+              matched.length > 0
+                ? matched.map((s) => s.lan)
+                : effSubtitle.mode !== 'off'
+                  ? effSubtitle.selectedLans
+                  : []
             return {
               mode: effSubtitle.mode,
-              selectedLans: matched.map((s) => s.lan),
+              selectedLans,
               subtitles: matched,
             }
           })(),

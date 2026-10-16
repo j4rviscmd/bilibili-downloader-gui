@@ -616,6 +616,29 @@ describe('download', () => {
     })
   })
 
+  it('passes the batch subtitle selection through for parts whose subtitles were never fetched', async () => {
+    await setupForDownload()
+
+    act(() => {
+      store.dispatch(
+        setBatchSettings({
+          subtitle: { mode: 'soft', selectedLans: ['*'] },
+        }),
+      )
+    })
+
+    await act(async () => {
+      await ctx.download()
+    })
+
+    // No frontend fetch happened for the part, so matched tracks are empty —
+    // but the SELECTION must survive so the backend fetches and matches.
+    const child = store.getState().queue.find((q) => q.kind === 'part')
+    expect(child?.payload).toMatchObject({
+      subtitle: { mode: 'soft', selectedLans: ['*'], subtitles: [] },
+    })
+  })
+
   it('is a no-op while form 1 is invalid', async () => {
     await setupForDownload()
     // Flush the re-render so ctx.download rebinds to the invalid form state.

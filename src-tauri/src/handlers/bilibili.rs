@@ -1681,6 +1681,41 @@ mod tests {
         );
     }
 
+    #[test]
+    fn expand_subtitle_wildcard_covers_all_lans_manual_first() {
+        let sel = vec!["*".to_string()];
+        let subs = vec![
+            SubtitleDto {
+                lan: "ai-zh".into(),
+                lan_doc: "AI".into(),
+                subtitle_url: String::new(),
+                is_ai: true,
+                ai_type: None,
+            },
+            SubtitleDto {
+                lan: "ja".into(),
+                lan_doc: "日本語".into(),
+                subtitle_url: String::new(),
+                is_ai: false,
+                ai_type: None,
+            },
+        ];
+        // Manual tracks sort before AI ones; hard-sub's first pick stays
+        // deterministic.
+        assert_eq!(
+            expand_subtitle_wildcard(&sel, &subs),
+            vec!["ja".to_string(), "ai-zh".to_string()]
+        );
+    }
+
+    #[test]
+    fn expand_subtitle_wildcard_passes_concrete_selection_through() {
+        let sel = vec!["ja".to_string(), "en".to_string()];
+        assert_eq!(expand_subtitle_wildcard(&sel, &[]), sel);
+        // Wildcard with nothing fetched stays empty (honest "no subs").
+        assert!(expand_subtitle_wildcard(&["*".to_string()], &[]).is_empty());
+    }
+
     #[tokio::test]
     async fn fetch_subtitles_via_api_returns_dto_list() {
         let server = wiremock::MockServer::start().await;
@@ -8072,6 +8107,20 @@ async fn download_subtitle_with_retry(
 /// Client construction happens in `download_video_impl` before this is
 /// called, so no orphan "subtitle" emit is possible.
 #[allow(clippy::too_many_arguments)]
+/// Expands the batch UI's all-languages wildcard ("*") into the concrete
+/// language list this part actually has, manual tracks before AI ones so
+/// hard-sub's first-pick stays deterministic. A non-wildcard selection is
+/// returned unchanged; a wildcard with no fetched subtitles stays empty
+/// (the caller reports "no subtitles" honestly).
+fn expand_subtitle_wildcard(selected_lans: &[String], subs: &[SubtitleDto]) -> Vec<String> {
+    if !selected_lans.iter().any(|l| l == "*") {
+        return selected_lans.to_vec();
+    }
+    let mut with_ai: Vec<(String, bool)> = subs.iter().map(|s| (s.lan.clone(), s.is_ai)).collect();
+    with_ai.sort_by_key(|(_, is_ai)| *is_ai);
+    with_ai.into_iter().map(|(lan, _)| lan).collect()
+}
+
 async fn prepare_subtitle_mode<R: tauri::Runtime>(
     app: &AppHandle<R>,
     api: &BiliApi,
@@ -8139,6 +8188,15 @@ async fn prepare_subtitle_mode<R: tauri::Runtime>(
     let mut subtitle_files: Vec<SubtitleMergeOptions> = Vec::new();
     let mut language_labels: Vec<String> = Vec::new();
     let mut remaining_lans: Vec<String> = sub_opts.selected_lans.clone();
+    let expanded = expand_subtitle_wildcard(&remaining_lans, &initial_subs);
+    if expanded.len() != remaining_lans.len() {
+        log::info!(
+            "[BE] prepare_subtitle_mode: wildcard expanded to {} languages: {:?}",
+            expanded.len(),
+            expanded
+        );
+        remaining_lans = expanded;
+    }
 
     const MAX_OUTER_ATTEMPTS: usize = 3;
 
