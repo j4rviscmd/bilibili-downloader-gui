@@ -728,6 +728,9 @@ const VideoPartCard = memo(function VideoPartCard({
                   checked={selected}
                   onCheckedChange={handleSelectedChange}
                   size="lg"
+                  /* Brand pink fill per the mockup's .check — scoped here
+                     so other checkboxes app-wide keep the theme primary. */
+                  className="[&[data-state=checked],&[data-state=indeterminate]]:border-brand [&[data-state=checked],&[data-state=indeterminate]]:bg-brand [&[data-state=checked],&[data-state=indeterminate]]:text-white"
                 />
               </span>
               <span
