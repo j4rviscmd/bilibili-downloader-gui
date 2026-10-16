@@ -1,6 +1,5 @@
-import { interceptInvokeError } from '@/app/lib/invokeErrorHandler'
 import type { RootState } from '@/app/store'
-import { store, useAppDispatch, useSelector } from '@/app/store'
+import { useAppDispatch, useSelector } from '@/app/store'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,18 +15,13 @@ import {
 import { openDirectoryDialog } from '@/features/settings/lib/directoryDialog'
 import { useSettings } from '@/features/settings/useSettings'
 import { useVideoInfo } from '@/features/video'
-import {
-  fetchBangumiPartQualities,
-  fetchPartQualities,
-  fetchSubtitlesForPart,
-} from '@/features/video/api/fetchVideoInfo'
+import {} from '@/features/video/api/fetchVideoInfo'
 import {
   ANON_MAX_VIDEO_ID,
   AUDIO_LADDER_IDS,
   LAN_ALL,
   LOGIN_REQUIRED_VIDEO_IDS,
   SUBTITLE_LANGUAGES,
-  unionIds,
   VIDEO_LADDER_IDS,
   VIP_AUDIO_IDS,
   VIP_VIDEO_IDS,
@@ -41,15 +35,11 @@ import {
   selectPageAll,
   setBatchSettings,
   setOutputDirOverride,
-  setPartQualities,
-  setPartSubtitles,
-  setQualitiesLoading,
-  setSubtitlesLoading,
 } from '@/features/video/model/inputSlice'
 import { cn } from '@/lib/utils'
 import { Button } from '@/shared/ui/button'
 import { ChevronDown, FolderOpen, Info, SlidersVertical } from 'lucide-react'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 /**
@@ -71,7 +61,7 @@ import { useTranslation } from 'react-i18next'
 export function BatchSettingsBar() {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
-  const { video, input } = useVideoInfo()
+  const { input } = useVideoInfo()
   const isLoggedIn = useSelector((state: RootState) => state.user.data.isLogin)
 
   const selectedIndices = useMemo(
@@ -82,96 +72,11 @@ export function BatchSettingsBar() {
     [input.partInputs],
   )
 
-  // Sample size for the batch bar's eager quality/subtitle fetch. Parts
-  // of the same video typically share the same quality ladder, so a few
-  // are enough to build a representative union. Without this cap,
-  // selecting 100 parts would fire 200 concurrent API calls and get
-  // rate-limited by bilibili. Parts outside the sample still fetch
-  // individually when their accordion opens (the existing lazy path).
-  // ponytail: 5 is a guess; raise if quality ladders actually vary more
-  // across parts than expected.
-  const FETCH_SAMPLE = 5
-
-  useEffect(() => {
-    if (video.parts.length === 0) return
-    const sample = selectedIndices
-      .filter((i) => input.partInputs[i]?.videoQualities === undefined)
-      .slice(0, FETCH_SAMPLE)
-    if (sample.length === 0) return
-    sample.forEach((i) =>
-      dispatch(setQualitiesLoading({ index: i, loading: true })),
-    )
-    sample.forEach(async (i) => {
-      const part = video.parts[i]
-      if (!part) return
-      try {
-        const [vq, aq] =
-          video.contentType === 'bangumi' && part.epId
-            ? await fetchBangumiPartQualities(part.epId, part.cid)
-            : await fetchPartQualities(video.bvid, part.cid)
-        dispatch(
-          setPartQualities({
-            index: i,
-            videoQualities: vq,
-            audioQualities: aq,
-          }),
-        )
-      } catch (e) {
-        await interceptInvokeError(store, e)
-        dispatch(
-          setPartQualities({
-            index: i,
-            videoQualities: [],
-            audioQualities: [],
-          }),
-        )
-      }
-    })
-  }, [selectedIndices, video, dispatch])
-
-  useEffect(() => {
-    if (video.parts.length === 0) return
-    const sample = selectedIndices
-      .filter((i) => input.partInputs[i]?.subtitles === undefined)
-      .slice(0, FETCH_SAMPLE)
-    if (sample.length === 0) return
-    sample.forEach((i) =>
-      dispatch(setSubtitlesLoading({ index: i, loading: true })),
-    )
-    sample.forEach(async (i) => {
-      const part = video.parts[i]
-      if (!part) return
-      try {
-        const subtitles = await fetchSubtitlesForPart(video.bvid, part.cid)
-        dispatch(setPartSubtitles({ index: i, subtitles }))
-      } catch {
-        dispatch(setPartSubtitles({ index: i, subtitles: [] }))
-      }
-    })
-  }, [selectedIndices, video, dispatch])
-
-  const videoUnion = useMemo(
-    () =>
-      unionIds(
-        Object.keys(VIDEO_QUALITIES_MAP).map(Number),
-        selectedIndices.map((i) =>
-          input.partInputs[i]?.videoQualities?.map((q) => q.id),
-        ),
-      ),
-    [selectedIndices, input.partInputs],
-  )
-  const audioUnion = useMemo(
-    () =>
-      unionIds(
-        Object.keys(AUDIO_QUALITIES_MAP)
-          .map(Number)
-          .sort((a, b) => b - a),
-        selectedIndices.map((i) =>
-          input.partInputs[i]?.audioQualities?.map((q) => q.id),
-        ),
-      ),
-    [selectedIndices, input.partInputs],
-  )
+  // No eager per-part fetching: under the enqueue-resolution model the
+  // batch targets derive from the static login-state ladder, unfetched
+  // parts resolve best-effort in the backend, and subtitle tracks are
+  // refetched there when the frontend passes none. Parts fetch lazily
+  // when their own panel opens.
 
   // An explicit dropdown pick stores an override in state AND dispatches
   // to every selected part; merely changing the selection never dispatches.
@@ -344,20 +249,20 @@ export function BatchSettingsBar() {
           label={t('video.quality_label')}
           value={targetVideo != null ? label(targetVideo) : ''}
           options={VIDEO_LADDER_IDS.map((id) => {
-            const inUnion = videoUnion.includes(id)
             const isVip = VIP_VIDEO_IDS.has(id)
             const needsLogin = !isLoggedIn && LOGIN_REQUIRED_VIDEO_IDS.has(id)
             return {
               id,
               label: label(id),
-              disabled: !inUnion || isVip || needsLogin,
+              // Static gating only: the option list is a target picker and
+              // the backend resolves each part best-effort, so per-video
+              // availability no longer disables tiers.
+              disabled: isVip || needsLogin,
               disabledReason: isVip
                 ? t('search.reason_vip')
                 : needsLogin
                   ? t('search.reason_login')
-                  : !inUnion
-                    ? t('search.reason_unavailable')
-                    : undefined,
+                  : undefined,
             }
           })}
           onSelect={(id) => applyVideo(id)}
@@ -366,17 +271,12 @@ export function BatchSettingsBar() {
           label={t('video.audio_quality_label')}
           value={targetAudio != null ? label(targetAudio) : ''}
           options={AUDIO_LADDER_IDS.map((id) => {
-            const inUnion = audioUnion.includes(id)
             const isVip = VIP_AUDIO_IDS.has(id)
             return {
               id,
               label: label(id),
-              disabled: !inUnion || isVip,
-              disabledReason: isVip
-                ? t('search.reason_vip')
-                : !inUnion
-                  ? t('search.reason_unavailable')
-                  : undefined,
+              disabled: isVip,
+              disabledReason: isVip ? t('search.reason_vip') : undefined,
             }
           })}
           onSelect={(id) => applyAudio(id)}

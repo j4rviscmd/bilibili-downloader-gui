@@ -174,14 +174,14 @@ describe('BatchSettingsBar', () => {
     const menu = await screen.findByRole('menu')
     await user.click(within(menu).getByText('1080p'))
 
-    // The batch target lands in redux; parts keep their auto-seeded
-    // ladder defaults and stay non-explicit (enqueue resolves
-    // explicit-part > batch > default).
+    // The batch target lands in redux; with the eager fetch gone, parts
+    // stay empty until their own panel opens (enqueue resolves
+    // explicit-part > batch > best-effort default).
     const state = store.getState().input
     expect(state.batchSettings.videoQuality).toBe('80')
-    expect(state.partInputs[0]!.videoQuality).toBe('116')
+    expect(state.partInputs[0]!.videoQuality).toBe('')
     expect(state.partInputs[0]!.videoQualityExplicit).toBeFalsy()
-    expect(state.partInputs[1]!.videoQuality).toBe('74')
+    expect(state.partInputs[1]!.videoQuality).toBe('')
   })
 
   it('allows setting a batch target with zero parts selected', async () => {
@@ -199,7 +199,7 @@ describe('BatchSettingsBar', () => {
     expect(store.getState().input.batchSettings.videoQuality).toBe('80')
   })
 
-  it('unions per-part availability in the quality options', async () => {
+  it('gates quality options by static login-state rules, not per-video availability', async () => {
     seed([true, true])
     const { user } = renderBar()
 
@@ -207,14 +207,14 @@ describe('BatchSettingsBar', () => {
       name: 'video.quality_label',
     })
     await user.click(trigger)
-    // Full ladder renders: P1-only tiers (1080p+ / 1080p60) and shared
-    // tiers both appear. The trigger value also matches one of them.
     const menu = await screen.findByRole('menu')
-    const items = within(menu).getAllByText('1080p60')
-    expect(items.length).toBeGreaterThanOrEqual(1)
-    expect(within(menu).getByText('1080p+')).toBeInTheDocument()
-    expect(within(menu).getByText('720p60')).toBeInTheDocument()
-    expect(within(menu).getByText('8K')).toBeInTheDocument()
+
+    // VIP tiers disabled with their reason; standard tiers pickable even
+    // though no per-part ladder was ever fetched (backend resolves
+    // best-effort).
+    const vip = within(menu).getAllByText('8K')[0]!.closest('[role=menuitem]')!
+    expect(vip).toHaveAttribute('aria-disabled', 'true')
+    expect(within(menu).getByText('1080p')).toBeEnabled()
     await user.keyboard('{Escape}')
   })
 
