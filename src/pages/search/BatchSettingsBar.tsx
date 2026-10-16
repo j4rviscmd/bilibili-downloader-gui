@@ -127,7 +127,7 @@ export function BatchSettingsBar() {
         )
       }
     })
-  }, [selectedIndices, input.partInputs, video, dispatch])
+  }, [selectedIndices, video, dispatch])
 
   useEffect(() => {
     if (video.parts.length === 0) return
@@ -148,7 +148,7 @@ export function BatchSettingsBar() {
         dispatch(setPartSubtitles({ index: i, subtitles: [] }))
       }
     })
-  }, [selectedIndices, input.partInputs, video, dispatch])
+  }, [selectedIndices, video, dispatch])
 
   const videoUnion = useMemo(
     () =>

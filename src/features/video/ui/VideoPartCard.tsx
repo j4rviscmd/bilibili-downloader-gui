@@ -260,6 +260,14 @@ const VideoPartCard = memo(function VideoPartCard({
     partInput?.subtitleExplicit || !batch?.subtitle
       ? partInput?.subtitle
       : batch.subtitle
+  // Pills are information, not decoration: a value only shows when the
+  // user actually decided something (explicit pick or batch target). The
+  // auto-seeded ladder default is resolved at enqueue and stays invisible.
+  const showVideoPill =
+    !!partInput?.videoQualityExplicit || !!batch?.videoQuality
+  const showAudioPill =
+    !!partInput?.audioQualityExplicit || !!batch?.audioQuality
+  const showSubtitlePill = !!partInput?.subtitleExplicit || !!batch?.subtitle
 
   const isSilentVideo = resolvedQuality
     ? resolvedQuality.audioAbsent
@@ -859,28 +867,30 @@ const VideoPartCard = memo(function VideoPartCard({
                   )}
                 />
                 <div className="flex flex-wrap items-center gap-1.5 px-2">
-                  {effectiveVideoQuality && (
+                  {showVideoPill && effectiveVideoQuality && (
                     <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[11px] font-medium">
                       {VIDEO_QUALITIES_MAP[Number(effectiveVideoQuality)] ??
                         effectiveVideoQuality}
                     </span>
                   )}
-                  {effectiveAudioQuality && !isSilentVideo && (
+                  {showAudioPill && effectiveAudioQuality && !isSilentVideo && (
                     <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[11px] font-medium">
                       {AUDIO_QUALITIES_MAP[Number(effectiveAudioQuality)] ??
                         effectiveAudioQuality}
                     </span>
                   )}
-                  {effectiveSubtitle && effectiveSubtitle.mode !== 'off' && (
-                    <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[11px] font-medium">
-                      {t('video.subtitle')}:{' '}
-                      {effectiveSubtitle.selectedLans.includes(LAN_ALL)
-                        ? t('search.subtitle_all_langs')
-                        : t('video.subtitle_n_languages', {
-                            count: effectiveSubtitle.selectedLans.length,
-                          })}
-                    </span>
-                  )}
+                  {showSubtitlePill &&
+                    effectiveSubtitle &&
+                    effectiveSubtitle.mode !== 'off' && (
+                      <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[11px] font-medium">
+                        {t('video.subtitle')}:{' '}
+                        {effectiveSubtitle.selectedLans.includes(LAN_ALL)
+                          ? t('search.subtitle_all_langs')
+                          : t('video.subtitle_n_languages', {
+                              count: effectiveSubtitle.selectedLans.length,
+                            })}
+                      </span>
+                    )}
                   {willAdjustQuality && (
                     <span className="inline-flex shrink-0 items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300">
                       {t('video.quality_auto_adjusted')}
