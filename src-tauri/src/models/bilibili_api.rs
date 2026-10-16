@@ -53,6 +53,26 @@ pub struct WebInterfaceApiResponsePage {
     pub first_frame: Option<String>,
 }
 
+/// `owner` object of the view API payload.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ViewApiOwner {
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub face: String,
+}
+
+/// `stat` object of the view API payload — the subset the app displays.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ViewApiStat {
+    #[serde(default)]
+    pub view: i64,
+    #[serde(default)]
+    pub reply: i64,
+    #[serde(default)]
+    pub favorite: i64,
+}
+
 /// Video metadata from the web interface view API.
 ///
 /// # Note
@@ -74,6 +94,15 @@ pub struct WebInterfaceApiResponseData {
     /// Redirect URL for special content (e.g., bangumi episode)
     #[serde(default, rename = "redirect_url")]
     pub redirect_url: Option<String>,
+    /// Uploader (absent on some payloads)
+    #[serde(default)]
+    pub owner: Option<ViewApiOwner>,
+    /// Publish time (unix seconds)
+    #[serde(default)]
+    pub pubdate: Option<i64>,
+    /// View/comment/favorite counters
+    #[serde(default)]
+    pub stat: Option<ViewApiStat>,
 }
 
 /// Player API response for DASH streams.

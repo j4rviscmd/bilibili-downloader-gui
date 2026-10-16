@@ -7,8 +7,25 @@ import {
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
 import { openUrl } from '@tauri-apps/plugin-opener'
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink, MessageCircle, Play, Star } from 'lucide-react'
 import { Trans, useTranslation } from 'react-i18next'
+
+/** bilibili-style compact count: 1.2万 / 3.4億, plain number below 1万. */
+function formatCount(n: number): string {
+  if (n >= 100_000_000)
+    return `${(n / 100_000_000).toFixed(1).replace(/\.0$/, '')}億`
+  if (n >= 10_000) return `${(n / 10_000).toFixed(1).replace(/\.0$/, '')}万`
+  return String(n)
+}
+
+/** yyyy/mm/dd from a unix-seconds timestamp. */
+function formatDate(unix: number): string {
+  return new Date(unix * 1000).toLocaleDateString('ja-JP', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+}
 
 /**
  * Loaded-video summary card: thumbnail (static, Part 1's — the API only
@@ -65,15 +82,61 @@ export function VideoHeroCard({
         <h2 className="px-0.5 text-base leading-snug font-bold tracking-tight">
           {video.title}
         </h2>
-        {/* Meta row exists only for bangumi (season title). The video id
-            is deliberately not shown: the sticky URL bar above always
-            carries it, and ブラウザで開く covers navigation. */}
-        {video.contentType === 'bangumi' && video.seasonTitle && (
+        {/* Meta row: bangumi shows the season; videos show uploader and
+            publish date. The video id is deliberately not shown: the
+            sticky URL bar above always carries it, and ブラウザで開く
+            covers navigation. */}
+        {video.contentType === 'bangumi' && video.seasonTitle ? (
           <div className="text-muted-foreground flex flex-wrap items-center px-0.5 text-xs">
             <span className="font-medium">{video.seasonTitle}</span>
           </div>
+        ) : (
+          (video.ownerName || video.pubdate) && (
+            <div className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 px-0.5 text-xs">
+              {video.ownerName && (
+                <span className="flex items-center gap-1.5">
+                  {video.ownerFace ? (
+                    <img
+                      src={video.ownerFace}
+                      alt=""
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
+                      className="size-5.5 rounded-full object-cover"
+                    />
+                  ) : (
+                    <span className="from-brand to-brand-strong/70 size-5.5 rounded-full bg-gradient-to-br" />
+                  )}
+                  <span className="text-foreground font-semibold">
+                    {video.ownerName}
+                  </span>
+                </span>
+              )}
+              {video.ownerName && video.pubdate && <span aria-hidden>·</span>}
+              {video.pubdate && <span>{formatDate(video.pubdate)}</span>}
+            </div>
+          )
         )}
         <div className="flex flex-wrap gap-1.5 px-0.5">
+          {/* Engagement chips (video path; bangumi carries no counters).
+              The play chip is the hot (brand) one, mirroring bilibili. */}
+          {video.viewCount != null && (
+            <span className="text-brand-strong bg-brand-strong/10 dark:text-brand inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold tabular-nums">
+              <Play className="size-3 fill-current" aria-hidden />
+              {formatCount(video.viewCount)}
+            </span>
+          )}
+          {video.replyCount != null && (
+            <span className="bg-muted text-muted-foreground inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold tabular-nums">
+              <MessageCircle className="size-3" aria-hidden />
+              {formatCount(video.replyCount)}
+            </span>
+          )}
+          {video.favoriteCount != null && (
+            <span className="bg-muted text-muted-foreground inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold tabular-nums">
+              <Star className="size-3" aria-hidden />
+              {formatCount(video.favoriteCount)}
+            </span>
+          )}
           {/* Content type moved here from the compact bar: the sticky bar
               only needs to say WHICH video is loaded, and this row is the
               single place that describes it. */}

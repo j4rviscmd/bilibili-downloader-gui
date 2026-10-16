@@ -4823,6 +4823,9 @@ mod tests {
             cid,
             pages,
             redirect_url: None,
+            owner: None,
+            pubdate: None,
+            stat: None,
         }
     }
 
@@ -5646,6 +5649,16 @@ fn web_interface_data_to_video(
         content_type: "video".to_string(),
         ep_id: None,
         season_title: None,
+        owner_name: data.owner.as_ref().map(|o| o.name.clone()),
+        owner_face: data
+            .owner
+            .as_ref()
+            .map(|o| o.face.clone())
+            .filter(|f| !f.is_empty()),
+        pubdate: data.pubdate,
+        view_count: data.stat.as_ref().map(|st| st.view),
+        reply_count: data.stat.as_ref().map(|st| st.reply),
+        favorite_count: data.stat.as_ref().map(|st| st.favorite),
     }
 }
 
@@ -8397,6 +8410,12 @@ pub async fn fetch_bangumi_info(app: &AppHandle, ep_id: i64) -> Result<Video, St
         content_type: "bangumi".to_string(),
         ep_id: Some(ep_id),
         season_title: Some(result.title),
+        owner_name: None,
+        owner_face: None,
+        pubdate: None,
+        view_count: None,
+        reply_count: None,
+        favorite_count: None,
     })
 }
 

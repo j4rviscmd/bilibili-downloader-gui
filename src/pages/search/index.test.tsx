@@ -571,7 +571,13 @@ describe('SearchContent', () => {
   })
 
   it('summarizes the loaded video on the hero card', () => {
-    seedVideo(3)
+    seedVideo(3, {
+      ownerName: '公式チャンネル',
+      pubdate: 1760000000,
+      viewCount: 1_280_000,
+      replyCount: 8420,
+      favoriteCount: 61_000,
+    })
 
     renderWithProviders(<SearchContent />, { route: '/search' })
 
@@ -580,6 +586,10 @@ describe('SearchContent', () => {
     const hero = screen.getByText('Test Video').closest('section')!
     expect(hero).not.toBeNull()
     expect(within(hero).getByText('search.parts_count')).toBeInTheDocument()
+    expect(within(hero).getByText('公式チャンネル')).toBeInTheDocument()
+    expect(within(hero).getByText('128万')).toBeInTheDocument()
+    expect(within(hero).getByText('8420')).toBeInTheDocument()
+    expect(within(hero).getByText('6.1万')).toBeInTheDocument()
     expect(within(hero).getByText('search.total_duration')).toBeInTheDocument()
     // No Part-1 duration badge on the thumbnail: it would mislead on
     // multi-part videos where only the "total" chip is the honest number.

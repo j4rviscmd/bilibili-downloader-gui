@@ -58,6 +58,24 @@ pub struct Video {
     /// Season title for bangumi content
     #[serde(default)]
     pub season_title: Option<String>,
+    /// Uploader display name (video path only; absent for bangumi)
+    #[serde(default)]
+    pub owner_name: Option<String>,
+    /// Uploader avatar URL
+    #[serde(default)]
+    pub owner_face: Option<String>,
+    /// Publish time (unix seconds)
+    #[serde(default)]
+    pub pubdate: Option<i64>,
+    /// Play count
+    #[serde(default)]
+    pub view_count: Option<i64>,
+    /// Comment count
+    #[serde(default)]
+    pub reply_count: Option<i64>,
+    /// Favorite count
+    #[serde(default)]
+    pub favorite_count: Option<i64>,
 }
 
 fn default_content_type() -> String {
@@ -330,6 +348,12 @@ mod tests {
 
     fn sample_video() -> Video {
         Video {
+            owner_name: None,
+            owner_face: None,
+            pubdate: None,
+            view_count: None,
+            reply_count: None,
+            favorite_count: None,
             title: "t".into(),
             bvid: "BV1xx".into(),
             parts: vec![VideoPart {

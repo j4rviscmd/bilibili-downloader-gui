@@ -110,6 +110,18 @@ export type Video = {
   epId?: number
   /** Season title for bangumi content */
   seasonTitle?: string
+  /** Uploader display name (video path only; absent for bangumi). */
+  ownerName?: string | null
+  /** Uploader avatar URL. */
+  ownerFace?: string | null
+  /** Publish time (unix seconds). */
+  pubdate?: number | null
+  /** Play count. */
+  viewCount?: number | null
+  /** Comment count. */
+  replyCount?: number | null
+  /** Favorite count. */
+  favoriteCount?: number | null
 }
 
 /**
