@@ -13,6 +13,7 @@ import { store } from '@/app/store'
 import { videoApi } from '@/features/video/api/videoApi'
 import {
   resetInput,
+  setOutputDirOverride,
   setPendingDownload,
   setUrl,
   updatePartSelected,
@@ -550,6 +551,22 @@ describe('download', () => {
       audioStage: true,
       mergeStage: true,
     })
+  })
+
+  it('carries an output-dir override picked after mount (stale-closure regression)', async () => {
+    await setupForDownload()
+
+    // Pick a folder AFTER the callback was created: partInputs is
+    // untouched, so only the dep on outputDirOverride rebinds download.
+    act(() => {
+      store.dispatch(setOutputDirOverride('/tmp/picked-dir'))
+    })
+    await act(async () => {
+      await ctx.download()
+    })
+
+    const child = store.getState().queue.find((q) => q.kind === 'part')
+    expect(child?.payload).toMatchObject({ outputDir: '/tmp/picked-dir' })
   })
 
   it('is a no-op while form 1 is invalid', async () => {

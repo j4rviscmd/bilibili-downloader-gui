@@ -525,7 +525,19 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
         updatePartSelected({ index: spec.partIndex - 1, selected: false }),
       )
     }
-  }, [isForm1Valid, isForm2ValidAll, videoId, input.partInputs, video, t])
+    // input.outputDirOverride MUST be listed: it changes without touching
+    // partInputs (structural sharing keeps the array reference), so without
+    // this dep the callback kept a stale closure and downloads silently
+    // ignored a freshly picked output folder.
+  }, [
+    isForm1Valid,
+    isForm2ValidAll,
+    videoId,
+    input.partInputs,
+    input.outputDirOverride,
+    video,
+    t,
+  ])
 
   const value: VideoInfoContextValue = {
     progress,
