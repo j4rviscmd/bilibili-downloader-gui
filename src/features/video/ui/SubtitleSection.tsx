@@ -1,3 +1,4 @@
+import { LAN_ALL } from '@/features/video/lib/batchSettings'
 import { Checkbox } from '@/shared/animate-ui/radix/checkbox'
 import {
   RadioGroup,
@@ -123,7 +124,10 @@ export const SubtitleSection = memo(function SubtitleSection({
               >
                 <Checkbox
                   disabled={disabled}
-                  checked={config.selectedLans.includes(sub.lan)}
+                  checked={
+                    config.selectedLans.includes(sub.lan) ||
+                    config.selectedLans.includes(LAN_ALL)
+                  }
                   onCheckedChange={(checked) =>
                     handleSoftSubtitleToggle(sub.lan, checked === true)
                   }

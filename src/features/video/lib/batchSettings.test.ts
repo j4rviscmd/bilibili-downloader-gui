@@ -97,3 +97,15 @@ describe('subtitle language matching', () => {
     expect(selectedLanPriority(['ja', 'zh-Hans'], 'ai-zh')).toBe(1)
   })
 })
+
+describe('all-languages sentinel', () => {
+  it('matches every fetched language, including ones outside the fixed list', () => {
+    expect(matchesSelectedLan(['*'], 'ai-ar')).toBe(true)
+    expect(matchesSelectedLan(['*'], 'pt-BR')).toBe(true)
+    expect(selectedLanPriority(['*'], 'ai-pt')).toBe(0)
+  })
+
+  it('keeps an explicit exact pick winning over the wildcard', () => {
+    expect(selectedLanPriority(['*', 'ja'], 'ja')).toBe(1)
+  })
+})

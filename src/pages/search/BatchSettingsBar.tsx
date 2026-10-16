@@ -24,6 +24,7 @@ import {
 import {
   ANON_MAX_VIDEO_ID,
   AUDIO_LADDER_IDS,
+  LAN_ALL,
   LOGIN_REQUIRED_VIDEO_IDS,
   SUBTITLE_LANGUAGES,
   unionIds,
@@ -284,8 +285,10 @@ export function BatchSettingsBar() {
   )
   // Fixed-list labels keep the trigger consistent with the dropdown
   // even before subtitles are fetched (the lazy fetch hasn't landed yet).
-  const langLabels = displaySubLangs.map(
-    (l) => SUBTITLE_LANGUAGES.find((s) => s.lan === l)?.label ?? l,
+  const langLabels = displaySubLangs.map((l) =>
+    l === LAN_ALL
+      ? t('search.subtitle_all_langs')
+      : (SUBTITLE_LANGUAGES.find((s) => s.lan === l)?.label ?? l),
   )
   const subSummary =
     displaySubMode === 'off'
@@ -479,6 +482,38 @@ export function BatchSettingsBar() {
                 </DropdownMenuItem>
               ))}
               <DropdownMenuSeparator />
+              {/* All-languages sentinel: bilibili's AI set exceeds the
+                  fixed list (ar/pt…), so "everything" can only be
+                  expressed as a wildcard, not as an enumeration. Picking
+                  a specific language replaces it. */}
+              <DropdownMenuItem
+                key={LAN_ALL}
+                onSelect={(e) => e.preventDefault()}
+                onClick={() => {
+                  const newLangs = displaySubLangs.includes(LAN_ALL)
+                    ? []
+                    : [LAN_ALL]
+                  if (displaySubMode === 'off') {
+                    setSubLangs(newLangs)
+                    return
+                  }
+                  applySubtitle(displaySubMode ?? 'soft', newLangs)
+                }}
+                className={cn(
+                  'flex justify-between gap-4',
+                  displaySubLangs.includes(LAN_ALL) &&
+                    'text-brand-strong dark:text-brand font-bold',
+                )}
+              >
+                <span>{t('search.subtitle_all_langs')}</span>
+                {displaySubLangs.includes(LAN_ALL) && (
+                  <span className="text-muted-foreground text-[10px] font-semibold">
+                    {displaySubMode === 'soft'
+                      ? '✓'
+                      : t('search.subtitle_priority', { count: 1 })}
+                  </span>
+                )}
+              </DropdownMenuItem>
               {SUBTITLE_LANGUAGES.map(({ lan, label }) => {
                 const idx = displaySubLangs.indexOf(lan)
                 const selected = idx >= 0
@@ -493,7 +528,9 @@ export function BatchSettingsBar() {
                     onClick={() => {
                       const newLangs = selected
                         ? displaySubLangs.filter((l) => l !== lan)
-                        : [...displaySubLangs, lan]
+                        : displaySubLangs.includes(LAN_ALL)
+                          ? [lan]
+                          : [...displaySubLangs, lan]
                       // While mode is "off", a language click only
                       // stores the local selection (mockup behavior:
                       // pre-select then pick a mode). Dispatching here

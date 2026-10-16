@@ -46,6 +46,7 @@
     "recent_downloaded": "{{count}}回ダウンロード済み",
     "recent_refetch": "再取得",
     "recent_more": "ダウンロード履歴をすべて見る",
+    "subtitle_all_langs": "すべての言語",
     "recent_just_now": "たった今",
     "recent_hours_ago": "{{count}}時間前",
     "recent_days_ago": "{{count}}日前",

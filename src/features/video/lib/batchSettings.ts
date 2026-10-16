@@ -40,6 +40,14 @@ export const VIP_AUDIO_IDS: ReadonlySet<number> = new Set([30251, 30250])
 export const ANON_MAX_VIDEO_ID = 32
 
 /**
+ * Sentinel selection meaning "every fetched subtitle language". bilibili's
+ * AI subtitle set exceeds the fixed list (ar/pt today, more tomorrow), so
+ * an explicit all-languages pick is the only selection that can guarantee
+ * "embed everything this part actually has".
+ */
+export const LAN_ALL = '*'
+
+/**
  * Priority (index) of a fetched subtitle language inside the user's
  * selection, or -1 when not selected.
  *
@@ -69,6 +77,8 @@ export function selectedLanPriority(
 ): number {
   const exact = selectedLans.indexOf(lan)
   if (exact !== -1) return exact
+  const all = selectedLans.indexOf(LAN_ALL)
+  if (all !== -1) return all
   const norm = normalizeLan(lan)
   return selectedLans.findIndex((s) => normalizeLan(s) === norm)
 }

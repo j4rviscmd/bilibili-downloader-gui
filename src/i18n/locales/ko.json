@@ -46,6 +46,7 @@
     "recent_downloaded": "{{count}}개 다운로드됨",
     "recent_refetch": "다시 가져오기",
     "recent_more": "다운로드 기록 모두 보기",
+    "subtitle_all_langs": "모든 언어",
     "recent_just_now": "방금",
     "recent_hours_ago": "{{count}}시간 전",
     "recent_days_ago": "{{count}}일 전",

@@ -46,6 +46,7 @@
     "recent_downloaded": "{{count}} descargados",
     "recent_refetch": "Obtener de nuevo",
     "recent_more": "Ver todo el historial de descargas",
+    "subtitle_all_langs": "Todos los idiomas",
     "recent_just_now": "ahora mismo",
     "recent_hours_ago": "hace {{count}} h",
     "recent_days_ago": "hace {{count}} d",
