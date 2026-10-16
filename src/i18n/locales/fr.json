@@ -393,7 +393,7 @@
     "subtitle_download_failed": "Échec du téléchargement des sous-titres ({{languages}}). Continuation sans ces sous-titres.",
     "subtitle_description": "Choisissez comment intégrer les sous-titres dans la vidéo.",
     "subtitle_note": "※ Soft Sub permet d'activer/désactiver les sous-titres dans le lecteur. Hard Sub grave les sous-titres dans la vidéo.",
-    "options": "Options",
+    "options": "Réglages par partie",
     "subtitle_select_required": "Veuillez sélectionner au moins une langue",
     "subtitle_n_languages": "{{count}} langues",
     "quality_fallback_tooltip": "La qualité sélectionnée n'était pas disponible, alternative appliquée",

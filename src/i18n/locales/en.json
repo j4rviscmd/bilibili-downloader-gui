@@ -393,7 +393,7 @@
     "subtitle_download_failed": "Subtitle download failed ({{languages}}). Continuing without those subtitles.",
     "subtitle_description": "Choose how to embed subtitles into the video.",
     "subtitle_note": "※ Soft sub allows toggling subtitles in the player. Hard sub burns subtitles into the video.",
-    "options": "Options",
+    "options": "Per-part settings",
     "subtitle_select_required": "Please select at least one language",
     "subtitle_n_languages": "{{count}} languages",
     "quality_fallback_tooltip": "Selected quality was unavailable, fallback applied",
