@@ -5,7 +5,6 @@ import {
   Accordion,
   AccordionContent,
   AccordionItem,
-  AccordionTrigger,
 } from '@/components/animate-ui/components/radix/accordion'
 import { useVideoInfo } from '@/features/video'
 import { formatDuration } from '@/features/video-search/lib/formatDuration'
@@ -15,6 +14,7 @@ import {
   fetchSubtitlesForPart,
 } from '@/features/video/api/fetchVideoInfo'
 import { usePartDownloadStatus } from '@/features/video/hooks/usePartDownloadStatus'
+import { LAN_ALL } from '@/features/video/lib/batchSettings'
 import {
   AUDIO_QUALITIES_MAP,
   audioOptionIds,
@@ -56,10 +56,10 @@ import {
   FormLabel,
   FormMessage,
 } from '@/shared/ui/form'
+import { Input } from '@/shared/ui/input'
 import { Skeleton } from '@/shared/ui/skeleton'
-import { Textarea } from '@/shared/ui/textarea'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ImageOff, Info, Play, RotateCcw } from 'lucide-react'
+import { ChevronDown, ImageOff, Info, Play, RotateCcw } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -251,48 +251,6 @@ const VideoPartCard = memo(function VideoPartCard({
     : audioAbsentFlag && emptyAudioList
 
   /**
-   * Builds the summary label for the accordion trigger.
-   * Combines quality and subtitle information into a compact display.
-   */
-  const summaryLabel = useMemo(() => {
-    if (!resolvedQuality && !resolvedSubtitle) return null
-
-    const parts: string[] = []
-
-    if (resolvedQuality) {
-      // WHY codec is omitted: the codec is chosen by the global
-      // videoCodecPriority setting, not per download, and most users cannot
-      // act on it — the summary stays focused on the selected quality.
-      const videoLabel =
-        VIDEO_QUALITIES_MAP[resolvedQuality.videoQuality] ||
-        String(resolvedQuality.videoQuality)
-      parts.push(videoLabel)
-
-      if (resolvedQuality.audioQuality !== null) {
-        const audioLabel =
-          AUDIO_QUALITIES_MAP[resolvedQuality.audioQuality] ||
-          String(resolvedQuality.audioQuality)
-        parts.push(audioLabel)
-      }
-    }
-
-    if (resolvedSubtitle && resolvedSubtitle.subtitleMode !== 'off') {
-      const modeLabel =
-        resolvedSubtitle.subtitleMode === 'soft'
-          ? t('video.subtitle_soft')
-          : t('video.subtitle_hard')
-      const labels = resolvedSubtitle.subtitleLanguageLabels
-      const langDisplay =
-        labels.length > 2
-          ? t('video.subtitle_n_languages', { count: labels.length })
-          : labels.join('・')
-      parts.push(`${t('video.subtitle')}(${modeLabel}・${langDisplay})`)
-    }
-
-    return parts.join(' / ')
-  }, [resolvedQuality, resolvedSubtitle, t])
-
-  /**
    * Whether any quality (video or audio) was substituted with a fallback
    * due to the originally requested quality being unavailable.
    * Drives the warning icon in the accordion trigger.
@@ -364,8 +322,7 @@ const VideoPartCard = memo(function VideoPartCard({
   // Shared slot classes for both thumbnail branches. Why explicit size: the
   // grid's thumb track is auto-sized, so a bare h-full/w-full item collapses
   // it to the icon width instead of filling the slot.
-  const thumbSlotClass =
-    'relative h-20 w-36 self-center [grid-area:thumb] md:h-auto md:max-h-30 md:w-48 md:self-stretch'
+  const thumbSlotClass = 'relative w-26 shrink-0 overflow-hidden rounded-lg'
 
   /**
    * Controlled value for the Accordion component derived from Redux state.
@@ -739,7 +696,17 @@ const VideoPartCard = memo(function VideoPartCard({
   )
 
   return (
-    <div ref={cardRef} className="p-3 md:p-4">
+    // Compact part card (mockup .part): the border gains the brand ring
+    // while selected.
+    <div
+      ref={cardRef}
+      className={cn(
+        'bg-card mb-2 rounded-xl border transition-shadow',
+        selected
+          ? 'border-brand/40 shadow-[0_0_0_1px_var(--brand)]'
+          : 'border-border',
+      )}
+    >
       <Form {...form}>
         {/* The form stays editable while the part is queued/running by
             design (replace semantics): the enqueued payload is a snapshot,
@@ -749,161 +716,204 @@ const VideoPartCard = memo(function VideoPartCard({
           <form
             onSubmit={form.handleSubmit(onSubmit)}
             onBlur={form.handleSubmit(onSubmit)}
-            className="grid grid-cols-[auto_auto_minmax(0,1fr)] gap-x-3 gap-y-2 [grid-template-areas:'check_thumb_col''acc_acc_acc'] md:[grid-template-areas:'check_thumb_col''check_thumb_acc']"
+            className="block"
           >
-            {/* Why: minmax(0,1fr) track plus min-w-0 on the col/acc children:
-                grid items default to min-width:auto and refuse to shrink
-                below their content's width, so without both the card would
-                overflow the list column instead of fitting it. */}
-            <div className="flex flex-col items-center justify-center gap-2 self-center [grid-area:check] md:max-h-30 md:self-stretch">
-              {/* Why in-flow badge + thumb-mirrored sizing (self-stretch
-                  with the same max-h-30 cap as the thumbnail): the cell
-                  always occupies the thumbnail's box, so the centered
-                  badge + checkbox sit at the thumbnail's middle in both
-                  accordion states — nothing jumps when options expand. */}
-              <span className="text-muted-foreground bg-muted rounded-full px-1.5 text-[10px] leading-4 font-medium tabular-nums">
+            {/* Compact row (mockup .part-row): 44px checkbox hit area,
+                P badge, 104px thumbnail, inline title + pills, per-part
+                toggle. min-w-0 on the title column keeps long filenames
+                from stretching the row past the list width. */}
+            <div className="flex items-center gap-2.5 px-2.5 py-2">
+              <span className="flex size-11 shrink-0 items-center justify-center">
+                <Checkbox
+                  checked={selected}
+                  onCheckedChange={handleSelectedChange}
+                  size="lg"
+                />
+              </span>
+              <span
+                className={cn(
+                  'min-w-8 shrink-0 rounded-full px-1.5 py-0.5 text-center text-[10.5px] font-bold tabular-nums',
+                  selected
+                    ? 'bg-brand-strong/10 text-brand-strong dark:text-brand'
+                    : 'bg-muted text-muted-foreground',
+                )}
+              >
                 P{page}
               </span>
-              <Checkbox
-                checked={selected}
-                onCheckedChange={handleSelectedChange}
-                size="lg"
-              />
-            </div>
-            {videoPart.thumbnail.url ? (
-              // Why group/thumb + sibling button: same reveal pattern
-              // as the video search grid's play overlay
-              // (VideoCardGrid) — the scrim + play icon appear on
-              // hover/focus-visible, so the control stays hidden
-              // until wanted but is keyboard-discoverable.
-              <span className={cn('group/thumb', thumbSlotClass)}>
-                <img
-                  src={videoPart.thumbnail.url}
-                  alt={t('video.thumbnail_alt', {
-                    part: videoPart.part,
-                  })}
-                  className="block h-full w-full rounded-lg object-cover"
-                  loading="lazy"
-                  referrerPolicy="no-referrer"
+              {videoPart.thumbnail.url ? (
+                // Why group/thumb + sibling button: same reveal pattern
+                // as the video search grid's play overlay
+                // (VideoCardGrid) — the scrim + play icon appear on
+                // hover/focus-visible, so the control stays hidden
+                // until wanted but is keyboard-discoverable.
+                <span className={cn('group/thumb', thumbSlotClass)}>
+                  <img
+                    src={videoPart.thumbnail.url}
+                    alt={t('video.thumbnail_alt', {
+                      part: videoPart.part,
+                    })}
+                    className="block aspect-video w-full object-cover"
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                  />
+                  <button
+                    type="button"
+                    onClick={onThumbnailClick}
+                    aria-label={t('videoSearch.previewPlay')}
+                    className="focus-visible:ring-ring/50 absolute inset-0 flex items-center justify-center rounded-lg bg-black/0 text-white opacity-0 transition outline-none group-hover/thumb:bg-black/40 group-hover/thumb:opacity-100 focus-visible:bg-black/40 focus-visible:opacity-100 focus-visible:ring-[3px]"
+                  >
+                    <Play
+                      className="size-8 fill-current drop-shadow"
+                      aria-hidden
+                    />
+                  </button>
+                  {durationBadge}
+                </span>
+              ) : (
+                <div
+                  className={cn(
+                    'bg-muted flex aspect-video items-center justify-center',
+                    thumbSlotClass,
+                  )}
+                >
+                  <ImageOff className="text-muted-foreground/50 size-6" />
+                  {durationBadge}
+                </div>
+              )}
+
+              {/* Title (single line) + meta pills. */}
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <FormField
+                  control={form.control}
+                  name="title"
+                  render={({ field }) => (
+                    <FormItem className="space-y-0">
+                      <FormControl>
+                        <Input
+                          placeholder={t('video.title_placeholder')}
+                          aria-label={t('video.title_label')}
+                          className="hover:border-border focus-visible:border-brand-strong focus-visible:bg-card focus-visible:ring-brand-strong/25 h-8 border-transparent bg-transparent px-2 text-[13px] font-medium shadow-none dark:bg-transparent"
+                          value={field.value}
+                          onChange={(e) => {
+                            field.onChange(e.target.value)
+
+                            // Debounce validation so it only fires after
+                            // the user pauses typing, avoiding noisy
+                            // per-keystroke error flashes. When valid, also
+                            // flush the auto-save so the download-ready
+                            // state updates without requiring blur.
+                            cancelPendingTitleValidation()
+                            titleDebounceRef.current = setTimeout(() => {
+                              void form.trigger('title').then((isValid) => {
+                                if (isValid) {
+                                  void form.handleSubmit(onSubmit)()
+                                }
+                              })
+                            }, 500)
+                          }}
+                          onBlur={() => {
+                            // Cancel any not-yet-fired debounce timer so the
+                            // form-level onBlur flushes the save once. If the
+                            // timer already fired, the extra dispatch is
+                            // idempotent (same title value).
+                            cancelPendingTitleValidation()
+                            field.onBlur()
+                          }}
+                        />
+                      </FormControl>
+                      {selected && <FormMessage />}
+                    </FormItem>
+                  )}
                 />
+                <div className="flex flex-wrap items-center gap-1.5 px-2">
+                  {partInput?.videoQuality && (
+                    <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[11px] font-medium">
+                      {VIDEO_QUALITIES_MAP[Number(partInput.videoQuality)] ??
+                        partInput.videoQuality}
+                    </span>
+                  )}
+                  {partInput?.audioQuality && !isSilentVideo && (
+                    <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[11px] font-medium">
+                      {AUDIO_QUALITIES_MAP[Number(partInput.audioQuality)] ??
+                        partInput.audioQuality}
+                    </span>
+                  )}
+                  {partInput?.subtitle && partInput.subtitle.mode !== 'off' && (
+                    <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[11px] font-medium">
+                      {t('video.subtitle')}:{' '}
+                      {partInput.subtitle.selectedLans.includes(LAN_ALL)
+                        ? t('search.subtitle_all_langs')
+                        : t('video.subtitle_n_languages', {
+                            count: partInput.subtitle.selectedLans.length,
+                          })}
+                    </span>
+                  )}
+                  {willAdjustQuality && (
+                    <span className="inline-flex shrink-0 items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                      {t('video.quality_auto_adjusted')}
+                    </span>
+                  )}
+                  {isPreview && previewBadge}
+                  {queueBadge}
+                  {hasFallback && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="text-xs text-amber-500">⚠️</span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        <p className="text-sm">
+                          {t('video.quality_fallback_tooltip')}
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                  {resetTitleControl}
+                </div>
+              </div>
+
+              <div className="shrink-0">
                 <button
                   type="button"
-                  onClick={onThumbnailClick}
-                  aria-label={t('videoSearch.previewPlay')}
-                  className="focus-visible:ring-ring/50 absolute inset-0 flex items-center justify-center rounded-lg bg-black/0 text-white opacity-0 transition outline-none group-hover/thumb:bg-black/40 group-hover/thumb:opacity-100 focus-visible:bg-black/40 focus-visible:opacity-100 focus-visible:ring-[3px]"
+                  onClick={() =>
+                    void handleAccordionChange(
+                      partInput?.accordionOpen ? [] : ['options'],
+                    )
+                  }
+                  aria-expanded={partInput?.accordionOpen ?? false}
+                  className={cn(
+                    'text-muted-foreground hover:bg-muted hover:text-foreground inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-colors',
+                    partInput?.accordionOpen &&
+                      'bg-brand-strong/10 text-brand-strong hover:bg-brand-strong/15 dark:text-brand',
+                  )}
                 >
-                  <Play
-                    className="size-8 fill-current drop-shadow"
+                  {t('video.options')}
+                  <ChevronDown
+                    className={cn(
+                      'size-3.5 transition-transform',
+                      partInput?.accordionOpen && 'rotate-180',
+                    )}
                     aria-hidden
                   />
                 </button>
-                {durationBadge}
-              </span>
-            ) : (
-              <div
-                className={cn(
-                  'bg-muted flex items-center justify-center rounded-lg',
-                  thumbSlotClass,
-                )}
-              >
-                <ImageOff className="text-muted-foreground/50 h-8 w-8" />
-                {durationBadge}
               </div>
-            )}
-
-            {/* Title Input */}
-            <div className="min-w-0 [grid-area:col]">
-              <FormField
-                control={form.control}
-                name="title"
-                render={({ field }) => (
-                  <FormItem>
-                    <div className="flex items-center gap-2">
-                      <FormLabel className="text-sm font-medium">
-                        {t('video.title_label')}
-                      </FormLabel>
-                      <div className="ml-auto flex items-center gap-2">
-                        {resetTitleControl}
-                        {isPreview && previewBadge}
-                        {willAdjustQuality && (
-                          <span className="inline-flex shrink-0 items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300">
-                            {t('video.quality_auto_adjusted')}
-                          </span>
-                        )}
-                        {queueBadge}
-                      </div>
-                    </div>
-                    <FormControl>
-                      <Textarea
-                        placeholder={t('video.title_placeholder')}
-                        className="min-h-[52px] resize-none"
-                        rows={3}
-                        value={field.value}
-                        onChange={(e) => {
-                          field.onChange(e.target.value)
-
-                          // Debounce validation so it only fires after
-                          // the user pauses typing, avoiding noisy
-                          // per-keystroke error flashes. When valid, also
-                          // flush the auto-save so the download-ready
-                          // state updates without requiring blur.
-                          cancelPendingTitleValidation()
-                          titleDebounceRef.current = setTimeout(() => {
-                            void form.trigger('title').then((isValid) => {
-                              if (isValid) {
-                                void form.handleSubmit(onSubmit)()
-                              }
-                            })
-                          }, 500)
-                        }}
-                        onBlur={() => {
-                          // Cancel any not-yet-fired debounce timer so the
-                          // form-level onBlur flushes the save once. If the
-                          // timer already fired, the extra dispatch is
-                          // idempotent (same title value).
-                          cancelPendingTitleValidation()
-                          field.onBlur()
-                        }}
-                      />
-                    </FormControl>
-                    {selected && <FormMessage />}
-                  </FormItem>
-                )}
-              />
             </div>
 
             {/* Options Accordion */}
             <TooltipProvider delayDuration={200}>
               <Accordion
                 type="multiple"
-                className="w-full min-w-0 [grid-area:acc]"
+                className="w-full min-w-0"
                 value={accordionValue}
                 onValueChange={handleAccordionChange}
               >
                 <AccordionItem value="options">
-                  <AccordionTrigger className="py-2 text-sm">
-                    <span className="flex items-center gap-2">
-                      {t('video.options')}
-                      {summaryLabel && (
-                        <span className="text-muted-foreground font-normal">
-                          / {summaryLabel}
-                        </span>
-                      )}
-                      {hasFallback && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="ml-1 text-amber-500">⚠️</span>
-                          </TooltipTrigger>
-                          <TooltipContent side="top">
-                            <p className="text-sm">
-                              {t('video.quality_fallback_tooltip')}
-                            </p>
-                          </TooltipContent>
-                        </Tooltip>
-                      )}
-                    </span>
-                  </AccordionTrigger>
-                  <AccordionContent transition={accordionTransition}>
+                  {/* No AccordionTrigger: the row's 個別設定 toggle owns the
+                      open state (same handleAccordionChange), so a second
+                      trigger would duplicate the control. */}
+                  <AccordionContent
+                    transition={accordionTransition}
+                    className="bg-muted/40 rounded-b-xl border-t border-dashed px-3.5 pt-3 pb-3.5"
+                  >
                     <div className="space-y-4">
                       {/* Unified loading skeleton: shown until all fetches complete */}
                       {qualitiesLoading ||

@@ -522,7 +522,11 @@ describe('VideoPartCard', () => {
 
   // --- Accordion summary -------------------------------------------------------
 
-  it('summarizes the resolved quality and subtitle in the trigger', () => {
+  // The old trigger summary (resolved quality + subtitle labels) was
+  // removed with the compact row; what survives on the row is the
+  // resolved-fallback warning.
+
+  it('shows the resolved-fallback warning pill when a quality substituted', () => {
     setup({
       partInput: {
         resolvedQuality: {
@@ -532,25 +536,13 @@ describe('VideoPartCard', () => {
           videoQualityFallback: true,
           audioQualityFallback: false,
         } as PartInput['resolvedQuality'],
-        resolvedSubtitle: {
-          subtitleMode: 'soft',
-          subtitleLanguageLabels: ['zh-Hans', 'en', 'ja'],
-        } as PartInput['resolvedSubtitle'],
       },
     })
 
-    const trigger = screen.getByRole('button', { name: /video.options/ })
-    // Codec is no longer part of the summary (global setting governs it)
-    expect(trigger).toHaveTextContent('1080p')
-    expect(trigger).not.toHaveTextContent('(AVC)')
-    expect(trigger).toHaveTextContent('192K')
-    // More than two languages collapse into a count
-    expect(trigger).toHaveTextContent('video.subtitle_n_languages')
-    // Substituted-quality warning icon
     expect(screen.getByText('⚠️')).toBeInTheDocument()
   })
 
-  it('joins up to two subtitle labels and hides the fallback icon', () => {
+  it('hides the fallback warning without a substitution', () => {
     setup({
       partInput: {
         resolvedQuality: {
@@ -558,16 +550,9 @@ describe('VideoPartCard', () => {
           videoCodecid: 7,
           audioQuality: null,
         } as PartInput['resolvedQuality'],
-        resolvedSubtitle: {
-          subtitleMode: 'hard',
-          subtitleLanguageLabels: ['zh-Hans', 'en'],
-        } as PartInput['resolvedSubtitle'],
       },
     })
 
-    const trigger = screen.getByRole('button', { name: /video.options/ })
-    expect(trigger).toHaveTextContent('zh-Hans・en')
-    expect(trigger).toHaveTextContent('video.subtitle_hard')
     expect(screen.queryByText('⚠️')).toBeNull()
   })
 
