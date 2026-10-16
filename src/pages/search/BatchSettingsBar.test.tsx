@@ -223,3 +223,25 @@ describe('BatchSettingsBar', () => {
     await user.keyboard('{Escape}')
   })
 })
+
+it('offers all-languages in soft mode only and drops it when switching to hard', async () => {
+  seed([true, true])
+  const { user } = renderBar()
+
+  const trigger = await screen.findByRole('button', { name: 'video.subtitle' })
+  await user.click(trigger)
+  const menu = await screen.findByRole('menu')
+
+  // Soft + all-languages: the sentinel applies.
+  await user.click(within(menu).getByText('video.subtitle_soft'))
+  await user.click(within(menu).getByText('search.subtitle_all_langs'))
+  expect(trigger).toHaveTextContent('search.subtitle_all_langs')
+
+  // Switching to hard drops the wildcard...
+  await user.click(within(menu).getByText('video.subtitle_hard'))
+  expect(trigger).not.toHaveTextContent('search.subtitle_all_langs')
+
+  // ...and the item itself is gone from the menu.
+  await user.keyboard('{Escape}')
+  expect(within(menu).queryByText('search.subtitle_all_langs')).toBeNull()
+})

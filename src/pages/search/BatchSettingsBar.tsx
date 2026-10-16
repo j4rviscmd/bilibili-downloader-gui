@@ -456,9 +456,17 @@ export function BatchSettingsBar() {
                     // re-renders the language section (✓ ↔ 優先度 N).
                     e.preventDefault()
                   }}
-                  onClick={() =>
-                    applySubtitle(mode, mode === 'off' ? [] : displaySubLangs)
-                  }
+                  onClick={() => {
+                    // Hard burns one language; the soft-sub wildcard is
+                    // meaningless there, so switching modes drops it.
+                    const langs =
+                      mode === 'off'
+                        ? []
+                        : mode === 'hard' && displaySubLangs.includes(LAN_ALL)
+                          ? displaySubLangs.filter((l) => l !== LAN_ALL)
+                          : displaySubLangs
+                    applySubtitle(mode, langs)
+                  }}
                   className={cn(
                     'flex justify-between gap-4',
                     displaySubMode === mode &&
@@ -484,36 +492,34 @@ export function BatchSettingsBar() {
               <DropdownMenuSeparator />
               {/* All-languages sentinel: bilibili's AI set exceeds the
                   fixed list (ar/pt…), so "everything" can only be
-                  expressed as a wildcard, not as an enumeration. Picking
-                  a specific language replaces it. */}
-              <DropdownMenuItem
-                key={LAN_ALL}
-                onSelect={(e) => e.preventDefault()}
-                onClick={() => {
-                  const newLangs = displaySubLangs.includes(LAN_ALL)
-                    ? []
-                    : [LAN_ALL]
-                  if (displaySubMode === 'off') {
-                    setSubLangs(newLangs)
-                    return
-                  }
-                  applySubtitle(displaySubMode ?? 'soft', newLangs)
-                }}
-                className={cn(
-                  'flex justify-between gap-4',
-                  displaySubLangs.includes(LAN_ALL) &&
-                    'text-brand-strong dark:text-brand font-bold',
-                )}
-              >
-                <span>{t('search.subtitle_all_langs')}</span>
-                {displaySubLangs.includes(LAN_ALL) && (
-                  <span className="text-muted-foreground text-[10px] font-semibold">
-                    {displaySubMode === 'soft'
-                      ? '✓'
-                      : t('search.subtitle_priority', { count: 1 })}
-                  </span>
-                )}
-              </DropdownMenuItem>
+                  expressed as a wildcard, not as an enumeration. Soft-sub
+                  only: hard-sub burns exactly ONE language, and a wildcard
+                  there would burn an unpredictable one per part. Picking a
+                  specific language replaces it. */}
+              {displaySubMode === 'soft' && (
+                <DropdownMenuItem
+                  key={LAN_ALL}
+                  onSelect={(e) => e.preventDefault()}
+                  onClick={() => {
+                    const newLangs = displaySubLangs.includes(LAN_ALL)
+                      ? []
+                      : [LAN_ALL]
+                    applySubtitle('soft', newLangs)
+                  }}
+                  className={cn(
+                    'flex justify-between gap-4',
+                    displaySubLangs.includes(LAN_ALL) &&
+                      'text-brand-strong dark:text-brand font-bold',
+                  )}
+                >
+                  <span>{t('search.subtitle_all_langs')}</span>
+                  {displaySubLangs.includes(LAN_ALL) && (
+                    <span className="text-muted-foreground text-[10px] font-semibold">
+                      ✓
+                    </span>
+                  )}
+                </DropdownMenuItem>
+              )}
               {SUBTITLE_LANGUAGES.map(({ lan, label }) => {
                 const idx = displaySubLangs.indexOf(lan)
                 const selected = idx >= 0
