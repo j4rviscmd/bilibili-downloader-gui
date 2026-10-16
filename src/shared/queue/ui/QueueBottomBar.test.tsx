@@ -91,9 +91,7 @@ describe('QueueBottomBar', () => {
     renderBar()
 
     // 6 visible avatar slots: 5 thumbnails + the +2 remainder tile.
-    const slots = document.querySelectorAll(
-      '[data-queue-avatar-target] [data-slot="avatar"]',
-    )
+    const slots = document.querySelectorAll('[data-slot="avatar"]')
     expect(slots).toHaveLength(6)
     expect(screen.getByText('+2')).toBeInTheDocument()
   })
