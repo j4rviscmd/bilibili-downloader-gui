@@ -84,6 +84,7 @@ describe('whole-state replacement', () => {
       partInputs: [],
       pendingDownload: { bvid: 'BV1', cid: 1, page: 1 } as PendingDownload,
       homePage: 4,
+      batchSettings: { videoQuality: null, audioQuality: null, subtitle: null },
     }
 
     store.dispatch(setInput(next))

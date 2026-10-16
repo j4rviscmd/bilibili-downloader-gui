@@ -35,6 +35,12 @@ export type PartInput = {
   thumbnailUrl?: string
   /** Subtitle configuration */
   subtitle: SubtitleConfig
+  /** True when the USER chose this part's video quality (not the auto-seeded ladder default). */
+  videoQualityExplicit?: boolean
+  /** True when the USER chose this part's audio quality. */
+  audioQualityExplicit?: boolean
+  /** True when the USER configured this part's subtitles. */
+  subtitleExplicit?: boolean
   /** Available subtitles (lazy-loaded) */
   subtitles?: SubtitleInfo[]
   /** Whether subtitles are currently loading */
@@ -86,6 +92,17 @@ export type Input = {
   pendingDownload: PendingDownload | null
   /** Last viewed home page number (1-indexed). Used to restore page on home button click during downloads. */
   homePage: number
+  /**
+   * Batch-level target settings for the NEXT enqueue. Applied at enqueue
+   * time to parts WITHOUT an explicit per-part choice (resolution:
+   * explicit per-part value > batch value > part default). Cleared on
+   * every video refetch.
+   */
+  batchSettings: {
+    videoQuality: string | null
+    audioQuality: string | null
+    subtitle: SubtitleConfig | null
+  }
   /**
    * Batch-settings output directory override for the NEXT enqueue (null
    * keeps the settings' dlOutputPath). Cleared on every video refetch.

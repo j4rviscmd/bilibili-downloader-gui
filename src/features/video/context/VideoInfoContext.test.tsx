@@ -13,10 +13,13 @@ import { store } from '@/app/store'
 import { videoApi } from '@/features/video/api/videoApi'
 import {
   resetInput,
+  setBatchSettings,
   setOutputDirOverride,
   setPendingDownload,
   setUrl,
+  updatePartInputByIndex,
   updatePartSelected,
+  updateSubtitleConfig,
 } from '@/features/video/model/inputSlice'
 import { resetVideo } from '@/features/video/model/videoSlice'
 import { clearError as clearDownloadError } from '@/shared/downloadStatus/downloadStatusSlice'
@@ -567,6 +570,50 @@ describe('download', () => {
 
     const child = store.getState().queue.find((q) => q.kind === 'part')
     expect(child?.payload).toMatchObject({ outputDir: '/tmp/picked-dir' })
+  })
+
+  it('resolves each part as explicit-per-part > batch target > default at enqueue', async () => {
+    await setupForDownload()
+
+    act(() => {
+      // Batch targets (e.g. picked while nothing was selected).
+      store.dispatch(
+        setBatchSettings({
+          videoQuality: '64',
+          audioQuality: '30216',
+          subtitle: { mode: 'soft', selectedLans: ['ja'] },
+        }),
+      )
+      // Part 0 keeps its EXPLICIT 1080p (set via onValid2 with flags) and
+      // explicit subtitle — the batch must not override either.
+      store.dispatch(
+        updatePartInputByIndex({
+          index: 0,
+          title: 'Custom name',
+          videoQuality: '80',
+          videoQualityExplicit: true,
+          audioQualityExplicit: true,
+        }),
+      )
+      store.dispatch(
+        updateSubtitleConfig({
+          index: 0,
+          config: { mode: 'hard', selectedLans: ['en'] },
+          explicit: true,
+        }),
+      )
+    })
+
+    await act(async () => {
+      await ctx.download()
+    })
+
+    const child = store.getState().queue.find((q) => q.kind === 'part')
+    expect(child?.payload).toMatchObject({
+      // Explicit part values win.
+      quality: 80,
+      subtitle: { mode: 'hard' },
+    })
   })
 
   it('is a no-op while form 1 is invalid', async () => {

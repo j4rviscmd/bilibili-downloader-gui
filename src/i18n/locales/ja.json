@@ -41,7 +41,7 @@
     "parts_title": "パート",
     "showing_range": "{{total}}件中 {{from}}〜{{to}}件",
     "batch_title": "一括設定",
-    "batch_applies": "選択中の{{count}}パートに適用",
+    "batch_applies": "未設定のパートに適用(選択中{{count}}件)",
     "recent_title": "最近取得したURL",
     "recent_downloaded": "{{count}}回ダウンロード済み",
     "recent_refetch": "再取得",
@@ -63,7 +63,7 @@
     "help_subtitle_title": "字幕",
     "help_subtitle_body": "ソフトサブは選択した言語をすべて埋め込みます。ハードサブは優先度順に1言語を焼り付けます(第1言語のないパートは第2言語へ)。同じ言語で投稿者字幕とAI字幕の両方がある場合、投稿者字幕を優先します。",
     "help_override_title": "パートごとの上書き",
-    "help_override_body": "各行の設定から上書きできます。一括変更は上書きを上書きします。",
+    "help_override_body": "個別設定＞一括設定＞既定の順で適用されます。パート行で明示的に変更した値が最優先され、未設定のパートには一括設定の目標値が使われます。",
     "help_output_title": "保存先",
     "help_output_body": "ここでの変更はこの一括のみに適用され、設定には書き込まれません。"
   },

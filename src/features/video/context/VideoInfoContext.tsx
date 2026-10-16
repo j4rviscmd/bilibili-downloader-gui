@@ -81,6 +81,7 @@ export type VideoInfoContextValue = {
     title: string,
     videoQuality: string,
     audioQuality?: string,
+    explicit?: { videoQuality?: boolean; audioQuality?: boolean },
   ) => void
   /**
    * Canonical video ID of the displayed content ('BV...' for videos,
@@ -335,6 +336,7 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
       title: string,
       videoQuality: string,
       audioQuality?: string,
+      explicit?: { videoQuality?: boolean; audioQuality?: boolean },
     ) => {
       store.dispatch(
         updatePartInputByIndex({
@@ -342,6 +344,14 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
           title,
           videoQuality,
           ...(audioQuality !== undefined && { audioQuality }),
+          // Absent flags keep the stored explicitness (a title-only blur
+          // must not reset quality explicitness).
+          ...(explicit?.videoQuality !== undefined && {
+            videoQualityExplicit: explicit.videoQuality,
+          }),
+          ...(explicit?.audioQuality !== undefined && {
+            audioQualityExplicit: explicit.audioQuality,
+          }),
         }),
       )
     },
@@ -443,9 +453,25 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
     // so changing a part's quality is just "press Download again".
     const parts: EnqueuePartSpec[] = []
 
+    const batch = input.batchSettings
     input.partInputs.forEach((pi, idx) => {
       if (!pi.selected) return
       const title = pi.title.trim()
+      // Resolution order per field: an EXPLICIT per-part choice (user
+      // changed it in the part's panel) beats the batch target, which
+      // beats the part's own default (auto-seeded ladder top / off).
+      const effVideoQuality =
+        pi.videoQualityExplicit || !batch.videoQuality
+          ? pi.videoQuality
+          : batch.videoQuality
+      const effAudioQuality =
+        pi.audioQualityExplicit || !batch.audioQuality
+          ? pi.audioQuality
+          : batch.audioQuality
+      const effSubtitle =
+        pi.subtitleExplicit || !batch.subtitle ? pi.subtitle : batch.subtitle
+      const effSubtitles =
+        pi.subtitleExplicit || !batch.subtitle ? pi.subtitles : pi.subtitles
       parts.push({
         partIndex: idx + 1,
         cid: pi.cid,
@@ -459,8 +485,8 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
           videoId,
           cid: pi.cid,
           filename: title,
-          quality: pi.videoQuality ? parseInt(pi.videoQuality, 10) : null,
-          audioQuality: pi.audioQuality ? parseInt(pi.audioQuality, 10) : null,
+          quality: effVideoQuality ? parseInt(effVideoQuality, 10) : null,
+          audioQuality: effAudioQuality ? parseInt(effAudioQuality, 10) : null,
           durationSeconds: pi.duration,
           thumbnailUrl: pi.thumbnailUrl ?? null,
           page: pi.page,
@@ -472,14 +498,14 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
             // user's priority order (selectedLans index) with manual
             // subtitles before AI ones for the same language. Hard-sub
             // burns only the FIRST entry (backend .next()).
-            const matched = (pi.subtitles ?? [])
+            const matched = (effSubtitles ?? [])
               .filter((s) =>
-                matchesSelectedLan(pi.subtitle.selectedLans, s.lan),
+                matchesSelectedLan(effSubtitle.selectedLans, s.lan),
               )
               .sort((a, b) => {
                 const pri =
-                  selectedLanPriority(pi.subtitle.selectedLans, a.lan) -
-                  selectedLanPriority(pi.subtitle.selectedLans, b.lan)
+                  selectedLanPriority(effSubtitle.selectedLans, a.lan) -
+                  selectedLanPriority(effSubtitle.selectedLans, b.lan)
                 if (pri !== 0) return pri
                 return Number(a.isAi) - Number(b.isAi)
               })
@@ -496,7 +522,7 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
               )
             }
             return {
-              mode: pi.subtitle.mode,
+              mode: effSubtitle.mode,
               selectedLans: matched.map((s) => s.lan),
               subtitles: matched,
             }
@@ -534,6 +560,7 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
     isForm2ValidAll,
     videoId,
     input.partInputs,
+    input.batchSettings,
     input.outputDirOverride,
     video,
     t,

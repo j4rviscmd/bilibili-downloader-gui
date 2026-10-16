@@ -150,6 +150,7 @@ function setup({
       url: '',
       partInputs: [createPartInput(partInput)],
       pendingDownload: null,
+      batchSettings: { videoQuality: null, audioQuality: null, subtitle: null },
       homePage: 1,
     } satisfies Input),
   )
@@ -425,7 +426,13 @@ describe('VideoPartCard', () => {
 
     expect(screen.getByDisplayValue('My Video Part 1')).toBeInTheDocument()
     await vi.waitFor(() =>
-      expect(onValid2).toHaveBeenCalledWith(0, 'My Video Part 1', '', ''),
+      expect(onValid2).toHaveBeenCalledWith(
+        0,
+        'My Video Part 1',
+        '',
+        '',
+        expect.anything(),
+      ),
     )
     // form.watch is live: restoring the default re-disables the button
     expect(reset).toBeDisabled()
@@ -454,7 +461,13 @@ describe('VideoPartCard', () => {
     expect(screen.getByDisplayValue('My Video Part 1')).toBeInTheDocument()
     expect(screen.queryByText('validation.video.title.min')).toBeNull()
     await vi.waitFor(() =>
-      expect(onValid2).toHaveBeenCalledWith(0, 'My Video Part 1', '', ''),
+      expect(onValid2).toHaveBeenCalledWith(
+        0,
+        'My Video Part 1',
+        '',
+        '',
+        expect.anything(),
+      ),
     )
   })
 
@@ -501,7 +514,14 @@ describe('VideoPartCard', () => {
 
     // The 500ms debounce flushes the save once the title is valid
     await vi.waitFor(
-      () => expect(onValid2).toHaveBeenCalledWith(0, 'Renamed Part', '', ''),
+      () =>
+        expect(onValid2).toHaveBeenCalledWith(
+          0,
+          'Renamed Part',
+          '',
+          '',
+          expect.anything(),
+        ),
       { timeout: 3000 },
     )
   })
@@ -515,7 +535,14 @@ describe('VideoPartCard', () => {
     fireEvent.blur(input)
 
     await vi.waitFor(
-      () => expect(onValid2).toHaveBeenCalledWith(0, 'Blurred Part', '', ''),
+      () =>
+        expect(onValid2).toHaveBeenCalledWith(
+          0,
+          'Blurred Part',
+          '',
+          '',
+          expect.anything(),
+        ),
       { timeout: 3000 },
     )
   })
@@ -887,6 +914,11 @@ describe('VideoPartCard', () => {
         url: '',
         partInputs: [createPartInput()],
         pendingDownload: null,
+        batchSettings: {
+          videoQuality: null,
+          audioQuality: null,
+          subtitle: null,
+        },
         homePage: 1,
       } satisfies Input),
     )
@@ -918,6 +950,11 @@ describe('VideoPartCard', () => {
         url: '',
         partInputs: [createPartInput()],
         pendingDownload: null,
+        batchSettings: {
+          videoQuality: null,
+          audioQuality: null,
+          subtitle: null,
+        },
         homePage: 1,
       } satisfies Input),
     )

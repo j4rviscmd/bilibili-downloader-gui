@@ -69,6 +69,7 @@ const initialInput = {
   url: '',
   partInputs: [],
   pendingDownload: null,
+  batchSettings: { videoQuality: null, audioQuality: null, subtitle: null },
   homePage: 1,
 }
 

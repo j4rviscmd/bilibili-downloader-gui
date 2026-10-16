@@ -41,7 +41,7 @@
     "parts_title": "Parties",
     "showing_range": "{{from}}–{{to}} sur {{total}}",
     "batch_title": "Réglages groupés",
-    "batch_applies": "Appliqué à {{count}} parties sélectionnées",
+    "batch_applies": "Appliqué aux parties sans modification explicite ({{count}} sélectionnées)",
     "recent_title": "URL récentes",
     "recent_downloaded": "{{count}} téléchargés",
     "recent_refetch": "Récupérer à nouveau",
@@ -63,7 +63,7 @@
     "help_subtitle_title": "Sous-titres",
     "help_subtitle_body": "Le soft-sub intègre toutes les langues sélectionnées. Le hard-sub grave une langue par ordre de priorité (les parties sans la première langue passent à la deuxième). Quand des sous-titres du créateur et de l'IA existent pour la même langue, la version du créateur est privilégiée.",
     "help_override_title": "Réglages par partie",
-    "help_override_body": "Modifiez chaque partie depuis sa propre ligne ; un changement groupé écrase les modifications.",
+    "help_override_body": "Appliqués dans l'ordre choix par partie > cible groupée > valeur par défaut. Une valeur modifiée explicitement dans la ligne de la partie l'emporte toujours ; les parties non modifiées utilisent la cible groupée.",
     "help_output_title": "Emplacement d'enregistrement",
     "help_output_body": "Le changer ici ne s'applique qu'à ce lot ; les réglages ne sont jamais modifiés."
   },

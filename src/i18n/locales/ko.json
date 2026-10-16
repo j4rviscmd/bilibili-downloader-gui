@@ -41,7 +41,7 @@
     "parts_title": "파트",
     "showing_range": "{{total}}개 중 {{from}}–{{to}}",
     "batch_title": "일괄 설정",
-    "batch_applies": "선택한 {{count}}개 파트에 적용",
+    "batch_applies": "명시적으로 변경하지 않은 파트에 적용 ({{count}}개 선택됨)",
     "recent_title": "최근 가져온 URL",
     "recent_downloaded": "{{count}}개 다운로드됨",
     "recent_refetch": "다시 가져오기",
@@ -63,7 +63,7 @@
     "help_subtitle_title": "자막",
     "help_subtitle_body": "소프트 자막은 선택한 모든 언어를 삽입합니다. 하드 자막은 우선순위에 따라 한 언어를 새깁니다(제1 언어가 없는 파트는 제2 언어로 대체). 같은 언어에 업로더 자막과 AI 자막이 모두 있으면 업로더 자막을 우선합니다.",
     "help_override_title": "파트별 재정의",
-    "help_override_body": "각 행에서 개별적으로 재정의할 수 있으며, 일괄 변경은 재정의를 덮어씁니다.",
+    "help_override_body": "개별 설정 > 일괄 설정 > 기본값 순으로 적용됩니다. 파트 행에서 명시적으로 변경한 값이 항상 우선하며, 변경하지 않은 파트는 일괄 설정의 목표값을 사용합니다.",
     "help_output_title": "저장 위치",
     "help_output_body": "여기서의 변경은 이번 일괄에만 적용되며 설정에는 기록되지 않습니다."
   },

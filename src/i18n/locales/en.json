@@ -41,7 +41,7 @@
     "parts_title": "Parts",
     "showing_range": "{{from}}–{{to}} of {{total}}",
     "batch_title": "Batch settings",
-    "batch_applies": "Applied to {{count}} selected parts",
+    "batch_applies": "Applied to parts without an explicit choice ({{count}} selected)",
     "recent_title": "Recently fetched URLs",
     "recent_downloaded": "{{count}} downloaded",
     "recent_refetch": "Fetch again",
@@ -63,7 +63,7 @@
     "help_subtitle_title": "Subtitles",
     "help_subtitle_body": "Soft-sub embeds every selected language. Hard-sub burns one language in priority order (parts without the first language fall back to the second). When both uploader and AI subtitles exist for the same language, the uploader version is preferred.",
     "help_override_title": "Per-part overrides",
-    "help_override_body": "Change any part's settings from its own row; an explicit batch change overwrites overrides.",
+    "help_override_body": "Applied in the order per-part choice > batch target > default. A value changed explicitly in a part row always wins; parts without an explicit change use the batch target.",
     "help_output_title": "Save location",
     "help_output_body": "Changing it here applies only to this batch; the settings value is never written."
   },

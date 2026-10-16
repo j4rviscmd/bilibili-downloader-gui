@@ -132,7 +132,7 @@ describe('BatchSettingsBar', () => {
     ).toHaveTextContent('1080p')
   })
 
-  it('keeps the last values on the triggers when every part is deselected', async () => {
+  it('keeps the batch target when every part is deselected (and stays editable)', async () => {
     seed([true, true])
     const { user } = renderBar()
 
@@ -145,13 +145,14 @@ describe('BatchSettingsBar', () => {
     const menu = await screen.findByRole('menu')
     await user.click(within(menu).getByText('360p'))
 
-    // Deselect all: the trigger must keep 360p and only become disabled.
+    // Deselect all: the target lives in redux, so it stays shown — and the
+    // trigger stays ENABLED (pre-configuring before selecting is the model).
     await user.click(screen.getByText('video.deselect_all'))
     const qualityTrigger = screen.getByRole('button', {
       name: 'video.quality_label',
     })
     expect(qualityTrigger).toHaveTextContent('360p')
-    expect(qualityTrigger).toBeDisabled()
+    expect(qualityTrigger).toBeEnabled()
   })
 
   it('renders with the summary and page controls when nothing is selected', () => {
@@ -162,7 +163,7 @@ describe('BatchSettingsBar', () => {
     expect(screen.getByText('video.select_all')).toBeInTheDocument()
   })
 
-  it('applies a batch quality target to all selected parts', async () => {
+  it('stores a batch quality target without touching parts', async () => {
     seed([true, true])
     const { user } = renderBar()
 
@@ -173,9 +174,29 @@ describe('BatchSettingsBar', () => {
     const menu = await screen.findByRole('menu')
     await user.click(within(menu).getByText('1080p'))
 
+    // The batch target lands in redux; parts keep their auto-seeded
+    // ladder defaults and stay non-explicit (enqueue resolves
+    // explicit-part > batch > default).
     const state = store.getState().input
-    expect(state.partInputs[0]!.videoQuality).toBe('80')
-    expect(state.partInputs[1]!.videoQuality).toBe('80')
+    expect(state.batchSettings.videoQuality).toBe('80')
+    expect(state.partInputs[0]!.videoQuality).toBe('116')
+    expect(state.partInputs[0]!.videoQualityExplicit).toBeFalsy()
+    expect(state.partInputs[1]!.videoQuality).toBe('74')
+  })
+
+  it('allows setting a batch target with zero parts selected', async () => {
+    seed([false, false])
+    const { user } = renderBar()
+
+    const trigger = await screen.findByRole('button', {
+      name: 'video.quality_label',
+    })
+    expect(trigger).toBeEnabled()
+    await user.click(trigger)
+    const menu = await screen.findByRole('menu')
+    await user.click(within(menu).getByText('1080p'))
+
+    expect(store.getState().input.batchSettings.videoQuality).toBe('80')
   })
 
   it('unions per-part availability in the quality options', async () => {
@@ -217,8 +238,10 @@ describe('BatchSettingsBar', () => {
     expect(screen.getByText('ไทย')).toBeInTheDocument()
 
     const state = store.getState().input
-    expect(state.partInputs[0]!.subtitle.mode).toBe('soft')
-    expect(state.partInputs[1]!.subtitle.mode).toBe('soft')
+    expect(state.batchSettings.subtitle?.mode).toBe('soft')
+    // Parts are untouched — the enqueue resolves their configs.
+    expect(state.partInputs[0]!.subtitle.mode).toBe('off')
+    expect(state.partInputs[1]!.subtitle.mode).toBe('off')
 
     await user.keyboard('{Escape}')
   })

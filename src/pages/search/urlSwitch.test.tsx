@@ -75,7 +75,17 @@ describe('URL switch fetching state', () => {
       }),
     )
     store.dispatch(
-      setInput({ url: '', partInputs: [], pendingDownload: null, homePage: 1 }),
+      setInput({
+        url: '',
+        partInputs: [],
+        pendingDownload: null,
+        batchSettings: {
+          videoQuality: null,
+          audioQuality: null,
+          subtitle: null,
+        },
+        homePage: 1,
+      }),
     )
     const video = makeVideo(3)
     store.dispatch(setVideo(video))
@@ -97,6 +107,11 @@ describe('URL switch fetching state', () => {
         url: 'https://www.bilibili.com/video/BV1test',
         partInputs: [],
         pendingDownload: null,
+        batchSettings: {
+          videoQuality: null,
+          audioQuality: null,
+          subtitle: null,
+        },
         homePage: 1,
       }),
     )

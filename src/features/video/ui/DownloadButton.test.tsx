@@ -16,6 +16,7 @@ const emptyInput: Input = {
   url: 'https://www.bilibili.com/video/BV1xx411c7XD',
   partInputs: [],
   pendingDownload: null,
+  batchSettings: { videoQuality: null, audioQuality: null, subtitle: null },
   homePage: 1,
 }
 

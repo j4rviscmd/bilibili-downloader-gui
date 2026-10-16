@@ -41,7 +41,7 @@
     "parts_title": "分P",
     "showing_range": "{{total}} 项中的第 {{from}}–{{to}} 项",
     "batch_title": "批量设置",
-    "batch_applies": "应用于已选中的 {{count}} 个分P",
+    "batch_applies": "应用于未更改的分P（已选{{count}}件）",
     "recent_title": "最近获取的链接",
     "recent_downloaded": "已下载 {{count}}",
     "recent_refetch": "重新获取",
@@ -63,7 +63,7 @@
     "help_subtitle_title": "字幕",
     "help_subtitle_body": "软字幕会嵌入所选的所有语言。硬字幕按优先顺序烧录一种语言（没有第1语言的分P会使用第2语言）。同一语言同时存在投稿者字幕和AI字幕时，优先使用投稿者字幕。",
     "help_override_title": "分P级覆盖",
-    "help_override_body": "可在各行单独覆盖设置；批量更改会覆盖这些覆盖。",
+    "help_override_body": "按 个别设置 > 一括设置 > 默认值 的顺序应用。在分P行中明确更改的值始终优先；未更改的分P使用一揽子设置的目标值。",
     "help_output_title": "保存位置",
     "help_output_body": "此处的更改仅应用于本批次，不会写入设置。"
   },

@@ -19,6 +19,7 @@ describe('inputSlice', () => {
     partInputs: [],
     pendingDownload: null,
     homePage: 1,
+    batchSettings: { videoQuality: null, audioQuality: null, subtitle: null },
     outputDirOverride: null,
   }
 
@@ -383,6 +384,11 @@ describe('inputSlice', () => {
         ],
         pendingDownload: { bvid: 'BV123', cid: 123, page: 1 },
         homePage: 3,
+        batchSettings: {
+          videoQuality: null,
+          audioQuality: null,
+          subtitle: null,
+        },
       }
 
       const state = inputReducer(stateWithData, resetInput())

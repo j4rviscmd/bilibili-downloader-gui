@@ -233,7 +233,6 @@ const VideoPartCard = memo(function VideoPartCard({
   const qualitiesError = partInput?.qualitiesError
   const isPreview = partInput?.isPreview ?? false
   const resolvedQuality = partInput?.resolvedQuality
-  const resolvedSubtitle = partInput?.resolvedSubtitle
 
   // Shared by both the compact card and the full-mode progress block so the
   // two can never disagree about which stages to render.
@@ -246,6 +245,22 @@ const VideoPartCard = memo(function VideoPartCard({
   const audioAbsentFlag = partInput?.audioAbsent ?? false
   const emptyAudioList =
     audioQualities !== undefined && audioQualities.length === 0
+  // Effective per-part settings: an explicit user choice beats the batch
+  // target, which beats the part's own (auto-seeded) value.
+  const batch = useSelector((state: RootState) => state.input.batchSettings)
+  const effectiveVideoQuality =
+    partInput?.videoQualityExplicit || !batch?.videoQuality
+      ? partInput?.videoQuality
+      : batch.videoQuality
+  const effectiveAudioQuality =
+    partInput?.audioQualityExplicit || !batch?.audioQuality
+      ? partInput?.audioQuality
+      : batch.audioQuality
+  const effectiveSubtitle =
+    partInput?.subtitleExplicit || !batch?.subtitle
+      ? partInput?.subtitle
+      : batch.subtitle
+
   const isSilentVideo = resolvedQuality
     ? resolvedQuality.audioAbsent
     : audioAbsentFlag && emptyAudioList
@@ -557,7 +572,11 @@ const VideoPartCard = memo(function VideoPartCard({
   const handleSubtitleConfigChange = useCallback(
     (config: Parameters<typeof updateSubtitleConfig>[0]['config']) => {
       const prevMode = subtitle?.mode ?? 'off'
-      store.dispatch(updateSubtitleConfig({ index: page - 1, config }))
+      // Always a USER action (the section renders only inside the panel)
+      // → marks the part as explicit so batch targets no longer win.
+      store.dispatch(
+        updateSubtitleConfig({ index: page - 1, config, explicit: true }),
+      )
       if (prevMode === 'off' && config.mode !== 'off') {
         scrollCardIntoView()
       }
@@ -631,9 +650,17 @@ const VideoPartCard = memo(function VideoPartCard({
    */
   const onSubmit = useCallback(
     (data: z.infer<typeof schema2>) => {
-      onValid2(page - 1, data.title, data.videoQuality, data.audioQuality)
+      // Field-level dirtiness marks USER choices: the auto-seed path
+      // calls onValid2 directly without flags, so only real edits set
+      // explicitness (which then outranks the batch target).
+      const vqDirty = form.getFieldState('videoQuality').isDirty
+      const aqDirty = form.getFieldState('audioQuality').isDirty
+      onValid2(page - 1, data.title, data.videoQuality, data.audioQuality, {
+        ...(vqDirty !== undefined && { videoQuality: vqDirty }),
+        ...(aqDirty !== undefined && { audioQuality: aqDirty }),
+      })
     },
-    [onValid2, page],
+    [form, onValid2, page],
   )
 
   // Live title value drives the reset button's disabled state.
@@ -832,25 +859,25 @@ const VideoPartCard = memo(function VideoPartCard({
                   )}
                 />
                 <div className="flex flex-wrap items-center gap-1.5 px-2">
-                  {partInput?.videoQuality && (
+                  {effectiveVideoQuality && (
                     <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[11px] font-medium">
-                      {VIDEO_QUALITIES_MAP[Number(partInput.videoQuality)] ??
-                        partInput.videoQuality}
+                      {VIDEO_QUALITIES_MAP[Number(effectiveVideoQuality)] ??
+                        effectiveVideoQuality}
                     </span>
                   )}
-                  {partInput?.audioQuality && !isSilentVideo && (
+                  {effectiveAudioQuality && !isSilentVideo && (
                     <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[11px] font-medium">
-                      {AUDIO_QUALITIES_MAP[Number(partInput.audioQuality)] ??
-                        partInput.audioQuality}
+                      {AUDIO_QUALITIES_MAP[Number(effectiveAudioQuality)] ??
+                        effectiveAudioQuality}
                     </span>
                   )}
-                  {partInput?.subtitle && partInput.subtitle.mode !== 'off' && (
+                  {effectiveSubtitle && effectiveSubtitle.mode !== 'off' && (
                     <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[11px] font-medium">
                       {t('video.subtitle')}:{' '}
-                      {partInput.subtitle.selectedLans.includes(LAN_ALL)
+                      {effectiveSubtitle.selectedLans.includes(LAN_ALL)
                         ? t('search.subtitle_all_langs')
                         : t('video.subtitle_n_languages', {
-                            count: partInput.subtitle.selectedLans.length,
+                            count: effectiveSubtitle.selectedLans.length,
                           })}
                     </span>
                   )}

@@ -23,7 +23,13 @@ const VALID_URL = 'https://www.bilibili.com/video/BV1xx411c7XD'
 function setup(isFetching = false, isSilentFetching = false) {
   const onValid1 = vi.fn()
   store.dispatch(
-    setInput({ url: '', partInputs: [], pendingDownload: null, homePage: 1 }),
+    setInput({
+      url: '',
+      partInputs: [],
+      pendingDownload: null,
+      batchSettings: { videoQuality: null, audioQuality: null, subtitle: null },
+      homePage: 1,
+    }),
   )
   vi.mocked(useVideoInfo).mockReturnValue({
     input: store.getState().input,

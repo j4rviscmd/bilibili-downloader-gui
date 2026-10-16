@@ -41,7 +41,7 @@
     "parts_title": "Partes",
     "showing_range": "{{from}}–{{to}} de {{total}}",
     "batch_title": "Ajustes por lote",
-    "batch_applies": "Se aplica a {{count}} partes seleccionados",
+    "batch_applies": "Se aplica a las partes sin cambio explícito ({{count}} seleccionadas)",
     "recent_title": "URL recientes",
     "recent_downloaded": "{{count}} descargados",
     "recent_refetch": "Obtener de nuevo",
@@ -63,7 +63,7 @@
     "help_subtitle_title": "Subtítulos",
     "help_subtitle_body": "Soft-sub incrusta todos los idiomas seleccionados. Hard-sub graba un idioma por orden de prioridad (las partes sin el primer idioma pasan al segundo). Cuando existen subtítulos del creador y de IA para el mismo idioma, se prefiere la versión del creador.",
     "help_override_title": "Ajustes por parte",
-    "help_override_body": "Cambia cualquier parte desde su propia fila; un cambio por lote sobrescribe las modificaciones.",
+    "help_override_body": "Se aplican en el orden elección por parte > objetivo por lote > valor por defecto. Un valor cambiado explícitamente en la fila de la parte siempre gana; las partes sin cambio usan el objetivo por lote.",
     "help_output_title": "Ubicación de guardado",
     "help_output_body": "Cambiarla aquí solo afecta a este lote; nunca se escribe en los ajustes."
   },

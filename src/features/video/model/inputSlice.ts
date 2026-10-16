@@ -23,6 +23,7 @@ export const defaultSubtitleConfig: SubtitleConfig = {
 const initialState: Input = {
   url: '',
   partInputs: [],
+  batchSettings: { videoQuality: null, audioQuality: null, subtitle: null },
   pendingDownload: null,
   homePage: 1,
   outputDirOverride: null,
@@ -95,6 +96,13 @@ export const inputSlice = createSlice({
         ...p,
         subtitle: p.subtitle ?? defaultSubtitleConfig,
       }))
+      // Video refetch boundary: batch targets belong to the previous
+      // video and must not leak into the new one.
+      state.batchSettings = {
+        videoQuality: null,
+        audioQuality: null,
+        subtitle: null,
+      }
     },
     /**
      * Updates specific fields of a part input by index.
@@ -112,14 +120,47 @@ export const inputSlice = createSlice({
         title?: string
         videoQuality?: string
         audioQuality?: string
+        /** Mark the quality as an explicit USER choice (beats batch). */
+        videoQualityExplicit?: boolean
+        audioQualityExplicit?: boolean
       }>,
     ) => {
-      const { index, title, videoQuality, audioQuality } = action.payload
+      const {
+        index,
+        title,
+        videoQuality,
+        audioQuality,
+        videoQualityExplicit,
+        audioQualityExplicit,
+      } = action.payload
       const target = state.partInputs[index]
       if (!target) return
       if (title !== undefined) target.title = title
       if (videoQuality !== undefined) target.videoQuality = videoQuality
       if (audioQuality !== undefined) target.audioQuality = audioQuality
+      if (videoQualityExplicit !== undefined)
+        target.videoQualityExplicit = videoQualityExplicit
+      if (audioQualityExplicit !== undefined)
+        target.audioQualityExplicit = audioQualityExplicit
+    },
+    /**
+     * Stores the batch-level target settings. These are NOT written to
+     * parts; the enqueue payload resolves each part as
+     * explicit per-part value > batch value > part default.
+     */
+    setBatchSettings: (
+      state,
+      action: PayloadAction<{
+        videoQuality?: string | null
+        audioQuality?: string | null
+        subtitle?: SubtitleConfig | null
+      }>,
+    ) => {
+      const b = state.batchSettings
+      const p = action.payload
+      if (p.videoQuality !== undefined) b.videoQuality = p.videoQuality
+      if (p.audioQuality !== undefined) b.audioQuality = p.audioQuality
+      if (p.subtitle !== undefined) b.subtitle = p.subtitle
     },
     /**
      * Updates the selection state of a specific part.
@@ -234,11 +275,19 @@ export const inputSlice = createSlice({
      */
     updateSubtitleConfig: (
       state,
-      action: PayloadAction<{ index: number; config: SubtitleConfig }>,
+      action: PayloadAction<{
+        index: number
+        config: SubtitleConfig
+        /** Mark the config as an explicit USER choice (beats batch). */
+        explicit?: boolean
+      }>,
     ) => {
-      const { index, config } = action.payload
+      const { index, config, explicit } = action.payload
       const target = state.partInputs[index]
-      if (target) target.subtitle = config
+      if (target) {
+        target.subtitle = config
+        if (explicit !== undefined) target.subtitleExplicit = explicit
+      }
     },
     /**
      * Sets subtitles loading state for a specific part.
@@ -444,6 +493,7 @@ export const {
   setAccordionOpen,
   setHomePage,
   setInput,
+  setBatchSettings,
   setOutputDirOverride,
   setPartQualities,
   setPartSubtitles,

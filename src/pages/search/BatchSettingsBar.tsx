@@ -39,18 +39,17 @@ import {
 import {
   deselectPageAll,
   selectPageAll,
+  setBatchSettings,
   setOutputDirOverride,
   setPartQualities,
   setPartSubtitles,
   setQualitiesLoading,
   setSubtitlesLoading,
-  updatePartInputByIndex,
-  updateSubtitleConfig,
 } from '@/features/video/model/inputSlice'
 import { cn } from '@/lib/utils'
 import { Button } from '@/shared/ui/button'
 import { ChevronDown, FolderOpen, Info, SlidersVertical } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 /**
@@ -199,61 +198,29 @@ export function BatchSettingsBar() {
     [],
   )
 
-  const [videoOverride, setVideoOverride] = useState<number | null>(null)
-  const [audioOverride, setAudioOverride] = useState<number | null>(null)
-  const [subMode, setSubMode] = useState<'off' | 'soft' | 'hard' | null>(null)
-  const [subLangs, setSubLangs] = useState<string[]>([])
-  const first =
-    selectedIndices.length > 0
-      ? input.partInputs[selectedIndices[0]!]
-      : undefined
-  const targetVideo = videoOverride ?? bestVideoForLogin
-  const targetAudio = audioOverride ?? bestAudioForLogin
-  const effectiveSubMode = first?.subtitle?.mode ?? 'off'
-  const effectiveSubLangs = first?.subtitle?.selectedLans ?? []
-
-  // Deselecting every part empties the derivation source (first/union), so
-  // the triggers used to blank to "—". Keep the last values shown while
-  // parts were selected: with the controls disabled, a blank reads as
-  // "no setting" rather than "nothing selected". Purely cosmetic — nothing
-  // is applied while the selection is empty.
-  const lastSubSummaryRef = useRef('')
+  // Batch targets live in redux and are applied at ENQUEUE time to parts
+  // without an explicit per-part choice (resolution: explicit per-part >
+  // batch > part default). Changing them never writes to parts — which is
+  // why the triggers stay enabled with zero parts selected.
+  const batch = useSelector((state: RootState) => state.input.batchSettings)
+  const targetVideo = batch.videoQuality
+    ? Number(batch.videoQuality)
+    : bestVideoForLogin
+  const targetAudio = batch.audioQuality
+    ? Number(batch.audioQuality)
+    : bestAudioForLogin
   const applyVideo = useCallback(
-    (id: number) => {
-      setVideoOverride(id)
-      selectedIndices.forEach((i) =>
-        dispatch(
-          updatePartInputByIndex({ index: i, videoQuality: String(id) }),
-        ),
-      )
-    },
-    [selectedIndices, dispatch],
+    (id: number) => dispatch(setBatchSettings({ videoQuality: String(id) })),
+    [dispatch],
   )
   const applyAudio = useCallback(
-    (id: number) => {
-      setAudioOverride(id)
-      selectedIndices.forEach((i) =>
-        dispatch(
-          updatePartInputByIndex({ index: i, audioQuality: String(id) }),
-        ),
-      )
-    },
-    [selectedIndices, dispatch],
+    (id: number) => dispatch(setBatchSettings({ audioQuality: String(id) })),
+    [dispatch],
   )
   const applySubtitle = useCallback(
-    (mode: 'off' | 'soft' | 'hard', langs: string[]) => {
-      setSubMode(mode)
-      setSubLangs(langs)
-      selectedIndices.forEach((i) =>
-        dispatch(
-          updateSubtitleConfig({
-            index: i,
-            config: { mode, selectedLans: langs },
-          }),
-        ),
-      )
-    },
-    [selectedIndices, dispatch],
+    (mode: 'off' | 'soft' | 'hard', langs: string[]) =>
+      dispatch(setBatchSettings({ subtitle: { mode, selectedLans: langs } })),
+    [dispatch],
   )
 
   const { settings } = useSettings()
@@ -272,10 +239,10 @@ export function BatchSettingsBar() {
   const label = (id: number) =>
     VIDEO_QUALITIES_MAP[id] ?? AUDIO_QUALITIES_MAP[id] ?? String(id)
 
-  // Subtitle display: an explicit override wins; otherwise reflect the
-  // first selected part's effective config.
-  const displaySubMode = subMode ?? effectiveSubMode
-  const displaySubLangs = subLangs.length > 0 ? subLangs : effectiveSubLangs
+  // Subtitle display mirrors the batch target; before any batch pick it
+  // shows "off" (parts still default to their own configs at enqueue).
+  const displaySubMode = batch.subtitle?.mode ?? 'off'
+  const displaySubLangs = batch.subtitle?.selectedLans ?? []
   const modeLabel = t(
     displaySubMode === 'soft'
       ? 'video.subtitle_soft'
@@ -295,18 +262,7 @@ export function BatchSettingsBar() {
       ? modeLabel
       : `${modeLabel} ${langLabels.join(displaySubMode === 'soft' ? ' + ' : ' → ')}`
 
-  // Subtitle has no login-state default (it mirrors the first selected
-  // part's config), so remember its last summary: deselecting every part
-  // must not blank the trigger. Purely cosmetic — nothing is applied while
-  // the selection is empty.
-  useEffect(() => {
-    if (selectedIndices.length > 0) lastSubSummaryRef.current = subSummary
-  }, [selectedIndices.length, subSummary])
-
-  const emptySelection = selectedIndices.length === 0
-  const shownSub = emptySelection
-    ? lastSubSummaryRef.current || subSummary
-    : subSummary
+  const shownSub = subSummary
 
   return (
     <div className="bg-card/95 sticky top-14 z-15 mt-3 rounded-xl border shadow-sm backdrop-blur">
@@ -404,7 +360,6 @@ export function BatchSettingsBar() {
                     : undefined,
             }
           })}
-          disabled={selectedIndices.length === 0}
           onSelect={(id) => applyVideo(id)}
         />
         <BatchDropdown
@@ -425,7 +380,6 @@ export function BatchSettingsBar() {
             }
           })}
           onSelect={(id) => applyAudio(id)}
-          disabled={selectedIndices.length === 0}
         />
         {/* Compound subtitle menu: mode section + separator + language
             section. Language items keep the menu open (multi-select in
@@ -437,7 +391,6 @@ export function BatchSettingsBar() {
           </span>
           <DropdownMenu>
             <DropdownMenuTrigger
-              disabled={selectedIndices.length === 0}
               aria-label={t('video.subtitle')}
               className="bg-card hover:bg-muted data-[state=open]:border-brand-strong/40 inline-flex h-10 items-center justify-between gap-2 rounded-lg border px-3 text-[13px] font-semibold disabled:opacity-50"
             >
@@ -538,12 +491,15 @@ export function BatchSettingsBar() {
                           ? [lan]
                           : [...displaySubLangs, lan]
                       // While mode is "off", a language click only
-                      // stores the local selection (mockup behavior:
-                      // pre-select then pick a mode). Dispatching here
-                      // would set parts to mode=off WITH languages —
-                      // a nonsensical state.
+                      // stores the pending selection (mockup behavior:
+                      // pre-select then pick a mode) — off-with-languages
+                      // is meaningless until a mode activates it.
                       if (displaySubMode === 'off') {
-                        setSubLangs(newLangs)
+                        dispatch(
+                          setBatchSettings({
+                            subtitle: { mode: 'off', selectedLans: newLangs },
+                          }),
+                        )
                         return
                       }
                       applySubtitle(displaySubMode ?? 'soft', newLangs)
