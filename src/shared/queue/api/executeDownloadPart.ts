@@ -23,6 +23,12 @@ export const executeDownloadPart: PartExecutor = async (payload, ids) => {
   logger.info(
     `executeDownloadPart: starting id=${ids.downloadId}, videoId=${payload.videoId}, cid=${payload.cid}`,
   )
+  // Observability: the subtitle payload decides whether the backend embeds
+  // anything (empty selectedLans → MergeMode::None). This line pinpoints
+  // which layer dropped the selection when subtitles go missing.
+  logger.info(
+    `executeDownloadPart: subtitle mode=${payload.subtitle?.mode}, lans=[${payload.subtitle?.selectedLans.join(',')}], subs=${payload.subtitle?.subtitles.length}`,
+  )
   const outputPath = await invoke<string>('download_video', {
     options: {
       bvid: payload.videoId,
