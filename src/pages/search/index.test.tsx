@@ -579,7 +579,6 @@ describe('SearchContent', () => {
     // key for the selection summary.
     const hero = screen.getByText('Test Video').closest('section')!
     expect(hero).not.toBeNull()
-    expect(within(hero).getByText('BV1test')).toBeInTheDocument()
     expect(within(hero).getByText('search.parts_count')).toBeInTheDocument()
     expect(within(hero).getByText('search.total_duration')).toBeInTheDocument()
     // No Part-1 duration badge on the thumbnail: it would mislead on

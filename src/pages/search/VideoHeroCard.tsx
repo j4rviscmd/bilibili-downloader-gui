@@ -65,15 +65,14 @@ export function VideoHeroCard({
         <h2 className="px-0.5 text-base leading-snug font-bold tracking-tight">
           {video.title}
         </h2>
-        <div className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 px-0.5 text-xs">
-          {video.contentType === 'bangumi' && video.seasonTitle && (
-            <>
-              <span className="font-medium">{video.seasonTitle}</span>
-              <span aria-hidden>·</span>
-            </>
-          )}
-          <span className="font-mono text-[11px]">{video.bvid}</span>
-        </div>
+        {/* Meta row exists only for bangumi (season title). The video id
+            is deliberately not shown: the sticky URL bar above always
+            carries it, and ブラウザで開く covers navigation. */}
+        {video.contentType === 'bangumi' && video.seasonTitle && (
+          <div className="text-muted-foreground flex flex-wrap items-center px-0.5 text-xs">
+            <span className="font-medium">{video.seasonTitle}</span>
+          </div>
+        )}
         <div className="flex flex-wrap gap-1.5 px-0.5">
           {/* Content type moved here from the compact bar: the sticky bar
               only needs to say WHICH video is loaded, and this row is the
