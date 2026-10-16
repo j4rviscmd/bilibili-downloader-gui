@@ -791,39 +791,42 @@ const VideoPartCard = memo(function VideoPartCard({
                   name="title"
                   render={({ field }) => (
                     <FormItem className="space-y-0">
-                      <FormControl>
-                        <Input
-                          placeholder={t('video.title_placeholder')}
-                          aria-label={t('video.title_label')}
-                          className="hover:border-border focus-visible:border-brand-strong focus-visible:bg-card focus-visible:ring-brand-strong/25 h-8 border-transparent bg-transparent px-2 text-[13px] font-medium shadow-none dark:bg-transparent"
-                          value={field.value}
-                          onChange={(e) => {
-                            field.onChange(e.target.value)
+                      <div className="flex items-center gap-1">
+                        <FormControl>
+                          <Input
+                            placeholder={t('video.title_placeholder')}
+                            aria-label={t('video.title_label')}
+                            className="hover:border-border focus-visible:border-brand-strong focus-visible:bg-card focus-visible:ring-brand-strong/25 h-8 border-transparent bg-transparent px-2 text-[13px] font-medium shadow-none dark:bg-transparent"
+                            value={field.value}
+                            onChange={(e) => {
+                              field.onChange(e.target.value)
 
-                            // Debounce validation so it only fires after
-                            // the user pauses typing, avoiding noisy
-                            // per-keystroke error flashes. When valid, also
-                            // flush the auto-save so the download-ready
-                            // state updates without requiring blur.
-                            cancelPendingTitleValidation()
-                            titleDebounceRef.current = setTimeout(() => {
-                              void form.trigger('title').then((isValid) => {
-                                if (isValid) {
-                                  void form.handleSubmit(onSubmit)()
-                                }
-                              })
-                            }, 500)
-                          }}
-                          onBlur={() => {
-                            // Cancel any not-yet-fired debounce timer so the
-                            // form-level onBlur flushes the save once. If the
-                            // timer already fired, the extra dispatch is
-                            // idempotent (same title value).
-                            cancelPendingTitleValidation()
-                            field.onBlur()
-                          }}
-                        />
-                      </FormControl>
+                              // Debounce validation so it only fires after
+                              // the user pauses typing, avoiding noisy
+                              // per-keystroke error flashes. When valid, also
+                              // flush the auto-save so the download-ready
+                              // state updates without requiring blur.
+                              cancelPendingTitleValidation()
+                              titleDebounceRef.current = setTimeout(() => {
+                                void form.trigger('title').then((isValid) => {
+                                  if (isValid) {
+                                    void form.handleSubmit(onSubmit)()
+                                  }
+                                })
+                              }, 500)
+                            }}
+                            onBlur={() => {
+                              // Cancel any not-yet-fired debounce timer so the
+                              // form-level onBlur flushes the save once. If the
+                              // timer already fired, the extra dispatch is
+                              // idempotent (same title value).
+                              cancelPendingTitleValidation()
+                              field.onBlur()
+                            }}
+                          />
+                        </FormControl>
+                        {resetTitleControl}
+                      </div>
                       {selected && <FormMessage />}
                     </FormItem>
                   )}
@@ -870,7 +873,6 @@ const VideoPartCard = memo(function VideoPartCard({
                       </TooltipContent>
                     </Tooltip>
                   )}
-                  {resetTitleControl}
                 </div>
               </div>
 
