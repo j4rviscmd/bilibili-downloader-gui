@@ -32,6 +32,28 @@ export const VIP_VIDEO_IDS: ReadonlySet<number> = new Set([127, 126, 125, 120])
 export const VIP_AUDIO_IDS: ReadonlySet<number> = new Set([30251, 30250])
 
 /**
+ * Best video tier the login state can use from the static ladder.
+ * Enhanced tiers (1080p+/1080p60) and VIP tiers are explicit picks, not
+ * defaults: many videos lack them, and a default pointing at a tier the
+ * option list marks 利用不可 reads as a contradiction.
+ */
+export function bestVideoForLogin(isLoggedIn: boolean): number | null {
+  return (
+    VIDEO_LADDER_IDS.find(
+      (id) =>
+        !VIP_VIDEO_IDS.has(id) &&
+        !LOGIN_REQUIRED_VIDEO_IDS.has(id) &&
+        (isLoggedIn || id <= ANON_MAX_VIDEO_ID),
+    ) ?? null
+  )
+}
+
+/** Best audio tier any non-VIP account can use (192K). */
+export function bestAudioForLogin(): number | null {
+  return AUDIO_LADDER_IDS.find((id) => !VIP_AUDIO_IDS.has(id)) ?? null
+}
+
+/**
  * Highest video tier an anonymous (logged-out) session can use: 32 = 480p.
  * Same platform rule the login notice quotes ("画質は480p以下に制限されます").
  * Used by the batch bar's login-state default, which must not depend on

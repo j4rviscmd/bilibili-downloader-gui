@@ -14,7 +14,11 @@ import {
   fetchSubtitlesForPart,
 } from '@/features/video/api/fetchVideoInfo'
 import { usePartDownloadStatus } from '@/features/video/hooks/usePartDownloadStatus'
-import { LAN_ALL } from '@/features/video/lib/batchSettings'
+import {
+  bestAudioForLogin,
+  bestVideoForLogin,
+  LAN_ALL,
+} from '@/features/video/lib/batchSettings'
 import {
   AUDIO_QUALITIES_MAP,
   audioOptionIds,
@@ -245,29 +249,27 @@ const VideoPartCard = memo(function VideoPartCard({
   const audioAbsentFlag = partInput?.audioAbsent ?? false
   const emptyAudioList =
     audioQualities !== undefined && audioQualities.length === 0
-  // Effective per-part settings: an explicit user choice beats the batch
-  // target, which beats the part's own (auto-seeded) value.
+  // Effective per-part targets (mockup .pmeta pills): an explicit user
+  // choice beats the batch target, which beats the login-state default —
+  // the same resolution the enqueue applies. Pure state: the pills render
+  // immediately for every part, with no per-part fetch behind them.
   const batch = useSelector((state: RootState) => state.input.batchSettings)
-  const effectiveVideoQuality =
-    partInput?.videoQualityExplicit || !batch?.videoQuality
-      ? partInput?.videoQuality
-      : batch.videoQuality
-  const effectiveAudioQuality =
-    partInput?.audioQualityExplicit || !batch?.audioQuality
-      ? partInput?.audioQuality
-      : batch.audioQuality
-  const effectiveSubtitle =
-    partInput?.subtitleExplicit || !batch?.subtitle
-      ? partInput?.subtitle
-      : batch.subtitle
-  // Pills are information, not decoration: a value only shows when the
-  // user actually decided something (explicit pick or batch target). The
-  // auto-seeded ladder default is resolved at enqueue and stays invisible.
-  const showVideoPill =
-    !!partInput?.videoQualityExplicit || !!batch?.videoQuality
-  const showAudioPill =
-    !!partInput?.audioQualityExplicit || !!batch?.audioQuality
-  const showSubtitlePill = !!partInput?.subtitleExplicit || !!batch?.subtitle
+  const loginBestVideo = useMemo(
+    () => bestVideoForLogin(isLoggedIn),
+    [isLoggedIn],
+  )
+  const loginBestAudio = useMemo(() => bestAudioForLogin(), [])
+  const effectiveVideoQuality = partInput?.videoQualityExplicit
+    ? partInput?.videoQuality
+    : (batch?.videoQuality ??
+      (loginBestVideo != null ? String(loginBestVideo) : undefined))
+  const effectiveAudioQuality = partInput?.audioQualityExplicit
+    ? partInput?.audioQuality
+    : (batch?.audioQuality ??
+      (loginBestAudio != null ? String(loginBestAudio) : undefined))
+  const effectiveSubtitle = partInput?.subtitleExplicit
+    ? partInput?.subtitle
+    : batch?.subtitle
 
   const isSilentVideo = resolvedQuality
     ? resolvedQuality.audioAbsent
@@ -867,30 +869,28 @@ const VideoPartCard = memo(function VideoPartCard({
                   )}
                 />
                 <div className="flex flex-wrap items-center gap-1.5 px-2">
-                  {showVideoPill && effectiveVideoQuality && (
+                  {effectiveVideoQuality && (
                     <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[11px] font-medium">
                       {VIDEO_QUALITIES_MAP[Number(effectiveVideoQuality)] ??
                         effectiveVideoQuality}
                     </span>
                   )}
-                  {showAudioPill && effectiveAudioQuality && !isSilentVideo && (
+                  {effectiveAudioQuality && !isSilentVideo && (
                     <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[11px] font-medium">
                       {AUDIO_QUALITIES_MAP[Number(effectiveAudioQuality)] ??
                         effectiveAudioQuality}
                     </span>
                   )}
-                  {showSubtitlePill &&
-                    effectiveSubtitle &&
-                    effectiveSubtitle.mode !== 'off' && (
-                      <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[11px] font-medium">
-                        {t('video.subtitle')}:{' '}
-                        {effectiveSubtitle.selectedLans.includes(LAN_ALL)
-                          ? t('search.subtitle_all_langs')
-                          : t('video.subtitle_n_languages', {
-                              count: effectiveSubtitle.selectedLans.length,
-                            })}
-                      </span>
-                    )}
+                  {effectiveSubtitle && effectiveSubtitle.mode !== 'off' && (
+                    <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[11px] font-medium">
+                      {t('video.subtitle')}:{' '}
+                      {effectiveSubtitle.selectedLans.includes(LAN_ALL)
+                        ? t('search.subtitle_all_langs')
+                        : t('video.subtitle_n_languages', {
+                            count: effectiveSubtitle.selectedLans.length,
+                          })}
+                    </span>
+                  )}
                   {willAdjustQuality && (
                     <span className="inline-flex shrink-0 items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300">
                       {t('video.quality_auto_adjusted')}

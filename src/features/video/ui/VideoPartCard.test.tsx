@@ -675,10 +675,14 @@ describe('VideoPartCard', () => {
     expect(screen.getByRole('radio', { name: 'Dolby Atmos' })).toBeDisabled()
     // Options follow the quality ladder, not numeric id order (numeric
     // order would list 192K above Hi-Res Lossless)
+    // The audio pill also renders 192K (login default); the option is the
+    // one wrapped in a <label>.
+    const radio192k = screen
+      .getAllByText('192K')
+      .map((el) => el.closest('label'))
+      .find(Boolean)!
     expect(
-      screen
-        .getByText('Hi-Res Lossless')
-        .compareDocumentPosition(screen.getByText('192K')),
+      screen.getByText('Hi-Res Lossless').compareDocumentPosition(radio192k),
     ).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
   })
 

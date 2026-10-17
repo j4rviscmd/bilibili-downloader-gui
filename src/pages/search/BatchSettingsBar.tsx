@@ -17,8 +17,9 @@ import { useSettings } from '@/features/settings/useSettings'
 import { useVideoInfo } from '@/features/video'
 import {} from '@/features/video/api/fetchVideoInfo'
 import {
-  ANON_MAX_VIDEO_ID,
   AUDIO_LADDER_IDS,
+  bestAudioForLogin,
+  bestVideoForLogin,
   LAN_ALL,
   LOGIN_REQUIRED_VIDEO_IDS,
   SUBTITLE_LANGUAGES,
@@ -88,20 +89,8 @@ export function BatchSettingsBar() {
   // Enhanced tiers (1080p+/1080p60) and VIP tiers are explicit picks, not
   // defaults: many videos lack them, and a default pointing at a tier the
   // option list marks 利用不可 reads as a contradiction.
-  const bestVideoForLogin = useMemo(
-    () =>
-      VIDEO_LADDER_IDS.find(
-        (id) =>
-          !VIP_VIDEO_IDS.has(id) &&
-          !LOGIN_REQUIRED_VIDEO_IDS.has(id) &&
-          (isLoggedIn || id <= ANON_MAX_VIDEO_ID),
-      ) ?? null,
-    [isLoggedIn],
-  )
-  const bestAudioForLogin = useMemo(
-    () => AUDIO_LADDER_IDS.find((id) => !VIP_AUDIO_IDS.has(id)) ?? null,
-    [],
-  )
+  const bestVideo = useMemo(() => bestVideoForLogin(isLoggedIn), [isLoggedIn])
+  const bestAudio = useMemo(() => bestAudioForLogin(), [])
 
   // Batch targets live in redux and are applied at ENQUEUE time to parts
   // without an explicit per-part choice (resolution: explicit per-part >
@@ -110,10 +99,10 @@ export function BatchSettingsBar() {
   const batch = useSelector((state: RootState) => state.input.batchSettings)
   const targetVideo = batch.videoQuality
     ? Number(batch.videoQuality)
-    : bestVideoForLogin
+    : bestVideo
   const targetAudio = batch.audioQuality
     ? Number(batch.audioQuality)
-    : bestAudioForLogin
+    : bestAudio
   const applyVideo = useCallback(
     (id: number) => dispatch(setBatchSettings({ videoQuality: String(id) })),
     [dispatch],
