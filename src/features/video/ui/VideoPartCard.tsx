@@ -18,6 +18,7 @@ import {
   bestAudioForLogin,
   bestVideoForLogin,
   LAN_ALL,
+  resolveTarget,
 } from '@/features/video/lib/batchSettings'
 import {
   AUDIO_QUALITIES_MAP,
@@ -304,10 +305,20 @@ const VideoPartCard = memo(function VideoPartCard({
    * will resolve to the nearest quality below it. Drives the amber pill
    * next to the title (batch target landing on a part that lacks it).
    */
-  const willAdjustQuality = useMemo(() => {
-    if (!partInput?.videoQuality || !videoQualities) return false
-    return !videoQualities.some((q) => String(q.id) === partInput.videoQuality)
-  }, [partInput?.videoQuality, videoQualities])
+  // Resolved actual (download-quality-resolved event): when the backend
+  // substituted the target, show the real value — requested→actual.
+  const resolvedVideoActual = useMemo(() => {
+    if (!resolvedQuality || !resolvedQuality.videoQualityFallback) return null
+    return resolvedQuality.videoQuality
+  }, [resolvedQuality])
+  const predictedAdjustment = useMemo(() => {
+    const target = effectiveVideoQuality ? Number(effectiveVideoQuality) : null
+    if (target == null || !videoQualities) return null
+    const available = videoQualities.map((q) => q.id)
+    const resolved = resolveTarget(target, available, VIDEO_QUALITIES_ORDER)
+    return resolved !== target ? resolved : null
+  }, [effectiveVideoQuality, videoQualities])
+  const willAdjustQuality = predictedAdjustment != null
 
   /**
    * Queue status badge (issue #691): resolved by `videoId`+`cid`, so only
@@ -891,9 +902,19 @@ const VideoPartCard = memo(function VideoPartCard({
                           })}
                     </span>
                   )}
-                  {willAdjustQuality && (
-                    <span className="inline-flex shrink-0 items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300">
-                      {t('video.quality_auto_adjusted')}
+                  {(predictedAdjustment != null ||
+                    resolvedVideoActual != null) && (
+                    <span className="inline-flex shrink-0 items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800 tabular-nums dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                      ⚠{' '}
+                      {VIDEO_QUALITIES_MAP[
+                        Number(effectiveVideoQuality ?? partInput?.videoQuality)
+                      ] ?? effectiveVideoQuality}
+                      {'→'}
+                      {VIDEO_QUALITIES_MAP[
+                        resolvedVideoActual ?? predictedAdjustment!
+                      ] ??
+                        resolvedVideoActual ??
+                        predictedAdjustment}
                     </span>
                   )}
                   {isPreview && previewBadge}

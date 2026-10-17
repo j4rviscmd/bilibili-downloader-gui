@@ -287,21 +287,25 @@ describe('VideoPartCard', () => {
     // 720p60 — the download will resolve below the selection.
     setup({
       partInput: {
+        // Explicit pick (anonymous default would override a non-explicit
+        // seeded value under the enqueue-resolution model).
         videoQuality: '80',
+        videoQualityExplicit: true,
         videoQualities: [{ id: 74, quality: '720p60' }],
         audioQualities: [],
         subtitles: [],
       },
     })
 
-    expect(screen.getByText('video.quality_auto_adjusted')).toBeInTheDocument()
+    // The pill states the transition: requested 1080p → predicted 720p60.
+    const pill = document.querySelector('.border-amber-300')
+    expect(pill).not.toBeNull()
+    expect(pill?.textContent?.replace(/\s+/g, '')).toBe('⚠1080p→720p60')
   })
 
   it('hides the auto-adjust pill while qualities are unfetched', () => {
-    setup({ partInput: { videoQuality: '80' } })
-    expect(
-      screen.queryByText('video.quality_auto_adjusted'),
-    ).not.toBeInTheDocument()
+    setup({ partInput: { videoQuality: '80', videoQualityExplicit: true } })
+    expect(document.querySelector('.border-amber-300')).toBeNull()
   })
 
   it('keeps all inputs editable while the part is queued or downloading', () => {
