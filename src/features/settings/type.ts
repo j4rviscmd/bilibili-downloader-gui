@@ -117,6 +117,11 @@ export interface Settings {
    */
   theme?: Theme
   /**
+   * Brand accent color: 'pink' (default) or 'blue'.
+   * Persisted to settings.json via the Tauri backend.
+   */
+  accentColor?: AccentColor
+  /**
    * Whether to show download progress on the taskbar.
    * Defaults to true if not specified.
    */
@@ -194,6 +199,13 @@ export type FontSizePreset = 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20
  * - dark: Dark theme
  */
 export type Theme = 'light' | 'dark'
+
+/**
+ * Brand accent color for UI highlights.
+ * - pink: bilibili pink (default)
+ * - blue: bilibili blue (#00AEEC)
+ */
+export type AccentColor = 'pink' | 'blue'
 
 /**
  * Trim mode for MP4 trimming.

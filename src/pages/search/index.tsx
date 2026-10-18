@@ -5,7 +5,11 @@ import { QRCodeLoginDialog } from '@/features/login'
 import type { Video } from '@/features/video'
 import {
   PARTS_PER_PAGE,
+  resetVideo,
+  resetVideoView,
   setHomePage,
+  setInput,
+  setVideo,
   useVideoInfo,
   VideoInfoProvider,
 } from '@/features/video'
@@ -15,14 +19,22 @@ import VideoPartCard from '@/features/video/ui/VideoPartCard'
 import { scrollElementWithinScroller } from '@/shared/lib/scroll'
 import { Skeleton } from '@/shared/ui/skeleton'
 import { Info } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { Trans, useTranslation } from 'react-i18next'
-import { useNavigate, useSearchParams } from 'react-router'
+import { useLocation, useNavigate, useSearchParams } from 'react-router'
 import BatchSettingsBar from './BatchSettingsBar'
 import CommandBar from './CommandBar'
 import DownloadDock from './DownloadDock'
 import RecentUrls from './RecentUrls'
 import VideoHeroCard from './VideoHeroCard'
+import { videoSnapshots } from './videoHistoryCache'
 
 // Shared inline-link styling for the two buttons inside the notice.
 const loginLinkClass =
@@ -264,6 +276,105 @@ function SearchContentInner() {
     videoId !== null &&
     videoId !== loadedVideoId
 
+  // ---- History navigation: back/forward walks the empty page and each
+  // fetched video, mirroring the video-search page's ?q= entries (one
+  // ?url= entry per fetched video). Three cooperating pieces:
+  // 1. the mirror effect snapshots the loaded state under its URL —
+  //    slices are immutable, so the snapshot holds references only,
+  // 2. the layout sync effect below aligns store ↔ entry BEFORE paint
+  //    (restore from snapshot, fresh fetch, or view reset), so the
+  //    wrong video never flashes,
+  // 3. the push branch records the entry once a fetch lands.
+  const urlParam = searchParams.get('url')
+  const { pathname } = useLocation()
+  // The store holds a fully-landed video matching the typed URL — the
+  // state both effects below mirror and record under input.url.
+  const hasLandedVideo =
+    Boolean(input.url) &&
+    video.parts.length > 0 &&
+    videoId != null &&
+    videoId === loadedVideoId
+
+  // Continuous mirror: while a fully-landed video is displayed, keep the
+  // latest edits (filenames, selections, resolved quality) cached under
+  // its URL so a later back/forward restores them exactly.
+  useEffect(() => {
+    if (!hasLandedVideo || isFetching) return
+    videoSnapshots.set(input.url, { video, input })
+  }, [hasLandedVideo, input, video, isFetching])
+
+  // One fresh fetch per URL per mount: a failed fetch leaves the hero
+  // view; revisiting that entry must not retry the request forever.
+  const attemptedUrlsRef = useRef(new Set<string>())
+  const prevUrlParamRef = useRef<string | null>(null)
+
+  useLayoutEffect(() => {
+    // Hidden-copy guard: the persistent layout keeps this page mounted
+    // (display:none) while another page is active, and searchParams then
+    // describe THAT page's location — not ours. Syncing from the hidden
+    // copy would wipe the loaded video on every page leave and stamp a
+    // junk ?url= entry onto the other page's history when an in-flight
+    // fetch lands. prevUrlParamRef stays frozen, so the first sync after
+    // returning compares against the last entry seen while this page was
+    // active — the same hidden idle-copy hazard the video-search page
+    // documents for its /popular redirect.
+    if (pathname !== '/search') return
+    // A fetch in flight owns the store (the landing commit re-runs this
+    // effect); pendingDownload owns the next fetch — neither may be
+    // fought over by an entry sync.
+    if (isFetching || input.pendingDownload) return
+
+    const urlParamChanged = prevUrlParamRef.current !== urlParam
+    prevUrlParamRef.current = urlParam
+
+    if (urlParamChanged) {
+      if (!urlParam) {
+        // Arrived at the empty entry via back/forward: drop the loaded
+        // view so the hero shows (the snapshot was mirrored above, so
+        // forward restores the video). pendingDownload is excluded at
+        // the top — it owns the next fetch, not the entry.
+        if (video.parts.length > 0) {
+          dispatch(resetVideoView())
+          dispatch(resetVideo())
+        }
+        return
+      }
+      // Arrived at a video entry via back/forward: instant snapshot
+      // restore when this session loaded it before, fresh fetch once
+      // otherwise.
+      if (input.url === urlParam && video.parts.length > 0) return
+      const snap = videoSnapshots.get(urlParam)
+      if (snap) {
+        dispatch(setVideo(snap.video))
+        dispatch(setInput(snap.input))
+        return
+      }
+      if (!attemptedUrlsRef.current.has(urlParam)) {
+        attemptedUrlsRef.current.add(urlParam)
+        void onValid1(urlParam)
+      }
+      return
+    }
+
+    // Entry unchanged but a fetch landed on it (Enter submit, silent
+    // auto-fetch, RecentUrls re-fetch): record the entry. Layout timing
+    // keeps the compact view and the new entry in the same paint.
+    if (hasLandedVideo && urlParam !== input.url) {
+      setSearchParams({ url: input.url })
+    }
+  }, [
+    urlParam,
+    pathname,
+    isFetching,
+    input.url,
+    input.pendingDownload,
+    video.parts.length,
+    hasLandedVideo,
+    dispatch,
+    onValid1,
+    setSearchParams,
+  ])
+
   // Page state management:
   // - `p` parameter: part number (for initial display and part selection)
   // - `page` parameter: page number (for pagination navigation)
@@ -450,16 +561,6 @@ function SearchContentInner() {
     )
     return { startIndex, endIndex }
   }, [currentPage, video.parts.length])
-
-  // Handle autoFetch from query parameter
-  useEffect(() => {
-    const autoFetchUrl = searchParams.get('autoFetch')
-    if (autoFetchUrl && !isFetching && video.parts.length === 0) {
-      searchParams.delete('autoFetch')
-      setSearchParams(searchParams, { replace: true })
-      onValid1(autoFetchUrl)
-    }
-  }, [searchParams, isFetching, video.parts.length, onValid1, setSearchParams])
 
   // Sync page when video parts change
   useEffect(() => {

@@ -141,6 +141,24 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* Bilibili blue accent (settings ≫ accentColor = blue). Swaps the brand
+   token family; every tailwind `*-brand-*` utility follows automatically.
+   Light mode keeps a darkened blue for filled CTAs (white-on-brand AA,
+   mirroring the pink's #be185d); dark mode uses the vivid fill with a
+   near-black label, mirroring the pink's #26040f. Pink is the no-attribute
+   default. */
+:root[data-accent='blue'] {
+  --brand: #00aeec;
+  --brand-strong: #0077b6;
+  --brand-foreground: #ffffff;
+}
+
+:root.dark[data-accent='blue'] {
+  --brand: #00aeec;
+  --brand-strong: #00aeec;
+  --brand-foreground: #021a23;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

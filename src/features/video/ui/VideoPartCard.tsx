@@ -318,7 +318,6 @@ const VideoPartCard = memo(function VideoPartCard({
     const resolved = resolveTarget(target, available, VIDEO_QUALITIES_ORDER)
     return resolved !== target ? resolved : null
   }, [effectiveVideoQuality, videoQualities])
-  const willAdjustQuality = predictedAdjustment != null
 
   /**
    * Queue status badge (issue #691): resolved by `videoId`+`cid`, so only

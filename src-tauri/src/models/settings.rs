@@ -208,6 +208,13 @@ pub struct Settings {
     /// UI theme preference. Defaults to system preference if not set.
     #[serde(rename = "theme", default, skip_serializing_if = "Option::is_none")]
     pub theme: Option<UiTheme>,
+    /// UI accent color (bilibili pink or blue). Defaults to pink.
+    #[serde(
+        rename = "accentColor",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub accent_color: Option<AccentColor>,
     /// Video codec priority preference. Defaults to AV1-first if not set.
     #[serde(
         rename = "videoCodecPriority",
@@ -326,6 +333,17 @@ pub enum UiTheme {
     Light,
     /// Dark theme.
     Dark,
+}
+
+/// UI accent color: bilibili pink (default) or bilibili blue.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum AccentColor {
+    /// Bilibili pink (default).
+    #[default]
+    Pink,
+    /// Bilibili blue (#00AEEC family).
+    Blue,
 }
 
 /// Supported UI languages.
@@ -539,6 +557,24 @@ mod tests {
         let s: Settings =
             serde_json::from_str(r#"{"dlOutputPath": "/tmp/a", "language": "en"}"#).unwrap();
         assert_eq!(s.skipped_update_version, None);
+    }
+
+    #[test]
+    fn test_accent_color_defaults_and_roundtrip() {
+        // Why: settings.json written before the accent option lacks the
+        //   key; serde `default` must deserialize it as None (pink UI).
+        let legacy: Settings =
+            serde_json::from_str(r#"{"dlOutputPath": "/tmp/a", "language": "en"}"#).unwrap();
+        assert_eq!(legacy.accent_color, None);
+
+        // serde camelCase roundtrip: the frontend sends "blue".
+        let with_blue: Settings = serde_json::from_str(
+            r#"{"dlOutputPath": "/tmp/a", "language": "en", "accentColor": "blue"}"#,
+        )
+        .unwrap();
+        assert_eq!(with_blue.accent_color, Some(AccentColor::Blue));
+        let json = serde_json::to_value(&with_blue).unwrap();
+        assert_eq!(json["accentColor"], "blue");
     }
 
     // ---- resolve_download_speed_limit_bps (issue #421) ----

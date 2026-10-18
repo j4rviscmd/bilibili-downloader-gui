@@ -20,6 +20,7 @@ import {
   deselectPageAll,
   initPartInputs,
   resetInput,
+  resetVideoView,
   selectAll,
   selectHasSelectedParts,
   selectPageAll,
@@ -373,5 +374,33 @@ describe('resolved info reducers', () => {
       subtitleMode: 'off',
       subtitleLanguageLabels: [],
     })
+  })
+})
+
+describe('resetVideoView', () => {
+  it('clears the loaded video view but preserves pendingDownload and homePage', () => {
+    seedParts()
+    store.dispatch(setUrl('https://www.bilibili.com/video/BV1test'))
+    store.dispatch(setInput({ ...input(), outputDirOverride: '/tmp/out' }))
+    store.dispatch(setPendingDownload({ bvid: 'BV1test', cid: 1, page: 2 }))
+    store.dispatch(setInput({ ...input(), homePage: 3 }))
+
+    store.dispatch(resetVideoView())
+
+    const state = input()
+    // History navigation landed on the empty entry: the loaded video's
+    // view state is dropped so the hero can show.
+    expect(state.url).toBe('')
+    expect(state.partInputs).toHaveLength(0)
+    expect(state.batchSettings).toEqual({
+      videoQuality: null,
+      audioQuality: null,
+      subtitle: null,
+    })
+    expect(state.outputDirOverride).toBeNull()
+    // pendingDownload owns the next fetch and homePage backs the sidebar
+    // Home button — neither belongs to the cleared video.
+    expect(state.pendingDownload).toEqual({ bvid: 'BV1test', cid: 1, page: 2 })
+    expect(state.homePage).toBe(3)
   })
 })

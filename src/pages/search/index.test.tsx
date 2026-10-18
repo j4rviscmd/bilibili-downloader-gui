@@ -314,17 +314,17 @@ describe('SearchContent', () => {
     )
   })
 
-  it('wires the autoFetch query param into onValid1 (URL lands in the store)', async () => {
+  it('wires the ?url= history entry into onValid1 (URL lands in the store)', async () => {
     store.dispatch(setInput(initialInput))
-    const url = 'https://www.bilibili.com/video/BV1autoFetch'
+    const url = 'https://www.bilibili.com/video/BV1entry'
 
     renderWithProviders(<SearchContent />, {
-      route: `/search?autoFetch=${encodeURIComponent(url)}`,
+      route: `/search?url=${encodeURIComponent(url)}`,
     })
 
-    // onValid1 validates then dispatches setUrl before the (mocked,
-    // data-less) fetch; the wiring under test is that the page forwards the
-    // param into the provider's form-1 submit path.
+    // The history-sync effect forwards the entry's URL into the
+    // provider's form-1 submit path; onValid1 validates then dispatches
+    // setUrl before the (mocked, data-less) fetch.
     await vi.waitFor(() => {
       expect(store.getState().input.url).toBe(url)
     })

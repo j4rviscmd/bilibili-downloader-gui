@@ -298,7 +298,7 @@ function VideoForm1() {
                 <div className="relative">
                   <Input
                     className="pr-10"
-                    autoComplete="url"
+                    autoComplete="off"
                     type="url"
                     // Why: stable id so the hero command bar's visible
                     // <label htmlFor="url"> actually focuses this field.

@@ -143,6 +143,18 @@ export function GeneralSection() {
           ]}
         />
       </SettingRow>
+      <SettingRow label={t('settings.accent_label')}>
+        <SettingToggleGroup
+          value={settings.accentColor ?? 'pink'}
+          onValueChange={(value) => {
+            saveByForm({ accentColor: value as 'pink' | 'blue' })
+          }}
+          options={[
+            { value: 'pink', label: t('settings.accent_pink') },
+            { value: 'blue', label: t('settings.accent_blue') },
+          ]}
+        />
+      </SettingRow>
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-2">
           <Label>{t('settings.font_size_label')}</Label>

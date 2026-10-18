@@ -158,6 +158,18 @@ describe('GeneralSection', () => {
     )
   })
 
+  it('changing the accent color persists the new accent', async () => {
+    seedSettings()
+    const { user } = renderWithProviders(<GeneralSection />)
+
+    const blue = screen.getByText('settings.accent_blue').closest('button')!
+    await user.click(blue as HTMLElement)
+
+    await waitFor(() =>
+      expect(lastSetSettings()).toMatchObject({ accentColor: 'blue' }),
+    )
+  })
+
   it('persists the font size picked with the slider keyboard', async () => {
     seedSettings({ fontSize: 14 })
     const { user } = renderWithProviders(<GeneralSection />)

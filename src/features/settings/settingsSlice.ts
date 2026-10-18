@@ -20,6 +20,7 @@ const initialState: Settings = {
   trimMode: 'copy',
   audioFormat: 'mp3',
   theme: 'light',
+  accentColor: 'pink',
   showTaskbarProgress: true,
   flashTaskbarOnComplete: true,
   videoCodecPriority: 'av1First',

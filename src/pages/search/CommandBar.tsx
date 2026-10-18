@@ -51,6 +51,13 @@ function FormatChip({
  */
 export function CommandBar({ variant }: { variant: 'hero' | 'compact' }) {
   const { t } = useTranslation()
+  // Platform-native modifier for the paste hint (Cmd on macOS, Ctrl
+  // elsewhere). Same userAgent check as the settings GeneralSection
+  // (`navigator.platform` is deprecated); two separate <kbd> chips make
+  // the combination readable on both platforms without a "+".
+  const isMac =
+    typeof navigator !== 'undefined' && /Mac/i.test(navigator.userAgent)
+  const pasteMod = isMac ? '⌘' : 'Ctrl'
   const { onValid1 } = useVideoInfo()
 
   if (variant === 'hero') {
@@ -70,7 +77,11 @@ export function CommandBar({ variant }: { variant: 'hero' | 'compact' }) {
           {/* Rich <kbd> chips: the locale string embeds literal <kbd> tags
               that Trans swaps for the styled Kbd component. */}
           <span className="text-muted-foreground font-normal">
-            <Trans i18nKey="search.paste_hint" components={{ kbd: <Kbd /> }} />
+            <Trans
+              i18nKey="search.paste_hint"
+              values={{ mod: pasteMod }}
+              components={{ kbd: <Kbd /> }}
+            />
           </span>
         </div>
         {/* Unified command bar: one bordered container wrapping the input

@@ -233,6 +233,25 @@ export const inputSlice = createSlice({
       return initialState
     },
     /**
+     * Clears the loaded video's view state (url, part inputs, batch
+     * targets) while preserving pendingDownload and homePage.
+     *
+     * Used when history navigation lands on the search page's empty
+     * entry: the store still holds the previous video, but the page
+     * must show the hero. A later back/forward to that video's entry
+     * restores the full state from pages/search/videoHistoryCache.
+     */
+    resetVideoView: (state) => {
+      state.url = ''
+      state.partInputs = []
+      state.batchSettings = {
+        videoQuality: null,
+        audioQuality: null,
+        subtitle: null,
+      }
+      state.outputDirOverride = null
+    },
+    /**
      * Sets a pending download from watch history navigation.
      *
      * Used to initiate automatic download when navigating from
@@ -488,6 +507,7 @@ export const {
   deselectPageAll,
   initPartInputs,
   resetInput,
+  resetVideoView,
   selectAll,
   selectPageAll,
   setAccordionOpen,

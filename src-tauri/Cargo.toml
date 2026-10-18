@@ -88,15 +88,19 @@ log = "0.4"
 # Note: cargo ignores `debug_assertions` in target.'cfg()' dependency
 # selectors (with a manifest warning), so these are plain desktop deps.
 # Their dev-only registration is gated by #[cfg(debug_assertions)] in lib.rs.
-tauri-plugin-webdriver = "0.2"
+# shortcut: unpublished upstream fix — tauri 2.12 (forced by mcp-bridge 0.13)
+# uses webview2-com 0.39, but the latest crates.io release (0.2.3) still pins
+# 0.38 and fails to compile on Windows. Upstream main has the 0.39 bump; pin
+# it by rev until a 0.2.4+ registry release exists, then revert to "0.2".
+tauri-plugin-webdriver = { git = "https://github.com/Choochmeque/tauri-plugin-webdriver", rev = "b94eb81c9d4359cefdde15bd74d0f7d8a00065b6" }
 tauri-plugin-mcp-bridge = "0.13"
 
 [target.'cfg(windows)'.dependencies]
 # Embed-player preview: WebView2 CookieManager COM injection of session
 # cookies as domain cookies (tauri re-exports the same webview2-com types
 # tauri-runtime-wry uses; windows-core supplies the Interface casts).
-webview2-com = "0.38"
-windows-core = "0.61"
+webview2-com = "0.39"
+windows-core = "0.62"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # Preview overlay positioning: NSWindow.contentLayoutRect gives the

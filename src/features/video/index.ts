@@ -26,15 +26,17 @@ export {
   deselectAll,
   deselectPageAll,
   inputSlice,
+  resetVideoView,
   selectAll,
   selectHasSelectedParts,
   selectHomePage,
   selectPageAll,
   setHomePage,
+  setInput,
   setPendingDownload,
   updatePartSelected,
 } from './model/inputSlice'
-export { setVideo, videoSlice } from './model/videoSlice'
+export { resetVideo, setVideo, videoSlice } from './model/videoSlice'
 
 // Selectors
 export {
