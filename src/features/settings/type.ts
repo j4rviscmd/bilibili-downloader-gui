@@ -39,14 +39,6 @@ export interface Settings {
    */
   titleReplacements?: TitleReplacement[]
   /**
-   * Whether to automatically rename duplicate part titles.
-   *
-   * When enabled, duplicate titles are renamed with index suffixes
-   * (e.g., "Part" → "Part (1)", "Part (2)").
-   * Defaults to true if not specified.
-   */
-  autoRenameDuplicates?: boolean
-  /**
    * Whether to omit the part name in the default download filename when it
    * matches the video title (trim-exact comparison of sanitized strings).
    * Defaults to true if not specified.

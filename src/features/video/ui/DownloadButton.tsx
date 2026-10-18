@@ -15,21 +15,15 @@ import { useTranslation } from 'react-i18next'
  *
  * Renders a download button that remains disabled until all validations
  * pass. When disabled, a tooltip explains the reason (invalid URL,
- * duplicate title, no parts selected, etc.).
+ * no parts selected, etc.).
  *
  * Downloads no longer disable this button while a session runs (issue
  * #691): clicking enqueues another session at the queue's tail. Parts
  * already active in the queue are auto-excluded at enqueue time.
  */
 function DownloadButton() {
-  const {
-    download,
-    isForm1Valid,
-    isForm2ValidAll,
-    duplicateIndices,
-    selectedCount,
-    input,
-  } = useVideoInfo()
+  const { download, isForm1Valid, isForm2ValidAll, selectedCount, input } =
+    useVideoInfo()
   const { t } = useTranslation()
 
   const disabled = !(isForm1Valid && isForm2ValidAll)
@@ -47,14 +41,14 @@ function DownloadButton() {
    *
    * Checks conditions in priority order:
    * 1. Invalid URL (Step 1 form)
-   * 2. Duplicate part titles
-   * 3. No parts selected
-   * 4. Missing subtitle language selection
-   * 5. Invalid part title (Step 2 form)
+   * 2. No parts selected
+   * 3. Missing subtitle language selection
+   * 4. Invalid part title (Step 2 form)
+   * Duplicate titles are NOT a reason: save-time collision avoidance
+   * numbers same-name files automatically.
    */
   function getDisabledReason(): string | null {
     if (!isForm1Valid) return t('validation.video.url.invalid')
-    if (duplicateIndices.length > 0) return t('video.duplicate_titles')
     if (selectedCount === 0) return t('video.no_parts_selected')
     if (!isForm2ValidAll) {
       const hasMissingSubtitle = input.partInputs

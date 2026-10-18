@@ -133,8 +133,7 @@ type VideoInfoProviderProps = {
  * This provider orchestrates the entire video download process including:
  * - Video/bangumi info fetching with RTK Query caching
  * - Part input state management and validation
- * - Duplicate title detection (affected by autoRenameDuplicates setting)
- * - Download queue management and execution
+ * - Duplicate title detection (duplicates allowed; numbered at fetch)
  * - Pending download processing from history/favorites navigation
  *
  * The provider uses a singleton ref pattern to prevent re-processing
@@ -377,21 +376,16 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
   }, [input.url, video.parts])
 
   const duplicateIndices = useSelector(selectDuplicateIndices)
-  const hasDuplicates = duplicateIndices.length > 0
-  const dupToastRef = useRef(false)
-
-  useEffect(() => {
-    if (hasDuplicates === dupToastRef.current) return
-    dupToastRef.current = hasDuplicates
-    if (hasDuplicates) {
-      toast.error(t('video.duplicate_titles'), { duration: 5000 })
-    }
-  }, [hasDuplicates, t])
 
   const selectedCount = input.partInputs.filter((pi) => pi.selected).length
 
+  // Duplicate titles no longer block the download: the save-time
+  // collision avoidance numbers same-name files ("Name", "Name (1)") —
+  // the same scheme as the fetch-time default-title numbering (formerly
+  // the autoRenameDuplicates setting). The per-row notice in
+  // VideoPartCard is informational only.
   const isForm2ValidAll = useMemo(() => {
-    if (!selectedCount || hasDuplicates) return false
+    if (!selectedCount) return false
     return input.partInputs
       .filter((pi) => pi.selected)
       .every((pi) => {
@@ -405,7 +399,7 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
           (pi.subtitle?.selectedLans?.length ?? 0) > 0
         return valid && subtitleOk
       })
-  }, [selectedCount, hasDuplicates, input.partInputs, schema2])
+  }, [selectedCount, input.partInputs, schema2])
 
   /**
    * Processes pending download from history/favorites.

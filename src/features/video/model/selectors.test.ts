@@ -10,7 +10,6 @@ import { store } from '@/app/store'
 import type { TFunction } from 'i18next'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { setSettings } from '@/features/settings/settingsSlice'
 import { clearProgress, setProgress } from '@/shared/progress/progressSlice'
 import type { Progress } from '@/shared/ui/Progress'
 import {
@@ -22,8 +21,6 @@ import {
 import {
   selectAllPartValid,
   selectDuplicateIndices,
-  selectHasDuplicates,
-  selectIsAllValid,
   selectIsForm1Valid,
   selectNormalizedTitles,
   selectParentProgress,
@@ -59,17 +56,9 @@ const baseProgress: Progress = {
   stage: 'audio',
 }
 
-/** setSettings takes a full Settings object; spread the live one to flip a flag. */
-function setAutoRenameDuplicates(value: boolean) {
-  store.dispatch(
-    setSettings({ ...store.getState().settings, autoRenameDuplicates: value }),
-  )
-}
-
 beforeEach(() => {
   store.dispatch(resetInput())
   store.dispatch(clearProgress())
-  setAutoRenameDuplicates(true)
 })
 
 describe('selectNormalizedTitles', () => {
@@ -100,14 +89,6 @@ describe('selectDuplicateIndices', () => {
   it('returns nothing when all titles are unique', () => {
     seedTitles(['One', 'Two', 'Three'])
     expect(selectDuplicateIndices(store.getState())).toEqual([])
-  })
-
-  it('selectHasDuplicates mirrors the index list emptiness', () => {
-    seedTitles(['A', 'a'])
-    expect(selectHasDuplicates(store.getState())).toBe(true)
-
-    store.dispatch(updatePartSelected({ index: 1, selected: false }))
-    expect(selectHasDuplicates(store.getState())).toBe(false)
   })
 })
 
@@ -155,34 +136,6 @@ describe('selectAllPartValid', () => {
   it.each(titleRows)('title %j validates to %s', (title, expected) => {
     seedTitles([title])
     expect(selectAllPartValid(t)(store.getState())).toBe(expected)
-  })
-})
-
-describe('selectIsAllValid', () => {
-  it('passes with unique valid titles', () => {
-    seedTitles(['Part One', 'Part Two'])
-    expect(selectIsAllValid(t)(store.getState())).toBe(true)
-  })
-
-  it('allows duplicates while autoRenameDuplicates is on (default)', () => {
-    seedTitles(['Same Title', 'same title'])
-    expect(selectIsAllValid(t)(store.getState())).toBe(true)
-  })
-
-  it('blocks duplicates when autoRenameDuplicates is off', () => {
-    seedTitles(['Same Title', 'same title'])
-    store.dispatch(
-      setSettings({
-        ...store.getState().settings,
-        autoRenameDuplicates: false,
-      }),
-    )
-    expect(selectIsAllValid(t)(store.getState())).toBe(false)
-  })
-
-  it('still blocks invalid parts regardless of auto-rename', () => {
-    seedTitles(['Part One', 'x'])
-    expect(selectIsAllValid(t)(store.getState())).toBe(false)
   })
 })
 

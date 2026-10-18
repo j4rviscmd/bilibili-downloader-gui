@@ -324,7 +324,6 @@
     "download_failed": "Failed to download",
     "file_exists": "A file with the same name already exists",
     "disk_full": "Disk is full",
-    "duplicate_titles": "Duplicate filenames detected. Please make them unique.",
     "merge_failed": "Failed to generate final video (merge step).",
     "quality_not_found": "Requested quality not available.",
     "cookie_missing": "Cookie missing or invalid.",
@@ -546,8 +545,6 @@
       "simulate_logout": "Simulate non-logged-in state",
       "simulate_logout_description": "When enabled, the app behaves as if you are not logged in (for testing purposes)."
     },
-    "auto_rename_duplicates_label": "Auto-rename duplicate parts",
-    "auto_rename_duplicates_description": "Adds numbers to parts with the same name (e.g., Part Name → Part Name (1)). When off, duplicate part names are shown as-is and only renamed at save time if needed to avoid file collisions",
     "omit_duplicate_part_title_label": "Omit duplicate part name",
     "omit_duplicate_part_title_description": "When a part name matches the video title, the download filename omits the repetition (e.g., Title Title → Title). When off, the filename keeps the \"Title Part Name\" form",
     "title_replacement": {
@@ -661,7 +658,7 @@
         "trim_notice": "Title exceeds {{count}} characters; the excess will be trimmed (from the end) when downloading.",
         "required": "Please enter a title.",
         "invalid_chars": "Title contains forbidden characters ({{chars}}).",
-        "duplicate": "This filename is already used by another part."
+        "duplicate": "This filename is used by another part too; files are numbered automatically at save time (e.g., Name, Name (1))."
       },
       "quality": {
         "required": "Please select a quality."

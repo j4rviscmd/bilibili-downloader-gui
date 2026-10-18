@@ -324,7 +324,6 @@
     "download_failed": "Error al descargar",
     "file_exists": "Ya existe un archivo con el mismo nombre",
     "disk_full": "El disco está lleno",
-    "duplicate_titles": "Se detectaron nombres de archivo duplicados. Hazlos únicos.",
     "merge_failed": "Error al generar el video final (etapa de mezcla).",
     "quality_not_found": "La calidad solicitada no está disponible.",
     "cookie_missing": "Cookie ausente o inválida.",
@@ -546,8 +545,6 @@
       "simulate_logout": "Simular estado sin sesión iniciada",
       "simulate_logout_description": "Cuando está habilitado, la aplicación funciona como si no hubieras iniciado sesión (para pruebas)."
     },
-    "auto_rename_duplicates_label": "Renombrar automáticamente partes duplicadas",
-    "auto_rename_duplicates_description": "Añade números automáticamente cuando las partes tienen el mismo nombre (ej: Nombre → Nombre (1)). Desactivado, los nombres duplicados se muestran tal cual y solo se renombran al guardar si es necesario para evitar colisiones de archivos",
     "omit_duplicate_part_title_label": "Omitir nombre de parte duplicado",
     "omit_duplicate_part_title_description": "Cuando el nombre de una parte coincide con el título del video, el nombre del archivo evita repetirlo (p. ej., Título Título → Título). Desactivado, el nombre conserva la forma «Título Nombre de la parte»",
     "title_replacement": {
@@ -661,7 +658,7 @@
         "trim_notice": "El título supera los {{count}} caracteres; el exceso se recortará (por el final) al descargar.",
         "required": "Introduce un título.",
         "invalid_chars": "El título contiene caracteres no permitidos ({{chars}}).",
-        "duplicate": "Este nombre de archivo ya está siendo utilizado por otra parte."
+        "duplicate": "Este nombre de archivo también lo usa otra parte; los archivos se numeran automáticamente al guardar (ej.: Nombre, Nombre (1))."
       },
       "quality": {
         "required": "Selecciona una calidad."

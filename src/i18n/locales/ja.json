@@ -324,7 +324,6 @@
     "download_failed": "ダウンロードに失敗しました",
     "file_exists": "同名のファイルが既に存在します",
     "disk_full": "ディスク容量が不足しています",
-    "duplicate_titles": "重複したファイル名があります。ユニークになるよう修正してください。",
     "merge_failed": "動画生成 (マージ) に失敗しました。",
     "quality_not_found": "指定した画質が利用できません。",
     "cookie_missing": "Cookie が不足または無効です。",
@@ -546,8 +545,6 @@
       "simulate_logout": "非ログイン状態をシミュレート",
       "simulate_logout_description": "有効にすると、アプリはログインしていない状態として動作します（テスト用）。"
     },
-    "auto_rename_duplicates_label": "重複パート名を自動リネーム",
-    "auto_rename_duplicates_description": "同じ名前のパートに番号を付与します（例: パート名 → パート名 (1)）。オフの場合はパート名が重複したまま表示され、保存時に同名ファイルとの衝突を避けるため必要に応じて別名になります",
     "omit_duplicate_part_title_label": "重複パート名を省略",
     "omit_duplicate_part_title_description": "パート名が動画タイトルと同一の場合、ダウンロードファイル名の重複を省略します（例: タイトル タイトル → タイトル）。オフの場合は「タイトル パート名」の形式のままになります",
     "title_replacement": {
@@ -661,7 +658,7 @@
         "trim_notice": "ファイル名が{{count}}文字を超えています。超過分はダウンロード時に末尾から切り詰められます。",
         "required": "タイトルを入力してください。",
         "invalid_chars": "タイトルに使用できない文字が含まれています（{{chars}}）",
-        "duplicate": "同じファイル名が他のパートで設定されています。"
+        "duplicate": "同じファイル名が他のパートで使われています。保存時に自動で番号が付きます（例: 名前、名前 (1)）。"
       },
       "quality": {
         "required": "画質を選択してください。"

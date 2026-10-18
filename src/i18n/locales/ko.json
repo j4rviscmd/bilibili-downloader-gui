@@ -324,7 +324,6 @@
     "download_failed": "다운로드에 실패했습니다",
     "file_exists": "같은 이름의 파일이 이미 존재합니다",
     "disk_full": "디스크 용량이 부족합니다",
-    "duplicate_titles": "중복된 파일명이 있습니다. 고유하게 수정하세요.",
     "merge_failed": "최종 영상 생성(병합 단계) 실패.",
     "quality_not_found": "지정한 화질을 사용할 수 없습니다.",
     "cookie_missing": "쿠키가 없거나 유효하지 않습니다.",
@@ -546,8 +545,6 @@
       "simulate_logout": "비로그인 상태 시뮬레이션",
       "simulate_logout_description": "활성화하면 앱이 로그인하지 않은 상태로 실행됩니다(테스트용)."
     },
-    "auto_rename_duplicates_label": "중복 파트 이름 자동 변경",
-    "auto_rename_duplicates_description": "같은 이름의 파트가 있을 때 자동으로 번호를 추가합니다 (예: 파트 이름 → 파트 이름 (1)). 끄면 파트 이름이 중복된 채로 표시되며, 저장 시 동일한 파일명과의 충돌을 피하기 위해 필요한 경우에만 다른 이름으로 저장됩니다",
     "omit_duplicate_part_title_label": "중복 파트명 생략",
     "omit_duplicate_part_title_description": "파트 이름이 영상 제목과 같으면 다운로드 파일명에 중복을 생략합니다 (예: 제목 제목 → 제목). 끄면 '제목 파트 이름' 형식이 그대로 유지됩니다",
     "title_replacement": {
@@ -661,7 +658,7 @@
         "trim_notice": "파일명이 {{count}}자를 초과합니다. 초과분은 다운로드 시 끝에서 잘립니다.",
         "required": "제목을 입력하세요.",
         "invalid_chars": "제목에 허용되지 않는 문자가 포함되어 있습니다 ({{chars}}).",
-        "duplicate": "다른 부분에서 이미 사용 중인 파일 이름입니다."
+        "duplicate": "같은 파일명이 다른 부분에서도 사용됩니다. 저장 시 자동으로 번호가 붙습니다 (예: 이름, 이름 (1))."
       },
       "quality": {
         "required": "화질을 선택하세요."

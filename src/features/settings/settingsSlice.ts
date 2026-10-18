@@ -13,7 +13,6 @@ import { createSlice } from '@reduxjs/toolkit'
 const initialState: Settings = {
   dlOutputPath: '',
   language: 'en',
-  autoRenameDuplicates: true,
   omitDuplicatePartTitle: true,
   showGithubStars: true,
   fontSize: FONT_SIZE_DEFAULT,

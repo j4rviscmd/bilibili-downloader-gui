@@ -432,7 +432,7 @@ describe('onValid2', () => {
 })
 
 describe('duplicate titles', () => {
-  it('flags duplicates, blocks form 2 and toasts once', async () => {
+  it('flags duplicates without blocking form 2 or toasting', async () => {
     renderProvider()
     await act(async () => {
       await ctx.onValid1(VIDEO_URL)
@@ -449,12 +449,11 @@ describe('duplicate titles', () => {
     await waitFor(() => {
       expect(ctx.duplicateIndices).toEqual([0, 1])
     })
-    expect(ctx.isForm2ValidAll).toBe(false)
-    await waitFor(() =>
-      expect(toastError).toHaveBeenCalledWith('video.duplicate_titles', {
-        duration: 5000,
-      }),
-    )
+    // Save-time collision avoidance numbers same-name files, so the
+    // download must stay enabled and no error toast fires (the per-row
+    // notice in VideoPartCard is informational only).
+    expect(ctx.isForm2ValidAll).toBe(true)
+    expect(toastError).not.toHaveBeenCalled()
   })
 
   it('ignores duplicates on unselected parts', async () => {

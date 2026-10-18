@@ -252,16 +252,19 @@ describe('VideoPartCard', () => {
     expect(store.getState().input.partInputs[0]!.selected).toBe(false)
   })
 
-  it('shows the duplicate-title warning only for selected parts', () => {
-    setup({ isDuplicate: true })
+  it('shows the duplicate-name notice regardless of selection', () => {
+    const first = setup({ isDuplicate: true })
     expect(
       screen.getByText('validation.video.title.duplicate'),
     ).toBeInTheDocument()
+    first.unmount()
 
+    // Informational (save-time numbering), so it stays visible on the
+    // auto-deselected rows too.
     setup({ partInput: { selected: false }, isDuplicate: true })
     expect(
-      screen.queryByText('validation.video.title.duplicate'),
-    ).not.toBeInTheDocument()
+      screen.getByText('validation.video.title.duplicate'),
+    ).toBeInTheDocument()
   })
 
   it('shows the over-cap trim notice (⚠-prefixed) regardless of selection', () => {

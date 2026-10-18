@@ -115,14 +115,6 @@ pub struct Settings {
         skip_serializing_if = "Option::is_none"
     )]
     pub title_replacements: Option<Vec<TitleReplacement>>,
-    /// Whether to automatically rename duplicate part titles with
-    /// index suffixes. Defaults to true.
-    #[serde(
-        rename = "autoRenameDuplicates",
-        default,
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub auto_rename_duplicates: Option<bool>,
     /// Whether to omit the part name in the default download filename when
     /// it matches the video title. Defaults to true.
     #[serde(

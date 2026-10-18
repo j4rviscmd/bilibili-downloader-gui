@@ -879,7 +879,7 @@ const VideoPartCard = memo(function VideoPartCard({
                       </div>
                       {selected && <FormMessage />}
                       {field.value.length > TITLE_MAX_LENGTH && (
-                        <p className="text-xs text-amber-700 dark:text-amber-400">
+                        <p className="px-2 text-xs text-amber-700 dark:text-amber-400">
                           {/* ⚠ prefix mirrors the quality warn pill so
                               both download-affecting notices read alike. */}
                           ⚠{' '}
@@ -1195,9 +1195,10 @@ const VideoPartCard = memo(function VideoPartCard({
               </Accordion>
             </TooltipProvider>
 
-            {/* Duplicate Warning */}
-            {selected && isDuplicate && (
-              <div className="text-destructive col-span-full mt-1 text-sm">
+            {/* Duplicate names are numbered at save time (informational,
+                same tone as the trim notice) — never a download blocker. */}
+            {isDuplicate && (
+              <div className="col-span-full mt-1 px-2 text-xs text-amber-700 dark:text-amber-400">
                 {t('validation.video.title.duplicate')}
               </div>
             )}

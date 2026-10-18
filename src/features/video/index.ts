@@ -41,8 +41,6 @@ export { resetVideo, setVideo, videoSlice } from './model/videoSlice'
 export {
   selectAllPartValid,
   selectDuplicateIndices,
-  selectHasDuplicates,
-  selectIsAllValid,
   selectIsForm1Valid,
   selectParentProgress,
 } from './model/selectors'
