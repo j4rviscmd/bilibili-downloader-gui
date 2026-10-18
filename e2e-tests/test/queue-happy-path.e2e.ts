@@ -20,10 +20,12 @@ import {
 } from '../helpers/app.helpers'
 import * as S from '../helpers/selectors'
 
-/** Bottom-bar avatar tiles currently rendered (thumbnails + remainder). */
+/** Bottom-bar avatar tiles currently rendered (thumbnails + remainder).
+ * Counts inside the bar itself — the fly-to-bar animation (and its
+ * `data-queue-avatar-target` anchor) was removed with the URL-page
+ * redesign, so the old anchor-based selector matched nothing. */
 async function barAvatarCount(): Promise<number> {
-  return (await browser.$$('[data-queue-avatar-target] [data-slot="avatar"]'))
-    .length
+  return (await browser.$$(`${S.QUEUE_BOTTOM_BAR} [data-slot="avatar"]`)).length
 }
 
 describe('queue happy paths', () => {
@@ -41,9 +43,9 @@ describe('queue happy paths', () => {
 
   it('shows one bottom-bar avatar per active part and navigates to /downloads', async () => {
     // Enqueue all three parts: 1 running + 2 pending → 3 avatars.
-    const nav = await browser.$(S.NAV_SEARCH)
-    await nav.waitForExist({ timeout: 15_000 })
-    await nav.click()
+    // The before hook left the app on the loaded video's /search entry —
+    // no navigation needed. (A sidebar NAV_SEARCH click would push the
+    // EMPTY entry and reset the video — the history-redesign behavior.)
     const list = await browser.$(S.DATA_PART_LIST)
     await list.waitForExist({ timeout: 10_000 })
 
@@ -77,8 +79,11 @@ describe('queue happy paths', () => {
 
   it('marks the search part card with a pending badge while queued', async () => {
     // Back to /search: the still-queued parts show data-status badges.
-    const nav = await browser.$(S.NAV_SEARCH)
-    await nav.click()
+    // Why history.back() instead of the sidebar button: since the URL
+    // page's history redesign, a sidebar arrival lands on the EMPTY
+    // entry (hero) and resets the loaded video; going back restores the
+    // ?url= entry and with it the video snapshot — badges included.
+    await browser.execute(() => window.history.back())
     const list = await browser.$(S.DATA_PART_LIST)
     await list.waitForExist({ timeout: 10_000 })
 

@@ -70,23 +70,24 @@ async function gotoDownloads() {
 
 /** Navigates to /search, checks exactly the given part indexes, downloads. */
 async function enqueueParts(indexes: number[]) {
-  // Wait for the sidebar button before clicking: the previous test may
-  // have left the app on /downloads.
-  const nav = await browser.$(S.NAV_SEARCH)
-  await nav.waitForExist({ timeout: 15_000 })
-  await nav.waitForClickable({ timeout: 10_000 })
-  await nav.click()
+  // Return to the loaded video. Why history.back() instead of the
+  // sidebar button: since the URL page's history redesign, a sidebar
+  // arrival lands on the EMPTY entry (hero) and resets the loaded
+  // video; going back restores the ?url= entry and its snapshot —
+  // selection state included (the prior enqueue left everything
+  // deselected, issue #691).
+  await browser.execute(() => window.history.back())
   const list = await browser.$(S.DATA_PART_LIST)
   await list.waitForExist({ timeout: 10_000 })
 
   // Start from a clean selection, then check only the target parts.
+  // Radix checkboxes are buttons: `.checked` is undefined on them, so
+  // read aria-checked (same signal as the click loop below).
   await browser.execute(() => {
     document
-      .querySelectorAll<HTMLInputElement>(
-        '[data-part-list] [data-slot="checkbox"]',
-      )
+      .querySelectorAll<HTMLElement>('[data-part-list] [data-slot="checkbox"]')
       .forEach((el) => {
-        if (el.checked) el.click()
+        if (el.getAttribute('aria-checked') === 'true') el.click()
       })
   })
   for (const index of indexes) {
