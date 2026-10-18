@@ -412,6 +412,32 @@ describe('URL switch fetching state', () => {
       expect(screen.getAllByTestId('video-part-card')).toHaveLength(2),
     )
   })
+
+  it('focuses the URL field on empty-page arrival, including sidebar re-entry', async () => {
+    store.dispatch(resetVideoView())
+    store.dispatch(resetVideo())
+    const { user } = renderWithProviders(<PersistentSearchHarness />, {
+      route: '/search',
+    })
+
+    // Initial arrival: the hero's URL field takes focus (omnibox
+    // pattern — typing/pasting is the page's only primary action).
+    expect(document.getElementById('url')).toBe(document.activeElement)
+
+    // Sidebar away and back: the page stays mounted (persistent
+    // layout), so only the pathname change re-triggers the focus.
+    await user.click(screen.getByText('nav-other'))
+    await vi.waitFor(() =>
+      expect(screen.getByTestId('loc-echo').textContent).toBe('/other'),
+    )
+    expect(document.getElementById('url')).not.toBe(document.activeElement)
+
+    await user.click(screen.getByText('nav-back'))
+    await vi.waitFor(() =>
+      expect(screen.getByTestId('loc-echo').textContent).toContain('/search'),
+    )
+    expect(document.getElementById('url')).toBe(document.activeElement)
+  })
 })
 
 /** /search with history controls + a location echo, so back/forward

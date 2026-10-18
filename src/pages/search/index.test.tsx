@@ -1,5 +1,6 @@
 import { store } from '@/app/store'
 import { setInitiated } from '@/features/init'
+import { setSettings } from '@/features/settings/settingsSlice'
 import { setUser } from '@/features/user/userSlice'
 import { PARTS_PER_PAGE, setVideo } from '@/features/video'
 import { initPartInputs, setInput } from '@/features/video/model/inputSlice'
@@ -184,6 +185,30 @@ describe('SearchContent', () => {
     // Default user state is logged out → the login notice is shown
     // inside the empty-state column.
     expect(document.querySelector('[data-login-notice]')).not.toBeNull()
+  })
+
+  it('renders the bilibili brand icon in the default pink colorway', () => {
+    renderWithProviders(<SearchContent />, { route: '/search' })
+
+    // CommandBar (real in this file) renders the mark as an aria-hidden
+    // img; vitest inlines SVG imports as data URIs, so assert the
+    // colorway by the tile fill (#EC5D85 = pink original).
+    const img = document.querySelector<HTMLImageElement>('img[aria-hidden]')
+    expect(img).toBeTruthy()
+    expect(img!.getAttribute('src')).toContain('EC5D85')
+    expect(img!.getAttribute('src')).not.toContain('5DC6EC')
+  })
+
+  it('swaps the brand icon to the blue colorway with the accent setting', () => {
+    store.dispatch(
+      setSettings({ ...store.getState().settings, accentColor: 'blue' }),
+    )
+    renderWithProviders(<SearchContent />, { route: '/search' })
+
+    const img = document.querySelector<HTMLImageElement>('img[aria-hidden]')
+    expect(img).toBeTruthy()
+    // Blue colorway tile fill: #5DC6EC (hue-rotated accent family).
+    expect(img!.getAttribute('src')).toContain('5DC6EC')
   })
 
   it('hides the login benefits alert once the user is logged in', () => {
