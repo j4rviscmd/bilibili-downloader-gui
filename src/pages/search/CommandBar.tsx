@@ -3,8 +3,9 @@ import { Kbd } from '@/components/ui/kbd'
 import { resetVideo, resetVideoView, useVideoInfo } from '@/features/video'
 import VideoForm1 from '@/features/video/ui/VideoForm1'
 import { Link2, Play, RefreshCw } from 'lucide-react'
+import { useEffect } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
-import { useSearchParams } from 'react-router'
+import { useLocation, useSearchParams } from 'react-router'
 
 /**
  * Accepted URL format chip (empty-state guidance).
@@ -63,6 +64,7 @@ export function CommandBar({ variant }: { variant: 'hero' | 'compact' }) {
   const pasteMod = isMac ? '⌘' : 'Ctrl'
   const { onValid1 } = useVideoInfo()
   const dispatch = useAppDispatch()
+  const { pathname } = useLocation()
   const [, setSearchParams] = useSearchParams()
   // Compact-only: the field's × closes the loaded video (pushes the
   // empty entry, so Back returns to it via the snapshot restore) instead
@@ -80,6 +82,21 @@ export function CommandBar({ variant }: { variant: 'hero' | 'compact' }) {
           setSearchParams({})
         }
       : undefined
+
+  // Auto-focus the URL field when the hero (empty page) shows: typing or
+  // pasting a URL is the page's only primary action, so arrival — launch,
+  // back/forward, the × close, or the sidebar — should put the caret in
+  // the field (browser-omnibox pattern). The pathname condition is the
+  // re-arrival trigger: the persistent layout keeps this page mounted
+  // while other pages are active, so a sidebar return fires no mount and
+  // no variant change — only the pathname does. Hidden-copy runs (other
+  // page active) never focus. Compact deliberately does not steal focus:
+  // the loaded video's parts are what the user interacts with.
+  useEffect(() => {
+    if (pathname === '/search' && variant === 'hero') {
+      document.getElementById('url')?.focus()
+    }
+  }, [pathname, variant])
 
   if (variant === 'hero') {
     return (
