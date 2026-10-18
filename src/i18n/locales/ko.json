@@ -26,6 +26,7 @@
     "url_label": "영상 URL",
     "paste_hint": "<kbd>{{mod}}</kbd><kbd>V</kbd> 붙여넣기 · <kbd>Enter</kbd> 가져오기",
     "fetch_cta": "가져오기",
+    "clear_url": "지우기",
     "formats_label": "지원 URL 형식",
     "format_video": "영상",
     "format_bangumi": "번귬",

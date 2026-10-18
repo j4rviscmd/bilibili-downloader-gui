@@ -26,6 +26,7 @@
     "url_label": "Video URL",
     "paste_hint": "Paste with <kbd>{{mod}}</kbd><kbd>V</kbd> · fetch with <kbd>Enter</kbd>",
     "fetch_cta": "Fetch",
+    "clear_url": "Clear",
     "formats_label": "Supported URL formats",
     "format_video": "Video",
     "format_bangumi": "Bangumi",

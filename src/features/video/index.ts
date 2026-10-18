@@ -3,8 +3,7 @@
  *
  * Handles Bilibili video information fetching, download orchestration,
  * quality selection, and multi-part video management. Includes form
- * validation, filename normalization, and UI components for the entire
- * video download workflow.
+ * validation and filename normalization.
  * @module features/video
  */
 
@@ -67,7 +66,3 @@ export {
 
 // Types
 export type { Input, PendingDownload, Video } from './types'
-
-// UI components
-export { default as DownloadButton } from './ui/DownloadButton'
-export { default as VideoForm1 } from './ui/VideoForm1'

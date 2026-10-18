@@ -307,6 +307,13 @@ function SearchContentInner() {
   // view; revisiting that entry must not retry the request forever.
   const attemptedUrlsRef = useRef(new Set<string>())
   const prevUrlParamRef = useRef<string | null>(null)
+  // URL of an entry record this effect has issued but not yet observed
+  // in `urlParam`. A close (× → setSearchParams({})) racing that same
+  // commit overwrites the record before this effect ever sees it — the
+  // transition ref alone would never notice, and the loaded video would
+  // survive on the empty entry. The ref turns that into a detectable
+  // "superseded push" state.
+  const pendingPushRef = useRef<string | null>(null)
 
   useLayoutEffect(() => {
     // Hidden-copy guard: the persistent layout keeps this page mounted
@@ -327,18 +334,33 @@ function SearchContentInner() {
     const urlParamChanged = prevUrlParamRef.current !== urlParam
     prevUrlParamRef.current = urlParam
 
-    if (urlParamChanged) {
-      if (!urlParam) {
-        // Arrived at the empty entry via back/forward: drop the loaded
-        // view so the hero shows (the snapshot was mirrored above, so
-        // forward restores the video). pendingDownload is excluded at
-        // the top — it owns the next fetch, not the entry.
-        if (video.parts.length > 0) {
-          dispatch(resetVideoView())
-          dispatch(resetVideo())
-        }
+    if (!urlParam) {
+      // Arrived at the empty entry (back/forward, or the × close): drop
+      // the loaded view so the hero shows — the snapshot was mirrored
+      // above, so forward restores the video. `pendingPushRef` catches
+      // the close that overwrote a just-issued entry record in the same
+      // commit (no `urlParamChanged` transition ever fired). Without a
+      // reset, fall through: a video that just landed on the empty entry
+      // still needs its entry recorded by the push branch below.
+      if (
+        video.parts.length > 0 &&
+        (urlParamChanged || pendingPushRef.current !== null)
+      ) {
+        dispatch(resetVideoView())
+        dispatch(resetVideo())
+        pendingPushRef.current = null
         return
       }
+      // Consume a superseded push here too: the racing close already
+      // reset the store (parts === 0) and skips the branch above, and a
+      // ref surviving the empty entry would reset the NEXT video that
+      // lands on it.
+      pendingPushRef.current = null
+    } else {
+      pendingPushRef.current = null
+    }
+
+    if (urlParamChanged && urlParam) {
       // Arrived at a video entry via back/forward: instant snapshot
       // restore when this session loaded it before, fresh fetch once
       // otherwise.
@@ -360,6 +382,7 @@ function SearchContentInner() {
     // auto-fetch, RecentUrls re-fetch): record the entry. Layout timing
     // keeps the compact view and the new entry in the same paint.
     if (hasLandedVideo && urlParam !== input.url) {
+      pendingPushRef.current = input.url
       setSearchParams({ url: input.url })
     }
   }, [

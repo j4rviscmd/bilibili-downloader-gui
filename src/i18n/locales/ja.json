@@ -26,6 +26,7 @@
     "url_label": "動画URL",
     "paste_hint": "<kbd>{{mod}}</kbd><kbd>V</kbd> で貼り付け · <kbd>Enter</kbd> で取得",
     "fetch_cta": "取得",
+    "clear_url": "クリア",
     "formats_label": "対応URL形式",
     "format_video": "動画",
     "format_bangumi": "番組",

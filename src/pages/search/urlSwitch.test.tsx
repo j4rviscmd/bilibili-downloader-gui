@@ -374,6 +374,44 @@ describe('URL switch fetching state', () => {
     expect(screen.getAllByTestId('video-part-card')).toHaveLength(3)
     expect(fetchVideoInfoCalls()).toBe(0)
   })
+
+  it('closes the loaded video via the compact bar × (pushes the empty entry)', async () => {
+    store.dispatch(resetVideoView())
+    store.dispatch(resetVideo())
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === 'fetch_video_info')
+        return Promise.resolve(makeVideo(2, 'BV1close'))
+      return Promise.resolve(undefined)
+    })
+
+    const { user, container } = renderWithProviders(<SearchNavHarness />, {
+      route: '/search',
+    })
+    const input = container.querySelector<HTMLInputElement>('#url')
+    if (!input) throw new Error('URL input not rendered')
+    await user.type(input, 'https://www.bilibili.com/video/BV1close')
+    await user.keyboard('{Enter}')
+    await vi.waitFor(() =>
+      expect(screen.getAllByTestId('video-part-card')).toHaveLength(2),
+    )
+    const fetches = fetchVideoInfoCalls()
+
+    // The × in the compact bar closes the video: hero view, empty entry
+    // pushed, no refetch (the clear also cancels the pending debounce).
+    await user.click(screen.getByRole('button', { name: 'search.clear_url' }))
+    await vi.waitFor(() =>
+      expect(screen.queryAllByTestId('video-part-card')).toHaveLength(0),
+    )
+    expect(screen.getByTestId('search-echo').textContent).toBe('')
+    expect(store.getState().input.partInputs).toHaveLength(0)
+    expect(fetchVideoInfoCalls()).toBe(fetches)
+
+    // The close pushed a new entry, so Back returns to the video.
+    await user.click(screen.getByText('nav-back'))
+    await vi.waitFor(() =>
+      expect(screen.getAllByTestId('video-part-card')).toHaveLength(2),
+    )
+  })
 })
 
 /** /search with history controls + a location echo, so back/forward

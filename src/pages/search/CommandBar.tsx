@@ -1,7 +1,10 @@
+import { useAppDispatch } from '@/app/store'
 import { Kbd } from '@/components/ui/kbd'
-import { useVideoInfo, VideoForm1 } from '@/features/video'
+import { resetVideo, resetVideoView, useVideoInfo } from '@/features/video'
+import VideoForm1 from '@/features/video/ui/VideoForm1'
 import { Link2, Play, RefreshCw } from 'lucide-react'
 import { Trans, useTranslation } from 'react-i18next'
+import { useSearchParams } from 'react-router'
 
 /**
  * Accepted URL format chip (empty-state guidance).
@@ -59,6 +62,24 @@ export function CommandBar({ variant }: { variant: 'hero' | 'compact' }) {
     typeof navigator !== 'undefined' && /Mac/i.test(navigator.userAgent)
   const pasteMod = isMac ? '⌘' : 'Ctrl'
   const { onValid1 } = useVideoInfo()
+  const dispatch = useAppDispatch()
+  const [, setSearchParams] = useSearchParams()
+  // Compact-only: the field's × closes the loaded video (pushes the
+  // empty entry, so Back returns to it via the snapshot restore) instead
+  // of merely clearing the draft — the hero's × keeps the plain clear.
+  // Why the store resets HERE and not via the page's entry-sync effect:
+  // resetting first makes hasLandedVideo false, so the page's pending
+  // ?url= push (racing this same commit when the click lands in the
+  // landing frame) is dropped at the guard instead of overwriting this
+  // navigation — a router-only close intermittently lost that race.
+  const closeVideo =
+    variant === 'compact'
+      ? () => {
+          dispatch(resetVideoView())
+          dispatch(resetVideo())
+          setSearchParams({})
+        }
+      : undefined
 
   if (variant === 'hero') {
     return (
@@ -133,7 +154,7 @@ export function CommandBar({ variant }: { variant: 'hero' | 'compact' }) {
       <div className="bg-card border-border focus-within:border-brand-strong focus-within:ring-brand-strong/35 flex min-w-0 flex-1 items-center gap-2.5 rounded-[10px] border px-2.5 py-1 transition-all focus-within:ring-3 [&_input]:h-auto [&_input]:rounded-none [&_input]:border-0 [&_input]:bg-transparent! [&_input]:px-0 [&_input]:py-1.5 [&_input]:shadow-none [&_input]:focus-visible:ring-0 [&_input]:focus-visible:outline-none">
         <Link2 className="text-muted-foreground size-4 shrink-0" aria-hidden />
         <div className="min-w-0 flex-1">
-          <VideoForm1 />
+          <VideoForm1 onClearUrl={closeVideo} />
         </div>
       </div>
     </div>

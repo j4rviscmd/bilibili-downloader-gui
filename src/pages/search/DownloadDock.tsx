@@ -1,5 +1,5 @@
-import { DownloadButton } from '@/features/video'
 import { formatDuration } from '@/features/video-search/lib/formatDuration'
+import DownloadButton from '@/features/video/ui/DownloadButton'
 import {
   Pagination,
   PaginationContent,

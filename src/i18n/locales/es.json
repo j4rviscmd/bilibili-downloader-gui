@@ -26,6 +26,7 @@
     "url_label": "URL del vídeo",
     "paste_hint": "Pega con <kbd>{{mod}}</kbd><kbd>V</kbd> · obtén con <kbd>Enter</kbd>",
     "fetch_cta": "Obtener",
+    "clear_url": "Limpiar",
     "formats_label": "Formatos de URL admitidos",
     "format_video": "Vídeo",
     "format_bangumi": "Bangumi",

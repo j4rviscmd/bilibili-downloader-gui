@@ -42,7 +42,12 @@ import { z } from 'zod'
 /** Debounce delay (ms) shared by short-URL expansion and silent auto-fetch. */
 const AUTO_ACTION_DELAY_MS = 500
 
-function VideoForm1() {
+function VideoForm1({
+  onClearUrl,
+}: {
+  /** Called after a clear; the compact bar uses it to close the video. */
+  onClearUrl?: () => void
+} = {}) {
   const { input, onValid1, isFetching, isSilentFetching } = useVideoInfo()
   const { t } = useTranslation()
   const [lastFetchedUrl, setLastFetchedUrl] = useState<string>('')
@@ -211,19 +216,24 @@ function VideoForm1() {
     form.clearErrors('url')
     onChange('')
     markFetched('')
+    onClearUrl?.()
   }
 
   /**
    * Renders the appropriate icon for the URL input field.
    *
-   * Shows a loading spinner when expanding short URL or fetching video info,
-   * or a clear button when the input has a value.
+   * Shows a loading spinner when expanding short URL or during a
+   * BLOCKING fetch, or a clear button when the input has a value.
    */
   function renderInputIcon(
     value: string,
     onChange: (value: string) => void,
   ): React.ReactNode {
-    if (isFetching || isExpanding) {
+    // Spinner only for blocking states (explicit submit / expansion):
+    // during a silent auto-fetch the input stays enabled by design, and
+    // swapping the × for the spinner mid-press swallows the click — the
+    // close action would silently no-op.
+    if ((isFetching && !isSilentFetching) || isExpanding) {
       return (
         <Loader2 className="text-muted-foreground absolute top-1/2 right-3 size-4 -translate-y-1/2 animate-spin" />
       )
@@ -236,6 +246,7 @@ function VideoForm1() {
     return (
       <button
         type="button"
+        aria-label={t('search.clear_url')}
         onClick={() => handleClear(onChange)}
         className="text-muted-foreground hover:bg-muted hover:text-foreground absolute top-1/2 right-2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full transition-colors"
       >
