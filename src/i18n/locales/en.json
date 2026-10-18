@@ -561,7 +561,7 @@
       "empty_from": "Replacement target cannot be empty",
       "rule_limit": "Rule limit",
       "default_rules_note": "Default rules are applied when no custom rules are set.",
-      "empty_rules_note": "No replacement rules configured. Add rules to customize filename sanitization.",
+      "system_rule_locked": "Forbidden-character rules are always enabled; only the replacement text can be changed.",
       "confirm_delete": "Delete this rule?",
       "from_label": "From",
       "to_label": "To"

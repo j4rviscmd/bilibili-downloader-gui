@@ -561,7 +561,7 @@
       "empty_from": "La cible de remplacement ne peut pas être vide",
       "rule_limit": "Limite de règles",
       "default_rules_note": "En l'absence de règles personnalisées, les règles par défaut sont appliquées.",
-      "empty_rules_note": "Aucune règle de remplacement configurée. Ajoutez des règles pour personnaliser le nettoyage des noms de fichiers.",
+      "system_rule_locked": "Les règles de caractères interdits sont toujours actives ; seul le texte de remplacement est modifiable.",
       "confirm_delete": "Supprimer cette règle ?",
       "from_label": "De",
       "to_label": "Vers"

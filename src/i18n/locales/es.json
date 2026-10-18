@@ -561,7 +561,7 @@
       "empty_from": "El objetivo de reemplazo no puede estar vacío",
       "rule_limit": "Límite de reglas",
       "default_rules_note": "Cuando no hay reglas personalizadas, se aplican las reglas por defecto.",
-      "empty_rules_note": "No hay reglas de reemplazo configuradas. Añade reglas para personalizar la sanitización de nombres de archivo.",
+      "system_rule_locked": "Las reglas de caracteres prohibidos están siempre activas; solo se puede cambiar el texto de reemplazo.",
       "confirm_delete": "¿Eliminar esta regla?",
       "from_label": "De",
       "to_label": "A"

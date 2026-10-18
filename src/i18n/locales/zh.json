@@ -561,7 +561,7 @@
       "empty_from": "替换目标不能为空",
       "rule_limit": "规则上限",
       "default_rules_note": "未设置自定义规则时，将应用默认规则。",
-      "empty_rules_note": "未配置替换规则。添加规则以自定义文件名清理。",
+      "system_rule_locked": "禁止字符的替换规则始终启用，仅可更改替换后的文本。",
       "confirm_delete": "确定删除此规则？",
       "from_label": "原字符",
       "to_label": "替换为"

@@ -26,10 +26,11 @@ const baseline: Settings = {
   theme: 'light',
 }
 
-/** Two concrete rules so row locators stay unambiguous. */
+/** Two concrete rules so row locators stay unambiguous: one locked
+ * system rule (/) and one custom rule. */
 const rules: TitleReplacement[] = [
   { from: '/', to: '-', enabled: true },
-  { from: ':', to: '_', enabled: false },
+  { from: 'a', to: 'b', enabled: false },
 ]
 
 /** Returns the rule row (grid div) containing the given Input value. */
@@ -65,7 +66,7 @@ describe('TitleReplacementSettings', () => {
     ).toBeInTheDocument()
   })
 
-  it('adds a rule and persists the appended list', async () => {
+  it('adds a rule and persists the merged list', async () => {
     seed({ titleReplacements: rules })
     const { user } = renderWithProviders(<TitleReplacementSettings />)
 
@@ -75,37 +76,68 @@ describe('TitleReplacementSettings', () => {
       }),
     )
 
-    const call = mockInvoke.mock.calls.find((c) => c[0] === 'patch_settings')
-    expect(call?.[1]).toMatchObject({
-      patch: {
-        titleReplacements: [...rules, { from: '', to: '', enabled: true }],
-      },
-    })
-  })
-
-  it('toggles a rule enabled state', async () => {
-    seed({ titleReplacements: rules })
-    const { user } = renderWithProviders(<TitleReplacementSettings />)
-
-    await user.click(within(rowOf('/')).getByRole('switch'))
-
+    // The save merges the missing system rules into the seeded pair.
     const call = mockInvoke.mock.calls.find((c) => c[0] === 'patch_settings')
     expect(call?.[1]).toMatchObject({
       patch: {
         titleReplacements: [
-          { from: '/', to: '-', enabled: false },
-          { from: ':', to: '_', enabled: false },
+          { from: '/', to: '-', enabled: true },
+          { from: 'a', to: 'b', enabled: false },
+          { from: ':', to: '_', enabled: true },
+          { from: '*', to: 'x', enabled: true },
+          { from: '?', to: '', enabled: true },
+          { from: '"', to: "'", enabled: true },
+          { from: '<', to: '(', enabled: true },
+          { from: '>', to: ')', enabled: true },
+          { from: '|', to: '-', enabled: true },
+          { from: '', to: '', enabled: true },
         ],
       },
     })
   })
 
-  it('edits a rule from/to values and saves on OK', async () => {
+  it('locks system rules: switch disabled, no delete button; toggle works only on custom rules', async () => {
+    seed({ titleReplacements: rules })
+    renderWithProviders(<TitleReplacementSettings />)
+
+    const systemRow = rowOf('/')
+    expect(within(systemRow).getByRole('switch')).toBeDisabled()
+    // System rows render only the edit (Pencil) action.
+    expect(within(systemRow).getAllByRole('button')).toHaveLength(1)
+
+    // A seeded-disabled system rule would render enabled (merge repairs).
+    seed({ titleReplacements: [{ from: ':', to: '_', enabled: false }] })
+    const view = renderWithProviders(<TitleReplacementSettings />)
+    const repaired = within(rowOf(':')).getByRole('switch')
+    expect(repaired).toBeDisabled()
+    expect((repaired as HTMLButtonElement).getAttribute('aria-checked')).toBe(
+      'true',
+    )
+    view.unmount()
+  })
+
+  it('toggles a custom rule enabled state', async () => {
     seed({ titleReplacements: rules })
     const { user } = renderWithProviders(<TitleReplacementSettings />)
 
-    const row = rowOf('/')
-    // Row action buttons in DOM order: [edit (Pencil), delete (Trash2)]
+    await user.click(within(rowOf('a')).getByRole('switch'))
+
+    const call = mockInvoke.mock.calls.find((c) => c[0] === 'patch_settings')
+    expect(call?.[1]).toMatchObject({
+      patch: {
+        titleReplacements: expect.arrayContaining([
+          { from: '/', to: '-', enabled: true },
+          { from: 'a', to: 'b', enabled: true },
+        ]),
+      },
+    })
+  })
+
+  it('edits a custom rule from/to values and saves on OK', async () => {
+    seed({ titleReplacements: rules })
+    const { user } = renderWithProviders(<TitleReplacementSettings />)
+
+    const row = rowOf('a')
     await user.click(within(row).getAllByRole('button')[0])
 
     const [fromInput, toInput] = within(row).getAllByRole('textbox')
@@ -118,30 +150,89 @@ describe('TitleReplacementSettings', () => {
     const call = mockInvoke.mock.calls.find((c) => c[0] === 'patch_settings')
     expect(call?.[1]).toMatchObject({
       patch: {
-        titleReplacements: [
+        titleReplacements: expect.arrayContaining([
+          { from: '/', to: '-', enabled: true },
           { from: '?', to: 'x', enabled: true },
-          { from: ':', to: '_', enabled: false },
+        ]),
+      },
+    })
+  })
+
+  it('edits a system rule: only the replacement text changes', async () => {
+    seed({ titleReplacements: rules })
+    const { user } = renderWithProviders(<TitleReplacementSettings />)
+
+    const row = rowOf('/')
+    await user.click(within(row).getAllByRole('button')[0])
+
+    const [fromInput, toInput] = within(row).getAllByRole('textbox')
+    expect(fromInput).toHaveAttribute('readonly')
+    await user.clear(toInput)
+    await user.type(toInput, 'x')
+    await user.click(within(row).getByRole('button', { name: 'OK' }))
+
+    const call = mockInvoke.mock.calls.find((c) => c[0] === 'patch_settings')
+    expect(call?.[1]).toMatchObject({
+      patch: {
+        titleReplacements: expect.arrayContaining([
+          { from: '/', to: 'x', enabled: true },
+          { from: 'a', to: 'b', enabled: false },
+        ]),
+      },
+    })
+  })
+
+  it('strips forbidden characters from a system rule replacement text', async () => {
+    seed({ titleReplacements: rules })
+    const { user } = renderWithProviders(<TitleReplacementSettings />)
+
+    const row = rowOf('/')
+    await user.click(within(row).getAllByRole('button')[0])
+
+    const [, toInput] = within(row).getAllByRole('textbox')
+    await user.clear(toInput)
+    await user.type(toInput, 'a/b')
+    await user.click(within(row).getByRole('button', { name: 'OK' }))
+
+    const call = mockInvoke.mock.calls.find((c) => c[0] === 'patch_settings')
+    expect(call?.[1]).toMatchObject({
+      patch: {
+        titleReplacements: expect.arrayContaining([
+          { from: '/', to: 'ab', enabled: true },
+        ]),
+      },
+    })
+  })
+
+  it('deletes a custom rule (system rules keep rendering)', async () => {
+    seed({ titleReplacements: rules })
+    const { user } = renderWithProviders(<TitleReplacementSettings />)
+
+    // Custom rows render [edit, delete]; system rows only [edit].
+    await user.click(within(rowOf('a')).getAllByRole('button')[1])
+
+    const call = mockInvoke.mock.calls.find((c) => c[0] === 'patch_settings')
+    expect(call?.[1]).toMatchObject({
+      patch: {
+        titleReplacements: [
+          { from: '/', to: '-', enabled: true },
+          { from: ':', to: '_', enabled: true },
+          { from: '*', to: 'x', enabled: true },
+          { from: '?', to: '', enabled: true },
+          { from: '"', to: "'", enabled: true },
+          { from: '<', to: '(', enabled: true },
+          { from: '>', to: ')', enabled: true },
+          { from: '|', to: '-', enabled: true },
         ],
       },
     })
   })
 
-  it('deletes a rule', async () => {
-    seed({ titleReplacements: rules })
-    const { user } = renderWithProviders(<TitleReplacementSettings />)
-
-    await user.click(within(rowOf(':')).getAllByRole('button')[1])
-
-    const call = mockInvoke.mock.calls.find((c) => c[0] === 'patch_settings')
-    expect(call?.[1]).toMatchObject({
-      patch: { titleReplacements: [{ from: '/', to: '-', enabled: true }] },
-    })
-  })
-
   it('disables add and warns at MAX_RULES (20)', () => {
+    // 12 custom rules: the 8 system rules fill the rest of the cap.
     seed({
-      titleReplacements: Array.from({ length: 20 }, (_, i) => ({
-        from: String(i),
+      titleReplacements: Array.from({ length: 12 }, (_, i) => ({
+        from: `c${i}`,
         to: String(i),
         enabled: true,
       })),
@@ -158,12 +249,15 @@ describe('TitleReplacementSettings', () => {
     ).toBeInTheDocument()
   })
 
-  it('shows the empty-rules note when the user cleared all rules', () => {
+  it('an emptied rules array still renders the system rules', () => {
     seed({ titleReplacements: [] })
     renderWithProviders(<TitleReplacementSettings />)
 
+    for (const from of ['/', ':', '*', '?', '"', '<', '>', '|']) {
+      expect(screen.getByDisplayValue(from)).toBeInTheDocument()
+    }
     expect(
-      screen.getByText('settings.title_replacement.empty_rules_note'),
-    ).toBeInTheDocument()
+      screen.queryByText('settings.title_replacement.empty_rules_note'),
+    ).not.toBeInTheDocument()
   })
 })
