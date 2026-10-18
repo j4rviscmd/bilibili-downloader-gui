@@ -117,12 +117,9 @@ describe('buildVideoFormSchema2 — title (windows)', () => {
     ).toContain('validation.video.title.min')
   })
 
-  it('rejects a title longer than 100 characters', async () => {
+  it('accepts a title longer than the cap (warn-only; the download enqueue trims)', async () => {
     const result = await parseTitle('a'.repeat(101))
-    expect(result.success).toBe(false)
-    expect(
-      result.success ? [] : result.error.issues.map((i) => i.message),
-    ).toContain('validation.video.title.max')
+    expect(result.success).toBe(true)
   })
 
   it.each(['My:Video', 'My<Video', 'My*Video', 'My?Video', 'My|Video'])(

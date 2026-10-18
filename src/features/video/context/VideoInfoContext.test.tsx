@@ -510,6 +510,64 @@ describe('download', () => {
     store.dispatch(updatePartSelected({ index: 1, selected: false }))
   }
 
+  it('force-trims an over-cap filename at enqueue (tail cut, Windows-safe tail)', async () => {
+    await setupForDownload()
+    // 105 chars: the cut at 100 leaves trailing dots, which Windows
+    // filenames reject — the strip must remove them.
+    const long = `${'x'.repeat(96)}....yyyyy`
+    act(() => {
+      ctx.onValid2(0, long, '80', '30216')
+    })
+
+    await act(async () => {
+      await ctx.download()
+    })
+
+    const children = store.getState().queue.filter((q) => q.kind === 'part')
+    expect(children[0]).toMatchObject({
+      title: 'x'.repeat(96),
+      payload: { filename: 'x'.repeat(96) },
+    })
+  })
+
+  it('drops a surrogate pair split by the 100-char cut', async () => {
+    await setupForDownload()
+    // 101 UTF-16 units: the cut lands inside the emoji, leaving a lone
+    // high surrogate that serde_json rejects at the invoke boundary.
+    act(() => {
+      ctx.onValid2(0, 'x'.repeat(99) + '\u{1F600}', '80', '30216')
+    })
+
+    await act(async () => {
+      await ctx.download()
+    })
+
+    const children = store.getState().queue.filter((q) => q.kind === 'part')
+    expect(children[0]).toMatchObject({
+      title: 'x'.repeat(99),
+      payload: { filename: 'x'.repeat(99) },
+    })
+  })
+
+  it('falls back to P{page} when the Windows-safe strip empties the title', async () => {
+    await setupForDownload()
+    // 100 dots + "y" passes schema2 (>=2 chars, valid tail) but the
+    // cut+strip leaves nothing — the enqueue must not ship "".
+    act(() => {
+      ctx.onValid2(0, '.'.repeat(100) + 'y', '80', '30216')
+    })
+
+    await act(async () => {
+      await ctx.download()
+    })
+
+    const children = store.getState().queue.filter((q) => q.kind === 'part')
+    expect(children[0]).toMatchObject({
+      title: 'P1',
+      payload: { filename: 'P1' },
+    })
+  })
+
   it('enqueues one session with a snapshotted payload (issue #691)', async () => {
     await setupForDownload()
 

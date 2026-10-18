@@ -18,6 +18,15 @@ const UNSUPPORTED_PATHNAME_RULES: Array<[RegExp, string]> = [
 ]
 
 /**
+ * Filename length cap. Not enforced by schema2 anymore (the input area
+ * only warns — see VideoPartCard); the download enqueue force-trims to
+ * this length (tail cut), because batch all-parts download enqueues
+ * parts the user never opened whose backend-provided defaults can
+ * exceed the cap.
+ */
+export const TITLE_MAX_LENGTH = 100
+
+/**
  * Detects unsupported Bilibili URL patterns and returns a specific error key.
  *
  * This function checks for known unsupported URL patterns and returns
@@ -183,7 +192,9 @@ export const buildVideoFormSchema2 = (t: TFunction) =>
     title: z
       .string()
       .min(2, { message: t('validation.video.title.min') })
-      .max(100, { message: t('validation.video.title.max') })
+      // Length is intentionally NOT schema-enforced (long titles only
+      // warn in the UI — see VideoPartCard); the download enqueue
+      // force-trims to TITLE_MAX_LENGTH (tail cut).
       .nonempty({ message: t('validation.video.title.required') })
       .superRefine((val, ctx) => {
         const pattern = getPatternSync()

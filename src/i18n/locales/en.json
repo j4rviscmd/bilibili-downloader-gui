@@ -657,7 +657,7 @@
       },
       "title": {
         "min": "Title must be at least 2 characters.",
-        "max": "Title must be at most 100 characters.",
+        "trim_notice": "Title exceeds {{count}} characters; the excess will be trimmed (from the end) when downloading.",
         "required": "Please enter a title.",
         "invalid_chars": "Title contains forbidden characters ({{chars}}).",
         "duplicate": "This filename is already used by another part."

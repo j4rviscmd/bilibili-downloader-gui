@@ -11,6 +11,7 @@ import {
 import {
   buildVideoFormSchema1,
   buildVideoFormSchema2,
+  TITLE_MAX_LENGTH,
 } from '@/features/video/lib/formSchema'
 import { shouldSelectPart } from '@/features/video/lib/partSelection'
 import { extractContentId } from '@/features/video/lib/utils'
@@ -456,7 +457,19 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
     const batch = input.batchSettings
     input.partInputs.forEach((pi, idx) => {
       if (!pi.selected) return
-      const title = pi.title.trim()
+      // Force-trim long filenames (tail cut): batch all-parts download
+      // enqueues parts the user never opened, whose backend-provided
+      // defaults can exceed the cap (schema2 only warns). The trailing
+      // strip keeps the cut Windows-safe and drops a lone high surrogate
+      // left by slicing an astral char mid-pair (serde_json rejects it at
+      // the invoke boundary). The P{page} fallback keeps the title
+      // non-empty when the strip eats all 100 chars (schema min(2)
+      // validated the raw title only).
+      const title =
+        pi.title
+          .trim()
+          .slice(0, TITLE_MAX_LENGTH)
+          .replace(/[\uD800-\uDBFF.\s]+$/, '') || `P${pi.page}`
       // Resolution order per field: an EXPLICIT per-part choice (user
       // changed it in the part's panel) beats the batch target, which
       // beats the part's own default (auto-seeded ladder top / off).

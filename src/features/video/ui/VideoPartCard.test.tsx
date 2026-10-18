@@ -264,6 +264,22 @@ describe('VideoPartCard', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('shows the over-cap trim notice (⚠-prefixed) regardless of selection', () => {
+    const matchNotice = { exact: false }
+    const first = setup({ partInput: { title: 'a'.repeat(101) } })
+    expect(
+      screen.getByText('validation.video.title.trim_notice', matchNotice),
+    ).toBeInTheDocument()
+    first.unmount()
+
+    // Parts are auto-deselected after enqueue (issue #691) — the notice
+    // states a fact about the title, so it must stay visible.
+    setup({ partInput: { title: 'a'.repeat(101), selected: false } })
+    expect(
+      screen.getByText('validation.video.title.trim_notice', matchNotice),
+    ).toBeInTheDocument()
+  })
+
   it('renders quality options with availability from the store when open', () => {
     setup({
       partInput: {

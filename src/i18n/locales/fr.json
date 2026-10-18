@@ -657,7 +657,7 @@
       },
       "title": {
         "min": "Le titre doit contenir au moins 2 caractères.",
-        "max": "Le titre doit contenir au maximum 100 caractères.",
+        "trim_notice": "Le titre dépasse {{count}} caractères ; l'excédent sera tronqué (par la fin) au téléchargement.",
         "required": "Veuillez saisir un titre.",
         "invalid_chars": "Le titre contient des caractères interdits ({{chars}}).",
         "duplicate": "Ce nom de fichier est déjà utilisé par une autre partie."

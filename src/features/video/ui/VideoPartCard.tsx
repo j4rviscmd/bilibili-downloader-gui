@@ -26,7 +26,10 @@ import {
   VIDEO_QUALITIES_MAP,
   VIDEO_QUALITIES_ORDER,
 } from '@/features/video/lib/constants'
-import { buildVideoFormSchema2 } from '@/features/video/lib/formSchema'
+import {
+  buildVideoFormSchema2,
+  TITLE_MAX_LENGTH,
+} from '@/features/video/lib/formSchema'
 import { getStatusVisual } from '@/features/video/lib/statusVisual'
 import {
   defaultSubtitleConfig,
@@ -875,6 +878,16 @@ const VideoPartCard = memo(function VideoPartCard({
                         {resetTitleControl}
                       </div>
                       {selected && <FormMessage />}
+                      {field.value.length > TITLE_MAX_LENGTH && (
+                        <p className="text-xs text-amber-700 dark:text-amber-400">
+                          {/* ⚠ prefix mirrors the quality warn pill so
+                              both download-affecting notices read alike. */}
+                          ⚠{' '}
+                          {t('validation.video.title.trim_notice', {
+                            count: TITLE_MAX_LENGTH,
+                          })}
+                        </p>
+                      )}
                     </FormItem>
                   )}
                 />
