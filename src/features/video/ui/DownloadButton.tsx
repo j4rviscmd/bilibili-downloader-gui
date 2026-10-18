@@ -77,7 +77,12 @@ function DownloadButton() {
       <Tooltip>
         <TooltipTrigger asChild>
           <span>
-            <RippleButton onClick={handleClick} disabled={disabled}>
+            <RippleButton
+              onClick={handleClick}
+              disabled={disabled}
+              className="bg-brand-strong text-brand-foreground hover:bg-brand-strong/90"
+              rippleClassName="bg-brand-foreground"
+            >
               {t('actions.download')}
             </RippleButton>
           </span>
