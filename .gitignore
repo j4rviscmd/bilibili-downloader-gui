@@ -47,3 +47,4 @@ references/
 .playwright-cli/
 # Vitest coverage output (npm run test:coverage)
 coverage/
+cmp.json
