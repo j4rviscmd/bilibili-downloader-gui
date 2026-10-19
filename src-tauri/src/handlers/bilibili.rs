@@ -5469,8 +5469,11 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
 
     // E2E mode: CI runner IPs are blocked by Bilibili's risk control
     // (issue #565), so serve the bundled fixture instead of the live
-    // view API. Same env-var pattern as qr_login's secure-storage bypass.
-    if crate::handlers::qr_login::is_e2e_testing() {
+    // view API. Requires E2E_API_BASE (the fixture server) as well:
+    // local-real E2E runs (e2e-tests/local, real cookies + live API)
+    // set only E2E_TESTING and must hit the live view API — same
+    // combined condition as the BiliApi base override.
+    if crate::handlers::qr_login::is_e2e_testing() && std::env::var("E2E_API_BASE").is_ok() {
         log::info!("[BE] fetch_video_info: returning E2E_TESTING fixture");
         return e2e_mock_video_info(id);
     }

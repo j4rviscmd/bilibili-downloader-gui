@@ -135,6 +135,10 @@ export function RecentUrls({
           <button
             key={r.url}
             type="button"
+            // Why: the row never renders the raw URL; local-real E2E picks a
+            // row by URL substring via this attribute (structural, i18n-proof
+            // — e2e-tests/local/url-download.local.e2e.ts)
+            data-url={r.url}
             onClick={() => onRefetch(r.url)}
             className="group/recent hover:bg-muted flex min-h-11 w-full items-center gap-3 rounded-lg px-2.5 py-2.5 text-left transition-colors"
           >

@@ -45,6 +45,8 @@ type MenuItem = {
   icon: LucideIcon
   label: string
   ariaLabel: string
+  // Stable hook for E2E selectors; i18n-proof unlike ariaLabel
+  testId?: string
   requiresAuth: boolean
 }
 
@@ -106,6 +108,7 @@ export function NavigationSidebarHeader({
           icon: Search,
           label: t('nav.videoSearch'),
           ariaLabel: t('nav.aria.videoSearch'),
+          testId: 'nav-popular',
           requiresAuth: false,
         },
         {
@@ -113,6 +116,7 @@ export function NavigationSidebarHeader({
           icon: Link,
           label: t('nav.search'),
           ariaLabel: t('nav.aria.search'),
+          testId: 'nav-search',
           requiresAuth: false,
         },
         {
@@ -120,6 +124,7 @@ export function NavigationSidebarHeader({
           icon: DownloadIcon,
           label: t('nav.downloads'),
           ariaLabel: t('nav.aria.downloads'),
+          testId: 'nav-downloads',
           requiresAuth: false,
         },
       ],
@@ -241,6 +246,7 @@ export function NavigationSidebarHeader({
         tooltip={isDisabled ? undefined : item.label}
         onClick={handleClick}
         aria-label={item.ariaLabel}
+        data-testid={item.testId}
         aria-current={isActive ? 'page' : undefined}
         aria-disabled={isDisabled || undefined}
         className={isDisabled ? 'cursor-not-allowed opacity-50' : undefined}

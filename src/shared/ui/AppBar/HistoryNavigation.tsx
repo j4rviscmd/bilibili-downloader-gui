@@ -48,6 +48,8 @@ interface HistoryNavButtonProps {
   readonly disabledReason: string
   readonly enabled: boolean
   readonly onClick: () => void
+  /** Stable E2E hook (i18n-proof, unlike aria-label). */
+  readonly testId?: string
 }
 
 /**
@@ -63,6 +65,7 @@ function HistoryNavButton({
   disabledReason,
   enabled,
   onClick,
+  testId,
 }: HistoryNavButtonProps) {
   const button = (
     <Button
@@ -71,6 +74,7 @@ function HistoryNavButton({
       disabled={!enabled}
       onClick={onClick}
       aria-label={label}
+      data-testid={testId}
       className="h-full shrink-0 cursor-pointer"
     >
       <Icon />
@@ -117,6 +121,7 @@ export function HistoryNavigation() {
           disabledReason={t('nav.noBackHistory')}
           enabled={back}
           onClick={() => navigate(-1)}
+          testId="history-back"
         />
         <HistoryNavButton
           icon={ChevronRight}
@@ -124,6 +129,7 @@ export function HistoryNavigation() {
           disabledReason={t('nav.noForwardHistory')}
           enabled={forward}
           onClick={() => navigate(1)}
+          testId="history-forward"
         />
       </div>
     </TooltipProvider>

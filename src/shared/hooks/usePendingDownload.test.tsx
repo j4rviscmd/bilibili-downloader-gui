@@ -11,7 +11,7 @@ import { usePendingDownload } from '@/shared/hooks/usePendingDownload'
 import { act, renderHook, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { Provider } from 'react-redux'
-import { MemoryRouter, Route, Routes } from 'react-router'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 const wrapper = ({ children }: { children: ReactNode }) => (
@@ -24,6 +24,14 @@ const wrapper = ({ children }: { children: ReactNode }) => (
     </MemoryRouter>
   </Provider>
 )
+
+/** /search route probe echoing the landed location for query asserts. */
+function SearchEcho() {
+  const location = useLocation()
+  return (
+    <div data-testid="search-echo">{location.pathname + location.search}</div>
+  )
+}
 
 describe('usePendingDownload', () => {
   beforeEach(() => {
@@ -58,5 +66,35 @@ describe('usePendingDownload', () => {
       page: 1,
     })
     expect(screen.getByText('search-page')).toBeTruthy()
+  })
+
+  it('pushes the canonical ?url= entry directly (one history entry)', () => {
+    // Why one entry: a bare /search push made browser-back return to the
+    // empty URL page instead of the origin page (reported 2026-10-19).
+    // The URL must byte-match the one VideoInfoContext fetches for
+    // pendingDownload, or the landing entry-record push re-stacks it.
+    const echoWrapper = ({ children }: { children: ReactNode }) => (
+      <Provider store={store}>
+        <MemoryRouter initialEntries={['/watch-history']}>
+          <Routes>
+            <Route path="/search" element={<SearchEcho />} />
+            <Route path="*" element={children} />
+          </Routes>
+        </MemoryRouter>
+      </Provider>
+    )
+
+    const { result } = renderHook(() => usePendingDownload(), {
+      wrapper: echoWrapper,
+    })
+
+    act(() => {
+      result.current('BV1test', 456, 2)
+    })
+
+    const url = encodeURIComponent('https://www.bilibili.com/video/BV1test?p=2')
+    expect(screen.getByTestId('search-echo').textContent).toBe(
+      `/search?url=${url}`,
+    )
   })
 })

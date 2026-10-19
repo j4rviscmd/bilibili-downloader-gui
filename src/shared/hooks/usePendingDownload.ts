@@ -31,7 +31,15 @@ export const usePendingDownload = () => {
       `usePendingDownload: Handling pending download bvid=${bvid}, page=${page}`,
     )
     dispatch(setPendingDownload({ bvid, cid, page }))
-    navigate('/search')
+    // Why ?url= up front: exactly one history entry per destination. A
+    // bare /search push lands on the empty hero and the landing push
+    // (search/index.tsx entry-record effect) then stacks a ?url= entry
+    // on top — browser-back returned to the empty page instead of the
+    // origin page (reported 2026-10-19). The URL must byte-match the
+    // one VideoInfoContext fetches for pendingDownload, or that landing
+    // push fires anyway and re-stacks the entry.
+    const url = `https://www.bilibili.com/video/${bvid}?p=${page}`
+    navigate({ pathname: '/search', search: `?url=${encodeURIComponent(url)}` })
   }
 
   return handleDownload

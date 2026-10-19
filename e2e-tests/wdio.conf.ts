@@ -30,7 +30,7 @@ let fixtureServer: FixtureServer | undefined
  * plain kill on the `npm run dev` wrapper would orphan the vite node
  * process. `taskkill /T` walks the tree instead.
  */
-function killTree(proc: ChildProcess | undefined): void {
+export function killTree(proc: ChildProcess | undefined): void {
   if (!proc || proc.pid === undefined) return
   if (IS_WINDOWS) {
     spawn('taskkill', ['/pid', String(proc.pid), '/T', '/F'])
@@ -48,7 +48,7 @@ function killTree(proc: ChildProcess | undefined): void {
  * @param options - Optional cwd, additional env variables, and shell mode
  * @returns The spawned ChildProcess instance
  */
-function spawnWithLogging(
+export function spawnWithLogging(
   command: string,
   args: string[],
   label: string,
@@ -88,7 +88,7 @@ function wait(ms: number): Promise<void> {
  * @param interval - Time between polls in ms (default 500)
  * @throws When the URL does not respond within the timeout
  */
-async function waitForReady(
+export async function waitForReady(
   url: string,
   label: string,
   timeout = 30_000,
@@ -120,7 +120,7 @@ async function waitForReady(
  * @param interval - Time between attempts in ms (default 500)
  * @throws When the port does not accept connections within the timeout
  */
-async function waitForTcpReady(
+export async function waitForTcpReady(
   host: string,
   port: number,
   label: string,

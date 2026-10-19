@@ -232,6 +232,14 @@ version — both are maintained by release-please, never edit by hand):
 - Before user verification, check the following:
   - `npm run lint` has no errors
   - `cargo build` compiles successfully
+  - The local-real E2E suite passes: `cd e2e-tests && npm run test:local`
+    (~2 min, 19 specs: real Bilibili API/cookies/CDN/ffmpeg — the
+    integration gate `npm test`/`cargo test` cannot provide). Preconditions:
+    Firefox logged in to bilibili (real cookies) and no running app
+    instances/dev servers — `wdio.local.conf.ts` fails fast on port
+    conflicts (a leftover app instance hijacks the WebDriver bridge).
+    Specs live in `e2e-tests/local/` and never run in CI; keep new
+    integration coverage for user-facing flows there
 - Verification is performed by a human, as a rule
 - For `animate-ui` components, use the `shadcn` MCP
 - For Rust compile errors → run `cargo build` in `src-tauri/` for details

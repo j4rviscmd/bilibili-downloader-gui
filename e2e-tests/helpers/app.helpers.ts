@@ -129,28 +129,35 @@ export async function navigateToUrlFetchPage(): Promise<void> {
 }
 
 /**
- * Navigates to /search first (fresh sessions land on the /popular
- * default), then fills the URL input and blur-submits
- * (the form fetches on blur — WKWebView's WebDriver does not propagate
- * focus changes, hence the explicit blur via JS), and wait for the part
- * list to render.
- *
- * Each spec file runs in a fresh app session: wdio creates a new WebDriver
- * session per file and tauri-webdriver relaunches the app with it, so any
- * spec that needs the video on screen must load it itself instead of
- * relying on state from a previously-run spec file.
+ * Fills the URL input (assumes the URL page is on screen) and
+ * blur-submits (the form fetches on blur — WKWebView's WebDriver does
+ * not propagate focus changes, hence the explicit blur via JS), then
+ * waits for the part list to render. Shared by the CI fixture specs
+ * and the local-real specs (different URLs).
  */
-export async function loadFixtureVideo(): Promise<void> {
-  await navigateToUrlFetchPage()
+export async function submitVideoUrl(url: string): Promise<void> {
   const input = await browser.$(S.URL_INPUT)
   await input.click()
-  await input.setValue(FIXTURE_VIDEO_URL)
+  await input.setValue(url)
   await browser.execute(() => {
     const el = document.activeElement
     if (el instanceof HTMLElement) el.blur()
   })
   const partList = await browser.$(S.DATA_PART_LIST)
   await partList.waitForExist({ timeout: 30_000 })
+}
+
+/**
+ * Navigates to /search first (fresh sessions land on the /popular
+ * default), then loads the fixture video. Each spec file runs in a
+ * fresh app session: wdio creates a new WebDriver session per file and
+ * tauri-webdriver relaunches the app with it, so any spec that needs
+ * the video on screen must load it itself instead of relying on state
+ * from a previously-run spec file.
+ */
+export async function loadFixtureVideo(): Promise<void> {
+  await navigateToUrlFetchPage()
+  await submitVideoUrl(FIXTURE_VIDEO_URL)
 }
 
 /** State captured by setupDownloadEnv for the matching teardown. */
