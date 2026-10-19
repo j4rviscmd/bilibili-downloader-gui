@@ -48,3 +48,6 @@ references/
 # Vitest coverage output (npm run test:coverage)
 coverage/
 cmp.json
+
+# Design scratch (never a git asset; see PR removing it)
+mockup.html
