@@ -172,7 +172,7 @@ jobs:
         run: npm install -g npm@11.8.0
 
       - name: Install Rust (stable)
-        uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           # Only needed on macOS runners; adds targets for universal builds
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
