@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { RootState } from '@/app/store'
 import { default as queueReducer, sessionEnqueued } from './queueSlice'
 import {
+  selectActivePartCount,
   selectHasActiveDownloads,
   selectPartItemForVideo,
   selectQueuePartRows,
@@ -262,6 +263,25 @@ describe('selectQueueSummary', () => {
     expect(
       selectHasActiveDownloads(stateOf(queue) as unknown as RootState),
     ).toBe(false)
+  })
+})
+
+describe('selectActivePartCount', () => {
+  it('counts only running/pending parts (sidebar badge semantics)', () => {
+    const queue = [
+      ...session('BV1', 1, [
+        { cid: 11, partIndex: 1, status: 'running' },
+        { cid: 12, partIndex: 2, status: 'pending' },
+        { cid: 13, partIndex: 3, status: 'done' },
+      ]),
+      ...session('BV2', 2, [
+        { cid: 21, partIndex: 1, status: 'cancelling' },
+        { cid: 22, partIndex: 2, status: 'error' },
+      ]),
+    ]
+    expect(selectActivePartCount(stateOf(queue) as unknown as RootState)).toBe(
+      2,
+    )
   })
 })
 
