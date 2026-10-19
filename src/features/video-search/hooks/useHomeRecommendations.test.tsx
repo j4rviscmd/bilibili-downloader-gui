@@ -155,6 +155,10 @@ describe('useHomeRecommendations', () => {
 
     expect(mockInvoke).toHaveBeenCalledTimes(2)
     expect(result.current.entries.map((e) => e.bvid)).toEqual(['BV1old'])
+    // Empty results must clear the skeleton too: a stuck flag would keep
+    // the fallback cards hidden for good.
+    expect(result.current.refreshing).toBe(false)
+    expect(result.current.showSkeleton).toBe(false)
   })
 
   it('keeps the module cache intact when a refresh result is empty', async () => {
@@ -215,12 +219,15 @@ describe('useHomeRecommendations', () => {
       refreshed = result.current.refresh()
     })
     expect(result.current.refreshing).toBe(true)
+    // The shelf shows its skeleton for the whole refresh request.
+    expect(result.current.showSkeleton).toBe(true)
 
     await act(async () => {
       settle([entry('BV1new')])
       await refreshed
     })
     expect(result.current.refreshing).toBe(false)
+    expect(result.current.showSkeleton).toBe(false)
     expect(result.current.entries[0]?.bvid).toBe('BV1new')
   })
 
@@ -242,8 +249,8 @@ describe('useHomeRecommendations', () => {
     let second!: Promise<void>
     act(() => {
       first = result.current.refresh()
-      // Same tick: the shelf's button is disabled while refreshing, but
-      // the page's title icon bypasses that guard — one request only.
+      // Same tick: the page's title icon stays clickable while
+      // refreshing — one request only.
       second = result.current.refresh()
     })
 

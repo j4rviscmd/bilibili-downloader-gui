@@ -4,7 +4,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
-import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
 import { RefreshCw, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -18,12 +17,17 @@ import { VideoCardGrid, VideoCardSkeletonGrid } from './VideoCardGrid'
  * out, on failure, or when empty — the page then looks exactly as it
  * did before this shelf existed.
  */
-export function HomeRecommendations() {
+export function HomeRecommendations({
+  refreshing = false,
+}: {
+  /** Page-owned refresh (the title icon) runs on another hook instance,
+   * so the page passes its in-flight state in. */
+  refreshing?: boolean
+}) {
   const { t } = useTranslation()
-  const { entries, showSkeleton, refreshing, refresh } =
-    useHomeRecommendations()
+  const { entries, showSkeleton, refresh } = useHomeRecommendations()
 
-  if (showSkeleton) {
+  if (showSkeleton || refreshing) {
     return (
       <section className="flex flex-col gap-2" aria-busy="true">
         <h2 className="text-base font-semibold">
@@ -34,8 +38,11 @@ export function HomeRecommendations() {
     )
   }
   if (entries.length === 0) return null
+  // Why: any in-flight refresh already took the skeleton branch above,
+  // so this settled branch never shows mid-refresh and carries no
+  // aria-busy state.
   return (
-    <section className="flex flex-col gap-2" aria-busy={refreshing}>
+    <section className="flex flex-col gap-2">
       {/* No scrollbar gutter inset: the popular page scrolls in the
           full-width page container, so the overlay scrollbar rides the
           window edge, clear of this header row. */}
@@ -46,24 +53,16 @@ export function HomeRecommendations() {
         </h2>
         <TooltipProvider delayDuration={300}>
           <Tooltip>
-            {/* Span wrapper: a disabled button gets pointer-events: none
-                and hover never reaches it (same idiom as HistoryItem). */}
             <TooltipTrigger asChild>
-              <span className="inline-flex">
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="text-muted-foreground"
-                  onClick={refresh}
-                  disabled={refreshing}
-                  aria-label={t('popular.refreshRecommendations')}
-                >
-                  <RefreshCw
-                    className={cn(refreshing && 'animate-spin')}
-                    aria-hidden="true"
-                  />
-                </Button>
-              </span>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="text-muted-foreground"
+                onClick={refresh}
+                aria-label={t('popular.refreshRecommendations')}
+              >
+                <RefreshCw aria-hidden="true" />
+              </Button>
             </TooltipTrigger>
             <TooltipContent>
               <p>{t('popular.refreshRecommendations')}</p>
