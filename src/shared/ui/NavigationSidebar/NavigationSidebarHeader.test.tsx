@@ -2,7 +2,7 @@ import { store } from '@/app/store'
 import type { User } from '@/features/user/types'
 import { setUser } from '@/features/user/userSlice'
 import { setHomePage } from '@/features/video/model/inputSlice'
-import { renderWithProviders, resetQueue } from '@/test/test-utils'
+import { renderWithProviders, resetQueue, seedSession } from '@/test/test-utils'
 import { screen } from '@testing-library/react'
 import { useLocation } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -23,6 +23,11 @@ vi.mock('@/shared/animate-ui/radix/sidebar', () => {
     SidebarGroupLabel: passthrough,
     SidebarMenu: passthrough,
     SidebarMenuItem: passthrough,
+    SidebarMenuBadge: ({ children, ...props }: React.ComponentProps<'div'>) => (
+      <div data-testid="nav-downloads-badge" {...props}>
+        {children}
+      </div>
+    ),
     SidebarSeparator: () => <hr />,
     SidebarMenuButton: ({
       children,
@@ -236,5 +241,23 @@ describe('NavigationSidebarHeader', () => {
 
     await actor.click(favorite)
     expect(screen.getByTestId('location')).toHaveTextContent('/favorite')
+  })
+
+  it('shows the active-part-count badge on the downloads item', () => {
+    seedSession('BV1', [
+      { partIndex: 1, cid: 11, status: 'running' },
+      { partIndex: 2, cid: 12, status: 'pending' },
+      { partIndex: 3, cid: 13, status: 'done' },
+    ])
+    renderSidebar()
+
+    expect(screen.getByTestId('nav-downloads-badge')).toHaveTextContent('2')
+  })
+
+  it('hides the downloads badge when no part is running or pending', () => {
+    seedSession('BV1', [{ partIndex: 1, cid: 11, status: 'done' }])
+    renderSidebar()
+
+    expect(screen.queryByTestId('nav-downloads-badge')).not.toBeInTheDocument()
   })
 })
