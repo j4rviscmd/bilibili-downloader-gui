@@ -17,6 +17,7 @@ export type {
   VideoSearchResponse,
   VideoSearchState,
 } from './types'
+export { AppIconButton } from './ui/AppIconButton'
 export { HomeRecommendations } from './ui/HomeRecommendations'
 export { VideoCardGrid, VideoCardSkeletonGrid } from './ui/VideoCardGrid'
 export { VideoPreviewDialog } from './ui/VideoPreviewDialog'

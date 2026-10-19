@@ -6,6 +6,9 @@
  * Works without login.
  */
 export { usePopularFeed } from './hooks/usePopularFeed'
-export { default as popularFeedReducer } from './model/popularFeedSlice'
+export {
+  default as popularFeedReducer,
+  refreshFeed,
+} from './model/popularFeedSlice'
 export type { PopularFeedState } from './model/popularFeedSlice'
 export { PopularFeedList } from './ui/PopularFeedList'

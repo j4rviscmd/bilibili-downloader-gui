@@ -1,5 +1,7 @@
-import { PopularFeedList } from '@/features/popular'
+import { useAppDispatch } from '@/app/store'
+import { PopularFeedList, refreshFeed } from '@/features/popular'
 import {
+  AppIconButton,
   HomeRecommendations,
   useHomeRecommendations,
   useVideoSearch,
@@ -8,7 +10,7 @@ import {
 import { usePageTitle } from '@/shared/hooks/usePageTitle'
 import { PageTemplate } from '@/shared/layout'
 import { Flame } from 'lucide-react'
-import { useCallback, useRef } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
@@ -36,11 +38,28 @@ function PopularFeedHeading() {
 export function PopularContent() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const dispatch = useAppDispatch()
   const { loading } = useVideoSearch()
-  const { visible: shelfVisible } = useHomeRecommendations()
+  const { visible: shelfVisible, refresh: refreshRecommendations } =
+    useHomeRecommendations()
+  // Bumped after a shelf refresh so HomeRecommendations remounts and
+  // reads the refreshed module cache — its own hook instance owns the
+  // rendered entries, so the page instance's state update alone would
+  // leave the shelf stale.
+  const [shelfKey, setShelfKey] = useState(0)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   usePageTitle('popular.title')
+
+  // Soft refresh (the title icon): reload the feed and the shelf without
+  // a document reload, so the shell/store state survives.
+  const handleRefresh = useCallback(async () => {
+    dispatch(refreshFeed())
+    // Shelf hidden (logged out, empty, failed): nothing to refresh there.
+    if (!shelfVisible) return
+    await refreshRecommendations()
+    setShelfKey((k) => k + 1)
+  }, [dispatch, refreshRecommendations, shelfVisible])
 
   const handleSearch = useCallback(
     (kw: string) => {
@@ -56,7 +75,14 @@ export function PopularContent() {
 
   return (
     <PageTemplate
-      title={t('popular.title')}
+      title={
+        // App-icon prefix on the title, same as the results page: here it
+        // refreshes the feeds in place, the web-logo-on-home behavior.
+        <span className="flex items-center gap-1">
+          <AppIconButton label={t('popular.refresh')} onClick={handleRefresh} />
+          {t('popular.title')}
+        </span>
+      }
       bodyScroll
       scrollRef={scrollRef}
       actions={
@@ -88,7 +114,7 @@ export function PopularContent() {
           sections readable. */}
       <div className="pt-2 pb-4 sm:pt-3 sm:pb-6">
         <div className="flex flex-col gap-4">
-          <HomeRecommendations />
+          <HomeRecommendations key={shelfKey} />
           {shelfVisible && <PopularFeedHeading />}
           <PopularFeedList scrollRootRef={scrollRef} />
         </div>

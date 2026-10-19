@@ -751,6 +751,7 @@
   "popular": {
     "title": "인기 동영상",
     "recommendationsTitle": "회원님을 위한 추천",
+    "refresh": "새로고침",
     "refreshRecommendations": "추천 새로고침",
     "feedTitle": "인기 동영상",
     "loadError": "피드를 불러오지 못했습니다",

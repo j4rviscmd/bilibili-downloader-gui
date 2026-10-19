@@ -4,7 +4,7 @@ import { fetchPopularVideosApi } from '@/features/video-search'
 import { renderHookWithStore } from '@/test/test-utils'
 import { act } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { resetFeed } from '../model/popularFeedSlice'
+import { refreshFeed, resetFeed } from '../model/popularFeedSlice'
 import { usePopularFeed } from './usePopularFeed'
 
 vi.mock('@/features/video-search', () => ({
@@ -125,5 +125,72 @@ describe('usePopularFeed', () => {
     await vi.waitFor(() => {
       expect(result.current.loading).toBe(false)
     })
+  })
+
+  // refreshFeed (the page's title icon) clears the feed and bumps the
+  // nonce; the hook must reload page 1 even though the feed is non-empty
+  // and already exhausted (the mount-only entry effect never refires).
+  it('reloads page 1 when refreshFeed bumps the nonce', async () => {
+    vi.mocked(fetchPopularVideosApi)
+      .mockResolvedValueOnce(page(1, ['BV1', 'BV2'], true /* no_more */))
+      .mockResolvedValueOnce(page(1, ['BV9']))
+    const { result, unmount } = renderHookWithStore(() => usePopularFeed())
+    await vi.waitFor(() => {
+      expect(result.current.noMore).toBe(true)
+    })
+
+    act(() => {
+      store.dispatch(refreshFeed())
+    })
+    // Cleared immediately; the skeleton stays up until the fetch lands.
+    expect(result.current.items).toHaveLength(0)
+    expect(result.current.loading).toBe(true)
+
+    await vi.waitFor(() => {
+      expect(result.current.items.map((i) => i.bvid)).toEqual(['BV9'])
+    })
+    expect(fetchPopularVideosApi).toHaveBeenCalledTimes(2)
+    expect(fetchPopularVideosApi).toHaveBeenLastCalledWith(1)
+    expect(result.current.noMore).toBe(false)
+    unmount()
+  })
+
+  // Scroll (page 2 in flight) then click refresh: the older response must
+  // not append stale entries into the refreshed feed.
+  it('drops an in-flight page fetch when a refresh starts', async () => {
+    let resolvePage2: (value: VideoSearchResponse) => void = () => {}
+    vi.mocked(fetchPopularVideosApi)
+      .mockResolvedValueOnce(page(1, ['BV1']))
+      .mockImplementationOnce(
+        () =>
+          new Promise<VideoSearchResponse>((resolve) => {
+            resolvePage2 = resolve
+          }),
+      )
+      .mockResolvedValueOnce(page(1, ['BV9']))
+    const { result, unmount } = renderHookWithStore(() => usePopularFeed())
+    await vi.waitFor(() => {
+      expect(result.current.items).toHaveLength(1)
+    })
+
+    act(() => result.current.loadMore())
+    await vi.waitFor(() => {
+      expect(result.current.loading).toBe(true)
+    })
+
+    act(() => {
+      store.dispatch(refreshFeed())
+    })
+    await vi.waitFor(() => {
+      expect(result.current.items.map((i) => i.bvid)).toEqual(['BV9'])
+    })
+
+    act(() => resolvePage2(page(2, ['BV1', 'BV2'])))
+    await act(async () => {})
+
+    expect(result.current.items.map((i) => i.bvid)).toEqual(['BV9'])
+    expect(result.current.page).toBe(1)
+    expect(fetchPopularVideosApi).toHaveBeenCalledTimes(3)
+    unmount()
   })
 })
