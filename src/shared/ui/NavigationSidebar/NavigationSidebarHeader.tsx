@@ -6,6 +6,7 @@ import {
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
@@ -17,7 +18,7 @@ import {
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
 import { cn } from '@/shared/lib/utils'
-import { selectHasActiveDownloads } from '@/shared/queue'
+import { selectActivePartCount, selectHasActiveDownloads } from '@/shared/queue'
 import type { LucideIcon } from 'lucide-react'
 import {
   Combine,
@@ -85,6 +86,7 @@ export function NavigationSidebarHeader({
   const isLoggedIn = user.hasCookie && user.data?.isLogin
   const hasActiveDownloads = useSelector(selectHasActiveDownloads)
   const homePage = useSelector(selectHomePage)
+  const activePartCount = useSelector(selectActivePartCount)
   // Last video-search-feature location the user viewed. The sidebar never
   // unmounts (persistent chrome), so it observes every visit; clicking the
   // 動画検索 item returns there — the /video-search?q=… results page when a
@@ -277,6 +279,17 @@ export function NavigationSidebarHeader({
         ) : (
           button
         )}
+        {/* Why explicit top-1.5 on the badge: the vendored button sits
+            inside a MotionHighlightItem div, so the badge's
+            peer-data-[size] top variants never match (not DOM siblings)
+            and the badge would fall to its static position below the
+            button. */}
+        {/* Why bg-brand: the bilibili pink token (--brand), not --primary. */}
+        {item.path === '/downloads' && activePartCount > 0 ? (
+          <SidebarMenuBadge className="bg-brand text-brand-foreground top-1.5 rounded-full">
+            {activePartCount}
+          </SidebarMenuBadge>
+        ) : null}
       </SidebarMenuItem>
     )
   }

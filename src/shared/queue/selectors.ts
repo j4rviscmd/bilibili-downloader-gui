@@ -259,6 +259,19 @@ export const selectHasActiveDownloads = createSelector(
 )
 
 /**
+ * Memoized count of parts currently running or pending.
+ * Excludes cancelling parts (transient teardown) — the animated sidebar
+ * icon driven by selectHasActiveDownloads covers that window instead.
+ */
+export const selectActivePartCount = createSelector(
+  [(state: RootState) => state.queue],
+  (queue: QueueItem[]): number =>
+    queue.filter(
+      (q) => q.parentId && (q.status === 'running' || q.status === 'pending'),
+    ).length,
+)
+
+/**
  * Memoized selector to check if any downloads are being cancelled.
  * Used to display the 'Cancelling...' label on UI affordances.
  */
