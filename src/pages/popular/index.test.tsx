@@ -1,6 +1,9 @@
 import { store } from '@/app/store'
 import { setUser, type User } from '@/features/user'
-import { fetchPopularVideosApi } from '@/features/video-search'
+import {
+  fetchPopularVideosApi,
+  type VideoSearchEntry,
+} from '@/features/video-search'
 import { searchVideosApi } from '@/features/video-search/api/searchVideos'
 import { VideoSearchContent } from '@/pages/video-search'
 import { mockInvoke, renderWithProviders } from '@/test/test-utils'
@@ -244,21 +247,33 @@ describe('PopularContent', () => {
         { ...feedPage.entries[0], bvid: 'BV1fresh', title: '更新後 動画' },
       ],
     })
-    mockInvoke.mockResolvedValue([
-      {
-        bvid: 'BV1recNew',
-        title: '更新後 おすすめ',
-        cover: 'https://i0.hdslb.com/bfs/a.jpg',
-        author: 'up0',
-        play: 1000,
-        duration: 100,
-        typeid: '',
-        typename: '',
-      },
-    ])
+    let settleRecs!: (value: VideoSearchEntry[]) => void
+    const recs = new Promise<VideoSearchEntry[]>((resolve) => {
+      settleRecs = resolve
+    })
+    // Why: hold only the recommendations promise so the shelf stays on
+    // its in-flight skeleton; every other invoke must still resolve.
+    mockInvoke.mockImplementation((command: string) =>
+      command === 'fetch_home_recommendations'
+        ? recs
+        : Promise.resolve(undefined),
+    )
     const { user } = renderWithProviders(<Harness />, { route: '/popular' })
 
+    // The shelf renders from the module cache seeded by the test above.
+    await screen.findByText('おすすめ候補')
+
     await user.click(screen.getByRole('button', { name: 'popular.refresh' }))
+
+    // The shelf reloads from its skeleton while the request is in flight.
+    expect(screen.queryByText('おすすめ候補')).not.toBeInTheDocument()
+    expect(document.querySelector('section[aria-busy="true"]')).not.toBeNull()
+
+    await act(async () => {
+      settleRecs([
+        { ...feedPage.entries[0], bvid: 'BV1recNew', title: '更新後 おすすめ' },
+      ])
+    })
 
     expect(await screen.findByText('更新後 動画')).toBeInTheDocument()
     expect(screen.queryByText('おすすめ 動画')).not.toBeInTheDocument()

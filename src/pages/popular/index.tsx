@@ -40,8 +40,11 @@ export function PopularContent() {
   const navigate = useNavigate()
   const dispatch = useAppDispatch()
   const { loading } = useVideoSearch()
-  const { visible: shelfVisible, refresh: refreshRecommendations } =
-    useHomeRecommendations()
+  const {
+    visible: shelfVisible,
+    refreshing: shelfRefreshing,
+    refresh: refreshRecommendations,
+  } = useHomeRecommendations()
   // Bumped after a shelf refresh so HomeRecommendations remounts and
   // reads the refreshed module cache — its own hook instance owns the
   // rendered entries, so the page instance's state update alone would
@@ -114,7 +117,7 @@ export function PopularContent() {
           sections readable. */}
       <div className="pt-2 pb-4 sm:pt-3 sm:pb-6">
         <div className="flex flex-col gap-4">
-          <HomeRecommendations key={shelfKey} />
+          <HomeRecommendations key={shelfKey} refreshing={shelfRefreshing} />
           {shelfVisible && <PopularFeedHeading />}
           <PopularFeedList scrollRootRef={scrollRef} />
         </div>

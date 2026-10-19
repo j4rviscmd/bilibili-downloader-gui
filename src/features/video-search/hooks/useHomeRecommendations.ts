@@ -64,10 +64,10 @@ export function useHomeRecommendations() {
    * never errors — or a rejection keeps the previous entries, so a
    * failed refresh never wipes the shelf (and its button) off-screen.
    */
-  // Why a ref in addition to `refreshing`: the shelf's button disables
-  // itself while refreshing, but the popular page's title icon bypasses
-  // that disabled state — a fast double click would otherwise race two
-  // requests and let an older response win.
+  // Why a ref in addition to `refreshing`: the shelf's own button is
+  // replaced by the skeleton while refreshing, but the popular page's
+  // title icon stays clickable — a fast double click would otherwise
+  // race two requests and let an older response win.
   const refreshingRef = useRef(false)
   const refresh = async () => {
     if (refreshingRef.current) return
@@ -89,7 +89,9 @@ export function useHomeRecommendations() {
     }
   }
 
-  const showSkeleton = isLoggedIn && !loaded
+  // A manual refresh also shows the shelf skeleton: the previous cards
+  // stay in state, so an empty/failed refresh falls back to them.
+  const showSkeleton = isLoggedIn && (!loaded || refreshing)
   return {
     entries,
     showSkeleton,

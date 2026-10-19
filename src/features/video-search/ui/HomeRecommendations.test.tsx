@@ -95,27 +95,19 @@ describe('HomeRecommendations', () => {
     expect(refresh).toHaveBeenCalledTimes(1)
   })
 
-  it('disables the update button and spins its icon while refreshing', () => {
+  it('shows the skeleton while the page-owned refresh is in flight', () => {
     vi.mocked(useHomeRecommendations).mockReturnValue({
       entries: [entry],
       showSkeleton: false,
-      refreshing: true,
+      refreshing: false,
       refresh: vi.fn(),
       visible: true,
     })
-    const { container } = renderWithProviders(<HomeRecommendations />)
+    const { container } = renderWithProviders(
+      <HomeRecommendations refreshing />,
+    )
 
-    const button = screen.getByRole('button', {
-      name: 'popular.refreshRecommendations',
-    })
-    expect(button).toBeDisabled()
-    expect(button.querySelector('svg')?.getAttribute('class')).toContain(
-      'animate-spin',
-    )
-    // Busy state is announced on the region (matches the skeleton branch).
-    expect(container.querySelector('section')).toHaveAttribute(
-      'aria-busy',
-      'true',
-    )
+    expect(screen.queryByText('Rec 0')).not.toBeInTheDocument()
+    expect(container.querySelector('[aria-busy="true"]')).not.toBeNull()
   })
 })

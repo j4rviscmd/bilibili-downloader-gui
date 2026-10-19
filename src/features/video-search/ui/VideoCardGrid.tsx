@@ -33,7 +33,9 @@ export function VideoCardSkeletonGrid({
   const featured = variant === 'featured'
   return (
     <ul className={GRID_CLASSES[variant]} aria-hidden="true">
-      {Array.from({ length: featured ? 4 : 6 }, (_, i) => (
+      {/* Featured mirrors the backend's 12-item home-feed cap (ps=12);
+          a shorter skeleton would jump when the shelf lands. */}
+      {Array.from({ length: featured ? 12 : 6 }, (_, i) => (
         <li key={i} className="hover:bg-accent/50 flex gap-3 rounded-md p-2">
           <Skeleton
             className={cn(
