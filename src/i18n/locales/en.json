@@ -751,6 +751,7 @@
   "popular": {
     "title": "Popular Videos",
     "recommendationsTitle": "For you",
+    "refresh": "Refresh",
     "refreshRecommendations": "Refresh recommendations",
     "feedTitle": "Popular videos",
     "loadError": "Failed to load the feed",

@@ -1,4 +1,5 @@
 import {
+  AppIconButton,
   useVideoSearch,
   VideoCardGrid,
   VideoSearchFeedTail,
@@ -118,7 +119,19 @@ export function VideoSearchContent() {
     : null
   return (
     <PageTemplate
-      title={t('videoSearch.title')}
+      title={
+        // App-icon prefix on the title: while the results view is open
+        // the sidebar's 動画検索 item is ACTIVE and its click is a no-op,
+        // so this shortcut is the only direct entry back to the popular
+        // (おすすめ) feed.
+        <span className="flex items-center gap-1">
+          <AppIconButton
+            label={t('popular.title')}
+            onClick={() => navigate('/popular')}
+          />
+          {t('videoSearch.title')}
+        </span>
+      }
       actions={
         // Watch-history header pattern: the search box rides the title row
         // so it stays reachable while results scroll under it; the suggest

@@ -751,6 +751,7 @@
   "popular": {
     "title": "Vidéos populaires",
     "recommendationsTitle": "Pour vous",
+    "refresh": "Actualiser",
     "refreshRecommendations": "Actualiser les recommandations",
     "feedTitle": "Vidéos populaires",
     "loadError": "Échec du chargement du flux",

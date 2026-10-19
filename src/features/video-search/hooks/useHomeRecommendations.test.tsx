@@ -224,6 +224,58 @@ describe('useHomeRecommendations', () => {
     expect(result.current.entries[0]?.bvid).toBe('BV1new')
   })
 
+  it('dedupes concurrent refresh calls into one request', async () => {
+    store.dispatch(setUser(loggedInUser))
+    let settle: (value: VideoSearchEntry[]) => void = () => {}
+    mockInvoke.mockResolvedValueOnce([entry('BV1old')]).mockImplementationOnce(
+      () =>
+        new Promise<VideoSearchEntry[]>((resolve) => {
+          settle = resolve
+        }),
+    )
+    const { useHomeRecommendations } = await importFresh()
+
+    const { result } = renderHookWithStore(useHomeRecommendations)
+    await act(() => Promise.resolve())
+
+    let first!: Promise<void>
+    let second!: Promise<void>
+    act(() => {
+      first = result.current.refresh()
+      // Same tick: the shelf's button is disabled while refreshing, but
+      // the page's title icon bypasses that guard — one request only.
+      second = result.current.refresh()
+    })
+
+    await act(async () => {
+      settle([entry('BV1new')])
+      await Promise.all([first, second])
+    })
+    expect(mockInvoke).toHaveBeenCalledTimes(2)
+    expect(result.current.entries.map((e) => e.bvid)).toEqual(['BV1new'])
+  })
+
+  it('releases the in-flight guard after a rejected refresh', async () => {
+    store.dispatch(setUser(loggedInUser))
+    mockInvoke
+      .mockResolvedValueOnce([entry('BV1old')])
+      .mockRejectedValueOnce(new Error('boom'))
+      .mockResolvedValueOnce([entry('BV1new')])
+    const { useHomeRecommendations } = await importFresh()
+
+    const { result } = renderHookWithStore(useHomeRecommendations)
+    await act(() => Promise.resolve())
+
+    await act(() => result.current.refresh())
+    expect(result.current.entries.map((e) => e.bvid)).toEqual(['BV1old'])
+
+    // The guard must clear in `finally`, or a retry after a failure
+    // would silently no-op forever.
+    await act(() => result.current.refresh())
+    expect(mockInvoke).toHaveBeenCalledTimes(3)
+    expect(result.current.entries.map((e) => e.bvid)).toEqual(['BV1new'])
+  })
+
   it('seeds the module cache so a remount shows the refreshed list', async () => {
     store.dispatch(setUser(loggedInUser))
     mockInvoke

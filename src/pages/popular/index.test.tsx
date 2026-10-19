@@ -150,6 +150,29 @@ describe('PopularContent', () => {
     expect(screen.queryByText('popular.feedTitle')).not.toBeInTheDocument()
   })
 
+  // Refresh while logged out: the feed still reloads in place, but the
+  // shelf branch is skipped — no recommendations RPC for a viewer who has
+  // no shelf. Runs before the tests that seed a logged-in user.
+  it('refreshes the feed without requesting recommendations when logged out', async () => {
+    vi.mocked(fetchPopularVideosApi).mockResolvedValue({
+      ...feedPage,
+      entries: [
+        ...feedPage.entries,
+        {
+          ...feedPage.entries[0],
+          bvid: 'BV1anon',
+          title: '未ログイン更新 動画',
+        },
+      ],
+    })
+    const { user } = renderWithProviders(<Harness />, { route: '/popular' })
+
+    await user.click(screen.getByRole('button', { name: 'popular.refresh' }))
+
+    expect(await screen.findByText('未ログイン更新 動画')).toBeInTheDocument()
+    expect(mockInvoke).not.toHaveBeenCalled()
+  })
+
   it('hides shelf and feed heading when the recommendations fetch fails', async () => {
     store.dispatch(setUser(loggedInUser))
     vi.mocked(fetchPopularVideosApi).mockResolvedValue(feedPage)
@@ -208,5 +231,42 @@ describe('PopularContent', () => {
     const scroller = container.querySelector('.overflow-y-auto')
     expect(scroller).not.toBeNull()
     expect(scroller!.contains(card)).toBe(true)
+  })
+
+  // Soft refresh from the title icon: the feed reloads page 1 and the
+  // shelf refetches (no document reload). Runs LAST: the recommendations
+  // success test above seeds the hook's module cache, and this test
+  // replaces the singleton store's feed contents.
+  it('soft-refreshes the feed and the shelf from the title icon', async () => {
+    vi.mocked(fetchPopularVideosApi).mockResolvedValue({
+      ...feedPage,
+      entries: [
+        { ...feedPage.entries[0], bvid: 'BV1fresh', title: '更新後 動画' },
+      ],
+    })
+    mockInvoke.mockResolvedValue([
+      {
+        bvid: 'BV1recNew',
+        title: '更新後 おすすめ',
+        cover: 'https://i0.hdslb.com/bfs/a.jpg',
+        author: 'up0',
+        play: 1000,
+        duration: 100,
+        typeid: '',
+        typename: '',
+      },
+    ])
+    const { user } = renderWithProviders(<Harness />, { route: '/popular' })
+
+    await user.click(screen.getByRole('button', { name: 'popular.refresh' }))
+
+    expect(await screen.findByText('更新後 動画')).toBeInTheDocument()
+    expect(screen.queryByText('おすすめ 動画')).not.toBeInTheDocument()
+    // The shelf remounts from the refreshed module cache — not just an
+    // API call: the rendered entries swap too.
+    expect(await screen.findByText('更新後 おすすめ')).toBeInTheDocument()
+    expect(screen.queryByText('おすすめ候補')).not.toBeInTheDocument()
+    expect(fetchPopularVideosApi).toHaveBeenCalledWith(1)
+    expect(mockInvoke).toHaveBeenCalledWith('fetch_home_recommendations')
   })
 })

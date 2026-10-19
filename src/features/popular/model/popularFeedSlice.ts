@@ -12,6 +12,8 @@ export interface PopularFeedState {
   noMore: boolean
   loading: boolean
   error: string | null
+  /** Incremented by refreshFeed; usePopularFeed reloads page 1 on change. */
+  refreshNonce: number
 }
 
 export const initialState: PopularFeedState = {
@@ -20,6 +22,7 @@ export const initialState: PopularFeedState = {
   noMore: false,
   loading: false,
   error: null,
+  refreshNonce: 0,
 }
 
 /**
@@ -58,12 +61,21 @@ export const popularFeedSlice = createSlice({
     setError: (state, action: PayloadAction<string | null>) => {
       state.error = action.payload
     },
-    /** Clears the feed back to the pre-first-load state (test seam;
-     * a future refresh action would reuse it). */
+    /** Clears the feed back to the pre-first-load state (test seam). */
     resetFeed: () => initialState,
+    /** Header refresh: clears the feed and asks usePopularFeed to reload
+     * page 1 (loading true keeps the skeleton up until the fetch lands). */
+    refreshFeed: (state) => {
+      state.items = []
+      state.page = 0
+      state.noMore = false
+      state.loading = true
+      state.error = null
+      state.refreshNonce += 1
+    },
   },
 })
 
-export const { appendPage, setLoading, setError, resetFeed } =
+export const { appendPage, setLoading, setError, resetFeed, refreshFeed } =
   popularFeedSlice.actions
 export default popularFeedSlice.reducer
