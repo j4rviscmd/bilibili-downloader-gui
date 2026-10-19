@@ -103,6 +103,18 @@ export interface Settings {
    */
   rotationMode?: RotationMode
   /**
+   * Default subtitle mode preselected for every part when a video loads.
+   * Defaults to 'off' if not specified.
+   */
+  defaultSubtitleMode?: DefaultSubtitleMode
+  /**
+   * Ordered hard-sub language priority (fixed-list codes plus '*' as the
+   * all-other-languages fallback), used only when defaultSubtitleMode is
+   * 'hard'. Defaults to simplified Chinese first with a wildcard fallback
+   * if not specified.
+   */
+  defaultSubtitleHardLans?: string[]
+  /**
    * UI theme: 'light' or 'dark'.
    * Persisted to settings.json via Tauri backend.
    * Defaults to 'light' if not set.
@@ -234,6 +246,14 @@ export type RotationAngle = 90 | 180 | 270
  * - reencode: Re-encode with transpose filter, works in all players
  */
 export type RotationMode = 'copy' | 'reencode'
+
+/**
+ * Default subtitle mode preselected when a video is loaded.
+ * - off: no subtitles
+ * - soft: embed every language as selectable tracks
+ * - hard: burn the highest-priority configured language
+ */
+export type DefaultSubtitleMode = 'off' | 'soft' | 'hard'
 
 /**
  * Video codec priority preference.

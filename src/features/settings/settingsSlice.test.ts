@@ -61,4 +61,15 @@ describe('settingsSlice', () => {
     // default — a regression to another page would ship silently.
     expect(settingsSlice.getInitialState().startupPage).toBe('/popular')
   })
+
+  it('defaults defaultSubtitleMode to off and merges field patches', () => {
+    // Fresh state: legacy settings without the key behave as subtitles-off.
+    expect(settingsSlice.getInitialState().defaultSubtitleMode).toBe('off')
+
+    store.dispatch(setSettings({ defaultSubtitleMode: 'soft' }))
+
+    expect(settings().defaultSubtitleMode).toBe('soft')
+    // Field patch must not wipe untouched fields.
+    expect(settings().language).toBe('en')
+  })
 })

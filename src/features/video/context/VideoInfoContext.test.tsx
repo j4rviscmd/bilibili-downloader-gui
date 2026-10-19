@@ -10,6 +10,7 @@
 // The store must load before videoApi to break the circular import
 // (store registers the api middleware, api imports the store).
 import { store } from '@/app/store'
+import { setSettings } from '@/features/settings/settingsSlice'
 import { videoApi } from '@/features/video/api/videoApi'
 import {
   resetInput,
@@ -130,6 +131,14 @@ beforeEach(() => {
   // Clear the RTK Query cache: lazy triggers prefer cached data for the
   // same videoId, which would skip the invoke across tests.
   store.dispatch(videoApi.util.resetApiState())
+  // Reset the default subtitle mode seeded by the settings-default test;
+  // the singleton store would leak it into later download snapshots.
+  store.dispatch(
+    setSettings({
+      defaultSubtitleMode: 'off',
+      defaultSubtitleHardLans: undefined,
+    }),
+  )
   store.dispatch(resetInput())
   store.dispatch(resetVideo())
   resetQueue()
@@ -219,6 +228,39 @@ describe('onValid1', () => {
     ])
     // The pending download is cleared after processing.
     expect(store.getState().input.pendingDownload).toBeNull()
+  })
+
+  it('seeds every part with the settings default subtitle mode', async () => {
+    store.dispatch(setSettings({ defaultSubtitleMode: 'hard' }))
+    renderProvider()
+
+    await act(async () => {
+      await ctx.onValid1(VIDEO_URL)
+    })
+
+    expect(store.getState().input.partInputs.map((p) => p.subtitle)).toEqual([
+      { mode: 'hard', selectedLans: ['zh-CN', 'ai-zh', '*'] },
+      { mode: 'hard', selectedLans: ['zh-CN', 'ai-zh', '*'] },
+    ])
+  })
+
+  it('seeds the configured hard-sub priority list', async () => {
+    store.dispatch(
+      setSettings({
+        defaultSubtitleMode: 'hard',
+        defaultSubtitleHardLans: ['ja', 'en'],
+      }),
+    )
+    renderProvider()
+
+    await act(async () => {
+      await ctx.onValid1(VIDEO_URL)
+    })
+
+    expect(store.getState().input.partInputs.map((p) => p.subtitle)).toEqual([
+      { mode: 'hard', selectedLans: ['ja', 'en'] },
+      { mode: 'hard', selectedLans: ['ja', 'en'] },
+    ])
   })
 
   it('routes a bangumi URL to fetch_bangumi_info and selects the epId episode', async () => {

@@ -1,3 +1,4 @@
+import { LAN_ALL } from '@/features/video/lib/batchSettings'
 import type {
   AudioQuality,
   Input,
@@ -8,6 +9,32 @@ import type {
 } from '@/features/video/types'
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
+
+/**
+ * Built-in hard-sub priority: simplified Chinese (manual before AI) then
+ * any other available language via the wildcard. Actual bilibili codes —
+ * not the fixed list's canonical "zh-Hans" — so the SubtitleSection radio
+ * display works without normalization.
+ */
+const HARD_DEFAULT_LANS = ['zh-CN', 'ai-zh', LAN_ALL] as const
+
+/**
+ * Initial subtitle configuration derived from the settings' default
+ * subtitle mode. Soft embeds every language (wildcard); hard uses the
+ * configured priority list (settings picker codes), falling back to the
+ * built-in Chinese-first order when no custom list is configured.
+ */
+export function defaultSubtitleConfigFor(
+  mode: SubtitleConfig['mode'] | undefined,
+  hardLans?: readonly string[],
+): SubtitleConfig {
+  if (mode === 'soft') return { mode: 'soft', selectedLans: [LAN_ALL] }
+  if (mode === 'hard') {
+    const selectedLans = hardLans?.length ? hardLans : HARD_DEFAULT_LANS
+    return { mode: 'hard', selectedLans: [...selectedLans] }
+  }
+  return { mode: 'off', selectedLans: [] }
+}
 
 /**
  * Default subtitle configuration for video parts.

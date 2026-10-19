@@ -6,12 +6,15 @@ import {
   SPEED_LIMIT_MIN_KBPS,
   useSpeedLimitKbps,
 } from '@/features/settings/lib/useSpeedLimitKbps'
+import type { DefaultSubtitleMode } from '@/features/settings/type'
+import { HardSubtitlePrioritySettings } from '@/features/settings/ui/HardSubtitlePrioritySettings'
 import { SettingChoiceCards } from '@/features/settings/ui/SettingChoiceCards'
 import { SettingField, SettingRow } from '@/features/settings/ui/SettingRow'
 import { SettingToggleGroup } from '@/features/settings/ui/SettingToggleGroup'
 import { TitleReplacementSettings } from '@/features/settings/ui/TitleReplacementSettings'
 import { useSettings } from '@/features/settings/useSettings'
 import { videoApi } from '@/features/video'
+import { HARD_DEFAULT_LANS_UI } from '@/features/video/lib/batchSettings'
 import {
   Tooltip,
   TooltipContent,
@@ -234,6 +237,48 @@ export function DownloadSection() {
           }))}
         />
       </SettingField>
+      <Separator />
+      <SettingField
+        label={t('settings.subtitle_mode_label')}
+        description={t('settings.subtitle_mode_description')}
+      >
+        {/* data-testid: i18n-proof E2E anchor (local suite drives the
+            three segments structurally). */}
+        <div data-testid="setting-default-subtitle-mode">
+          <SettingToggleGroup
+            value={settings.defaultSubtitleMode ?? 'off'}
+            onValueChange={(value) => {
+              saveByForm({
+                defaultSubtitleMode: value as DefaultSubtitleMode,
+              })
+            }}
+            options={[
+              { value: 'off', label: t('settings.subtitle_mode_off') },
+              { value: 'soft', label: t('settings.subtitle_mode_soft') },
+              { value: 'hard', label: t('settings.subtitle_mode_hard') },
+            ]}
+          />
+        </div>
+      </SettingField>
+      {settings.defaultSubtitleMode === 'hard' && (
+        <SettingField
+          label={t('settings.subtitle_hard_lans_label')}
+          description={t('settings.subtitle_hard_lans_description')}
+        >
+          <div data-testid="setting-subtitle-hard-lans">
+            <HardSubtitlePrioritySettings
+              value={
+                settings.defaultSubtitleHardLans?.length
+                  ? settings.defaultSubtitleHardLans
+                  : HARD_DEFAULT_LANS_UI
+              }
+              onChange={(lans) => {
+                saveByForm({ defaultSubtitleHardLans: lans })
+              }}
+            />
+          </div>
+        </SettingField>
+      )}
     </div>
   )
 }
