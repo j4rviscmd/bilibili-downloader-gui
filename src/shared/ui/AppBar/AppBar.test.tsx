@@ -44,7 +44,6 @@ function createUser(
 const baseSettings: Settings = {
   dlOutputPath: '',
   language: 'en',
-  autoRenameDuplicates: true,
   showGithubStars: true,
   trimMode: 'copy',
   audioFormat: 'mp3',

@@ -20,7 +20,6 @@ import { resetQueue, seedSession } from '@/test/test-utils'
 const baselineSettings: Settings = {
   dlOutputPath: '',
   language: 'en',
-  autoRenameDuplicates: true,
   showGithubStars: true,
   fontSize: 14,
   trimMode: 'copy',

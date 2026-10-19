@@ -1,11 +1,13 @@
 import { store } from '@/app/store'
 import { setInitiated } from '@/features/init'
+import { setSettings } from '@/features/settings/settingsSlice'
 import { setUser } from '@/features/user/userSlice'
 import { PARTS_PER_PAGE, setVideo } from '@/features/video'
 import { initPartInputs, setInput } from '@/features/video/model/inputSlice'
 import type { Video, VideoPart } from '@/features/video/types'
 import SearchContent from '@/pages/search'
 import { renderWithProviders } from '@/test/test-utils'
+import { openUrl } from '@tauri-apps/plugin-opener'
 import { screen, within } from '@testing-library/react'
 import { Navigate, Route, Routes, useLocation } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -68,6 +70,7 @@ const initialInput = {
   url: '',
   partInputs: [],
   pendingDownload: null,
+  batchSettings: { videoQuality: null, audioQuality: null, subtitle: null },
   homePage: 1,
 }
 
@@ -96,8 +99,8 @@ function makeVideo(partCount: number): Video {
 }
 
 /** Seeds the store with a fetched video and its part inputs. */
-function seedVideo(partCount: number) {
-  const video = makeVideo(partCount)
+function seedVideo(partCount: number, overrides: Partial<Video> = {}) {
+  const video: Video = { ...makeVideo(partCount), ...overrides }
   store.dispatch(setVideo(video))
   store.dispatch(
     initPartInputs(
@@ -174,13 +177,38 @@ describe('SearchContent', () => {
     store.dispatch(setInput(initialInput))
   })
 
-  it('renders the URL input card with VideoForm1 and the login notice when logged out', () => {
+  it('renders the URL hero with VideoForm1 and the login notice when logged out', () => {
     renderWithProviders(<SearchContent />, { route: '/search' })
 
-    expect(screen.getByText('video.step1_title')).toBeInTheDocument()
+    expect(screen.getByText('search.hero_title')).toBeInTheDocument()
     expect(screen.getByTestId('video-form1')).toBeInTheDocument()
-    // Default user state is logged out → the login benefits alert is shown.
-    expect(screen.getByText('video.login_benefits_title')).toBeInTheDocument()
+    // Default user state is logged out → the login notice is shown
+    // inside the empty-state column.
+    expect(document.querySelector('[data-login-notice]')).not.toBeNull()
+  })
+
+  it('renders the bilibili brand icon in the default pink colorway', () => {
+    renderWithProviders(<SearchContent />, { route: '/search' })
+
+    // CommandBar (real in this file) renders the mark as an aria-hidden
+    // img; vitest inlines SVG imports as data URIs, so assert the
+    // colorway by the tile fill (#EC5D85 = pink original).
+    const img = document.querySelector<HTMLImageElement>('img[aria-hidden]')
+    expect(img).toBeTruthy()
+    expect(img!.getAttribute('src')).toContain('EC5D85')
+    expect(img!.getAttribute('src')).not.toContain('5DC6EC')
+  })
+
+  it('swaps the brand icon to the blue colorway with the accent setting', () => {
+    store.dispatch(
+      setSettings({ ...store.getState().settings, accentColor: 'blue' }),
+    )
+    renderWithProviders(<SearchContent />, { route: '/search' })
+
+    const img = document.querySelector<HTMLImageElement>('img[aria-hidden]')
+    expect(img).toBeTruthy()
+    // Blue colorway tile fill: #5DC6EC (hue-rotated accent family).
+    expect(img!.getAttribute('src')).toContain('5DC6EC')
   })
 
   it('hides the login benefits alert once the user is logged in', () => {
@@ -200,9 +228,7 @@ describe('SearchContent', () => {
 
     renderWithProviders(<SearchContent />, { route: '/search' })
 
-    expect(
-      screen.queryByText('video.login_benefits_title'),
-    ).not.toBeInTheDocument()
+    expect(document.querySelector('[data-login-notice]')).toBeNull()
   })
 
   it('hides the step 2 section while no video is loaded and not fetching', () => {
@@ -219,7 +245,7 @@ describe('SearchContent', () => {
 
     renderWithProviders(<SearchContent />, { route: '/search' })
 
-    expect(screen.queryByText('video.step2_title')).not.toBeInTheDocument()
+    expect(screen.queryByText('search.parts_title')).not.toBeInTheDocument()
     expect(screen.queryAllByTestId('video-part-card')).toHaveLength(0)
     expect(screen.queryAllByTestId('download-button')).toHaveLength(0)
   })
@@ -230,10 +256,11 @@ describe('SearchContent', () => {
 
     renderWithProviders(<SearchContent />, { route: '/search' })
 
-    expect(screen.getByText('video.step2_title')).toBeInTheDocument()
+    expect(screen.getByText('search.parts_title')).toBeInTheDocument()
     expect(screen.getAllByTestId('video-part-card')).toHaveLength(3)
-    // DownloadButton mounts both in the step-2 header and the list footer.
-    expect(screen.getAllByTestId('download-button')).toHaveLength(2)
+    // Nothing selected → the dock shows the hint instead of the CTA.
+    expect(screen.queryAllByTestId('download-button')).toHaveLength(0)
+    expect(screen.getByText('video.no_parts_selected')).toBeInTheDocument()
     // 3 parts fit one page → no pagination controls.
     expect(
       screen.queryByText('video.pagination_previous'),
@@ -301,28 +328,28 @@ describe('SearchContent', () => {
       route: '/search',
     })
 
-    await user.click(screen.getByText('video.select_all_page'))
+    await user.click(screen.getByText('video.select_all'))
     expect(store.getState().input.partInputs.every((p) => p.selected)).toBe(
       true,
     )
 
-    await user.click(screen.getByText('video.deselect_all_page'))
+    await user.click(screen.getByText('video.deselect_all'))
     expect(store.getState().input.partInputs.some((p) => p.selected)).toBe(
       false,
     )
   })
 
-  it('wires the autoFetch query param into onValid1 (URL lands in the store)', async () => {
+  it('wires the ?url= history entry into onValid1 (URL lands in the store)', async () => {
     store.dispatch(setInput(initialInput))
-    const url = 'https://www.bilibili.com/video/BV1autoFetch'
+    const url = 'https://www.bilibili.com/video/BV1entry'
 
     renderWithProviders(<SearchContent />, {
-      route: `/search?autoFetch=${encodeURIComponent(url)}`,
+      route: `/search?url=${encodeURIComponent(url)}`,
     })
 
-    // onValid1 validates then dispatches setUrl before the (mocked,
-    // data-less) fetch; the wiring under test is that the page forwards the
-    // param into the provider's form-1 submit path.
+    // The history-sync effect forwards the entry's URL into the
+    // provider's form-1 submit path; onValid1 validates then dispatches
+    // setUrl before the (mocked, data-less) fetch.
     await vi.waitFor(() => {
       expect(store.getState().input.url).toBe(url)
     })
@@ -403,7 +430,7 @@ describe('SearchContent', () => {
       route: '/search',
     })
 
-    await user.click(screen.getByText('video.select_all_page'))
+    await user.click(screen.getByText('video.select_all'))
     const footer = screen.getByText('video.pagination_next').closest('ul')!
     await user.click(within(footer).getByText('2'))
 
@@ -451,19 +478,23 @@ describe('SearchContent', () => {
     )
   })
 
-  it('keeps the pagination footer sticky at the scrollport bottom', () => {
+  it('renders the download dock below the scroller with pagination', () => {
     seedVideo(PARTS_PER_PAGE + 2)
 
-    renderWithProviders(<SearchContent />, { route: '/search' })
+    const { container } = renderWithProviders(<SearchContent />, {
+      route: '/search',
+    })
 
-    // The list footer (download button + pagination) sticks to the page
-    // scroller's bottom so it stays reachable while parts scroll under
-    // it (same invariant as the old card-local scroll region).
-    const footerButton = screen.getAllByTestId('download-button')[1]!
-    const footer = footerButton.closest('div.sticky')
-    expect(footer).not.toBeNull()
-    expect(footer!.className).toContain('bottom-0')
-    expect(footer!.textContent).toContain('video.pagination_next')
+    // The dock (pagination + CTA) is a flex sibling BELOW the page
+    // scroller, so it stays reachable without scrolling — pagination no
+    // longer requires scrolling to the list end.
+    const scroller = container.querySelector('.overflow-y-auto')!
+    const next = screen.getByText('video.pagination_next')
+    const dock = next.closest('div.border-t')!
+    expect(dock).not.toBeNull()
+    expect(scroller.contains(dock)).toBe(false)
+    // Nothing selected → hint instead of the download CTA.
+    expect(dock.textContent).toContain('video.no_parts_selected')
   })
 
   it('resets the page scroller to the top on page change', async () => {
@@ -505,5 +536,150 @@ describe('SearchContent', () => {
     )
     const scroller = container.querySelector('.overflow-y-auto')!
     expect(scrollTo.mock.instances[0]).toBe(scroller)
+  })
+  // ---- URL page redesign: command bar, hero card, dock CTA ----
+
+  it('renders the hero with format chips and a label wired to the input id', () => {
+    renderWithProviders(<SearchContent />, { route: '/search' })
+
+    // The visible label targets the stable id VideoForm1 assigns its
+    // input (asserted in VideoForm1.test.tsx) — clicking it focuses the
+    // URL field.
+    expect(screen.getByText('search.url_label')).toHaveAttribute('for', 'url')
+    expect(screen.getByText('search.paste_hint')).toBeInTheDocument()
+
+    const formats = screen.getByRole('group', {
+      name: 'search.formats_label',
+    })
+    for (const pattern of ['BV1…', 'av…', 'ep… / ss…', 'b23.tv']) {
+      expect(within(formats).getByText(pattern)).toBeInTheDocument()
+    }
+    // Each pattern carries its category label.
+    expect(within(formats).getAllByText('search.format_video')).toHaveLength(2)
+    expect(
+      within(formats).getByText('search.format_bangumi'),
+    ).toBeInTheDocument()
+    expect(within(formats).getByText('search.format_short')).toBeInTheDocument()
+  })
+
+  it('switches to the compact command bar with a video type chip once loaded', () => {
+    seedVideo(3)
+
+    renderWithProviders(<SearchContent />, { route: '/search' })
+
+    expect(screen.queryByText('search.hero_title')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('group', { name: 'search.formats_label' }),
+    ).toBeNull()
+    // The compact bar still embeds the form: the input engine (validation,
+    // silent auto-fetch, submit) never unmounts across the state switch.
+    expect(screen.getByTestId('video-form1')).toBeInTheDocument()
+    // The type/part-count chips belong to the hero card, not the sticky
+    // bar (the bar only says which URL is loaded).
+    const sticky = screen
+      .getByTestId('video-form1')
+      .closest<HTMLElement>('div.sticky')!
+    expect(within(sticky).queryByText(/search\.type_video/)).toBeNull()
+    expect(within(sticky).queryByText('search.parts_count')).toBeNull()
+    const hero = screen.getByText('Test Video').closest<HTMLElement>('section')!
+    expect(within(hero).getByText(/search\.type_video/)).toBeInTheDocument()
+    expect(screen.queryByText(/search\.type_bangumi/)).toBeNull()
+  })
+
+  it('labels the hero card chip as bangumi and shows the season', () => {
+    seedVideo(2, { contentType: 'bangumi', seasonTitle: 'Test Season' })
+
+    renderWithProviders(<SearchContent />, { route: '/search' })
+
+    expect(screen.getByText(/search\.type_bangumi/)).toBeInTheDocument()
+    expect(screen.queryByText(/search\.type_video/)).toBeNull()
+    expect(screen.getByText('Test Season')).toBeInTheDocument()
+  })
+
+  it('summarizes the loaded video on the hero card', () => {
+    seedVideo(3, {
+      ownerName: '公式チャンネル',
+      pubdate: 1760000000,
+      viewCount: 1_280_000,
+      replyCount: 8420,
+      favoriteCount: 61_000,
+    })
+
+    renderWithProviders(<SearchContent />, { route: '/search' })
+
+    // Scope to the hero section: the dock renders the same total-duration
+    // key for the selection summary.
+    const hero = screen.getByText('Test Video').closest('section')!
+    expect(hero).not.toBeNull()
+    expect(within(hero).getByText('search.parts_count')).toBeInTheDocument()
+    expect(within(hero).getByText('公式チャンネル')).toBeInTheDocument()
+    expect(within(hero).getByText('128万')).toBeInTheDocument()
+    expect(within(hero).getByText('8420')).toBeInTheDocument()
+    expect(within(hero).getByText('6.1万')).toBeInTheDocument()
+    expect(within(hero).getByText('search.total_duration')).toBeInTheDocument()
+    // No Part-1 duration badge on the thumbnail: it would mislead on
+    // multi-part videos where only the "total" chip is the honest number.
+    expect(within(hero).queryByText('1:00')).toBeNull()
+    // Fixture has no quality restriction → no limited-quality chip.
+    expect(within(hero).queryByText('video.quality_limited_title')).toBeNull()
+  })
+
+  it('badges the hero card when the video is quality-limited', () => {
+    seedVideo(1, { isLimitedQuality: true })
+
+    renderWithProviders(<SearchContent />, { route: '/search' })
+
+    expect(screen.getByText('video.quality_limited_title')).toBeInTheDocument()
+  })
+
+  it('does not render a preview button on the hero card', () => {
+    seedVideo(3)
+
+    renderWithProviders(<SearchContent />, { route: '/search' })
+
+    // The hero only has Part 1's data — a preview there would silently
+    // play Part 1. Each part row carries its own preview button instead.
+    expect(
+      screen.queryByRole('button', { name: 'search.preview_part' }),
+    ).toBeNull()
+  })
+
+  it('opens the watch page in the browser from the hero card', async () => {
+    seedVideo(1)
+
+    const { user } = renderWithProviders(<SearchContent />, {
+      route: '/search',
+    })
+
+    await user.click(screen.getByText('search.open_in_browser'))
+
+    expect(openUrl).toHaveBeenCalledWith(
+      'https://www.bilibili.com/video/BV1test',
+    )
+  })
+
+  it('swaps the dock hint for a selection summary and the download CTA', async () => {
+    seedVideo(2)
+
+    const { container, user } = renderWithProviders(<SearchContent />, {
+      route: '/search',
+    })
+
+    const dock = container.querySelector<HTMLElement>('[data-download-dock]')!
+    expect(dock).not.toBeNull()
+    // Fixed-height box: the scroller above must not resize when the
+    // selection (and thus the dock's right-hand content) changes.
+    expect(dock.className).toContain('h-16')
+    expect(screen.getByText('video.no_parts_selected')).toBeInTheDocument()
+    expect(screen.queryByTestId('download-button')).toBeNull()
+
+    await user.click(screen.getByText('video.select_all'))
+
+    expect(within(dock).getByText(/search\.selected_count/)).toBeInTheDocument()
+    expect(within(dock).getByText(/search\.total_duration/)).toBeInTheDocument()
+    expect(within(dock).queryByText('video.no_parts_selected')).toBeNull()
+    expect(screen.getByTestId('download-button')).toBeInTheDocument()
+    // Same fixed box with the CTA visible.
+    expect(dock.className).toContain('h-16')
   })
 })

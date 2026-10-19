@@ -150,19 +150,6 @@ export function DownloadSection() {
       </SettingField>
       <Separator />
       <SettingRow
-        label={t('settings.auto_rename_duplicates_label')}
-        description={t('settings.auto_rename_duplicates_description')}
-      >
-        <Switch
-          checked={settings.autoRenameDuplicates ?? true}
-          onCheckedChange={(checked) => {
-            saveByForm({ autoRenameDuplicates: checked })
-            // Clear video cache so new setting applies on next fetch
-            store.dispatch(videoApi.util.resetApiState())
-          }}
-        />
-      </SettingRow>
-      <SettingRow
         label={t('settings.omit_duplicate_part_title_label')}
         description={t('settings.omit_duplicate_part_title_description')}
       >

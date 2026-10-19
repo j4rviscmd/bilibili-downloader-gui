@@ -20,6 +20,7 @@ import {
   deselectPageAll,
   initPartInputs,
   resetInput,
+  resetVideoView,
   selectAll,
   selectHasSelectedParts,
   selectPageAll,
@@ -84,6 +85,7 @@ describe('whole-state replacement', () => {
       partInputs: [],
       pendingDownload: { bvid: 'BV1', cid: 1, page: 1 } as PendingDownload,
       homePage: 4,
+      batchSettings: { videoQuality: null, audioQuality: null, subtitle: null },
     }
 
     store.dispatch(setInput(next))
@@ -116,6 +118,39 @@ describe('part field updates', () => {
     store.dispatch(updatePartInputByIndex({ index: 99, title: 'Ghost' }))
     expect(input().partInputs).toHaveLength(3)
     expect(input().partInputs.every((p) => p.title !== 'Ghost')).toBe(true)
+  })
+
+  it('drops id-0 placeholder streams and derives no default from them', () => {
+    store.dispatch(
+      initPartInputs([
+        {
+          cid: 1,
+          page: 1,
+          title: 'Part 1',
+          videoQuality: '',
+          audioQuality: '',
+          selected: true,
+          duration: 60,
+        },
+      ]),
+    )
+    store.dispatch(
+      setPartQualities({
+        index: 0,
+        videoQualities: [
+          { quality: '360p', id: 16 },
+          { quality: 'placeholder', id: 0 },
+        ],
+        audioQualities: [{ quality: 'placeholder', id: 0 }],
+      }),
+    )
+
+    const part = input().partInputs[0]!
+    expect(part.videoQualities?.map((q) => q.id)).toEqual([16])
+    expect(part.audioQualities ?? []).toEqual([])
+    // The default must come from a real stream, never the placeholder.
+    expect(part.videoQuality).toBe('16')
+    expect(part.audioQuality).toBe('')
   })
 
   it('setPartQualities applies the isPreview flag only when provided', () => {
@@ -339,5 +374,33 @@ describe('resolved info reducers', () => {
       subtitleMode: 'off',
       subtitleLanguageLabels: [],
     })
+  })
+})
+
+describe('resetVideoView', () => {
+  it('clears the loaded video view but preserves pendingDownload and homePage', () => {
+    seedParts()
+    store.dispatch(setUrl('https://www.bilibili.com/video/BV1test'))
+    store.dispatch(setInput({ ...input(), outputDirOverride: '/tmp/out' }))
+    store.dispatch(setPendingDownload({ bvid: 'BV1test', cid: 1, page: 2 }))
+    store.dispatch(setInput({ ...input(), homePage: 3 }))
+
+    store.dispatch(resetVideoView())
+
+    const state = input()
+    // History navigation landed on the empty entry: the loaded video's
+    // view state is dropped so the hero can show.
+    expect(state.url).toBe('')
+    expect(state.partInputs).toHaveLength(0)
+    expect(state.batchSettings).toEqual({
+      videoQuality: null,
+      audioQuality: null,
+      subtitle: null,
+    })
+    expect(state.outputDirOverride).toBeNull()
+    // pendingDownload owns the next fetch and homePage backs the sidebar
+    // Home button — neither belongs to the cleared video.
+    expect(state.pendingDownload).toEqual({ bvid: 'BV1test', cid: 1, page: 2 })
+    expect(state.homePage).toBe(3)
   })
 })

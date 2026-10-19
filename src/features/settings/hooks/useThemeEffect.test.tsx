@@ -29,6 +29,7 @@ const baseline: Settings = {
   trimMode: 'copy',
   audioFormat: 'mp3',
   theme: 'light',
+  accentColor: 'pink',
 }
 
 const wrapper = ({ children }: { children: ReactNode }) => (
@@ -41,7 +42,9 @@ describe('useThemeEffect', () => {
   beforeEach(() => {
     root().classList.remove('light', 'dark')
     root().style.colorScheme = ''
+    delete root().dataset.accent
     window.localStorage.removeItem('ui-theme')
+    window.localStorage.removeItem('ui-accent')
     vi.clearAllMocks()
   })
 
@@ -90,5 +93,25 @@ describe('useThemeEffect', () => {
 
     expect(root().classList.contains('light')).toBe(true)
     expect(mockSetTheme).toHaveBeenCalledWith('light')
+  })
+
+  it('applies the blue accent attribute and storage', () => {
+    store.dispatch(setSettings({ ...baseline, accentColor: 'blue' }))
+    renderHook(() => useThemeEffect(), { wrapper })
+
+    expect(root().dataset.accent).toBe('blue')
+    expect(window.localStorage.getItem('ui-accent')).toBe('blue')
+  })
+
+  it('removes the accent attribute when falling back to pink', () => {
+    store.dispatch(setSettings({ ...baseline, accentColor: 'blue' }))
+    const { rerender } = renderHook(() => useThemeEffect(), { wrapper })
+    expect(root().dataset.accent).toBe('blue')
+
+    store.dispatch(setSettings({ ...baseline, accentColor: undefined }))
+    rerender()
+
+    expect(root().dataset.accent).toBeUndefined()
+    expect(window.localStorage.getItem('ui-accent')).toBe('pink')
   })
 })

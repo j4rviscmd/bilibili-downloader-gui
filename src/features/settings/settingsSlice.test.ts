@@ -25,7 +25,6 @@ describe('settingsSlice', () => {
       setSettings({
         dlOutputPath: '/new',
         language: 'ja',
-        autoRenameDuplicates: false,
         showGithubStars: false,
         fontSize: 18,
         trimMode: 'reencode',
@@ -41,7 +40,6 @@ describe('settingsSlice', () => {
     const s = settings()
     expect(s.dlOutputPath).toBe('/new')
     expect(s.language).toBe('ja')
-    expect(s.autoRenameDuplicates).toBe(false)
     expect(s.downloadParallelism).toBe(4)
   })
 

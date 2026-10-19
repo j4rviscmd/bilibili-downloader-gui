@@ -33,10 +33,10 @@ describe('buildVideoFormSchema1 — url', () => {
     expect(parseUrl(url).success).toBe(true)
   })
 
-  it('rejects a url shorter than 2 characters', () => {
+  it('rejects a 1-character url as invalid (no separate min-length rule)', () => {
     const result = parseUrl('a')
     expect(result.success).toBe(false)
-    expect(issueKeys(result)).toContain('validation.video.url.min')
+    expect(issueKeys(result)).toContain('validation.video.url.invalid')
   })
 
   it('rejects a url longer than 1000 characters', () => {
@@ -117,12 +117,9 @@ describe('buildVideoFormSchema2 — title (windows)', () => {
     ).toContain('validation.video.title.min')
   })
 
-  it('rejects a title longer than 100 characters', async () => {
+  it('accepts a title longer than the cap (warn-only; the download enqueue trims)', async () => {
     const result = await parseTitle('a'.repeat(101))
-    expect(result.success).toBe(false)
-    expect(
-      result.success ? [] : result.error.issues.map((i) => i.message),
-    ).toContain('validation.video.title.max')
+    expect(result.success).toBe(true)
   })
 
   it.each(['My:Video', 'My<Video', 'My*Video', 'My?Video', 'My|Video'])(

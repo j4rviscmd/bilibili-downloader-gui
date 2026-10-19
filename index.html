@@ -37,6 +37,11 @@
         document.documentElement.style.backgroundColor = d
           ? '#252525'
           : '#ffffff'
+        // Accent anti-flash: same pattern as ui-theme above, read before
+        // React mounts (settings load is async). Pink is the CSS default,
+        // so only blue needs the attribute (kept in sync by useThemeEffect).
+        if (localStorage.getItem('ui-accent') === 'blue')
+          document.documentElement.setAttribute('data-accent', 'blue')
       })()
     </script>
   </head>

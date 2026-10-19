@@ -94,18 +94,18 @@ describe('bilibili-downloader-gui E2E', () => {
     expect(await input.isExisting()).to.be.true
     expect(await input.isClickable()).to.be.true
 
-    const step1Title = await browser.$(S.STEP1_CARD_TITLE)
-    expect(await step1Title.isExisting()).to.be.true
+    const heroTitle = await browser.$(S.URL_HERO_TITLE)
+    expect(await heroTitle.isExisting()).to.be.true
 
     await saveScreenshot('launch', '02-step1-form')
   })
 
-  it('should show login benefits alert when not logged in', async () => {
-    const alert = await browser.$(S.LOGIN_ALERT)
-    await alert.waitForExist({ timeout: 10_000 })
+  it('should show the login notice when not logged in', async () => {
+    const notice = await browser.$(S.LOGIN_NOTICE)
+    await notice.waitForExist({ timeout: 10_000 })
 
-    const alertTitle = await browser.$(S.LOGIN_ALERT_TITLE)
-    expect(await alertTitle.isExisting()).to.be.true
+    const noticeText = await browser.$(S.LOGIN_NOTICE_TEXT)
+    expect(await noticeText.isExisting()).to.be.true
 
     await saveScreenshot('launch', '03-login-alert')
   })
@@ -219,9 +219,8 @@ describe('bilibili-downloader-gui E2E', () => {
   })
 
   it('should start the download session when Download is clicked', async () => {
-    // Header instance — two DownloadButtons render (header + footer) but run
-    // the same download() handler; scoping avoids the ambiguous selector.
-    const btn = await browser.$(S.HEADER_DOWNLOAD_BUTTON)
+    // The single DownloadButton lives in the bottom dock.
+    const btn = await browser.$(S.DOWNLOAD_DOCK_BUTTON)
     await btn.waitForClickable({ timeout: 10_000 })
     await btn.click()
 

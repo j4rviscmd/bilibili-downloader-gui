@@ -39,14 +39,6 @@ export interface Settings {
    */
   titleReplacements?: TitleReplacement[]
   /**
-   * Whether to automatically rename duplicate part titles.
-   *
-   * When enabled, duplicate titles are renamed with index suffixes
-   * (e.g., "Part" → "Part (1)", "Part (2)").
-   * Defaults to true if not specified.
-   */
-  autoRenameDuplicates?: boolean
-  /**
    * Whether to omit the part name in the default download filename when it
    * matches the video title (trim-exact comparison of sanitized strings).
    * Defaults to true if not specified.
@@ -116,6 +108,11 @@ export interface Settings {
    * Defaults to 'light' if not set.
    */
   theme?: Theme
+  /**
+   * Brand accent color: 'pink' (default) or 'blue'.
+   * Persisted to settings.json via the Tauri backend.
+   */
+  accentColor?: AccentColor
   /**
    * Whether to show download progress on the taskbar.
    * Defaults to true if not specified.
@@ -194,6 +191,13 @@ export type FontSizePreset = 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20
  * - dark: Dark theme
  */
 export type Theme = 'light' | 'dark'
+
+/**
+ * Brand accent color for UI highlights.
+ * - pink: bilibili pink (default)
+ * - blue: bilibili blue (#00AEEC)
+ */
+export type AccentColor = 'pink' | 'blue'
 
 /**
  * Trim mode for MP4 trimming.

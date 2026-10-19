@@ -1,0 +1,197 @@
+import { useAppDispatch, useSelector, type RootState } from '@/app/store'
+import bilibiliTvMarkBlue from '@/assets/bilibili-tv-mark-blue.svg'
+import bilibiliTvMark from '@/assets/bilibili-tv-mark.svg'
+import { Kbd } from '@/components/ui/kbd'
+import { resetVideo, resetVideoView, useVideoInfo } from '@/features/video'
+import VideoForm1 from '@/features/video/ui/VideoForm1'
+import { Link2, RefreshCw } from 'lucide-react'
+import { useEffect } from 'react'
+import { Trans, useTranslation } from 'react-i18next'
+import { useLocation, useSearchParams } from 'react-router'
+
+/**
+ * Accepted URL format chip (empty-state guidance).
+ *
+ * @private
+ */
+function FormatChip({
+  pattern,
+  categoryKey,
+}: {
+  pattern: string
+  categoryKey: string
+}) {
+  const { t } = useTranslation()
+  return (
+    <span className="text-muted-foreground bg-card inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs">
+      <span className="text-foreground font-mono text-[11px] font-semibold">
+        {pattern}
+      </span>
+      <span className="text-brand-strong dark:text-brand text-[10px] font-bold">
+        {t(categoryKey)}
+      </span>
+    </span>
+  )
+}
+
+/**
+ * URL entry bar for the search page.
+ *
+ * `hero` is the empty-state centerpiece (brand mark, headline, visible
+ * label, accepted-format chips, unified command bar). `compact` is the
+ * sticky bar shown once a video is loaded (the URL input; the
+ * video's type and part count live in the hero card above the list).
+ * Both variants embed `VideoForm1` so the input engine — validation,
+ * the 500ms silent auto-fetch, b23.tv expansion, explicit submit —
+ * stays single-sourced instead of being duplicated per variant.
+ *
+ * The hero's command bar visually wraps the input, paste button, and
+ * fetch CTA in ONE bordered container (matching the mockup's .cmdbar).
+ * VideoForm1's inner shadcn Input border is stripped via descendant
+ * selectors; the focus ring lands on the wrapper instead.
+ *
+ * @example
+ * ```tsx
+ * <CommandBar variant={video.parts.length > 0 ? 'compact' : 'hero'} />
+ * ```
+ */
+export function CommandBar({ variant }: { variant: 'hero' | 'compact' }) {
+  const accent = useSelector(
+    (state: RootState) => state.settings.accentColor ?? 'pink',
+  )
+  const { t } = useTranslation()
+  // Platform-native modifier for the paste hint (Cmd on macOS, Ctrl
+  // elsewhere). Same userAgent check as the settings GeneralSection
+  // (`navigator.platform` is deprecated); two separate <kbd> chips make
+  // the combination readable on both platforms without a "+".
+  const isMac =
+    typeof navigator !== 'undefined' && /Mac/i.test(navigator.userAgent)
+  const pasteMod = isMac ? '⌘' : 'Ctrl'
+  const { onValid1 } = useVideoInfo()
+  const dispatch = useAppDispatch()
+  const { pathname } = useLocation()
+  const [, setSearchParams] = useSearchParams()
+  // Compact-only: the field's × closes the loaded video (pushes the
+  // empty entry, so Back returns to it via the snapshot restore) instead
+  // of merely clearing the draft — the hero's × keeps the plain clear.
+  // Why the store resets HERE and not via the page's entry-sync effect:
+  // resetting first makes hasLandedVideo false, so the page's pending
+  // ?url= push (racing this same commit when the click lands in the
+  // landing frame) is dropped at the guard instead of overwriting this
+  // navigation — a router-only close intermittently lost that race.
+  const closeVideo =
+    variant === 'compact'
+      ? () => {
+          dispatch(resetVideoView())
+          dispatch(resetVideo())
+          setSearchParams({})
+        }
+      : undefined
+
+  // Auto-focus the URL field when the hero (empty page) shows: typing or
+  // pasting a URL is the page's only primary action, so arrival — launch,
+  // back/forward, the × close, or the sidebar — should put the caret in
+  // the field (browser-omnibox pattern). The pathname condition is the
+  // re-arrival trigger: the persistent layout keeps this page mounted
+  // while other pages are active, so a sidebar return fires no mount and
+  // no variant change — only the pathname does. Hidden-copy runs (other
+  // page active) never focus. Compact deliberately does not steal focus:
+  // the loaded video's parts are what the user interacts with.
+  useEffect(() => {
+    if (pathname === '/search' && variant === 'hero') {
+      document.getElementById('url')?.focus()
+    }
+  }, [pathname, variant])
+
+  if (variant === 'hero') {
+    return (
+      <div className="w-full max-w-2xl text-center">
+        {/* Bilibili icon (dashboard-icons, Apache-2.0): the squircle
+            tile is part of the asset, so no wrapper tile — drop-shadow
+            hugs the squircle. Pink/blue colorway follows the accent
+            setting (same HSL structure, hue-rotated). */}
+        <img
+          src={accent === 'blue' ? bilibiliTvMarkBlue : bilibiliTvMark}
+          alt=""
+          aria-hidden
+          className={
+            accent === 'blue'
+              ? 'mx-auto mb-4 block size-13 drop-shadow-[0_6px_20px_-6px_rgb(93_198_236/0.4)]'
+              : 'mx-auto mb-4 block size-13 drop-shadow-[0_6px_20px_-6px_rgb(236_93_133/0.4)]'
+          }
+        />
+        <h2 data-hero-title className="text-xl font-bold tracking-tight">
+          {t('search.hero_title')}
+        </h2>
+        <p className="text-muted-foreground mt-1 text-sm">
+          {t('search.hero_subtitle')}
+        </p>
+        <div className="mt-5 mb-1.5 flex items-center justify-between px-1 text-xs font-semibold">
+          <label htmlFor="url">{t('search.url_label')}</label>
+          {/* Rich <kbd> chips: the locale string embeds literal <kbd> tags
+              that Trans swaps for the styled Kbd component. */}
+          <span className="text-muted-foreground font-normal">
+            <Trans
+              i18nKey="search.paste_hint"
+              values={{ mod: pasteMod }}
+              components={{ kbd: <Kbd /> }}
+            />
+          </span>
+        </div>
+        {/* Unified command bar: one bordered container wrapping the input
+            and fetch CTA — the mockup's .cmdbar. The [&_input] overrides
+            neutralize the shadcn Input's own chrome (border, radius, fixed
+            height, horizontal padding, dark translucent background, focus
+            ring) so the input sits bare inside the bar and the focus ring
+            lands on this wrapper instead. */}
+        <div className="group/cmdbar focus-within:border-brand-strong focus-within:ring-brand-strong/35 bg-card border-border flex items-center gap-2 rounded-xl border-[1.5px] p-1.5 pl-3.5 shadow-sm transition-all focus-within:ring-4 [&_input]:h-auto [&_input]:rounded-none [&_input]:border-0 [&_input]:bg-transparent! [&_input]:px-0 [&_input]:py-2 [&_input]:text-[14.5px] [&_input]:shadow-none [&_input]:focus-visible:ring-0 [&_input]:focus-visible:outline-none [&_input::placeholder]:opacity-75">
+          <Link2
+            className="text-muted-foreground size-4 shrink-0"
+            aria-hidden
+          />
+          <div className="min-w-0 flex-1 text-left">
+            <VideoForm1 />
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const el = document.querySelector<HTMLInputElement>('#url')
+              if (el?.value) void onValid1(el.value.trim())
+            }}
+            className="bg-brand-strong text-brand-foreground inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-3.5 text-[13px] font-semibold transition-opacity hover:opacity-90"
+          >
+            {t('search.fetch_cta')}
+            <RefreshCw className="size-4" aria-hidden />
+          </button>
+        </div>
+        <div
+          role="group"
+          className="mt-3.5 flex flex-wrap justify-center gap-2"
+          aria-label={t('search.formats_label')}
+        >
+          <FormatChip pattern="BV1…" categoryKey="search.format_video" />
+          <FormatChip pattern="av…" categoryKey="search.format_video" />
+          <FormatChip pattern="ep… / ss…" categoryKey="search.format_bangumi" />
+          <FormatChip pattern="b23.tv" categoryKey="search.format_short" />
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-background sticky top-0 z-20 flex items-center gap-2.5 border-b px-4 py-2.5 sm:px-6">
+      {/* Same unified container as the hero cmdbar: lead link icon +
+          borderless input, focus ring on the wrapper. Mirrors the
+          mockup's .cb-input so the URL field reads as the same control
+          in both states. */}
+      <div className="bg-card border-border focus-within:border-brand-strong focus-within:ring-brand-strong/35 flex min-w-0 flex-1 items-center gap-2.5 rounded-[10px] border px-2.5 py-1 transition-all focus-within:ring-3 [&_input]:h-auto [&_input]:rounded-none [&_input]:border-0 [&_input]:bg-transparent! [&_input]:px-0 [&_input]:py-1.5 [&_input]:shadow-none [&_input]:focus-visible:ring-0 [&_input]:focus-visible:outline-none">
+        <Link2 className="text-muted-foreground size-4 shrink-0" aria-hidden />
+        <div className="min-w-0 flex-1">
+          <VideoForm1 onClearUrl={closeVideo} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default CommandBar

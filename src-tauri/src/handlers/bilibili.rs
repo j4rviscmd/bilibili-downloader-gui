@@ -156,6 +156,11 @@ pub struct DownloadOptions {
     /// Episode ID for bangumi content (optional)
     #[serde(default)]
     pub ep_id: Option<i64>,
+    /// Per-download output directory override. When set, the file lands
+    /// here instead of the settings' dl_output_path (the batch-settings
+    /// temporary override; settings themselves are never written).
+    #[serde(default)]
+    pub output_dir: Option<String>,
 }
 
 use crate::constants::{API_BASE, PLAYURL_FNVAL, PLAYURL_QN, REFERER};
@@ -760,7 +765,10 @@ async fn download_video_impl(app: &AppHandle, options: &DownloadOptions) -> Resu
     // retry); threading it keeps every HTTP hop on one injectable seam.
     let api = BiliApi::from_cookie_header(cookie_header)?;
 
-    let output_path = build_output_path(app, &options.filename).await?;
+    let output_path = match options.output_dir.as_deref() {
+        Some(dir) => build_output_path_in(Some(dir), &options.filename)?,
+        None => build_output_path(app, &options.filename).await?,
+    };
     let lib_path = get_lib_path(app);
 
     let download_id = options.download_id.clone();
@@ -1673,6 +1681,41 @@ mod tests {
         );
     }
 
+    #[test]
+    fn expand_subtitle_wildcard_covers_all_lans_manual_first() {
+        let sel = vec!["*".to_string()];
+        let subs = vec![
+            SubtitleDto {
+                lan: "ai-zh".into(),
+                lan_doc: "AI".into(),
+                subtitle_url: String::new(),
+                is_ai: true,
+                ai_type: None,
+            },
+            SubtitleDto {
+                lan: "ja".into(),
+                lan_doc: "日本語".into(),
+                subtitle_url: String::new(),
+                is_ai: false,
+                ai_type: None,
+            },
+        ];
+        // Manual tracks sort before AI ones; hard-sub's first pick stays
+        // deterministic.
+        assert_eq!(
+            expand_subtitle_wildcard(&sel, &subs),
+            vec!["ja".to_string(), "ai-zh".to_string()]
+        );
+    }
+
+    #[test]
+    fn expand_subtitle_wildcard_passes_concrete_selection_through() {
+        let sel = vec!["ja".to_string(), "en".to_string()];
+        assert_eq!(expand_subtitle_wildcard(&sel, &[]), sel);
+        // Wildcard with nothing fetched stays empty (honest "no subs").
+        assert!(expand_subtitle_wildcard(&["*".to_string()], &[]).is_empty());
+    }
+
     #[tokio::test]
     async fn fetch_subtitles_via_api_returns_dto_list() {
         let server = wiremock::MockServer::start().await;
@@ -2243,6 +2286,7 @@ mod tests {
             page: Some(1),
             subtitle: None,
             ep_id,
+            output_dir: None,
         }
     }
 
@@ -4814,6 +4858,9 @@ mod tests {
             cid,
             pages,
             redirect_url: None,
+            owner: None,
+            pubdate: None,
+            stat: None,
         }
     }
 
@@ -4830,7 +4877,7 @@ mod tests {
     #[test]
     fn web_interface_data_to_video_single_part_falls_back_to_title() {
         let data = view_data("Main Title", "http://pic", 7, Some(vec![]));
-        let video = web_interface_data_to_video(&data, "BV1x", None, false, true, true);
+        let video = web_interface_data_to_video(&data, "BV1x", None, true, true);
         assert_eq!(video.parts.len(), 1);
         assert_eq!(video.parts[0].cid, 7);
         assert_eq!(video.parts[0].part, "Main Title");
@@ -4848,7 +4895,7 @@ mod tests {
             page(2, 2, "", 30), // empty part name -> main title; no first_frame -> pic
         ];
         let data = view_data("T", "http://pic", 0, Some(pages));
-        let video = web_interface_data_to_video(&data, "BV1x", None, false, true, false);
+        let video = web_interface_data_to_video(&data, "BV1x", None, true, false);
         assert_eq!(video.parts.len(), 2);
         assert_eq!(video.parts[0].part, "Part A");
         assert_eq!(video.parts[0].default_title, "T Part A");
@@ -4863,7 +4910,7 @@ mod tests {
     fn web_interface_data_to_video_resolves_duplicate_sanitized_names() {
         let pages = vec![page(1, 1, "same", 1), page(2, 2, "same", 1)];
         let data = view_data("T", "p", 0, Some(pages));
-        let video = web_interface_data_to_video(&data, "BV1x", None, true, true, false);
+        let video = web_interface_data_to_video(&data, "BV1x", None, true, false);
         assert_eq!(video.parts[0].sanitized_part.as_deref(), Some("same"));
         assert_eq!(video.parts[1].sanitized_part.as_deref(), Some("same (1)"));
         // Suffix from duplicate resolution breaks the title match, so both combine
@@ -4876,7 +4923,7 @@ mod tests {
         use crate::models::settings::TitleReplacement;
         let data = view_data("a:b", "p", 1, Some(vec![]));
         let rules = [TitleReplacement::new(":", "_", true)];
-        let video = web_interface_data_to_video(&data, "BV1x", Some(&rules), false, true, false);
+        let video = web_interface_data_to_video(&data, "BV1x", Some(&rules), true, false);
         assert_eq!(video.title, "a_b");
         assert_eq!(video.parts[0].sanitized_part.as_deref(), Some("a_b"));
         // Sanitized strings match, so the part name is omitted
@@ -4888,14 +4935,14 @@ mod tests {
         // Part name equals the title except for surrounding whitespace
         let pages = vec![page(1, 1, " My Song ", 60)];
         let data = view_data("My Song", "http://pic", 0, Some(pages));
-        let video = web_interface_data_to_video(&data, "BV1x", None, false, true, false);
+        let video = web_interface_data_to_video(&data, "BV1x", None, true, false);
         assert_eq!(video.parts[0].default_title, "My Song");
     }
 
     #[test]
     fn web_interface_data_to_video_keeps_duplicate_title_when_omission_off() {
         let data = view_data("Main Title", "http://pic", 7, Some(vec![]));
-        let video = web_interface_data_to_video(&data, "BV1x", None, false, false, false);
+        let video = web_interface_data_to_video(&data, "BV1x", None, false, false);
         assert_eq!(video.parts[0].default_title, "Main Title Main Title");
     }
 
@@ -5422,8 +5469,11 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
 
     // E2E mode: CI runner IPs are blocked by Bilibili's risk control
     // (issue #565), so serve the bundled fixture instead of the live
-    // view API. Same env-var pattern as qr_login's secure-storage bypass.
-    if crate::handlers::qr_login::is_e2e_testing() {
+    // view API. Requires E2E_API_BASE (the fixture server) as well:
+    // local-real E2E runs (e2e-tests/local, real cookies + live API)
+    // set only E2E_TESTING and must hit the live view API — same
+    // combined condition as the BiliApi base override.
+    if crate::handlers::qr_login::is_e2e_testing() && std::env::var("E2E_API_BASE").is_ok() {
         log::info!("[BE] fetch_video_info: returning E2E_TESTING fixture");
         return e2e_mock_video_info(id);
     }
@@ -5456,10 +5506,6 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
     let replacements = settings
         .as_ref()
         .and_then(|s| s.title_replacements.as_deref());
-    let auto_rename = settings
-        .as_ref()
-        .and_then(|s| s.auto_rename_duplicates)
-        .unwrap_or(true);
     let omit_duplicate = settings
         .as_ref()
         .and_then(|s| s.omit_duplicate_part_title)
@@ -5469,7 +5515,6 @@ pub async fn fetch_video_info(app: &AppHandle, id: &str) -> Result<Video, String
         data,
         canonical_id,
         replacements,
-        auto_rename,
         omit_duplicate,
         is_limited_quality,
     ))
@@ -5519,9 +5564,7 @@ fn e2e_mock_video_info_with_pic_base(id: &str, pic_base: Option<&str>) -> Result
     // contract tests, commit 6a23fbc8), not of the BV typed in the E2E spec
     // (BV1i3411y7xB). The mapping overrides bvid with the requested id, so the
     // UI shows the snapshot video's title/parts for whatever URL was entered.
-    Ok(web_interface_data_to_video(
-        data, id, None, true, true, true,
-    ))
+    Ok(web_interface_data_to_video(data, id, None, true, true))
 }
 
 /// Fills each part's `default_title` from the sanitized video title.
@@ -5547,7 +5590,6 @@ fn web_interface_data_to_video(
     data: &WebInterfaceApiResponseData,
     id: &str,
     replacements: Option<&[crate::models::settings::TitleReplacement]>,
-    auto_rename: bool,
     omit_duplicate: bool,
     is_limited_quality: bool,
 ) -> Video {
@@ -5612,18 +5654,18 @@ fn web_interface_data_to_video(
             .collect()
     };
 
-    if auto_rename {
-        let sanitized_titles: Vec<String> = parts
-            .iter()
-            .filter_map(|p| p.sanitized_part.as_ref())
-            .cloned()
-            .collect();
-        let resolved_titles = resolve_duplicate_titles(&sanitized_titles);
-        let mut resolved_iter = resolved_titles.into_iter();
-        for part in parts.iter_mut() {
-            if part.sanitized_part.is_some() {
-                part.sanitized_part = resolved_iter.next();
-            }
+    // Duplicate part names always get index suffixes ("same", "same (1)") —
+    // formerly the autoRenameDuplicates setting, now unconditional.
+    let sanitized_titles: Vec<String> = parts
+        .iter()
+        .filter_map(|p| p.sanitized_part.as_ref())
+        .cloned()
+        .collect();
+    let resolved_titles = resolve_duplicate_titles(&sanitized_titles);
+    let mut resolved_iter = resolved_titles.into_iter();
+    for part in parts.iter_mut() {
+        if part.sanitized_part.is_some() {
+            part.sanitized_part = resolved_iter.next();
         }
     }
 
@@ -5637,6 +5679,16 @@ fn web_interface_data_to_video(
         content_type: "video".to_string(),
         ep_id: None,
         season_title: None,
+        owner_name: data.owner.as_ref().map(|o| o.name.clone()),
+        owner_face: data
+            .owner
+            .as_ref()
+            .map(|o| o.face.clone())
+            .filter(|f| !f.is_empty()),
+        pubdate: data.pubdate,
+        view_count: data.stat.as_ref().map(|st| st.view),
+        reply_count: data.stat.as_ref().map(|st| st.reply),
+        favorite_count: data.stat.as_ref().map(|st| st.favorite),
     }
 }
 
@@ -8050,6 +8102,21 @@ async fn download_subtitle_with_retry(
 /// Client construction happens in `download_video_impl` before this is
 /// called, so no orphan "subtitle" emit is possible.
 #[allow(clippy::too_many_arguments)]
+/// Expands the batch UI's all-languages wildcard ("*") into the concrete
+/// language list this part actually has, manual tracks before AI ones so
+/// hard-sub's first-pick stays deterministic. A non-wildcard selection is
+/// returned unchanged; a wildcard with no fetched subtitles stays empty
+/// (the caller reports "no subtitles" honestly).
+fn expand_subtitle_wildcard(selected_lans: &[String], subs: &[SubtitleDto]) -> Vec<String> {
+    if !selected_lans.iter().any(|l| l == "*") {
+        return selected_lans.to_vec();
+    }
+    let mut with_ai: Vec<(String, bool)> = subs.iter().map(|s| (s.lan.clone(), s.is_ai)).collect();
+    with_ai.sort_by_key(|(_, is_ai)| *is_ai);
+    with_ai.into_iter().map(|(lan, _)| lan).collect()
+}
+
+#[allow(clippy::too_many_arguments)]
 async fn prepare_subtitle_mode<R: tauri::Runtime>(
     app: &AppHandle<R>,
     api: &BiliApi,
@@ -8117,6 +8184,15 @@ async fn prepare_subtitle_mode<R: tauri::Runtime>(
     let mut subtitle_files: Vec<SubtitleMergeOptions> = Vec::new();
     let mut language_labels: Vec<String> = Vec::new();
     let mut remaining_lans: Vec<String> = sub_opts.selected_lans.clone();
+    let expanded = expand_subtitle_wildcard(&remaining_lans, &initial_subs);
+    if expanded.len() != remaining_lans.len() {
+        log::info!(
+            "[BE] prepare_subtitle_mode: wildcard expanded to {} languages: {:?}",
+            expanded.len(),
+            expanded
+        );
+        remaining_lans = expanded;
+    }
 
     const MAX_OUTER_ATTEMPTS: usize = 3;
 
@@ -8310,16 +8386,10 @@ pub async fn fetch_bangumi_info(app: &AppHandle, ep_id: i64) -> Result<Video, St
     // VIP members can still access them. The playurl API will return
     // DASH data for VIP users, and ERR::BANGUMI_NO_DASH for non-VIP users.
     // Each VideoPart keeps its status field for UI reference.
-
-    // Get settings for title replacement
     let settings = settings::get_settings(app).await.ok();
     let replacements = settings
         .as_ref()
         .and_then(|s| s.title_replacements.as_deref());
-    let auto_rename = settings
-        .as_ref()
-        .and_then(|s| s.auto_rename_duplicates)
-        .unwrap_or(true);
     let omit_duplicate = settings
         .as_ref()
         .and_then(|s| s.omit_duplicate_part_title)
@@ -8358,20 +8428,19 @@ pub async fn fetch_bangumi_info(app: &AppHandle, ep_id: i64) -> Result<Video, St
         })
         .collect();
 
-    // Apply duplicate title resolution if enabled
-    if auto_rename {
-        let sanitized_titles: Vec<String> = parts
-            .iter()
-            .filter_map(|p| p.sanitized_part.as_ref())
-            .cloned()
-            .collect();
-        let resolved_titles = resolve_duplicate_titles(&sanitized_titles);
-        // Apply resolved titles back to sanitized_part
-        let mut resolved_iter = resolved_titles.into_iter();
-        for part in parts.iter_mut() {
-            if part.sanitized_part.is_some() {
-                part.sanitized_part = resolved_iter.next();
-            }
+    // Duplicate part names always get index suffixes — formerly the
+    // autoRenameDuplicates setting, now unconditional.
+    let sanitized_titles: Vec<String> = parts
+        .iter()
+        .filter_map(|p| p.sanitized_part.as_ref())
+        .cloned()
+        .collect();
+    let resolved_titles = resolve_duplicate_titles(&sanitized_titles);
+    // Apply resolved titles back to sanitized_part
+    let mut resolved_iter = resolved_titles.into_iter();
+    for part in parts.iter_mut() {
+        if part.sanitized_part.is_some() {
+            part.sanitized_part = resolved_iter.next();
         }
     }
 
@@ -8388,6 +8457,12 @@ pub async fn fetch_bangumi_info(app: &AppHandle, ep_id: i64) -> Result<Video, St
         content_type: "bangumi".to_string(),
         ep_id: Some(ep_id),
         season_title: Some(result.title),
+        owner_name: None,
+        owner_face: None,
+        pubdate: None,
+        view_count: None,
+        reply_count: None,
+        favorite_count: None,
     })
 }
 

@@ -108,6 +108,23 @@ describe('NavigationSidebarHeader', () => {
     }
   })
 
+  it('exposes stable E2E test ids on the search and downloads items', () => {
+    // data-testid is the i18n-proof selector hook for E2E specs; the
+    // node carrying it must be the same menu button the aria-label
+    // identifies, and items without a testId must not render one.
+    renderSidebar()
+
+    expect(screen.getByTestId('nav-search')).toBe(
+      screen.getByRole('button', { name: 'nav.aria.search' }),
+    )
+    expect(screen.getByTestId('nav-downloads')).toBe(
+      screen.getByRole('button', { name: 'nav.aria.downloads' }),
+    )
+    expect(
+      screen.getByRole('button', { name: 'nav.aria.favorite' }),
+    ).not.toHaveAttribute('data-testid')
+  })
+
   it('marks the current route as the active page', () => {
     renderSidebar('/trim')
 

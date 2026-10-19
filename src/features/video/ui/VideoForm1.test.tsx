@@ -23,7 +23,13 @@ const VALID_URL = 'https://www.bilibili.com/video/BV1xx411c7XD'
 function setup(isFetching = false, isSilentFetching = false) {
   const onValid1 = vi.fn()
   store.dispatch(
-    setInput({ url: '', partInputs: [], pendingDownload: null, homePage: 1 }),
+    setInput({
+      url: '',
+      partInputs: [],
+      pendingDownload: null,
+      batchSettings: { videoQuality: null, audioQuality: null, subtitle: null },
+      homePage: 1,
+    }),
   )
   vi.mocked(useVideoInfo).mockReturnValue({
     input: store.getState().input,
@@ -46,6 +52,17 @@ describe('VideoForm1', () => {
     expect(
       screen.getByPlaceholderText('video.url_placeholder_example'),
     ).toBeInTheDocument()
+  })
+
+  it('assigns the stable id "url" so the hero label can target the input', () => {
+    setup()
+
+    // The search page's hero command bar renders <label htmlFor="url">;
+    // this id ties that external label to the input (a11y +
+    // click-to-focus). See index.test.tsx for the label side.
+    expect(
+      screen.getByPlaceholderText('video.url_placeholder_example'),
+    ).toHaveAttribute('id', 'url')
   })
 
   it('submits a valid URL to onValid1', async () => {
@@ -82,6 +99,19 @@ describe('VideoForm1', () => {
     expect(
       screen.getByPlaceholderText('video.url_placeholder_example'),
     ).toBeEnabled()
+  })
+
+  it('shows no validation error after clearing a previously invalid input', async () => {
+    const { user: actor } = setup()
+    const input = screen.getByPlaceholderText('video.url_placeholder_example')
+
+    // Fail a submit so the field re-validates on change, then clear it:
+    // an empty field must not flash "enter a valid URL".
+    await actor.type(input, 'not-a-url{Enter}')
+    expect(screen.getByText('validation.video.url.invalid')).toBeInTheDocument()
+
+    await actor.click(screen.getByRole('button'))
+    expect(screen.queryByText('validation.video.url.invalid')).toBeNull()
   })
 
   it('clears the input via the clear button', async () => {

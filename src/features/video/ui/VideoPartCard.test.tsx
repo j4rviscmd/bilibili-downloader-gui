@@ -150,6 +150,7 @@ function setup({
       url: '',
       partInputs: [createPartInput(partInput)],
       pendingDownload: null,
+      batchSettings: { videoQuality: null, audioQuality: null, subtitle: null },
       homePage: 1,
     } satisfies Input),
   )
@@ -251,16 +252,35 @@ describe('VideoPartCard', () => {
     expect(store.getState().input.partInputs[0]!.selected).toBe(false)
   })
 
-  it('shows the duplicate-title warning only for selected parts', () => {
-    setup({ isDuplicate: true })
+  it('shows the duplicate-name notice regardless of selection', () => {
+    const first = setup({ isDuplicate: true })
     expect(
       screen.getByText('validation.video.title.duplicate'),
     ).toBeInTheDocument()
+    first.unmount()
 
+    // Informational (save-time numbering), so it stays visible on the
+    // auto-deselected rows too.
     setup({ partInput: { selected: false }, isDuplicate: true })
     expect(
-      screen.queryByText('validation.video.title.duplicate'),
-    ).not.toBeInTheDocument()
+      screen.getByText('validation.video.title.duplicate'),
+    ).toBeInTheDocument()
+  })
+
+  it('shows the over-cap trim notice (⚠-prefixed) regardless of selection', () => {
+    const matchNotice = { exact: false }
+    const first = setup({ partInput: { title: 'a'.repeat(101) } })
+    expect(
+      screen.getByText('validation.video.title.trim_notice', matchNotice),
+    ).toBeInTheDocument()
+    first.unmount()
+
+    // Parts are auto-deselected after enqueue (issue #691) — the notice
+    // states a fact about the title, so it must stay visible.
+    setup({ partInput: { title: 'a'.repeat(101), selected: false } })
+    expect(
+      screen.getByText('validation.video.title.trim_notice', matchNotice),
+    ).toBeInTheDocument()
   })
 
   it('renders quality options with availability from the store when open', () => {
@@ -279,6 +299,32 @@ describe('VideoPartCard', () => {
 
     // No audio qualities -> embedded-audio info box instead of a radio group
     expect(screen.getByText('video.bangumi_audio_embedded')).toBeInTheDocument()
+  })
+
+  it('shows the auto-adjust pill when the selected quality is unavailable', () => {
+    // Batch-target scenario: videoQuality=1080p but this part tops out at
+    // 720p60 — the download will resolve below the selection.
+    setup({
+      partInput: {
+        // Explicit pick (anonymous default would override a non-explicit
+        // seeded value under the enqueue-resolution model).
+        videoQuality: '80',
+        videoQualityExplicit: true,
+        videoQualities: [{ id: 74, quality: '720p60' }],
+        audioQualities: [],
+        subtitles: [],
+      },
+    })
+
+    // The pill states the transition: requested 1080p → predicted 720p60.
+    const pill = document.querySelector('.border-amber-300')
+    expect(pill).not.toBeNull()
+    expect(pill?.textContent?.replace(/\s+/g, '')).toBe('⚠1080p→720p60')
+  })
+
+  it('hides the auto-adjust pill while qualities are unfetched', () => {
+    setup({ partInput: { videoQuality: '80', videoQualityExplicit: true } })
+    expect(document.querySelector('.border-amber-300')).toBeNull()
   })
 
   it('keeps all inputs editable while the part is queued or downloading', () => {
@@ -403,7 +449,13 @@ describe('VideoPartCard', () => {
 
     expect(screen.getByDisplayValue('My Video Part 1')).toBeInTheDocument()
     await vi.waitFor(() =>
-      expect(onValid2).toHaveBeenCalledWith(0, 'My Video Part 1', '', ''),
+      expect(onValid2).toHaveBeenCalledWith(
+        0,
+        'My Video Part 1',
+        '',
+        '',
+        expect.anything(),
+      ),
     )
     // form.watch is live: restoring the default re-disables the button
     expect(reset).toBeDisabled()
@@ -432,7 +484,13 @@ describe('VideoPartCard', () => {
     expect(screen.getByDisplayValue('My Video Part 1')).toBeInTheDocument()
     expect(screen.queryByText('validation.video.title.min')).toBeNull()
     await vi.waitFor(() =>
-      expect(onValid2).toHaveBeenCalledWith(0, 'My Video Part 1', '', ''),
+      expect(onValid2).toHaveBeenCalledWith(
+        0,
+        'My Video Part 1',
+        '',
+        '',
+        expect.anything(),
+      ),
     )
   })
 
@@ -479,7 +537,14 @@ describe('VideoPartCard', () => {
 
     // The 500ms debounce flushes the save once the title is valid
     await vi.waitFor(
-      () => expect(onValid2).toHaveBeenCalledWith(0, 'Renamed Part', '', ''),
+      () =>
+        expect(onValid2).toHaveBeenCalledWith(
+          0,
+          'Renamed Part',
+          '',
+          '',
+          expect.anything(),
+        ),
       { timeout: 3000 },
     )
   })
@@ -493,14 +558,25 @@ describe('VideoPartCard', () => {
     fireEvent.blur(input)
 
     await vi.waitFor(
-      () => expect(onValid2).toHaveBeenCalledWith(0, 'Blurred Part', '', ''),
+      () =>
+        expect(onValid2).toHaveBeenCalledWith(
+          0,
+          'Blurred Part',
+          '',
+          '',
+          expect.anything(),
+        ),
       { timeout: 3000 },
     )
   })
 
   // --- Accordion summary -------------------------------------------------------
 
-  it('summarizes the resolved quality and subtitle in the trigger', () => {
+  // The old trigger summary (resolved quality + subtitle labels) was
+  // removed with the compact row; what survives on the row is the
+  // resolved-fallback warning.
+
+  it('shows the resolved-fallback warning pill when a quality substituted', () => {
     setup({
       partInput: {
         resolvedQuality: {
@@ -510,25 +586,13 @@ describe('VideoPartCard', () => {
           videoQualityFallback: true,
           audioQualityFallback: false,
         } as PartInput['resolvedQuality'],
-        resolvedSubtitle: {
-          subtitleMode: 'soft',
-          subtitleLanguageLabels: ['zh-Hans', 'en', 'ja'],
-        } as PartInput['resolvedSubtitle'],
       },
     })
 
-    const trigger = screen.getByRole('button', { name: /video.options/ })
-    // Codec is no longer part of the summary (global setting governs it)
-    expect(trigger).toHaveTextContent('1080p')
-    expect(trigger).not.toHaveTextContent('(AVC)')
-    expect(trigger).toHaveTextContent('192K')
-    // More than two languages collapse into a count
-    expect(trigger).toHaveTextContent('video.subtitle_n_languages')
-    // Substituted-quality warning icon
     expect(screen.getByText('⚠️')).toBeInTheDocument()
   })
 
-  it('joins up to two subtitle labels and hides the fallback icon', () => {
+  it('hides the fallback warning without a substitution', () => {
     setup({
       partInput: {
         resolvedQuality: {
@@ -536,16 +600,9 @@ describe('VideoPartCard', () => {
           videoCodecid: 7,
           audioQuality: null,
         } as PartInput['resolvedQuality'],
-        resolvedSubtitle: {
-          subtitleMode: 'hard',
-          subtitleLanguageLabels: ['zh-Hans', 'en'],
-        } as PartInput['resolvedSubtitle'],
       },
     })
 
-    const trigger = screen.getByRole('button', { name: /video.options/ })
-    expect(trigger).toHaveTextContent('zh-Hans・en')
-    expect(trigger).toHaveTextContent('video.subtitle_hard')
     expect(screen.queryByText('⚠️')).toBeNull()
   })
 
@@ -641,10 +698,14 @@ describe('VideoPartCard', () => {
     expect(screen.getByRole('radio', { name: 'Dolby Atmos' })).toBeDisabled()
     // Options follow the quality ladder, not numeric id order (numeric
     // order would list 192K above Hi-Res Lossless)
+    // The audio pill also renders 192K (login default); the option is the
+    // one wrapped in a <label>.
+    const radio192k = screen
+      .getAllByText('192K')
+      .map((el) => el.closest('label'))
+      .find(Boolean)!
     expect(
-      screen
-        .getByText('Hi-Res Lossless')
-        .compareDocumentPosition(screen.getByText('192K')),
+      screen.getByText('Hi-Res Lossless').compareDocumentPosition(radio192k),
     ).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
   })
 
@@ -880,6 +941,11 @@ describe('VideoPartCard', () => {
         url: '',
         partInputs: [createPartInput()],
         pendingDownload: null,
+        batchSettings: {
+          videoQuality: null,
+          audioQuality: null,
+          subtitle: null,
+        },
         homePage: 1,
       } satisfies Input),
     )
@@ -911,6 +977,11 @@ describe('VideoPartCard', () => {
         url: '',
         partInputs: [createPartInput()],
         pendingDownload: null,
+        batchSettings: {
+          videoQuality: null,
+          audioQuality: null,
+          subtitle: null,
+        },
         homePage: 1,
       } satisfies Input),
     )

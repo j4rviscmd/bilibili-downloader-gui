@@ -96,7 +96,10 @@ export function VideoCardGrid({
 
   return (
     <>
-      <ul className={GRID_CLASSES[variant]}>
+      {/* Why: the <ul> has no accessible name to target, and E2E specs must
+          stay i18n-proof — never match localized text (c2a9e94 removed an
+          un-localizable chip here; e2e-tests/local specs) */}
+      <ul className={GRID_CLASSES[variant]} data-testid="video-card-grid">
         {entries.map((entry) => (
           <li key={entry.bvid} className="group relative">
             <button

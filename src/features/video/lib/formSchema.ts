@@ -18,6 +18,15 @@ const UNSUPPORTED_PATHNAME_RULES: Array<[RegExp, string]> = [
 ]
 
 /**
+ * Filename length cap. Not enforced by schema2 anymore (the input area
+ * only warns — see VideoPartCard); the download enqueue force-trims to
+ * this length (tail cut), because batch all-parts download enqueues
+ * parts the user never opened whose backend-provided defaults can
+ * exceed the cap.
+ */
+export const TITLE_MAX_LENGTH = 100
+
+/**
  * Detects unsupported Bilibili URL patterns and returns a specific error key.
  *
  * This function checks for known unsupported URL patterns and returns
@@ -98,10 +107,22 @@ export const buildVideoFormSchema1 = (t: TFunction) =>
   z.object({
     url: z
       .string()
-      .min(2, { message: t('validation.video.url.min') })
       .max(1000, { message: t('validation.video.url.max') })
-      .url({ message: t('validation.video.url.invalid') })
       .superRefine((value, ctx) => {
+        // An empty field is not an error: clearing the input (or blurring
+        // an untouched field) must not flash a message. RHF re-validates
+        // on change once an error was shown, so a strict schema here made
+        // the clear button re-raise "enter a valid URL". Submit paths
+        // no-op on empty instead (VideoForm1.onSubmit).
+        if (value.trim() === '') return
+
+        if (!z.string().url().safeParse(value).success) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: t('validation.video.url.invalid'),
+          })
+          return
+        }
         try {
           const { hostname, pathname } = new URL(value)
 
@@ -171,7 +192,9 @@ export const buildVideoFormSchema2 = (t: TFunction) =>
     title: z
       .string()
       .min(2, { message: t('validation.video.title.min') })
-      .max(100, { message: t('validation.video.title.max') })
+      // Length is intentionally NOT schema-enforced (long titles only
+      // warn in the UI — see VideoPartCard); the download enqueue
+      // force-trims to TITLE_MAX_LENGTH (tail cut).
       .nonempty({ message: t('validation.video.title.required') })
       .superRefine((val, ctx) => {
         const pattern = getPatternSync()

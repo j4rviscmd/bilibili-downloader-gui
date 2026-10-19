@@ -3,8 +3,7 @@
  *
  * Handles Bilibili video information fetching, download orchestration,
  * quality selection, and multi-part video management. Includes form
- * validation, filename normalization, and UI components for the entire
- * video download workflow.
+ * validation and filename normalization.
  * @module features/video
  */
 
@@ -26,22 +25,22 @@ export {
   deselectAll,
   deselectPageAll,
   inputSlice,
+  resetVideoView,
   selectAll,
   selectHasSelectedParts,
   selectHomePage,
   selectPageAll,
   setHomePage,
+  setInput,
   setPendingDownload,
   updatePartSelected,
 } from './model/inputSlice'
-export { setVideo, videoSlice } from './model/videoSlice'
+export { resetVideo, setVideo, videoSlice } from './model/videoSlice'
 
 // Selectors
 export {
   selectAllPartValid,
   selectDuplicateIndices,
-  selectHasDuplicates,
-  selectIsAllValid,
   selectIsForm1Valid,
   selectParentProgress,
 } from './model/selectors'
@@ -65,7 +64,3 @@ export {
 
 // Types
 export type { Input, PendingDownload, Video } from './types'
-
-// UI components
-export { default as DownloadButton } from './ui/DownloadButton'
-export { default as VideoForm1 } from './ui/VideoForm1'

@@ -14,7 +14,6 @@ import {
   useSidebar,
 } from '@/shared/animate-ui/radix/sidebar'
 import { QueueBottomBar } from '@/shared/queue/ui/QueueBottomBar'
-import { ThumbnailFlightLayer } from '@/shared/queue/ui/ThumbnailFlightLayer'
 import AppBar from '@/shared/ui/AppBar/AppBar'
 import { HistoryNavigation } from '@/shared/ui/AppBar/HistoryNavigation'
 import { NavigationSidebarHeader } from '@/shared/ui/NavigationSidebar'
@@ -157,7 +156,6 @@ export function PageLayoutShell({ children }: PageLayoutShellProps) {
                 after page content on every page and never unmounts. The
                 flight layer renders the fly-to-bar thumbnails above it. */}
             <QueueBottomBar />
-            <ThumbnailFlightLayer />
           </div>
         </SidebarInset>
       </SidebarProvider>

@@ -23,8 +23,10 @@ export const defaultSubtitleConfig: SubtitleConfig = {
 const initialState: Input = {
   url: '',
   partInputs: [],
+  batchSettings: { videoQuality: null, audioQuality: null, subtitle: null },
   pendingDownload: null,
   homePage: 1,
+  outputDirOverride: null,
 }
 
 /**
@@ -57,6 +59,14 @@ export const inputSlice = createSlice({
     setUrl: (state, action: PayloadAction<string>) => {
       state.url = action.payload
     },
+
+    /**
+     * Sets the batch-settings output directory override (null = keep the
+     * settings' dl_output_path).
+     */
+    setOutputDirOverride: (state, action: PayloadAction<string | null>) => {
+      state.outputDirOverride = action.payload
+    },
     /**
      * Initializes part input settings from fetched video metadata.
      *
@@ -86,6 +96,13 @@ export const inputSlice = createSlice({
         ...p,
         subtitle: p.subtitle ?? defaultSubtitleConfig,
       }))
+      // Video refetch boundary: batch targets belong to the previous
+      // video and must not leak into the new one.
+      state.batchSettings = {
+        videoQuality: null,
+        audioQuality: null,
+        subtitle: null,
+      }
     },
     /**
      * Updates specific fields of a part input by index.
@@ -103,14 +120,47 @@ export const inputSlice = createSlice({
         title?: string
         videoQuality?: string
         audioQuality?: string
+        /** Mark the quality as an explicit USER choice (beats batch). */
+        videoQualityExplicit?: boolean
+        audioQualityExplicit?: boolean
       }>,
     ) => {
-      const { index, title, videoQuality, audioQuality } = action.payload
+      const {
+        index,
+        title,
+        videoQuality,
+        audioQuality,
+        videoQualityExplicit,
+        audioQualityExplicit,
+      } = action.payload
       const target = state.partInputs[index]
       if (!target) return
       if (title !== undefined) target.title = title
       if (videoQuality !== undefined) target.videoQuality = videoQuality
       if (audioQuality !== undefined) target.audioQuality = audioQuality
+      if (videoQualityExplicit !== undefined)
+        target.videoQualityExplicit = videoQualityExplicit
+      if (audioQualityExplicit !== undefined)
+        target.audioQualityExplicit = audioQualityExplicit
+    },
+    /**
+     * Stores the batch-level target settings. These are NOT written to
+     * parts; the enqueue payload resolves each part as
+     * explicit per-part value > batch value > part default.
+     */
+    setBatchSettings: (
+      state,
+      action: PayloadAction<{
+        videoQuality?: string | null
+        audioQuality?: string | null
+        subtitle?: SubtitleConfig | null
+      }>,
+    ) => {
+      const b = state.batchSettings
+      const p = action.payload
+      if (p.videoQuality !== undefined) b.videoQuality = p.videoQuality
+      if (p.audioQuality !== undefined) b.audioQuality = p.audioQuality
+      if (p.subtitle !== undefined) b.subtitle = p.subtitle
     },
     /**
      * Updates the selection state of a specific part.
@@ -183,6 +233,25 @@ export const inputSlice = createSlice({
       return initialState
     },
     /**
+     * Clears the loaded video's view state (url, part inputs, batch
+     * targets) while preserving pendingDownload and homePage.
+     *
+     * Used when history navigation lands on the search page's empty
+     * entry: the store still holds the previous video, but the page
+     * must show the hero. A later back/forward to that video's entry
+     * restores the full state from pages/search/videoHistoryCache.
+     */
+    resetVideoView: (state) => {
+      state.url = ''
+      state.partInputs = []
+      state.batchSettings = {
+        videoQuality: null,
+        audioQuality: null,
+        subtitle: null,
+      }
+      state.outputDirOverride = null
+    },
+    /**
      * Sets a pending download from watch history navigation.
      *
      * Used to initiate automatic download when navigating from
@@ -225,11 +294,19 @@ export const inputSlice = createSlice({
      */
     updateSubtitleConfig: (
       state,
-      action: PayloadAction<{ index: number; config: SubtitleConfig }>,
+      action: PayloadAction<{
+        index: number
+        config: SubtitleConfig
+        /** Mark the config as an explicit USER choice (beats batch). */
+        explicit?: boolean
+      }>,
     ) => {
-      const { index, config } = action.payload
+      const { index, config, explicit } = action.payload
       const target = state.partInputs[index]
-      if (target) target.subtitle = config
+      if (target) {
+        target.subtitle = config
+        if (explicit !== undefined) target.subtitleExplicit = explicit
+      }
     },
     /**
      * Sets subtitles loading state for a specific part.
@@ -303,17 +380,20 @@ export const inputSlice = createSlice({
       } = action.payload
       const target = state.partInputs[index]
       if (target) {
-        target.videoQualities = videoQualities
-        target.audioQualities = audioQualities
+        // Stream id 0 is a manifest placeholder (seen on audio entries), not
+        // a selectable quality: stored as-is it leaked into the default
+        // selection and rendered as a bare "0" on the batch trigger.
+        target.videoQualities = videoQualities.filter((q) => q.id > 0)
+        target.audioQualities = audioQualities.filter((q) => q.id > 0)
         target.qualitiesLoading = false
         // Undefined on the success path, which clears a previous error
         target.qualitiesError = qualitiesError
         target.audioAbsent = audioAbsent
-        if (videoQualities.length > 0 && !target.videoQuality) {
-          target.videoQuality = String(videoQualities[0].id)
+        if (target.videoQualities.length > 0 && !target.videoQuality) {
+          target.videoQuality = String(target.videoQualities[0]!.id)
         }
-        if (audioQualities.length > 0 && !target.audioQuality) {
-          target.audioQuality = String(audioQualities[0].id)
+        if (target.audioQualities.length > 0 && !target.audioQuality) {
+          target.audioQuality = String(target.audioQualities[0]!.id)
         }
         if (isPreview !== undefined) {
           target.isPreview = isPreview
@@ -427,11 +507,14 @@ export const {
   deselectPageAll,
   initPartInputs,
   resetInput,
+  resetVideoView,
   selectAll,
   selectPageAll,
   setAccordionOpen,
   setHomePage,
   setInput,
+  setBatchSettings,
+  setOutputDirOverride,
   setPartQualities,
   setPartSubtitles,
   setPendingDownload,

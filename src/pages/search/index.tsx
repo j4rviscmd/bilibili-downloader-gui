@@ -4,172 +4,150 @@ import { useInit } from '@/features/init'
 import { QRCodeLoginDialog } from '@/features/login'
 import type { Video } from '@/features/video'
 import {
-  deselectPageAll,
-  DownloadButton,
   PARTS_PER_PAGE,
-  selectPageAll,
+  resetVideo,
+  resetVideoView,
   setHomePage,
+  setInput,
+  setVideo,
   useVideoInfo,
-  VideoForm1,
   VideoInfoProvider,
 } from '@/features/video'
 import type { PreviewTarget } from '@/features/video-search'
 import { VideoPreviewDialog } from '@/features/video-search'
 import VideoPartCard from '@/features/video/ui/VideoPartCard'
-import VideoPartCardSkeleton from '@/features/video/ui/VideoPartCardSkeleton'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/shared/animate-ui/radix/tooltip'
 import { scrollElementWithinScroller } from '@/shared/lib/scroll'
-import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
-import { Button } from '@/shared/ui/button'
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/shared/ui/card'
-import {
-  Pagination,
-  PaginationContent,
-  PaginationEllipsis,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from '@/shared/ui/pagination'
-import { Separator } from '@/shared/ui/separator'
 import { Skeleton } from '@/shared/ui/skeleton'
-import { openUrl } from '@tauri-apps/plugin-opener'
 import { Info } from 'lucide-react'
-import type React from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { Trans, useTranslation } from 'react-i18next'
-import { useNavigate, useSearchParams } from 'react-router'
+import { useLocation, useNavigate, useSearchParams } from 'react-router'
+import BatchSettingsBar from './BatchSettingsBar'
+import CommandBar from './CommandBar'
+import DownloadDock from './DownloadDock'
+import RecentUrls from './RecentUrls'
+import VideoHeroCard from './VideoHeroCard'
+import { videoSnapshots } from './videoHistoryCache'
+
+// Shared inline-link styling for the two buttons inside the notice.
+const loginLinkClass =
+  'text-brand-strong dark:text-brand inline cursor-pointer font-semibold underline'
 
 /**
- * Button component that displays a tooltip when disabled.
+ * Slim one-line login notice shown while logged out.
+ *
+ * Replaces the old full-size Alert: the restriction is surfaced where it
+ * matters (quality context) without claiming permanent vertical space.
+ * Reuses the existing login-benefits copy and QR login dialog.
  *
  * @private
  */
-function TooltipButton({
-  label,
-  onClick,
-  disabled,
-  tooltip,
-}: {
-  label: string
-  onClick: () => void
-  disabled?: boolean
-  tooltip?: string
-}) {
-  const button = (
-    <Button variant="outline" size="sm" onClick={onClick} disabled={disabled}>
-      {label}
-    </Button>
-  )
-
-  if (!tooltip) return button
-
+function LoginNotice({ onOpenQr }: { onOpenQr: () => void }) {
   return (
-    <TooltipProvider delayDuration={0}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <span>{button}</span>
-        </TooltipTrigger>
-        <TooltipContent side="top" arrow>
-          {tooltip}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <div
+      data-login-notice
+      className="bg-brand-strong/10 border-brand-strong/30 text-foreground flex w-full max-w-2xl items-start gap-2.5 rounded-lg border px-3.5 py-2 text-xs"
+    >
+      <Info
+        className="text-brand-strong dark:text-brand mt-0.5 size-4 shrink-0"
+        aria-hidden
+      />
+      <div className="min-w-0">
+        <span data-login-notice-text>
+          <Trans
+            i18nKey="video.login_benefits_description"
+            components={{
+              1: (
+                <button
+                  type="button"
+                  onClick={onOpenQr}
+                  className={loginLinkClass}
+                />
+              ),
+            }}
+          />
+        </span>
+      </div>
+    </div>
   )
 }
 
-/** Props for the PaginatedPartList component. */
+/**
+ * Skeleton matching the loaded layout (compact bar + hero + part rows), so
+ * an explicit fetch never causes a layout shift when data lands.
+ *
+ * @private
+ */
+function LoadedSkeleton() {
+  return (
+    <div className="flex flex-col gap-3" aria-busy="true">
+      <div className="bg-card flex gap-4 rounded-xl border p-4">
+        <Skeleton className="aspect-video w-40 shrink-0 rounded-lg md:w-62" />
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          <Skeleton className="h-5 w-3/4" />
+          <Skeleton className="h-3.5 w-2/5" />
+          <div className="flex gap-1.5">
+            <Skeleton className="h-5 w-16 rounded-full" />
+            <Skeleton className="h-5 w-20 rounded-full" />
+            <Skeleton className="h-5 w-18 rounded-full" />
+          </div>
+        </div>
+      </div>
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div
+          key={i}
+          className="bg-card flex items-center gap-3 rounded-xl border p-3"
+        >
+          <Skeleton className="size-5 rounded" />
+          <Skeleton className="h-5 w-8 rounded-full" />
+          <Skeleton className="aspect-video w-26 rounded-lg" />
+          <div className="flex flex-1 flex-col gap-2">
+            <Skeleton className="h-3.5 w-1/2" />
+            <Skeleton className="h-3 w-1/3" />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** Props for the PaginatedPartList component. @private */
 type PaginatedPartListProps = {
   video: Video
   duplicateIndices: number[]
-  isFetching: boolean
-  currentPage: number
-  onPageChange: (page: number) => void
+  /** Part index range (0-based, inclusive) for the visible page. */
+  pageRange: { startIndex: number; endIndex: number }
+  onPreview: (target: PreviewTarget) => void
   scrollToPartIndex: number | null
   scrollRequestId: number
 }
 
 /**
- * Generates pagination items with ellipsis for large page counts.
- */
-function generatePaginationItems(
-  totalPages: number,
-  currentPage: number,
-): (number | 'ellipsis')[] {
-  if (totalPages <= 7) {
-    return Array.from({ length: totalPages }, (_, i) => i + 1)
-  }
-
-  const items: (number | 'ellipsis')[] = []
-  for (let page = 1; page <= totalPages; page++) {
-    const shouldShow =
-      page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1
-    if (!shouldShow) continue
-
-    const prevItem = items[items.length - 1]
-    if (typeof prevItem === 'number' && page - prevItem > 1) {
-      items.push('ellipsis')
-    }
-    items.push(page)
-  }
-  return items
-}
-
-/** Computes the className for pagination navigation buttons. */
-function getPaginationNavClassName(isDisabled: boolean): string {
-  return isDisabled ? 'pointer-events-none opacity-50' : 'cursor-pointer'
-}
-
-/**
- * Paginated part list with pagination controls.
- *
- * Displays parts in pages of 10. Quality info is fetched lazily
- * when the user opens the options accordion for each part.
+ * Part rows for the current page. Scroll-into-view on deep link, preview
+ * dialog hookup, and the `data-part-list` E2E marker are preserved from the
+ * previous implementation. Pagination lives in the bottom dock instead of
+ * a footer here.
  *
  * @private
  */
 function PaginatedPartList({
   video,
   duplicateIndices,
-  isFetching,
-  currentPage,
-  onPageChange,
+  pageRange: { startIndex, endIndex },
+  onPreview,
   scrollToPartIndex,
   scrollRequestId,
 }: PaginatedPartListProps) {
-  const { t } = useTranslation()
-  const totalPages = Math.ceil(video.parts.length / PARTS_PER_PAGE)
-
-  // Part preview dialog (shared with the video search page): the list
-  // owns one dialog instance, same pattern as VideoCardGrid.
-  const [preview, setPreview] = useState<PreviewTarget | null>(null)
-
-  // Calculate the range of parts for the current page
-  const pageRange = useMemo(() => {
-    const startIndex = (currentPage - 1) * PARTS_PER_PAGE
-    const endIndex = Math.min(
-      startIndex + PARTS_PER_PAGE - 1,
-      video.parts.length - 1,
-    )
-    return { startIndex, endIndex }
-  }, [currentPage, video.parts.length])
-
-  // Create a unique key for scroll tracking
-  // Include scrollRequestId to ensure each navigation triggers a new scroll
-  const scrollKey = useMemo(() => {
-    return `${video.bvid}-${scrollToPartIndex}-${scrollRequestId}`
-  }, [video.bvid, scrollToPartIndex, scrollRequestId])
+  // Unique per (video, part, scroll request): each navigation triggers a
+  // new scroll even back to a previously scrolled part.
+  const scrollKey = `${video.bvid}-${scrollToPartIndex}-${scrollRequestId}`
 
   // Track which scrollKey has been scrolled
   const scrolledKeysRef = useRef<Set<string>>(new Set())
@@ -178,19 +156,15 @@ function PaginatedPartList({
   useEffect(() => {
     if (
       scrollToPartIndex !== null &&
-      scrollKey &&
-      scrollToPartIndex >= pageRange.startIndex &&
-      scrollToPartIndex <= pageRange.endIndex &&
-      !scrolledKeysRef.current.has(scrollKey) &&
-      !isFetching
+      scrollToPartIndex >= startIndex &&
+      scrollToPartIndex <= endIndex &&
+      !scrolledKeysRef.current.has(scrollKey)
     ) {
       scrolledKeysRef.current.add(scrollKey)
-      // Use setTimeout to wait for React re-render to complete
-      // The DOM elements may not have correct positions immediately after state changes
+      // Whole-page scroll: reveal the part by scrolling ONLY the page
+      // scroller (scrollIntoView would drag the overflow-hidden app shell
+      // along — see scrollElementWithinScroller's docstring).
       setTimeout(() => {
-        // Whole-page scroll: reveal the part by scrolling ONLY the page
-        // scroller (scrollIntoView would drag the overflow-hidden app
-        // shell along — see scrollElementWithinScroller's docstring).
         const targetPart = document.querySelector<HTMLElement>(
           `[data-part-index="${scrollToPartIndex}"]`,
         )
@@ -199,13 +173,7 @@ function PaginatedPartList({
         }
       }, 100)
     }
-  }, [
-    scrollToPartIndex,
-    scrollKey,
-    pageRange.startIndex,
-    pageRange.endIndex,
-    isFetching,
-  ])
+  }, [scrollToPartIndex, scrollKey, startIndex, endIndex])
 
   // Clean up old scroll keys when video changes (keep only recent ones)
   useEffect(() => {
@@ -214,122 +182,47 @@ function PaginatedPartList({
     }
   }, [video.bvid])
 
-  // Render parts for current page
-  const pageParts = useMemo(() => {
-    const parts: React.ReactNode[] = []
-    for (let i = pageRange.startIndex; i <= pageRange.endIndex; i++) {
-      const part = video.parts[i]
-      if (!part) continue
-      parts.push(
-        <div key={part.cid} data-part-index={i}>
-          <VideoPartCard
-            video={video}
-            page={i + 1}
-            isDuplicate={duplicateIndices.includes(i)}
-            onThumbnailClick={() =>
-              setPreview({
-                bvid: video.bvid,
-                title: part.part,
-                page: i + 1,
-              })
-            }
-          />
-          {i < pageRange.endIndex && <Separator className="my-3" />}
-        </div>,
-      )
-    }
-    return parts
-  }, [video, duplicateIndices, pageRange.startIndex, pageRange.endIndex])
-
-  if (isFetching) {
-    return (
-      <CardContent className="space-y-0">
-        <VideoPartCardSkeleton />
-      </CardContent>
-    )
-  }
+  const pageParts = useMemo(
+    () =>
+      video.parts.slice(startIndex, endIndex + 1).map((part, offset) => {
+        const index = startIndex + offset
+        return (
+          <div key={part.cid} data-part-index={index}>
+            <VideoPartCard
+              video={video}
+              page={index + 1}
+              isDuplicate={duplicateIndices.includes(index)}
+              onThumbnailClick={() =>
+                onPreview({
+                  bvid: video.bvid,
+                  title: part.part,
+                  page: index + 1,
+                })
+              }
+            />
+          </div>
+        )
+      }),
+    [video, duplicateIndices, startIndex, endIndex, onPreview],
+  )
 
   return (
-    <>
-      {/* Whole-page scroll: the list is plain flow content in the
-          page-level scroll container (scrollbar at the window edge).
-          The footer sticks to the scrollport bottom so the pagination
-          and download button stay reachable while parts scroll under
-          them (same invariant as the old card-local scroll region). */}
-      {/* data-part-list stays on the list container: E2E selectors scope
-          to it (helpers/selectors.ts DATA_PART_LIST) and use its
-          existence as the parts-loaded signal. */}
-      <CardContent data-part-list className="space-y-0">
-        {pageParts}
-      </CardContent>
-      <CardFooter className="bg-card sticky bottom-0 z-10 flex flex-col gap-3 rounded-b-xl border-t pt-3">
-        {totalPages > 1 && (
-          <Pagination className="w-auto">
-            <PaginationContent>
-              <PaginationItem>
-                <PaginationPrevious
-                  onClick={() => onPageChange(Math.max(1, currentPage - 1))}
-                  className={getPaginationNavClassName(currentPage === 1)}
-                >
-                  {t('video.pagination_previous')}
-                </PaginationPrevious>
-              </PaginationItem>
-              {generatePaginationItems(totalPages, currentPage).map(
-                (item, idx) =>
-                  item === 'ellipsis' ? (
-                    <PaginationItem key={`ellipsis-${idx}`}>
-                      <PaginationEllipsis />
-                    </PaginationItem>
-                  ) : (
-                    <PaginationItem key={item}>
-                      <PaginationLink
-                        onClick={() => onPageChange(item)}
-                        isActive={currentPage === item}
-                        className="cursor-pointer"
-                      >
-                        {item}
-                      </PaginationLink>
-                    </PaginationItem>
-                  ),
-              )}
-              <PaginationItem>
-                <PaginationNext
-                  onClick={() =>
-                    onPageChange(Math.min(totalPages, currentPage + 1))
-                  }
-                  className={getPaginationNavClassName(
-                    currentPage === totalPages,
-                  )}
-                >
-                  {t('video.pagination_next')}
-                </PaginationNext>
-              </PaginationItem>
-            </PaginationContent>
-          </Pagination>
-        )}
-        <div className="w-full">
-          <DownloadButton />
-        </div>
-      </CardFooter>
-      {/* Why showDownload=false: the download action hands off to this
-          very page (usePendingDownload navigates to /search) — here the
-          user already has the parts open, so only the preview and
-          browser actions make sense. */}
-      <VideoPreviewDialog
-        entry={preview}
-        onClose={() => setPreview(null)}
-        showDownload={false}
-      />
-    </>
+    // data-part-list stays on the list container: E2E selectors scope to it
+    // (helpers/selectors.ts DATA_PART_LIST) and use its existence as the
+    // parts-loaded signal.
+    <div data-part-list className="flex flex-col gap-2">
+      {pageParts}
+    </div>
   )
 }
 
 /**
  * Internal search page content component.
  *
- * Uses VideoInfoContext to display video URL input form and part
- * configuration cards. This component must be rendered within a
- * `VideoInfoProvider`.
+ * Single-flow composition (URL acquisition redesign): command bar → video
+ * hero → part rows → bottom dock. Wizard step cards are gone; the empty,
+ * fetching and loaded states each render the same skeleton of surfaces so
+ * transitions never reflow the page.
  *
  * @private
  */
@@ -337,11 +230,13 @@ function SearchContentInner() {
   const [searchParams, setSearchParams] = useSearchParams()
   const {
     video,
+    videoId,
     duplicateIndices,
     onValid1,
     isFetching,
     isSilentFetching,
     input,
+    selectedCount,
   } = useVideoInfo()
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
@@ -352,23 +247,156 @@ function SearchContentInner() {
   // scrollbar rides the window edge. State (not a ref) because the page
   // change reset below reads it inside a callback.
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null)
-  // Stacked Step 1 height, re-measured live: it positions the Step 2
-  // header's sticky offset (the header stacks right below the pinned
-  // Step 1 card) and shrinks/grows when the logged-out login Alert
-  // toggles or font presets change.
-  const step1Ref = useRef<HTMLDivElement>(null)
-  const [step1Height, setStep1Height] = useState(0)
-  useEffect(() => {
-    const el = step1Ref.current
-    if (!el || typeof ResizeObserver === 'undefined') return
-    const ro = new ResizeObserver(() => setStep1Height(el.offsetHeight))
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
 
   // Fetch in flight that the UI should reflect (explicit submit). The
-  // silent auto-fetch on input pause is excluded — it must stay invisible.
+  // silent auto-fetch on input pause is excluded from the dock gating
+  // below — but NOT from the fetching view: any fetch swaps the empty
+  // state for the skeleton screen (mockup state B).
   const isExplicitFetching = isFetching && !isSilentFetching
+
+  // Canonical id of the video currently in the store, derived the same
+  // way the context derives `videoId` from the typed URL (videos use the
+  // bvid, bangumi the first part's av id).
+  const loadedVideoId = useMemo(
+    () =>
+      video.parts.length === 0
+        ? null
+        : video.contentType === 'bangumi'
+          ? `av${video.parts[0]?.aid ?? ''}`
+          : video.bvid,
+    [video],
+  )
+  // Fetching a DIFFERENT video while one is already loaded: the store
+  // still holds the previous video's parts, so without this the stale
+  // content stayed on screen (with only the input spinner as feedback)
+  // until the new data landed. Same-video refetch keeps the content.
+  const isSwitchingVideo =
+    isFetching &&
+    loadedVideoId !== null &&
+    videoId !== null &&
+    videoId !== loadedVideoId
+
+  // ---- History navigation: back/forward walks the empty page and each
+  // fetched video, mirroring the video-search page's ?q= entries (one
+  // ?url= entry per fetched video). Three cooperating pieces:
+  // 1. the mirror effect snapshots the loaded state under its URL —
+  //    slices are immutable, so the snapshot holds references only,
+  // 2. the layout sync effect below aligns store ↔ entry BEFORE paint
+  //    (restore from snapshot, fresh fetch, or view reset), so the
+  //    wrong video never flashes,
+  // 3. the push branch records the entry once a fetch lands.
+  const urlParam = searchParams.get('url')
+  const { pathname } = useLocation()
+  // The store holds a fully-landed video matching the typed URL — the
+  // state both effects below mirror and record under input.url.
+  const hasLandedVideo =
+    Boolean(input.url) &&
+    video.parts.length > 0 &&
+    videoId != null &&
+    videoId === loadedVideoId
+
+  // Continuous mirror: while a fully-landed video is displayed, keep the
+  // latest edits (filenames, selections, resolved quality) cached under
+  // its URL so a later back/forward restores them exactly.
+  useEffect(() => {
+    if (!hasLandedVideo || isFetching) return
+    videoSnapshots.set(input.url, { video, input })
+  }, [hasLandedVideo, input, video, isFetching])
+
+  // One fresh fetch per URL per mount: a failed fetch leaves the hero
+  // view; revisiting that entry must not retry the request forever.
+  const attemptedUrlsRef = useRef(new Set<string>())
+  const prevUrlParamRef = useRef<string | null>(null)
+  // URL of an entry record this effect has issued but not yet observed
+  // in `urlParam`. A close (× → setSearchParams({})) racing that same
+  // commit overwrites the record before this effect ever sees it — the
+  // transition ref alone would never notice, and the loaded video would
+  // survive on the empty entry. The ref turns that into a detectable
+  // "superseded push" state.
+  const pendingPushRef = useRef<string | null>(null)
+
+  useLayoutEffect(() => {
+    // Hidden-copy guard: the persistent layout keeps this page mounted
+    // (display:none) while another page is active, and searchParams then
+    // describe THAT page's location — not ours. Syncing from the hidden
+    // copy would wipe the loaded video on every page leave and stamp a
+    // junk ?url= entry onto the other page's history when an in-flight
+    // fetch lands. prevUrlParamRef stays frozen, so the first sync after
+    // returning compares against the last entry seen while this page was
+    // active — the same hidden idle-copy hazard the video-search page
+    // documents for its /popular redirect.
+    if (pathname !== '/search') return
+    // A fetch in flight owns the store (the landing commit re-runs this
+    // effect); pendingDownload owns the next fetch — neither may be
+    // fought over by an entry sync.
+    if (isFetching || input.pendingDownload) return
+
+    const urlParamChanged = prevUrlParamRef.current !== urlParam
+    prevUrlParamRef.current = urlParam
+
+    if (!urlParam) {
+      // Arrived at the empty entry (back/forward, or the × close): drop
+      // the loaded view so the hero shows — the snapshot was mirrored
+      // above, so forward restores the video. `pendingPushRef` catches
+      // the close that overwrote a just-issued entry record in the same
+      // commit (no `urlParamChanged` transition ever fired). Without a
+      // reset, fall through: a video that just landed on the empty entry
+      // still needs its entry recorded by the push branch below.
+      if (
+        video.parts.length > 0 &&
+        (urlParamChanged || pendingPushRef.current !== null)
+      ) {
+        dispatch(resetVideoView())
+        dispatch(resetVideo())
+        pendingPushRef.current = null
+        return
+      }
+      // Consume a superseded push here too: the racing close already
+      // reset the store (parts === 0) and skips the branch above, and a
+      // ref surviving the empty entry would reset the NEXT video that
+      // lands on it.
+      pendingPushRef.current = null
+    } else {
+      pendingPushRef.current = null
+    }
+
+    if (urlParamChanged && urlParam) {
+      // Arrived at a video entry via back/forward: instant snapshot
+      // restore when this session loaded it before, fresh fetch once
+      // otherwise.
+      if (input.url === urlParam && video.parts.length > 0) return
+      const snap = videoSnapshots.get(urlParam)
+      if (snap) {
+        dispatch(setVideo(snap.video))
+        dispatch(setInput(snap.input))
+        return
+      }
+      if (!attemptedUrlsRef.current.has(urlParam)) {
+        attemptedUrlsRef.current.add(urlParam)
+        void onValid1(urlParam)
+      }
+      return
+    }
+
+    // Entry unchanged but a fetch landed on it (Enter submit, silent
+    // auto-fetch, RecentUrls re-fetch): record the entry. Layout timing
+    // keeps the compact view and the new entry in the same paint.
+    if (hasLandedVideo && urlParam !== input.url) {
+      pendingPushRef.current = input.url
+      setSearchParams({ url: input.url })
+    }
+  }, [
+    urlParam,
+    pathname,
+    isFetching,
+    input.url,
+    input.pendingDownload,
+    video.parts.length,
+    hasLandedVideo,
+    dispatch,
+    onValid1,
+    setSearchParams,
+  ])
 
   // Page state management:
   // - `p` parameter: part number (for initial display and part selection)
@@ -532,9 +560,7 @@ function SearchContentInner() {
    * Navigates immediately even with parts selected (issue #691): selections
    * live in `partInputs` independent of the visible page, and a later
    * Download enqueues ALL selected parts — so paging with selections kept
-   * is now the intended multi-page batch flow. The old confirmation dialog
-   * warned that navigation would clear the selection, a premise the queue
-   * design removed.
+   * is now the intended multi-page batch flow.
    *
    * @param page - The target page number (1-indexed)
    */
@@ -550,7 +576,6 @@ function SearchContentInner() {
    * Part index range (0-based, inclusive) for the currently visible page.
    * Used to scope select/deselect operations to the current page only.
    */
-  // Calculate page range for select/deselect operations
   const pageRange = useMemo(() => {
     const startIndex = (currentPage - 1) * PARTS_PER_PAGE
     const endIndex = Math.min(
@@ -559,16 +584,6 @@ function SearchContentInner() {
     )
     return { startIndex, endIndex }
   }, [currentPage, video.parts.length])
-
-  // Handle autoFetch from query parameter
-  useEffect(() => {
-    const autoFetchUrl = searchParams.get('autoFetch')
-    if (autoFetchUrl && !isFetching && video.parts.length === 0) {
-      searchParams.delete('autoFetch')
-      setSearchParams(searchParams, { replace: true })
-      onValid1(autoFetchUrl)
-    }
-  }, [searchParams, isFetching, video.parts.length, onValid1, setSearchParams])
 
   // Sync page when video parts change
   useEffect(() => {
@@ -606,156 +621,113 @@ function SearchContentInner() {
     // but the early return on prevUrl === input.url prevents infinite loops
   }, [input.url, setSearchParams, searchParams])
 
-  // Select all parts on current page
-  const handleSelectAllCurrentPage = useCallback(() => {
-    dispatch(selectPageAll(pageRange))
-  }, [pageRange])
+  // Shared preview dialog (hero thumbnail + part thumbnails)
+  const [preview, setPreview] = useState<PreviewTarget | null>(null)
 
-  // Deselect all parts on current page
-  const handleDeselectAllCurrentPage = useCallback(() => {
-    dispatch(deselectPageAll(pageRange))
-  }, [pageRange])
+  // Any in-flight fetch — explicit 取得 press OR the debounced auto-fetch —
+  // swaps the empty state for the fetching view (compact bar + skeleton),
+  // per the mockup's state B. Keeping the hero visible until data lands
+  // left the only feedback as the input's inline spinner.
+  const hasContent = video.parts.length > 0 || isFetching
+  const isLoaded =
+    video.parts.length > 0 && !isExplicitFetching && !isSwitchingVideo
+  const totalSelectedSeconds = useMemo(
+    () =>
+      input.partInputs
+        .filter((pi) => pi.selected)
+        .reduce((s, pi) => s + pi.duration, 0),
+    [input.partInputs],
+  )
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden">
-      {/* Stacked Step 1 (sticky inside the page scroll container): the
-          URL input stays reachable while Step 2 scrolls UNDER it — the
-          classic stacking effect, content filling the space below the
-          pinned card. The scroll container spans the full inset width
-          (Qiita-style, mirroring PageTemplate's `bodyScroll` mode), so
-          the scrollbar rides the window edge. This page owns its
-          wrappers (no PageTemplate header), so it repeats
+      {/* Page-level scroll container: the scrollbar rides the window edge
+          (Qiita-style, mirroring PageTemplate's `bodyScroll` mode). This
+          page owns its wrappers (no PageTemplate header), so it repeats
           PageTemplate.tsx's max-w-[104rem] rail token and must stay in
-          lockstep with it — a mismatch misaligns the stacked areas and
-          the queue bar on wide screens. Why bg-background on the sticky
-          rail-width wrapper: content must not show through between the
-          pinned card and the scrolling list beneath it. Vertical gaps
-          live on the SCROLLING side (rail pt-3 above, step-2 wrapper
-          pt-3 below) so they scroll away and the pinned card abuts the
-          scrollport edge flush when stuck. */}
+          lockstep with it. The bottom dock is a flex sibling BELOW this
+          scroller so pagination and the download CTA stay reachable
+          without scrolling. */}
       <div
         ref={setScrollEl}
         className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
       >
         <div className="mx-auto flex min-h-full w-full max-w-[104rem] flex-col pt-3">
-          <div
-            ref={step1Ref}
-            className="bg-background sticky top-0 z-20 w-full px-3 sm:px-6"
-          >
-            {/* Login Benefits Info - shown only when not logged in */}
-            {!isLoggedIn && (
-              <Alert variant="info" className="mb-3">
-                <Info />
-                <AlertTitle>{t('video.login_benefits_title')}</AlertTitle>
-                <AlertDescription className="flex flex-wrap">
-                  <Trans
-                    i18nKey="video.login_benefits_description"
-                    components={{
-                      1: (
-                        <button
-                          type="button"
-                          onClick={() => setIsQrLoginDialogOpen(true)}
-                          className="inline cursor-pointer text-blue-600 underline hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-                        />
-                      ),
-                      2: (
-                        <button
-                          type="button"
-                          onClick={() => openUrl('https://www.bilibili.com')}
-                          className="inline cursor-pointer text-blue-600 underline hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-                        />
-                      ),
-                    }}
-                  />
-                  <span className="mt-1 w-full text-xs opacity-80">
-                    {t('video.login_benefits_restart_note')}
-                  </span>
-                </AlertDescription>
-              </Alert>
-            )}
+          <QRCodeLoginDialog
+            open={isQrLoginDialogOpen}
+            onOpenChange={setIsQrLoginDialogOpen}
+          />
 
-            {/* QR Code Login Dialog */}
-            <QRCodeLoginDialog
-              open={isQrLoginDialogOpen}
-              onOpenChange={setIsQrLoginDialogOpen}
-            />
-
-            {/* Step 1: URL Input Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="font-display text-lg">
-                  {t('video.step1_title')}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <VideoForm1 />
-              </CardContent>
-            </Card>
-          </div>
-          {/* Step 2: Paginated Area */}
-          {/* Hidden while a silent auto-fetch is in flight: the debounced
-          fetch on input pause must stay invisible, so Step 2 only
-          appears once its data actually arrived (or on an explicit
-          submit's fetch, which shows the skeleton as before). The same
-          gate applies to the skeletons below: with a previous video
-          still displayed, a silent refetch keeps the old list mounted
-          instead of flashing skeletons mid-typing. */}
-          {(video.parts.length > 0 || isExplicitFetching) && (
-            <div className="px-3 pt-3 sm:px-6">
-              {/* pt-3 on this wrapper owns the resting-state gap below
-                  the sticky Step 1 card: being on the scrolling side,
-                  the gap scrolls away so content abuts the pinned card
-                  directly (stacked look). */}
-              <Card className="mb-3">
-                {/* Why sticky: the title row (download / select buttons)
-                    stays reachable while parts scroll under it, stacking
-                    directly below the pinned Step 1 card (z-10 under its
-                    z-20; opaque bg-card so parts don't show through).
-                    top = measured Step 1 height — a fixed offset would
-                    drift when the login Alert toggles. */}
-                <CardHeader
-                  className="bg-card sticky z-10"
-                  style={{ top: step1Height }}
-                >
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="font-display text-lg">
-                      {t('video.step2_title')}
-                    </CardTitle>
-                    {isExplicitFetching ? (
-                      <div className="flex items-center gap-2">
-                        <Skeleton className="h-10 w-[88px]" />
-                        <Skeleton className="h-8 w-[68px]" />
-                        <Skeleton className="h-8 w-[68px]" />
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <DownloadButton />
-                        <TooltipButton
-                          label={t('video.select_all_page')}
-                          onClick={handleSelectAllCurrentPage}
-                        />
-                        <TooltipButton
-                          label={t('video.deselect_all_page')}
-                          onClick={handleDeselectAllCurrentPage}
-                        />
-                      </div>
-                    )}
-                  </div>
-                </CardHeader>
-                <PaginatedPartList
-                  video={video}
-                  duplicateIndices={duplicateIndices}
-                  isFetching={isExplicitFetching}
-                  currentPage={currentPage}
-                  onPageChange={handlePageChange}
-                  scrollToPartIndex={scrollToPartIndex}
-                  scrollRequestId={scrollRequestId}
-                />
-              </Card>
+          {hasContent ? (
+            <>
+              <CommandBar variant="compact" />
+              <div className="px-3 pt-3 sm:px-6">
+                {video.parts.length === 0 || isSwitchingVideo ? (
+                  <LoadedSkeleton />
+                ) : (
+                  <>
+                    <VideoHeroCard
+                      video={video}
+                      onOpenLogin={() => setIsQrLoginDialogOpen(true)}
+                    />
+                    <BatchSettingsBar />
+                    <div className="mt-5 mb-2 flex flex-wrap items-baseline gap-2.5 px-0.5">
+                      <h3 className="text-sm font-bold">
+                        {t('search.parts_title')}
+                      </h3>
+                      <span className="text-muted-foreground text-xs">
+                        {t('search.showing_range', {
+                          from: pageRange.startIndex + 1,
+                          to: pageRange.endIndex + 1,
+                          total: video.parts.length,
+                        })}
+                      </span>
+                    </div>
+                    <PaginatedPartList
+                      video={video}
+                      duplicateIndices={duplicateIndices}
+                      pageRange={pageRange}
+                      onPreview={setPreview}
+                      scrollToPartIndex={scrollToPartIndex}
+                      scrollRequestId={scrollRequestId}
+                    />
+                  </>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-1 flex-col items-center justify-center gap-8 px-6 pt-3 pb-6">
+              <CommandBar variant="hero" />
+              <RecentUrls onRefetch={(url) => void onValid1(url)} />
+              {!isLoggedIn && (
+                <LoginNotice onOpenQr={() => setIsQrLoginDialogOpen(true)} />
+              )}
             </div>
           )}
         </div>
       </div>
+      {/* Bottom dock: always visible once parts are loaded — pagination
+          must not require scrolling to the list end (the previous sticky
+          footer invariant), and the fixed height keeps the scroller
+          resize-stable across selection changes. */}
+      {isLoaded && (
+        <DownloadDock
+          totalPages={totalPages}
+          currentPage={currentPage}
+          onPageChange={handlePageChange}
+          selectedCount={selectedCount}
+          totalSeconds={totalSelectedSeconds}
+        />
+      )}
+      {/* Why showDownload=false: the download action hands off to this
+          very page (usePendingDownload navigates to /search) — here the
+          user already has the parts open, so only the preview and
+          browser actions make sense. */}
+      <VideoPreviewDialog
+        entry={preview}
+        onClose={() => setPreview(null)}
+        showDownload={false}
+      />
     </div>
   )
 }
@@ -763,22 +735,21 @@ function SearchContentInner() {
 /**
  * Search page content component (main application view, issue #691).
  *
- * The search page's responsibility ends at enqueueing downloads — the
- * queue runner drains them and /downloads renders progress. This is the
- * content portion without the layout wrapper; it should be rendered
- * inside a PageLayoutShell or similar layout.
- *
- * Redirects to /init if the app is not initialized.
- * Supports autoFetch query parameter to automatically fetch video info.
+ * Wraps the inner content in the video info provider so URL fetching,
+ * part selection and download state are shared across the command bar,
+ * hero card, part rows and dock.
  */
 export function SearchContent() {
   const { initiated } = useInit()
   const navigate = useNavigate()
 
   useEffect(() => {
-    if (initiated) return
-    navigate('/init')
+    if (!initiated) {
+      navigate('/init', { replace: true })
+    }
   }, [initiated, navigate])
+
+  if (!initiated) return null
 
   return (
     <VideoInfoProvider>

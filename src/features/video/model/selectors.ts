@@ -37,9 +37,9 @@ export const selectNormalizedTitles = createSelector(
 /**
  * Memoized selector for indices of duplicate part titles.
  *
- * Only considers selected (checked) parts for duplicate detection.
- * Unselected parts are excluded so their titles do not trigger
- * duplicate warnings or block the download button.
+ * Only considers selected (checked) parts for duplicate detection:
+ * unselected parts are never saved, so they cannot collide at save
+ * time. Duplicate names are allowed — the notice is informational.
  *
  * @returns An array of indices where the normalized title matches
  *          another selected part's title. Empty if no duplicates exist.
@@ -66,32 +66,18 @@ export const selectDuplicateIndices = createSelector(
 )
 
 /**
- * Memoized selector for whether duplicates exist among selected parts.
- *
- * @returns `true` if any selected part titles are duplicated, `false` otherwise.
- *
- * @example
- * ```typescript
- * const hasDuplicates = selectHasDuplicates(state);
- * if (hasDuplicates) {
- *   // Show duplicate warning to user
- * }
- * ```
- */
-export const selectHasDuplicates = createSelector(
-  [selectDuplicateIndices],
-  (arr) => arr.length > 0,
-)
-
-/**
  * Selector factory for Form 1 (URL) validation status.
  *
  * @param tFn - Translation function for localized error messages
  * @returns A selector that checks if the URL is valid
  */
 export const selectIsForm1Valid = (tFn: TFunction) => (state: RootState) => {
+  const url = state.input.url.trim()
+  // The schema accepts '' (so the input can be cleared without an error
+  // flash); the download gate still requires a real URL.
+  if (url === '') return false
   const schema1 = buildVideoFormSchema1(tFn)
-  return schema1.safeParse({ url: state.input.url }).success
+  return schema1.safeParse({ url }).success
 }
 
 /**
@@ -118,31 +104,6 @@ export const selectAllPartValid = (tFn: TFunction) => (state: RootState) => {
     )
   )
 }
-
-/**
- * Selector factory for overall validation status.
- *
- * Combines part validation and duplicate checking. When autoRenameDuplicates
- * is enabled, duplicates are allowed since the backend will automatically
- * rename them with index suffixes (e.g., "Part (1)", "Part (2)").
- *
- * @param tFn - Translation function for localized error messages
- * @returns A memoized selector that returns `true` if all validations pass
- *
- * @example
- * ```typescript
- * const t = useTranslation().t;
- * const isAllValid = selectIsAllValid(t)(state);
- * // Returns true if all parts are valid and either no duplicates or auto-rename enabled
- * ```
- */
-export const selectIsAllValid = (tFn: TFunction) =>
-  createSelector(
-    selectHasDuplicates,
-    selectAllPartValid(tFn),
-    (state: RootState) => state.settings.autoRenameDuplicates ?? true,
-    (dup, all, autoRename) => all && (!dup || autoRename),
-  )
 
 /**
  * Selector factory for aggregated parent progress.

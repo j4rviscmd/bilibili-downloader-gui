@@ -5,8 +5,13 @@ import {
   useLazyFetchVideoInfoQuery,
 } from '@/features/video/api/videoApi'
 import {
+  matchesSelectedLan,
+  selectedLanPriority,
+} from '@/features/video/lib/batchSettings'
+import {
   buildVideoFormSchema1,
   buildVideoFormSchema2,
+  TITLE_MAX_LENGTH,
 } from '@/features/video/lib/formSchema'
 import { shouldSelectPart } from '@/features/video/lib/partSelection'
 import { extractContentId } from '@/features/video/lib/utils'
@@ -77,6 +82,7 @@ export type VideoInfoContextValue = {
     title: string,
     videoQuality: string,
     audioQuality?: string,
+    explicit?: { videoQuality?: boolean; audioQuality?: boolean },
   ) => void
   /**
    * Canonical video ID of the displayed content ('BV...' for videos,
@@ -127,8 +133,7 @@ type VideoInfoProviderProps = {
  * This provider orchestrates the entire video download process including:
  * - Video/bangumi info fetching with RTK Query caching
  * - Part input state management and validation
- * - Duplicate title detection (affected by autoRenameDuplicates setting)
- * - Download queue management and execution
+ * - Duplicate title detection (duplicates allowed; numbered at fetch)
  * - Pending download processing from history/favorites navigation
  *
  * The provider uses a singleton ref pattern to prevent re-processing
@@ -143,6 +148,7 @@ type VideoInfoProviderProps = {
  * </VideoInfoProvider>
  * ```
  */
+
 export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
   const { t } = useTranslation()
   const progress = useSelector((state) => state.progress)
@@ -330,6 +336,7 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
       title: string,
       videoQuality: string,
       audioQuality?: string,
+      explicit?: { videoQuality?: boolean; audioQuality?: boolean },
     ) => {
       store.dispatch(
         updatePartInputByIndex({
@@ -337,6 +344,14 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
           title,
           videoQuality,
           ...(audioQuality !== undefined && { audioQuality }),
+          // Absent flags keep the stored explicitness (a title-only blur
+          // must not reset quality explicitness).
+          ...(explicit?.videoQuality !== undefined && {
+            videoQualityExplicit: explicit.videoQuality,
+          }),
+          ...(explicit?.audioQuality !== undefined && {
+            audioQualityExplicit: explicit.audioQuality,
+          }),
         }),
       )
     },
@@ -345,7 +360,10 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
 
   const schema1 = buildVideoFormSchema1(t)
   const schema2 = buildVideoFormSchema2(t)
-  const isForm1Valid = schema1.safeParse({ url: input.url }).success
+  // Schema accepts '' (no error flash when the input is cleared); the
+  // download gate below still requires a real URL.
+  const isForm1Valid =
+    input.url.trim() !== '' && schema1.safeParse({ url: input.url }).success
 
   // Canonical queue-match videoId (same derivation the enqueue path uses).
   // Memoized on the raw inputs so consumers get a stable string.
@@ -358,21 +376,16 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
   }, [input.url, video.parts])
 
   const duplicateIndices = useSelector(selectDuplicateIndices)
-  const hasDuplicates = duplicateIndices.length > 0
-  const dupToastRef = useRef(false)
-
-  useEffect(() => {
-    if (hasDuplicates === dupToastRef.current) return
-    dupToastRef.current = hasDuplicates
-    if (hasDuplicates) {
-      toast.error(t('video.duplicate_titles'), { duration: 5000 })
-    }
-  }, [hasDuplicates, t])
 
   const selectedCount = input.partInputs.filter((pi) => pi.selected).length
 
+  // Duplicate titles no longer block the download: the save-time
+  // collision avoidance numbers same-name files ("Name", "Name (1)") —
+  // the same scheme as the fetch-time default-title numbering (formerly
+  // the autoRenameDuplicates setting). The per-row notice in
+  // VideoPartCard is informational only.
   const isForm2ValidAll = useMemo(() => {
-    if (!selectedCount || hasDuplicates) return false
+    if (!selectedCount) return false
     return input.partInputs
       .filter((pi) => pi.selected)
       .every((pi) => {
@@ -386,7 +399,7 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
           (pi.subtitle?.selectedLans?.length ?? 0) > 0
         return valid && subtitleOk
       })
-  }, [selectedCount, hasDuplicates, input.partInputs, schema2])
+  }, [selectedCount, input.partInputs, schema2])
 
   /**
    * Processes pending download from history/favorites.
@@ -435,9 +448,37 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
     // so changing a part's quality is just "press Download again".
     const parts: EnqueuePartSpec[] = []
 
+    const batch = input.batchSettings
     input.partInputs.forEach((pi, idx) => {
       if (!pi.selected) return
-      const title = pi.title.trim()
+      // Force-trim long filenames (tail cut): batch all-parts download
+      // enqueues parts the user never opened, whose backend-provided
+      // defaults can exceed the cap (schema2 only warns). The trailing
+      // strip keeps the cut Windows-safe and drops a lone high surrogate
+      // left by slicing an astral char mid-pair (serde_json rejects it at
+      // the invoke boundary). The P{page} fallback keeps the title
+      // non-empty when the strip eats all 100 chars (schema min(2)
+      // validated the raw title only).
+      const title =
+        pi.title
+          .trim()
+          .slice(0, TITLE_MAX_LENGTH)
+          .replace(/[\uD800-\uDBFF.\s]+$/, '') || `P${pi.page}`
+      // Resolution order per field: an EXPLICIT per-part choice (user
+      // changed it in the part's panel) beats the batch target, which
+      // beats the part's own default (auto-seeded ladder top / off).
+      const effVideoQuality =
+        pi.videoQualityExplicit || !batch.videoQuality
+          ? pi.videoQuality
+          : batch.videoQuality
+      const effAudioQuality =
+        pi.audioQualityExplicit || !batch.audioQuality
+          ? pi.audioQuality
+          : batch.audioQuality
+      const effSubtitle =
+        pi.subtitleExplicit || !batch.subtitle ? pi.subtitle : batch.subtitle
+      const effSubtitles =
+        pi.subtitleExplicit || !batch.subtitle ? pi.subtitles : pi.subtitles
       parts.push({
         partIndex: idx + 1,
         cid: pi.cid,
@@ -451,19 +492,60 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
           videoId,
           cid: pi.cid,
           filename: title,
-          quality: pi.videoQuality ? parseInt(pi.videoQuality, 10) : null,
-          audioQuality: pi.audioQuality ? parseInt(pi.audioQuality, 10) : null,
+          quality: effVideoQuality ? parseInt(effVideoQuality, 10) : null,
+          audioQuality: effAudioQuality ? parseInt(effAudioQuality, 10) : null,
           durationSeconds: pi.duration,
           thumbnailUrl: pi.thumbnailUrl ?? null,
           page: pi.page,
           epId: video.parts[idx]?.epId ?? null,
-          subtitle: {
-            mode: pi.subtitle.mode,
-            selectedLans: pi.subtitle.selectedLans,
-            subtitles: (pi.subtitles ?? []).filter((s) =>
-              pi.subtitle.selectedLans.includes(s.lan),
-            ),
-          },
+          // Batch-settings temporary override; null keeps settings.
+          outputDir: input.outputDirOverride ?? null,
+          subtitle: (() => {
+            // Match by exact or ai-stripped code, then sort by the
+            // user's priority order (selectedLans index) with manual
+            // subtitles before AI ones for the same language. Hard-sub
+            // burns only the FIRST entry (backend .next()).
+            const matched = (effSubtitles ?? [])
+              .filter((s) =>
+                matchesSelectedLan(effSubtitle.selectedLans, s.lan),
+              )
+              .sort((a, b) => {
+                const pri =
+                  selectedLanPriority(effSubtitle.selectedLans, a.lan) -
+                  selectedLanPriority(effSubtitle.selectedLans, b.lan)
+                if (pri !== 0) return pri
+                return Number(a.isAi) - Number(b.isAi)
+              })
+            // Silent no-op guard: subtitles exist and a mode is set but
+            // nothing matched — the selection and the fetched codes are
+            // drifting apart (this is how the zh-CN/ai-zh bug hid).
+            if (
+              pi.subtitle.mode !== 'off' &&
+              matched.length === 0 &&
+              (pi.subtitles?.length ?? 0) > 0
+            ) {
+              logger.warn(
+                `subtitle selection matched nothing: fetched=[${pi.subtitles!.map((s) => s.lan).join(',')}] selected=[${pi.subtitle.selectedLans.join(',')}]`,
+              )
+            }
+            // Unfetched part (panel never opened): pass the SELECTED
+            // language codes through with empty tracks — the backend
+            // fetches the part's subtitles itself and matches, so a
+            // batch soft-sub selection still lands without a frontend
+            // pre-fetch. Dropping the lans here would silently disable
+            // subtitles (empty selected_lans → MergeMode::None).
+            const selectedLans =
+              matched.length > 0
+                ? matched.map((s) => s.lan)
+                : effSubtitle.mode !== 'off'
+                  ? effSubtitle.selectedLans
+                  : []
+            return {
+              mode: effSubtitle.mode,
+              selectedLans,
+              subtitles: matched,
+            }
+          })(),
         },
       })
     })
@@ -488,7 +570,20 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
         updatePartSelected({ index: spec.partIndex - 1, selected: false }),
       )
     }
-  }, [isForm1Valid, isForm2ValidAll, videoId, input.partInputs, video, t])
+    // input.outputDirOverride MUST be listed: it changes without touching
+    // partInputs (structural sharing keeps the array reference), so without
+    // this dep the callback kept a stale closure and downloads silently
+    // ignored a freshly picked output folder.
+  }, [
+    isForm1Valid,
+    isForm2ValidAll,
+    videoId,
+    input.partInputs,
+    input.batchSettings,
+    input.outputDirOverride,
+    video,
+    t,
+  ])
 
   const value: VideoInfoContextValue = {
     progress,

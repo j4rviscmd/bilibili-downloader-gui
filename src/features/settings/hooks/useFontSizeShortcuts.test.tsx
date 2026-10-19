@@ -34,7 +34,6 @@ const mockInvoke = invoke as unknown as ReturnType<typeof vi.fn>
 const baselineSettings: Settings = {
   dlOutputPath: '',
   language: 'en',
-  autoRenameDuplicates: true,
   showGithubStars: true,
   fontSize: 14,
   trimMode: 'copy',

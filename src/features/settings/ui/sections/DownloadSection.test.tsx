@@ -169,22 +169,6 @@ describe('DownloadSection', () => {
     )
   })
 
-  it('toggling auto-rename persists it and resets the video cache', async () => {
-    const { user } = renderWithProviders(<DownloadSection />)
-
-    const section = screen
-      .getByText('settings.auto_rename_duplicates_label')
-      .closest('div.flex.items-center.justify-between')!
-    await user.click(
-      section.querySelector('button[role="switch"]') as HTMLElement,
-    )
-
-    await waitFor(() =>
-      expect(lastSetSettings()).toMatchObject({ autoRenameDuplicates: false }),
-    )
-    expect(videoApiMock.util.resetApiState).toHaveBeenCalled()
-  })
-
   it('toggling omit duplicate part title persists it and resets the video cache', async () => {
     const { user } = renderWithProviders(<DownloadSection />)
 

@@ -24,11 +24,12 @@ import { SpeedLimitLink, formatKbps } from './SpeedLimitLink'
  * navigates to `/downloads` — cancellation lives there, deliberately not
  * here.
  *
- * Eye guidance (issue #691 comment 3): the enqueue site (DownloadButton)
- * launches a fly-to-bar thumbnail animation toward the avatar area
- * (`data-queue-avatar-target`, consumed by ThumbnailFlightLayer); the
- * first enqueue additionally animates the bar in via AnimatedSection's
- * height spring, and each new thumbnail pops in (zoom-in).
+ * Motion: the first enqueue animates the bar in via AnimatedSection's
+ * height spring, and each new session thumbnail pops in (zoom-in). The
+ * fly-to-bar thumbnail flight was removed with the URL-page redesign:
+ * the download dock keeps the enqueue destination permanently on
+ * screen, so the eye-guidance motion no longer conveyed anything the
+ * static UI didn't.
  */
 export function QueueBottomBar() {
   const { t } = useTranslation()
@@ -158,16 +159,13 @@ export function QueueBottomBar() {
               with a single avatar, right-alignment left a dead gap between
               the count and the tile (verification feedback). */}
           <div className="flex min-w-0 items-center justify-start">
-            {/* Fly-to-bar landing zone (ThumbnailFlightLayer targets this).
-              Explicit children prop: AvatarGroup types children as a single
-              ReactElement[] array, which the JSX multi-child form upsets. */}
             {/* Natural width (shrink-0): the zone's 1fr track absorbs
               avatar count changes, so the center never moves and the row
               never overflows at large font sizes. */}
-            <div
-              data-queue-avatar-target="true"
-              className="flex h-8 shrink-0 justify-end"
-            >
+            {/* Explicit children prop: AvatarGroup types children as a
+                single ReactElement[] array, which the JSX multi-child form
+                upsets. */}
+            <div className="flex h-8 shrink-0 justify-end">
               <AvatarGroup className="h-8 shrink-0" children={avatars} />
             </div>
           </div>

@@ -13,9 +13,13 @@ import { store } from '@/app/store'
 import { videoApi } from '@/features/video/api/videoApi'
 import {
   resetInput,
+  setBatchSettings,
+  setOutputDirOverride,
   setPendingDownload,
   setUrl,
+  updatePartInputByIndex,
   updatePartSelected,
+  updateSubtitleConfig,
 } from '@/features/video/model/inputSlice'
 import { resetVideo } from '@/features/video/model/videoSlice'
 import { clearError as clearDownloadError } from '@/shared/downloadStatus/downloadStatusSlice'
@@ -428,7 +432,7 @@ describe('onValid2', () => {
 })
 
 describe('duplicate titles', () => {
-  it('flags duplicates, blocks form 2 and toasts once', async () => {
+  it('flags duplicates without blocking form 2 or toasting', async () => {
     renderProvider()
     await act(async () => {
       await ctx.onValid1(VIDEO_URL)
@@ -445,12 +449,11 @@ describe('duplicate titles', () => {
     await waitFor(() => {
       expect(ctx.duplicateIndices).toEqual([0, 1])
     })
-    expect(ctx.isForm2ValidAll).toBe(false)
-    await waitFor(() =>
-      expect(toastError).toHaveBeenCalledWith('video.duplicate_titles', {
-        duration: 5000,
-      }),
-    )
+    // Save-time collision avoidance numbers same-name files, so the
+    // download must stay enabled and no error toast fires (the per-row
+    // notice in VideoPartCard is informational only).
+    expect(ctx.isForm2ValidAll).toBe(true)
+    expect(toastError).not.toHaveBeenCalled()
   })
 
   it('ignores duplicates on unselected parts', async () => {
@@ -506,6 +509,64 @@ describe('download', () => {
     store.dispatch(updatePartSelected({ index: 1, selected: false }))
   }
 
+  it('force-trims an over-cap filename at enqueue (tail cut, Windows-safe tail)', async () => {
+    await setupForDownload()
+    // 105 chars: the cut at 100 leaves trailing dots, which Windows
+    // filenames reject — the strip must remove them.
+    const long = `${'x'.repeat(96)}....yyyyy`
+    act(() => {
+      ctx.onValid2(0, long, '80', '30216')
+    })
+
+    await act(async () => {
+      await ctx.download()
+    })
+
+    const children = store.getState().queue.filter((q) => q.kind === 'part')
+    expect(children[0]).toMatchObject({
+      title: 'x'.repeat(96),
+      payload: { filename: 'x'.repeat(96) },
+    })
+  })
+
+  it('drops a surrogate pair split by the 100-char cut', async () => {
+    await setupForDownload()
+    // 101 UTF-16 units: the cut lands inside the emoji, leaving a lone
+    // high surrogate that serde_json rejects at the invoke boundary.
+    act(() => {
+      ctx.onValid2(0, 'x'.repeat(99) + '\u{1F600}', '80', '30216')
+    })
+
+    await act(async () => {
+      await ctx.download()
+    })
+
+    const children = store.getState().queue.filter((q) => q.kind === 'part')
+    expect(children[0]).toMatchObject({
+      title: 'x'.repeat(99),
+      payload: { filename: 'x'.repeat(99) },
+    })
+  })
+
+  it('falls back to P{page} when the Windows-safe strip empties the title', async () => {
+    await setupForDownload()
+    // 100 dots + "y" passes schema2 (>=2 chars, valid tail) but the
+    // cut+strip leaves nothing — the enqueue must not ship "".
+    act(() => {
+      ctx.onValid2(0, '.'.repeat(100) + 'y', '80', '30216')
+    })
+
+    await act(async () => {
+      await ctx.download()
+    })
+
+    const children = store.getState().queue.filter((q) => q.kind === 'part')
+    expect(children[0]).toMatchObject({
+      title: 'P1',
+      payload: { filename: 'P1' },
+    })
+  })
+
   it('enqueues one session with a snapshotted payload (issue #691)', async () => {
     await setupForDownload()
 
@@ -549,6 +610,89 @@ describe('download', () => {
     expect(children[0].expectedStages).toEqual({
       audioStage: true,
       mergeStage: true,
+    })
+  })
+
+  it('carries an output-dir override picked after mount (stale-closure regression)', async () => {
+    await setupForDownload()
+
+    // Pick a folder AFTER the callback was created: partInputs is
+    // untouched, so only the dep on outputDirOverride rebinds download.
+    act(() => {
+      store.dispatch(setOutputDirOverride('/tmp/picked-dir'))
+    })
+    await act(async () => {
+      await ctx.download()
+    })
+
+    const child = store.getState().queue.find((q) => q.kind === 'part')
+    expect(child?.payload).toMatchObject({ outputDir: '/tmp/picked-dir' })
+  })
+
+  it('resolves each part as explicit-per-part > batch target > default at enqueue', async () => {
+    await setupForDownload()
+
+    act(() => {
+      // Batch targets (e.g. picked while nothing was selected).
+      store.dispatch(
+        setBatchSettings({
+          videoQuality: '64',
+          audioQuality: '30216',
+          subtitle: { mode: 'soft', selectedLans: ['ja'] },
+        }),
+      )
+      // Part 0 keeps its EXPLICIT 1080p (set via onValid2 with flags) and
+      // explicit subtitle — the batch must not override either.
+      store.dispatch(
+        updatePartInputByIndex({
+          index: 0,
+          title: 'Custom name',
+          videoQuality: '80',
+          videoQualityExplicit: true,
+          audioQualityExplicit: true,
+        }),
+      )
+      store.dispatch(
+        updateSubtitleConfig({
+          index: 0,
+          config: { mode: 'hard', selectedLans: ['en'] },
+          explicit: true,
+        }),
+      )
+    })
+
+    await act(async () => {
+      await ctx.download()
+    })
+
+    const child = store.getState().queue.find((q) => q.kind === 'part')
+    expect(child?.payload).toMatchObject({
+      // Explicit part values win.
+      quality: 80,
+      subtitle: { mode: 'hard' },
+    })
+  })
+
+  it('passes the batch subtitle selection through for parts whose subtitles were never fetched', async () => {
+    await setupForDownload()
+
+    act(() => {
+      store.dispatch(
+        setBatchSettings({
+          subtitle: { mode: 'soft', selectedLans: ['*'] },
+        }),
+      )
+    })
+
+    await act(async () => {
+      await ctx.download()
+    })
+
+    // No frontend fetch happened for the part, so matched tracks are empty —
+    // but the SELECTION must survive so the backend fetches and matches.
+    const child = store.getState().queue.find((q) => q.kind === 'part')
+    expect(child?.payload).toMatchObject({
+      subtitle: { mode: 'soft', selectedLans: ['*'], subtitles: [] },
     })
   })
 
