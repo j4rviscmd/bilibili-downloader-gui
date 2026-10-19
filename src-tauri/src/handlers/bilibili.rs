@@ -8116,6 +8116,7 @@ fn expand_subtitle_wildcard(selected_lans: &[String], subs: &[SubtitleDto]) -> V
     with_ai.into_iter().map(|(lan, _)| lan).collect()
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn prepare_subtitle_mode<R: tauri::Runtime>(
     app: &AppHandle<R>,
     api: &BiliApi,
