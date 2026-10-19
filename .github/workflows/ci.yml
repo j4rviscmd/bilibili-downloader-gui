@@ -72,7 +72,7 @@ jobs:
         # Why cleanup:false: keeps the formatted state so the gate step
         # below sees the full diff (filter-mode only limits which hunks
         # get suggestion cards, not which violations fail the job)
-        uses: reviewdog/action-suggester@c387862ad6765a9729f2b40ee4d8b5769f2145c7 # v1
+        uses: reviewdog/action-suggester@ac5ce6d94e35c00530447dc63c271e38e4fd36c6 # v1
         with:
           tool_name: prettier
           level: error
@@ -427,7 +427,7 @@ jobs:
         # Why cleanup:false: keeps the formatted state so the gate step
         # below sees the full diff (filter-mode only limits which hunks
         # get suggestion cards, not which violations fail the job)
-        uses: reviewdog/action-suggester@c387862ad6765a9729f2b40ee4d8b5769f2145c7 # v1
+        uses: reviewdog/action-suggester@ac5ce6d94e35c00530447dc63c271e38e4fd36c6 # v1
         with:
           tool_name: rustfmt
           level: error
@@ -582,7 +582,7 @@ jobs:
         # Why cleanup:false: keeps the formatted state so the gate step
         # below sees the full diff (filter-mode only limits which hunks
         # get suggestion cards, not which violations fail the job)
-        uses: reviewdog/action-suggester@c387862ad6765a9729f2b40ee4d8b5769f2145c7 # v1
+        uses: reviewdog/action-suggester@ac5ce6d94e35c00530447dc63c271e38e4fd36c6 # v1
         with:
           tool_name: prettier-docs
           level: error
