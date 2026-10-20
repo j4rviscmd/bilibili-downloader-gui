@@ -182,7 +182,9 @@ Automated by release-please (`release-please-config.json` +
 version — both are maintained by release-please, never edit by hand):
 
 - Merging `feat:`/`fix:` to main opens a `chore(main): release X.Y.Z`
-  PR. Merging that PR publishes automatically: draft release + eager
+  PR as a draft (`draft-pull-request` in the config — mark it ready
+  for review before merging). Merging that PR publishes
+  automatically: draft release + eager
   git tag (the release-please job creates the tag before release-please
   runs — release-please anchors on the tag matching the manifest
   version exactly and ignores tagless drafts, so a deferred tag made
