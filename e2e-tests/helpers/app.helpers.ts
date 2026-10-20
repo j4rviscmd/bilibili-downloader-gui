@@ -160,9 +160,12 @@ export async function loadFixtureVideo(): Promise<void> {
   await submitVideoUrl(FIXTURE_VIDEO_URL)
 }
 
+/** Fixed, visible E2E download dir; wiped per run (see setupDownloadEnv)
+ * and shared with wdio.local.conf.ts's interrupted-run cleanup. */
+export const E2E_DOWNLOAD_DIR = path.join(os.homedir(), 'Downloads', 'e2e_temp')
 /** State captured by setupDownloadEnv for the matching teardown. */
 export type DownloadEnv = {
-  /** Fresh temp dir the spec's downloads are patched into. */
+  /** Fixed download dir the spec's downloads are patched into. */
   outputDir: string
   /** Developer's dlOutputPath before the patch (null = OS default). */
   originalDlOutputPath: string | null
@@ -171,17 +174,22 @@ export type DownloadEnv = {
 }
 
 /**
- * Points dlOutputPath at a fresh temp dir so a spec's downloads never land
- * in the developer's real output directory (dev and E2E share one
- * app_data_dir — same bundle identifier — and each spec file starts a new
- * app that reads the persisted settings). Pair with teardownDownloadEnv.
+ * Points dlOutputPath at the fixed E2E download dir so a spec's downloads
+ * never land in the developer's real output directory (dev and E2E share
+ * one app_data_dir — same bundle identifier — and each spec file starts a
+ * new app that reads the persisted settings). The dir is wiped first for
+ * a pristine per-run state (interrupted-run leftovers must not leak into
+ * file assertions) and is visible under ~/Downloads so it can never
+ * silently accumulate in the OS temp dir. Pair with teardownDownloadEnv.
  */
 export async function setupDownloadEnv(): Promise<DownloadEnv> {
   const settings = await tauriInvoke<{ dlOutputPath?: string | null }>(
     'get_settings',
   )
   const history = await tauriInvoke<Array<{ id: string }>>('get_history')
-  const outputDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bili-e2e-dl-'))
+  const outputDir = E2E_DOWNLOAD_DIR
+  fs.rmSync(outputDir, { recursive: true, force: true })
+  fs.mkdirSync(outputDir, { recursive: true })
   // patch_settings validates the path exists and is a directory, so a
   // resolve here proves the backend accepted it.
   await tauriInvoke('patch_settings', { patch: { dlOutputPath: outputDir } })
