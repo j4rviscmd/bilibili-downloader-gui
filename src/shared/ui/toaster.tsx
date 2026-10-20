@@ -56,7 +56,11 @@ const Toaster = ({ theme, richColors }: ToasterProps) => {
       closeButton={false}
       newestOnTop={false}
       closeOnClick={false}
-      pauseOnFocusLoss
+      // Why: react-toastify pauses auto-dismiss while the window is
+      // unfocused (default true); backgrounded sessions accumulated
+      // frozen toasts stacked over the bottom-right download dock.
+      // sonner (the previous toaster) never paused on focus loss.
+      pauseOnFocusLoss={false}
       pauseOnHover
       draggable
       toastClassName="select-none max-w-[480px]"

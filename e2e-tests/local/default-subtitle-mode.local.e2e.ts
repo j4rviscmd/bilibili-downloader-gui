@@ -60,9 +60,13 @@ async function loadRealVideo(url: string): Promise<void> {
   await input.waitForExist({ timeout: 10_000 })
   await browser.waitUntil(
     async () => {
-      await input.click()
-      await input.setValue('')
-      await input.setValue(url)
+      // Why: re-resolve per attempt — when the previous test already sat on
+      // /search, the nav re-render replaces the input and the cached
+      // element id goes stale (observed as a stale-element storm).
+      const field = await browser.$(S.URL_INPUT)
+      await field.click()
+      await field.setValue('')
+      await field.setValue(url)
       await browser.execute(() => {
         const el = document.activeElement
         if (el instanceof HTMLElement) el.blur()
@@ -152,6 +156,15 @@ async function waitForQueueIdle(): Promise<void> {
 
 /** Clicks the download dock button once it becomes clickable. */
 async function clickDownloadDock(): Promise<void> {
+  // Why: the unfocused E2E window freezes WKWebView timers, so react-toastify
+  // auto-close never fires and stacked toasts cover the bottom-right dock
+  // (the app-side autoClose default bounds them for real users). The
+  // container mounts lazily with the first toast, so hide it here.
+  await browser.execute(() => {
+    document
+      .querySelectorAll('.Toastify__toast-container')
+      .forEach((c) => (c.style.display = 'none'))
+  })
   const button = await browser.$(S.DOWNLOAD_DOCK_BUTTON)
   await button.waitForClickable({ timeout: 10_000 })
   await button.click()
@@ -306,11 +319,16 @@ async function openBatchSubtitleMenu(): Promise<{
   const trigger = await browser.$('[data-testid="batch-subtitle-trigger"]')
   await trigger.waitForExist({ timeout: 10_000 })
   const menu = await browser.$('[role="menu"]')
-  // Self-heal: a click absorbed by a re-render leaves the menu closed.
+  // Why: self-heal — a click absorbed by a re-render leaves the menu closed,
+  // and the WebDriver click never carries the pointerdown that Radix
+  // DropdownMenuTrigger opens on (radix-ui/primitives#3424), so follow
+  // it with the trusted keyboard-open path (ArrowDown on the trigger,
+  // which the click just focused).
   await browser.waitUntil(
     async () => {
       if (!(await menu.isExisting())) {
         await trigger.click()
+        await browser.keys('ArrowDown')
         await browser.pause(400)
       }
       return await menu.isExisting()

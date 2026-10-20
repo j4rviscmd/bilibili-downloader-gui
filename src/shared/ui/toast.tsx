@@ -136,9 +136,12 @@ function toOptions(
       copyText={copyText}
     />
   )
+  // Why: react-toastify v11 dropped the documented 5000ms autoClose
+  // default — an omitted duration left toasts sticky forever (stacked
+  // save confirmations eventually covered the download dock).
   const autoClose =
     duration === undefined
-      ? undefined
+      ? 5000
       : duration === false || duration === Infinity
         ? false
         : duration
