@@ -401,25 +401,41 @@ describe('SearchContent', () => {
   })
   // ---- F-series: pagination ellipsis, confirm dialog, stale page sync ----
 
-  it('collapses page numbers to ellipsis when there are more than 7 pages', async () => {
+  it('collapses page numbers to ellipsis when there are more than 5 pages', async () => {
     seedVideo(PARTS_PER_PAGE * 8 + 1) // 9 pages
 
     const { user } = renderWithProviders(<HomeWithSearchEcho />, {
       route: '/search',
     })
 
+    // Near the first edge the window shows 1 2 3 … 9
     const footer = screen.getByText('video.pagination_next').closest('ul')!
-    // Edge pages always visible; middle pages collapsed
     expect(within(footer).getByText('1')).toBeTruthy()
     expect(within(footer).getByText('2')).toBeTruthy()
+    expect(within(footer).getByText('3')).toBeTruthy()
     expect(within(footer).getByText('9')).toBeTruthy()
     expect(within(footer).queryByText('5')).toBeNull()
-    // Middle page collapsed behind an ellipsis marker (MoreHorizontal icon)
-    expect(within(footer).queryByText('3')).toBeNull()
 
     // Next advances to page 2
-    await user.click(within(footer).getByText('video.pagination_next'))
+    await user.click(screen.getByText('video.pagination_next'))
     expect(screen.getByTestId('search-echo').textContent).toBe('?page=2')
+
+    // Mid-range (page 4) collapses both sides: 1 … 4 … 9
+    await user.click(screen.getByText('video.pagination_next'))
+    await user.click(screen.getByText('video.pagination_next'))
+    const midFooter = screen.getByText('video.pagination_next').closest('ul')!
+    expect(within(midFooter).getByText('1')).toBeTruthy()
+    expect(within(midFooter).getByText('4')).toBeTruthy()
+    expect(within(midFooter).getByText('9')).toBeTruthy()
+    expect(within(midFooter).queryByText('2')).toBeNull()
+    expect(within(midFooter).queryByText('3')).toBeNull()
+
+    // Jumping to the last page mirrors the edge window: 1 … 7 8 9
+    await user.click(within(midFooter).getByText('9'))
+    const lastFooter = screen.getByText('video.pagination_next').closest('ul')!
+    expect(within(lastFooter).getByText('7')).toBeTruthy()
+    expect(within(lastFooter).getByText('8')).toBeTruthy()
+    expect(within(lastFooter).queryByText('4')).toBeNull()
   })
 
   it('navigates immediately with selections kept (no confirmation dialog)', async () => {
@@ -681,5 +697,68 @@ describe('SearchContent', () => {
     expect(screen.getByTestId('download-button')).toBeInTheDocument()
     // Same fixed box with the CTA visible.
     expect(dock.className).toContain('h-16')
+  })
+
+  it('places the dock cells in a 3-column grid: summary left, pager center, CTA right', async () => {
+    seedVideo(PARTS_PER_PAGE + 2) // 2 pages → pager visible
+
+    const { container, user } = renderWithProviders(<SearchContent />, {
+      route: '/search',
+    })
+
+    const dock = container.querySelector<HTMLElement>('[data-download-dock]')!
+    // The dock is a grid, not a flex row: side columns are minmax(0,1fr)
+    // so the pager stays dead-center while the summary shrinks — a long
+    // summary must never push the pager off-center.
+    expect(dock.className).toContain(
+      'grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]',
+    )
+
+    // Nothing selected: the hint occupies the left cell…
+    expect(
+      within(dock).getByText('video.no_parts_selected').className,
+    ).toContain('col-start-1')
+    // …and the pager sits in the center cell.
+    const pager = within(dock)
+      .getByText('video.pagination_next')
+      .closest('nav')!
+    expect(pager.className).toContain('col-start-2')
+
+    await user.click(screen.getByText('video.select_all'))
+
+    // With a selection the summary takes over the left cell…
+    expect(
+      within(dock).getByText(/search\.selected_count/).className,
+    ).toContain('col-start-1')
+    // …and the CTA lands in the right cell, pushed to the edge.
+    const ctaCell = dock.querySelector<HTMLElement>('div.col-start-3')!
+    expect(ctaCell).not.toBeNull()
+    expect(ctaCell.className).toContain('justify-end')
+    expect(within(ctaCell).getByTestId('download-button')).toBeInTheDocument()
+  })
+
+  it('keeps summary left and CTA right when the pager is hidden on a single page', async () => {
+    seedVideo(2) // single page → pager unmounted
+
+    const { container, user } = renderWithProviders(<SearchContent />, {
+      route: '/search',
+    })
+
+    await user.click(screen.getByText('video.select_all'))
+
+    // totalPages ≤ 1 unmounts the pager; the explicit col-start slots
+    // keep the layout intact — the empty auto center column collapses
+    // instead of the CTA drifting into the middle.
+    const dock = container.querySelector<HTMLElement>('[data-download-dock]')!
+    expect(dock.className).toContain(
+      'grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]',
+    )
+    expect(within(dock).queryByText('video.pagination_next')).toBeNull()
+    expect(
+      within(dock).getByText(/search\.selected_count/).className,
+    ).toContain('col-start-1')
+    const ctaCell = dock.querySelector<HTMLElement>('div.col-start-3')!
+    expect(ctaCell).not.toBeNull()
+    expect(within(ctaCell).getByTestId('download-button')).toBeInTheDocument()
   })
 })
