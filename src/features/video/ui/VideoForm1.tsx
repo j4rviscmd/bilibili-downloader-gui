@@ -246,6 +246,7 @@ function VideoForm1({
     return (
       <button
         type="button"
+        data-testid="clear-url"
         aria-label={t('search.clear_url')}
         onClick={() => handleClear(onChange)}
         className="text-muted-foreground hover:bg-muted hover:text-foreground absolute top-1/2 right-2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full transition-colors"

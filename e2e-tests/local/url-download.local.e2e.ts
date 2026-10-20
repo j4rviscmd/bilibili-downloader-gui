@@ -628,6 +628,13 @@ describe('local real API: URL fetch to download', () => {
     const btn = await browser.$('[data-testid="nav-search"]')
     await btn.waitForExist({ timeout: 15_000 })
     await btn.click()
+    // Since #862 the sidebar returns to the last active /search?url=
+    // entry, so the loaded video reappears instead of the hero. Close
+    // it via the compact bar's x (pushes the bare entry) to reach the
+    // video-free hero whose recent list this test exercises.
+    const close = await browser.$('[data-testid="clear-url"]')
+    await close.waitForExist({ timeout: 10_000 })
+    await close.click()
     const recent = await browser.$('[data-recent-urls]')
     await recent.waitForExist({ timeout: 15_000 })
     const rows = await recent.$$('button[data-url]')
