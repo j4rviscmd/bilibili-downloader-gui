@@ -7,8 +7,9 @@ commands = [
   # Why: `|| true` keeps a missing codebase-memory-mcp CLI from failing `forest finish` (PR #771)
   "codebase-memory-mcp cli --quiet index_repository '{\"repo_path\": \".\"}' || true",
   # Why: the excalidraw MCP server (not this repo) scatters excalidraw.log into the
-  # session cwd; `*.log` is already gitignored, so this is workspace hygiene only.
+  # session cwd, .worktrees/, and public/ (Vite publicDir — a stray log there
+  # ships in release builds); `*.log` is already gitignored.
   # Note: remove once the scatter stops (LOG_FILE_PATH redirect; see project memory
   # excalidraw-mcp-log-scatter.md).
-  "rm -f excalidraw.log"
+  "rm -f excalidraw.log .worktrees/excalidraw.log public/excalidraw.log"
 ]
