@@ -16,6 +16,7 @@ export {
 export { createQueueRunner } from './runner'
 export type { QueueRunnerStore } from './runner'
 export {
+  selectActivePartCount,
   selectHasActiveDownloads,
   selectHasCancellingDownloads,
   selectPartItemForVideo,

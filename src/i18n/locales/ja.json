@@ -759,6 +759,7 @@
   "popular": {
     "title": "おすすめ動画",
     "recommendationsTitle": "あなたへのおすすめ",
+    "refresh": "更新",
     "refreshRecommendations": "おすすめを更新",
     "feedTitle": "人気動画",
     "loadError": "フィードの読み込みに失敗しました",

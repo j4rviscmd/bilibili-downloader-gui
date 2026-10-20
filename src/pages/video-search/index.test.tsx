@@ -1,4 +1,5 @@
 import { store } from '@/app/store'
+import { setSettings } from '@/features/settings/settingsSlice'
 import { searchVideosApi } from '@/features/video-search/api/searchVideos'
 import {
   clearFeeds,
@@ -123,6 +124,10 @@ describe('VideoSearchContent', () => {
     store.dispatch(clearFeeds())
     // Nor a tail-error state (set by the later-page failure test below).
     store.dispatch(setError(null))
+    // Nor a leaked accent override (the blue-swap test below).
+    store.dispatch(
+      setSettings({ ...store.getState().settings, accentColor: 'pink' }),
+    )
   })
 
   // Must run before the seeded tests: it relies on the store still being
@@ -165,6 +170,51 @@ describe('VideoSearchContent', () => {
       DEFAULT_VIDEO_SEARCH_FILTERS,
     )
     expect(document.title).toBe('videoSearch.title - app.title')
+  })
+
+  // The app-icon shortcut is the only direct entry from the results
+  // view back to the popular feed (the sidebar's 動画検索 item is
+  // active-click a no-op here). Accessible name is the raw
+  // popular.title key: tests run without loaded translations.
+  it('navigates to /popular via the app icon button', async () => {
+    seedFinishedSearch()
+    const { user } = renderWithProviders(<Harness />, {
+      route: '/video-search',
+    })
+
+    await user.click(screen.getByRole('button', { name: 'popular.title' }))
+
+    expect(await screen.findByText('popular-route')).toBeInTheDocument()
+  })
+
+  // Vitest inlines SVG imports as data URIs, so the icon colorway is
+  // asserted via the tile fill in src (#EC5D85 = pink, #5DC6EC = blue);
+  // search-page precedent. Scoped to the popular button because the
+  // results grid also renders (thumbnail) imgs.
+  it('renders the popular shortcut icon in the default pink colorway', () => {
+    seedFinishedSearch()
+    renderWithProviders(<Harness />, { route: '/video-search' })
+
+    const img = screen
+      .getByRole('button', { name: 'popular.title' })
+      .querySelector('img')
+    expect(img).toBeTruthy()
+    expect(img!.getAttribute('src')).toContain('EC5D85')
+    expect(img!.getAttribute('src')).not.toContain('5DC6EC')
+  })
+
+  it('swaps the popular shortcut icon to blue with the accent setting', () => {
+    seedFinishedSearch()
+    store.dispatch(
+      setSettings({ ...store.getState().settings, accentColor: 'blue' }),
+    )
+    renderWithProviders(<Harness />, { route: '/video-search' })
+
+    const img = screen
+      .getByRole('button', { name: 'popular.title' })
+      .querySelector('img')
+    expect(img).toBeTruthy()
+    expect(img!.getAttribute('src')).toContain('5DC6EC')
   })
 
   it('searches and renders results, card click navigates to /search', async () => {

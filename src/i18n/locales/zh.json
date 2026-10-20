@@ -759,6 +759,7 @@
   "popular": {
     "title": "热门视频",
     "recommendationsTitle": "为你推荐",
+    "refresh": "刷新",
     "refreshRecommendations": "刷新推荐",
     "feedTitle": "热门视频",
     "loadError": "加载内容失败",

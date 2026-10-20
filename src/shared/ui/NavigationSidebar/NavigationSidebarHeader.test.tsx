@@ -1,10 +1,9 @@
 import { store } from '@/app/store'
 import type { User } from '@/features/user/types'
 import { setUser } from '@/features/user/userSlice'
-import { setHomePage } from '@/features/video/model/inputSlice'
-import { renderWithProviders, resetQueue } from '@/test/test-utils'
+import { renderWithProviders, resetQueue, seedSession } from '@/test/test-utils'
 import { screen } from '@testing-library/react'
-import { useLocation } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { NavigationSidebarHeader } from './NavigationSidebarHeader'
@@ -23,6 +22,11 @@ vi.mock('@/shared/animate-ui/radix/sidebar', () => {
     SidebarGroupLabel: passthrough,
     SidebarMenu: passthrough,
     SidebarMenuItem: passthrough,
+    SidebarMenuBadge: ({ children, ...props }: React.ComponentProps<'div'>) => (
+      <div data-testid="nav-downloads-badge" {...props}>
+        {children}
+      </div>
+    ),
     SidebarSeparator: () => <hr />,
     SidebarMenuButton: ({
       children,
@@ -59,6 +63,12 @@ function LocationProbe() {
   )
 }
 
+/** Pushes the bare /search entry, like the CommandBar × close does. */
+function CloseSimulator() {
+  const navigate = useNavigate()
+  return <button onClick={() => navigate('/search')}>simulate-close</button>
+}
+
 function renderSidebar(route = '/home') {
   return renderWithProviders(
     <>
@@ -82,7 +92,6 @@ describe('NavigationSidebarHeader', () => {
     // Reset shared singleton-store slices between tests.
     store.dispatch(setUser(loggedOutUser))
     resetQueue()
-    store.dispatch(setHomePage(1))
   })
 
   it('renders every navigation group and item with its label', () => {
@@ -180,15 +189,63 @@ describe('NavigationSidebarHeader', () => {
     ).toHaveAttribute('aria-current', 'page')
   })
 
-  it('restores the last-viewed ?page= param on Search navigation', async () => {
-    store.dispatch(setHomePage(3))
+  it('returns to the last-viewed /search entry (video query included)', async () => {
+    const { user: actor } = renderSidebar(
+      '/search?url=https%3A%2F%2Fwww.bilibili.com%2Fvideo%2FBV1abc&page=2',
+    )
+
+    await actor.click(screen.getByRole('button', { name: 'nav.aria.trim' }))
+    expect(screen.getByTestId('location')).toHaveTextContent('/trim')
+
+    await actor.click(screen.getByRole('button', { name: 'nav.aria.search' }))
+    // The video entry comes back instead of resetting to the empty hero.
+    expect(screen.getByTestId('location')).toHaveTextContent(
+      '/search?url=https%3A%2F%2Fwww.bilibili.com%2Fvideo%2FBV1abc&page=2',
+    )
+  })
+
+  it('falls back to the empty /search entry before any search visit', async () => {
     const { user: actor } = renderSidebar('/trim')
 
     await actor.click(screen.getByRole('button', { name: 'nav.aria.search' }))
 
-    // The Search button returns to the paginated page the user was on,
-    // taking URL priority over any stale ?p embedded in input.url.
-    expect(screen.getByTestId('location')).toHaveTextContent('/search?page=3')
+    expect(screen.getByTestId('location')).toHaveTextContent('/search')
+  })
+
+  it('records the bare entry after the × close, not the closed video', async () => {
+    // Load a video, close it (× pushes the bare /search entry), leave,
+    // return: the hero entry must come back — not the closed video's
+    // ?url=…&page=… query.
+    const { user: actor } = renderWithProviders(
+      <>
+        <NavigationSidebarHeader />
+        <CloseSimulator />
+        <LocationProbe />
+      </>,
+      {
+        route:
+          '/search?url=https%3A%2F%2Fwww.bilibili.com%2Fvideo%2FBV1abc&page=2',
+      },
+    )
+
+    await actor.click(screen.getByRole('button', { name: 'simulate-close' }))
+    await actor.click(screen.getByRole('button', { name: 'nav.aria.trim' }))
+    expect(screen.getByTestId('location')).toHaveTextContent('/trim')
+
+    await actor.click(screen.getByRole('button', { name: 'nav.aria.search' }))
+    // Exact match: the bare entry with no resurrected query string.
+    expect(screen.getByTestId('location').textContent).toBe('/search')
+  })
+
+  it('falls back to the bare /search entry from a page with query params', async () => {
+    // Other pages' query strings (here: the video-search results ?q=)
+    // must never leak into the recorded entry or its default.
+    const { user: actor } = renderSidebar('/video-search?q=kw')
+
+    await actor.click(screen.getByRole('button', { name: 'nav.aria.search' }))
+
+    // Exact match: no ?q= or other foreign params ride along.
+    expect(screen.getByTestId('location').textContent).toBe('/search')
   })
 
   it('disables auth-required items when logged out and blocks navigation', async () => {
@@ -236,5 +293,23 @@ describe('NavigationSidebarHeader', () => {
 
     await actor.click(favorite)
     expect(screen.getByTestId('location')).toHaveTextContent('/favorite')
+  })
+
+  it('shows the active-part-count badge on the downloads item', () => {
+    seedSession('BV1', [
+      { partIndex: 1, cid: 11, status: 'running' },
+      { partIndex: 2, cid: 12, status: 'pending' },
+      { partIndex: 3, cid: 13, status: 'done' },
+    ])
+    renderSidebar()
+
+    expect(screen.getByTestId('nav-downloads-badge')).toHaveTextContent('2')
+  })
+
+  it('hides the downloads badge when no part is running or pending', () => {
+    seedSession('BV1', [{ partIndex: 1, cid: 11, status: 'done' }])
+    renderSidebar()
+
+    expect(screen.queryByTestId('nav-downloads-badge')).not.toBeInTheDocument()
   })
 })

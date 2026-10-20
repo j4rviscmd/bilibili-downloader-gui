@@ -90,8 +90,6 @@ export type Input = {
   partInputs: PartInput[]
   /** Pending download from watch history navigation */
   pendingDownload: PendingDownload | null
-  /** Last viewed home page number (1-indexed). Used to restore page on home button click during downloads. */
-  homePage: number
   /**
    * Batch-level target settings for the NEXT enqueue. Applied at enqueue
    * time to parts WITHOUT an explicit per-part choice (resolution:

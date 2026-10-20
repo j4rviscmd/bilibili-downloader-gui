@@ -759,6 +759,7 @@
   "popular": {
     "title": "Vídeos populares",
     "recommendationsTitle": "Para ti",
+    "refresh": "Actualizar",
     "refreshRecommendations": "Actualizar recomendaciones",
     "feedTitle": "Vídeos populares",
     "loadError": "Error al cargar el contenido",

@@ -2,7 +2,7 @@
  * inputSlice reducer suite — gaps not covered by inputSlice.test.ts.
  *
  * The sibling inputSlice.test.ts covers subtitle config, lazy-loaded
- * subtitles/qualities, resetInput and homePage. This file covers the
+ * subtitles/qualities and resetInput. This file covers the
  * selection reducers, whole-state replacement, resolved-info reducers,
  * accordion state, and pendingDownload, against the real singleton
  * store (the established convention).
@@ -84,7 +84,6 @@ describe('whole-state replacement', () => {
       url: 'https://www.bilibili.com/video/BV1xx411c7XD',
       partInputs: [],
       pendingDownload: { bvid: 'BV1', cid: 1, page: 1 } as PendingDownload,
-      homePage: 4,
       batchSettings: { videoQuality: null, audioQuality: null, subtitle: null },
     }
 
@@ -378,12 +377,11 @@ describe('resolved info reducers', () => {
 })
 
 describe('resetVideoView', () => {
-  it('clears the loaded video view but preserves pendingDownload and homePage', () => {
+  it('clears the loaded video view but preserves pendingDownload', () => {
     seedParts()
     store.dispatch(setUrl('https://www.bilibili.com/video/BV1test'))
     store.dispatch(setInput({ ...input(), outputDirOverride: '/tmp/out' }))
     store.dispatch(setPendingDownload({ bvid: 'BV1test', cid: 1, page: 2 }))
-    store.dispatch(setInput({ ...input(), homePage: 3 }))
 
     store.dispatch(resetVideoView())
 
@@ -398,9 +396,8 @@ describe('resetVideoView', () => {
       subtitle: null,
     })
     expect(state.outputDirOverride).toBeNull()
-    // pendingDownload owns the next fetch and homePage backs the sidebar
-    // Home button — neither belongs to the cleared video.
+    // pendingDownload owns the next fetch — it does not belong to the
+    // cleared video.
     expect(state.pendingDownload).toEqual({ bvid: 'BV1test', cid: 1, page: 2 })
-    expect(state.homePage).toBe(3)
   })
 })

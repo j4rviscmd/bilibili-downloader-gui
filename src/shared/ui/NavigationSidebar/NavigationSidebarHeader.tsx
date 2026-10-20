@@ -1,11 +1,11 @@
 import { useSelector } from '@/app/store'
-import { selectHomePage } from '@/features/video'
 import { Download } from '@/shared/animate-ui/icons/download'
 import {
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
@@ -17,7 +17,7 @@ import {
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
 import { cn } from '@/shared/lib/utils'
-import { selectHasActiveDownloads } from '@/shared/queue'
+import { selectActivePartCount, selectHasActiveDownloads } from '@/shared/queue'
 import type { LucideIcon } from 'lucide-react'
 import {
   Combine,
@@ -84,18 +84,22 @@ export function NavigationSidebarHeader({
   const user = useSelector((state) => state.user)
   const isLoggedIn = user.hasCookie && user.data?.isLogin
   const hasActiveDownloads = useSelector(selectHasActiveDownloads)
-  const homePage = useSelector(selectHomePage)
-  // Last video-search-feature location the user viewed. The sidebar never
-  // unmounts (persistent chrome), so it observes every visit; clicking the
-  // 動画検索 item returns there — the /video-search?q=… results page when a
-  // search was open, otherwise the /popular entry view.
+  const activePartCount = useSelector(selectActivePartCount)
+  // Last feature location the user viewed, per sidebar item. The sidebar
+  // never unmounts (persistent chrome), so it observes every visit: the
+  // 動画検索 item returns to the /video-search?q=… results page when a
+  // search was open (else /popular), and the URL取得 item returns to the
+  // last /search entry — the loaded video with its ?url=…&page=… query,
+  // or the empty hero entry after the video was closed.
   const lastVideoSearchPath = useRef('/popular')
+  const lastSearchPath = useRef('/search')
   useEffect(() => {
-    if (
-      location.pathname === '/popular' ||
-      location.pathname === '/video-search'
-    ) {
-      lastVideoSearchPath.current = location.pathname + location.search
+    const { pathname, search } = location
+    if (pathname === '/popular' || pathname === '/video-search') {
+      lastVideoSearchPath.current = pathname + search
+    }
+    if (pathname === '/search') {
+      lastSearchPath.current = pathname + search
     }
   }, [location.pathname, location.search])
 
@@ -218,11 +222,10 @@ export function NavigationSidebarHeader({
      * and the /video-search results page) nor pushes a duplicate history
      * entry for the same path.
      *
-     * For the Home item, navigates with the last viewed `?page` parameter
-     * restored from Redux state, so the sidebar Home button returns the
-     * user to the pagination page they were on (rather than page 1).
-     * The `?page` param is always set (even for page 1) so it takes
-     * URL resolution priority over any stale `?p` embedded in `input.url`.
+     * For the URL取得 item, navigates back to the last /search entry
+     * (video with its ?url=…&page=… query, or the empty hero), mirroring
+     * the 動画検索 item: the persistent layout keeps the page mounted, so
+     * the loaded video reappears without a refetch.
      *
      * For other items, performs a plain path navigation.
      * Disabled items (auth required but not logged in) are no-ops.
@@ -230,7 +233,10 @@ export function NavigationSidebarHeader({
     const handleClick = () => {
       if (isDisabled || isActive) return
       if (isSearch) {
-        navigate({ pathname: '/search', search: `?page=${homePage}` })
+        // Why: a bare /search navigation would hit the page's empty-entry
+        // reset (src/pages/search/index.tsx) and wipe the loaded video; the
+        // recorded entry keeps its ?url=…&page=… query, which avoids it.
+        navigate(lastSearchPath.current)
       } else if (item.path === '/popular') {
         // 動画検索 returns to the feature's last-viewed page (results with
         // its ?q= when a search was open, else the popular feed).
@@ -277,6 +283,17 @@ export function NavigationSidebarHeader({
         ) : (
           button
         )}
+        {/* Why explicit top-1.5 on the badge: the vendored button sits
+            inside a MotionHighlightItem div, so the badge's
+            peer-data-[size] top variants never match (not DOM siblings)
+            and the badge would fall to its static position below the
+            button. */}
+        {/* Why bg-brand: the bilibili pink token (--brand), not --primary. */}
+        {item.path === '/downloads' && activePartCount > 0 ? (
+          <SidebarMenuBadge className="bg-brand text-brand-foreground top-1.5 rounded-full">
+            {activePartCount}
+          </SidebarMenuBadge>
+        ) : null}
       </SidebarMenuItem>
     )
   }

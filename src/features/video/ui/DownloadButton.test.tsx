@@ -17,7 +17,6 @@ const emptyInput: Input = {
   partInputs: [],
   pendingDownload: null,
   batchSettings: { videoQuality: null, audioQuality: null, subtitle: null },
-  homePage: 1,
 }
 
 /** Builds a useVideoInfo return value with the "ready to download" defaults. */

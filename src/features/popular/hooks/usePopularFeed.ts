@@ -15,7 +15,7 @@ import { appendPage, setError, setLoading } from '../model/popularFeedSlice'
 export function usePopularFeed() {
   const dispatch = useAppDispatch()
   const reqId = useRef(0)
-  const { items, page, noMore, loading, error } = useSelector(
+  const { items, page, noMore, loading, error, refreshNonce } = useSelector(
     (state) => state.popularFeed,
   )
 
@@ -52,6 +52,16 @@ export function usePopularFeed() {
     // page is 0 before the first load, so the entry fetch is also page 1.
     void load(page + 1)
   }, [load, loading, noMore, page])
+
+  // Why a ref instead of skipping the first effect run: StrictMode's
+  // mounted double-invoke would fire the second run as a spurious reload.
+  const handledNonce = useRef(refreshNonce)
+  useEffect(() => {
+    if (refreshNonce === handledNonce.current) return
+    handledNonce.current = refreshNonce
+    // refreshFeed already cleared the feed; page 1 is a fresh first page.
+    void load(1)
+  }, [refreshNonce, load])
 
   useEffect(() => {
     // Entry load: empty feed, not loading, no error yet. After a failure

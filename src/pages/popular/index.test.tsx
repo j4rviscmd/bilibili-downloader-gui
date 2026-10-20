@@ -1,6 +1,9 @@
 import { store } from '@/app/store'
 import { setUser, type User } from '@/features/user'
-import { fetchPopularVideosApi } from '@/features/video-search'
+import {
+  fetchPopularVideosApi,
+  type VideoSearchEntry,
+} from '@/features/video-search'
 import { searchVideosApi } from '@/features/video-search/api/searchVideos'
 import { VideoSearchContent } from '@/pages/video-search'
 import { mockInvoke, renderWithProviders } from '@/test/test-utils'
@@ -150,6 +153,29 @@ describe('PopularContent', () => {
     expect(screen.queryByText('popular.feedTitle')).not.toBeInTheDocument()
   })
 
+  // Refresh while logged out: the feed still reloads in place, but the
+  // shelf branch is skipped — no recommendations RPC for a viewer who has
+  // no shelf. Runs before the tests that seed a logged-in user.
+  it('refreshes the feed without requesting recommendations when logged out', async () => {
+    vi.mocked(fetchPopularVideosApi).mockResolvedValue({
+      ...feedPage,
+      entries: [
+        ...feedPage.entries,
+        {
+          ...feedPage.entries[0],
+          bvid: 'BV1anon',
+          title: '未ログイン更新 動画',
+        },
+      ],
+    })
+    const { user } = renderWithProviders(<Harness />, { route: '/popular' })
+
+    await user.click(screen.getByRole('button', { name: 'popular.refresh' }))
+
+    expect(await screen.findByText('未ログイン更新 動画')).toBeInTheDocument()
+    expect(mockInvoke).not.toHaveBeenCalled()
+  })
+
   it('hides shelf and feed heading when the recommendations fetch fails', async () => {
     store.dispatch(setUser(loggedInUser))
     vi.mocked(fetchPopularVideosApi).mockResolvedValue(feedPage)
@@ -208,5 +234,54 @@ describe('PopularContent', () => {
     const scroller = container.querySelector('.overflow-y-auto')
     expect(scroller).not.toBeNull()
     expect(scroller!.contains(card)).toBe(true)
+  })
+
+  // Soft refresh from the title icon: the feed reloads page 1 and the
+  // shelf refetches (no document reload). Runs LAST: the recommendations
+  // success test above seeds the hook's module cache, and this test
+  // replaces the singleton store's feed contents.
+  it('soft-refreshes the feed and the shelf from the title icon', async () => {
+    vi.mocked(fetchPopularVideosApi).mockResolvedValue({
+      ...feedPage,
+      entries: [
+        { ...feedPage.entries[0], bvid: 'BV1fresh', title: '更新後 動画' },
+      ],
+    })
+    let settleRecs!: (value: VideoSearchEntry[]) => void
+    const recs = new Promise<VideoSearchEntry[]>((resolve) => {
+      settleRecs = resolve
+    })
+    // Why: hold only the recommendations promise so the shelf stays on
+    // its in-flight skeleton; every other invoke must still resolve.
+    mockInvoke.mockImplementation((command: string) =>
+      command === 'fetch_home_recommendations'
+        ? recs
+        : Promise.resolve(undefined),
+    )
+    const { user } = renderWithProviders(<Harness />, { route: '/popular' })
+
+    // The shelf renders from the module cache seeded by the test above.
+    await screen.findByText('おすすめ候補')
+
+    await user.click(screen.getByRole('button', { name: 'popular.refresh' }))
+
+    // The shelf reloads from its skeleton while the request is in flight.
+    expect(screen.queryByText('おすすめ候補')).not.toBeInTheDocument()
+    expect(document.querySelector('section[aria-busy="true"]')).not.toBeNull()
+
+    await act(async () => {
+      settleRecs([
+        { ...feedPage.entries[0], bvid: 'BV1recNew', title: '更新後 おすすめ' },
+      ])
+    })
+
+    expect(await screen.findByText('更新後 動画')).toBeInTheDocument()
+    expect(screen.queryByText('おすすめ 動画')).not.toBeInTheDocument()
+    // The shelf remounts from the refreshed module cache — not just an
+    // API call: the rendered entries swap too.
+    expect(await screen.findByText('更新後 おすすめ')).toBeInTheDocument()
+    expect(screen.queryByText('おすすめ候補')).not.toBeInTheDocument()
+    expect(fetchPopularVideosApi).toHaveBeenCalledWith(1)
+    expect(mockInvoke).toHaveBeenCalledWith('fetch_home_recommendations')
   })
 })
