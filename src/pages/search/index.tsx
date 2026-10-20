@@ -7,7 +7,6 @@ import {
   PARTS_PER_PAGE,
   resetVideo,
   resetVideoView,
-  setHomePage,
   setInput,
   setVideo,
   useVideoInfo,
@@ -527,13 +526,10 @@ function SearchContentInner() {
 
     if (prevPending && !input.pendingDownload) {
       const targetIndex = prevPending.page - 1
-      const targetPage = Math.ceil(prevPending.page / PARTS_PER_PAGE)
-      // Persist target page so the sidebar Home button restores it
-      dispatch(setHomePage(targetPage))
       setScrollToPartIndex(targetIndex)
       setScrollRequestId((prev) => prev + 1)
     }
-  }, [input.pendingDownload, video.parts.length, isFetching, dispatch])
+  }, [input.pendingDownload, video.parts.length, isFetching])
 
   /**
    * Performs the actual page change without confirmation.
@@ -546,12 +542,10 @@ function SearchContentInner() {
       newParams.delete('p')
       newParams.set('page', String(page))
       setSearchParams(newParams, { replace: true })
-      // Persist page so the sidebar Home button restores it
-      dispatch(setHomePage(page))
       // Reset to the new page's first part
       if (scrollEl) scrollEl.scrollTop = 0
     },
-    [searchParams, setSearchParams, dispatch, scrollEl],
+    [searchParams, setSearchParams, scrollEl],
   )
 
   /**

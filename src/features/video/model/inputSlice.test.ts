@@ -2,8 +2,6 @@ import inputReducer, {
   defaultSubtitleConfig,
   initPartInputs,
   resetInput,
-  selectHomePage,
-  setHomePage,
   setPartQualities,
   setPartSubtitles,
   setQualitiesLoading,
@@ -18,7 +16,6 @@ describe('inputSlice', () => {
     url: '',
     partInputs: [],
     pendingDownload: null,
-    homePage: 1,
     batchSettings: { videoQuality: null, audioQuality: null, subtitle: null },
     outputDirOverride: null,
   }
@@ -383,7 +380,6 @@ describe('inputSlice', () => {
           },
         ],
         pendingDownload: { bvid: 'BV123', cid: 123, page: 1 },
-        homePage: 3,
         batchSettings: {
           videoQuality: null,
           audioQuality: null,
@@ -394,35 +390,6 @@ describe('inputSlice', () => {
       const state = inputReducer(stateWithData, resetInput())
 
       expect(state).toEqual(initialState)
-    })
-  })
-
-  describe('setHomePage', () => {
-    it('should update the home page number', () => {
-      const state = inputReducer(initialState, setHomePage(3))
-      expect(state.homePage).toBe(3)
-    })
-
-    it('should preserve other state fields', () => {
-      const stateWithData = {
-        ...initialState,
-        url: 'https://bilibili.com/video/BV123',
-        homePage: 2,
-      }
-      const state = inputReducer(stateWithData, setHomePage(5))
-      expect(state.url).toBe('https://bilibili.com/video/BV123')
-      expect(state.homePage).toBe(5)
-    })
-  })
-
-  describe('selectHomePage', () => {
-    it('should return the stored home page', () => {
-      const state = inputReducer(initialState, setHomePage(4))
-      expect(selectHomePage({ input: state })).toBe(4)
-    })
-
-    it('should default to 1 when homePage is unset', () => {
-      expect(selectHomePage({ input: initialState })).toBe(1)
     })
   })
 })
