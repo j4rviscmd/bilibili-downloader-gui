@@ -12,7 +12,8 @@ import {
 import { useTranslation } from 'react-i18next'
 
 /**
- * Generates pagination items with ellipsis for large page counts.
+ * Generates pagination items, capped at 5 visible slots (numbers and
+ * ellipsis markers) so the dock's center column stays narrow.
  *
  * @private
  */
@@ -20,27 +21,25 @@ function generatePaginationItems(
   totalPages: number,
   currentPage: number,
 ): (number | 'ellipsis')[] {
-  const items: (number | 'ellipsis')[] = []
-  if (totalPages <= 7) {
+  if (totalPages <= 5) {
     return Array.from({ length: totalPages }, (_, i) => i + 1)
   }
-  items.push(1)
-  if (currentPage > 3) items.push('ellipsis')
-  for (
-    let i = Math.max(2, currentPage - 1);
-    i <= Math.min(totalPages - 1, currentPage + 1);
-    i++
-  ) {
-    items.push(i)
+  if (currentPage <= 3) {
+    return [1, 2, 3, 'ellipsis', totalPages]
   }
-  if (currentPage < totalPages - 2) items.push('ellipsis')
-  items.push(totalPages)
-  return items
+  if (currentPage >= totalPages - 2) {
+    return [1, 'ellipsis', totalPages - 2, totalPages - 1, totalPages]
+  }
+  return [1, 'ellipsis', currentPage, 'ellipsis', totalPages]
 }
 
 /**
- * Bottom dock of the loaded page: pagination on the left, selection
- * summary + download CTA on the right.
+ * Bottom dock of the loaded page, as a 3-column grid: selection summary
+ * (left, truncates) / pagination (center) / download CTA (right). Side
+ * columns are minmax(0,1fr) so the pager stays dead-center while the
+ * summary shrinks with an ellipsis — the 980px minimum window with the
+ * sidebar expanded leaves the dock only ~676px of content width, so the
+ * pager is capped at 5 slots (see generatePaginationItems).
  *
  * Rendered as a flex sibling BELOW the page scroller (never inside it), so
  * both stay reachable without scrolling. The height is fixed: the hint
@@ -81,10 +80,24 @@ export function DownloadDock({
   return (
     <div
       data-download-dock
-      className="bg-card/90 flex h-16 flex-none items-center gap-3.5 border-t px-4 backdrop-blur sm:px-6"
+      className="bg-card/90 grid h-16 flex-none grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3.5 border-t px-4 backdrop-blur sm:px-6"
     >
+      {hasSelection ? (
+        <span className="col-start-1 min-w-0 truncate text-sm font-semibold">
+          {t('search.selected_count', { count: selectedCount })}
+          <small className="text-muted-foreground ml-1.5 font-normal">
+            {t('search.total_duration', {
+              duration: formatDuration(totalSeconds),
+            })}
+          </small>
+        </span>
+      ) : (
+        <span className="text-muted-foreground col-start-1 min-w-0 truncate text-xs font-normal">
+          {t('video.no_parts_selected')}
+        </span>
+      )}
       {totalPages > 1 && (
-        <Pagination className="w-auto">
+        <Pagination className="col-start-2 w-auto">
           <PaginationContent>
             <PaginationItem>
               <PaginationPrevious
@@ -133,21 +146,15 @@ export function DownloadDock({
           </PaginationContent>
         </Pagination>
       )}
-      {hasSelection ? (
-        <span className="ml-auto text-sm font-semibold whitespace-nowrap">
-          {t('search.selected_count', { count: selectedCount })}
-          <small className="text-muted-foreground ml-1.5 font-normal">
-            {t('search.total_duration', {
-              duration: formatDuration(totalSeconds),
-            })}
-          </small>
-        </span>
-      ) : (
-        <span className="text-muted-foreground ml-auto text-xs font-normal whitespace-nowrap">
-          {t('video.no_parts_selected')}
-        </span>
+      {/* Why: explicit col-start slots instead of grid auto-placement —
+          with the pager unmounted (single-page result) auto-flow would
+          slide the CTA into the empty center column (see the single-page
+          dock spec in src/pages/search/index.test.tsx) */}
+      {hasSelection && (
+        <div className="col-start-3 flex justify-end">
+          <DownloadButton />
+        </div>
       )}
-      {hasSelection && <DownloadButton />}
     </div>
   )
 }
