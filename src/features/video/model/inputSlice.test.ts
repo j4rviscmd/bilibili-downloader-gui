@@ -1,5 +1,6 @@
 import inputReducer, {
   defaultSubtitleConfig,
+  defaultSubtitleConfigFor,
   initPartInputs,
   resetInput,
   setPartQualities,
@@ -26,6 +27,49 @@ describe('inputSlice', () => {
         mode: 'off',
         selectedLans: [],
       })
+    })
+  })
+
+  describe('defaultSubtitleConfigFor', () => {
+    it('should map soft to the all-languages wildcard', () => {
+      expect(defaultSubtitleConfigFor('soft')).toEqual({
+        mode: 'soft',
+        selectedLans: ['*'],
+      })
+    })
+
+    it('should map hard to Chinese-first priority with wildcard fallback', () => {
+      expect(defaultSubtitleConfigFor('hard')).toEqual({
+        mode: 'hard',
+        selectedLans: ['zh-CN', 'ai-zh', '*'],
+      })
+    })
+
+    it('should use the configured hard priority list verbatim', () => {
+      expect(defaultSubtitleConfigFor('hard', ['ja', 'en', '*'])).toEqual({
+        mode: 'hard',
+        selectedLans: ['ja', 'en', '*'],
+      })
+      // Soft stays all-languages even when a hard list is configured.
+      expect(defaultSubtitleConfigFor('soft', ['ja'])).toEqual({
+        mode: 'soft',
+        selectedLans: ['*'],
+      })
+    })
+
+    it('should fall back to the built-in order for an empty hard list', () => {
+      expect(defaultSubtitleConfigFor('hard', [])).toEqual({
+        mode: 'hard',
+        selectedLans: ['zh-CN', 'ai-zh', '*'],
+      })
+    })
+
+    it('should map off and undefined to no subtitles', () => {
+      expect(defaultSubtitleConfigFor('off')).toEqual({
+        mode: 'off',
+        selectedLans: [],
+      })
+      expect(defaultSubtitleConfigFor(undefined)).toEqual(defaultSubtitleConfig)
     })
   })
 

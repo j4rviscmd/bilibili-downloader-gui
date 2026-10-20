@@ -136,6 +136,16 @@ export const SUBTITLE_LANGUAGES: readonly { lan: string; label: string }[] = [
 ]
 
 /**
+ * Default hard-sub priority in picker codes: simplified Chinese first
+ * (normalization covers both the manual zh-CN and the ai-zh track),
+ * then any remaining language via the wildcard. Shared by the settings
+ * picker and the batch bar's hard-mode seed; the per-part seeding uses
+ * actual API codes instead (`defaultSubtitleConfigFor`) so the part
+ * radio display matches fetched tracks.
+ */
+export const HARD_DEFAULT_LANS_UI: readonly string[] = ['zh-Hans', LAN_ALL]
+
+/**
  * Unions per-part availability into the batch option list, in ladder
  * (descending quality) order.
  *

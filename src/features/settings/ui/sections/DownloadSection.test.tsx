@@ -39,6 +39,8 @@ const baseline: Settings = {
   // singleton store unless the baseline resets it.
   downloadSpeedLimitEnabled: false,
   downloadSpeedLimitKbps: 1000,
+  // Reset a priority list saved by another test (singleton store).
+  defaultSubtitleHardLans: undefined,
 }
 
 /** Returns the latest patch_settings payload (changed fields), or undefined. */
@@ -316,8 +318,86 @@ describe('DownloadSection', () => {
     const { container } = renderWithProviders(<DownloadSection />)
 
     expect(container.querySelectorAll('[data-slot="separator"]')).toHaveLength(
-      5,
+      6,
     )
+  })
+
+  it('persists a picked default subtitle mode via patch_settings', async () => {
+    seedSettings()
+    const { user } = renderWithProviders(<DownloadSection />)
+
+    await user.click(
+      screen.getByText('settings.subtitle_mode_hard').closest('button')!,
+    )
+
+    await waitFor(() =>
+      expect(lastSetSettings()).toMatchObject({ defaultSubtitleMode: 'hard' }),
+    )
+  })
+
+  it('hides the hard-sub priority picker outside hard mode', () => {
+    seedSettings({ defaultSubtitleMode: 'soft' })
+    renderWithProviders(<DownloadSection />)
+
+    expect(
+      screen.queryByText('settings.subtitle_hard_lans_label'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows the hard-sub priority picker in hard mode', () => {
+    seedSettings({ defaultSubtitleMode: 'hard' })
+    renderWithProviders(<DownloadSection />)
+
+    expect(
+      screen.getByText('settings.subtitle_hard_lans_label'),
+    ).toBeInTheDocument()
+    // Default picker state: simplified Chinese + wildcard fallback.
+    expect(screen.getByText('中文(简体)')).toBeInTheDocument()
+    expect(
+      screen.getByText('settings.subtitle_hard_lans_fallback'),
+    ).toBeInTheDocument()
+  })
+
+  it('falls back to the default priority list when the stored list is empty', () => {
+    // A manually emptied settings.json list must not render an all-off
+    // picker (whose last-uncheck guard would then trap the user).
+    seedSettings({ defaultSubtitleMode: 'hard', defaultSubtitleHardLans: [] })
+    renderWithProviders(<DownloadSection />)
+
+    expect(screen.getByRole('checkbox', { name: /中文\(简体\)/ })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: /日本語/ })).not.toBeChecked()
+    expect(
+      screen.getByRole('checkbox', {
+        name: /settings.subtitle_hard_lans_fallback/,
+      }),
+    ).toBeChecked()
+  })
+
+  it('adds a picked language ahead of the wildcard fallback', async () => {
+    seedSettings({ defaultSubtitleMode: 'hard' })
+    const { user } = renderWithProviders(<DownloadSection />)
+
+    // Default picker state: 中文(简体) + all-other-languages fallback.
+    await user.click(screen.getByText('日本語'))
+
+    await waitFor(() =>
+      expect(lastSetSettings()).toEqual({
+        defaultSubtitleHardLans: ['zh-Hans', 'ja', '*'],
+      }),
+    )
+  })
+
+  it('keeps the last checked priority language', async () => {
+    seedSettings({
+      defaultSubtitleMode: 'hard',
+      defaultSubtitleHardLans: ['ja'],
+    })
+    const { user } = renderWithProviders(<DownloadSection />)
+
+    await user.click(screen.getByText('日本語'))
+
+    // Unchecking the only entry is a no-op: hard-sub needs one pick.
+    expect(lastSetSettings()).toBeUndefined()
   })
 })
 

@@ -20,6 +20,7 @@ import {
   AUDIO_LADDER_IDS,
   bestAudioForLogin,
   bestVideoForLogin,
+  HARD_DEFAULT_LANS_UI,
   LAN_ALL,
   LOGIN_REQUIRED_VIDEO_IDS,
   SUBTITLE_LANGUAGES,
@@ -137,6 +138,12 @@ export function BatchSettingsBar() {
   // shows "off" (parts still default to their own configs at enqueue).
   const displaySubMode = batch.subtitle?.mode ?? 'off'
   const displaySubLangs = batch.subtitle?.selectedLans ?? []
+  // Hard-mode seed: the settings' priority list (or the shared built-in
+  // default) — same source as the settings picker, so the batch override
+  // never starts from an empty (silently subtitle-less) selection.
+  const hardDefaultLans = settings.defaultSubtitleHardLans?.length
+    ? settings.defaultSubtitleHardLans
+    : HARD_DEFAULT_LANS_UI
   const modeLabel = t(
     displaySubMode === 'soft'
       ? 'video.subtitle_soft'
@@ -281,6 +288,7 @@ export function BatchSettingsBar() {
           <DropdownMenu>
             <DropdownMenuTrigger
               aria-label={t('video.subtitle')}
+              data-testid="batch-subtitle-trigger"
               className="bg-card hover:bg-muted data-[state=open]:border-brand-strong/40 inline-flex h-10 items-center justify-between gap-2 rounded-lg border px-3 text-[13px] font-semibold disabled:opacity-50"
             >
               <span className="max-w-60 truncate">{shownSub || '—'}</span>
@@ -293,20 +301,31 @@ export function BatchSettingsBar() {
               {(['off', 'soft', 'hard'] as const).map((mode) => (
                 <DropdownMenuItem
                   key={mode}
+                  data-testid={`batch-submode-${mode}`}
                   onSelect={(e) => {
                     // Keep the menu open: switching the mode immediately
                     // re-renders the language section (✓ ↔ 優先度 N).
                     e.preventDefault()
                   }}
                   onClick={() => {
-                    // Hard burns one language; the soft-sub wildcard is
-                    // meaningless there, so switching modes drops it.
+                    // Soft embeds a language set: selecting it always
+                    // resets to all languages (hard's priority list and
+                    // off-state pending picks are not an embed subset).
+                    // Hard burns one language: the wildcard is
+                    // meaningless there, so it is dropped; with no
+                    // explicit picks left, hard seeds the settings'
+                    // priority list.
+                    const explicit = displaySubLangs.filter(
+                      (l) => l !== LAN_ALL,
+                    )
                     const langs =
                       mode === 'off'
                         ? []
-                        : mode === 'hard' && displaySubLangs.includes(LAN_ALL)
-                          ? displaySubLangs.filter((l) => l !== LAN_ALL)
-                          : displaySubLangs
+                        : mode === 'hard'
+                          ? explicit.length > 0
+                            ? explicit
+                            : [...hardDefaultLans]
+                          : [LAN_ALL]
                     applySubtitle(mode, langs)
                   }}
                   className={cn(
@@ -374,11 +393,29 @@ export function BatchSettingsBar() {
                       e.preventDefault()
                     }}
                     onClick={() => {
-                      const newLangs = selected
-                        ? displaySubLangs.filter((l) => l !== lan)
-                        : displaySubLangs.includes(LAN_ALL)
+                      let newLangs: string[]
+                      if (selected) {
+                        newLangs = displaySubLangs.filter((l) => l !== lan)
+                      } else if (displaySubMode === 'hard') {
+                        // Hard's wildcard is the fallback tail of a
+                        // priority list: insert before it (same rule as
+                        // the settings picker) so the pick gets a real
+                        // priority slot instead of wiping the list.
+                        const next = [...displaySubLangs]
+                        const wildIdx = next.indexOf(LAN_ALL)
+                        next.splice(
+                          wildIdx === -1 ? next.length : wildIdx,
+                          0,
+                          lan,
+                        )
+                        newLangs = next
+                      } else {
+                        // Soft: the wildcard means "everything", so a
+                        // specific pick replaces it.
+                        newLangs = displaySubLangs.includes(LAN_ALL)
                           ? [lan]
                           : [...displaySubLangs, lan]
+                      }
                       // While mode is "off", a language click only
                       // stores the pending selection (mockup behavior:
                       // pre-select then pick a mode) — off-with-languages

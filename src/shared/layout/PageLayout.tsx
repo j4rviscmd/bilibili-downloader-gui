@@ -122,6 +122,7 @@ export function PageLayoutShell({ children }: PageLayoutShellProps) {
                   tooltip={t('settings.title')}
                   onClick={() => navigate('/settings')}
                   aria-label={t('settings.title')}
+                  data-testid="nav-settings"
                 >
                   <Settings className="size-4" />
                   <span>{t('settings.title')}</span>

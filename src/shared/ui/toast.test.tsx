@@ -47,11 +47,13 @@ describe('toast wrapper option translation', () => {
     expect(errorSpy.mock.calls[0]![1]).toMatchObject({ autoClose: false })
   })
 
-  it('leaves autoClose undefined when no duration is given', () => {
+  it('defaults autoClose to 5000ms when no duration is given', () => {
+    // Why: react-toastify v11 dropped its documented 5000ms default, so
+    // an omitted duration used to leave toasts sticky forever.
     toast.info('Hello')
 
     expect(infoSpy).toHaveBeenCalledTimes(1)
-    expect(infoSpy.mock.calls[0]![1]!.autoClose).toBeUndefined()
+    expect(infoSpy.mock.calls[0]![1]).toMatchObject({ autoClose: 5000 })
   })
 
   it('dismiss proxies to react-toastify dismiss', () => {

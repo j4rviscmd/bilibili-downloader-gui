@@ -1708,12 +1708,88 @@ mod tests {
         );
     }
 
+    fn sub(lan: &str, is_ai: bool) -> SubtitleDto {
+        SubtitleDto {
+            lan: lan.into(),
+            lan_doc: String::new(),
+            subtitle_url: String::new(),
+            is_ai,
+            ai_type: None,
+        }
+    }
+
     #[test]
-    fn expand_subtitle_wildcard_passes_concrete_selection_through() {
+    fn expand_subtitle_wildcard_unmatched_selection_resolves_empty() {
         let sel = vec!["ja".to_string(), "en".to_string()];
-        assert_eq!(expand_subtitle_wildcard(&sel, &[]), sel);
-        // Wildcard with nothing fetched stays empty (honest "no subs").
+        // With no fetched subtitles nothing resolves (honest "no subs").
+        assert!(expand_subtitle_wildcard(&sel, &[]).is_empty());
         assert!(expand_subtitle_wildcard(&["*".to_string()], &[]).is_empty());
+    }
+
+    #[test]
+    fn expand_subtitle_wildcard_normalizes_chinese_fixed_list_pick() {
+        // A settings pick of the fixed-list code "zh-Hans" must resolve to
+        // the API's actual codes on parts the frontend never fetched,
+        // manual before AI, and keep priority ahead of the wildcard fill.
+        let subs = vec![sub("ja", false), sub("ai-zh", true), sub("zh-CN", false)];
+        assert_eq!(
+            expand_subtitle_wildcard(&["zh-Hans".to_string(), "*".to_string()], &subs),
+            vec!["zh-CN".to_string(), "ai-zh".to_string(), "ja".to_string()]
+        );
+        // Strict list without the wildcard: only the normalized matches.
+        assert_eq!(
+            expand_subtitle_wildcard(&["zh-Hans".to_string()], &subs),
+            vec!["zh-CN".to_string(), "ai-zh".to_string()]
+        );
+    }
+
+    #[test]
+    fn expand_subtitle_wildcard_preserves_selection_priority_order() {
+        // Custom hard-sub priorities must survive API track order: the
+        // explicit list order decides the burned language.
+        let subs = vec![sub("en", false), sub("ja", false)];
+        assert_eq!(
+            expand_subtitle_wildcard(&["ja".to_string(), "en".to_string()], &subs),
+            vec!["ja".to_string(), "en".to_string()]
+        );
+    }
+
+    #[test]
+    fn expand_subtitle_wildcard_keeps_explicit_picks_first() {
+        // The hard-sub default ships ["zh-CN", "ai-zh", "*"]: the Chinese
+        // picks must stay ahead of the wildcard fill so the burned
+        // language follows the selection's priority, not the API order.
+        let sel = vec!["zh-CN".to_string(), "ai-zh".to_string(), "*".to_string()];
+        let subs = vec![
+            sub("en", true),
+            sub("ja", false),
+            sub("zh-CN", false),
+            sub("ai-zh", true),
+        ];
+        assert_eq!(
+            expand_subtitle_wildcard(&sel, &subs),
+            vec![
+                "zh-CN".to_string(),
+                "ai-zh".to_string(),
+                "ja".to_string(),
+                "en".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn normalize_lan_maps_api_codes_onto_fixed_list_codes() {
+        // AI prefix is stripped, Chinese variants collapse to their script,
+        // and region suffixes are dropped so fixed-list picks ("zh-Hans")
+        // match the API's actual codes on backend-fetched parts.
+        assert_eq!(normalize_lan("ai-zh"), "zh-Hans");
+        assert_eq!(normalize_lan("ai-ja"), "ja");
+        assert_eq!(normalize_lan("zh-CN"), "zh-Hans");
+        assert_eq!(normalize_lan("zh"), "zh-Hans");
+        assert_eq!(normalize_lan("zh-TW"), "zh-Hant");
+        assert_eq!(normalize_lan("zh-HK"), "zh-Hant");
+        assert_eq!(normalize_lan("en-US"), "en");
+        assert_eq!(normalize_lan("ja"), "ja");
     }
 
     #[tokio::test]
@@ -8059,6 +8135,56 @@ async fn download_subtitle_with_retry(
     ))
 }
 
+/// Normalizes a bilibili subtitle code for matching: AI prefix stripped,
+/// Chinese variants resolved to their script (simplified → zh-Hans,
+/// traditional → zh-Hant), other region suffixes dropped ("en-US" → "en").
+/// Mirrors the frontend's normalizeLan so fixed-list picks ("zh-Hans")
+/// match the API's actual codes ("zh-CN", "ai-zh") on parts the frontend
+/// never fetched.
+fn normalize_lan(lan: &str) -> &str {
+    let base = lan.strip_prefix("ai-").unwrap_or(lan);
+    match base {
+        "zh" | "zh-CN" | "zh-Hans" => "zh-Hans",
+        "zh-Hant" | "zh-TW" | "zh-HK" => "zh-Hant",
+        _ => base.split_once('-').map_or(base, |(head, _)| head),
+    }
+}
+
+/// Resolves the selection into concrete language codes this part
+/// actually has. Explicit picks come first in their priority order, each
+/// expanded to the matching tracks (exact code first, else the normalized
+/// form — "zh-Hans" covers "zh-CN" and "ai-zh") with manual tracks before
+/// AI ones. The "*" wildcard then appends any remaining tracks, manual
+/// before AI. Hard-sub burns the first entry, so this order decides the
+/// burned language.
+fn expand_subtitle_wildcard(selected_lans: &[String], subs: &[SubtitleDto]) -> Vec<String> {
+    let mut resolved: Vec<String> = Vec::new();
+    for sel in selected_lans.iter().filter(|l| **l != "*") {
+        let mut matched: Vec<&SubtitleDto> = subs.iter().filter(|s| s.lan == *sel).collect();
+        if matched.is_empty() {
+            let norm = normalize_lan(sel);
+            matched = subs
+                .iter()
+                .filter(|s| normalize_lan(&s.lan) == norm)
+                .collect();
+        }
+        matched.sort_by_key(|s| s.is_ai);
+        for m in matched {
+            if !resolved.contains(&m.lan) {
+                resolved.push(m.lan.clone());
+            }
+        }
+    }
+    if !selected_lans.iter().any(|l| l == "*") {
+        return resolved;
+    }
+    // Manual tracks before AI ones so hard-sub's first-pick stays deterministic.
+    let mut fill: Vec<&SubtitleDto> = subs.iter().filter(|s| !resolved.contains(&s.lan)).collect();
+    fill.sort_by_key(|s| s.is_ai);
+    resolved.extend(fill.into_iter().map(|s| s.lan.clone()));
+    resolved
+}
+
 /// Prepares subtitle merge mode based on user subtitle options.
 ///
 /// Downloads selected subtitles and returns the appropriate merge mode for
@@ -8102,21 +8228,6 @@ async fn download_subtitle_with_retry(
 /// Client construction happens in `download_video_impl` before this is
 /// called, so no orphan "subtitle" emit is possible.
 #[allow(clippy::too_many_arguments)]
-/// Expands the batch UI's all-languages wildcard ("*") into the concrete
-/// language list this part actually has, manual tracks before AI ones so
-/// hard-sub's first-pick stays deterministic. A non-wildcard selection is
-/// returned unchanged; a wildcard with no fetched subtitles stays empty
-/// (the caller reports "no subtitles" honestly).
-fn expand_subtitle_wildcard(selected_lans: &[String], subs: &[SubtitleDto]) -> Vec<String> {
-    if !selected_lans.iter().any(|l| l == "*") {
-        return selected_lans.to_vec();
-    }
-    let mut with_ai: Vec<(String, bool)> = subs.iter().map(|s| (s.lan.clone(), s.is_ai)).collect();
-    with_ai.sort_by_key(|(_, is_ai)| *is_ai);
-    with_ai.into_iter().map(|(lan, _)| lan).collect()
-}
-
-#[allow(clippy::too_many_arguments)]
 async fn prepare_subtitle_mode<R: tauri::Runtime>(
     app: &AppHandle<R>,
     api: &BiliApi,
@@ -8156,7 +8267,7 @@ async fn prepare_subtitle_mode<R: tauri::Runtime>(
     );
 
     // Initial subtitles from frontend or API
-    let initial_subs: Vec<SubtitleDto> = if !sub_opts.subtitles.is_empty() {
+    let mut initial_subs: Vec<SubtitleDto> = if !sub_opts.subtitles.is_empty() {
         log::info!(
             "[BE] prepare_subtitle_mode: using {} subtitles from frontend",
             sub_opts.subtitles.len()
@@ -8184,15 +8295,29 @@ async fn prepare_subtitle_mode<R: tauri::Runtime>(
     let mut subtitle_files: Vec<SubtitleMergeOptions> = Vec::new();
     let mut language_labels: Vec<String> = Vec::new();
     let mut remaining_lans: Vec<String> = sub_opts.selected_lans.clone();
-    let expanded = expand_subtitle_wildcard(&remaining_lans, &initial_subs);
-    if expanded.len() != remaining_lans.len() {
+
+    // Why resolve + reorder: subtitle_files (and hard-sub's burned pick)
+    // follow initial_subs order, which is API order for backend-fetched
+    // parts. The resolved selection puts explicit picks (the hard-sub
+    // priority list) first, so sorting by its positions keeps the burned
+    // language deterministic; normalization also maps fixed-list picks
+    // ("zh-Hans") onto the API's actual codes ("zh-CN", "ai-zh").
+    let resolved = expand_subtitle_wildcard(&remaining_lans, &initial_subs);
+    if resolved != remaining_lans {
         log::info!(
-            "[BE] prepare_subtitle_mode: wildcard expanded to {} languages: {:?}",
-            expanded.len(),
-            expanded
+            "[BE] prepare_subtitle_mode: resolved {} selection(s) to {} language(s): {:?}",
+            remaining_lans.len(),
+            resolved.len(),
+            resolved
         );
-        remaining_lans = expanded;
+        remaining_lans = resolved;
     }
+    initial_subs.sort_by_key(|s| {
+        remaining_lans
+            .iter()
+            .position(|l| *l == s.lan)
+            .unwrap_or(usize::MAX)
+    });
 
     const MAX_OUTER_ATTEMPTS: usize = 3;
 

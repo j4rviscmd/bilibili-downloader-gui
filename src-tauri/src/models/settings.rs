@@ -182,6 +182,25 @@ pub struct Settings {
         skip_serializing_if = "Option::is_none"
     )]
     pub rotation_mode: Option<RotationMode>,
+    /// Default subtitle mode preselected for every video part on load.
+    /// Defaults to "off" if not specified. The frontend maps soft/hard to
+    /// an all-languages / Chinese-first language selection respectively.
+    #[serde(
+        rename = "defaultSubtitleMode",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub default_subtitle_mode: Option<DefaultSubtitleMode>,
+    /// Ordered hard-sub language priority used when `defaultSubtitleMode`
+    /// is "hard". Entries are fixed-list codes ("zh-Hans", "ja", …) or
+    /// the "*" wildcard fallback. Defaults to simplified Chinese first
+    /// with a wildcard fallback when absent.
+    #[serde(
+        rename = "defaultSubtitleHardLans",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub default_subtitle_hard_lans: Option<Vec<String>>,
     /// Whether to show download progress on the taskbar. Defaults to true.
     #[serde(
         rename = "showTaskbarProgress",
@@ -314,6 +333,20 @@ pub enum RotationMode {
     /// Re-encode with `transpose` filter. Works in all players but slower
     /// and lossy.
     Reencode,
+}
+
+/// Default subtitle mode preselected when a video is loaded.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum DefaultSubtitleMode {
+    /// No subtitles (legacy behavior).
+    #[default]
+    Off,
+    /// Soft subs: embed every language as selectable tracks.
+    Soft,
+    /// Hard subs: burn the first available language from the configured
+    /// priority list (simplified Chinese first by default).
+    Hard,
 }
 
 /// UI theme preference for light/dark mode.
@@ -567,6 +600,42 @@ mod tests {
         assert_eq!(with_blue.accent_color, Some(AccentColor::Blue));
         let json = serde_json::to_value(&with_blue).unwrap();
         assert_eq!(json["accentColor"], "blue");
+    }
+
+    #[test]
+    fn test_default_subtitle_mode_defaults_and_roundtrip() {
+        // Why: settings.json written before the default subtitle option
+        //   lacks the key; serde `default` must deserialize it as None
+        //   (subtitles stay off, no behavior change for legacy users).
+        let legacy: Settings =
+            serde_json::from_str(r#"{"dlOutputPath": "/tmp/a", "language": "en"}"#).unwrap();
+        assert_eq!(legacy.default_subtitle_mode, None);
+
+        // serde camelCase roundtrip: the frontend sends "hard".
+        let with_hard: Settings = serde_json::from_str(
+            r#"{"dlOutputPath": "/tmp/a", "language": "en", "defaultSubtitleMode": "hard"}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            with_hard.default_subtitle_mode,
+            Some(DefaultSubtitleMode::Hard)
+        );
+        let json = serde_json::to_value(&with_hard).unwrap();
+        assert_eq!(json["defaultSubtitleMode"], "hard");
+
+        // Custom hard-sub priority list roundtrips in order.
+        let with_lans: Settings = serde_json::from_str(
+            r#"{"dlOutputPath": "/tmp/a", "language": "en",
+                "defaultSubtitleMode": "hard",
+                "defaultSubtitleHardLans": ["ja", "en", "*"]}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            with_lans.default_subtitle_hard_lans,
+            Some(vec!["ja".to_string(), "en".to_string(), "*".to_string()])
+        );
+        let json = serde_json::to_value(&with_lans).unwrap();
+        assert_eq!(json["defaultSubtitleHardLans"][0], "ja");
     }
 
     // ---- resolve_download_speed_limit_bps (issue #421) ----

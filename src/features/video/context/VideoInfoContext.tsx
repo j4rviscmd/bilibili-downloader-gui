@@ -19,6 +19,7 @@ import { stageExpectations } from '@/features/video/model/downloadProgress'
 import {
   clearPendingDownload,
   clearResolvedInfo,
+  defaultSubtitleConfigFor,
   deselectAll,
   initPartInputs,
   setUrl,
@@ -184,6 +185,14 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
    */
   const initInputsForVideo = useCallback((v: Video) => {
     const pending = processingPendingRef.current
+    // Settings-level default subtitle selection: applied to every part at
+    // init; explicit per-part and batch changes still win afterwards.
+    const { defaultSubtitleMode, defaultSubtitleHardLans } =
+      store.getState().settings
+    const defaultSubtitle = defaultSubtitleConfigFor(
+      defaultSubtitleMode,
+      defaultSubtitleHardLans,
+    )
 
     const partInputs = v.parts.map((p, index) => ({
       cid: p.cid,
@@ -203,6 +212,7 @@ export function VideoInfoProvider({ children }: VideoInfoProviderProps) {
         pending,
       }),
       duration: p.duration,
+      subtitle: defaultSubtitle,
       thumbnailUrl: p.thumbnail.url,
       qualitiesLoading: false,
     }))
