@@ -16,10 +16,13 @@
 // Firefox profile (real cookies) — the specs fail fast when not.
 
 import type { ChildProcess } from 'node:child_process'
+import fs from 'node:fs'
 import net from 'node:net'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { E2E_DOWNLOAD_DIR } from './helpers/app.helpers'
 import {
   config as baseConfig,
   killTree,
@@ -62,6 +65,65 @@ async function assertPortFree(port: number, owner: string): Promise<void> {
   }
 }
 
+// The local run mutates the developer's real settings.json (specs patch
+// dlOutputPath into a temp dir). The per-spec teardown patch-back cannot
+// restore an unset path — patch_settings rejects a null dlOutputPath —
+// and a hard-killed run restores nothing, so the temp path lingers and
+// later runs record it as the "original". Restore at the file level.
+// Note: must track the backend's get_settings_path() — app_data_dir()/
+// settings.json (src-tauri/src/utils/paths.rs; dev and release builds
+// share the dir via the same bundle identifier). A drift makes existsSync
+// false and silently no-ops backup/restore instead of erroring.
+const settingsPath = path.join(
+  os.homedir(),
+  'Library',
+  'Application Support',
+  'com.bilibili-downloader-gui.app',
+  'settings.json',
+)
+const settingsBackupPath = `${settingsPath}.e2e-bak`
+
+// undefined = backupSettings never ran (onPrepare aborted at preflight);
+// false = no original settings.json, so restore must also remove a file
+// the run itself created.
+let settingsExisted: boolean | undefined
+
+function backupSettings(): void {
+  settingsExisted = fs.existsSync(settingsPath)
+  if (!settingsExisted) return
+  if (fs.existsSync(settingsBackupPath)) {
+    // A previous run was killed before restoring; keep the older backup
+    // so the next onComplete still restores to the true original.
+    console.log(`[e2e-local] keeping stale backup ${settingsBackupPath}`)
+    return
+  }
+  fs.copyFileSync(settingsPath, settingsBackupPath)
+}
+
+function restoreSettings(): void {
+  if (fs.existsSync(settingsBackupPath)) {
+    fs.copyFileSync(settingsBackupPath, settingsPath)
+    fs.rmSync(settingsBackupPath)
+    console.log(`[e2e-local] restored ${settingsPath}`)
+    return
+  }
+  // No original file existed and the run created one — the temp
+  // dlOutputPath inside would linger as the next run's "original".
+  if (settingsExisted === false && fs.existsSync(settingsPath)) {
+    fs.rmSync(settingsPath)
+    console.log(`[e2e-local] removed ${settingsPath} created during the run`)
+  }
+}
+
+// Interrupted runs (Ctrl-C/SIGINT — wdio skips onComplete on SIGINT,
+// observed 2026-10-20) never reach the per-spec teardown either, so the
+// fixed E2E download dir would linger under ~/Downloads until this
+// heal-on-next-completed-run removal. Concurrent runs cannot exist
+// (port preflight).
+function cleanupDownloadDir(): void {
+  fs.rmSync(E2E_DOWNLOAD_DIR, { recursive: true, force: true })
+}
+
 export const config = {
   ...baseConfig,
   specs: ['./local/**/*.local.e2e.ts'],
@@ -72,6 +134,9 @@ export const config = {
     await assertPortFree(1420, 'Vite dev server')
     await assertPortFree(4444, 'tauri-webdriver')
     await assertPortFree(4445, 'app webdriver bridge')
+    // After preflight so a fast-fail abort (occupied port) leaves no
+    // dangling backup.
+    backupSettings()
 
     viteProcess = spawnWithLogging('npm', ['run', 'dev'], 'vite', {
       cwd: projectRoot,
@@ -94,6 +159,17 @@ export const config = {
   async onComplete() {
     killTree(tauriWebdriverProcess)
     killTree(viteProcess)
+    // Restore after the kills — a live app could still write settings.
+    try {
+      restoreSettings()
+    } catch (err) {
+      console.error('[e2e-local] settings restore failed:', err)
+    }
+    try {
+      cleanupDownloadDir()
+    } catch (err) {
+      console.error('[e2e-local] download dir cleanup failed:', err)
+    }
   },
 
   // Real-network downloads + hard-subtitle burn-ins can each run for
