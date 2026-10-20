@@ -28,7 +28,6 @@ function setup(isFetching = false, isSilentFetching = false) {
       partInputs: [],
       pendingDownload: null,
       batchSettings: { videoQuality: null, audioQuality: null, subtitle: null },
-      homePage: 1,
     }),
   )
   vi.mocked(useVideoInfo).mockReturnValue({

@@ -71,7 +71,6 @@ const initialInput = {
   partInputs: [],
   pendingDownload: null,
   batchSettings: { videoQuality: null, audioQuality: null, subtitle: null },
-  homePage: 1,
 }
 
 function makePart(index: number): VideoPart {
@@ -297,11 +296,11 @@ describe('SearchContent', () => {
     expect(screen.queryByTestId('preview-dialog')).toBeNull()
   })
 
-  it('paginates the part list and persists the page in the store', async () => {
+  it('paginates the part list and persists the page in the URL', async () => {
     store.dispatch(setInput(initialInput))
     seedVideo(PARTS_PER_PAGE + 2)
 
-    const { user } = renderWithProviders(<SearchContent />, {
+    const { user } = renderWithProviders(<HomeWithSearchEcho />, {
       route: '/search?someParam=1',
     })
 
@@ -316,8 +315,11 @@ describe('SearchContent', () => {
     await user.click(within(footer!).getByText('2'))
 
     expect(screen.getAllByTestId('video-part-card')).toHaveLength(2)
-    // performPageChange persists the page for the sidebar Home button.
-    expect(store.getState().input.homePage).toBe(2)
+    // performPageChange persists the page in the URL (existing params
+    // kept) — the entry the sidebar URL取得 item returns to.
+    expect(screen.getByTestId('search-echo').textContent).toBe(
+      '?someParam=1&page=2',
+    )
   })
 
   it('dispatches selectPageAll / deselectPageAll from the toolbar buttons', async () => {
@@ -402,7 +404,7 @@ describe('SearchContent', () => {
   it('collapses page numbers to ellipsis when there are more than 7 pages', async () => {
     seedVideo(PARTS_PER_PAGE * 8 + 1) // 9 pages
 
-    const { user } = renderWithProviders(<SearchContent />, {
+    const { user } = renderWithProviders(<HomeWithSearchEcho />, {
       route: '/search',
     })
 
@@ -417,7 +419,7 @@ describe('SearchContent', () => {
 
     // Next advances to page 2
     await user.click(within(footer).getByText('video.pagination_next'))
-    expect(store.getState().input.homePage).toBe(2)
+    expect(screen.getByTestId('search-echo').textContent).toBe('?page=2')
   })
 
   it('navigates immediately with selections kept (no confirmation dialog)', async () => {
@@ -436,7 +438,6 @@ describe('SearchContent', () => {
 
     // No dialog; navigation is immediate…
     expect(screen.queryByText('video.confirm_navigation_title')).toBeNull()
-    expect(store.getState().input.homePage).toBe(2)
     // …and the page-1 selections survive for a multi-page batch enqueue.
     expect(store.getState().input.partInputs.some((p) => p.selected)).toBe(true)
   })
@@ -447,7 +448,6 @@ describe('SearchContent', () => {
     renderWithProviders(<SearchContent />, { route: '/search?page=9' })
 
     // Effect clamps the out-of-range page to totalPages (1)
-    expect(store.getState().input.homePage).toBe(1)
     expect(screen.getAllByTestId('video-part-card')).toHaveLength(3)
   })
 
