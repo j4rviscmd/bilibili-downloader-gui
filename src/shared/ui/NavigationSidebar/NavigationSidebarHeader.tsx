@@ -289,8 +289,16 @@ export function NavigationSidebarHeader({
             and the badge would fall to its static position below the
             button. */}
         {/* Why bg-brand: the bilibili pink token (--brand), not --primary. */}
+        {/* Why z-[2]: MotionHighlightItem injects `relative z-[1]` into the
+            button, and the active item paints an opaque bg-sidebar-accent on
+            it — a z-auto badge that overlaps the button's right edge hides
+            behind that background for as long as /downloads is open. */}
+        {/* Note: the injected `relative z-[1]` comes from the vendored
+            MotionHighlightItem cloneElement in
+            src/shared/animate-ui/effects/motion-highlight.tsx; no test pins
+            that class, so re-vendoring can silently reintroduce the bug. */}
         {item.path === '/downloads' && activePartCount > 0 ? (
-          <SidebarMenuBadge className="bg-brand text-brand-foreground top-1.5 rounded-full">
+          <SidebarMenuBadge className="bg-brand text-brand-foreground top-1.5 z-[2] rounded-full">
             {activePartCount}
           </SidebarMenuBadge>
         ) : null}

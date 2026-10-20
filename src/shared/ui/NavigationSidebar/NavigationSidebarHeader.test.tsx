@@ -312,4 +312,14 @@ describe('NavigationSidebarHeader', () => {
 
     expect(screen.queryByTestId('nav-downloads-badge')).not.toBeInTheDocument()
   })
+
+  it('stacks the downloads badge above the active-item background', () => {
+    // jsdom cannot verify paint order, so the z-[2] class is the only
+    // observable proxy: without it the badge hides behind the active
+    // item's opaque background while /downloads is open.
+    seedSession('BV1', [{ partIndex: 1, cid: 11, status: 'running' }])
+    renderSidebar('/downloads')
+
+    expect(screen.getByTestId('nav-downloads-badge')).toHaveClass('z-[2]')
+  })
 })
