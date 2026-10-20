@@ -96,7 +96,6 @@ describe('URL switch fetching state', () => {
           audioQuality: null,
           subtitle: null,
         },
-        homePage: 1,
       }),
     )
     const video = makeVideo(3)
@@ -124,7 +123,6 @@ describe('URL switch fetching state', () => {
           audioQuality: null,
           subtitle: null,
         },
-        homePage: 1,
       }),
     )
   })

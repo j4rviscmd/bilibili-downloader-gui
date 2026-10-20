@@ -151,7 +151,6 @@ function setup({
       partInputs: [createPartInput(partInput)],
       pendingDownload: null,
       batchSettings: { videoQuality: null, audioQuality: null, subtitle: null },
-      homePage: 1,
     } satisfies Input),
   )
   vi.mocked(useVideoInfo).mockReturnValue(
@@ -946,7 +945,6 @@ describe('VideoPartCard', () => {
           audioQuality: null,
           subtitle: null,
         },
-        homePage: 1,
       } satisfies Input),
     )
     vi.mocked(useVideoInfo).mockReturnValue(createMockVideoInfo())
@@ -982,7 +980,6 @@ describe('VideoPartCard', () => {
           audioQuality: null,
           subtitle: null,
         },
-        homePage: 1,
       } satisfies Input),
     )
     vi.mocked(useVideoInfo).mockReturnValue(createMockVideoInfo())
