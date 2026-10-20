@@ -16,6 +16,7 @@
 // Firefox profile (real cookies) — the specs fail fast when not.
 
 import type { ChildProcess } from 'node:child_process'
+import { execSync, spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import net from 'node:net'
 import os from 'node:os'
@@ -62,6 +63,43 @@ async function assertPortFree(port: number, owner: string): Promise<void> {
           'tauri-webdriver automate its dead webview.',
       )
     }
+  }
+}
+
+/**
+ * killTree's `taskkill /T` is spawned fire-and-forget, and the wdio
+ * launcher exits right after onComplete — the in-flight taskkill dies
+ * with the process teardown and the node.exe running vite survives,
+ * holding port 1420 and failing the NEXT run's preflight (observed
+ * 2026-10-20: every local run leaked vite; a spawn-based port kill
+ * leaked identically — only a SYNCHRONOUS kill completes in time).
+ * The preflight guarantees whatever listens on 1420 at onComplete is
+ * this run's own vite, so a port-keyed kill is safe. Unix killTree
+ * does not leak. spawnSync blocks until taskkill exits, finishing the
+ * kill before the launcher can tear the process down.
+ */
+function killPortListener(port: number): void {
+  if (process.platform !== 'win32') return
+  // Best-effort only: a failure here must not skip the settings restore
+  // that runs after this call in onComplete.
+  try {
+    const rows = execSync('netstat -ano', { encoding: 'utf8' }).split(/\r?\n/)
+    // Runtime-collected PIDs: dynamic membership, so a Set (ts-set-map).
+    const pids = new Set<string>()
+    for (const row of rows) {
+      const cols = row.trim().split(/\s+/)
+      // "  TCP    [::1]:1420    [::]:0    LISTENING    41400"
+      if (
+        cols.length === 5 &&
+        cols[3] === 'LISTENING' &&
+        cols[1].endsWith(`:${port}`)
+      ) {
+        pids.add(cols[4])
+      }
+    }
+    for (const pid of pids) spawnSync('taskkill', ['/pid', pid, '/T', '/F'])
+  } catch {
+    // Mop-up failure is non-fatal; the next run's preflight reports it.
   }
 }
 
@@ -159,6 +197,7 @@ export const config = {
   async onComplete() {
     killTree(tauriWebdriverProcess)
     killTree(viteProcess)
+    killPortListener(1420)
     // Restore after the kills — a live app could still write settings.
     try {
       restoreSettings()
