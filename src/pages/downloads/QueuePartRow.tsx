@@ -270,7 +270,11 @@ export function QueuePartRow({ row, position }: Props) {
             variant="ghost"
             size="sm"
             onClick={handleCancel}
-            className="text-muted-foreground hover:text-destructive h-7 px-2 text-xs"
+            // Why: the ghost Button base already draws a 3px ring-ring/50
+            // focus ring (src/components/ui/button.tsx); this class only
+            // recolors it to the accent-following brand token (2026-10-21
+            // accent rollout) — removing it silently reverts to gray.
+            className="text-muted-foreground hover:text-destructive focus-visible:ring-brand-strong/35 h-7 px-2 text-xs"
           >
             {t('actions.cancel')}
           </Button>
@@ -297,14 +301,14 @@ export function QueuePartRow({ row, position }: Props) {
           the exact per-stage numbers. */}
       {status === 'running' && (
         <div
-          // Note: raw blue-500 (not a theme token) mirrors the downloading
-          // section's accent in QueueSection.tsx TONES — running rows only
-          // render inside that section; keep the two in sync.
-          className="mx-2 h-0.5 overflow-hidden rounded-full bg-blue-500/15"
+          // Brand tokens mirror the downloading section's accent in
+          // QueueSection.tsx TONES — running rows only render inside that
+          // section; keep the two in sync.
+          className="bg-brand/15 mx-2 h-0.5 overflow-hidden rounded-full"
           aria-hidden
         >
           <div
-            className="h-full rounded-full bg-blue-500"
+            className="bg-brand-strong h-full rounded-full"
             style={{ width: `${row.percentage}%` }}
           />
         </div>

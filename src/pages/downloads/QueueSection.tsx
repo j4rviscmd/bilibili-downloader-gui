@@ -11,9 +11,11 @@ export type SectionKey =
   | 'section_finished'
 
 /**
- * Visual tone of one section card (2026-10-13 mockup approval).
+ * Visual tone of one section card (2026-10-13 mockup approval; accent
+ * rollout 2026-10-21 mockup approval: running tint follows the brand
+ * token family, so settings ≫ accentColor recolors it).
  *
- * Tint only where the tone is unambiguous: downloading = blue (running),
+ * Tint only where the tone is unambiguous: downloading = brand (running),
  * queued = muted gray. The settled section mixes done/error/cancelled
  * parts, so it stays neutral — a single tint there would lie about the
  * rows it contains.
@@ -23,10 +25,10 @@ const TONES: Record<
   { card: string; head: string; accent: string; dot: string; pulse: boolean }
 > = {
   section_downloading: {
-    card: 'border-blue-500/30 bg-blue-500/5',
-    head: 'bg-blue-500/10',
-    accent: 'bg-blue-500',
-    dot: 'bg-blue-500',
+    card: 'border-brand-strong/30 bg-brand/5',
+    head: 'bg-brand/10',
+    accent: 'bg-brand-strong',
+    dot: 'bg-brand-strong',
     pulse: true,
   },
   section_queued: {
@@ -142,7 +144,11 @@ export function QueueSection({ sectionKey, rows }: Props) {
             onClick={() => setCollapsed((c) => !c)}
             aria-expanded={!collapsed}
             aria-label={t(`queue.${sectionKey}`)}
-            className="text-muted-foreground hover:text-foreground flex size-6 items-center justify-center rounded-md transition-colors"
+            // Why: a plain <button> gets no focus styling from the Button
+            // base, so this reproduces the app-wide 3px focus ring (see
+            // src/components/ui/button.tsx) recolored to brand per the
+            // 2026-10-21 accent rollout.
+            className="text-muted-foreground hover:text-foreground focus-visible:ring-brand-strong/35 flex size-6 items-center justify-center rounded-md transition-colors focus-visible:ring-[3px] focus-visible:outline-none"
           >
             <ChevronDown
               className={`size-4 transition-transform ${
