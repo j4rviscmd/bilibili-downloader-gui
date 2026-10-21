@@ -10,6 +10,14 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
   getLoginState,
   getLoginStatusText,
   ManualCookieForm,
@@ -29,6 +37,8 @@ import { logger } from '@/shared/lib/logger'
 import { Button } from '@/shared/ui/button'
 import { Label } from '@/shared/ui/label'
 import { toast } from '@/shared/ui/toast'
+import { relaunch } from '@tauri-apps/plugin-process'
+import { RefreshCw } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
@@ -57,6 +67,12 @@ export function AccountSection() {
   const loginMethod = useSelector((state: RootState) => state.login.loginMethod)
   const session = useSelector((state: RootState) => state.login.session)
   const [showLogoutDialog, setShowLogoutDialog] = useState(false)
+  const [draftMethod, setDraftMethod] = useState<LoginMethod | null>(null)
+  const [pendingMethod, setPendingMethod] = useState<LoginMethod | null>(null)
+  const [restartFailed, setRestartFailed] = useState(false)
+  // Cards show the staged draft until it is applied or cancelled; null
+  // means "follows the confirmed Redux method".
+  const selectedMethod = draftMethod ?? loginMethod
 
   // Re-read login state on mount (multi-instance / splash-window changes);
   // the store already holds the init-hydrated values for first paint.
@@ -72,7 +88,7 @@ export function AccountSection() {
    * Refreshes login state from the backend and syncs userSlice.
    *
    * Used after operations that change server-side session state (logout,
-   * login-method switch) so the section and AppBar stay consistent. The
+   * manual-cookie apply) so the section and AppBar stay consistent. The
    * user is fetched from the live nav API rather than derived from the
    * session file so a stale QR session that failed verification does not
    * incorrectly appear as logged-in (see review P1).
@@ -111,27 +127,49 @@ export function AccountSection() {
   }
 
   /**
-   * Switches the preferred login method.
+   * Stages a login-method selection.
    *
-   * Persists the new method via `set_login_method` (the backend always
-   * clears the in-memory cookie cache on a switch). Only switching to
-   * Firefox needs a restart — Firefox cookies are read exclusively during
-   * app init. QR and Manual log in live (scan/paste commits to the cache
-   * immediately), so those switches stay silent and the login action itself
-   * is the feedback.
+   * Card clicks only move the local draft — nothing is persisted and no
+   * dialog appears. The restart-confirmation dialog opens from the explicit
+   * Apply button instead, so the modal never ambushes a plain selection
+   * (this section also hosts the manual-cookie form, making selection-click
+   * a poor trigger). The backend stays untouched before confirmation:
+   * switching to Firefox deletes the stored session backend-side.
    */
-  const handleLoginMethodChange = async (value: string) => {
+  const handleLoginMethodChange = (value: string) => {
     const next = value as LoginMethod
-    if (next === loginMethod) return
+    setDraftMethod(next === loginMethod ? null : next)
+  }
+
+  /** Opens the restart-confirmation dialog for the staged selection. */
+  const handleApplyMethod = () => {
+    if (!draftMethod) return
+    setRestartFailed(false)
+    setPendingMethod(draftMethod)
+  }
+
+  /**
+   * Persists the pending method and relaunches. Cookie caches and
+   * login-derived state (session, user, in-flight requests) live in too
+   * many places to reset by hand, so every switch — not just Firefox — is
+   * applied via relaunch. Persist/relaunch failure stays retryable (and
+   * cancellable via the overlay).
+   */
+  const handleRestart = async () => {
+    if (!pendingMethod) return
     try {
-      await setLoginMethodApi(next)
-      await refreshLoginState()
-      if (next === 'firefox') {
-        toast.success(t('login.loginMethodChanged'))
-        toast.info(t('login.restartRequired'))
-      }
+      await setLoginMethodApi(pendingMethod)
+      // Note: syncing the store and cards looks pointless right before
+      // relaunch (success replaces the process) — it exists for the
+      // relaunch-failure path, where cancel must keep the persisted
+      // switch instead of reverting it (see "cancel after a failed
+      // relaunch" in AccountSection.test.tsx).
+      store.dispatch(setLoginMethodAction(pendingMethod))
+      setDraftMethod(null)
+      await relaunch()
     } catch (error) {
-      logger.error('Failed to change login method', error)
+      logger.error('Failed to apply login method change', error)
+      setRestartFailed(true)
     }
   }
 
@@ -142,7 +180,7 @@ export function AccountSection() {
         description={t('login.loginMethodDescription')}
       >
         <SettingChoiceCards
-          value={loginMethod}
+          value={selectedMethod}
           onValueChange={handleLoginMethodChange}
           columns="grid-cols-3"
           options={[
@@ -163,11 +201,34 @@ export function AccountSection() {
             },
           ]}
         />
-        {loginMethod === 'manual' && (
+        {/* Apply for firefox/QR only. A staged manual hides it: the cookie
+            form's own Apply (which verifies and commits the session AND the
+            method) is that method's confirm action — switching to manual
+            without a cookie to paste is a useless logged-out state. */}
+        {draftMethod !== null &&
+          draftMethod !== loginMethod &&
+          draftMethod !== 'manual' && (
+            <div className="flex justify-end">
+              <Button size="sm" onClick={handleApplyMethod}>
+                {t('login.applyMethod')}
+              </Button>
+            </div>
+          )}
+        {selectedMethod === 'manual' && (
           <ManualCookieForm
             onApplied={async () => {
               toast.success(t('login.manualCookieApplied'))
               await refreshLoginState()
+              // A paste from the staged state completes the switch to
+              // manual (commit_session persists the method too) — offer
+              // the restart that makes it app-wide. Routine re-pastes on
+              // an already confirmed manual method are plain re-logins;
+              // no dialog for those.
+              if (draftMethod === 'manual') {
+                setDraftMethod(null)
+                setRestartFailed(false)
+                setPendingMethod('manual')
+              }
             }}
           />
         )}
@@ -208,6 +269,45 @@ export function AccountSection() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Restart-confirmation dialog: the overlay click cancels the switch
+          while nothing is persisted yet — after a failed restart attempt
+          the method may already be saved, so cancel then only closes the
+          dialog. ESC stays disabled (onEscapeKeyDown) and the X stays
+          hidden (showCloseButton) so the only paths are cancel and
+          restart. */}
+      <Dialog
+        open={pendingMethod !== null}
+        onOpenChange={(open) => {
+          // Cancel reverts the staged card selection with it
+          if (!open) {
+            setPendingMethod(null)
+            setDraftMethod(null)
+          }
+        }}
+      >
+        <DialogContent
+          showCloseButton={false}
+          className="sm:max-w-md"
+          onEscapeKeyDown={(e) => e.preventDefault()}
+        >
+          <DialogHeader>
+            <DialogTitle>{t('login.restartRequiredTitle')}</DialogTitle>
+            <DialogDescription>{t('login.restartRequired')}</DialogDescription>
+          </DialogHeader>
+          {restartFailed && (
+            <p role="alert" className="text-destructive text-sm">
+              {t('login.restartFailed')}
+            </p>
+          )}
+          <DialogFooter>
+            <Button onClick={handleRestart}>
+              <RefreshCw className="mr-2 size-4" />
+              {t('login.restartNow')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
