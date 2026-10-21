@@ -13,7 +13,9 @@ import type { Session } from '@/features/login'
 import type { User } from '@/features/user'
 import { setUser } from '@/features/user/userSlice'
 import { mockInvoke, renderWithProviders } from '@/test/test-utils'
+import { relaunch } from '@tauri-apps/plugin-process'
 import { screen, waitFor, within } from '@testing-library/react'
+import type { UserEvent } from '@testing-library/user-event'
 import type { Mock } from 'vitest'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -43,7 +45,14 @@ vi.mock('@/features/login', async (importOriginal) => {
     getLoginState: loginApi.getLoginState,
     qrLogout: loginApi.qrLogout,
     setLoginMethod: loginApi.setLoginMethod,
-    ManualCookieForm: () => <div data-testid="manual-cookie-form" />,
+    // Exposes onApplied so tests can drive the form's Apply flow
+    ManualCookieForm: ({ onApplied }: { onApplied?: () => void }) => (
+      <div data-testid="manual-cookie-form">
+        <button type="button" onClick={onApplied}>
+          form-apply
+        </button>
+      </div>
+    ),
   }
 })
 vi.mock('@/features/user', async (importOriginal) => ({
@@ -100,6 +109,17 @@ const loggedOutUser: User = {
 /** Login-method card located via its visible label text. */
 function methodCard(labelKey: string): HTMLElement {
   return screen.getByText(labelKey).closest('button[aria-pressed]')!
+}
+
+/** Stages a switch (card + Apply) and clicks restart in the dialog. */
+async function switchMethodAndRestart(user: UserEvent, cardKey: string) {
+  await user.click(methodCard(cardKey))
+  await user.click(screen.getByRole('button', { name: 'login.applyMethod' }))
+  const dialog = await screen.findByRole('dialog')
+  await user.click(
+    within(dialog).getByRole('button', { name: 'login.restartNow' }),
+  )
+  return dialog
 }
 
 describe('AccountSection', () => {
@@ -263,51 +283,196 @@ describe('AccountSection', () => {
     expect(toastSuccess).not.toHaveBeenCalledWith('login.qrSessionDeleted')
   })
 
-  it('switching to firefox persists it, refreshes state and toasts restart', async () => {
-    // Mount as QR (the shared mock defaults to firefox), then switch to
-    // firefox so the restart toasts fire.
-    loginApi.getLoginState.mockResolvedValueOnce({
-      method: 'qrCode',
-      session: null,
-    })
+  it('a card click only stages the selection; Apply opens the dialog', async () => {
     const { user } = renderWithProviders(<AccountSection />)
 
-    await user.click(methodCard('login.firefoxCookie'))
+    await user.click(methodCard('login.qrCode'))
 
-    await waitFor(() =>
-      expect(loginApi.setLoginMethod).toHaveBeenCalledWith('firefox'),
-    )
-    expect(toastSuccess).toHaveBeenCalledWith('login.loginMethodChanged')
-    expect(toastInfo).toHaveBeenCalledWith('login.restartRequired')
+    // Staged only: the card is visually selected and Apply is offered,
+    // but nothing is persisted and no dialog appears yet
+    expect(methodCard('login.qrCode').getAttribute('aria-pressed')).toBe('true')
+    expect(
+      screen.getByRole('button', { name: 'login.applyMethod' }),
+    ).toBeEnabled()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(loginApi.setLoginMethod).not.toHaveBeenCalled()
+    expect(store.getState().login.loginMethod).toBe('firefox')
+
+    await user.click(screen.getByRole('button', { name: 'login.applyMethod' }))
+
+    const dialog = await screen.findByRole('dialog')
+    expect(
+      within(dialog).getByText('login.restartRequiredTitle'),
+    ).toBeInTheDocument()
+    expect(
+      within(dialog).getByText('login.restartRequired'),
+    ).toBeInTheDocument()
+    // Still nothing persisted — restart confirms
+    expect(loginApi.setLoginMethod).not.toHaveBeenCalled()
+    // No error shown before any restart attempt
+    expect(within(dialog).queryByRole('alert')).toBeNull()
+    // ESC stays disabled — cancel is overlay-click only, by design
+    await user.keyboard('{Escape}')
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    // No X / cancel affordances — the restart button is the only button
+    expect(within(dialog).getAllByRole('button')).toHaveLength(1)
   })
 
-  it('switching to manual or QR stays silent; the login action itself is the feedback', async () => {
+  it('staging QR offers the section Apply; staging manual shows the form instead', async () => {
     const { user } = renderWithProviders(<AccountSection />)
 
+    // Manual staging: the cookie form replaces the section Apply button
     await user.click(methodCard('login.manualCookie'))
-    await waitFor(() =>
-      expect(loginApi.setLoginMethod).toHaveBeenCalledWith('manual'),
-    )
+    expect(await screen.findByTestId('manual-cookie-form')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'login.applyMethod' }),
+    ).toBeNull()
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    // QR staging keeps the section Apply button
     await user.click(methodCard('login.qrCode'))
+    expect(screen.queryByTestId('manual-cookie-form')).toBeNull()
+    expect(
+      screen.getByRole('button', { name: 'login.applyMethod' }),
+    ).toBeInTheDocument()
+  })
+
+  it('an overlay click cancels the switch and reverts the selection', async () => {
+    const { user } = renderWithProviders(<AccountSection />)
+
+    await user.click(methodCard('login.qrCode'))
+    await user.click(screen.getByRole('button', { name: 'login.applyMethod' }))
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+
+    // Clicking the overlay (not body — Radix sets pointer-events:none on
+    // body while the dialog is open) dismisses it
+    const overlay = document.querySelector('[data-slot="dialog-overlay"]')!
+    await user.click(overlay as HTMLElement)
+
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+    )
+    // Cancel reverts the staged selection with it: no Apply button, the
+    // confirmed card stays selected, nothing persisted
+    expect(
+      screen.queryByRole('button', { name: 'login.applyMethod' }),
+    ).toBeNull()
+    expect(methodCard('login.firefoxCookie').getAttribute('aria-pressed')).toBe(
+      'true',
+    )
+    expect(loginApi.setLoginMethod).not.toHaveBeenCalled()
+    expect(store.getState().login.loginMethod).toBe('firefox')
+  })
+
+  it('the restart button persists the method and relaunches the app', async () => {
+    const { user } = renderWithProviders(<AccountSection />)
+
+    await switchMethodAndRestart(user, 'login.qrCode')
+
     await waitFor(() =>
       expect(loginApi.setLoginMethod).toHaveBeenCalledWith('qrCode'),
     )
-    // No "method changed"/"restart required" toasts for QR/Manual: QR scan
-    // and cookie paste both log in live without a restart.
-    expect(toastSuccess).not.toHaveBeenCalledWith('login.loginMethodChanged')
-    expect(toastInfo).not.toHaveBeenCalledWith('login.restartRequired')
+    expect(store.getState().login.loginMethod).toBe('qrCode')
+    await waitFor(() => expect(relaunch).toHaveBeenCalledTimes(1))
   })
 
-  it('keeps the UI stable when the login-method switch fails', async () => {
+  it('shows an error and allows retry when the relaunch fails', async () => {
+    vi.mocked(relaunch).mockRejectedValueOnce(new Error('nope'))
+    const { user } = renderWithProviders(<AccountSection />)
+
+    const dialog = await switchMethodAndRestart(user, 'login.qrCode')
+
+    // role="alert" announces the failure to screen readers
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'login.restartFailed',
+    )
+    await user.click(
+      within(dialog).getByRole('button', { name: 'login.restartNow' }),
+    )
+    await waitFor(() => expect(relaunch).toHaveBeenCalledTimes(2))
+  })
+
+  it('shows an error and stays cancelable when the persist step fails', async () => {
     loginApi.setLoginMethod.mockRejectedValue(new Error('backend down'))
     const { user } = renderWithProviders(<AccountSection />)
 
-    await user.click(methodCard('login.qrCode'))
+    const dialog = await switchMethodAndRestart(user, 'login.qrCode')
 
-    await waitFor(() =>
-      expect(loginApi.setLoginMethod).toHaveBeenCalledWith('qrCode'),
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'login.restartFailed',
     )
-    expect(toastSuccess).not.toHaveBeenCalledWith('login.loginMethodChanged')
+    expect(relaunch).not.toHaveBeenCalled()
+    // The overlay cancel remains available on failure
+    const overlay = document.querySelector('[data-slot="dialog-overlay"]')!
+    await user.click(overlay as HTMLElement)
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+    )
+    expect(store.getState().login.loginMethod).toBe('firefox')
+  })
+
+  it('cancel after a failed relaunch keeps the already-persisted method', async () => {
+    // Persist succeeds, relaunch fails: the switch is saved and dispatched
+    // before the failure, so cancel only closes the dialog — unlike the
+    // pre-attempt cancel it must not revert the selection
+    vi.mocked(relaunch).mockRejectedValueOnce(new Error('nope'))
+    const { user } = renderWithProviders(<AccountSection />)
+
+    const dialog = await switchMethodAndRestart(user, 'login.qrCode')
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'login.restartFailed',
+    )
+
+    const overlay = document.querySelector('[data-slot="dialog-overlay"]')!
+    await user.click(overlay as HTMLElement)
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+    )
+    // The saved switch stands: the card follows the store, no re-Apply
+    expect(store.getState().login.loginMethod).toBe('qrCode')
+    expect(methodCard('login.qrCode').getAttribute('aria-pressed')).toBe('true')
+    expect(
+      screen.queryByRole('button', { name: 'login.applyMethod' }),
+    ).toBeNull()
+  })
+
+  it('clears the stale failure error when the dialog is reopened after a cancel', async () => {
+    loginApi.setLoginMethod.mockRejectedValueOnce(new Error('backend down'))
+    const { user } = renderWithProviders(<AccountSection />)
+
+    // Fail once, then cancel via the overlay
+    const dialog = await switchMethodAndRestart(user, 'login.qrCode')
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'login.restartFailed',
+    )
+    const overlay = document.querySelector('[data-slot="dialog-overlay"]')!
+    await user.click(overlay as HTMLElement)
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+    )
+
+    // Re-staging and re-applying must not resurrect the old error
+    await user.click(methodCard('login.qrCode'))
+    await user.click(screen.getByRole('button', { name: 'login.applyMethod' }))
+    const reopened = await screen.findByRole('dialog')
+    expect(within(reopened).queryByRole('alert')).toBeNull()
+  })
+
+  it('re-staging the confirmed method drops the Apply button', async () => {
+    const { user } = renderWithProviders(<AccountSection />)
+
+    await user.click(methodCard('login.qrCode'))
+    expect(
+      screen.getByRole('button', { name: 'login.applyMethod' }),
+    ).toBeInTheDocument()
+
+    // Back to the confirmed method — nothing left to apply
+    await user.click(methodCard('login.firefoxCookie'))
+    expect(
+      screen.queryByRole('button', { name: 'login.applyMethod' }),
+    ).toBeNull()
+    expect(loginApi.setLoginMethod).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 
   it('skips the login-method switch when the method is unchanged', async () => {
@@ -316,25 +481,50 @@ describe('AccountSection', () => {
     await user.click(methodCard('login.firefoxCookie'))
 
     expect(loginApi.setLoginMethod).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: 'login.applyMethod' }),
+    ).toBeNull()
   })
 
-  it('shows the manual cookie form only for the manual method', async () => {
-    // Mount as firefox, then the post-switch refresh reports manual
-    // (refreshLoginState re-reads the method and would flip it back).
-    loginApi.getLoginState.mockResolvedValueOnce({
-      method: 'firefox',
-      session: null,
-    })
+  it('a staged manual cookie apply opens the restart dialog and confirm relaunches', async () => {
+    // Mount reports firefox (the confirmed method); only AFTER the form's
+    // Apply has the backend committed the session AND the manual method,
+    // so the refresh fetch reports manual.
+    loginApi.getLoginState
+      .mockResolvedValueOnce({ method: 'firefox', session: null })
+      .mockResolvedValue({ method: 'manual', session: null })
+    const { user } = renderWithProviders(<AccountSection />)
+
+    await user.click(methodCard('login.manualCookie'))
+    await user.click(
+      within(screen.getByTestId('manual-cookie-form')).getByRole('button'),
+    )
+
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'login.restartNow' }))
+    await waitFor(() => expect(relaunch).toHaveBeenCalledTimes(1))
+  })
+
+  it('a routine re-paste on confirmed manual does not reopen the dialog', async () => {
     loginApi.getLoginState.mockResolvedValue({
       method: 'manual',
       session: null,
     })
+    store.dispatch(setLoginMethodAction('manual'))
     const { user } = renderWithProviders(<AccountSection />)
 
-    expect(screen.queryByTestId('manual-cookie-form')).toBeNull()
-
-    await user.click(methodCard('login.manualCookie'))
-
     expect(await screen.findByTestId('manual-cookie-form')).toBeInTheDocument()
+    await user.click(
+      within(screen.getByTestId('manual-cookie-form')).getByRole('button'),
+    )
+
+    expect(toastSuccess).toHaveBeenCalledWith('login.manualCookieApplied')
+    await waitFor(() =>
+      expect(store.getState().login.loginMethod).toBe('manual'),
+    )
+    // Re-login, not a method switch — no restart prompt
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(relaunch).not.toHaveBeenCalled()
   })
 })
