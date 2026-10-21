@@ -145,12 +145,20 @@ describe('VideoSearchResultList', () => {
     expect(container.querySelectorAll('.animate-pulse').length).toBeGreaterThan(
       0,
     )
+    // Default variant renders 6 placeholder cards (count prop default),
+    // each brand-tinted — running state = brand (accent rollout).
+    expect(
+      container.querySelectorAll('ul[aria-hidden="true"] > li'),
+    ).toHaveLength(6)
+    expect(container.querySelector('[data-slot="skeleton"]')).toHaveClass(
+      'bg-brand/10',
+    )
     expect(
       screen.queryByRole('button', { name: /少年/ }),
     ).not.toBeInTheDocument()
   })
 
-  it('keeps the loaded cards and spins at the tail while fetching more', () => {
+  it('keeps the loaded cards and shows two skeleton rows at the tail while fetching more', () => {
     vi.mocked(useVideoSearch).mockReturnValue({ ...baseState, loading: true })
     const { container } = renderWithProviders(<VideoSearchResultList />)
 
@@ -159,6 +167,12 @@ describe('VideoSearchResultList', () => {
     expect(screen.getByText('videoSearch.loading')).toBeInTheDocument()
     // Sentinel still mounted: the next page can auto-load.
     expect(container.querySelector('.h-px')).toBeInTheDocument()
+    // Spinner→skeleton swap (accent rollout): two xl grid rows (6
+    // placeholders) below the loaded cards — no circle spinner.
+    expect(
+      container.querySelectorAll('ul[aria-hidden="true"] > li'),
+    ).toHaveLength(6)
+    expect(container.querySelector('.animate-spin')).toBeNull()
   })
 
   it('shows a tail error row with retry when a later page fails', async () => {
@@ -337,7 +351,7 @@ describe('VideoSearchResultList', () => {
 })
 
 describe('VideoSearchFeedTail', () => {
-  it('spins for an in-flight refetch of a zero-result feed', () => {
+  it('shows a full skeleton grid for an in-flight refetch of a zero-result feed', () => {
     vi.mocked(useVideoSearch).mockReturnValue({
       ...baseState,
       entries: [],
@@ -347,6 +361,12 @@ describe('VideoSearchFeedTail', () => {
 
     expect(container.querySelector('[aria-busy="true"]')).toBeInTheDocument()
     expect(screen.getByText('videoSearch.loading')).toBeInTheDocument()
+    // Mirrors the first-fetch view in VideoSearchResultList: a full
+    // 6-card skeleton grid, not a circle spinner (accent rollout).
+    expect(
+      container.querySelectorAll('ul[aria-hidden="true"] > li'),
+    ).toHaveLength(6)
+    expect(container.querySelector('.animate-spin')).toBeNull()
     expect(screen.queryByText('videoSearch.noResults')).not.toBeInTheDocument()
   })
 

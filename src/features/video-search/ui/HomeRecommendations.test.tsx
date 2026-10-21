@@ -74,6 +74,11 @@ describe('HomeRecommendations', () => {
     expect(screen.getByText('popular.recommendationsTitle')).toBeVisible()
     expect(container.querySelector('[aria-busy="true"]')).not.toBeNull()
     expect(container.querySelector('ul')?.className).toContain('xl:grid-cols-2')
+    // Featured default count mirrors the backend's 12-item cap (ps=12);
+    // a shorter skeleton would jump when the shelf lands.
+    expect(
+      container.querySelectorAll('ul[aria-hidden="true"] > li'),
+    ).toHaveLength(12)
   })
 
   it('re-fetches when the update button is clicked', async () => {

@@ -340,8 +340,17 @@ export function VideoSearchInput({
             activeIndex >= 0 ? `${listId}-opt-${activeIndex}` : undefined
           }
           autoComplete="off"
+          // Brand focus ring per the 2026-10-21 accent rollout — same
+          // idiom as the URL page's CommandBar input.
+          className="focus-visible:border-brand-strong focus-visible:ring-brand-strong/35"
         />
-        <Button type="submit" disabled={loading || !draft.trim()}>
+        {/* Brand-filled primary CTA (CommandBar submit idiom, accent
+            rollout 2026-10-21). */}
+        <Button
+          type="submit"
+          className="bg-brand-strong text-brand-foreground hover:bg-brand-strong/90"
+          disabled={loading || !draft.trim()}
+        >
           <Search />
           {t('videoSearch.searchButton')}
         </Button>
@@ -415,7 +424,10 @@ export function VideoSearchInput({
                   onMouseEnter={() => setActiveIndex(i)}
                   className={cn(
                     'cursor-pointer px-3 py-1.5 text-sm',
-                    i === activeIndex && 'bg-accent',
+                    // Brand-tinted active row (accent rollout 2026-10-21);
+                    // overrides the system dropdown bg-accent highlight.
+                    i === activeIndex &&
+                      'bg-brand/10 text-brand-strong dark:text-brand',
                   )}
                 >
                   <span className="flex items-center justify-between gap-2">
@@ -430,7 +442,12 @@ export function VideoSearchInput({
                         role="button"
                         tabIndex={-1}
                         aria-hidden="true"
-                        className="text-muted-foreground hover:text-foreground shrink-0"
+                        className={cn(
+                          'shrink-0',
+                          i === activeIndex
+                            ? 'text-brand-strong hover:text-brand-strong'
+                            : 'text-muted-foreground hover:text-foreground',
+                        )}
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={(e) => {
                           e.stopPropagation()

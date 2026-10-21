@@ -59,6 +59,16 @@ beforeEach(() => {
   vi.mocked(clearSearchHistoryApi).mockResolvedValue(undefined)
 })
 
+describe('VideoSearchInput brand accents', () => {
+  it('fills the submit button with the brand color (accent rollout)', () => {
+    setup()
+
+    expect(
+      screen.getByRole('button', { name: 'videoSearch.searchButton' }),
+    ).toHaveClass('bg-brand-strong')
+  })
+})
+
 describe('VideoSearchInput suggestions', () => {
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
@@ -100,6 +110,22 @@ describe('VideoSearchInput suggestions', () => {
 
     expect(onSearch).toHaveBeenCalledWith('少年')
     expect(input).toHaveValue('少年')
+  })
+
+  it('brand-tints the keyboard-active suggestion row (accent rollout)', async () => {
+    const { user } = setup()
+    await typeAndSuggest(user, '少年')
+
+    await user.keyboard('{ArrowDown}')
+
+    // The active row carries the brand tint instead of the system
+    // dropdown bg-accent highlight; inactive rows stay untinted.
+    const active = screen.getByRole('option', { name: '少年' })
+    expect(active).toHaveAttribute('aria-selected', 'true')
+    expect(active).toHaveClass('bg-brand/10', 'text-brand-strong')
+    expect(screen.getByRole('option', { name: '少年法' })).not.toHaveClass(
+      'bg-brand/10',
+    )
   })
 
   it('clicking an option searches it and fills the input', async () => {
