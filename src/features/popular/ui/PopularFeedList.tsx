@@ -1,7 +1,6 @@
 import { VideoCardGrid, VideoCardSkeletonGrid } from '@/features/video-search'
 import { useFeedSentinel } from '@/shared/hooks/useFeedSentinel'
 import { FeedErrorRow } from '@/shared/ui/FeedErrorRow'
-import { Loader2 } from 'lucide-react'
 import { type RefObject, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { usePopularFeed } from '../hooks/usePopularFeed'
@@ -58,9 +57,11 @@ export function PopularFeedList({
     <div className="flex flex-col gap-2">
       <VideoCardGrid entries={items} />
       {loading && (
-        <div className="flex items-center justify-center py-4" aria-busy="true">
-          <Loader2 className="text-muted-foreground size-5 animate-spin" />
+        // Load-more skeletons (accent rollout ⑤): two xl grid rows, same
+        // as the video-search feed tail — not a circle spinner.
+        <div className="flex flex-col gap-2" aria-busy="true">
           <span className="sr-only">{t('videoSearch.loading')}</span>
+          <VideoCardSkeletonGrid />
         </div>
       )}
       {errorRow}

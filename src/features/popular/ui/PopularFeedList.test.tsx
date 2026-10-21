@@ -85,6 +85,24 @@ describe('PopularFeedList', () => {
     expect(screen.getByText('skeleton-grid')).toBeInTheDocument()
   })
 
+  it('shows load-more skeletons below the loaded cards, not a spinner', async () => {
+    // Page 1 lands; page 2 stays in flight — the tail must render the
+    // skeleton grid (accent rollout ⑤) with no circle spinner.
+    vi.mocked(fetchPopularVideosApi)
+      .mockResolvedValueOnce(feedPage(1, ['BV1']))
+      .mockImplementationOnce(() => new Promise<VideoSearchResponse>(() => {}))
+    const { container } = renderWithProviders(<Harness />)
+    expect(await screen.findByText('BV1')).toBeInTheDocument()
+
+    await act(async () => {
+      StubObserver.last!.callback([{ isIntersecting: true }])
+    })
+
+    expect(screen.getByText('BV1')).toBeInTheDocument()
+    expect(screen.getAllByText('skeleton-grid')).toHaveLength(1)
+    expect(container.querySelector('.animate-spin')).not.toBeInTheDocument()
+  })
+
   it('renders loaded entries as cards', async () => {
     vi.mocked(fetchPopularVideosApi).mockResolvedValue(
       feedPage(1, ['BV1', 'BV2']),

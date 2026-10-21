@@ -24,7 +24,10 @@ const GRID_CLASSES: Record<CardVariant, string> = {
 
 /** Placeholder card skeletons shown while a feed/search fetch is in
  * flight — same footprint as real cards so the grid does not jump
- * (loading feedback guidance: preserve layout, no instant vanish). */
+ * (loading feedback guidance: preserve layout, no instant vanish).
+ * Brand-tinted per the 2026-10-21 accent rollout: skeletons are a
+ * running state, and running = brand (same tone rule as the recolored
+ * transfer bars on the downloads page). */
 export function VideoCardSkeletonGrid({
   variant = 'default',
 }: {
@@ -36,18 +39,18 @@ export function VideoCardSkeletonGrid({
       {/* Featured mirrors the backend's 12-item home-feed cap (ps=12);
           a shorter skeleton would jump when the shelf lands. */}
       {Array.from({ length: featured ? 12 : 6 }, (_, i) => (
-        <li key={i} className="hover:bg-accent/50 flex gap-3 rounded-md p-2">
+        <li key={i} className="hover:bg-brand/5 flex gap-3 rounded-md p-2">
           <Skeleton
             className={cn(
-              'shrink-0 rounded',
+              'bg-brand/10 shrink-0 rounded',
               featured ? 'aspect-video w-52' : 'h-[67px] w-[120px]',
             )}
           />
           <div className="flex w-full flex-col gap-1.5 py-0.5">
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-3 w-2/3" />
+            <Skeleton className="bg-brand/10 h-4 w-full" />
+            <Skeleton className="bg-brand/10 h-3 w-2/3" />
             {/* Featured cards carry a third meta line (play count). */}
-            {featured && <Skeleton className="h-3 w-1/4" />}
+            {featured && <Skeleton className="bg-brand/10 h-3 w-1/4" />}
           </div>
         </li>
       ))}
@@ -67,10 +70,12 @@ function ZoneBadge({ typeid, typename }: { typeid: string; typename: string }) {
   const label = key ? t(`videoSearch.zones.${key}`) : typename
   if (!label) return null
   return (
+    // Brand tint chip per the 2026-10-21 accent rollout — same idiom as
+    // the play-count chip on the URL page's VideoHeroCard.
     <Badge
       variant="secondary"
       title={label}
-      className="max-w-20 shrink-0 truncate px-1.5 text-[10px]"
+      className="bg-brand-strong/10 text-brand-strong dark:text-brand max-w-20 shrink-0 truncate px-1.5 text-[10px]"
     >
       {label}
     </Badge>
@@ -108,7 +113,9 @@ export function VideoCardGrid({
               type="button"
               onClick={() => handleDownload(entry.bvid, null, 1)}
               className={cn(
-                'hover:bg-accent/50 focus-visible:ring-ring/50',
+                // Brand hover + focus ring per the 2026-10-21 accent
+                // rollout (downloads-page focus-ring idiom).
+                'hover:bg-brand/5 focus-visible:ring-brand-strong/35',
                 'flex w-full gap-3 rounded-md p-2 text-left transition-colors',
                 'outline-none focus-visible:ring-[3px]',
               )}
@@ -182,7 +189,7 @@ export function VideoCardGrid({
               onClick={() => setPreview(entry)}
               aria-label={t('videoSearch.previewPlay')}
               className={cn(
-                'focus-visible:ring-ring/50',
+                'focus-visible:ring-brand-strong/35',
                 'absolute top-2 left-2 z-10 flex',
                 featured ? 'aspect-video w-52' : 'h-[67px] w-[120px]',
                 'items-center justify-center rounded text-white outline-none',
