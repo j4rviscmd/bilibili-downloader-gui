@@ -249,6 +249,88 @@ describe('BatchSettingsBar', () => {
     await user.keyboard('{Escape}')
   })
 
+  it('shows the settings default subtitle mode before any batch pick', async () => {
+    seed([true, true])
+    store.dispatch(
+      setSettings({
+        defaultSubtitleMode: 'hard',
+        defaultSubtitleHardLans: ['ja', 'zh-Hans', '*'],
+      }),
+    )
+    const { user } = renderBar()
+
+    // Display-only fallback: the trigger mirrors the settings default
+    // (mode + priority list) while the store target stays null.
+    const trigger = await screen.findByRole('button', {
+      name: 'video.subtitle',
+    })
+    expect(trigger).toHaveTextContent('video.subtitle_hard')
+    expect(trigger).toHaveTextContent('日本語')
+    expect(store.getState().input.batchSettings.subtitle).toBeNull()
+
+    // An explicit pick replaces the display and lands in the store.
+    await user.click(trigger)
+    const menu = await screen.findByRole('menu')
+    await user.click(within(menu).getByText('video.subtitle_off'))
+    expect(trigger).toHaveTextContent('video.subtitle_off')
+    expect(store.getState().input.batchSettings.subtitle).toEqual({
+      mode: 'off',
+      selectedLans: [],
+    })
+    await user.keyboard('{Escape}')
+
+    // Reset: later tests share the singleton store.
+    store.dispatch(
+      setSettings({ defaultSubtitleMode: 'off', defaultSubtitleHardLans: [] }),
+    )
+  })
+
+  it('seeds the full hard list when re-picking hard under the settings-hard fallback', async () => {
+    seed([true, true])
+    store.dispatch(
+      setSettings({
+        defaultSubtitleMode: 'hard',
+        defaultSubtitleHardLans: ['ja', 'zh-Hans', '*'],
+      }),
+    )
+    const { user } = renderBar()
+
+    // No stored pick: clicking the (already displayed) hard mode item
+    // must seed the full priority list WITH the wildcard tail — the
+    // display fallback must not be mistaken for explicit picks.
+    const trigger = await screen.findByRole('button', {
+      name: 'video.subtitle',
+    })
+    await user.click(trigger)
+    const menu = await screen.findByRole('menu')
+    await user.click(within(menu).getByText('video.subtitle_hard'))
+
+    expect(store.getState().input.batchSettings.subtitle).toEqual({
+      mode: 'hard',
+      selectedLans: ['ja', 'zh-Hans', '*'],
+    })
+    await user.keyboard('{Escape}')
+
+    store.dispatch(
+      setSettings({ defaultSubtitleMode: 'off', defaultSubtitleHardLans: [] }),
+    )
+  })
+
+  it('shows the soft settings default as the all-languages pick', async () => {
+    seed([true, true])
+    store.dispatch(setSettings({ defaultSubtitleMode: 'soft' }))
+    renderBar()
+
+    const trigger = await screen.findByRole('button', {
+      name: 'video.subtitle',
+    })
+    expect(trigger).toHaveTextContent('video.subtitle_soft')
+    expect(trigger).toHaveTextContent('search.subtitle_all_langs')
+    expect(store.getState().input.batchSettings.subtitle).toBeNull()
+
+    store.dispatch(setSettings({ defaultSubtitleMode: 'off' }))
+  })
+
   it('resets soft to all languages when switching from hard', async () => {
     seed([true, true])
     const { user } = renderBar()

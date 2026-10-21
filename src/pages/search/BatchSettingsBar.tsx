@@ -134,16 +134,30 @@ export function BatchSettingsBar() {
   const label = (id: number) =>
     VIDEO_QUALITIES_MAP[id] ?? AUDIO_QUALITIES_MAP[id] ?? String(id)
 
-  // Subtitle display mirrors the batch target; before any batch pick it
-  // shows "off" (parts still default to their own configs at enqueue).
-  const displaySubMode = batch.subtitle?.mode ?? 'off'
-  const displaySubLangs = batch.subtitle?.selectedLans ?? []
   // Hard-mode seed: the settings' priority list (or the shared built-in
   // default) — same source as the settings picker, so the batch override
   // never starts from an empty (silently subtitle-less) selection.
   const hardDefaultLans = settings.defaultSubtitleHardLans?.length
     ? settings.defaultSubtitleHardLans
     : HARD_DEFAULT_LANS_UI
+  // Subtitle display mirrors the batch target; before any batch pick it
+  // falls back to the settings-level default — what enqueue resolves to
+  // for non-explicit parts (same data-honesty rule as the quality
+  // triggers' login-state best). The store target stays null: display-
+  // only, no override applied.
+  const defaultMode = settings.defaultSubtitleMode ?? 'off'
+  const displaySubMode = batch.subtitle?.mode ?? defaultMode
+  // Note: language items below derive their next selection from THIS
+  // list — their ✓/priority badges render from it, so under the fallback
+  // the first click turns the mirrored default into the stored pick;
+  // only the mode items re-derive from the stored target instead.
+  const displaySubLangs =
+    batch.subtitle?.selectedLans ??
+    (defaultMode === 'soft'
+      ? [LAN_ALL]
+      : defaultMode === 'hard'
+        ? [...hardDefaultLans]
+        : [])
   const modeLabel = t(
     displaySubMode === 'soft'
       ? 'video.subtitle_soft'
@@ -315,9 +329,14 @@ export function BatchSettingsBar() {
                     // meaningless there, so it is dropped; with no
                     // explicit picks left, hard seeds the settings'
                     // priority list.
-                    const explicit = displaySubLangs.filter(
-                      (l) => l !== LAN_ALL,
-                    )
+                    // Derive explicit picks from the STORED target, not
+                    // the display fallback: before any pick the display
+                    // mirrors the settings default, and treating that as
+                    // explicit picks would drop the wildcard tail that
+                    // the seed branch below exists to keep.
+                    const explicit = (
+                      batch.subtitle?.selectedLans ?? []
+                    ).filter((l) => l !== LAN_ALL)
                     const langs =
                       mode === 'off'
                         ? []

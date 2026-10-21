@@ -134,22 +134,27 @@ function killPortListener(port: number): void {
 // Note: must track the backend's get_settings_path() — app_data_dir()/
 // settings.json (src-tauri/src/utils/paths.rs; dev and release builds
 // share the dir via the same bundle identifier). A drift makes existsSync
-// false and silently no-ops backup/restore instead of erroring.
-const settingsPath = path.join(
-  os.homedir(),
-  'Library',
-  'Application Support',
-  'com.bilibili-downloader-gui.app',
-  'settings.json',
-)
+// false and silently no-ops backup/restore instead of erroring — the
+// previous macOS-only hardcode did exactly that on Windows.
+const APP_ID = 'com.bilibili-downloader-gui.app'
+// Tauri app_data_dir() per platform: %APPDATA%/<id> on Windows,
+// ~/Library/Application Support/<id> on macOS, XDG data dir on Linux.
+const appDataDir =
+  process.platform === 'win32'
+    ? path.join(
+        process.env.APPDATA ?? path.join(os.homedir(), 'AppData', 'Roaming'),
+        APP_ID,
+      )
+    : process.platform === 'darwin'
+      ? path.join(os.homedir(), 'Library', 'Application Support', APP_ID)
+      : path.join(
+          process.env.XDG_DATA_HOME ??
+            path.join(os.homedir(), '.local', 'share'),
+          APP_ID,
+        )
+const settingsPath = path.join(appDataDir, 'settings.json')
 const settingsBackupPath = `${settingsPath}.e2e-bak`
-const loginStatePath = path.join(
-  os.homedir(),
-  'Library',
-  'Application Support',
-  'com.bilibili-downloader-gui.app',
-  'login_state.json',
-)
+const loginStatePath = path.join(appDataDir, 'login_state.json')
 const loginStateBackupPath = `${loginStatePath}.e2e-bak`
 
 // undefined = backupSettings never ran (onPrepare aborted at preflight);

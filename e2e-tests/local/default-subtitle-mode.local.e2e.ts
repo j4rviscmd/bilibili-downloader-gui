@@ -45,14 +45,32 @@ const SUBTITLE_VIDEO_URL = 'https://www.bilibili.com/video/BV1Ng4D6XE1Q'
 const MIN_REAL_MP4_BYTES = 100_000
 
 /**
- * Navigates to the URL page and loads the given real video.
+ * Loads the given real video with parts freshly seeded from the
+ * CURRENT settings.
  *
- * Self-healing fill+blur: the form fetches on blur, but a same-value
- * refill after the sidebar reset (issue #691 keeps the input text) fires
- * no change event, and a sporadic API failure also leaves the hero
- * empty — so the whole clear→type→blur cycle retries until parts show.
+ * Freshness contract (why not the plain fill+blur of url-download's
+ * helper): this spec reloads the SAME video after changing the
+ * settings default, and a part-list existence check passes on the
+ * STALE list before the refetch reseeds — the download then enqueued
+ * the PREVIOUS test's subtitle config (observed on Windows
+ * 2026-10-21: hard + 8 matched lans where soft was set, T6/T7). Two
+ * cooperating tricks:
+ * - `variant` alternates plain ↔ `?p=1` across calls, so every refill
+ *   is a genuine input VALUE change (a same-value refill fires no
+ *   change event and never fetches) and the same video still loads;
+ * - the wait keys on the browser URL: the page pushes a
+ *   `?url=<encoded>` entry only AFTER a fetch lands and the parts are
+ *   re-seeded, so matching the filled variant proves the fresh load —
+ *   not the stale list — produced the visible state.
+ * The video is never closed between loads: the download dock stays
+ * mounted (a close→reload remount left the dock CTA at a 0×0 rect in
+ * one diagnostic run, unclickable for the whole 10s wait).
+ *
+ * Self-healing: a sporadic API failure leaves the hero empty — the
+ * whole type→blur cycle retries until the entry lands.
  */
-async function loadRealVideo(url: string): Promise<void> {
+async function loadRealVideo(url: string, variant: '' | '?p=1' = '') {
+  const target = `${url}${variant}`
   const btn = await browser.$('[data-testid="nav-search"]')
   await btn.waitForExist({ timeout: 15_000 })
   await btn.click()
@@ -66,18 +84,21 @@ async function loadRealVideo(url: string): Promise<void> {
       const field = await browser.$(S.URL_INPUT)
       await field.click()
       await field.setValue('')
-      await field.setValue(url)
+      await field.setValue(target)
       await browser.execute(() => {
         const el = document.activeElement
         if (el instanceof HTMLElement) el.blur()
       })
       await browser.pause(1_000)
-      return await (await browser.$(S.DATA_PART_LIST)).isExisting()
+      return (
+        (await browser.getUrl()).includes(encodeURIComponent(target)) &&
+        (await (await browser.$(S.DATA_PART_LIST)).isExisting())
+      )
     },
     {
       timeout: 60_000,
       interval: 1_500,
-      timeoutMsg: `video ${url} never loaded`,
+      timeoutMsg: `video ${target} never loaded`,
     },
   )
 }
@@ -460,6 +481,18 @@ describe('local real API: default subtitle mode setting', () => {
       timeout: 15_000,
     })
     const { trigger, menu } = await openBatchSubtitleMenu()
+    // Before any batch pick the trigger mirrors the settings default
+    // (T1 left it on soft): the ✓ sits on the soft mode item, not off.
+    await browser.waitUntil(
+      async () =>
+        (
+          await (await menu.$('[data-testid="batch-submode-soft"]')).getText()
+        ).includes('✓'),
+      {
+        timeout: 5_000,
+        timeoutMsg: 'batch trigger should default to the settings soft mode',
+      },
+    )
 
     // Soft resets the selection to the all-languages sentinel (summary
     // carries no explicit language pick).
@@ -535,8 +568,17 @@ describe('local real API: default subtitle mode setting', () => {
     await saveScreenshot('local', '24-custom-list-rendered')
 
     // The batch hard pick now seeds the custom order.
-    await loadRealVideo(SUBTITLE_VIDEO_URL)
+    await loadRealVideo(SUBTITLE_VIDEO_URL, '?p=1')
     const { trigger, menu } = await openBatchSubtitleMenu()
+    // No batch pick yet: the trigger already shows the settings-level
+    // hard default with the custom priority order (display fallback).
+    await waitForBatchSummary(
+      trigger,
+      (text) =>
+        text.includes('中文(简体)') &&
+        text.indexOf('日本語') > text.indexOf('中文(简体)'),
+      'batch trigger should default to the settings hard priority order',
+    )
     await clickBatchMode(menu, 'hard')
     await waitForBatchSummary(
       trigger,
@@ -616,7 +658,7 @@ describe('local real API: default subtitle mode setting', () => {
     await clickModeSegment(0)
     await waitForSubtitleMode('off')
 
-    await loadRealVideo(SUBTITLE_VIDEO_URL)
+    await loadRealVideo(SUBTITLE_VIDEO_URL, '?p=1')
     const before = listMp4s(downloadEnv?.outputDir as string)
     await selectOnlyFirstPart()
     await clickDownloadDock()
