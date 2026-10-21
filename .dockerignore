@@ -1,0 +1,10 @@
+# Keep the oss-scanner build context (see .oss-scanner/Dockerfile) lean:
+# build outputs and worktrees are regenerated inside the image anyway.
+.git
+.worktrees
+node_modules
+src-tauri/target
+dist
+coverage
+e2e-tests/node_modules
+*.log
