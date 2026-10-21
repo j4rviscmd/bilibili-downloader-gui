@@ -104,7 +104,12 @@ export function DownloadsContent() {
                     size="sm"
                     onClick={handleCancelAll}
                     disabled={!summary.hasActive || summary.isMerging}
-                    className="text-muted-foreground hover:text-destructive h-7 px-2 text-xs"
+                    // Why: the ghost Button base already draws a 3px
+                    // ring-ring/50 focus ring (src/components/ui/button.tsx);
+                    // this class only recolors it to the accent-following
+                    // brand token (2026-10-21 accent rollout) — same for the
+                    // clear-finished button below.
+                    className="text-muted-foreground hover:text-destructive focus-visible:ring-brand-strong/35 h-7 px-2 text-xs"
                   >
                     {t('downloadStatus.cancel_all')}
                   </Button>
@@ -128,7 +133,7 @@ export function DownloadsContent() {
             size="sm"
             onClick={handleClearFinished}
             disabled={!hasSettled}
-            className="text-muted-foreground hover:text-destructive h-7 px-2 text-xs"
+            className="text-muted-foreground hover:text-destructive focus-visible:ring-brand-strong/35 h-7 px-2 text-xs"
           >
             {t('queue.clear_finished')}
           </Button>
@@ -137,8 +142,8 @@ export function DownloadsContent() {
     >
       {rows.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 py-12 text-center">
-          <div className="bg-muted flex size-14 items-center justify-center rounded-full">
-            <Download className="text-muted-foreground size-6" />
+          <div className="bg-brand/10 flex size-14 items-center justify-center rounded-full">
+            <Download className="text-brand-strong size-6" />
           </div>
           <p className="text-muted-foreground max-w-sm text-sm whitespace-pre-line">
             {t('queue.empty')}

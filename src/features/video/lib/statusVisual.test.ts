@@ -19,7 +19,7 @@ describe('getStatusVisual', () => {
   it('maps running to the active tone', () => {
     expect(getStatusVisual('running')).toEqual({
       labelKey: 'downloadStatus.status_downloading',
-      dotClass: 'bg-blue-500',
+      dotClass: 'bg-brand-strong',
       tone: 'active',
     })
   })
