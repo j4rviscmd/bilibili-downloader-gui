@@ -343,8 +343,22 @@ pub fn run() {
                 // session valid for the whole test suite. Backend init then
                 // runs from the main window via useInit.initApp
                 // (→ invoke('initialize')) instead of from the splash.
+                // Local E2E background mode (E2E_BACKGROUND, macOS): an
+                // Accessory app can never be activated, so nothing — not
+                // even a stray set_focus — steals keyboard/menu-bar focus
+                // from the developer's foreground app. Must run before any
+                // window is created.
+                #[cfg(target_os = "macos")]
+                if window::is_e2e_background() {
+                    app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+                }
                 window::create_main_window(app.handle(), window_theme)?;
                 window::register_main_window_events(app.handle());
+                // Keep the shown-but-unfocused webview fully live when it
+                // gets covered or the machine idles (occlusion/inactivity
+                // suspension + App Nap off) — see the fn doc for details.
+                #[cfg(target_os = "macos")]
+                window::apply_e2e_background_tweaks(app.handle());
             } else {
                 // Create the splash window first. The main window is created by
                 // finish_splash once initialization completes, so the maximized
