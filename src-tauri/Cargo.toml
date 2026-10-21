@@ -119,9 +119,10 @@ objc2-app-kit = { version = "0.2", features = ["NSWindow", "NSResponder"] }
 # objc2-web-kit 0.3.1 and objc2-foundation 0.3.1 (and tauri builds objc2 /
 # block2), so these add no new compiled code.
 objc2 = "0.6"
-objc2-foundation = { version = "0.3.1", features = ["NSDictionary", "NSHTTPCookie", "NSString"] }
+objc2-foundation = { version = "0.3.1", features = ["NSDictionary", "NSHTTPCookie", "NSProcessInfo", "NSString"] }
 objc2-web-kit = { version = "0.3.1", features = [
   "WKHTTPCookieStore",
+  "WKPreferences",
   "WKWebView",
   "WKWebViewConfiguration",
   "WKWebsiteDataStore",

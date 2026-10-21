@@ -152,18 +152,127 @@ pub fn show_splash(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Checks the `E2E_BACKGROUND` environment variable. Only wdio.local.conf.ts
+/// (local-real E2E) sets it; CI fixture E2E (wdio.conf.ts) and normal runs
+/// never do — mirrors `qr_login::is_e2e_testing`'s shape so the
+/// background-window behavior is scoped to local E2E runs alone.
+pub(crate) fn is_e2e_background() -> bool {
+    std::env::var("E2E_BACKGROUND")
+        .map(|v| v == "true")
+        .unwrap_or(false)
+}
+
 /// Shows the main window after its frontend has mounted. Called via
 /// `show_main` from App's first effect — the window is created hidden by
 /// `create_main_window`, so without this call it never appears.
+///
+/// In local E2E background mode (`E2E_BACKGROUND`) the window is shown but
+/// NEVER focused: the Accessory activation policy (see setup) keeps the
+/// keyboard/menu bar with the developer's foreground app. Why show at all:
+/// a never-shown window is never drawn, and WebKit suspends/throttles it
+/// in ways the private-API tweaks cannot fully disable — measured
+/// 2026-10-21 on an idle machine, hidden-window runs stalled mid-session
+/// (download-dock button never became clickable, 0 downloads across the
+/// whole suite). A visible window keeps the render loop, hit-testing and
+/// DOM timers fully live. Covering it with other windows is fine:
+/// `apply_e2e_background_tweaks` disables occlusion-driven suspension.
 #[tauri::command]
 // Why coverage(off): directly drives the OS window (show/focus); no headless equivalent — injection cost outweighs value (issue #646 policy 4).
 #[cfg_attr(coverage, coverage(off))]
 pub fn show_main(app: AppHandle) -> Result<(), String> {
+    if is_e2e_background() {
+        if let Some(main) = app.get_webview_window("main") {
+            // Show without focusing; with the Accessory policy the app
+            // cannot become active, so the user's keystrokes are untouched.
+            main.show().map_err(|e| format!("{e}"))?;
+        }
+        log::info!("[BE] show_main: shown without focus (E2E_BACKGROUND)");
+        return Ok(());
+    }
     if let Some(main) = app.get_webview_window("main") {
         main.show().map_err(|e| format!("{e}"))?;
         main.set_focus().map_err(|e| format!("{e}"))?;
     }
     Ok(())
+}
+
+/// Keeps the E2E webview's JavaScript fully live while its window is
+/// unfocused, covered by other windows, or the machine idles
+/// (`E2E_BACKGROUND`, macOS only).
+///
+/// WKWebView suspends/throttles JS when the view is inactive or its window
+/// is occluded — an unfocused E2E window already froze react-toastify
+/// auto-close once (see the workaround in default-subtitle-mode.local.e2e.ts).
+/// Three knobs, each covering a different suspension mechanism:
+/// - `inactiveSchedulingPolicy = .none` (public, macOS 14+): no suspension
+///   while the app is inactive
+/// - `_setWindowOcclusionDetectionEnabled:NO` (private, availability-guarded):
+///   covered windows no longer count as occluded
+/// - an NSProcessInfo activity assertion: disables App Nap for the app and
+///   its WebContent XPC children on an idle machine
+// Why coverage(off): drives the OS webview via objc msg_send — no headless equivalent (issue #646 policy 4).
+#[cfg(target_os = "macos")]
+#[cfg_attr(coverage, coverage(off))]
+pub(crate) fn apply_e2e_background_tweaks(app: &AppHandle) {
+    if !is_e2e_background() {
+        return;
+    }
+    // App Nap opt-out, process level: a hidden no-user-interaction app is
+    // napped on an idle machine and its WebContent XPC children suspend JS
+    // entirely — the WebKit tweaks below only cover view-level suspension.
+    // Observed 2026-10-21: local E2E on an idle machine stalled all IPC
+    // callbacks for 5.6 minutes until something poked the process; the
+    // earlier "passing" runs only passed because parallel cargo/npm test
+    // jobs kept the CPU busy. The activity assertion propagates to the
+    // XPC children; UserInitiatedAllowingIdleSystemSleep leaves system
+    // sleep policy untouched. Leaked on purpose: dropping the Retained
+    // would end the activity and re-enable napping mid-run.
+    {
+        use objc2_foundation::{NSActivityOptions, NSProcessInfo, NSString};
+        // Safe call in the resolved objc2-foundation 0.3.1 (beginActivity
+        // is not unsafe there); no preconditions beyond the live receiver.
+        let activity = NSProcessInfo::processInfo().beginActivityWithOptions_reason(
+            NSActivityOptions::UserInitiatedAllowingIdleSystemSleep,
+            &NSString::from_str("e2e-background-window"),
+        );
+        std::mem::forget(activity);
+    }
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    // Why eprintln, not log::info: with_webview runs the closure
+    // synchronously when already on the main thread (setup's case), which
+    // is BEFORE the log plugin initializes — the line would be lost. The
+    // app's stderr is piped through tauri-webdriver into the wdio console,
+    // so local E2E output still shows it.
+    let _ = window.with_webview(|pw| {
+        use objc2::runtime::NSObjectProtocol;
+
+        let raw = pw.inner();
+        if raw.is_null() {
+            return;
+        }
+        // Safety: with_webview runs on the main thread and inner() is the
+        // WKWebView backing this webview for as long as it exists (same
+        // pattern as preview_embed's cookie injection).
+        let wk: &objc2_web_kit::WKWebView = unsafe { &*(raw as *const _) };
+        unsafe {
+            let prefs = wk.configuration().preferences();
+            // macOS 14+ only; older systems don't respond to the setter.
+            if prefs.respondsToSelector(objc2::sel!(setInactiveSchedulingPolicy:)) {
+                prefs.setInactiveSchedulingPolicy(objc2_web_kit::WKInactiveSchedulingPolicy::None);
+            }
+            // Private WebKit API; the guard means a future removal only
+            // re-enables occlusion suspension instead of crashing.
+            if wk.respondsToSelector(objc2::sel!(_setWindowOcclusionDetectionEnabled:)) {
+                let _: () = objc2::msg_send![
+                    wk,
+                    _setWindowOcclusionDetectionEnabled: false
+                ];
+            }
+        }
+        eprintln!("[BE] E2E_BACKGROUND webview tweaks applied");
+    });
 }
 
 /// Creates the main application window with saved or default geometry.
@@ -967,5 +1076,15 @@ mod tests {
         let path = dir.path().join("settings.json");
         std::fs::write(&path, r#"{"language": "en"}"#).unwrap();
         assert_eq!(read_window_theme_at(&path), None, "unset theme -> None");
+    }
+
+    #[test]
+    fn is_e2e_background_defaults_false_in_unit_tests() {
+        // Unit CI never sets E2E_BACKGROUND; asserting only the unset case
+        // keeps the test safe under parallel env mutation (same shape as
+        // qr_login's is_e2e_testing test).
+        if std::env::var("E2E_BACKGROUND").is_err() {
+            assert!(!is_e2e_background());
+        }
     }
 }
