@@ -1,19 +1,25 @@
 import { useFeedSentinel } from '@/shared/hooks/useFeedSentinel'
 import { FeedErrorRow } from '@/shared/ui/FeedErrorRow'
-import { Loader2, SearchX } from 'lucide-react'
+import { SearchX } from 'lucide-react'
 import { type RefObject, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useVideoSearch } from '../hooks/useVideoSearch'
+import { VideoCardSkeletonGrid } from './VideoCardGrid'
 
 /**
- * Live-only tail of one feed container: loading spinner, load-failure
+ * Live-only tail of one feed container: loading skeletons, load-failure
  * row, infinite-scroll sentinel, and the zero-result empty state.
+ *
+ * Loading renders card-shaped skeletons (bilibili/YouTube infinite-scroll
+ * convention; brand-tinted per the 2026-10-21 accent rollout) instead of
+ * a circle spinner.
  *
  * Rendered as a sibling AFTER the container's `VideoCardGrid` — the grid
  * itself must stay at a stable tree position/type so React reuses the
  * card `<img>` nodes when a stacked container switches between its
  * hidden (stored cards only) and live forms: a remounted grid would
- * reload every thumbnail on keyword restores.
+ * reload every thumbnail on keyword restores. The skeletons live INSIDE
+ * this tail so that invariant is untouched.
  */
 export function VideoSearchFeedTail({
   scrollRootRef,
@@ -35,16 +41,17 @@ export function VideoSearchFeedTail({
 
   // Zero-entry feed. Same guards as VideoSearchResultList's empty
   // branch, in the same order: in-flight (filter change / fresh
-  // resubmit of a zero-result keyword) → spinner; a failed page-1
+  // resubmit of a zero-result keyword) → full skeleton grid (mirrors
+  // the first-fetch view in VideoSearchResultList); a failed page-1
   // refetch → nothing (the page-level Alert owns the message — a
   // "no results" hint beside it would misreport the failure); only a
   // clean empty result set renders the zero-result state.
   if (entries.length === 0) {
     if (loading) {
       return (
-        <div className="flex items-center justify-center py-4" aria-busy="true">
-          <Loader2 className="text-muted-foreground size-5 animate-spin" />
+        <div className="flex flex-col gap-2" aria-busy="true">
           <span className="sr-only">{t('videoSearch.loading')}</span>
+          <VideoCardSkeletonGrid />
         </div>
       )
     }
@@ -61,9 +68,11 @@ export function VideoSearchFeedTail({
   return (
     <>
       {loading && (
-        <div className="flex items-center justify-center py-4" aria-busy="true">
-          <Loader2 className="text-muted-foreground size-5 animate-spin" />
+        // Two xl grid rows (6 cards): enough to signal the next page
+        // without a wall of placeholders below the loaded cards.
+        <div className="flex flex-col gap-2" aria-busy="true">
           <span className="sr-only">{t('videoSearch.loading')}</span>
+          <VideoCardSkeletonGrid />
         </div>
       )}
       {error && (
