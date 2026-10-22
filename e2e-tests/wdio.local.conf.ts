@@ -278,8 +278,11 @@ export const config = {
     // E2E_TESTING only — deliberately NO E2E_API_BASE so the backend
     // hits the live Bilibili API (see fetch_video_info's fixture gate).
     // E2E_BACKGROUND shows the app window WITHOUT ever taking keyboard or
-    // menu-bar focus (Accessory activation policy + no set_focus; see
-    // show_main / apply_e2e_background_tweaks in src-tauri/src/window.rs).
+    // menu-bar focus on macOS (Accessory activation policy). On Windows the
+    // reveal is focus-free too (raw SW_SHOWNOACTIVATE in show_main); the
+    // window is activated exactly once at app start (wry's creation-time
+    // MoveFocus — full no-activation breaks 4 url-download specs; see
+    // show_main in src-tauri/src/window.rs).
     // The window must stay shown: a never-shown window is never drawn and
     // WebKit stalls it in ways private APIs cannot disable (measured
     // 2026-10-21: whole-suite download stall on an idle machine). CI

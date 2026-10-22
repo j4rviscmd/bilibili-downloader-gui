@@ -101,6 +101,10 @@ tauri-plugin-mcp-bridge = "0.13"
 # tauri-runtime-wry uses; windows-core supplies the Interface casts).
 webview2-com = "0.39"
 windows-core = "0.62"
+# Local E2E background mode: show_main's raw ShowWindow(SW_SHOWNOACTIVATE).
+# tauri 2.12 already depends on this exact copy with this feature enabled,
+# so nothing extra is compiled in.
+windows = { version = "0.62", features = ["Win32_UI_WindowsAndMessaging"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # Preview overlay positioning: NSWindow.contentLayoutRect gives the
