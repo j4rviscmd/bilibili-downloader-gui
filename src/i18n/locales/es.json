@@ -83,7 +83,8 @@
     "noBackHistory": "No hay página anterior a la que volver",
     "noForwardHistory": "No hay página siguiente a la que avanzar",
     "category": {
-      "bilibili": "Bilibili",
+      "find": "Buscar",
+      "download": "Descargas",
       "tool": "Herramientas"
     },
     "aria": {

@@ -20,6 +20,7 @@ import { cn } from '@/shared/lib/utils'
 import { selectActivePartCount, selectHasActiveDownloads } from '@/shared/queue'
 import type { LucideIcon } from 'lucide-react'
 import {
+  Archive,
   Combine,
   Download as DownloadIcon,
   Eye,
@@ -59,17 +60,25 @@ type MenuGroup = {
 /**
  * Navigation sidebar header with categorized menu items.
  *
- * Layout:
- * - Home (/home) - standalone (no category), video download interface
- * - Bilibili category:
+ * Layout (task-flow order: find a video → download it → process local
+ * files; decided 2026-10-22):
+ * - Find category:
+ *   - Video Search (/popular, results at /video-search) - anonymous entry
+ *   - Fetch by URL (/search)
  *   - Favorite (/favorite) - requires login
  *   - Watch History (/watch-history) - requires login
+ * - Download category:
+ *   - Downloads (/downloads) - active download queue
+ *   - Download History (/history) - completed downloads log
  * - Tool category:
  *   - Trim (/trim) - Trim local MP4 files by start/end time
  *   - Concat (/concat) - Concatenate multiple MP4 files into one
+ *   - Audio (/audio) - Extract the audio track from a local file
+ *   - Resolution (/resolution) - Re-encode a local file to another resolution
+ *   - Rotation (/rotation) - Rotate a local file
  *   - GIF (/gif) - Generate GIF/WebM animations from local MP4 clips
  *
- * Note: Download history (/history) is provided separately in SidebarFooter.
+ * Note: Settings (/settings) is provided separately in SidebarFooter.
  *
  * Highlights the current page with active state styling.
  * Items requiring authentication are disabled with tooltip
@@ -105,7 +114,8 @@ export function NavigationSidebarHeader({
 
   const groups: MenuGroup[] = [
     {
-      id: 'search',
+      id: 'find',
+      label: t('nav.category.find'),
       items: [
         {
           path: '/popular',
@@ -124,20 +134,6 @@ export function NavigationSidebarHeader({
           requiresAuth: false,
         },
         {
-          path: '/downloads',
-          icon: DownloadIcon,
-          label: t('nav.downloads'),
-          ariaLabel: t('nav.aria.downloads'),
-          testId: 'nav-downloads',
-          requiresAuth: false,
-        },
-      ],
-    },
-    {
-      id: 'bilibili',
-      label: t('nav.category.bilibili'),
-      items: [
-        {
           path: '/favorite',
           icon: Star,
           label: t('nav.favorite'),
@@ -150,6 +146,28 @@ export function NavigationSidebarHeader({
           label: t('nav.watchHistory'),
           ariaLabel: t('nav.aria.watchHistory'),
           requiresAuth: true,
+        },
+      ],
+    },
+    {
+      id: 'download',
+      label: t('nav.category.download'),
+      items: [
+        {
+          path: '/downloads',
+          icon: DownloadIcon,
+          label: t('nav.downloads'),
+          ariaLabel: t('nav.aria.downloads'),
+          testId: 'nav-downloads',
+          requiresAuth: false,
+        },
+        {
+          path: '/history',
+          icon: Archive,
+          label: t('nav.downloadHistory'),
+          ariaLabel: t('nav.aria.downloadHistory'),
+          testId: 'nav-history',
+          requiresAuth: false,
         },
       ],
     },

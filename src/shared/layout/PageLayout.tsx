@@ -17,7 +17,7 @@ import { QueueBottomBar } from '@/shared/queue/ui/QueueBottomBar'
 import AppBar from '@/shared/ui/AppBar/AppBar'
 import { HistoryNavigation } from '@/shared/ui/AppBar/HistoryNavigation'
 import { NavigationSidebarHeader } from '@/shared/ui/NavigationSidebar'
-import { Archive, ChevronsLeft, ChevronsRight } from 'lucide-react'
+import { ChevronsLeft, ChevronsRight } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router'
@@ -105,17 +105,6 @@ export function PageLayoutShell({ children }: PageLayoutShellProps) {
           <SidebarContent />
           <SidebarFooter>
             <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  isActive={location.pathname === '/history'}
-                  tooltip={t('nav.downloadHistory')}
-                  onClick={() => navigate('/history')}
-                  aria-label={t('nav.aria.downloadHistory')}
-                >
-                  <Archive className="size-4" />
-                  <span>{t('nav.downloadHistory')}</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton
                   isActive={location.pathname === '/settings'}

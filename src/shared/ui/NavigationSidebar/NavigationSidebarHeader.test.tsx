@@ -98,12 +98,14 @@ describe('NavigationSidebarHeader', () => {
     renderSidebar()
 
     const labels = [
-      'nav.search',
+      'nav.category.find',
       'nav.videoSearch',
-      'nav.downloads',
-      'nav.category.bilibili',
+      'nav.search',
       'nav.favorite',
       'nav.watchHistory',
+      'nav.category.download',
+      'nav.downloads',
+      'nav.downloadHistory',
       'nav.category.tool',
       'nav.trim',
       'nav.concat',
@@ -117,7 +119,7 @@ describe('NavigationSidebarHeader', () => {
     }
   })
 
-  it('exposes stable E2E test ids on the search and downloads items', () => {
+  it('exposes stable E2E test ids on the items that have them', () => {
     // data-testid is the i18n-proof selector hook for E2E specs; the
     // node carrying it must be the same menu button the aria-label
     // identifies, and items without a testId must not render one.
@@ -129,9 +131,29 @@ describe('NavigationSidebarHeader', () => {
     expect(screen.getByTestId('nav-downloads')).toBe(
       screen.getByRole('button', { name: 'nav.aria.downloads' }),
     )
+    expect(screen.getByTestId('nav-history')).toBe(
+      screen.getByRole('button', { name: 'nav.aria.downloadHistory' }),
+    )
     expect(
       screen.getByRole('button', { name: 'nav.aria.favorite' }),
     ).not.toHaveAttribute('data-testid')
+  })
+
+  it('marks the download-history item active on /history and navigates there', async () => {
+    // The history item moved from the sidebar footer into the Download
+    // group (2026-10-22 regrouping); navigation and active state must survive.
+    const { user: actor } = renderSidebar('/search')
+
+    const history = screen.getByRole('button', {
+      name: 'nav.aria.downloadHistory',
+    })
+    expect(history).not.toHaveAttribute('aria-current')
+
+    await actor.click(history)
+    expect(screen.getByTestId('location')).toHaveTextContent('/history')
+    expect(
+      screen.getByRole('button', { name: 'nav.aria.downloadHistory' }),
+    ).toHaveAttribute('aria-current', 'page')
   })
 
   it('marks the current route as the active page', () => {
