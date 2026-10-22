@@ -66,6 +66,7 @@ import {
 } from '@/shared/ui/form'
 import { Input } from '@/shared/ui/input'
 import { Skeleton } from '@/shared/ui/skeleton'
+import { toast } from '@/shared/ui/toast'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ChevronDown, ImageOff, Info, Play, RotateCcw } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
@@ -487,11 +488,15 @@ const VideoPartCard = memo(function VideoPartCard({
         const message = await interceptInvokeError(store, e)
         if (message) {
           logger.error('Failed to fetch subtitles', message)
+          // ERR::* codes map to localized messages; unknown raw errors
+          // stay log-only so parse hiccups don't spam toasts (#872).
+          const key = mapBackendError(message)
+          if (key) toast.error(t(key))
         }
         store.dispatch(setPartSubtitles({ index: partIndex, subtitles: [] }))
       }
     },
-    [video.bvid, videoPart.cid],
+    [video.bvid, videoPart.cid, t],
   )
 
   /**

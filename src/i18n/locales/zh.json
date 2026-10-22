@@ -395,6 +395,7 @@
     "options": "个别设置",
     "subtitle_select_required": "请选择至少一种语言",
     "subtitle_n_languages": "{{count}}种语言",
+    "subtitle_login_required": "字幕需要登录bilibili后才能获取。",
     "quality_fallback_tooltip": "所选画质不可用，已回退",
     "bangumi_not_found": "未找到该番剧。请检查URL。",
     "bangumi_vip_only": "该番剧需要VIP会员才能下载。",

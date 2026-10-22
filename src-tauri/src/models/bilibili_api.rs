@@ -664,6 +664,10 @@ pub struct PlayerV2ApiResponse {
 pub struct PlayerV2ApiData {
     #[serde(default)]
     pub subtitle: Option<PlayerV2Subtitle>,
+    /// True when viewing subtitles requires a valid login; the list stays
+    /// empty regardless of actual availability (issue #872).
+    #[serde(default)]
+    pub need_login_subtitle: Option<bool>,
 }
 
 /// Subtitle container in player v2 API response.
