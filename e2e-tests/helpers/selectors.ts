@@ -28,7 +28,7 @@ export const SIDEBAR = '[data-slot="sidebar"]'
 /** Sidebar navigation menu area (typically the header section). */
 export const SIDEBAR_HEADER = '[data-slot="sidebar-menu"]'
 
-/** Sidebar footer section containing settings and download history buttons. */
+/** Sidebar footer section containing the settings and collapse-toggle buttons. */
 export const SIDEBAR_FOOTER = '[data-slot="sidebar-footer"]'
 
 // Navigation buttons (aria-labels from i18n en.json)

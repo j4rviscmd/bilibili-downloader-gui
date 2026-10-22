@@ -83,7 +83,8 @@
     "noBackHistory": "没有可返回的页面",
     "noForwardHistory": "没有可前进的页面",
     "category": {
-      "bilibili": "Bilibili",
+      "find": "查找",
+      "download": "下载",
       "tool": "工具"
     },
     "aria": {

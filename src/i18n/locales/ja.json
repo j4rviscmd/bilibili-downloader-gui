@@ -83,7 +83,8 @@
     "noBackHistory": "戻れるページがありません",
     "noForwardHistory": "進めるページがありません",
     "category": {
-      "bilibili": "Bilibili",
+      "find": "探す",
+      "download": "ダウンロード",
       "tool": "ツール"
     },
     "aria": {

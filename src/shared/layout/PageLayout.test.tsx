@@ -2,8 +2,8 @@
  * PageLayoutShell suite.
  *
  * Heavy siblings are stubbed; the sidebar/app-bar chrome, the route-aware
- * nav buttons (download history + settings page) and the children slot
- * are asserted against the real store.
+ * settings nav button and the children slot are asserted against the real
+ * store.
  */
 
 import { renderWithProviders } from '@/test/test-utils'
@@ -69,35 +69,6 @@ describe('PageLayoutShell', () => {
       expect(
         screen.getByRole('button', { name: 'nav.aria.openSidebar' }),
       ).toBeInTheDocument(),
-    )
-  })
-
-  it('marks the history nav active only on /history', () => {
-    renderShell('/history')
-
-    expect(navButton('nav.downloadHistory').getAttribute('data-active')).toBe(
-      'true',
-    )
-  })
-
-  it('leaves the history nav inactive on other routes', () => {
-    renderShell('/search')
-
-    expect(navButton('nav.downloadHistory').getAttribute('data-active')).toBe(
-      'false',
-    )
-  })
-
-  it('clicking the history nav navigates to /history', async () => {
-    const { user } = renderShell('/search')
-
-    await user.click(navButton('nav.downloadHistory'))
-
-    // Route changed: the shell re-rendered with /history active
-    await vi.waitFor(() =>
-      expect(navButton('nav.downloadHistory').getAttribute('data-active')).toBe(
-        'true',
-      ),
     )
   })
 

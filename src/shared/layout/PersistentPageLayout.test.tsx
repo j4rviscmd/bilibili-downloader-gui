@@ -95,8 +95,8 @@ describe('PersistentPageLayout', () => {
   it('mounts a page on first visit and keeps earlier pages mounted hidden', async () => {
     const { user } = renderLayout('/search')
 
-    // Footer nav button, located via its visible span (tooltip also feeds
-    // the accessible name, so role+name is brittle)
+    // Nav item in the sidebar's Download group, located via its visible
+    // span (tooltip also feeds the accessible name, so role+name is brittle)
     const historyNav = screen
       .getAllByText('nav.downloadHistory')
       .map((el) => el.closest('button'))

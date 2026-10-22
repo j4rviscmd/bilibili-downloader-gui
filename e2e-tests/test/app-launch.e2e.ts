@@ -111,8 +111,8 @@ describe('bilibili-downloader-gui E2E', () => {
   })
 
   it('should display sidebar navigation items', async () => {
-    // Sidebar footer exists (contains download history +
-    // settings). Wait for it since sidebar renders async.
+    // Sidebar footer exists (contains the settings and collapse-toggle
+    // buttons). Wait for it since sidebar renders async.
     const footer = await browser.$(S.SIDEBAR_FOOTER)
     await footer.waitForExist({ timeout: 10_000 })
 
@@ -132,12 +132,13 @@ describe('bilibili-downloader-gui E2E', () => {
   // dialog tests, see PR #367). It works in manual testing and local
   // development.
   it.skip('should navigate to the settings page from sidebar', async () => {
-    // Sidebar is collapsed, so click the second menu button
+    // Sidebar is collapsed, so click the first menu button
     // in the footer (settings button)
     const footer = await browser.$(S.SIDEBAR_FOOTER)
     const menuButtons = await footer.$$('[data-slot="sidebar-menu-button"]')
-    // Second button in footer is settings
-    const settingsBtn = menuButtons[1]
+    // First button in footer is settings (history moved to the sidebar
+    // header's Download group in the 2026-10 regrouping)
+    const settingsBtn = menuButtons[0]
     expect(settingsBtn).to.exist
     await settingsBtn.click()
 

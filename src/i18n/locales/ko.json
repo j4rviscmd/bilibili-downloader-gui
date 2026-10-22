@@ -83,7 +83,8 @@
     "noBackHistory": "돌아갈 페이지가 없습니다",
     "noForwardHistory": "진행할 페이지가 없습니다",
     "category": {
-      "bilibili": "Bilibili",
+      "find": "찾기",
+      "download": "다운로드",
       "tool": "도구"
     },
     "aria": {
