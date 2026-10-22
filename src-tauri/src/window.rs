@@ -22,6 +22,10 @@ use crate::models::settings::{Settings, UiTheme};
 use crate::utils::locked_json;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, Theme, WebviewUrl, WebviewWindowBuilder};
+// Local E2E background mode: raw SW_SHOWNOACTIVATE show in show_main
+// (same 0.62 crate copy tauri itself compiles).
+#[cfg(target_os = "windows")]
+use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_SHOWNOACTIVATE};
 
 const WINDOW_STATE_FILE: &str = "window-state.json";
 const DEFAULT_WIDTH: f64 = 980.0;
@@ -167,8 +171,13 @@ pub(crate) fn is_e2e_background() -> bool {
 /// `create_main_window`, so without this call it never appears.
 ///
 /// In local E2E background mode (`E2E_BACKGROUND`) the window is shown but
-/// NEVER focused: the Accessory activation policy (see setup) keeps the
-/// keyboard/menu bar with the developer's foreground app. Why show at all:
+/// NEVER re-focused after boot: on macOS the Accessory activation policy
+/// (see setup) keeps the keyboard/menu bar with the developer's foreground
+/// app; on Windows the show below uses raw SW_SHOWNOACTIVATE so the reveal
+/// itself never steals focus (the window is activated exactly once, at app
+/// start, by wry's creation-time MoveFocus — see the E2E branch below for
+/// why full no-activation is not viable on Windows).
+/// Why show at all:
 /// a never-shown window is never drawn, and WebKit suspends/throttles it
 /// in ways the private-API tweaks cannot fully disable — measured
 /// 2026-10-21 on an idle machine, hidden-window runs stalled mid-session
@@ -182,8 +191,37 @@ pub(crate) fn is_e2e_background() -> bool {
 pub fn show_main(app: AppHandle) -> Result<(), String> {
     if is_e2e_background() {
         if let Some(main) = app.get_webview_window("main") {
-            // Show without focusing; with the Accessory policy the app
-            // cannot become active, so the user's keystrokes are untouched.
+            // Why the window is allowed to stay activatable (and is in fact
+            // activated ONCE at boot by wry's creation-time MoveFocus)
+            // instead of full no-activation: an inactive WebView2 window
+            // changes its commit cadence enough that the part-options
+            // accordion's re-mount race absorbs every WebDriver click —
+            // measured 2026-10-22, 4 url-download specs fail
+            // deterministically with either focused(false) or
+            // WS_EX_NOACTIVATE. macOS avoids this trade-off because the
+            // Accessory policy + occlusion tweaks keep WKWebView JS fully
+            // live; WebView2 has no equivalent. So on Windows the E2E
+            // window takes focus exactly once, at app start.
+            #[cfg(target_os = "windows")]
+            {
+                // Why raw ShowWindow and not show(): tao's set_visible
+                // resolves to ShowWindow(SW_SHOW) on Windows — the
+                // MARKER_DONT_FOCUS escape hatch only covers the
+                // creation-time show — which ACTIVATES the window and
+                // steals keyboard focus on every call. SW_SHOWNOACTIVATE
+                // displays the window (still required: a hidden webview
+                // gets throttled) in its saved/maximized placement without
+                // activating it. Bypassing tao's VISIBLE flag is safe:
+                // tao's is_visible() reads IsWindowVisible live.
+                let hwnd = main.hwnd().map_err(|e| format!("{e}"))?;
+                unsafe {
+                    let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+                }
+            }
+            // Show without focusing: on macOS the Accessory policy (see
+            // setup) means the app can never become active, so plain show()
+            // cannot take keyboard/menu-bar focus from the foreground app.
+            #[cfg(not(target_os = "windows"))]
             main.show().map_err(|e| format!("{e}"))?;
         }
         log::info!("[BE] show_main: shown without focus (E2E_BACKGROUND)");
@@ -198,7 +236,8 @@ pub fn show_main(app: AppHandle) -> Result<(), String> {
 
 /// Keeps the E2E webview's JavaScript fully live while its window is
 /// unfocused, covered by other windows, or the machine idles
-/// (`E2E_BACKGROUND`, macOS only).
+/// (`E2E_BACKGROUND`, macOS only — Windows keeps the window activated once
+/// at boot instead; see show_main's E2E branch for why).
 ///
 /// WKWebView suspends/throttles JS when the view is inactive or its window
 /// is occluded — an unfocused E2E window already froze react-toastify
