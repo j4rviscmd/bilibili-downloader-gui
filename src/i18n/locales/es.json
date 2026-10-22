@@ -395,6 +395,7 @@
     "options": "Ajustes por parte",
     "subtitle_select_required": "Por favor selecciona al menos un idioma",
     "subtitle_n_languages": "{{count}} idiomas",
+    "subtitle_login_required": "Los subtítulos solo están disponibles con sesión iniciada en Bilibili.",
     "quality_fallback_tooltip": "La calidad seleccionada no estaba disponible, se aplicó alternativa",
     "bangumi_not_found": "Episodio no encontrado. Por favor, verifica la URL.",
     "bangumi_vip_only": "Este episodio requiere membresía VIP para descargar.",

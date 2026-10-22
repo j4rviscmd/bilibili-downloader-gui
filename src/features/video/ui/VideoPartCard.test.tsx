@@ -14,6 +14,7 @@ import {
 import { setInput } from '@/features/video/model/inputSlice'
 import type { Input, PartInput, Video } from '@/features/video/types'
 import { TooltipProvider } from '@/shared/animate-ui/radix/tooltip'
+import { toast } from '@/shared/ui/toast'
 import { renderWithProviders, resetQueue, seedSession } from '@/test/test-utils'
 import { fireEvent, screen } from '@testing-library/react'
 import { Provider } from 'react-redux'
@@ -30,6 +31,9 @@ vi.mock('@/features/video', () => ({
 }))
 vi.mock('@/features/video/hooks/usePartDownloadStatus', () => ({
   usePartDownloadStatus: vi.fn(),
+}))
+vi.mock('@/shared/ui/toast', () => ({
+  toast: { info: vi.fn(), warning: vi.fn(), error: vi.fn(), success: vi.fn() },
 }))
 vi.mock('@/features/video/api/fetchVideoInfo', () => ({
   fetchPartQualities: vi.fn(),
@@ -924,6 +928,45 @@ describe('VideoPartCard', () => {
         1,
       ),
     )
+  })
+
+  it('toasts the mapped message when the subtitle fetch fails with an ERR:: code', async () => {
+    // Issue #872: ERR::* codes surface as localized toasts so a
+    // login-required subtitle list is no longer silent.
+    vi.mocked(fetchPartQualities).mockResolvedValue([
+      [{ id: 80, quality: '1080p' }],
+      [],
+      false,
+    ])
+    vi.mocked(fetchSubtitlesForPart).mockRejectedValue(
+      new Error('ERR::SUBTITLE_LOGIN_REQUIRED'),
+    )
+    const { user } = setup()
+
+    await user.click(screen.getByRole('button', { name: /video.options/ }))
+
+    await vi.waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('video.subtitle_login_required'),
+    )
+  })
+
+  it('stays toast-silent for unmapped subtitle fetch errors', async () => {
+    // Raw non-ERR:: messages stay log-only: parse hiccups must not spam
+    // toasts (#872).
+    vi.mocked(fetchPartQualities).mockResolvedValue([
+      [{ id: 80, quality: '1080p' }],
+      [],
+      false,
+    ])
+    vi.mocked(fetchSubtitlesForPart).mockRejectedValue(new Error('boom'))
+    const { user } = setup()
+
+    await user.click(screen.getByRole('button', { name: /video.options/ }))
+
+    await vi.waitFor(() =>
+      expect(store.getState().input.partInputs[0]!.subtitles).toEqual([]),
+    )
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('scrolls the card into view after opening the accordion', async () => {

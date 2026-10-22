@@ -1833,6 +1833,133 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn fetch_subtitles_retries_short_lived_empty_list() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/nav"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(nav_wbi_mock_body()))
+            .mount(&server)
+            .await;
+        // Stateful responder: the first player request returns code 0
+        // with an empty list (risk-control variance, issue #872), later
+        // requests return the full list. AtomicUsize because Respond
+        // must be Send + Sync.
+        struct EmptyThenFullSubtitles(std::sync::atomic::AtomicUsize);
+        impl wiremock::Respond for EmptyThenFullSubtitles {
+            fn respond(&self, _request: &wiremock::Request) -> wiremock::ResponseTemplate {
+                let n = self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                let body = if n == 0 {
+                    serde_json::json!({
+                        "code": 0, "message": "0",
+                        "data": {"subtitle": {"subtitles": []}}
+                    })
+                } else {
+                    serde_json::json!({
+                        "code": 0, "message": "0",
+                        "data": {"subtitle": {"subtitles": [
+                            {"lan": "zh-CN", "lan_doc": "中文",
+                             "subtitle_url": "//cdn/ai_subtitle/zh.json", "ai_type": 1}
+                        ]}}
+                    })
+                };
+                wiremock::ResponseTemplate::new(200).set_body_json(body)
+            }
+        }
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/player/wbi/v2"))
+            .respond_with(EmptyThenFullSubtitles(std::sync::atomic::AtomicUsize::new(
+                0,
+            )))
+            // Exactly 1 initial request + 1 retry; a third hit would
+            // fail verify() and prove the retry loop stops on success.
+            .expect(2)
+            .mount(&server)
+            .await;
+
+        let subs = fetch_subtitles(&bili_api_mock(&server.uri(), "SESSDATA=x"), "BV1s", 1).await;
+        assert_eq!(subs.len(), 1, "retry absorbs the first empty response");
+        server.verify().await;
+    }
+
+    #[tokio::test]
+    async fn fetch_subtitles_need_login_subtitle_signals_login_required() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/nav"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(nav_wbi_mock_body()))
+            .mount(&server)
+            .await;
+        // need_login_subtitle=true must not burn retries: one player
+        // request per call. Two calls below (inner + Vec wrapper) → 2
+        // total; a retry loop would push this past 2.
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/player/wbi/v2"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": {"need_login_subtitle": true,
+                             "subtitle": {"subtitles": []}}
+                })),
+            )
+            .expect(2)
+            .mount(&server)
+            .await;
+
+        let api = bili_api_mock(&server.uri(), "SESSDATA=x");
+        assert!(matches!(
+            fetch_subtitles_with_retry(&api, "BV1s", 1).await,
+            SubtitleListOutcome::LoginRequired
+        ));
+        // Vec wrapper keeps the download path's silent degradation.
+        assert!(fetch_subtitles(&api, "BV1s", 1).await.is_empty());
+        server.verify().await;
+    }
+    #[tokio::test(start_paused = true)]
+    async fn fetch_subtitles_gives_up_after_max_attempts_on_persistent_empty() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/nav"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(nav_wbi_mock_body()))
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/player/wbi/v2"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0",
+                    "data": {"subtitle": {"subtitles": []}}
+                })),
+            )
+            // 1 try + 2 retries, then stop: a 4th hit would fail verify()
+            .expect(3)
+            .mount(&server)
+            .await;
+
+        // A genuinely subtitle-less video must come back as an empty
+        // Subtitles outcome (not LoginRequired) after exhausting retries.
+        // start_paused auto-advances the 1s/2s retry sleeps instantly.
+        assert!(matches!(
+            fetch_subtitles_with_retry(
+                &bili_api_mock(&server.uri(), "SESSDATA=x"),
+                "BV1s",
+                1
+            )
+            .await,
+            SubtitleListOutcome::Subtitles(subs) if subs.is_empty()
+        ));
+        server.verify().await;
+    }
+
+    #[tokio::test]
+    async fn fetch_subtitles_without_cookie_signals_login_required() {
+        // No cookies cannot be distinguished from a subtitle-less video by
+        // the caller, so it shares the LoginRequired outcome (issue #872).
+        assert!(matches!(
+            fetch_subtitles_with_retry(&bili_api_mock("http://127.0.0.1:1", ""), "BV1s", 1).await,
+            SubtitleListOutcome::LoginRequired
+        ));
+    }
+    #[tokio::test]
     async fn fetch_part_qualities_with_dash_lists_both() {
         let server = wiremock::MockServer::start().await;
         wiremock::Mock::given(wiremock::matchers::method("GET"))
@@ -1925,6 +2052,9 @@ mod tests {
     async fn download_subtitle_writes_srt_from_bcc() {
         let server = wiremock::MockServer::start().await;
         wiremock::Mock::given(wiremock::matchers::method("GET"))
+            // The subtitle file download must carry the bilibili.com
+            // referer like the list request does (issue #872, yt-dlp parity)
+            .and(wiremock::matchers::header("Referer", REFERER))
             .respond_with(
                 wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
                     "body": [
@@ -7726,32 +7856,37 @@ async fn search_trending_with(api: &BiliApi) -> Result<Vec<TrendingKeyword>, Str
         .unwrap_or_default())
 }
 
-/// Fetches available subtitles for a video part from Player v2 API.
+/// Outcome of a subtitle-list fetch (issue #872): the list itself, or the
+/// explicit "a valid login is required" signal from the player API.
+enum SubtitleListOutcome {
+    Subtitles(Vec<SubtitleDto>),
+    LoginRequired,
+}
+
+/// Total attempts for the subtitle list fetch: 1 try + 2 short retries.
+const SUBTITLE_LIST_MAX_ATTEMPTS: usize = 3;
+
+/// Base delay between subtitle-list attempts; grows linearly per attempt
+/// (1s, 2s) so tests exercising one retry stay fast.
+const SUBTITLE_LIST_RETRY_DELAY_SECS: u64 = 1;
+
+/// Fetches the subtitle list for a video part, retrying short-lived
+/// empty results (issue #872).
 ///
-/// Retrieves subtitle information using Bilibili Player v2 API.
-/// Returns an empty vector on error or when no subtitles are available (does not propagate errors).
+/// Bilibili's risk control intermittently serves `code == 0` with an
+/// empty `subtitles` array for logged-in sessions; the same request
+/// returns the full list seconds later. When the list comes back empty
+/// and the response does not flag `need_login_subtitle`, this retries a
+/// few times before giving up.
 ///
-/// # Arguments
+/// `need_login_subtitle: true` (or having no cookies at all) means the
+/// list would stay empty regardless of retries; that is reported as
+/// [`SubtitleListOutcome::LoginRequired`] so callers can tell it apart
+/// from a video that simply has no subtitles.
 ///
-/// * `client` - HTTP client
-/// * `cookies` - Cookie entries for authentication
-/// * `bvid` - Bilibili video ID
-/// * `cid` - Content ID
-///
-/// # Returns
-///
-/// Returns a list of available subtitles.
-/// Returns an empty vector if no subtitles exist or on error.
-///
-/// # Notes
-///
-/// - Uses `/x/player/wbi/v2` with WBI signature + Cookie authentication.
-///   The unsigned `/x/player/v2` endpoint returns stale CDN cache with a
-///   partial AI subtitle set; the signed endpoint returns the full set
-///   in one request.
-/// - Requires login (SESSDATA cookie) to retrieve subtitle data
-/// - Determines if subtitle is AI-generated via the URL path containing `/ai_subtitle/`
-pub(crate) async fn fetch_subtitles(api: &BiliApi, bvid: &str, cid: i64) -> Vec<SubtitleDto> {
+/// Hard failures (WBI key fetch, transport, JSON parse, non-zero API
+/// code) soft-fail to an empty list, matching the previous behavior.
+async fn fetch_subtitles_with_retry(api: &BiliApi, bvid: &str, cid: i64) -> SubtitleListOutcome {
     log::info!(
         "[BE] fetch_subtitles: starting for bvid={}, cid={}",
         bvid,
@@ -7763,7 +7898,7 @@ pub(crate) async fn fetch_subtitles(api: &BiliApi, bvid: &str, cid: i64) -> Vec<
             "[BE] fetch_subtitles: no cookies available, \
              subtitles require login"
         );
-        return Vec::new();
+        return SubtitleListOutcome::LoginRequired;
     }
 
     let client = &api.http;
@@ -7778,82 +7913,152 @@ pub(crate) async fn fetch_subtitles(api: &BiliApi, bvid: &str, cid: i64) -> Vec<
             Ok(k) => k,
             Err(e) => {
                 log::error!("[BE] fetch_subtitles: failed to fetch WBI mixin key: {}", e);
-                return Vec::new();
+                return SubtitleListOutcome::Subtitles(Vec::new());
             }
         };
 
-    let (id_key, id_val) = wbi_video_param(bvid);
-    let mut params = BTreeMap::from([
-        (id_key.to_string(), id_val),
-        ("cid".to_string(), cid.to_string()),
-    ]);
-    let signature = crate::utils::wbi::generate_wbi_signature(&mut params, &mixin_key);
+    for attempt in 1..=SUBTITLE_LIST_MAX_ATTEMPTS {
+        // Why re-sign every attempt: wts is baked into the signature, so
+        // replaying the first attempt's signed query would resend a stale
+        // timestamp on retries.
+        let (id_key, id_val) = wbi_video_param(bvid);
+        let mut params = BTreeMap::from([
+            (id_key.to_string(), id_val),
+            ("cid".to_string(), cid.to_string()),
+        ]);
+        let signature = crate::utils::wbi::generate_wbi_signature(&mut params, &mixin_key);
 
-    // Why: generate_wbi_signature already inserts wts into `params`
-    // (src-tauri/src/utils/wbi.rs) and this query is built from `params`, so
-    // pushing wts again would send the pair twice; wbi endpoints return
-    // v_voucher when wts/w_rid are missing or wrong
-    // (references/bilibili-API-collect/docs/misc/sign/wbi.md)
-    let mut query: Vec<(&str, String)> = params
-        .iter()
-        .map(|(k, v)| (k.as_str(), v.clone()))
-        .collect();
-    query.push(("w_rid", signature.w_rid));
+        // Why: generate_wbi_signature already inserts wts into `params`
+        // (src-tauri/src/utils/wbi.rs) and this query is built from `params`, so
+        // pushing wts again would send the pair twice; wbi endpoints return
+        // v_voucher when wts/w_rid are missing or wrong
+        // (references/bilibili-API-collect/docs/misc/sign/wbi.md)
+        let mut query: Vec<(&str, String)> = params
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.clone()))
+            .collect();
+        query.push(("w_rid", signature.w_rid));
 
-    // Transport errors (send failure or non-2xx status) both soft-fail here.
-    let response = match api.get_q("/x/player/wbi/v2", &query).await {
-        Ok(resp) => resp,
-        Err(e) => {
-            log::error!("[BE] fetch_subtitles: request failed: {e}");
-            return Vec::new();
+        // Transport errors (send failure or non-2xx status) both soft-fail here.
+        let response = match api.get_q("/x/player/wbi/v2", &query).await {
+            Ok(resp) => resp,
+            Err(e) => {
+                log::error!("[BE] fetch_subtitles: request failed: {e}");
+                return SubtitleListOutcome::Subtitles(Vec::new());
+            }
+        };
+
+        let body: PlayerV2ApiResponse = match response.json().await {
+            Ok(b) => b,
+            Err(e) => {
+                log::error!("[BE] fetch_subtitles: failed to parse JSON: {}", e);
+                return SubtitleListOutcome::Subtitles(Vec::new());
+            }
+        };
+
+        if body.code != 0 {
+            log::error!(
+                "[BE] fetch_subtitles: API error code={}, \
+                 message={:?}",
+                body.code,
+                body.message
+            );
+            return SubtitleListOutcome::Subtitles(Vec::new());
         }
-    };
 
-    let body: PlayerV2ApiResponse = match response.json().await {
-        Ok(b) => b,
-        Err(e) => {
-            log::error!("[BE] fetch_subtitles: failed to parse JSON: {}", e);
-            return Vec::new();
+        // need_login_subtitle distinguishes "login required" from "no
+        // subtitles": retrying cannot help, so surface the signal instead
+        // of an indistinguishable empty list (issue #872).
+        if body
+            .data
+            .as_ref()
+            .and_then(|d| d.need_login_subtitle)
+            .unwrap_or(false)
+        {
+            log::warn!(
+                "[BE] fetch_subtitles: need_login_subtitle=true for \
+                 bvid={}, cid={}: a valid login is required",
+                bvid,
+                cid
+            );
+            return SubtitleListOutcome::LoginRequired;
         }
-    };
 
-    if body.code != 0 {
-        log::error!(
-            "[BE] fetch_subtitles: API error code={}, \
-             message={:?}",
-            body.code,
-            body.message
-        );
-        return Vec::new();
+        let subtitles = body
+            .data
+            .and_then(|d| d.subtitle)
+            .and_then(|s| s.subtitles)
+            .unwrap_or_default();
+
+        if !subtitles.is_empty() {
+            log::info!(
+                "[BE] fetch_subtitles: retrieved {} subtitles for \
+                 bvid={}, cid={} (attempt {}/{})",
+                subtitles.len(),
+                bvid,
+                cid,
+                attempt,
+                SUBTITLE_LIST_MAX_ATTEMPTS
+            );
+            return SubtitleListOutcome::Subtitles(
+                subtitles
+                    .into_iter()
+                    .map(|item| {
+                        let is_ai = item.subtitle_url.contains("/ai_subtitle/");
+                        SubtitleDto {
+                            lan: item.lan,
+                            lan_doc: item.lan_doc,
+                            subtitle_url: item.subtitle_url,
+                            is_ai,
+                            ai_type: item.ai_type,
+                        }
+                    })
+                    .collect(),
+            );
+        }
+
+        if attempt < SUBTITLE_LIST_MAX_ATTEMPTS {
+            let delay = SUBTITLE_LIST_RETRY_DELAY_SECS * attempt as u64;
+            log::warn!(
+                "[BE] fetch_subtitles: attempt {}/{} returned an empty \
+                 list for bvid={}, cid={}; retrying in {}s",
+                attempt,
+                SUBTITLE_LIST_MAX_ATTEMPTS,
+                bvid,
+                cid,
+                delay
+            );
+            tokio::time::sleep(Duration::from_secs(delay)).await;
+        }
     }
 
-    let subtitles = body
-        .data
-        .and_then(|d| d.subtitle)
-        .and_then(|s| s.subtitles)
-        .unwrap_or_default();
-
-    log::info!(
-        "[BE] fetch_subtitles: retrieved {} subtitles for \
-         bvid={}, cid={}",
-        subtitles.len(),
+    log::warn!(
+        "[BE] fetch_subtitles: empty list after {} attempts \
+         for bvid={}, cid={}",
+        SUBTITLE_LIST_MAX_ATTEMPTS,
         bvid,
         cid
     );
+    SubtitleListOutcome::Subtitles(Vec::new())
+}
 
-    subtitles
-        .into_iter()
-        .map(|item| {
-            let is_ai = item.subtitle_url.contains("/ai_subtitle/");
-            SubtitleDto {
-                lan: item.lan,
-                lan_doc: item.lan_doc,
-                subtitle_url: item.subtitle_url,
-                is_ai,
-                ai_type: item.ai_type,
-            }
-        })
-        .collect()
+/// Fetches available subtitles for a video part from the Player v2 API.
+///
+/// Vec-returning wrapper over [`fetch_subtitles_with_retry`] for callers
+/// that continue silently without subtitles (the download path): a
+/// login-required result degrades to an empty vector, already logged by
+/// the inner function.
+///
+/// - Uses `/x/player/wbi/v2` with WBI signature + Cookie authentication;
+///   retries short-lived empty lists (issue #872).
+/// - Requires login (SESSDATA cookie) to retrieve subtitle data.
+/// - Determines if subtitle is AI-generated via the URL path containing
+///   `/ai_subtitle/`.
+pub(crate) async fn fetch_subtitles(api: &BiliApi, bvid: &str, cid: i64) -> Vec<SubtitleDto> {
+    match fetch_subtitles_with_retry(api, bvid, cid).await {
+        SubtitleListOutcome::Subtitles(subs) => subs,
+        SubtitleListOutcome::LoginRequired => Vec::new(),
+    }
 }
 
 /// Fetches available subtitles for a specific video part.
@@ -7871,8 +8076,15 @@ pub(crate) async fn fetch_subtitles(api: &BiliApi, bvid: &str, cid: i64) -> Vec<
 /// Returns a list of available subtitles with language info and URLs.
 /// Returns an empty vector if no subtitles are available or on error.
 ///
-/// Uses the WBI-signed [`fetch_subtitles`], which returns the full
-/// subtitle set in a single request.
+/// # Errors
+///
+/// Returns `ERR::SUBTITLE_LOGIN_REQUIRED` when Bilibili reports that a
+/// valid login is required to view subtitles (`need_login_subtitle`, or
+/// no cookies at all) — distinguishing it from a video that simply has
+/// no subtitles (issue #872).
+///
+/// Uses the WBI-signed [`fetch_subtitles_with_retry`], which returns the
+/// full subtitle set in a single request, retrying short-lived empty lists.
 pub async fn fetch_subtitles_for_part(
     app: &AppHandle,
     bvid: &str,
@@ -7886,7 +8098,12 @@ pub async fn fetch_subtitles_for_part(
     );
     let cookies = read_cookie(app)?.unwrap_or_default();
     let api = BiliApi::from_cookies(&cookies)?;
-    let subtitles = fetch_subtitles(&api, bvid, cid).await;
+    let subtitles = match fetch_subtitles_with_retry(&api, bvid, cid).await {
+        SubtitleListOutcome::Subtitles(subs) => subs,
+        SubtitleListOutcome::LoginRequired => {
+            return Err("ERR::SUBTITLE_LOGIN_REQUIRED".to_string());
+        }
+    };
 
     log::info!(
         "[BE] fetch_subtitles_for_part: received {} subtitles",
@@ -8041,8 +8258,12 @@ pub async fn download_subtitle(
         format!("Failed to parse subtitle URL '{}': {}", url, e)
     })?;
 
+    // Why Referer: Bilibili's CDN gates the subtitle file behind a
+    // bilibili.com referer like every other endpoint; yt-dlp sends it on
+    // both the list request and this download (issue #872).
     let response = client
         .get(parsed_url)
+        .header(header::REFERER, REFERER)
         .timeout(Duration::from_secs(SUBTITLE_DOWNLOAD_TIMEOUT_SECS))
         .send()
         .await

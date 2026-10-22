@@ -395,6 +395,7 @@
     "options": "個別設定",
     "subtitle_select_required": "字幕を使用する場合は言語を選択してください",
     "subtitle_n_languages": "{{count}}言語",
+    "subtitle_login_required": "字幕の取得にはbilibiliへのログインが必要です。",
     "quality_fallback_tooltip": "選択した品質が利用できず、フォールバックしました",
     "bangumi_not_found": "エピソードが見つかりません。URLを確認してください。",
     "bangumi_vip_only": "このエピソードはVIP会員限定です。",

@@ -14,6 +14,11 @@ describe('mapBackendError', () => {
       'video.invalid_media_response',
     )
   })
+  it('maps ERR::SUBTITLE_LOGIN_REQUIRED to its key', () => {
+    expect(mapBackendError('ERR::SUBTITLE_LOGIN_REQUIRED')).toBe(
+      'video.subtitle_login_required',
+    )
+  })
 
   it('maps ERR::INTERRUPTED (crashed download history) to its key', () => {
     expect(mapBackendError('ERR::INTERRUPTED')).toBe(

@@ -395,6 +395,7 @@
     "options": "Réglages par partie",
     "subtitle_select_required": "Veuillez sélectionner au moins une langue",
     "subtitle_n_languages": "{{count}} langues",
+    "subtitle_login_required": "Les sous-titres ne sont disponibles qu'en étant connecté à Bilibili.",
     "quality_fallback_tooltip": "La qualité sélectionnée n'était pas disponible, alternative appliquée",
     "bangumi_not_found": "Épisode non trouvé. Veuillez vérifier l'URL.",
     "bangumi_vip_only": "Cet épisode nécessite un abonnement VIP pour être téléchargé.",
