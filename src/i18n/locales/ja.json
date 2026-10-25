@@ -386,6 +386,7 @@
     "subtitle_off": "なし",
     "subtitle_soft": "ソフトサブ",
     "subtitle_hard": "ハードサブ",
+    "subtitle_none_available": "このパートには字幕がありません",
     "subtitle_soft_label": "ソフトサブ・{{count}}言語",
     "subtitle_hard_label": "ハードサブ・{{lang}}",
     "subtitle_select_multiple": "複数選択可（デフォルト全選択）",

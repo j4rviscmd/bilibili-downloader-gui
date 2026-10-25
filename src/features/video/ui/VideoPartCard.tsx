@@ -1154,8 +1154,10 @@ const VideoPartCard = memo(function VideoPartCard({
                             </div>
                           )}
 
-                          {/* Subtitle Section */}
-                          {subtitles && subtitles.length > 0 && (
+                          {/* Subtitle Section — rendered whenever the lazy
+                              fetch has settled, even with zero tracks:
+                              SubtitleSection shows an off-only selection. */}
+                          {subtitles && (
                             <div>
                               <div className="mb-2 flex items-center gap-1.5">
                                 <span className="text-sm font-medium">

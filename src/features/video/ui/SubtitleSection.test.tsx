@@ -1,3 +1,4 @@
+import { TooltipProvider } from '@/shared/animate-ui/radix/tooltip'
 import { renderWithProviders } from '@/test/test-utils'
 import { screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
@@ -28,18 +29,94 @@ function setup(config: SubtitleConfig, disabled = false) {
 }
 
 describe('SubtitleSection', () => {
-  it('renders nothing when the part has no subtitles', () => {
-    const { container } = renderWithProviders(
-      <SubtitleSection
-        subtitles={[]}
-        config={offConfig}
-        disabled={false}
-        page={1}
-        onConfigChange={vi.fn()}
-      />,
+  it('keeps the section visible with only "off" selectable when no subtitles', () => {
+    // The no-subtitle tooltips need an ancestor provider (CLAUDE.md pattern).
+    renderWithProviders(
+      <TooltipProvider>
+        <SubtitleSection
+          subtitles={[]}
+          // Seeded default may be soft/hard; with no tracks the effective
+          // mode is off and the other options disable themselves.
+          config={{ mode: 'soft', selectedLans: ['zh'] }}
+          disabled={false}
+          page={1}
+          onConfigChange={vi.fn()}
+        />
+      </TooltipProvider>,
     )
 
-    expect(container.innerHTML).toBe('')
+    expect(
+      screen.getByRole('radio', { name: 'video.subtitle_off' }),
+    ).toBeChecked()
+    expect(
+      screen.getByRole('radio', { name: 'video.subtitle_soft' }),
+    ).toBeDisabled()
+    expect(
+      screen.getByRole('radio', { name: 'video.subtitle_hard' }),
+    ).toBeDisabled()
+    // Forced-off display must not leak the soft language picker hint.
+    expect(
+      screen.queryByText('video.subtitle_select_multiple'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('explains the unselectable modes with the none-available tooltip', async () => {
+    // delayDuration 0 keeps the hover→open wait short (Radix default 700ms).
+    const { user: actor } = renderWithProviders(
+      <TooltipProvider delayDuration={0}>
+        <SubtitleSection
+          subtitles={[]}
+          config={offConfig}
+          disabled={false}
+          page={1}
+          onConfigChange={vi.fn()}
+        />
+      </TooltipProvider>,
+    )
+
+    await actor.hover(screen.getByText('video.subtitle_soft'))
+
+    // AnimatePresence may keep an exiting clone mounted; at least one
+    // instance of the reason text must be open (FavoriteItem convention).
+    expect(
+      await screen.findAllByText('video.subtitle_none_available'),
+    ).not.toHaveLength(0)
+  })
+
+  it('keeps the hard picker hidden and ignores clicks on unselectable modes', async () => {
+    const onConfigChange = vi.fn()
+    const { user: actor } = renderWithProviders(
+      <TooltipProvider delayDuration={0}>
+        <SubtitleSection
+          subtitles={[]}
+          // Seeded hard default: forced-off display must not leak the
+          // language radios or the burn-in warning.
+          config={{ mode: 'hard', selectedLans: ['zh'] }}
+          disabled={false}
+          page={1}
+          onConfigChange={onConfigChange}
+        />
+      </TooltipProvider>,
+    )
+
+    // "off" stays interactive while the track-less modes gray out.
+    expect(
+      screen.getByRole('radio', { name: 'video.subtitle_off' }),
+    ).toBeEnabled()
+
+    // Disabled radios must swallow clicks: selecting soft/hard with zero
+    // tracks would store an unusable config.
+    await actor.click(
+      screen.getByRole('radio', { name: 'video.subtitle_soft' }),
+    )
+    await actor.click(
+      screen.getByRole('radio', { name: 'video.subtitle_hard' }),
+    )
+    expect(onConfigChange).not.toHaveBeenCalled()
+
+    expect(
+      screen.queryByText('video.subtitle_hard_warning'),
+    ).not.toBeInTheDocument()
   })
 
   it('renders the off/soft/hard mode options', () => {

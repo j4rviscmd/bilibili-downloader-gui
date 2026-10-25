@@ -535,8 +535,8 @@ describe('local real API: URL fetch to download', () => {
   it('exposes the real subtitle list for a subtitled video', async () => {
     await loadRealVideo(SUBTITLE_VIDEO_URL)
     await openPartOptions(0)
-    // SubtitleSection renders mode radios only when the real subtitle
-    // list (player/wbi/v2 via fetch_subtitles_for_part) is non-empty.
+    // Mode radios render once the real subtitle list (player/wbi/v2 via
+    // fetch_subtitles_for_part) has settled — off-only when it is empty.
     await (await subtitleModeRadio(0, 'off')).waitForExist({ timeout: 30_000 })
     await saveScreenshot('local', '04-subtitle-list')
   })
