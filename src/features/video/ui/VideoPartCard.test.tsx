@@ -406,6 +406,28 @@ describe('VideoPartCard', () => {
     })
   })
 
+  it('renders the subtitle section as off-only when no subtitles were fetched', () => {
+    setup({
+      partInput: {
+        accordionOpen: true,
+        videoQualities: [{ id: 80, quality: '1080p' }],
+        audioQualities: [],
+        subtitles: [],
+      },
+    })
+
+    expect(screen.getByText('video.subtitle')).toBeInTheDocument()
+    expect(
+      screen.getByRole('radio', { name: 'video.subtitle_off' }),
+    ).toBeChecked()
+    expect(
+      screen.getByRole('radio', { name: 'video.subtitle_soft' }),
+    ).toBeDisabled()
+    expect(
+      screen.getByRole('radio', { name: 'video.subtitle_hard' }),
+    ).toBeDisabled()
+  })
+
   // --- Thumbnail ------------------------------------------------------------
 
   it('renders the thumbnail and reports play-overlay clicks to the page', async () => {

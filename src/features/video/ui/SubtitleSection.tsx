@@ -4,6 +4,11 @@ import {
   RadioGroup,
   RadioGroupItem,
 } from '@/shared/animate-ui/radix/radio-group'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/shared/animate-ui/radix/tooltip'
 import { cn } from '@/shared/lib/utils'
 import { Label } from '@/shared/ui/label'
 import { AlertTriangle } from 'lucide-react'
@@ -43,7 +48,10 @@ export const SubtitleSection = memo(function SubtitleSection({
 }: SubtitleSectionProps) {
   const { t } = useTranslation()
 
-  if (subtitles.length === 0) return null
+  const noSubtitles = subtitles.length === 0
+  // A seeded soft/hard default has nothing to embed when the part has no
+  // subtitle tracks — the effective mode is "off" for all display state.
+  const effectiveMode = noSubtitles ? 'off' : config.mode
 
   const modeOptions = [
     { id: 'off', label: t('video.subtitle_off') },
@@ -81,37 +89,57 @@ export const SubtitleSection = memo(function SubtitleSection({
   return (
     <div className="space-y-3">
       <RadioGroup
-        value={config.mode}
+        value={effectiveMode}
         onValueChange={(value) =>
           handleModeChange(value as 'off' | 'soft' | 'hard')
         }
       >
         <div className="flex flex-wrap gap-x-4 gap-y-2">
-          {modeOptions.map(({ id, label }) => (
-            <div
-              key={id}
-              className="flex min-h-[22px] min-w-[60px] items-center space-x-2 whitespace-nowrap"
-            >
-              <RadioGroupItem
-                disabled={disabled}
-                value={id}
-                id={`sub-mode-${page}-${id}`}
-              />
-              <Label
-                htmlFor={`sub-mode-${page}-${id}`}
+          {modeOptions.map(({ id, label }) => {
+            const unavailable = noSubtitles && id !== 'off'
+            const unselectable = disabled || unavailable
+            const control = (
+              <div
+                key={id}
                 className={cn(
-                  'cursor-pointer',
-                  disabled && 'cursor-not-allowed',
+                  'flex min-h-[22px] min-w-[60px] items-center space-x-2 whitespace-nowrap',
+                  unselectable && 'text-muted-foreground/60',
                 )}
               >
-                {label}
-              </Label>
-            </div>
-          ))}
+                <RadioGroupItem
+                  disabled={unselectable}
+                  value={id}
+                  id={`sub-mode-${page}-${id}`}
+                />
+                <Label
+                  htmlFor={`sub-mode-${page}-${id}`}
+                  className={cn(
+                    'cursor-pointer',
+                    unselectable && 'cursor-not-allowed',
+                  )}
+                >
+                  {label}
+                </Label>
+              </div>
+            )
+            if (!unavailable) return control
+            // Why: disabled radios swallow hover events; the wrapped span keeps
+            // the tooltip trigger hoverable (CLAUDE.md disabled-tooltip pattern).
+            return (
+              <Tooltip key={id}>
+                <TooltipTrigger asChild>
+                  <span>{control}</span>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs text-xs">
+                  {t('video.subtitle_none_available')}
+                </TooltipContent>
+              </Tooltip>
+            )
+          })}
         </div>
       </RadioGroup>
 
-      {config.mode === 'soft' && (
+      {effectiveMode === 'soft' && (
         <div className="space-y-2">
           <div className="text-muted-foreground text-xs">
             {t('video.subtitle_select_multiple')}
@@ -142,7 +170,7 @@ export const SubtitleSection = memo(function SubtitleSection({
         </div>
       )}
 
-      {config.mode === 'hard' && (
+      {effectiveMode === 'hard' && (
         <div className="space-y-2">
           <RadioGroup
             value={config.selectedLans[0] || ''}
