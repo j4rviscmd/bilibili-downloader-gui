@@ -27,6 +27,7 @@ import { expect } from 'chai'
 import { execFile } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
+import type { ChainablePromiseElement } from 'webdriverio'
 import {
   ensureScreenshotDir,
   saveScreenshot,
@@ -183,7 +184,7 @@ async function clickDownloadDock(): Promise<void> {
   // container mounts lazily with the first toast, so hide it here.
   await browser.execute(() => {
     document
-      .querySelectorAll('.Toastify__toast-container')
+      .querySelectorAll<HTMLElement>('.Toastify__toast-container')
       .forEach((c) => (c.style.display = 'none'))
   })
   const button = await browser.$(S.DOWNLOAD_DOCK_BUTTON)
@@ -333,10 +334,12 @@ function noNativeLabel(text: string): boolean {
 }
 
 /** Opens the batch subtitle dropdown (structural testid on the trigger). */
-async function openBatchSubtitleMenu(): Promise<{
-  trigger: WebdriverIO.Element
-  menu: WebdriverIO.Element
-}> {
+// Why: webdriverio v9 types `await browser.$()` as ChainablePromiseElement,
+// which is not assignable to WebdriverIO.Element (element props like `parent`
+// are Promises in v9), so the former explicit Element annotations stopped
+// compiling — the return type is inferred and the helper params below use
+// ChainablePromiseElement (webdriverio 9.27.0, e2e-tests/package-lock.json).
+async function openBatchSubtitleMenu() {
   const trigger = await browser.$('[data-testid="batch-subtitle-trigger"]')
   await trigger.waitForExist({ timeout: 10_000 })
   const menu = await browser.$('[role="menu"]')
@@ -361,7 +364,7 @@ async function openBatchSubtitleMenu(): Promise<{
 
 /** Clicks a batch mode item (off/soft/hard) inside the open menu. */
 async function clickBatchMode(
-  menu: WebdriverIO.Element,
+  menu: ChainablePromiseElement,
   mode: 'off' | 'soft' | 'hard',
 ): Promise<void> {
   await (await menu.$(`[data-testid="batch-submode-${mode}"]`)).click()
@@ -369,7 +372,7 @@ async function clickBatchMode(
 
 /** Waits until the batch subtitle trigger summary matches `pred`. */
 async function waitForBatchSummary(
-  trigger: WebdriverIO.Element,
+  trigger: ChainablePromiseElement,
   pred: (text: string) => boolean,
   msg: string,
 ): Promise<void> {
