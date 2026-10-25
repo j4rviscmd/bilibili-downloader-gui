@@ -16,7 +16,7 @@ import type { Input, PartInput, Video } from '@/features/video/types'
 import { TooltipProvider } from '@/shared/animate-ui/radix/tooltip'
 import { toast } from '@/shared/ui/toast'
 import { renderWithProviders, resetQueue, seedSession } from '@/test/test-utils'
-import { fireEvent, screen } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { Provider } from 'react-redux'
 import { MemoryRouter } from 'react-router'
 import type { Mock } from 'vitest'
@@ -404,6 +404,64 @@ describe('VideoPartCard', () => {
       mode: 'soft',
       selectedLans: ['zh'],
     })
+  })
+
+  it('persists a video-quality radio pick immediately, without blur', async () => {
+    // A Ctrl+Enter download never blurs the form, so the pick must
+    // reach onValid2 (→ store) at click time or the enqueue snapshot
+    // keeps the auto-seeded ladder top (observed 2026-10-25).
+    const onValid2 = vi.fn()
+    const { user } = setup({
+      partInput: {
+        accordionOpen: true,
+        videoQuality: '80',
+        videoQualities: [
+          { id: 80, quality: '1080p' },
+          { id: 32, quality: '480p' },
+        ],
+        audioQualities: [],
+        subtitles: [],
+      },
+      onValid2,
+    })
+
+    await user.click(screen.getByRole('radio', { name: '480p' }))
+
+    await waitFor(() =>
+      expect(onValid2).toHaveBeenCalledWith(0, 'My Video Part 1', '32', '', {
+        videoQuality: true,
+      }),
+    )
+  })
+
+  it('persists an audio-quality radio pick immediately, without blur', async () => {
+    const onValid2 = vi.fn()
+    const { user } = setup({
+      partInput: {
+        accordionOpen: true,
+        videoQuality: '80',
+        audioQuality: '30280',
+        videoQualities: [{ id: 80, quality: '1080p' }],
+        audioQualities: [
+          { id: 30280, quality: '192K' },
+          { id: 30216, quality: '64K' },
+        ],
+        subtitles: [],
+      },
+      onValid2,
+    })
+
+    await user.click(screen.getByRole('radio', { name: '64K' }))
+
+    await waitFor(() =>
+      expect(onValid2).toHaveBeenCalledWith(
+        0,
+        'My Video Part 1',
+        '80',
+        '30216',
+        { audioQuality: true },
+      ),
+    )
   })
 
   it('renders the subtitle section as off-only when no subtitles were fetched', () => {

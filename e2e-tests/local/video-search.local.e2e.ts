@@ -183,12 +183,16 @@ async function openPartOptions(index: number): Promise<void> {
   // Self-healing against the mount race: a click fired while the fresh
   // page is still swapping cards can be absorbed by the re-render (the
   // accordion then stays closed and its quality fetches never fire).
-  // Poll aria-expanded and re-click until verifiably open.
+  // The toggle is RE-QUERIED on every attempt: a handle captured
+  // before the card swap points at a detached node whose clicks and
+  // attribute reads silently do nothing (observed 2026-10-25).
   const card = `[data-part-index="${index}"]`
-  const toggle = await browser.$(`${card} button[aria-expanded]`)
-  await toggle.waitForExist({ timeout: 10_000 })
+  await (
+    await browser.$(`${card} button[aria-expanded]`)
+  ).waitForExist({ timeout: 10_000 })
   await browser.waitUntil(
     async () => {
+      const toggle = await browser.$(`${card} button[aria-expanded]`)
       const state = await toggle.getAttribute('aria-expanded')
       if (state === 'true') return true
       await toggle.click()
