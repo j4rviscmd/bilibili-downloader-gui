@@ -7,6 +7,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import {
   Popover,
   PopoverContent,
@@ -41,7 +42,7 @@ import {
 import { cn } from '@/lib/utils'
 import { Button } from '@/shared/ui/button'
 import { ChevronDown, FolderOpen, Info, SlidersVertical } from 'lucide-react'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 /**
@@ -74,6 +75,39 @@ export function BatchSettingsBar() {
     [input.partInputs],
   )
 
+  // Ctrl+A toggles whole-video selection — the same full-range dispatch
+  // as the two buttons below. While a text field is focused (URL, part
+  // titles) the native select-all must survive, so the chord passes
+  // through untouched there. Ctrl is fixed on all platforms, matching
+  // the download button's Ctrl+Enter.
+  const allSelected =
+    input.partInputs.length > 0 && input.partInputs.every((pi) => pi.selected)
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!event.ctrlKey || !/^a$/i.test(event.key)) return
+      const target = event.target as HTMLElement | null
+      if (
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.isContentEditable
+      )
+        return
+      event.preventDefault()
+      dispatch(
+        allSelected
+          ? deselectPageAll({
+              startIndex: 0,
+              endIndex: input.partInputs.length - 1,
+            })
+          : selectPageAll({
+              startIndex: 0,
+              endIndex: input.partInputs.length - 1,
+            }),
+      )
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [dispatch, allSelected, input.partInputs.length])
   // No eager per-part fetching: under the enqueue-resolution model the
   // batch targets derive from the static login-state ladder, unfetched
   // parts resolve best-effort in the backend, and subtitle tracks are
@@ -193,7 +227,7 @@ export function BatchSettingsBar() {
               select each page's parts first would defeat the point. The
               range-based reducer is reused with the full range. */}
           <Button
-            variant="ghost"
+            variant="secondary"
             size="sm"
             onClick={() =>
               dispatch(
@@ -205,9 +239,16 @@ export function BatchSettingsBar() {
             }
           >
             {t('video.select_all')}
+            <KbdGroup
+              aria-hidden="true"
+              className="text-muted-foreground gap-0.5 text-[9px]"
+            >
+              <Kbd className="bg-background h-3.5 px-1 text-[9px]">Ctrl</Kbd>
+              <Kbd className="bg-background h-3.5 px-1 text-[9px]">A</Kbd>
+            </KbdGroup>
           </Button>
           <Button
-            variant="ghost"
+            variant="secondary"
             size="sm"
             onClick={() =>
               dispatch(

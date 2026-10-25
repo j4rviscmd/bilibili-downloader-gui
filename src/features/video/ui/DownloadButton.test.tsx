@@ -1,7 +1,7 @@
 import { useVideoInfo } from '@/features/video'
 import type { Input } from '@/features/video/types'
 import { renderWithProviders, resetQueue, seedSession } from '@/test/test-utils'
-import { screen } from '@testing-library/react'
+import { fireEvent, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import DownloadButton from './DownloadButton'
@@ -53,6 +53,119 @@ describe('DownloadButton', () => {
 
     await actor.click(button)
     expect(download).toHaveBeenCalledTimes(1)
+  })
+
+  // The shortcut contract is a window-level keydown chord; dispatching
+  // directly on window (fireEvent) keeps the test independent of focus
+  // state, which the listener deliberately ignores.
+  it('starts the download on Ctrl+Enter and shows the shortcut chips', () => {
+    const download = vi.fn()
+    vi.mocked(useVideoInfo).mockReturnValue(
+      createMockUseVideoInfo({ download }),
+    )
+    renderWithProviders(<DownloadButton />)
+
+    // Decorative Kbd chips render alongside the label…
+    expect(screen.getByText('Ctrl')).toBeInTheDocument()
+    expect(screen.getByText('Enter')).toBeInTheDocument()
+    // …without polluting the accessible name.
+    expect(
+      screen.getByRole('button', { name: 'actions.download' }),
+    ).toBeEnabled()
+
+    fireEvent.keyDown(window, { key: 'Enter', ctrlKey: true })
+
+    expect(download).toHaveBeenCalledTimes(1)
+  })
+
+  it('ignores Ctrl+Enter while validations fail', () => {
+    const download = vi.fn()
+    vi.mocked(useVideoInfo).mockReturnValue(
+      createMockUseVideoInfo({ download, isForm1Valid: false }),
+    )
+    renderWithProviders(<DownloadButton />)
+
+    fireEvent.keyDown(window, { key: 'Enter', ctrlKey: true })
+
+    expect(download).not.toHaveBeenCalled()
+  })
+
+  it('ignores plain Enter', () => {
+    const download = vi.fn()
+    vi.mocked(useVideoInfo).mockReturnValue(
+      createMockUseVideoInfo({ download }),
+    )
+    renderWithProviders(<DownloadButton />)
+
+    fireEvent.keyDown(window, { key: 'Enter' })
+
+    expect(download).not.toHaveBeenCalled()
+  })
+
+  it('ignores ⌘+Enter: the modifier is Ctrl-only on every platform', () => {
+    const download = vi.fn()
+    vi.mocked(useVideoInfo).mockReturnValue(
+      createMockUseVideoInfo({ download }),
+    )
+    renderWithProviders(<DownloadButton />)
+
+    fireEvent.keyDown(window, { key: 'Enter', metaKey: true })
+
+    expect(download).not.toHaveBeenCalled()
+  })
+
+  it('stops listening on unmount: the listener dies with the button', () => {
+    const download = vi.fn()
+    vi.mocked(useVideoInfo).mockReturnValue(
+      createMockUseVideoInfo({ download }),
+    )
+    const { unmount } = renderWithProviders(<DownloadButton />)
+
+    unmount()
+    fireEvent.keyDown(window, { key: 'Enter', ctrlKey: true })
+
+    expect(download).not.toHaveBeenCalled()
+  })
+
+  it('tracks the disabled state across rerenders (no stale listener)', () => {
+    const download = vi.fn()
+    vi.mocked(useVideoInfo).mockReturnValue(
+      createMockUseVideoInfo({ download }),
+    )
+    // The component consumes no store/router context directly, so a
+    // bare rerender is safe (RTL rerender drops renderWithProviders).
+    const { rerender } = renderWithProviders(<DownloadButton />)
+
+    fireEvent.keyDown(window, { key: 'Enter', ctrlKey: true })
+    expect(download).toHaveBeenCalledTimes(1)
+
+    vi.mocked(useVideoInfo).mockReturnValue(
+      createMockUseVideoInfo({ download, isForm1Valid: false }),
+    )
+    rerender(<DownloadButton />)
+    fireEvent.keyDown(window, { key: 'Enter', ctrlKey: true })
+    expect(download).toHaveBeenCalledTimes(1)
+
+    vi.mocked(useVideoInfo).mockReturnValue(
+      createMockUseVideoInfo({ download }),
+    )
+    rerender(<DownloadButton />)
+    fireEvent.keyDown(window, { key: 'Enter', ctrlKey: true })
+    expect(download).toHaveBeenCalledTimes(2)
+  })
+
+  it('swallows the browser default for the chord only, not other keys', () => {
+    vi.mocked(useVideoInfo).mockReturnValue(createMockUseVideoInfo())
+    renderWithProviders(<DownloadButton />)
+
+    // fireEvent returns dispatchEvent's result: false when a cancelable
+    // event's default was prevented. The chord must not double-fire via
+    // native Enter activation (e.g. a focused button); other keys keep
+    // their default for the rest of the page.
+    expect(fireEvent.keyDown(window, { key: 'Enter', ctrlKey: true })).toBe(
+      false,
+    )
+    expect(fireEvent.keyDown(window, { key: 'Enter' })).toBe(true)
   })
 
   it('stays enabled and keeps the idle label while a queue session runs (issue #691)', () => {
