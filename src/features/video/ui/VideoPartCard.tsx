@@ -691,6 +691,29 @@ const VideoPartCard = memo(function VideoPartCard({
     [form, onValid2, page],
   )
 
+  /**
+   * Persists a quality radio pick to the store immediately.
+   *
+   * The blur auto-save cannot be the only path: a radio pick followed by
+   * the Ctrl+Enter download shortcut never blurs the form, and WebDriver
+   * clicks do not move focus either, so the pick would silently never
+   * reach the enqueue snapshot (the seeded ladder-top would download
+   * instead — observed 2026-10-25). Guarded by form.trigger() like the
+   * auto-seed path so a mid-edit invalid title stays out of the store.
+   */
+  const handleQualityFlush = useCallback(
+    (kind: 'videoQuality' | 'audioQuality') => {
+      form.trigger().then((isValid) => {
+        if (!isValid) return
+        const { title, videoQuality, audioQuality } = form.getValues()
+        onValid2(page - 1, title, videoQuality, audioQuality, {
+          [kind]: true,
+        })
+      })
+    },
+    [form, onValid2, page],
+  )
+
   // Live title value drives the reset button's disabled state.
   const isDefaultTitle = form.watch('title') === videoPart.defaultTitle
 
@@ -1054,7 +1077,10 @@ const VideoPartCard = memo(function VideoPartCard({
                                   <FormControl>
                                     <RadioGroup
                                       value={String(field.value)}
-                                      onValueChange={field.onChange}
+                                      onValueChange={(value) => {
+                                        field.onChange(value)
+                                        handleQualityFlush('videoQuality')
+                                      }}
                                     >
                                       <QualityRadioGroup
                                         idPrefix={`vq-${page}`}
@@ -1114,7 +1140,10 @@ const VideoPartCard = memo(function VideoPartCard({
                                     <FormControl>
                                       <RadioGroup
                                         value={String(field.value)}
-                                        onValueChange={field.onChange}
+                                        onValueChange={(value) => {
+                                          field.onChange(value)
+                                          handleQualityFlush('audioQuality')
+                                        }}
                                       >
                                         <QualityRadioGroup
                                           idPrefix={`aq-${page}`}
