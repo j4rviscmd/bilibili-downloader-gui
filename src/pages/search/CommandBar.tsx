@@ -62,8 +62,8 @@ export function CommandBar({ variant }: { variant: 'hero' | 'compact' }) {
   const { t } = useTranslation()
   // Platform-native modifier for the paste hint (Cmd on macOS, Ctrl
   // elsewhere). Same userAgent check as the settings GeneralSection
-  // (`navigator.platform` is deprecated); two separate <kbd> chips make
-  // the combination readable on both platforms without a "+".
+  // (`navigator.platform` is deprecated); two <kbd> chips with a literal
+  // "+" between them read as one combination on both platforms.
   const isMac =
     typeof navigator !== 'undefined' && /Mac/i.test(navigator.userAgent)
   const pasteMod = isMac ? '⌘' : 'Ctrl'

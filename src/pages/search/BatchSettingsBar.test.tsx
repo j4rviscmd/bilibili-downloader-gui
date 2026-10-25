@@ -5,7 +5,7 @@ import { setVideo, useVideoInfo, VideoInfoProvider } from '@/features/video'
 import { initPartInputs } from '@/features/video/model/inputSlice'
 import type { Video } from '@/features/video/types'
 import { mockInvoke, renderWithProviders } from '@/test/test-utils'
-import { screen, within } from '@testing-library/react'
+import { fireEvent, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import BatchSettingsBar from './BatchSettingsBar'
 
@@ -161,7 +161,9 @@ describe('BatchSettingsBar', () => {
     renderBar()
     expect(screen.getByText('search.batch_title')).toBeInTheDocument()
     expect(screen.getByText(/search\.batch_applies/)).toBeInTheDocument()
-    expect(screen.getByText('video.select_all')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'video.select_all' }),
+    ).toBeInTheDocument()
   })
 
   it('stores a batch quality target without touching parts', async () => {
@@ -377,6 +379,35 @@ describe('BatchSettingsBar', () => {
       selectedLans: ['*'],
     })
     await user.keyboard('{Escape}')
+  })
+  it('toggles whole-video selection with Ctrl+A', () => {
+    seed([true, false])
+    renderBar()
+
+    fireEvent.keyDown(window, { key: 'a', ctrlKey: true })
+    expect(store.getState().input.partInputs.every((p) => p.selected)).toBe(
+      true,
+    )
+    // All selected → the same chord deselects (toggle semantics)
+    fireEvent.keyDown(window, { key: 'a', ctrlKey: true })
+    expect(store.getState().input.partInputs.some((p) => p.selected)).toBe(
+      false,
+    )
+  })
+
+  it('keeps native select-all when a text field is focused', () => {
+    seed([false, false])
+    renderBar()
+
+    // Dispatch on an input: bubbles to window but must pass through
+    // untouched (the guard checks the event target)
+    const field = document.createElement('input')
+    document.body.appendChild(field)
+    fireEvent.keyDown(field, { key: 'a', ctrlKey: true })
+
+    expect(store.getState().input.partInputs.some((p) => p.selected)).toBe(
+      false,
+    )
   })
 })
 

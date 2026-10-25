@@ -24,7 +24,7 @@
     "hero_title": "Pega una URL de Bilibili",
     "hero_subtitle": "Admite vídeos, bangumi y enlaces cortos. La información se obtiene automáticamente al pegar.",
     "url_label": "URL del vídeo",
-    "paste_hint": "Pega con <kbd>{{mod}}</kbd><kbd>V</kbd> · obtén con <kbd>Enter</kbd>",
+    "paste_hint": "Pega con <kbd>{{mod}}</kbd> + <kbd>V</kbd> · obtén con <kbd>Enter</kbd>",
     "fetch_cta": "Obtener",
     "clear_url": "Limpiar",
     "formats_label": "Formatos de URL admitidos",

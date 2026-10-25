@@ -330,7 +330,7 @@ describe('SearchContent', () => {
       route: '/search',
     })
 
-    await user.click(screen.getByText('video.select_all'))
+    await user.click(screen.getByRole('button', { name: 'video.select_all' }))
     expect(store.getState().input.partInputs.every((p) => p.selected)).toBe(
       true,
     )
@@ -448,7 +448,7 @@ describe('SearchContent', () => {
       route: '/search',
     })
 
-    await user.click(screen.getByText('video.select_all'))
+    await user.click(screen.getByRole('button', { name: 'video.select_all' }))
     const footer = screen.getByText('video.pagination_next').closest('ul')!
     await user.click(within(footer).getByText('2'))
 
@@ -689,7 +689,7 @@ describe('SearchContent', () => {
     expect(screen.getByText('video.no_parts_selected')).toBeInTheDocument()
     expect(screen.queryByTestId('download-button')).toBeNull()
 
-    await user.click(screen.getByText('video.select_all'))
+    await user.click(screen.getByRole('button', { name: 'video.select_all' }))
 
     expect(within(dock).getByText(/search\.selected_count/)).toBeInTheDocument()
     expect(within(dock).getByText(/search\.total_duration/)).toBeInTheDocument()
@@ -724,7 +724,7 @@ describe('SearchContent', () => {
       .closest('nav')!
     expect(pager.className).toContain('col-start-2')
 
-    await user.click(screen.getByText('video.select_all'))
+    await user.click(screen.getByRole('button', { name: 'video.select_all' }))
 
     // With a selection the summary takes over the left cell…
     expect(
@@ -744,7 +744,7 @@ describe('SearchContent', () => {
       route: '/search',
     })
 
-    await user.click(screen.getByText('video.select_all'))
+    await user.click(screen.getByRole('button', { name: 'video.select_all' }))
 
     // totalPages ≤ 1 unmounts the pager; the explicit col-start slots
     // keep the layout intact — the empty auto center column collapses

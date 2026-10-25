@@ -24,7 +24,7 @@
     "hero_title": "粘贴Bilibili链接",
     "hero_subtitle": "支持视频、番剧和短链接。粘贴后自动获取信息。",
     "url_label": "视频链接",
-    "paste_hint": "<kbd>{{mod}}</kbd><kbd>V</kbd> 粘贴 · <kbd>Enter</kbd> 获取",
+    "paste_hint": "<kbd>{{mod}}</kbd> + <kbd>V</kbd> 粘贴 · <kbd>Enter</kbd> 获取",
     "fetch_cta": "获取",
     "clear_url": "清除",
     "formats_label": "支持的链接格式",
