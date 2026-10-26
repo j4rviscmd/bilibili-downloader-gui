@@ -34,6 +34,8 @@ Hover a result card and a preview starts playing, so you can send exactly the vi
 
 Hovering a card plays a short preview. When you find a keeper, hit the download button on the card, pick quality and subtitles, and save. Quality limits depend on your login state and membership tier — see the quality section of the [how-to-download guide](/bilibili-downloader-gui/guides/how-to-download/).
 
+For batch saving, two keyboard shortcuts speed things up: **Ctrl+A** toggles selecting every part of the loaded video, and **Ctrl+Enter** sends the whole selection to the download queue.
+
 ## Catching trends with the popular feed
 
 Leave the search box empty and the app shows what's trending across all of bilibili. It's the right tool when you don't have a specific video in mind — "save what's hot right now" or "find something good to watch tonight."
@@ -46,6 +48,8 @@ Sign in with a Firefox cookie or the QR code, and a **For you** section appears 
 
 Each card carries a reason badge (for example "高点赞量", high likes), so you can see why it was recommended. If you're not signed in or the fetch fails, the section simply doesn't appear.
 
+A refresh button on the shelf reloads the recommendations on demand, so the shelf never goes stale while you sit on the page.
+
 Login setup is covered in the login section of the [how-to-download guide](/bilibili-downloader-gui/guides/how-to-download/).
 
 ## Preview before you download
@@ -54,6 +58,7 @@ The biggest win of in-app search is **checking before saving**:
 
 - Hover or tap a card and the video itself starts playing
 - Unavailable or region-locked videos show a dedicated message up front
+- Pasting a URL instead? Clicking a part thumbnail on the video page opens the same preview in a dialog
 
 No more downloading something that only looked right in the thumbnail.
 

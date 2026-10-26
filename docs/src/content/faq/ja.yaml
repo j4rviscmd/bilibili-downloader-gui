@@ -21,3 +21,5 @@ items:
     answer: "はい。本アプリはオープンソースで、ソースコードはGitHubで全て公開されており、誰でも内容を確認できます。広告も同梱されていません。"
   - question: 音声だけをMP3で保存できますか？
     answer: "はい、動画から音声のみを抽出して保存できます。詳しい手順はMP3保存ガイド(https://j4rviscmd.github.io/bilibili-downloader-gui/ja/guides/download-mp3-audio/)をご覧ください。"
+  - question: ログイン方法を切り替えましたが反映されません。なぜですか？
+    answer: "ログイン方法の切り替え(Firefox Cookie自動検出⇔QRコードログイン)は、アプリの再起動時に適用されます。設定で方法を変更したら、再起動の案内に従う(またはアプリを再起動する)と反映されます。"

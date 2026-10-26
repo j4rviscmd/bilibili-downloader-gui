@@ -21,3 +21,5 @@ items:
     answer: "Oui. L'app est open source et tout son code est publié sur GitHub : n'importe qui peut l'inspecter. Aucune publicité n'est incluse."
   - question: Puis-je n'enregistrer que l'audio en MP3 ?
     answer: "Oui, vous pouvez extraire et enregistrer seulement l'audio d'une vidéo. Consultez le guide MP3 sur https://j4rviscmd.github.io/bilibili-downloader-gui/fr/guides/download-mp3-audio/ pour plus de détails."
+  - question: J'ai changé de méthode de connexion mais rien ne change. Pourquoi ?
+    answer: "Les changements de méthode de connexion (détection auto du cookie Firefox et connexion par code QR) s'appliquent au redémarrage de l'app. Après avoir changé la méthode dans les réglages, suivez l'invite de redémarrage (ou relancez l'app) pour qu'elle prenne effet."

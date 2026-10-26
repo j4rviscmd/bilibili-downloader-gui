@@ -27,11 +27,15 @@ Un téléchargement sans sous-titres reste bien sûr possible.
 ## Étapes (réglages des sous-titres dans l'app)
 
 1. Lancez l'app et collez l'URL de la vidéo Bilibili
-2. Avec la qualité, choisissez le mode de sous-titres (soft / hard / aucun) et la langue
+2. Avec la qualité, choisissez le mode de sous-titres (soft / hard / aucun) ; en hard sub, la langue est décidée par priorité (voir ci-dessous)
 3. Lancez le téléchargement : les sous-titres sont traités d'abord, puis la vidéo est enregistrée
 4. La progression du traitement s'affiche en direct
 
 **À noter** : le téléchargement des sous-titres exige une connexion à Bilibili via Firefox. L'app détecte automatiquement le cookie Firefox — il suffit de s'être connecté une fois dans Firefox. Détails dans le [guide principal](/bilibili-downloader-gui/fr/guides/how-to-download/).
+
+### Définir un mode de sous-titres par défaut, une seule fois
+
+Dans Réglages → Téléchargement, « Mode de Sous-titres par Défaut » présélectionne votre choix (aucun / soft / hard) pour chaque vidéo chargée, si bien que l'écran de téléchargement est prêt sans rien toucher. Avec **Hard Sub** actif, la liste « Priorité des Langues pour Hard Sub » décide quelle langue est gravée : vos langues sont essayées dans l'ordre choisi et la première disponible dans la partie est utilisée. Ajouter « Toutes les autres langues » à la liste couvre les parties qui n'ont aucune de vos langues.
 
 ## Langues prises en charge (jusqu'à 15) et sous-titres IA
 

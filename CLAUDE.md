@@ -112,6 +112,16 @@ comments, JSDoc/docstring descriptions, and WHY/CAUTION/CONSTRAINT tags.
 Existing Japanese comments may remain, but never add new Japanese
 comments.
 
+### Screenshots & Captured Media
+
+**When capturing app screenshots, demo videos, or thumbnails for repo
+assets (e.g. `docs/public/`), feature only videos uploaded by bilibili
+itself** — company-operated accounts such as 哔哩哔哩拜年纪 or
+哔哩哔哩纪录片. Note: bilibili-_verified_ (公認) third-party uploader
+accounts do NOT qualify; the uploader must be bilibili's own account.
+This keeps third-party user content (and its copyright/moral risks) out
+of marketing assets.
+
 ## CI & E2E Workflows
 
 - **CI** (`.github/workflows/ci.yml`) runs on Ubuntu and is aggregated

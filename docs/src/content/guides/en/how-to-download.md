@@ -49,6 +49,7 @@ Why we recommend it:
 - Embeds subtitles in up to 15 languages
 - Batch episode selection and download for bangumi (anime/drama)
 - Audio-only saving (MP3 and similar)
+- A download queue that keeps saving while you browse, with several parts downloading at once
 
 ### Installation (Windows / macOS)
 
@@ -66,6 +67,10 @@ Why we recommend it:
 Video and audio streams are merged automatically — no extra steps needed.
 
 Want to skip the browser entirely? The app also has built-in search — see [search and download inside the app](/bilibili-downloader-gui/guides/search-and-download/).
+
+### The download queue: it keeps going while you browse
+
+Started downloads run in a queue on the Downloads page, so you can keep searching and queueing more videos while they finish. Several parts download at the same time — how many is controlled by the **Simultaneous Part Downloads** setting (Settings → Download, 1–4 parts, default 2). Raising it finishes batches sooner, but more parallel connections can trip Bilibili rate limiting; if downloads become unstable, lower it. Within each part, segments also download in parallel — how many is set by **Segment Download Parallelism** (1/2/4/6/8, default 8); if Bilibili CDN throttling makes speeds unstable, lower it.
 
 ### Choosing quality (480p–4K and how login affects it)
 

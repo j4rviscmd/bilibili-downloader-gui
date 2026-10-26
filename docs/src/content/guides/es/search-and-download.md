@@ -34,6 +34,8 @@ Al pasar el cursor sobre una tarjeta se reproduce una vista previa, así que pue
 
 Al pasar el cursor sobre una tarjeta se reproduce una vista previa corta. Cuando des con un buen candidato, pulsa el botón de descarga de la tarjeta, elige calidad y subtítulos y guarda. Los límites de calidad dependen de tu sesión y nivel de membresía; consulta la sección de calidad de la [guía de descarga](/bilibili-downloader-gui/es/guides/how-to-download/).
 
+Para guardar por lotes hay dos atajos de teclado: **Ctrl+A** alterna la selección de todas las partes del vídeo cargado y **Ctrl+Enter** envía la selección entera a la cola de descargas.
+
 ## Seguir tendencias con el feed popular
 
 Deja el cuadro vacío y la app muestra lo más popular de todo bilibili. Es la herramienta adecuada cuando no tienes un vídeo concreto en mente: «guardar lo que está de moda» o «encontrar algo bueno para esta noche».
@@ -46,6 +48,8 @@ Inicia sesión con la cookie de Firefox o el código QR y aparecerá una secció
 
 Cada tarjeta lleva una insignia con la razón (por ejemplo «高点赞量», muchos likes), así que ves por qué te lo recomendaron. Sin sesión o si falla la petición, la sección simplemente no aparece.
 
+Un botón de refresco en el estante recarga las recomendaciones al momento, así que no se quedan desfasadas mientras permaneces en la página.
+
 La configuración del inicio de sesión está en la sección correspondiente de la [guía de descarga](/bilibili-downloader-gui/es/guides/how-to-download/).
 
 ## Previsualizar antes de descargar
@@ -54,6 +58,7 @@ La mayor ventaja de la búsqueda integrada es **comprobar antes de guardar**:
 
 - Pasa el cursor o toca una tarjeta y el vídeo empieza a reproducirse
 - Los vídeos no disponibles o bloqueados por región muestran un aviso específico desde el principio
+- ¿Pegas una URL? Al pulsar una miniatura de parte en la página del vídeo se abre la misma vista previa en un diálogo
 
 Se acabó descargar algo que solo parecía bueno en la miniatura.
 
