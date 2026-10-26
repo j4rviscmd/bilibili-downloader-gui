@@ -31,7 +31,6 @@ import {
   loadFixtureVideo,
   saveScreenshot,
   setupDownloadEnv,
-  tauriInvoke,
   teardownDownloadEnv,
   waitForMainUI,
   type DownloadEnv,
@@ -115,11 +114,34 @@ describe('queue replace semantics', () => {
   before(async () => {
     await waitForMainUI()
     downloadEnv = await setupDownloadEnv()
-    // Pin the serial slot: see the header note — the exact-count
-    // assertions below describe one-part-at-a-time drain semantics.
-    await tauriInvoke('patch_settings', {
-      patch: { maxConcurrentDownloads: 1 },
-    })
+    // Pin the serial slot through the real Settings UI: the queue runner
+    // reads the FRONTEND settings store, which only reloads persisted
+    // settings when the Settings page opens — patching the file via
+    // patch_settings alone leaves the in-memory store at the default (2).
+    // Self-healing click loop: the visible-page settings.json re-read can
+    // clobber a just-clicked value (see default-subtitle-mode e2e).
+    const navSettings = await browser.$('[data-testid="nav-settings"]')
+    await navSettings.waitForExist({ timeout: 15_000 })
+    await navSettings.click()
+    const cat = await browser.$('[data-category="download"]')
+    await cat.waitForExist({ timeout: 15_000 })
+    await cat.click()
+    const one = await browser.$(
+      '//*[@id="setting-max-concurrent-downloads"]//button[normalize-space()="1"]',
+    )
+    await one.waitForExist({ timeout: 15_000 })
+    await browser.waitUntil(
+      async () => {
+        if ((await one.getAttribute('data-state')) !== 'on') {
+          await one.click()
+          await browser.pause(500)
+          return false
+        }
+        return true
+      },
+      { timeout: 15_000, timeoutMsg: 'serial-slot toggle never settled on 1' },
+    )
+    await browser.pause(1_500)
     await loadFixtureVideo()
 
     // Baseline: download all three parts to a settled done state so the
