@@ -844,7 +844,7 @@ const VideoPartCard = memo(function VideoPartCard({
                     className="focus-visible:ring-ring/50 absolute inset-0 flex items-center justify-center rounded-lg bg-black/0 text-white opacity-0 transition outline-none group-hover/thumb:bg-black/40 group-hover/thumb:opacity-100 focus-visible:bg-black/40 focus-visible:opacity-100 focus-visible:ring-[3px]"
                   >
                     <Play
-                      className="size-8 fill-current drop-shadow"
+                      className="size-6 fill-current drop-shadow"
                       aria-hidden
                     />
                   </button>
