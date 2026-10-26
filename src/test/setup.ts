@@ -148,15 +148,16 @@ vi.mock('react-i18next', async () => {
   }
 })
 
-// happy-dom has no WAAPI; motion components call element.animate at mount.
+// Override happy-dom's WAAPI (added in v20.12) with the no-op polyfill:
+// happy-dom's Animation.cancel() rejects its finished promise without the
+// spec-required "mark as handled" step, so every framer-motion unmount
+// surfaces as an unhandled rejection and fails the vitest run (see PR #895).
 // ponytail: no-op polyfill; replace only if a test needs animation state.
-if (!Element.prototype.animate) {
-  Object.defineProperty(Element.prototype, 'animate', {
-    value: () => ({
-      finished: Promise.resolve(),
-      cancel: () => {},
-      commitStyles: () => {},
-    }),
-    configurable: true,
-  })
-}
+Object.defineProperty(Element.prototype, 'animate', {
+  value: () => ({
+    finished: Promise.resolve(),
+    cancel: () => {},
+    commitStyles: () => {},
+  }),
+  configurable: true,
+})
