@@ -27,11 +27,15 @@ Por supuesto, también puedes descargar sin subtítulos.
 ## Pasos (ajustes de subtítulos en la app)
 
 1. Abre la app y pega la URL del vídeo de Bilibili
-2. Junto con la calidad, elige el modo de subtítulos (suaves / duros / ninguno) y el idioma
+2. Junto con la calidad, elige el modo de subtítulos (suaves / duros / ninguno); con subtítulos duros, el idioma se decide por prioridad (ver abajo)
 3. Inicia la descarga; los subtítulos se procesan primero y luego se guarda el vídeo
 4. El progreso del procesado se muestra en tiempo real
 
 **Nota**: descargar subtítulos requiere sesión iniciada en Bilibili vía Firefox. La app detecta automáticamente las cookies de Firefox, así que basta con haber iniciado sesión en Bilibili en Firefox una vez. Detalles de sesión en la [guía principal](/bilibili-downloader-gui/es/guides/how-to-download/).
+
+### Configura un modo de subtítulos predeterminado, una sola vez
+
+En Ajustes → Descarga, «Modo de Subtítulos Predeterminado» preselecciona tu elección (ninguno / suaves / duros) para cada vídeo que cargues, de modo que la pantalla de descarga queda lista sin tocar nada. Con **Hard Sub** activo, la lista «Prioridad de Idiomas para Hard Sub» decide qué idioma se graba: se prueban tus idiomas en el orden que definas y se usa el primero disponible en la parte. Añadir «Todos los demás idiomas» a la lista cubre las partes sin ninguno de tus idiomas.
 
 ## Idiomas admitidos (hasta 15) y subtítulos de IA
 

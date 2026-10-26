@@ -21,3 +21,5 @@ items:
     answer: "Sí. La app es de código abierto y todo su código está publicado en GitHub, así que cualquiera puede inspeccionarlo. No incluye anuncios."
   - question: ¿Puedo guardar solo el audio en MP3?
     answer: "Sí, puedes extraer y guardar solo el audio de un vídeo. Consulta la guía de MP3 en https://j4rviscmd.github.io/bilibili-downloader-gui/es/guides/download-mp3-audio/ para más detalles."
+  - question: Cambié el método de inicio de sesión pero no se aplica. ¿Por qué?
+    answer: "Los cambios de método de inicio de sesión (detección automática de cookies de Firefox e inicio con código QR) se aplican al reiniciar la app. Tras cambiar el método en los ajustes, usa el aviso de reinicio (o relanza la app) para que surta efecto."

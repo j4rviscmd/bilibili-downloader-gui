@@ -21,3 +21,5 @@ items:
     answer: "Yes. The app is open source and its entire source code is published on GitHub, so anyone can inspect it. No ads are bundled."
   - question: Can I save just the audio as MP3?
     answer: "Yes, you can extract and save only the audio from a video. See the MP3 guide at https://j4rviscmd.github.io/bilibili-downloader-gui/guides/download-mp3-audio/ for details."
+  - question: I switched the login method, but nothing changed. Why?
+    answer: "Login method switches (Firefox cookie auto-detection and QR code login) are applied when the app restarts. After changing the method in settings, use the restart prompt (or relaunch the app) to make it take effect."

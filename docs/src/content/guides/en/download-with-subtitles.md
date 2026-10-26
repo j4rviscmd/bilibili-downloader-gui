@@ -27,11 +27,15 @@ A plain download without subtitles is of course also available.
 ## Steps (subtitle settings in the app)
 
 1. Launch the app and paste the Bilibili video URL
-2. Alongside quality, choose a subtitle mode (soft / hard / none) and the language
+2. Alongside quality, pick a subtitle mode (soft / hard / none); with hard subs, the language is picked by priority (see below)
 3. Start the download; subtitles are processed first, then the video is saved
 4. Progress for the subtitle processing is shown live
 
 **Note**: downloading subtitles requires being logged in to Bilibili via Firefox. The app auto-detects Firefox cookies, so logging in to Bilibili in Firefox once is all it takes. For login details, see the [main how-to guide](/bilibili-downloader-gui/guides/how-to-download/).
+
+### Set a default subtitle mode once, for every video
+
+In Settings → Download, **Default Subtitle Mode** preselects your choice (off / soft / hard) for every video you load, so the download screen is ready without extra clicks. With **Hard Sub** active, the **Hard Sub Language Priority** list decides which language gets burned: your languages are tried in the order you arrange them, and the first one available in a part is used. Adding "All other languages" to the list covers parts that carry none of your picks.
 
 ## Supported languages (up to 15) and AI subtitles
 

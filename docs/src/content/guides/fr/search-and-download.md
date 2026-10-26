@@ -34,6 +34,8 @@ Survolez une carte et un aperçu démarre, pour n'envoyer à la file de téléch
 
 Le survol d'une carte joue un aperçu court. Un bon candidat ? Le bouton de téléchargement de la carte ouvre le choix de qualité et de sous-titres. Les limites de qualité dépendent de votre connexion et de votre abonnement — voir la section qualité du [guide de téléchargement](/bilibili-downloader-gui/fr/guides/how-to-download/).
 
+Pour les enregistrements par lots, deux raccourcis clavier accélèrent les choses : **Ctrl+A** bascule la sélection de toutes les parties de la vidéo chargée, et **Ctrl+Enter** envoie toute la sélection dans la file de téléchargement.
+
 ## Suivre les tendances avec le fil populaire
 
 Laissez la recherche vide et l'app affiche ce qui trend sur tout bilibili. C'est l'outil adapté sans vidéo précise en tête : « sauvegarder ce qui est chaud » ou « trouver quelque chose de bien ce soir ».
@@ -46,6 +48,8 @@ Connectez-vous via le cookie Firefox ou le code QR et une section **Pour vous** 
 
 Chaque carte porte une insignia de raison (par ex. « 高点赞量 », beaucoup de likes), pour comprendre la recommandation. Non connecté ou en cas d'échec, la section n'apparaît tout simplement pas.
 
+Un bouton d'actualisation sur l'étagère recharge les recommandations à la demande — elles ne prennent pas la poussière pendant que vous restez sur la page.
+
 La configuration de la connexion est couverte dans la section dédiée du [guide de téléchargement](/bilibili-downloader-gui/fr/guides/how-to-download/).
 
 ## Prévisualiser avant de télécharger
@@ -54,6 +58,7 @@ Le plus grand gain de la recherche intégrée, c'est **vérifier avant d'enregis
 
 - Survolez ou touchez une carte et la vidéo se lance
 - Les vidéos indisponibles ou bloquées par région affichent un message dédié d'emblée
+- Vous collez une URL ? Cliquer une miniature de partie sur la page de la vidéo ouvre le même aperçu dans un dialogue
 
 Fini de télécharger un contenu qui ne payait que de mine dans la miniature.
 

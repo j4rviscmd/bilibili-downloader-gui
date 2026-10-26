@@ -21,3 +21,5 @@ items:
     answer: "安全。本应用是开源软件,源代码全部在GitHub公开,任何人都能审查,也不附带广告。"
   - question: 可以只保存MP3音频吗？
     answer: "可以,支持从视频中单独提取音频。详细步骤请看MP3保存指南:https://j4rviscmd.github.io/bilibili-downloader-gui/zh/guides/download-mp3-audio/"
+  - question: 切换了登录方式但没有生效,为什么？
+    answer: "登录方式的切换(Firefox Cookie自动检测⇔二维码登录)会在应用重启后生效。在设置中更改方式后,按提示重启(或手动重启)应用即可。"

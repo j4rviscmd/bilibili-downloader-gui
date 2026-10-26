@@ -48,6 +48,7 @@ Por qué la recomendamos:
 - Subtítulos integrados en hasta 15 idiomas
 - Selección de episodios y descarga por lotes de bangumi
 - Guardado de solo audio (MP3 y similares)
+- Una cola de descargas que sigue avanzando mientras navegas, con varias partes a la vez
 
 ### Instalación (Windows / macOS)
 
@@ -65,6 +66,10 @@ Por qué la recomendamos:
 Vídeo y audio se combinan automáticamente: no hacen falta pasos extra.
 
 ¿Prefieres saltarte el navegador? La app también tiene búsqueda integrada: consulta [buscar y descargar dentro de la app](/bilibili-downloader-gui/es/guides/search-and-download/).
+
+### La cola de descargas: sigue avanzando mientras navegas
+
+Las descargas iniciadas corren en una cola en la página de descargas, así que puedes seguir buscando y añadiendo vídeos mientras terminan. Varias partes se descargan a la vez: cuántas lo controla el ajuste «Descargas simultáneas» (Ajustes → Descarga, 1–4 partes, 2 por defecto). Subirlo acaba antes con los lotes, pero más conexiones en paralelo pueden activar el límite de bilibili; si las descargas se vuelven inestables, bájalo. Dentro de cada parte, los segmentos también se descargan en paralelo — cuántos lo ajusta «Paralelismo de Descarga de Segmentos» (1/2/4/6/8, 8 por defecto); si la limitación del CDN de bilibili desestabiliza las velocidades, redúcelo.
 
 ### Elegir calidad (480p–4K y el papel del inicio de sesión)
 
