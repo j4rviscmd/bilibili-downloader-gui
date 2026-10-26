@@ -34,6 +34,9 @@ import { useTranslation } from 'react-i18next'
 // removing a value here requires updating the backend matcher
 // (issue #491).
 const PARALLELISM_VALUES = [1, 2, 4, 6, 8] as const
+// Constraint: values must stay within the runner's 1..4 clamp
+// (runner.ts CAP_FALLBACK); the backend stores the value unvalidated.
+const CONCURRENCY_VALUES = [1, 2, 3, 4] as const
 
 /** Codec card choices with i18n keys; translated at render time. */
 const CODEC_CHOICES = [
@@ -151,6 +154,40 @@ export function DownloadSection() {
           }))}
         />
       </SettingField>
+      {/* id is the deep-link anchor for /settings?category=download&anchor=
+          max-concurrent-downloads (the bottom bar's concurrency link). */}
+      <div id="setting-max-concurrent-downloads">
+        <SettingField
+          label={
+            <span className="flex items-center gap-2">
+              {t('settings.max_concurrent_downloads_label')}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="text-muted-foreground h-4 w-4" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="max-w-xs">
+                      {t('settings.max_concurrent_downloads_description')}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </span>
+          }
+        >
+          <SettingToggleGroup
+            value={String(settings.maxConcurrentDownloads ?? 2)}
+            onValueChange={(value) => {
+              saveByForm({ maxConcurrentDownloads: Number(value) })
+            }}
+            options={CONCURRENCY_VALUES.map((value) => ({
+              value: String(value),
+              label: String(value),
+            }))}
+          />
+        </SettingField>
+      </div>
       <Separator />
       <SettingRow
         label={t('settings.omit_duplicate_part_title_label')}

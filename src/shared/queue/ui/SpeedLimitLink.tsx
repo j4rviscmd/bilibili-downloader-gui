@@ -91,8 +91,15 @@ export function SpeedLimitLink() {
             data-testid="speed-limit-link"
           >
             <Gauge className="size-3.5" aria-hidden />
-            {settings.downloadSpeedLimitKbps != null &&
-              formatKbps(settings.downloadSpeedLimitKbps)}
+            {/* Hidden below a 300px bottom-bar left zone (container query
+                context in QueueBottomBar): narrow windows keep the
+                transfer rate readable first; the tooltip still carries
+                the value. */}
+            {settings.downloadSpeedLimitKbps != null && (
+              <span className="@max-[299px]:hidden">
+                {formatKbps(settings.downloadSpeedLimitKbps)}
+              </span>
+            )}
           </Button>
         </TooltipTrigger>
         <TooltipContent side="top">

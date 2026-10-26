@@ -186,6 +186,13 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
       })
 
       // Setup download cancelled event listener
+      // Parallel slots fire one event per RUNNING part, so a cancel-all
+      // burst would stack N identical toasts. Coalesce identical
+      // notifications arriving within this window into one; state updates
+      // still run per downloadId. Manual per-row cancels (>window apart)
+      // keep their individual feedback.
+      const CANCEL_TOAST_COALESCE_MS = 300
+      let lastCancelToastAt = 0
       unlistenCancelled = await listen<DownloadCancelledPayload>(
         'download_cancelled',
         (event) => {
@@ -206,8 +213,12 @@ export const ListenerProvider: FC<{ children: ReactNode }> = ({ children }) => {
           store.dispatch(updateQueueStatus({ downloadId, status: 'cancelled' }))
           // Clear progress entries for this download
           store.dispatch(clearProgressByDownloadId(downloadId))
-          // Show toast notification
-          toast.info(i18n.t('video.download_cancelled'))
+          // Show toast notification, coalesced within the window above.
+          const now = Date.now()
+          if (now - lastCancelToastAt > CANCEL_TOAST_COALESCE_MS) {
+            lastCancelToastAt = now
+            toast.info(i18n.t('video.download_cancelled'))
+          }
         },
       )
 

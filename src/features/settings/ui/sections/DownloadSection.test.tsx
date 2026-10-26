@@ -148,12 +148,38 @@ describe('DownloadSection', () => {
   it('changing the parallelism persists the picked option', async () => {
     const { user } = renderWithProviders(<DownloadSection />)
 
-    const two = screen.getByText('2').closest('button')!
+    // [0]: the concurrency toggle also renders '2' — the parallelism
+    // group comes first in the DOM.
+    const two = screen.getAllByText('2')[0].closest('button')!
     await user.click(two as HTMLElement)
 
     await waitFor(() =>
       expect(lastSetSettings()).toMatchObject({ downloadParallelism: 2 }),
     )
+  })
+
+  it('changing the concurrent downloads persists the picked option', async () => {
+    const { user } = renderWithProviders(<DownloadSection />)
+
+    // '3' only exists in the concurrency toggle (parallelism uses
+    // 1/2/4/6/8), so a plain text query targets it unambiguously.
+    const three = screen.getByText('3').closest('button')!
+    await user.click(three as HTMLElement)
+
+    await waitFor(() =>
+      expect(lastSetSettings()).toMatchObject({ maxConcurrentDownloads: 3 }),
+    )
+  })
+
+  it('renders the deep-link anchor for the bottom bar concurrency link', () => {
+    // Contract: ConcurrencyLink navigates to ?anchor=max-concurrent-downloads
+    // and the settings page resolves `#setting-${anchor}` — a renamed id
+    // would silently break the scroll.
+    renderWithProviders(<DownloadSection />)
+
+    expect(
+      document.getElementById('setting-max-concurrent-downloads'),
+    ).toBeInTheDocument()
   })
 
   it('changing the video codec priority persists the picked option', async () => {
