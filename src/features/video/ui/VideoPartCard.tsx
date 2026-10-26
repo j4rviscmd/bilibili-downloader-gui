@@ -66,9 +66,10 @@ import {
 } from '@/shared/ui/form'
 import { Input } from '@/shared/ui/input'
 import { Skeleton } from '@/shared/ui/skeleton'
+import { ThumbImage } from '@/shared/ui/ThumbImage'
 import { toast } from '@/shared/ui/toast'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ChevronDown, ImageOff, Info, Play, RotateCcw } from 'lucide-react'
+import { ChevronDown, Info, Play, RotateCcw } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -821,22 +822,24 @@ const VideoPartCard = memo(function VideoPartCard({
               >
                 P{page}
               </span>
-              {videoPart.thumbnail.url ? (
-                // Why group/thumb + sibling button: same reveal pattern
-                // as the video search grid's play overlay
-                // (VideoCardGrid) — the scrim + play icon appear on
-                // hover/focus-visible, so the control stays hidden
-                // until wanted but is keyboard-discoverable.
-                <span className={cn('group/thumb', thumbSlotClass)}>
-                  <img
-                    src={videoPart.thumbnail.url}
-                    alt={t('video.thumbnail_alt', {
-                      part: videoPart.part,
-                    })}
-                    className="block aspect-video w-full object-cover"
-                    loading="lazy"
-                    referrerPolicy="no-referrer"
-                  />
+              {/* Why group/thumb + sibling button: same reveal pattern
+                as the video search grid's play overlay (VideoCardGrid)
+                — the scrim + play icon appear on hover/focus-visible, so
+                the control stays hidden until wanted but is
+                keyboard-discoverable. A URL-less slot keeps the badge
+                but drops the overlay; a FAILED load keeps it — preview
+                playback works without the thumbnail. */}
+              <span className={cn('group/thumb', thumbSlotClass)}>
+                <ThumbImage
+                  src={videoPart.thumbnail.url}
+                  alt={t('video.thumbnail_alt', {
+                    part: videoPart.part,
+                  })}
+                  className="block aspect-video w-full object-cover"
+                  loading="lazy"
+                  referrerPolicy="no-referrer"
+                />
+                {videoPart.thumbnail.url && (
                   <button
                     type="button"
                     onClick={onThumbnailClick}
@@ -848,19 +851,9 @@ const VideoPartCard = memo(function VideoPartCard({
                       aria-hidden
                     />
                   </button>
-                  {durationBadge}
-                </span>
-              ) : (
-                <div
-                  className={cn(
-                    'bg-muted flex aspect-video items-center justify-center',
-                    thumbSlotClass,
-                  )}
-                >
-                  <ImageOff className="text-muted-foreground/50 size-6" />
-                  {durationBadge}
-                </div>
-              )}
+                )}
+                {durationBadge}
+              </span>
 
               {/* Title (single line) + meta pills. */}
               <div className="flex min-w-0 flex-1 flex-col gap-1">
