@@ -18,8 +18,9 @@ import { logger } from '@/shared/lib/logger'
 import type { QueuePartRow } from '@/shared/queue'
 import { cancelDownload } from '@/shared/queue'
 import { Button } from '@/shared/ui/button'
+import { ThumbImage } from '@/shared/ui/ThumbImage'
 import { invoke } from '@tauri-apps/api/core'
-import { FilePlay, FolderOpen, ImageOff } from 'lucide-react'
+import { FilePlay, FolderOpen } from 'lucide-react'
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -241,19 +242,13 @@ export function QueuePartRow({ row, position }: Props) {
   return (
     <div className="hover:bg-accent/50 space-y-1 rounded-lg px-2 py-1.5 transition-colors">
       <div className="flex items-center gap-2 text-sm">
-        {item.thumbnailUrl ? (
-          <img
-            src={item.thumbnailUrl}
-            alt=""
-            className="h-9 w-16 shrink-0 rounded-md object-cover"
-            loading="lazy"
-            referrerPolicy="no-referrer"
-          />
-        ) : (
-          <div className="bg-muted flex h-9 w-16 shrink-0 items-center justify-center rounded-md">
-            <ImageOff className="text-muted-foreground/50 h-4 w-4" />
-          </div>
-        )}
+        <ThumbImage
+          src={item.thumbnailUrl}
+          alt=""
+          className="h-9 w-16 shrink-0 rounded-md object-cover"
+          loading="lazy"
+          referrerPolicy="no-referrer"
+        />
         {status === 'pending' && (
           /* Drain-order chip: the queue runs one item at a time, so this
              is the actual start order for waiting rows. */

@@ -7,8 +7,9 @@ import {
 } from '@/shared/animate-ui/radix/tooltip'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
+import { ThumbImage } from '@/shared/ui/ThumbImage'
 import { toast } from '@/shared/ui/toast'
-import { Check, Copy, Download, ImageOff, StarOff } from 'lucide-react'
+import { Check, Copy, Download, StarOff } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { formatDuration, formatPlayCount } from '../hooks/useFavorite'
@@ -66,17 +67,13 @@ function FavoriteItem({ video, onDownload, disabled }: Props) {
       )}
     >
       <div className="bg-muted relative flex size-20 shrink-0 items-center justify-center overflow-hidden rounded">
-        {video.cover ? (
-          <img
-            src={video.cover}
-            alt={video.title}
-            className="size-full object-cover select-none"
-            draggable={false}
-            referrerPolicy="no-referrer"
-          />
-        ) : (
-          <ThumbnailPlaceholder />
-        )}
+        <ThumbImage
+          src={video.cover}
+          alt={video.title}
+          className="size-full object-cover select-none"
+          draggable={false}
+          referrerPolicy="no-referrer"
+        />
         <div className="absolute right-0.5 bottom-1 rounded bg-black/60 px-1 text-xs text-white">
           {formatDuration(video.duration)}
         </div>
@@ -116,16 +113,14 @@ function FavoriteItem({ video, onDownload, disabled }: Props) {
         </div>
 
         <div className="text-muted-foreground flex items-center gap-1 text-xs">
-          {video.upper.face ? (
-            <img
-              src={video.upper.face}
-              alt={video.upper.name}
-              className="mr-0.5 size-4 rounded-full"
-              referrerPolicy="no-referrer"
-            />
-          ) : (
-            <div className="bg-muted mr-0.5 size-4 rounded-full" />
-          )}
+          <ThumbImage
+            src={video.upper.face}
+            alt={video.upper.name}
+            className="mr-0.5 size-4 rounded-full object-cover"
+            showIcon={false}
+            referrerPolicy="no-referrer"
+          />
+          ]
           <a
             href={`https://space.bilibili.com/${video.upper.mid}`}
             target="_blank"
@@ -170,14 +165,5 @@ function FavoriteItem({ video, onDownload, disabled }: Props) {
     </div>
   )
 }
-
-/**
- * Placeholder component displayed when thumbnail is unavailable.
- */
-const ThumbnailPlaceholder = () => (
-  <div className="text-muted-foreground flex size-full items-center justify-center">
-    <ImageOff size={24} />
-  </div>
-)
 
 export default FavoriteItem

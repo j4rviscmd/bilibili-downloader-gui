@@ -6,6 +6,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
+import { ThumbImage } from '@/shared/ui/ThumbImage'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { ExternalLink, MessageCircle, Play, Star } from 'lucide-react'
 import { Trans, useTranslation } from 'react-i18next'
@@ -67,15 +68,13 @@ export function VideoHeroCard({
   return (
     <section className="bg-card flex gap-4 rounded-xl border p-4 shadow-sm">
       <div className="bg-muted relative aspect-video w-40 shrink-0 overflow-hidden rounded-lg md:w-62">
-        {first.thumbnail.url ? (
-          <img
-            src={first.thumbnail.url}
-            alt={first.part}
-            className="block h-full w-full object-cover"
-            loading="lazy"
-            referrerPolicy="no-referrer"
-          />
-        ) : null}
+        <ThumbImage
+          src={first.thumbnail.url}
+          alt={first.part}
+          className="block h-full w-full object-cover"
+          loading="lazy"
+          referrerPolicy="no-referrer"
+        />
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col gap-2">
@@ -96,12 +95,13 @@ export function VideoHeroCard({
               {video.ownerName && (
                 <span className="flex items-center gap-1.5">
                   {video.ownerFace ? (
-                    <img
+                    <ThumbImage
                       src={video.ownerFace}
                       alt=""
                       loading="lazy"
                       referrerPolicy="no-referrer"
                       className="size-5.5 rounded-full object-cover"
+                      showIcon={false}
                     />
                   ) : (
                     <span className="from-brand to-brand-strong/70 size-5.5 rounded-full bg-gradient-to-br" />
