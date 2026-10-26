@@ -10,11 +10,14 @@
  * clicks land — every assertion waits for a stable row state, never a
  * timing window.
  *
- * Assertions follow the runner's ACTUAL semantics (shared/queue/runner.ts):
+ * Assertions follow the runner's SERIAL semantics (shared/queue/runner.ts):
  * the next pending part is picked in the same call stack that settles the
  * previous one, so an enqueue on an idle queue shows up as RUNNING (never
  * pending) within one poll, and cancelling a RUNNING part immediately
- * starts the next queued part.
+ * starts the next queued part. The parallel runner defaults to 2 slots —
+ * this suite pins maxConcurrentDownloads=1 in setup because its exact row
+ * counts (running=1 with a second part PENDING behind it) describe the
+ * serial slot only.
  *
  * Branch matrix (each test builds its own precondition and leaves the
  * queue idle, so tests never depend on each other's leftovers):
@@ -28,6 +31,7 @@ import {
   loadFixtureVideo,
   saveScreenshot,
   setupDownloadEnv,
+  tauriInvoke,
   teardownDownloadEnv,
   waitForMainUI,
   type DownloadEnv,
@@ -111,6 +115,11 @@ describe('queue replace semantics', () => {
   before(async () => {
     await waitForMainUI()
     downloadEnv = await setupDownloadEnv()
+    // Pin the serial slot: see the header note — the exact-count
+    // assertions below describe one-part-at-a-time drain semantics.
+    await tauriInvoke('patch_settings', {
+      patch: { maxConcurrentDownloads: 1 },
+    })
     await loadFixtureVideo()
 
     // Baseline: download all three parts to a settled done state so the
