@@ -62,6 +62,18 @@ describe('settingsSlice', () => {
     expect(settingsSlice.getInitialState().startupPage).toBe('/popular')
   })
 
+  it('defaults maxConcurrentDownloads to 2 and merges field patches', () => {
+    // Must match the runner's fallback (runner.ts CAP_FALLBACK) so the
+    // toggle group and the effective slot count agree before the
+    // persisted settings arrive.
+    expect(settingsSlice.getInitialState().maxConcurrentDownloads).toBe(2)
+
+    store.dispatch(setSettings({ maxConcurrentDownloads: 4 }))
+
+    expect(settings().maxConcurrentDownloads).toBe(4)
+    expect(settings().language).toBe('en')
+  })
+
   it('defaults defaultSubtitleMode to off and merges field patches', () => {
     // Fresh state: legacy settings without the key behave as subtitles-off.
     expect(settingsSlice.getInitialState().defaultSubtitleMode).toBe('off')

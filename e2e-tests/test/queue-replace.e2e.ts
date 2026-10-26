@@ -10,11 +10,14 @@
  * clicks land — every assertion waits for a stable row state, never a
  * timing window.
  *
- * Assertions follow the runner's ACTUAL semantics (shared/queue/runner.ts):
+ * Assertions follow the runner's SERIAL semantics (shared/queue/runner.ts):
  * the next pending part is picked in the same call stack that settles the
  * previous one, so an enqueue on an idle queue shows up as RUNNING (never
  * pending) within one poll, and cancelling a RUNNING part immediately
- * starts the next queued part.
+ * starts the next queued part. The parallel runner defaults to 2 slots —
+ * this suite pins maxConcurrentDownloads=1 in setup because its exact row
+ * counts (running=1 with a second part PENDING behind it) describe the
+ * serial slot only.
  *
  * Branch matrix (each test builds its own precondition and leaves the
  * queue idle, so tests never depend on each other's leftovers):
@@ -111,6 +114,34 @@ describe('queue replace semantics', () => {
   before(async () => {
     await waitForMainUI()
     downloadEnv = await setupDownloadEnv()
+    // Pin the serial slot through the real Settings UI: the queue runner
+    // reads the FRONTEND settings store, which only reloads persisted
+    // settings when the Settings page opens — patching the file via
+    // patch_settings alone leaves the in-memory store at the default (2).
+    // Self-healing click loop: the visible-page settings.json re-read can
+    // clobber a just-clicked value (see default-subtitle-mode e2e).
+    const navSettings = await browser.$('[data-testid="nav-settings"]')
+    await navSettings.waitForExist({ timeout: 15_000 })
+    await navSettings.click()
+    const cat = await browser.$('[data-category="download"]')
+    await cat.waitForExist({ timeout: 15_000 })
+    await cat.click()
+    const one = await browser.$(
+      '//*[@id="setting-max-concurrent-downloads"]//button[normalize-space()="1"]',
+    )
+    await one.waitForExist({ timeout: 15_000 })
+    await browser.waitUntil(
+      async () => {
+        if ((await one.getAttribute('data-state')) !== 'on') {
+          await one.click()
+          await browser.pause(500)
+          return false
+        }
+        return true
+      },
+      { timeout: 15_000, timeoutMsg: 'serial-slot toggle never settled on 1' },
+    )
+    await browser.pause(1_500)
     await loadFixtureVideo()
 
     // Baseline: download all three parts to a settled done state so the

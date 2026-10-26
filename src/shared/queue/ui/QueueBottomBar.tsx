@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
 import { selectQueueSummary } from '../selectors'
+import { ConcurrencyLink } from './ConcurrencyLink'
 import { SpeedLimitLink, formatKbps } from './SpeedLimitLink'
 
 /**
@@ -116,7 +117,18 @@ export function QueueBottomBar() {
           {/* justify-end: the cluster hugs the bar — icon leftmost, rate
               immediately left of the bar — so the layout reads the same
               whether the limit is on or off (verification feedback). */}
-          <div className="flex min-w-0 items-center justify-end gap-3">
+          {/* @container: the zone's OWN width drives the degrade ladder
+              below (sidebar open + narrow window shrinks this 1fr track),
+              so responsiveness follows actual available space, not the
+              window width. When space runs out the RATE wins and the
+              links drop out by live-state value: the speed-limit VALUE
+              first (<300px, SpeedLimitLink), then the whole speed-limit
+              link (<190px — unlimited it is a bare settings entry), then
+              the concurrency badge (<130px). Settings stays the entry
+              point for everything dropped (same philosophy as the idle
+              state). The concurrency badge survives longest because it
+              carries live state (the slot count). */}
+          <div className="@container flex min-w-0 items-center justify-end gap-3">
             {/* Always rendered (blank when idle) so the zone width never
                 changes across idle ⇄ active. */}
             <span className="text-muted-foreground min-w-[9ch] text-right text-sm whitespace-nowrap tabular-nums">
@@ -137,7 +149,12 @@ export function QueueBottomBar() {
                 onKeyDown={(e) => e.stopPropagation()}
                 className="contents"
               >
-                <SpeedLimitLink />
+                <span className="@max-[189px]:hidden @min-[190px]:contents">
+                  <SpeedLimitLink />
+                </span>
+                <span className="@max-[129px]:hidden @min-[130px]:contents">
+                  <ConcurrencyLink />
+                </span>
               </span>
             )}
           </div>

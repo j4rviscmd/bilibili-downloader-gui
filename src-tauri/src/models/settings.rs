@@ -258,6 +258,16 @@ pub struct Settings {
         skip_serializing_if = "Option::is_none"
     )]
     pub download_speed_limit_kbps: Option<u32>,
+    /// Maximum number of parts the frontend queue runner downloads
+    /// simultaneously. Clamped to 1..=4 client-side (default 2); the
+    /// backend only stores the value — enforcement lives in the queue
+    /// runner.
+    #[serde(
+        rename = "maxConcurrentDownloads",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub max_concurrent_downloads: Option<u8>,
     /// Latest version string the user chose to skip via "Skip this version"
     /// (issue #599). The startup auto-check does not auto-open the update
     /// dialog when its latest version equals this value; manual checks
@@ -636,6 +646,34 @@ mod tests {
         );
         let json = serde_json::to_value(&with_lans).unwrap();
         assert_eq!(json["defaultSubtitleHardLans"][0], "ja");
+    }
+
+    // ---- max_concurrent_downloads (serde only; FE enforces) ----
+
+    #[test]
+    fn test_max_concurrent_downloads_serde_round_trip() {
+        // Present value deserializes; absent stays None (hand-edited or
+        // pre-feature settings.json). `language` is the one non-Option
+        // field, so every partial deserialize must carry it.
+        let s: Settings = serde_json::from_value(serde_json::json!({
+            "language": "ja",
+            "maxConcurrentDownloads": 3
+        }))
+        .unwrap();
+        assert_eq!(s.max_concurrent_downloads, Some(3));
+
+        let s: Settings = serde_json::from_value(serde_json::json!({ "language": "ja" })).unwrap();
+        assert_eq!(s.max_concurrent_downloads, None);
+
+        // Round trip keeps the camelCase key and skips None.
+        let out = serde_json::to_value(Settings {
+            max_concurrent_downloads: Some(4),
+            ..Default::default()
+        })
+        .unwrap();
+        assert_eq!(out["maxConcurrentDownloads"], 4);
+        let out = serde_json::to_value(Settings::default()).unwrap();
+        assert!(out.get("maxConcurrentDownloads").is_none());
     }
 
     // ---- resolve_download_speed_limit_bps (issue #421) ----

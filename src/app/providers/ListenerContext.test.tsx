@@ -209,6 +209,31 @@ describe('download_cancelled', () => {
 
     expect(queue().find((q) => q.downloadId === d1)!.status).toBe('error')
   })
+
+  it('coalesces a cancel-all burst into one toast (parallel slots)', async () => {
+    await mount()
+    // Three running parts = three download_cancelled events in one burst.
+    const parentId = seedSession('BVlistener', [
+      { partIndex: 1, cid: 1, status: 'running' },
+      { partIndex: 2, cid: 2, status: 'running' },
+      { partIndex: 3, cid: 3, status: 'running' },
+    ])
+    const ids = [1, 2, 3].map((n) => `${parentId}-p${n}`)
+
+    act(() => {
+      for (const id of ids) {
+        emitTauriEvent('download_cancelled', { downloadId: id })
+      }
+    })
+
+    // Every part still finalizes to cancelled…
+    for (const id of ids) {
+      expect(queue().find((q) => q.downloadId === id)!.status).toBe('cancelled')
+    }
+    // …but the identical burst toasts collapse into one.
+    expect(toast.info).toHaveBeenCalledTimes(1)
+    expect(toast.info).toHaveBeenCalledWith('video.download_cancelled')
+  })
 })
 
 describe('quality/subtitle resolved events', () => {

@@ -158,17 +158,19 @@ pub fn run() {
     // window position restoration during development
     #[allow(unused_mut)]
     let mut builder = tauri::Builder::default()
-        // CONSTRAINT: single-instance stays DISABLED. Running two app
-        // instances side by side is a supported way to download in parallel
-        // (issue #560); enabling this plugin would forbid it. Cross-process
-        // safety of the shared JSON stores, download output reservation, and
-        // the update session lock is handled without this plugin.
-        // .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-        //     let _ = app
-        //         .get_webview_window("main")
-        //         .expect("no main window")
-        //         .set_focus();
-        // }))
+        // Single instance is now ENABLED: in-app parallel part downloads
+        // (maxConcurrentDownloads) replaced the dual-instance workaround
+        // for parallelism (issue #560's escape hatch). A second launch
+        // focuses the existing window and exits. The cross-process safety
+        // layers (locked_json stores, output reservation, update lock)
+        // stay as defense-in-depth for side-by-side installs with
+        // different bundle identifiers.
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            let _ = app
+                .get_webview_window("main")
+                .expect("no main window")
+                .set_focus();
+        }))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_shell::init())

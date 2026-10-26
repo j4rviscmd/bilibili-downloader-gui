@@ -146,6 +146,12 @@ export interface Settings {
    */
   downloadParallelism?: number
   /**
+   * Maximum number of parts downloaded simultaneously by the queue
+   * runner. Clamped to 1..4 by the runner; the initial value must stay 2
+   * to match the runner's fallback for absent settings.
+   */
+  maxConcurrentDownloads?: number
+  /**
    * Whether to cap the aggregate download speed (issue #421).
    * Applies live to running downloads (per app instance).
    * Defaults to false if not specified.

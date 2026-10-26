@@ -16,7 +16,12 @@ export type { PartExecutor } from './api/executeDownloadPart'
  * as the Rust `with_path` constructors).
  */
 export type QueueRunnerStore = {
-  getState: () => { queue: QueueItem[] }
+  getState: () => {
+    queue: QueueItem[]
+    // Structural (not imported from features/settings): the shared queue
+    // domain must not depend upward on a feature layer.
+    settings: { maxConcurrentDownloads?: number }
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- match redux dispatch looseness without importing the store type
   dispatch: (action: any) => unknown
   subscribe: (listener: () => void) => () => void
@@ -34,11 +39,27 @@ const TRANSIENT_ERROR_CODES = [
   'ERR::RATE_LIMITED',
 ]
 
+/** Hard bounds for maxConcurrentDownloads (spec: 1..4, default 2). */
+const CAP_MIN = 1
+const CAP_MAX = 4
+const CAP_FALLBACK = 2
+
 /**
- * Serial FIFO queue runner (issue #691). Lives OUTSIDE React — started once
- * from main.tsx, drains queue items one part at a time, and never keeps
- * component-lifetime state. `store.subscribe` kicks an idle runner; a
- * single `isDraining` guard keeps concurrent kicks from overlapping.
+ * Clamps a raw maxConcurrentDownloads to the hard bounds; absent or
+ * hand-edited garbage falls back to 2. Shared with the bottom-bar
+ * concurrency badge so display and slot count can never disagree.
+ */
+export function clampConcurrency(raw: unknown): number {
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) return CAP_FALLBACK
+  return Math.min(CAP_MAX, Math.max(CAP_MIN, Math.floor(raw)))
+}
+
+/**
+ * FIFO queue runner with N parallel part slots (maxConcurrentDownloads,
+ * default 2). Lives OUTSIDE React — started once from main.tsx, claims
+ * queue parts while free slots remain, and never keeps component-lifetime
+ * state. `store.subscribe` kicks the runner; a re-entrancy guard inside
+ * kick absorbs the subscriber notifications fired by its own dispatches.
  *
  * The executor is injected (`createQueueRunner(executor, getStore)`), so
  * runner unit tests pass a fake executor and assert ordering/cancel/error
@@ -48,7 +69,7 @@ export function createQueueRunner(
   executor: PartExecutor,
   getStore: () => QueueRunnerStore,
 ): { start: () => () => void; stop: () => void } {
-  let isDraining = false
+  let activeCount = 0
   let stopped = false
 
   /**
@@ -87,17 +108,26 @@ export function createQueueRunner(
     return null
   }
 
-  /** Runs one part to completion, classifying the outcome into the queue. */
+  /**
+   * Claims the next part: picks AND flips it to 'running' in the same
+   * synchronous tick. No await may separate the two, so two slots can
+   * never claim the same part (JS runs this on a single thread). The
+   * backend spends seconds fetching playurl before the first progress
+   * event, so the part must read as started immediately at claim time.
+   */
+  function claimNextPart(): QueueItem | null {
+    const next = pickNextPart()
+    if (!next) return null
+    getStore().dispatch(
+      updateQueueStatus({ downloadId: next.downloadId, status: 'running' }),
+    )
+    return next
+  }
+
+  /** Runs one claimed part to completion, classifying the outcome. */
   async function runPart(item: QueueItem): Promise<void> {
     const dispatch = getStore().dispatch
     const ids = { downloadId: item.downloadId, parentId: item.parentId! }
-
-    // Flip to 'running' at invoke time, not on the first progress event:
-    // the backend spends seconds fetching playurl/streams before the first
-    // event, and during that window the part must already read as started.
-    dispatch(
-      updateQueueStatus({ downloadId: ids.downloadId, status: 'running' }),
-    )
 
     try {
       const outputPath = await executor(item.payload!, ids)
@@ -182,32 +212,61 @@ export function createQueueRunner(
     )
   }
 
-  async function drain(): Promise<void> {
-    if (isDraining) return
-    isDraining = true
+  /**
+   * Launches parts while free slots remain. Each finished part re-kicks,
+   * which also re-reads the cap — growing applies instantly, shrinking
+   * only gates new launches (running parts are never preempted).
+   *
+   * Re-entrancy guard: the claim/status dispatches inside the loop fire
+   * the store subscribers synchronously, which would call kick() again
+   * mid-loop and over-claim past the cap (the serial runner's old
+   * `isDraining` guard covered the same window). Re-entrant calls set a
+   * flag and the outer loop re-runs once it settles, so enqueues landing
+   * mid-kick are still picked up.
+   */
+  let inKick = false
+  let kickAgain = false
+  function kick(): void {
+    if (inKick) {
+      kickAgain = true
+      return
+    }
+    inKick = true
     try {
-      for (;;) {
-        if (stopped) return
-        const next = pickNextPart()
-        if (!next) return
-        await runPart(next)
-      }
+      do {
+        kickAgain = false
+        while (
+          !stopped &&
+          activeCount <
+            clampConcurrency(
+              getStore().getState().settings.maxConcurrentDownloads,
+            )
+        ) {
+          const next = claimNextPart()
+          if (!next) break
+          activeCount++
+          void runPart(next).finally(() => {
+            activeCount--
+            kick()
+          })
+        }
+      } while (kickAgain)
     } finally {
-      isDraining = false
+      inKick = false
     }
   }
 
   return {
     /**
-     * Starts the runner: subscribes to the store (kicks drain whenever the
-     * queue changes while idle) and drains immediately for anything already
-     * enqueued. Returns the unsubscribe function.
+     * Starts the runner: subscribes to the store (kicks whenever the
+     * queue or settings change) and kicks immediately for anything
+     * already enqueued. Returns the unsubscribe function.
      */
     start() {
       const unsubscribe = getStore().subscribe(() => {
-        if (!stopped && !isDraining) void drain()
+        if (!stopped) kick()
       })
-      void drain()
+      kick()
       return unsubscribe
     },
     /** Stops accepting new work (tests / teardown). */

@@ -609,6 +609,8 @@
     "download_parallelism_label": "分段并行下载数",
     "download_parallelism_description": "分段并行下载数量。较高值（8、6）可能更快，但可能触发Bilibili CDN限速。较低值（2、1）更稳定但较慢。默认为8，适用于大多数连接。",
     "download_parallelism_cdn_warning": "Bilibili CDN可能会限制并行下载。如果下载不稳定，请尝试降低至4或2。",
+    "max_concurrent_downloads_label": "同时下载数",
+    "max_concurrent_downloads_description": "同时下载的分P数量。总连接数≈此值×分段并行数;过高的值可能触发bilibili限流。默认为2。",
     "download_speed_limit_label": "限制下载速度",
     "download_speed_limit_description": "限制下载速度。",
     "download_speed_limit_kbps_label": "速度限制",
@@ -921,7 +923,8 @@
     "status_cancelled": "已取消",
     "status_error": "错误",
     "speed_limit_tooltip": "速度限制已启用。点击打开设置——更改立即对正在进行的下载生效，仅应用于本应用实例。",
-    "speed_limit_set": "设置速度限制"
+    "speed_limit_set": "设置速度限制",
+    "concurrent_downloads_tooltip": "同时下载数(打开设置)"
   },
   "queue": {
     "title": "下载",

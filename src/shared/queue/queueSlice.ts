@@ -99,8 +99,8 @@ function aggregateParentStatuses(state: QueueItem[]): void {
     //   'pending'/'running' in the priority above, so a mid-session part
     //   failure aggregates the parent to 'error' while its siblings are
     //   still queued — stamping there would freeze the elapsed timer at the
-    //   first failure for the rest of the session (transient errors don't
-    //   stop the serial loop; the remaining parts keep downloading). Only a
+    //   first failure for the rest of the session (a part error does not
+    //   stop the queue; the remaining parts keep downloading). Only a
     //   parent whose children are all terminal (done/cancelled/error) is
     //   complete. Cancelled MUST stamp too: without it the /downloads card
     //   recomputes elapsed from Date.now() on every unrelated re-render and
