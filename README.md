@@ -96,7 +96,9 @@ and remains available after an application update.
 - **Download queue** - Keep searching and queueing while downloads run;
   the queue drains on the Downloads page with up to 4 parts in parallel
   and a bottom progress bar
-- **Subtitle embedding** - Soft/hard subtitle selection with multi-language and AI subtitle support
+- **Speed limit** - Cap the download transfer rate; changes apply to
+  running downloads immediately
+- **Subtitle embedding** - Soft/hard subtitle selection with multi-language and AI subtitle support, plus a configurable default subtitle mode with hard-sub language priority
 - **Hi-Res Audio** - Dolby Atmos and Hi-Res Lossless audio quality support
 
 ### Local MP4 Tools
@@ -105,12 +107,15 @@ and remains available after an application update.
 - **Concat** - Merge multiple MP4 files into one (auto re-encode fallback on codec mismatch)
 - **Audio Extract** - Extract audio from local MP4 to MP3/M4A with bitrate presets
 - **GIF / WebM Generator** - Turn a local MP4 clip into an animated GIF (256-color) or a silent WebM with width/FPS presets
+- **Rotate** - Rotate local MP4 videos by 90/180/270 degrees (fast metadata-only or frame-accurate re-encode)
 
 ### Bilibili Integration
 
 - **Favorites** - Browse and download videos from your Bilibili favorite folders
 - **Watch History** - Download videos directly from your Bilibili watch history
-- **Video Search** - Search bilibili videos by keyword right in the app (no login needed) and jump straight to download setup
+- **Video Search** - Search bilibili videos by keyword in the app (no login needed), refine with sort/duration/category filters, and jump straight to download setup
+- **Popular feed** - Browse the popular videos feed and your personalized "For You" recommendations
+- **In-app preview** - Play videos from search thumbnails to check content before downloading
 - **Short URL auto-expand** - b23.tv short links automatically expand to full video URLs
 
 ### Ease of Use
@@ -119,8 +124,8 @@ and remains available after an application update.
 - **One-click setup** - FFmpeg auto-install with functionality validation, no manual configuration needed
 - **Auto-update** - Built-in updater with signed release verification and release notes
 - **History search & export** - Export download history to JSON/CSV
-- **Dark mode support** - Light/dark theme toggle
-- **Startup page** - Choose which page the app opens on at launch
+- **Theming** - Light/dark themes, accent colors, and adjustable font size
+- **Startup page** - Choose which page opens at launch
 
 ### Authentication Methods
 
