@@ -7,22 +7,28 @@
  */
 
 import { store } from '@/app/store'
+import { setSettings } from '@/features/settings/settingsSlice'
 import { setProgress } from '@/shared/progress/progressSlice'
 import { renderWithProviders, resetQueue, seedSession } from '@/test/test-utils'
 import { screen } from '@testing-library/react'
 import { Route, Routes, useLocation } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { QueueBottomBar } from './QueueBottomBar'
+import { formatKbps, QueueBottomBar } from './QueueBottomBar'
 
 vi.mock('@/shared/ui/toast', () => ({
   toast: { info: vi.fn(), warning: vi.fn(), error: vi.fn(), success: vi.fn() },
 }))
 
-/** Echoes the current location so bar navigation is observable. */
+/** Echoes the current location (path + query) so navigation is observable. */
 function LocationEcho() {
-  const { pathname } = useLocation()
-  return <div data-testid="location">{pathname}</div>
+  const { pathname, search } = useLocation()
+  return (
+    <div data-testid="location">
+      {pathname}
+      {search}
+    </div>
+  )
 }
 
 function renderBar(route = '/search') {
@@ -40,6 +46,15 @@ describe('QueueBottomBar', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetQueue()
+    // Reset the shared settings store: the speed-limit tests below enable
+    // a cap, and a leftover `true` would leak the sub-label into the
+    // unlimited tests (single store across the suite).
+    store.dispatch(
+      setSettings({
+        downloadSpeedLimitEnabled: false,
+        downloadSpeedLimitKbps: 1000,
+      }),
+    )
   })
 
   it('stays unmounted while the queue is idle', () => {
@@ -123,7 +138,8 @@ describe('QueueBottomBar', () => {
     unmount()
 
     // Settled-only queue: the bar persists (hasAnyItems) but the link
-    // zone renders blank (hasActive) — same gating as SpeedLimitLink.
+    // zone renders blank (hasActive) — same gating as the rate/limit
+    // button and the concurrency link.
     resetQueue()
     seedSession('BVcap1', [
       { partIndex: 1, cid: 1, status: 'done' },
@@ -143,5 +159,126 @@ describe('QueueBottomBar', () => {
     await user.click(screen.getByTestId('concurrency-link'))
 
     expect(await screen.findByTestId('location')).toHaveTextContent('/settings')
+  })
+
+  it('shows the rate as the speed-limit entry while unlimited, deep-linking into Settings', async () => {
+    seedSession('BVrate1', [{ partIndex: 1, cid: 1, status: 'running' }])
+    const { user } = renderBar('/search')
+
+    // The affordance name lives on aria-label/tooltip, not text content.
+    const link = screen.getByTestId('speed-limit-link')
+    expect(link).toHaveAttribute('aria-label', 'downloadStatus.speed_limit_set')
+    expect(link).not.toHaveTextContent('downloadStatus.speed_limit_set')
+    await user.click(link)
+
+    expect(
+      await screen.findByTestId('location', undefined, { timeout: 2000 }),
+    ).toHaveTextContent('/settings?category=download&anchor=speed-limit')
+  })
+
+  it('shows the active cap as a faint sub-label under the rate, deep-linking into Settings', async () => {
+    store.dispatch(
+      setSettings({
+        downloadSpeedLimitEnabled: true,
+        downloadSpeedLimitKbps: 500,
+      }),
+    )
+    const parentId = seedSession('BVrate2', [
+      { partIndex: 1, cid: 1, status: 'running' },
+    ])
+    store.dispatch(
+      setProgress({
+        downloadId: `${parentId}-p1`,
+        stage: 'audio',
+        percentage: 10,
+        transferRate: 1500,
+        isComplete: false,
+      } as never),
+    )
+    const { user } = renderBar('/search')
+
+    const link = screen.getByTestId('speed-limit-link')
+    // Both lines: the live rate and, beneath it, the cap.
+    expect(link).toHaveTextContent('1.5 MB/s')
+    expect(link).toHaveTextContent('500 KB/s')
+    expect(link).toHaveAttribute(
+      'aria-label',
+      'downloadStatus.speed_limit_tooltip',
+    )
+    await user.click(link)
+
+    expect(
+      await screen.findByTestId('location', undefined, { timeout: 2000 }),
+    ).toHaveTextContent('/settings?category=download&anchor=speed-limit')
+  })
+
+  it('shows a dash placeholder while active but nothing has transferred', () => {
+    // Running part with no progress yet: the entry button must render,
+    // and a 0-transfer queue shows the dash placeholder (verification
+    // decision — a blank line read as a broken control).
+    seedSession('BVrate4', [{ partIndex: 1, cid: 1, status: 'running' }])
+    renderBar()
+
+    const link = screen.getByTestId('speed-limit-link')
+    expect(link).toBeInTheDocument()
+    expect(link).toHaveTextContent('- MB/s')
+  })
+
+  it('skips the cap sub-label while the limit is on but no kbps is stored', () => {
+    // Optional field (settings predating it): enabled with no stored
+    // value renders the rate only — the guard must skip, not format, it.
+    store.dispatch(
+      setSettings({
+        downloadSpeedLimitEnabled: true,
+        downloadSpeedLimitKbps: undefined,
+      }),
+    )
+    const parentId = seedSession('BVrate5', [
+      { partIndex: 1, cid: 1, status: 'running' },
+    ])
+    store.dispatch(
+      setProgress({
+        downloadId: `${parentId}-p1`,
+        stage: 'audio',
+        percentage: 10,
+        transferRate: 1500,
+        isComplete: false,
+      } as never),
+    )
+    renderBar()
+
+    const link = screen.getByTestId('speed-limit-link')
+    expect(link).toHaveTextContent('1.5 MB/s')
+    expect(link).not.toHaveTextContent(/KB\/s/)
+    expect(link).toHaveAttribute(
+      'aria-label',
+      'downloadStatus.speed_limit_tooltip',
+    )
+  })
+
+  it('hides the speed-limit entry once downloads settle', () => {
+    resetQueue()
+    seedSession('BVrate3', [
+      { partIndex: 1, cid: 1, status: 'done' },
+      { partIndex: 2, cid: 2, status: 'cancelled' },
+    ])
+    renderBar()
+
+    expect(screen.getByTestId('queue-bottom-bar')).toBeInTheDocument()
+    expect(screen.queryByTestId('speed-limit-link')).not.toBeInTheDocument()
+  })
+
+  it('scales the display unit at 1000 kb/s (decimal, one fraction digit)', () => {
+    const cases: Array<[number, string]> = [
+      [100, '100 KB/s'],
+      [999, '999 KB/s'],
+      [1000, '1 MB/s'],
+      [1500, '1.5 MB/s'],
+      [10000, '10 MB/s'],
+      [10000000, '10,000 MB/s'],
+    ]
+    for (const [kbps, expected] of cases) {
+      expect(formatKbps(kbps)).toBe(expected)
+    }
   })
 })
