@@ -5,13 +5,37 @@ import {
 } from '@/components/animate-ui/components/animate/avatar-group'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { AnimatedSection } from '@/shared/animate-ui/effects/animated-section'
-import { Download } from 'lucide-react'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/shared/animate-ui/radix/tooltip'
+import { Button } from '@/shared/ui/button'
+import { Download, Gauge } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
 import { selectQueueSummary } from '../selectors'
 import { ConcurrencyLink } from './ConcurrencyLink'
-import { SpeedLimitLink, formatKbps } from './SpeedLimitLink'
+
+/**
+ * Formats a KB/s value with adaptive units for the bottom bar's rate and
+ * speed-limit displays: below 1000 stays KB/s, above scales to MB/s
+ * (decimal, matching the "1000 kb/s = 1 mb/s" hint). Display only — the
+ * stored setting stays KB/s. Up to one fraction digit (e.g. 1500 → "1.5").
+ * Literal "KB/s"/"MB/s" follows the app's existing speed display
+ * convention (PartDownloadProgress), not per-locale unit names.
+ */
+export function formatKbps(kbps: number): string {
+  if (kbps < 1000) {
+    return `${kbps.toLocaleString()} KB/s`
+  }
+  const mbps = (kbps / 1000).toLocaleString(undefined, {
+    maximumFractionDigits: 1,
+  })
+  return `${mbps} MB/s`
+}
 
 /**
  * Bottom download bar (issue #691, Steam-like), mounted once in
@@ -19,7 +43,8 @@ import { SpeedLimitLink, formatKbps } from './SpeedLimitLink'
  *
  * Visible while the queue holds ANY item (`hasAnyItems`): overall
  * progress across every session, completed mp4 count (`12/38`), summed
- * transfer rate, the speed-limit link, and an avatar-group of the active
+ * transfer rate (doubling as the speed-limit settings entry while
+ * downloads are active), and an avatar-group of the active
  * PARTS' thumbnails (FIFO head, up to 5, then `+N` — one avatar per part,
  * so enqueuing several parts adds several avatars). The whole area
  * navigates to `/downloads` — cancellation lives there, deliberately not
@@ -36,10 +61,15 @@ export function QueueBottomBar() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const summary = useSelector(selectQueueSummary)
+  const settings = useSelector((state) => state.settings)
+  const limitEnabled = settings.downloadSpeedLimitEnabled ?? false
 
   const percent = Math.min(100, Math.round(summary.overallRatio * 100))
 
   const openDownloads = () => navigate('/downloads')
+  // Same deep link the former standalone SpeedLimitLink used (issue #421).
+  const openSpeedLimitSettings = () =>
+    navigate('/settings?category=download&anchor=speed-limit')
 
   // AvatarGroup's children prop is typed as a single ReactElement[] (one
   // array child), so the avatar list is assembled as an expression instead
@@ -114,48 +144,109 @@ export function QueueBottomBar() {
               rate/limit content changes. NOT fixed-width: at the max app
               font size fixed side zones plus a wide center overflowed and
               clipped the avatars, so the zones flex and shrink instead. */}
-          {/* justify-end: the cluster hugs the bar — icon leftmost, rate
+          {/* justify-end: the cluster hugs the bar — the rate sits
               immediately left of the bar — so the layout reads the same
               whether the limit is on or off (verification feedback). */}
           {/* @container: the zone's OWN width drives the degrade ladder
               below (sidebar open + narrow window shrinks this 1fr track),
               so responsiveness follows actual available space, not the
-              window width. When space runs out the RATE wins and the
-              links drop out by live-state value: the speed-limit VALUE
-              first (<300px, SpeedLimitLink), then the whole speed-limit
-              link (<190px — unlimited it is a bare settings entry), then
-              the concurrency badge (<130px). Settings stays the entry
-              point for everything dropped (same philosophy as the idle
-              state). The concurrency badge survives longest because it
-              carries live state (the slot count). */}
+              window width. Only the concurrency badge drops (<130px) —
+              the rate stack never needs a tier: the sub-label stacks
+              UNDER the rate (never wider than its min-w-[9ch] line), so
+              it costs no horizontal space at any width. Settings remains
+              the entry point for what dropped (same philosophy as the
+              idle state). */}
           <div className="@container flex min-w-0 items-center justify-end gap-3">
-            {/* Always rendered (blank when idle) so the zone width never
-                changes across idle ⇄ active. */}
-            <span className="text-muted-foreground min-w-[9ch] text-right text-sm whitespace-nowrap tabular-nums">
-              {summary.aggregateTransferRate > 0
-                ? formatKbps(summary.aggregateTransferRate)
-                : ''}
-            </span>
-            {/* Speed-limit control only while a download is in progress —
-                that is when a limit change applies live. When idle the
-                icon floated alone next to the blank rate; Settings remains
-                the entry point then. Internal affordance: must not trigger
-                the bar's navigation. Right of the rate, adjacent to the
-                bar (verification: the fixed-width rate near the bar keeps
-                the toggle from shifting the bar-adjacent layout). */}
-            {summary.hasActive && (
+            {/* Rate display doubling as the speed-limit entry (merged with
+                the former standalone SpeedLimitLink, issue #421): while
+                downloads are active the rate is a button deep-linking
+                into the speed-limit setting, with the active cap as a
+                faint sub-label beneath it. The two-line stack (18px +
+                14px) matches the avatars' h-8 so the bar height never
+                changes across limit on/off, and the blank idle
+                placeholder keeps the zone width identical in every
+                state. */}
+            {summary.hasActive ? (
               <span
                 onClick={(e) => e.stopPropagation()}
                 onKeyDown={(e) => e.stopPropagation()}
                 className="contents"
               >
-                <span className="@max-[189px]:hidden @min-[190px]:contents">
-                  <SpeedLimitLink />
-                </span>
+                <TooltipProvider delayDuration={300}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      {/* min-w-[9ch] mirrors the idle placeholder so the
+                          bar-adjacent edge never shifts; -mx cancels the
+                          hover padding so the visual width stays
+                          content-only. Internal affordance: the wrapper
+                          above stops the bar's whole-area /downloads
+                          navigation. */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={openSpeedLimitSettings}
+                        aria-label={
+                          limitEnabled
+                            ? t('downloadStatus.speed_limit_tooltip')
+                            : t('downloadStatus.speed_limit_set')
+                        }
+                        data-testid="speed-limit-link"
+                        className="text-muted-foreground hover:text-foreground -mx-1.5 h-8 min-w-[9ch] flex-col items-end justify-center gap-0 px-1.5 font-normal tabular-nums"
+                      >
+                        <span className="text-sm leading-[18px] whitespace-nowrap">
+                          {/* Dash placeholder while active but nothing is
+                              transferring (preparing / stalled / merging):
+                              a blank line read as a broken control once
+                              the rate became a button (verification
+                              decision). Unit fixed to MB/s — there is no
+                              measurement to scale units from. */}
+                          {summary.aggregateTransferRate > 0
+                            ? formatKbps(summary.aggregateTransferRate)
+                            : '- MB/s'}
+                        </span>
+                        {/* Tiny gauge + value distinguishes the cap from
+                            the live rate directly above it. No container
+                            tier: stacked under the rate it adds no
+                            horizontal width (its text is narrower than
+                            the rate's min-w-[9ch] line), so hiding it at
+                            narrow zone widths (the former <300px tier)
+                            saved no space — it only made the cap value
+                            invisible at every normal window width (the
+                            1fr/3fr/1fr left zone stays below 300px
+                            until the window is ~1580px wide). */}
+                        {/* Why: "enabled" and the kbps value are
+                            independently optional in settings.json (serde
+                            defaults, models/settings.rs) — a legacy
+                            settings file can enable a cap with no stored
+                            value; skip it rather than format undefined. */}
+                        {limitEnabled &&
+                          settings.downloadSpeedLimitKbps != null && (
+                            <span className="text-muted-foreground/60 flex items-center gap-0.5 text-[11px] leading-[14px] whitespace-nowrap">
+                              <Gauge className="size-2.5" aria-hidden />
+                              {formatKbps(settings.downloadSpeedLimitKbps)}
+                            </span>
+                          )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      {/* max-w-xs wraps the sentence (same pattern as the
+                          parallelism CDN warning tooltip). */}
+                      {limitEnabled ? (
+                        <p className="max-w-xs">
+                          {t('downloadStatus.speed_limit_tooltip')}
+                        </p>
+                      ) : (
+                        t('downloadStatus.speed_limit_set')
+                      )}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 <span className="@max-[129px]:hidden @min-[130px]:contents">
                   <ConcurrencyLink />
                 </span>
               </span>
+            ) : (
+              <span className="text-muted-foreground min-w-[9ch] text-right text-sm whitespace-nowrap tabular-nums" />
             )}
           </div>
           <div className="flex min-w-0 items-center gap-3">

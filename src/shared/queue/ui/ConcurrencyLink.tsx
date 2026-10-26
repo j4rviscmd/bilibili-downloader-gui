@@ -13,11 +13,11 @@ import { useNavigate } from 'react-router'
 import { clampConcurrency } from '../runner'
 
 /**
- * Concurrent-part-downloads indicator link, mirroring SpeedLimitLink
- * (issue #421): shows the live slot count (unlike the speed limit there
- * is no "unlimited" state, so a single branch suffices) and deep-links
- * into Settings (`download` category, scrolled to the concurrency
- * toggle). Rendered only while downloads are active.
+ * Concurrent-part-downloads indicator link (issue #421): shows the live
+ * slot count (unlike the speed limit there is no "unlimited" state, so a
+ * single branch suffices) and deep-links into Settings (`download`
+ * category, scrolled to the concurrency toggle). Rendered only while
+ * downloads are active.
  */
 export function ConcurrencyLink() {
   const { t } = useTranslation()
@@ -32,8 +32,8 @@ export function ConcurrencyLink() {
     <TooltipProvider delayDuration={300}>
       <Tooltip>
         <TooltipTrigger asChild>
-          {/* Styling matches the adjacent SpeedLimitLink (ghost, muted)
-              so the two links read as one cluster. */}
+          {/* Styling matches the adjacent rate/speed-limit button
+              (ghost, muted) so the two read as one cluster. */}
           <Button
             variant="ghost"
             size="sm"
