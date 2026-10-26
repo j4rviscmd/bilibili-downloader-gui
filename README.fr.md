@@ -79,7 +79,8 @@ Extrayez l'intégralité du ZIP avant d'exécuter le programme. Les deux éditio
 - **Sauvegarde par lot de vidéos multi-parties** - Téléchargez automatiquement toutes les parties de cours, séries, etc.
 - **Téléchargements rapides et stables** - Changement automatique de CDN avec réessai automatique en cas d'erreurs réseau
 - **File de téléchargements** - Continuez à rechercher et à mettre en file pendant les téléchargements ; la file est traitée sur la page des téléchargements avec jusqu'à 4 parties en parallèle et une barre de progression en bas
-- **Incorporation de sous-titres** - Sélection de sous-titres souples/durs avec support multilingue et sous-titres IA
+- **Limite de vitesse** - Plafonne le débit de téléchargement ; les changements s'appliquent immédiatement aux téléchargements en cours
+- **Incorporation de sous-titres** - Sélection de sous-titres souples/durs avec support multilingue et sous-titres IA, plus un mode par défaut configurable avec priorité de langue pour les sous-titres durs
 - **Audio haute résolution** - Prise en charge Dolby Atmos et Hi-Res Lossless
 
 ### Outils MP4 locaux
@@ -88,11 +89,15 @@ Extrayez l'intégralité du ZIP avant d'exécuter le programme. Les deux éditio
 - **Concaténation** - Fusionnez plusieurs fichiers MP4 en un seul (réencodage automatique si les codecs ne correspondent pas)
 - **Extraction audio** - Extrayez l'audio d'un MP4 local en MP3/M4A avec préréglages de débit
 - **Générateur GIF / WebM** - Transforme un clip MP4 local en GIF animé (256 couleurs) ou en WebM silencieux avec préréglages largeur/FPS
+- **Rotation** - Faites pivoter des vidéos MP4 locales de 90/180/270 degrés (métadonnées seules et rapide, ou réencodage précis)
 
 ### Intégration Bilibili
 
 - **Favoris** - Parcourez et téléchargez des vidéos depuis vos dossiers de favoris Bilibili
 - **Historique de visionnage** - Téléchargez des vidéos directement depuis votre historique de visionnage Bilibili
+- **Recherche de vidéos** - Recherchez des vidéos Bilibili par mot-clé dans l'application (sans connexion), affinez avec des filtres de tri/durée/catégorie et passez directement au réglage du téléchargement
+- **Flux populaire** - Parcourez le flux de vidéos populaires et vos recommandations personnalisées « Pour vous »
+- **Aperçu intégré** - Lisez des vidéos depuis les miniatures de recherche pour vérifier le contenu avant de télécharger
 - **Expansion automatique d'URL courte** - Les liens courts b23.tv s'étendent automatiquement en URL vidéo complète
 
 ### Facilité d'utilisation
@@ -101,7 +106,8 @@ Extrayez l'intégralité du ZIP avant d'exécuter le programme. Les deux éditio
 - **Configuration en un clic** - Installation automatique de FFmpeg avec validation du fonctionnement, sans configuration manuelle
 - **Mise à jour automatique** - Metteur à jour intégré avec vérification des versions signées et notes de version
 - **Recherche et exportation de l'historique** - Exportez l'historique de téléchargement en JSON/CSV
-- **Support du mode sombre** - Basculement thème clair/sombre
+- **Thèmes** - Thèmes clair/sombre, couleurs d'accentuation et taille de police réglable
+- **Page de démarrage** - Choisissez la page ouverte au lancement de l'application
 
 ### Méthodes d'authentification
 
