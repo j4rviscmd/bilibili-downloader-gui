@@ -219,38 +219,6 @@ export const inputSlice = createSlice({
       state.partInputs.forEach((p) => (p.selected = false))
     },
     /**
-     * Selects all video parts on a specific page.
-     *
-     * @param state - Current input state
-     * @param action - Action containing startIndex and endIndex (inclusive)
-     */
-    selectPageAll: (
-      state,
-      action: PayloadAction<{ startIndex: number; endIndex: number }>,
-    ) => {
-      const { startIndex, endIndex } = action.payload
-      for (let i = startIndex; i <= endIndex; i++) {
-        const target = state.partInputs[i]
-        if (target) target.selected = true
-      }
-    },
-    /**
-     * Deselects all video parts on a specific page.
-     *
-     * @param state - Current input state
-     * @param action - Action containing startIndex and endIndex (inclusive)
-     */
-    deselectPageAll: (
-      state,
-      action: PayloadAction<{ startIndex: number; endIndex: number }>,
-    ) => {
-      const { startIndex, endIndex } = action.payload
-      for (let i = startIndex; i <= endIndex; i++) {
-        const target = state.partInputs[i]
-        if (target) target.selected = false
-      }
-    },
-    /**
      * Resets the input state to initial values.
      *
      * Used after download completion to clear the form.
@@ -517,12 +485,10 @@ export const {
   clearResolvedInfo,
   closeAllAccordions,
   deselectAll,
-  deselectPageAll,
   initPartInputs,
   resetInput,
   resetVideoView,
   selectAll,
-  selectPageAll,
   setAccordionOpen,
   setInput,
   setBatchSettings,

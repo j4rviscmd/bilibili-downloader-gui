@@ -2,10 +2,11 @@ import { store } from '@/app/store'
 import { setSettings } from '@/features/settings/settingsSlice'
 import { setUser } from '@/features/user/userSlice'
 import { setVideo, useVideoInfo, VideoInfoProvider } from '@/features/video'
-import { initPartInputs } from '@/features/video/model/inputSlice'
+import { deselectAll, initPartInputs } from '@/features/video/model/inputSlice'
 import type { Video } from '@/features/video/types'
 import { mockInvoke, renderWithProviders } from '@/test/test-utils'
 import { fireEvent, screen, within } from '@testing-library/react'
+import { act } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import BatchSettingsBar from './BatchSettingsBar'
 
@@ -146,9 +147,11 @@ describe('BatchSettingsBar', () => {
     const menu = await screen.findByRole('menu')
     await user.click(within(menu).getByText('360p'))
 
-    // Deselect all: the target lives in redux, so it stays shown — and the
-    // trigger stays ENABLED (pre-configuring before selecting is the model).
-    await user.click(screen.getByText('video.deselect_all'))
+    // Deselect all at the store level (keeps the toolbar toggle out of
+    // this assertion): the target lives in redux, so it stays shown — and
+    // the trigger stays ENABLED (pre-configuring before selecting is the
+    // model).
+    store.dispatch(deselectAll())
     const qualityTrigger = screen.getByRole('button', {
       name: 'video.quality_label',
     })
@@ -164,6 +167,51 @@ describe('BatchSettingsBar', () => {
     expect(
       screen.getByRole('button', { name: 'video.select_all' }),
     ).toBeInTheDocument()
+    // The single control's label only swaps to Deselect at full selection
+    // Note: role queries, not text queries: the stacked-label button keeps
+    // both labels in the DOM (inactive twin aria-hidden — see
+    // BatchSettingsBar.tsx), so queryByText would still match the hidden one
+    expect(
+      screen.queryByRole('button', { name: 'video.deselect_all' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('swaps the select-all button to Deselect at full selection', () => {
+    seed([true, true])
+    renderBar()
+
+    // Fully selected → the single control becomes the deselect action
+    expect(
+      screen.queryByRole('button', { name: 'video.select_all' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'video.deselect_all' }),
+    ).toBeInTheDocument()
+
+    // Note: act() flushes the dispatch's re-render — no user event
+    // follows to flush it before the assertion
+    act(() => {
+      store.dispatch(deselectAll())
+    })
+    expect(
+      screen.getByRole('button', { name: 'video.select_all' }),
+    ).toBeInTheDocument()
+  })
+
+  it('toggles selection with repeated presses of the single button', async () => {
+    seed([true, false])
+    const { user } = renderBar()
+
+    await user.click(screen.getByRole('button', { name: 'video.select_all' }))
+    expect(store.getState().input.partInputs.every((p) => p.selected)).toBe(
+      true,
+    )
+
+    // Second press on the (now Deselect-labeled) control clears it
+    await user.click(screen.getByRole('button', { name: 'video.deselect_all' }))
+    expect(store.getState().input.partInputs.some((p) => p.selected)).toBe(
+      false,
+    )
   })
 
   it('stores a batch quality target without touching parts', async () => {
@@ -388,11 +436,21 @@ describe('BatchSettingsBar', () => {
     expect(store.getState().input.partInputs.every((p) => p.selected)).toBe(
       true,
     )
-    // All selected → the same chord deselects (toggle semantics)
-    fireEvent.keyDown(window, { key: 'a', ctrlKey: true })
+    // All selected → the same chord deselects, and the chord stays
+    // claimed (native page select-all suppressed)
+    // Note: dispatched by hand because fireEvent returns no event handle;
+    // asserting defaultPrevented needs a reference to the event
+    const claimed = new KeyboardEvent('keydown', {
+      key: 'a',
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    })
+    window.dispatchEvent(claimed)
     expect(store.getState().input.partInputs.some((p) => p.selected)).toBe(
       false,
     )
+    expect(claimed.defaultPrevented).toBe(true)
   })
 
   it('keeps native select-all when a text field is focused', () => {

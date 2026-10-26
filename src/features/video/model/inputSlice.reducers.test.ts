@@ -17,13 +17,11 @@ import {
   clearResolvedInfo,
   closeAllAccordions,
   deselectAll,
-  deselectPageAll,
   initPartInputs,
   resetInput,
   resetVideoView,
   selectAll,
   selectHasSelectedParts,
-  selectPageAll,
   setAccordionOpen,
   setInput,
   setPartQualities,
@@ -195,35 +193,6 @@ describe('selection reducers', () => {
 
     store.dispatch(selectAll())
     expect(input().partInputs.every((p) => p.selected)).toBe(true)
-  })
-
-  it('selectPageAll/deselectPageAll apply to the inclusive range only', () => {
-    seedParts()
-    store.dispatch(deselectAll())
-    store.dispatch(selectPageAll({ startIndex: 1, endIndex: 2 }))
-    expect(input().partInputs.map((p) => p.selected)).toEqual([
-      false,
-      true,
-      true,
-    ])
-
-    store.dispatch(deselectPageAll({ startIndex: 1, endIndex: 2 }))
-    expect(input().partInputs.map((p) => p.selected)).toEqual([
-      false,
-      false,
-      false,
-    ])
-  })
-
-  it('page range reducers skip out-of-bounds indices without throwing', () => {
-    seedParts()
-    const selectedBefore = input().partInputs.map((p) => p.selected)
-
-    store.dispatch(selectPageAll({ startIndex: 5, endIndex: 9 }))
-    store.dispatch(deselectPageAll({ startIndex: 99, endIndex: 200 }))
-
-    expect(input().partInputs.map((p) => p.selected)).toEqual(selectedBefore)
-    expect(input().partInputs).toHaveLength(3)
   })
 
   it('selectHasSelectedParts reflects the current selection', () => {
