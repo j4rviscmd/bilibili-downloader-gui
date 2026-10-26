@@ -322,7 +322,7 @@ describe('SearchContent', () => {
     )
   })
 
-  it('dispatches selectPageAll / deselectPageAll from the toolbar buttons', async () => {
+  it('toggles whole-video selection from the toolbar button', async () => {
     store.dispatch(setInput(initialInput))
     seedVideo(2)
 
@@ -335,7 +335,8 @@ describe('SearchContent', () => {
       true,
     )
 
-    await user.click(screen.getByText('video.deselect_all'))
+    // Full selection swaps the label; the same control deselects
+    await user.click(screen.getByRole('button', { name: 'video.deselect_all' }))
     expect(store.getState().input.partInputs.some((p) => p.selected)).toBe(
       false,
     )

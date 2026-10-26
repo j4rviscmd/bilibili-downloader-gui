@@ -23,12 +23,10 @@ export type { VideoInfoContextValue } from './context/VideoInfoContext'
 export {
   clearPendingDownload,
   deselectAll,
-  deselectPageAll,
   inputSlice,
   resetVideoView,
   selectAll,
   selectHasSelectedParts,
-  selectPageAll,
   setInput,
   setPendingDownload,
   updatePartSelected,

@@ -34,8 +34,8 @@ import {
   VIDEO_QUALITIES_MAP,
 } from '@/features/video/lib/constants'
 import {
-  deselectPageAll,
-  selectPageAll,
+  deselectAll,
+  selectAll,
   setBatchSettings,
   setOutputDirOverride,
 } from '@/features/video/model/inputSlice'
@@ -75,13 +75,17 @@ export function BatchSettingsBar() {
     [input.partInputs],
   )
 
-  // Ctrl+A toggles whole-video selection — the same full-range dispatch
-  // as the two buttons below. While a text field is focused (URL, part
-  // titles) the native select-all must survive, so the chord passes
-  // through untouched there. Ctrl is fixed on all platforms, matching
-  // the download button's Ctrl+Enter.
+  // Ctrl+A toggles whole-video selection — the same dispatch as the
+  // button below, whose label swaps to Deselect at full selection.
+  // While a text field is focused (URL, part titles) the native
+  // select-all must survive, so the chord passes through untouched
+  // there. Ctrl is fixed on all platforms, matching the download
+  // button's Ctrl+Enter.
   const allSelected =
     input.partInputs.length > 0 && input.partInputs.every((pi) => pi.selected)
+  const toggleAllParts = useCallback(() => {
+    dispatch(allSelected ? deselectAll() : selectAll())
+  }, [dispatch, allSelected])
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!event.ctrlKey || !/^a$/i.test(event.key)) return
@@ -93,21 +97,11 @@ export function BatchSettingsBar() {
       )
         return
       event.preventDefault()
-      dispatch(
-        allSelected
-          ? deselectPageAll({
-              startIndex: 0,
-              endIndex: input.partInputs.length - 1,
-            })
-          : selectPageAll({
-              startIndex: 0,
-              endIndex: input.partInputs.length - 1,
-            }),
-      )
+      toggleAllParts()
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [dispatch, allSelected, input.partInputs.length])
+  }, [toggleAllParts])
   // No eager per-part fetching: under the enqueue-resolution model the
   // batch targets derive from the static login-state ladder, unfetched
   // parts resolve best-effort in the backend, and subtitle tracks are
@@ -224,21 +218,21 @@ export function BatchSettingsBar() {
         <div className="ml-auto flex items-center gap-1.5">
           {/* Whole-video range, regardless of the visible page: the batch
               bar applies to every selected part, and paging through to
-              select each page's parts first would defeat the point. The
-              range-based reducer is reused with the full range. */}
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() =>
-              dispatch(
-                selectPageAll({
-                  startIndex: 0,
-                  endIndex: input.partInputs.length - 1,
-                }),
-              )
-            }
-          >
-            {t('video.select_all')}
+              select each page's parts first would defeat the point. */}
+          {/* One toggle control: at full selection the label swaps to
+              Deselect and the next press clears every part. */}
+          <Button variant="secondary" size="sm" onClick={toggleAllParts}>
+            {/* Stacked labels: the inactive one renders invisibly in the
+                same grid cell, pinning the width to the wider of the two
+                so the swap never shifts the toolbar layout. */}
+            <span className="grid">
+              <span aria-hidden="true" className="invisible [grid-area:1/1]">
+                {allSelected ? t('video.select_all') : t('video.deselect_all')}
+              </span>
+              <span className="[grid-area:1/1]">
+                {allSelected ? t('video.deselect_all') : t('video.select_all')}
+              </span>
+            </span>
             <KbdGroup
               aria-hidden="true"
               className="text-muted-foreground gap-0.5 text-[9px]"
@@ -246,20 +240,6 @@ export function BatchSettingsBar() {
               <Kbd className="bg-background h-3.5 px-1 text-[9px]">Ctrl</Kbd>
               <Kbd className="bg-background h-3.5 px-1 text-[9px]">A</Kbd>
             </KbdGroup>
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() =>
-              dispatch(
-                deselectPageAll({
-                  startIndex: 0,
-                  endIndex: input.partInputs.length - 1,
-                }),
-              )
-            }
-          >
-            {t('video.deselect_all')}
           </Button>
           <Popover>
             <PopoverTrigger asChild>
