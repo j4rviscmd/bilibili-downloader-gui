@@ -10,8 +10,9 @@ import {
 import { mapBackendError } from '@/shared/lib/mapBackendError'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui/button'
+import { ThumbImage } from '@/shared/ui/ThumbImage'
 import { toast } from '@/shared/ui/toast'
-import { Check, Copy, Download, ImageOff, Trash2 } from 'lucide-react'
+import { Check, Copy, Download, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -99,15 +100,6 @@ function formatFileSize(bytes?: number): string {
 }
 
 /**
- * Placeholder component displayed when thumbnail is unavailable.
- */
-const ThumbnailPlaceholder = () => (
-  <div className="text-muted-foreground flex size-full items-center justify-center">
-    <ImageOff size={24} />
-  </div>
-)
-
-/**
  * Props for the HistoryItem component.
  */
 type Props = {
@@ -162,17 +154,13 @@ function HistoryItem({ entry, onDelete, onDownload, disabled }: Props) {
   return (
     <div className="border-border hover:bg-accent/50 group flex items-center gap-3 rounded-lg border p-3 transition-colors">
       <div className="bg-muted relative flex size-20 shrink-0 items-center justify-center overflow-hidden rounded select-none">
-        {entry.thumbnailUrl ? (
-          <img
-            src={entry.thumbnailUrl}
-            alt={entry.title}
-            className="size-full object-cover"
-            draggable={false}
-            referrerPolicy="no-referrer"
-          />
-        ) : (
-          <ThumbnailPlaceholder />
-        )}
+        <ThumbImage
+          src={entry.thumbnailUrl}
+          alt={entry.title}
+          className="size-full object-cover"
+          draggable={false}
+          referrerPolicy="no-referrer"
+        />
         {entry.duration && (
           <div className="absolute right-0.5 bottom-1 rounded bg-black/60 px-1 text-xs text-white">
             {formatDuration(entry.duration)}

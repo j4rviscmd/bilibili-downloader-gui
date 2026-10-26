@@ -1,5 +1,6 @@
 import { getHistory } from '@/features/history/api/historyApi'
 import type { HistoryEntry } from '@/features/history/model/historySlice'
+import { ThumbImage } from '@/shared/ui/ThumbImage'
 import { ChevronRight } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -142,17 +143,13 @@ export function RecentUrls({
             onClick={() => onRefetch(r.url)}
             className="group/recent hover:bg-muted flex min-h-11 w-full items-center gap-3 rounded-lg px-2.5 py-2.5 text-left transition-colors"
           >
-            {r.thumbnailUrl ? (
-              <img
-                src={r.thumbnailUrl}
-                alt=""
-                loading="lazy"
-                referrerPolicy="no-referrer"
-                className="block aspect-video w-16 shrink-0 rounded object-cover"
-              />
-            ) : (
-              <span className="bg-muted block aspect-video w-16 shrink-0 rounded" />
-            )}
+            <ThumbImage
+              src={r.thumbnailUrl}
+              alt=""
+              loading="lazy"
+              referrerPolicy="no-referrer"
+              className="block aspect-video w-16 shrink-0 rounded object-cover"
+            />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[13px] leading-[1.6] font-medium">
                 {r.title}

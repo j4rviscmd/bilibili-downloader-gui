@@ -2,6 +2,7 @@ import { Badge } from '@/components/ui/badge'
 import { usePendingDownload } from '@/shared/hooks/usePendingDownload'
 import { cn } from '@/shared/lib/utils'
 import { Skeleton } from '@/shared/ui/skeleton'
+import { ThumbImage } from '@/shared/ui/ThumbImage'
 import { Play } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -122,7 +123,7 @@ export function VideoCardGrid({
               aria-label={entry.title}
             >
               <span className="relative shrink-0">
-                <img
+                <ThumbImage
                   src={entry.cover}
                   alt=""
                   loading="lazy"
@@ -135,9 +136,6 @@ export function VideoCardGrid({
                   // (http://localhost:1420) — every cover <img> in the app
                   // sends no-referrer (watch-history, favorites, queue…).
                   referrerPolicy="no-referrer"
-                  onError={(e) => {
-                    e.currentTarget.src = '/placeholder.png'
-                  }}
                 />
                 {/* Why: pb-[2px] optically centers the digits — measured in
                   the live webview, Noto Sans JP metrics (ascent 13 /

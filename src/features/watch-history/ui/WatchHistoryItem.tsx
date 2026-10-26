@@ -5,6 +5,7 @@ import {
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
 import { Button } from '@/shared/ui/button'
+import { ThumbImage } from '@/shared/ui/ThumbImage'
 import { toast } from '@/shared/ui/toast'
 import { Check, Copy, Download } from 'lucide-react'
 import { useState } from 'react'
@@ -48,15 +49,12 @@ export function WatchHistoryItem({ entry, onDownload, disabled }: Props) {
   return (
     <div className="border-border hover:bg-accent/50 flex items-center gap-3 rounded-lg border p-3">
       <div className="relative size-20 shrink-0 overflow-hidden rounded select-none">
-        <img
+        <ThumbImage
           src={entry.cover}
           alt={entry.title}
           className="size-full object-cover"
           draggable={false}
           referrerPolicy="no-referrer"
-          onError={(e) => {
-            e.currentTarget.src = '/placeholder.png'
-          }}
         />
         <div className="absolute right-0.5 bottom-1 rounded bg-black/60 px-1 text-xs text-white">
           {formatDurationShort(entry.duration)}
