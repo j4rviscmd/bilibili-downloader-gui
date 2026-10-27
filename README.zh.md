@@ -13,7 +13,7 @@
 
 [![Windows](https://img.shields.io/badge/Windows-Supported-0078D6?style=flat&logo=data:image/svg%2bxml;base64,PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+V2luZG93cyAxMTwvdGl0bGU+PHBhdGggZmlsbD0iIzAwQTRFRiIgZD0iTTAsMEgxMS4zNzdWMTEuMzcySDBaTTEyLjYyMywwSDI0VjExLjM3MkgxMi42MjNaTTAsMTIuNjIzSDExLjM3N1YyNEgwWm0xMi42MjMsMEgyNFYyNEgxMi42MjMiLz48L3N2Zz4=)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Windows_x64-setup.exe)
 [![macOS](https://img.shields.io/badge/macOS-Supported-000000?style=flat&logo=apple&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_macOS_arm64.dmg)
-[![Linux](https://img.shields.io/badge/Linux-Supported-FCC624?style=flat&logo=linux&logoColor=black)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Linux_x64.deb)
+[![Linux](https://img.shields.io/badge/Linux-Community_Supported-FCC624?style=flat&logo=linux&logoColor=black)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Linux_x64.deb)
 [![Downloads](https://img.shields.io/github/downloads/j4rviscmd/bilibili-downloader-gui/total?style=flat&color=blue&logo=github&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases)<br/>
 [![Latest Release](https://img.shields.io/github/v/release/j4rviscmd/bilibili-downloader-gui?style=flat&color=green&label=Latest&logo=github&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest)
 [![Last Commit](https://img.shields.io/github/last-commit/j4rviscmd/bilibili-downloader-gui/main?style=flat&color=1F6FEB&label=Last%20Update&logo=git&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/commits/main)
@@ -55,6 +55,10 @@
 > 自 v1.62.0 起，Linux 版本在 Ubuntu 24.04 上编译，需要 glibc 2.39 或更高版本（Debian 13+、Ubuntu 24.04+）。
 > 在 Ubuntu 22.04、Debian 12 等较旧的发行版上，v1.62.0 及之后的版本会因 `GLIBC_2.39 not found`
 > 错误无法启动——请勿在这些系统上更新应用。
+
+> [!NOTE]
+> Linux 版由社区支持：维护者没有 Linux 环境，发布版本仅由 CI 构建，未经实际测试。
+> 如果你遇到 Linux 特有的问题，请自行调查、在本机验证修复，并提交拉取请求。
 
 Windows 安装器支持选择安装语言。应用首次启动时，会在安装 FFmpeg 前让你选择默认语言，
 并按系统/浏览器语言预选；之后可在设置中修改。

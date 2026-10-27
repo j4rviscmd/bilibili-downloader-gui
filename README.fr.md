@@ -13,7 +13,7 @@
 
 [![Windows](https://img.shields.io/badge/Windows-Supported-0078D6?style=flat&logo=data:image/svg%2bxml;base64,PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+V2luZG93cyAxMTwvdGl0bGU+PHBhdGggZmlsbD0iIzAwQTRFRiIgZD0iTTAsMEgxMS4zNzdWMTEuMzcySDBaTTEyLjYyMywwSDI0VjExLjM3MkgxMi42MjNaTTAsMTIuNjIzSDExLjM3N1YyNEgwWm0xMi42MjMsMEgyNFYyNEgxMi42MjMiLz48L3N2Zz4=)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Windows_x64-setup.exe)
 [![macOS](https://img.shields.io/badge/macOS-Supported-000000?style=flat&logo=apple&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_macOS_arm64.dmg)
-[![Linux](https://img.shields.io/badge/Linux-Supported-FCC624?style=flat&logo=linux&logoColor=black)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Linux_x64.deb)
+[![Linux](https://img.shields.io/badge/Linux-Community_Supported-FCC624?style=flat&logo=linux&logoColor=black)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Linux_x64.deb)
 [![Downloads](https://img.shields.io/github/downloads/j4rviscmd/bilibili-downloader-gui/total?style=flat&color=blue&logo=github&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases)<br/>
 [![Latest Release](https://img.shields.io/github/v/release/j4rviscmd/bilibili-downloader-gui?style=flat&color=green&label=Latest&logo=github&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest)
 [![Last Commit](https://img.shields.io/github/last-commit/j4rviscmd/bilibili-downloader-gui/main?style=flat&color=1F6FEB&label=Last%20Update&logo=git&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/commits/main)
@@ -53,6 +53,13 @@ Pas de publicités, pas de suivi. 100 % gratuit.
 
 > [!NOTE]
 > Depuis la v1.62.0, les builds Linux sont compilés sur Ubuntu 24.04 et nécessitent glibc 2.39 ou plus récent (Debian 13+, Ubuntu 24.04+). Sur des distributions plus anciennes comme Ubuntu 22.04 ou Debian 12, la v1.62.0 et les versions ultérieures ne démarrent pas et affichent l'erreur `GLIBC_2.39 not found` — ne mettez pas à jour sur ces systèmes.
+
+> [!NOTE]
+> Linux est pris en charge par la communauté : le mainteneur ne dispose
+> d'aucun environnement Linux, les versions sont donc compilées par CI sans
+> test manuel. Si vous rencontrez un bug spécifique à Linux, veuillez
+> l'examiner, vérifier le correctif sur votre machine et ouvrir une pull
+> request.
 
 L'installateur Windows propose un sélecteur de langue. Au premier lancement, choisissez la langue par défaut de l'application avant le début de la configuration de FFmpeg ; la sélection initiale suit la langue de votre système/navigateur. Vous pouvez la modifier dans les Paramètres.
 
