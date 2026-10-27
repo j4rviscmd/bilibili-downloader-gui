@@ -143,10 +143,12 @@ export function SplashScreen() {
           data-tauri-drag-region
           className="absolute inset-0 h-full w-full"
         />
+        {/* Why: text-2xl is sized for the 360×360 splash window defined in
+            src-tauri/src/window.rs; retune if the window dimensions change. */}
         <h1
           className={cn(
             'relative z-10 select-none',
-            'font-sans text-4xl font-extralight tracking-[0.3em]',
+            'font-sans text-2xl font-extralight tracking-[0.3em]',
             'fade-in animate-in duration-1000',
           )}
           style={{
@@ -167,7 +169,7 @@ export function SplashScreen() {
           </div>
         )}
         {stepLabel && (
-          <p className="absolute right-6 bottom-6 left-6 z-10 truncate text-center text-[16px] font-medium text-[#6B7280] select-none dark:text-[#9ca3af]">
+          <p className="absolute right-6 bottom-6 left-6 z-10 truncate text-center text-sm font-medium text-[#6B7280] select-none dark:text-[#9ca3af]">
             {t(stepLabel)}
           </p>
         )}
