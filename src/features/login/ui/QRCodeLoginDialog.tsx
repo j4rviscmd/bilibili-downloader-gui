@@ -1,10 +1,12 @@
 /**
  * QRCodeLoginDialog Component
  *
- * A dialog component for logging in without Firefox cookies. Offers two
- * tabs: QR code scan and manual cookie paste. The QR tab polls until the
- * scan is confirmed; the manual tab verifies a pasted Cookie header via the
- * nav API before storing it.
+ * A dialog component for logging in to Bilibili. Offers three tabs in
+ * the settings account-section order: Firefox cookie switch, QR code
+ * scan, and manual cookie paste. The Firefox tab persists the method
+ * switch and relaunches (see FirefoxCookiePanel); the QR tab polls
+ * until the scan is confirmed; the manual tab verifies a pasted Cookie
+ * header via the nav API before storing it.
  *
  * @module QRCodeLoginDialog
  */
@@ -16,8 +18,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/shared/animate-ui/radix/dialog'
-import { ClipboardPaste, QrCode } from 'lucide-react'
+import { ClipboardPaste, Globe, QrCode } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { FirefoxCookiePanel } from './FirefoxCookiePanel'
 import { ManualCookieForm } from './ManualCookieForm'
 import { QRCodeDisplay } from './QRCodeDisplay'
 
@@ -56,12 +59,18 @@ export function QRCodeLoginDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{t('login.title', 'Login to Bilibili')}</DialogTitle>
         </DialogHeader>
         <Tabs defaultValue="qr">
           <TabsList className="w-full">
+            {/* Tab order mirrors the settings account section (firefox /
+                qrCode / manual) so the two surfaces read the same way. */}
+            <TabsTrigger value="firefox" className="flex-1 gap-1">
+              <Globe className="size-4" aria-hidden="true" />
+              {t('login.firefoxCookieTab')}
+            </TabsTrigger>
             <TabsTrigger value="qr" className="flex-1 gap-1">
               <QrCode className="size-4" aria-hidden="true" />
               {t('login.qrCodeTab')}
@@ -71,6 +80,9 @@ export function QRCodeLoginDialog({
               {t('login.manualCookieTab')}
             </TabsTrigger>
           </TabsList>
+          <TabsContent value="firefox">
+            {open && <FirefoxCookiePanel />}
+          </TabsContent>
           <TabsContent value="qr">
             {open && <QRCodeDisplay onSuccess={() => onOpenChange(false)} />}
           </TabsContent>
