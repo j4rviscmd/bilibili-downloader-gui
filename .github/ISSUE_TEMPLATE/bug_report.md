@@ -25,6 +25,10 @@ or a short video are welcome if you have them. -->
 <!-- Tip: open "About App" from Settings and press the copy button,
 then paste the result here. -->
 
+<!-- Linux is community-supported: the maintainer has no Linux
+environment to reproduce bugs. Investigating the issue and opening a
+PR with a fix verified on your machine is especially welcome. -->
+
 ## Anything else? (Optional)
 
 <!-- Regression, network limits, proxy/VPN, etc. -->
