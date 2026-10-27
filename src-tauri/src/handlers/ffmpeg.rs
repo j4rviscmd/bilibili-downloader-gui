@@ -650,6 +650,13 @@ pub async fn move_ffmpeg(from_path: PathBuf, to_path: PathBuf) -> Result<(), Str
 /// Returns an error if file/directory operations fail.
 fn copy_dir_recursive(from: &Path, to: &Path) -> std::io::Result<()> {
     if from.is_dir() {
+        // Why create_dir_all up front: dest directories used to be
+        // created lazily per entry, so a source whose FIRST directory
+        // entry is a root-level file failed fs::copy with ENOENT (the
+        // dest parent never existed). readdir order is unsorted on
+        // ext4, which surfaced this as a deterministic CI failure on
+        // runners where the root file hashed before the subdirectory.
+        fs::create_dir_all(to)?;
         for entry in fs::read_dir(from)? {
             let entry = entry?;
             let from_path = entry.path();
@@ -1773,15 +1780,17 @@ mod tests {
     }
 
     #[test]
-    fn copy_dir_recursive_empty_source_is_ok_without_creating_dest() {
-        // Pins actual behavior: dest directories are created lazily per
-        // entry, so an empty source copies nothing and creates no dest.
+    fn copy_dir_recursive_empty_source_creates_dest_dir() {
+        // An empty source still creates the dest (create_dir_all runs
+        // before iteration); harmless for the lib-move callers, and it
+        // is what keeps root-level files copyable regardless of the
+        // readdir order (see the comment in copy_dir_recursive).
         let tmp = tempfile::tempdir().unwrap();
         let empty_src = tmp.path().join("empty");
         std::fs::create_dir_all(&empty_src).unwrap();
         let to = tmp.path().join("dst");
         copy_dir_recursive(&empty_src, &to).unwrap();
-        assert!(!to.exists(), "empty source must not create the dest");
+        assert!(to.is_dir(), "empty source still creates the dest dir");
     }
 
     // ---- PR⑥: install/validate/move E2E (issue #646) ----
