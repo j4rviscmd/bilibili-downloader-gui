@@ -13,7 +13,7 @@
 
 [![Windows](https://img.shields.io/badge/Windows-Supported-0078D6?style=flat&logo=data:image/svg%2bxml;base64,PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+V2luZG93cyAxMTwvdGl0bGU+PHBhdGggZmlsbD0iIzAwQTRFRiIgZD0iTTAsMEgxMS4zNzdWMTEuMzcySDBaTTEyLjYyMywwSDI0VjExLjM3MkgxMi42MjNaTTAsMTIuNjIzSDExLjM3N1YyNEgwWm0xMi42MjMsMEgyNFYyNEgxMi42MjMiLz48L3N2Zz4=)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Windows_x64-setup.exe)
 [![macOS](https://img.shields.io/badge/macOS-Supported-000000?style=flat&logo=apple&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_macOS_arm64.dmg)
-[![Linux](https://img.shields.io/badge/Linux-Supported-FCC624?style=flat&logo=linux&logoColor=black)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Linux_x64.deb)
+[![Linux](https://img.shields.io/badge/Linux-Community_Supported-FCC624?style=flat&logo=linux&logoColor=black)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Linux_x64.deb)
 [![Downloads](https://img.shields.io/github/downloads/j4rviscmd/bilibili-downloader-gui/total?style=flat&color=blue&logo=github&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases)<br/>
 [![Latest Release](https://img.shields.io/github/v/release/j4rviscmd/bilibili-downloader-gui?style=flat&color=green&label=Latest&logo=github&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest)
 [![Last Commit](https://img.shields.io/github/last-commit/j4rviscmd/bilibili-downloader-gui/main?style=flat&color=1F6FEB&label=Last%20Update&logo=git&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/commits/main)
@@ -53,6 +53,11 @@
 
 > [!NOTE]
 > Linuxビルドはv1.62.0からUbuntu 24.04上でコンパイルされており、glibc 2.39以上（Debian 13+、Ubuntu 24.04+）が必要です。Ubuntu 22.04やDebian 12など古いディストリビューションでは、v1.62.0以降は `GLIBC_2.39 not found` エラーで起動しないため、これらのシステムではアップデートしないでください。
+
+> [!NOTE]
+> Linuxはコミュニティサポートです。メンテナにはLinux環境がなく、リリースはCIによる
+> ビルドのみで実機検証は行われていません。Linux固有のバグに遭遇した場合は、ご自身の環境で
+> 調査と修正の検証を行い、プルリクエストの作成にご協力ください。
 
 Windowsインストーラーは言語選択に対応しています。初回起動時、FFmpegセットアップの開始前にアプリケーションのデフォルト言語を選択します。初期選択はシステム/ブラウザの言語に従い、後から設定で変更できます。
 

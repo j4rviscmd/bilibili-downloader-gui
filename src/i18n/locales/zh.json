@@ -901,6 +901,7 @@
     "manualCookie": "手动 Cookie",
     "qrCodeTab": "二维码",
     "manualCookieTab": "粘贴 Cookie",
+    "firefoxCookieTab": "Firefox Cookie",
     "manualCookiePlaceholder": "SESSDATA=...; bili_jct=...; DedeUserID=...",
     "manualCookieHint": "SESSDATA 为必填项，其他字段可选。",
     "manualCookieApply": "应用",
@@ -911,6 +912,7 @@
     "manualCookieFormatInvalid": "无法将粘贴的内容解析为 Cookie。",
     "manualCookieHowTo": "获取方法：在浏览器中登录 bilibili.com，打开开发者工具（F12）→网络，任选一个请求，复制请求标头中整行 cookie: 的内容。",
     "firefoxCookieDescription": "若已在 Firefox 中登录 bilibili.com，应用会自动读取 Cookie",
+    "useFirefoxCookie": "使用Firefox Cookie",
     "qrCodeDescription": "使用哔哩哔哩手机 App 扫描二维码登录",
     "manualCookieDescription": "粘贴从浏览器开发者工具复制的 Cookie 进行登录",
     "loginButton": "登录"

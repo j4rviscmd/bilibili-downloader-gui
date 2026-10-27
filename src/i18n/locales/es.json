@@ -901,6 +901,7 @@
     "manualCookie": "Cookie manual",
     "qrCodeTab": "Código QR",
     "manualCookieTab": "Pegar cookie",
+    "firefoxCookieTab": "Firefox Cookie",
     "manualCookiePlaceholder": "SESSDATA=...; bili_jct=...; DedeUserID=...",
     "manualCookieHint": "SESSDATA es obligatorio; el resto de campos son opcionales.",
     "manualCookieApply": "Aplicar",
@@ -911,6 +912,7 @@
     "manualCookieFormatInvalid": "No se pudo interpretar el texto pegado como cookies.",
     "manualCookieHowTo": "Cómo obtenerla: inicia sesión en bilibili.com en tu navegador, abre DevTools (F12) → Red, elige cualquier solicitud y copia la línea cookie: completa de las cabeceras de la petición.",
     "firefoxCookieDescription": "Lee las cookies automáticamente si has iniciado sesión en bilibili.com con Firefox",
+    "useFirefoxCookie": "Usar Firefox Cookie",
     "qrCodeDescription": "Inicia sesión escaneando un código QR con la app móvil de bilibili",
     "manualCookieDescription": "Pega una cookie copiada de las DevTools de tu navegador para iniciar sesión",
     "loginButton": "Iniciar sesión"

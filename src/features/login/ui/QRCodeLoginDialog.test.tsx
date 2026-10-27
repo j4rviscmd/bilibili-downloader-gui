@@ -10,6 +10,9 @@ import { renderWithProviders } from '@/test/test-utils'
 import { fireEvent, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('./FirefoxCookiePanel', () => ({
+  FirefoxCookiePanel: () => <div data-testid="firefox-panel" />,
+}))
 vi.mock('./QRCodeDisplay', () => ({
   QRCodeDisplay: ({ onSuccess }: { onSuccess?: () => void }) => (
     <div>
@@ -73,5 +76,18 @@ describe('QRCodeLoginDialog', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
 
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('offers the Firefox cookie tab and mounts its panel on selection', async () => {
+    const { user } = renderWithProviders(
+      <QRCodeLoginDialog open onOpenChange={onOpenChange} />,
+    )
+
+    expect(screen.queryByTestId('firefox-panel')).toBeNull()
+    await user.click(
+      screen.getByRole('tab', { name: 'login.firefoxCookieTab' }),
+    )
+
+    expect(screen.getByTestId('firefox-panel')).toBeInTheDocument()
   })
 })

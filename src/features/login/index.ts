@@ -27,9 +27,11 @@ export * from './loginStatus'
 export { useLogin } from './model/useLogin'
 
 // Components
+export { FirefoxCookiePanel } from './ui/FirefoxCookiePanel'
 export { ManualCookieForm } from './ui/ManualCookieForm'
 export { QRCodeDisplay } from './ui/QRCodeDisplay'
 export { QRCodeLoginDialog } from './ui/QRCodeLoginDialog'
+export { RestartConfirmDialog } from './ui/RestartConfirmDialog'
 
 // State
 // setLoginMethod is aliased: the api module already exports an async
