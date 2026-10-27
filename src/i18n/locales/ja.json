@@ -898,6 +898,7 @@
     "manualCookie": "手動Cookie入力",
     "qrCodeTab": "QRコード",
     "manualCookieTab": "Cookie貼り付け",
+    "firefoxCookieTab": "Firefox Cookie",
     "manualCookiePlaceholder": "SESSDATA=...; bili_jct=...; DedeUserID=...",
     "manualCookieHint": "SESSDATA必須、他のフィールドは任意です。",
     "manualCookieApply": "適用",
@@ -908,6 +909,7 @@
     "manualCookieFormatInvalid": "貼り付けたテキストをCookieとして解析できませんでした。",
     "manualCookieHowTo": "取得方法: ブラウザでbilibili.comにログインし、F12（開発者ツール）→「ネットワーク」→任意のリクエストを選び、リクエストヘッダーのcookie:の行全体をコピーしてください。",
     "firefoxCookieDescription": "Firefoxでbilibili.comにログインしていれば、アプリがCookieを自動で読み取ります",
+    "useFirefoxCookie": "Firefox Cookieに切り替える",
     "qrCodeDescription": "スマホのbilibiliアプリでQRコードをスキャンしてログインします",
     "manualCookieDescription": "ブラウザの開発者ツールからコピーしたCookieを貼り付けてログインします",
     "loginButton": "ログイン"

@@ -10,18 +10,11 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import {
   getLoginState,
   getLoginStatusText,
   ManualCookieForm,
   qrLogout,
+  RestartConfirmDialog,
   sessionToUser,
   setLoginMethodAction,
   setLoginMethod as setLoginMethodApi,
@@ -38,7 +31,6 @@ import { Button } from '@/shared/ui/button'
 import { Label } from '@/shared/ui/label'
 import { toast } from '@/shared/ui/toast'
 import { relaunch } from '@tauri-apps/plugin-process'
-import { RefreshCw } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
@@ -270,44 +262,20 @@ export function AccountSection() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Restart-confirmation dialog: the overlay click cancels the switch
-          while nothing is persisted yet — after a failed restart attempt
-          the method may already be saved, so cancel then only closes the
-          dialog. ESC stays disabled (onEscapeKeyDown) and the X stays
-          hidden (showCloseButton) so the only paths are cancel and
-          restart. */}
-      <Dialog
+      {/* Restart-confirmation dialog: cancel (overlay click) reverts the
+          staged card selection while nothing is persisted yet — after a
+          failed restart attempt the method may already be saved, so cancel
+          then only closes the dialog. The no-close-button / no-ESC
+          contract lives in RestartConfirmDialog. */}
+      <RestartConfirmDialog
         open={pendingMethod !== null}
-        onOpenChange={(open) => {
-          // Cancel reverts the staged card selection with it
-          if (!open) {
-            setPendingMethod(null)
-            setDraftMethod(null)
-          }
+        onCancel={() => {
+          setPendingMethod(null)
+          setDraftMethod(null)
         }}
-      >
-        <DialogContent
-          showCloseButton={false}
-          className="sm:max-w-md"
-          onEscapeKeyDown={(e) => e.preventDefault()}
-        >
-          <DialogHeader>
-            <DialogTitle>{t('login.restartRequiredTitle')}</DialogTitle>
-            <DialogDescription>{t('login.restartRequired')}</DialogDescription>
-          </DialogHeader>
-          {restartFailed && (
-            <p role="alert" className="text-destructive text-sm">
-              {t('login.restartFailed')}
-            </p>
-          )}
-          <DialogFooter>
-            <Button onClick={handleRestart}>
-              <RefreshCw className="mr-2 size-4" />
-              {t('login.restartNow')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        onConfirm={handleRestart}
+        failed={restartFailed}
+      />
     </div>
   )
 }

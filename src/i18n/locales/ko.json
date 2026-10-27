@@ -898,6 +898,7 @@
     "manualCookie": "수동 쿠키 입력",
     "qrCodeTab": "QR 코드",
     "manualCookieTab": "쿠키 붙여넣기",
+    "firefoxCookieTab": "Firefox Cookie",
     "manualCookiePlaceholder": "SESSDATA=...; bili_jct=...; DedeUserID=...",
     "manualCookieHint": "SESSDATA는 필수이며 나머지 항목은 선택 사항입니다.",
     "manualCookieApply": "적용",
@@ -908,6 +909,7 @@
     "manualCookieFormatInvalid": "붙여넣은 텍스트를 쿠키로 해석할 수 없습니다.",
     "manualCookieHowTo": "구하는 방법: 브라우저에서 bilibili.com에 로그인한 뒤 개발자 도구(F12) → 네트워크에서 아무 요청을 선택하고, 요청 헤더의 cookie: 줄 전체를 복사하세요.",
     "firefoxCookieDescription": "Firefox에서 bilibili.com에 로그인되어 있으면 쿠키를 자동으로 읽어옵니다",
+    "useFirefoxCookie": "Firefox Cookie 사용",
     "qrCodeDescription": "빌리빌리 모바일 앱으로 QR 코드를 스캔하여 로그인합니다",
     "manualCookieDescription": "브라우저 개발자 도구에서 복사한 쿠키를 붙여넣어 로그인합니다",
     "loginButton": "로그인"
