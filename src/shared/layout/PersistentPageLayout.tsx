@@ -1,54 +1,21 @@
+import { useSelector } from '@/app/store'
 import { PageLayoutShell } from '@/shared/layout/PageLayout'
-import { PAGE_PATHS } from '@/shared/layout/pages'
-import type { FC, ReactElement } from 'react'
-import { useEffect, useState } from 'react'
+import {
+  PAGE_PATHS,
+  PAGE_ROUTES,
+  isPathEnabled,
+  pageDefForPath,
+} from '@/shared/layout/pages'
+import { toast } from '@/shared/ui/toast'
+import type { ReactElement } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Navigate, useLocation } from 'react-router'
 
-import { AudioContent } from '@/pages/audio'
-import { ConcatContent } from '@/pages/concat'
-import { DownloadsContent } from '@/pages/downloads'
-import { FavoriteContent } from '@/pages/favorite'
-import { GifContent } from '@/pages/gif'
-import { HistoryContent } from '@/pages/history'
-import { PopularContent } from '@/pages/popular'
-import { ResolutionContent } from '@/pages/resolution'
-import { RotationContent } from '@/pages/rotation'
-import { SearchContent } from '@/pages/search'
-import { SettingsContent } from '@/pages/settings'
-import { TrimContent } from '@/pages/trim'
-import { VideoSearchContent } from '@/pages/video-search'
-import { WatchHistoryContent } from '@/pages/watch-history'
-
-interface PageConfig {
-  readonly path: string
-  readonly Component: FC
-}
-
-// Why: exported only for the PAGES/PAGE_PATHS parity guard test — drift
-// between the mount table and the shared path list breaks navigation.
-export const PAGES: readonly PageConfig[] = [
-  { path: '/popular', Component: PopularContent },
-  { path: '/video-search', Component: VideoSearchContent },
-  { path: '/search', Component: SearchContent },
-  { path: '/downloads', Component: DownloadsContent },
-  { path: '/history', Component: HistoryContent },
-  { path: '/favorite', Component: FavoriteContent },
-  { path: '/watch-history', Component: WatchHistoryContent },
-  { path: '/trim', Component: TrimContent },
-  { path: '/concat', Component: ConcatContent },
-  { path: '/audio', Component: AudioContent },
-  { path: '/resolution', Component: ResolutionContent },
-  { path: '/rotation', Component: RotationContent },
-  { path: '/gif', Component: GifContent },
-  { path: '/settings', Component: SettingsContent },
-] as const
-
-// Why: single source shared with the startup-page redirect validation and
-// the Settings startup-page options (src/shared/layout/pages.ts).
-const VALID_PATHS: readonly string[] = PAGE_PATHS
-
 function isValidPath(pathname: string): boolean {
-  return VALID_PATHS.includes(pathname)
+  // Single source shared with the startup-page redirect validation and
+  // the Settings startup-page options (src/shared/layout/pages.ts).
+  return PAGE_PATHS.includes(pathname)
 }
 
 /**
@@ -59,6 +26,12 @@ function isValidPath(pathname: string): boolean {
  * 2. Page content is lazy-mounted on first visit and kept in DOM
  * 3. Inactive pages are hidden with display:none to preserve state
  * 4. Active pages are shown with their normal display
+ *
+ * Page visibility (settings.disabledPages) additionally gates mounting:
+ * a disabled page never mounts, unmounts the moment it gets disabled
+ * (reclaiming its DOM/state memory), and any navigation to it (e.g. an
+ * in-app deep link like the watch-history download handoff) is redirected
+ * to /search with an explanatory toast.
  *
  * Per-page content frames (max-width centering, header, body scroll mode)
  * are owned by each page via PageTemplate, so this layout only handles
@@ -77,23 +50,61 @@ function isValidPath(pathname: string): boolean {
  */
 export function PersistentPageLayout(): ReactElement {
   const { pathname } = useLocation()
+  const { t } = useTranslation()
+  const disabledPages = useSelector((state) => state.settings.disabledPages)
   const [mountedPages, setMountedPages] = useState<Set<string>>(
     () => new Set(['/search']),
   )
+  // Why a ref guard: React StrictMode double-invokes effects in dev —
+  // without it every disabled-page navigation toasts twice.
+  const toastedPathRef = useRef<string | null>(null)
 
+  const pathEnabled = isPathEnabled(pathname, disabledPages)
+  // Known but hidden (unknown paths redirect silently below); only this
+  // case earns an explanatory toast.
+  const pathDisabled = isValidPath(pathname) && !pathEnabled
+
+  // Mount pages lazily on first visit; unmount a page the moment it gets
+  // disabled so its DOM/state memory is reclaimed (page visibility).
   useEffect(() => {
-    if (isValidPath(pathname) && !mountedPages.has(pathname)) {
-      setMountedPages((prev) => new Set([...prev, pathname]))
-    }
-  }, [pathname])
+    setMountedPages((prev) => {
+      const next = new Set(
+        [...prev].filter((p) => isPathEnabled(p, disabledPages)),
+      )
+      if (pathEnabled) next.add(pathname)
+      // Why return `prev` when unchanged: this effect re-runs on every
+      // route change; a fresh Set each time would cause a needless re-render.
+      return next.size === prev.size && [...next].every((p) => prev.has(p))
+        ? prev
+        : next
+    })
+  }, [pathname, disabledPages, pathEnabled])
 
-  if (!isValidPath(pathname)) {
+  // Disabled pages stay reachable through in-app links (e.g. the
+  // watch-history download handoff navigates to /search, the recent-URLs
+  // list links to /history): notify instead of silently landing elsewhere.
+  useEffect(() => {
+    if (!pathDisabled) {
+      toastedPathRef.current = null
+      return
+    }
+    if (toastedPathRef.current === pathname) return
+    toastedPathRef.current = pathname
+    // pathDisabled implies the path is registered, so the def exists.
+    toast.warning(
+      t('settings.page_disabled_toast', {
+        page: t(pageDefForPath(pathname)!.labelKey),
+      }),
+    )
+  }, [pathDisabled, pathname, t])
+
+  if (!pathEnabled) {
     return <Navigate to="/search" replace />
   }
 
   return (
     <PageLayoutShell>
-      {PAGES.map(({ path, Component }) =>
+      {PAGE_ROUTES.map(({ path, Component }) =>
         mountedPages.has(path) ? (
           <div
             key={path}

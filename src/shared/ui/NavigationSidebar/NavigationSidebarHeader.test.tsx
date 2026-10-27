@@ -1,4 +1,5 @@
 import { store } from '@/app/store'
+import { setSettings } from '@/features/settings/settingsSlice'
 import type { User } from '@/features/user/types'
 import { setUser } from '@/features/user/userSlice'
 import { renderWithProviders, resetQueue, seedSession } from '@/test/test-utils'
@@ -91,6 +92,7 @@ describe('NavigationSidebarHeader', () => {
   beforeEach(() => {
     // Reset shared singleton-store slices between tests.
     store.dispatch(setUser(loggedOutUser))
+    store.dispatch(setSettings({ disabledPages: [] }))
     resetQueue()
   })
 
@@ -117,6 +119,38 @@ describe('NavigationSidebarHeader', () => {
     for (const label of labels) {
       expect(screen.getByText(label)).toBeInTheDocument()
     }
+  })
+
+  it('hides disabled pages but keeps required pages in the nav', () => {
+    store.dispatch(setSettings({ disabledPages: ['/history'] }))
+
+    renderSidebar()
+
+    expect(screen.queryByText('nav.downloadHistory')).toBeNull()
+    // Required pages (/downloads) never disappear.
+    expect(screen.getByText('nav.downloads')).toBeInTheDocument()
+  })
+
+  it('hides a group entirely when every item in it is disabled', () => {
+    store.dispatch(
+      setSettings({
+        disabledPages: [
+          '/trim',
+          '/concat',
+          '/audio',
+          '/resolution',
+          '/rotation',
+          '/gif',
+        ],
+      }),
+    )
+
+    renderSidebar()
+
+    expect(screen.queryByText('nav.category.tool')).toBeNull()
+    expect(screen.queryByText('nav.gif')).toBeNull()
+    // Other groups stay.
+    expect(screen.getByText('nav.category.find')).toBeInTheDocument()
   })
 
   it('exposes stable E2E test ids on the items that have them', () => {

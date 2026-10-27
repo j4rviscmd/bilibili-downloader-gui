@@ -11,6 +11,12 @@ import type { FontSizePreset, SupportedLang } from '@/features/settings/type'
 import { SettingRow } from '@/features/settings/ui/SettingRow'
 import { SettingToggleGroup } from '@/features/settings/ui/SettingToggleGroup'
 import { useSettings } from '@/features/settings/useSettings'
+import {
+  isPageEnabled,
+  PAGE_DEFS,
+  pageKey,
+  TOGGLEABLE_PAGES,
+} from '@/shared/layout/pages'
 import { Label } from '@/shared/ui/label'
 import {
   Select,
@@ -25,29 +31,6 @@ import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 /**
- * Startup-page Select options: every page except /settings itself.
- * Labels reuse the sidebar nav keys, so no new translation keys.
- */
-// Why: Object.entries preserves key insertion order, so this key order is
-// the dropdown order — it mirrors the PAGE_PATHS sidebar order
-// (src/shared/layout/pages.ts), keeping the '/popular' startup default on
-// top. No test pins the order (the options test sorts both sides).
-export const STARTUP_PAGE_LABEL_KEYS: Record<string, string> = {
-  '/popular': 'nav.videoSearch',
-  '/search': 'nav.search',
-  '/downloads': 'nav.downloads',
-  '/history': 'nav.downloadHistory',
-  '/favorite': 'nav.favorite',
-  '/watch-history': 'nav.watchHistory',
-  '/trim': 'nav.trim',
-  '/concat': 'nav.concat',
-  '/audio': 'nav.audio',
-  '/resolution': 'nav.resolution',
-  '/rotation': 'nav.rotation',
-  '/gif': 'nav.gif',
-}
-
-/**
  * General category: appearance-level preferences (language, theme, font
  * size) and app-bar/startup toggles.
  */
@@ -55,13 +38,30 @@ export function GeneralSection() {
   const { t } = useTranslation()
   const { settings, saveByForm, updateLanguage } = useSettings()
   const currentFontSize = parseFontSize(settings.fontSize)
-  // Why: pre-/popular versions stored '/video-search' as the startup page;
-  // that path now redirects to /popular, so the Select normalizes it for
-  // display (the stored value itself is left untouched).
-  const startupPageValue =
+  const disabledPages = settings.disabledPages
+  // Startup-page Select options: every page except /settings itself,
+  // limited to enabled pages (labels reuse the sidebar nav keys).
+  // Registry order keeps the '/popular' default on top; no test pins the
+  // order (the options test sorts both sides).
+  const startupOptions = PAGE_DEFS.filter(
+    (def) => pageKey(def) !== '/settings' && isPageEnabled(def, disabledPages),
+  )
+  // Why normalize: pre-/popular versions stored '/video-search' as the
+  // startup page; that path now redirects to /popular, so the Select
+  // normalizes it for display (the stored value itself is left
+  // untouched). A disabled startup page shows the first enabled option —
+  // IndexPage owns the actual launch fallback.
+  const normalizedStartupPage =
     settings.startupPage === '/video-search'
       ? '/popular'
       : (settings.startupPage ?? '/popular')
+  // The list is never empty: /search and /downloads are required (never
+  // hideable), so the fallback option always exists.
+  const startupPageValue = startupOptions.some(
+    (def) => pageKey(def) === normalizedStartupPage,
+  )
+    ? normalizedStartupPage
+    : pageKey(startupOptions[0])
 
   // Show the platform-native modifier in shortcut hints (Cmd on macOS,
   // Ctrl elsewhere). `userAgent` is used because `navigator.platform` is
@@ -83,6 +83,24 @@ export function GeneralSection() {
       saveByForm({ fontSize: size })
     },
     [saveByForm],
+  )
+
+  /**
+   * Patches the disabledPages list for one page-visibility toggle. The
+   * sidebar filters itself and the persistent layout unmounts/redirects
+   * on the merged settings update — this only persists the list.
+   */
+  const togglePageVisibility = useCallback(
+    (key: string, visible: boolean) => {
+      const current = settings.disabledPages ?? []
+      const next = visible
+        ? current.filter((p) => p !== key)
+        : current.includes(key)
+          ? current
+          : [...current, key]
+      void saveByForm({ disabledPages: next })
+    },
+    [settings.disabledPages, saveByForm],
   )
 
   return (
@@ -123,9 +141,9 @@ export function GeneralSection() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {Object.entries(STARTUP_PAGE_LABEL_KEYS).map(([path, key]) => (
-              <SelectItem key={path} value={path}>
-                {t(key)}
+            {startupOptions.map((def) => (
+              <SelectItem key={pageKey(def)} value={pageKey(def)}>
+                {t(def.labelKey)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -203,6 +221,28 @@ export function GeneralSection() {
           }}
         />
       </SettingRow>
+      <Separator />
+      <div className="space-y-1">
+        <Label>{t('settings.page_visibility_label')}</Label>
+        <p className="text-muted-foreground text-sm">
+          {t('settings.page_visibility_description')}
+        </p>
+      </div>
+      {TOGGLEABLE_PAGES.map((def) => {
+        const key = pageKey(def)
+        const switchId = `page-visibility-${key.replaceAll('/', '')}`
+        return (
+          <SettingRow key={key} label={t(def.labelKey)} htmlFor={switchId}>
+            {/* Note: checked is inverted on purpose — the Switch shows
+                "visible", while the persisted setting lists hidden pages. */}
+            <Switch
+              id={switchId}
+              checked={!disabledPages?.includes(key)}
+              onCheckedChange={(visible) => togglePageVisibility(key, visible)}
+            />
+          </SettingRow>
+        )
+      })}
     </div>
   )
 }

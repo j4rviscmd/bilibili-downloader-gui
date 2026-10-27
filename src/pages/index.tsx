@@ -1,7 +1,7 @@
 import type { RootState } from '@/app/store'
 import { useSelector } from '@/app/store'
 import { useInit } from '@/features/init'
-import { PAGE_PATHS } from '@/shared/layout/pages'
+import { PAGE_PATHS, isPathEnabled } from '@/shared/layout/pages'
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router'
 
@@ -23,6 +23,9 @@ function IndexPage() {
   const startupPage = useSelector(
     (state: RootState) => state.settings.startupPage,
   )
+  const disabledPages = useSelector(
+    (state: RootState) => state.settings.disabledPages,
+  )
 
   useEffect(() => {
     if (!initiated) {
@@ -34,12 +37,18 @@ function IndexPage() {
     const known =
       startupPage !== undefined &&
       (PAGE_PATHS as readonly string[]).includes(startupPage)
-    const target = known ? startupPage : '/popular'
+    // A page hidden via the visibility toggles may not be the launch
+    // target either; /search is required, so it is the final fallback.
+    const usable = known && isPathEnabled(startupPage, disabledPages)
+    const fallback = isPathEnabled('/popular', disabledPages)
+      ? '/popular'
+      : '/search'
+    const target = usable ? startupPage : fallback
     // Why: replace instead of push so the transient `/` entry does not
     // stay in the history stack — otherwise the app bar back button
     // (issue #692) returns here and this redirect bounces forward again.
     navigate(target, { replace: true })
-  }, [initiated, startupPage, navigate])
+  }, [initiated, startupPage, disabledPages, navigate])
 
   return null
 }

@@ -16,24 +16,16 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/shared/animate-ui/radix/tooltip'
+import {
+  NAV_GROUPS,
+  PAGE_DEFS,
+  isPageEnabled,
+  pageKey,
+} from '@/shared/layout/pages'
 import { cn } from '@/shared/lib/utils'
 import { selectActivePartCount, selectHasActiveDownloads } from '@/shared/queue'
 import type { LucideIcon } from 'lucide-react'
-import {
-  Archive,
-  Combine,
-  Download as DownloadIcon,
-  Eye,
-  ImagePlay,
-  Link,
-  Music,
-  RotateCw,
-  Scaling,
-  Scissors,
-  Search,
-  Star,
-} from 'lucide-react'
-import { Fragment, useEffect, useRef } from 'react'
+import { Fragment, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router'
 
@@ -42,7 +34,10 @@ type NavigationSidebarHeaderProps = {
 }
 
 type MenuItem = {
+  /** Entry path (nav target / disabledPages key). */
   path: string
+  /** All routes of the feature — any of them keeps the item active. */
+  paths: readonly string[]
   icon: LucideIcon
   label: string
   ariaLabel: string
@@ -112,123 +107,40 @@ export function NavigationSidebarHeader({
     }
   }, [location.pathname, location.search])
 
-  const groups: MenuGroup[] = [
-    {
-      id: 'find',
-      label: t('nav.category.find'),
-      items: [
-        {
-          path: '/popular',
-          icon: Search,
-          label: t('nav.videoSearch'),
-          ariaLabel: t('nav.aria.videoSearch'),
-          testId: 'nav-popular',
-          requiresAuth: false,
-        },
-        {
-          path: '/search',
-          icon: Link,
-          label: t('nav.search'),
-          ariaLabel: t('nav.aria.search'),
-          testId: 'nav-search',
-          requiresAuth: false,
-        },
-        {
-          path: '/favorite',
-          icon: Star,
-          label: t('nav.favorite'),
-          ariaLabel: t('nav.aria.favorite'),
-          requiresAuth: true,
-        },
-        {
-          path: '/watch-history',
-          icon: Eye,
-          label: t('nav.watchHistory'),
-          ariaLabel: t('nav.aria.watchHistory'),
-          requiresAuth: true,
-        },
-      ],
-    },
-    {
-      id: 'download',
-      label: t('nav.category.download'),
-      items: [
-        {
-          path: '/downloads',
-          icon: DownloadIcon,
-          label: t('nav.downloads'),
-          ariaLabel: t('nav.aria.downloads'),
-          testId: 'nav-downloads',
-          requiresAuth: false,
-        },
-        {
-          path: '/history',
-          icon: Archive,
-          label: t('nav.downloadHistory'),
-          ariaLabel: t('nav.aria.downloadHistory'),
-          testId: 'nav-history',
-          requiresAuth: false,
-        },
-      ],
-    },
-    {
-      id: 'tool',
-      label: t('nav.category.tool'),
-      items: [
-        {
-          path: '/trim',
-          icon: Scissors,
-          label: t('nav.trim'),
-          ariaLabel: t('nav.aria.trim'),
-          requiresAuth: false,
-        },
-        {
-          path: '/concat',
-          icon: Combine,
-          label: t('nav.concat'),
-          ariaLabel: t('nav.aria.concat'),
-          requiresAuth: false,
-        },
-        {
-          path: '/audio',
-          icon: Music,
-          label: t('nav.audio'),
-          ariaLabel: t('nav.aria.audio'),
-          requiresAuth: false,
-        },
-        {
-          path: '/resolution',
-          icon: Scaling,
-          label: t('nav.resolution'),
-          ariaLabel: t('nav.aria.resolution'),
-          requiresAuth: false,
-        },
-        {
-          path: '/rotation',
-          icon: RotateCw,
-          label: t('nav.rotation'),
-          ariaLabel: t('nav.aria.rotation'),
-          requiresAuth: false,
-        },
-        {
-          path: '/gif',
-          icon: ImagePlay,
-          label: t('nav.gif'),
-          ariaLabel: t('nav.aria.gif'),
-          requiresAuth: false,
-        },
-      ],
-    },
-  ]
+  const disabledPages = useSelector((state) => state.settings.disabledPages)
+  // Why derived from the registry: the sidebar, the layout mount table,
+  // and the Settings startup/visibility lists must never drift apart.
+  // Disabled pages drop out of their group; a group left with no items
+  // hides entirely (label included).
+  const groups = useMemo<MenuGroup[]>(
+    () =>
+      NAV_GROUPS.map((group) => ({
+        id: group.id,
+        label: t(group.labelKey),
+        items: PAGE_DEFS.filter(
+          (def) =>
+            def.groupId === group.id && isPageEnabled(def, disabledPages),
+        ).map((def) => ({
+          // Why non-null assertions: only grouped defs reach here, and
+          // the registry test pins icon/ariaKey presence for those.
+          path: pageKey(def),
+          paths: def.routes.map((route) => route.path),
+          icon: def.icon!,
+          label: t(def.labelKey),
+          ariaLabel: t(def.ariaKey!),
+          testId: def.testId,
+          requiresAuth: def.requiresAuth ?? false,
+        })),
+      })).filter((group) => group.items.length > 0),
+    [t, disabledPages],
+  )
 
   const renderItem = (item: MenuItem) => {
     const Icon = item.icon
-    // Why the /video-search special case: the 動画検索 item targets the
-    // /popular entry view, but /video-search is the same feature's results
-    // page — it must keep the item active instead of deselecting it.
-    const isActive =
-      location.pathname === item.path ||
-      (item.path === '/popular' && location.pathname === '/video-search')
+    // Why paths (all routes of the feature): the 動画検索 item targets
+    // the /popular entry view, but /video-search is the same feature's
+    // results page — it must keep the item active instead of deselecting.
+    const isActive = item.paths.includes(location.pathname)
     const isDisabled = item.requiresAuth && !isLoggedIn
     const isSearch = item.path === '/search'
 

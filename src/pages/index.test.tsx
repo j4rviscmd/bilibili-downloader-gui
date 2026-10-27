@@ -31,7 +31,7 @@ describe('IndexPage', () => {
   beforeEach(() => {
     // Isolate tests from each other's startup-page mutations on the real
     // singleton store.
-    store.dispatch(setSettings({ startupPage: '/popular' }))
+    store.dispatch(setSettings({ startupPage: '/popular', disabledPages: [] }))
   })
 
   it('redirects to /popular when initialized with the default startup page', () => {
@@ -67,6 +67,50 @@ describe('IndexPage', () => {
     renderWithProviders(<Harness />, { route: '/' })
 
     expect(screen.getByText('popular-route')).toBeInTheDocument()
+  })
+
+  it('falls back to /search when the startup page is disabled', () => {
+    vi.mocked(useInit).mockReturnValue({
+      initiated: true,
+    } as ReturnType<typeof useInit>)
+    // '/popular' hidden via the visibility toggles: /search is required,
+    // so it is the final fallback.
+    store.dispatch(setSettings({ disabledPages: ['/popular'] }))
+
+    renderWithProviders(<Harness />, { route: '/' })
+
+    expect(screen.getByText('search-route')).toBeInTheDocument()
+  })
+
+  it('falls back to /popular when a non-default startup page is disabled', () => {
+    vi.mocked(useInit).mockReturnValue({
+      initiated: true,
+    } as ReturnType<typeof useInit>)
+    store.dispatch(
+      setSettings({ startupPage: '/history', disabledPages: ['/history'] }),
+    )
+
+    renderWithProviders(<Harness />, { route: '/' })
+
+    expect(screen.getByText('popular-route')).toBeInTheDocument()
+  })
+
+  it('falls back to /search when /video-search startup is disabled via /popular', () => {
+    vi.mocked(useInit).mockReturnValue({
+      initiated: true,
+    } as ReturnType<typeof useInit>)
+    // /video-search shares the popular entry's visibility: hiding that
+    // feature disables both routes, so /search is the launch target.
+    store.dispatch(
+      setSettings({
+        startupPage: '/video-search',
+        disabledPages: ['/popular'],
+      }),
+    )
+
+    renderWithProviders(<Harness />, { route: '/' })
+
+    expect(screen.getByText('search-route')).toBeInTheDocument()
   })
 
   it('redirects to /init when the app is not initialized', () => {

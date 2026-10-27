@@ -1,13 +1,16 @@
 /**
  * PersistentPageLayout suite.
  *
- * All ten page contents are stubbed with testid markers so the
+ * All page contents are stubbed with testid markers so the
  * mount-persistence strategy itself is under test: lazy mount on first
- * visit, display:none hiding, and the invalid-path redirect.
+ * visit, display:none hiding, the invalid-path redirect, and the
+ * page-visibility gating (settings.disabledPages).
  */
 
+import { store } from '@/app/store'
+import { setSettings } from '@/features/settings/settingsSlice'
 import { mockInvoke, renderWithProviders } from '@/test/test-utils'
-import { screen } from '@testing-library/react'
+import { act, screen, waitFor } from '@testing-library/react'
 import { Route, Routes } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -47,9 +50,13 @@ vi.mock('@/pages/settings', () => ({
 vi.mock('@/shared/ui/GitHubStars', () => ({
   GitHubStars: () => <div data-testid="github-stars" />,
 }))
+vi.mock('@/shared/ui/toast', () => ({
+  toast: { info: vi.fn(), warning: vi.fn(), error: vi.fn(), success: vi.fn() },
+}))
 
-import { PAGES, PersistentPageLayout } from './PersistentPageLayout'
-import { PAGE_PATHS } from './pages'
+import { toast } from '@/shared/ui/toast'
+
+import { PersistentPageLayout } from './PersistentPageLayout'
 
 function renderLayout(route = '/search') {
   return renderWithProviders(
@@ -69,13 +76,9 @@ describe('PersistentPageLayout', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockInvoke.mockResolvedValue(undefined)
-  })
-
-  it('keeps the mount table and the shared page path list in sync', () => {
-    // Drift between PAGES (mounting) and PAGE_PATHS (valid-path checks,
-    // startup-page redirect/options) would route a real page to the
-    // invalid-path redirect.
-    expect(PAGES.map((p) => p.path)).toEqual([...PAGE_PATHS])
+    // Isolate tests from each other's visibility mutations on the real
+    // singleton store.
+    store.dispatch(setSettings({ disabledPages: [] }))
   })
 
   it('renders only /search initially', () => {
@@ -90,6 +93,50 @@ describe('PersistentPageLayout', () => {
     renderLayout('/bogus')
 
     expect(screen.getByTestId('page-search')).toBeInTheDocument()
+  })
+
+  it('redirects a disabled page to /search with an explanatory toast', async () => {
+    // In-app links keep pointing at hidden pages (e.g. the recent-URLs
+    // list links to /history) — the redirect must not fail silently.
+    store.dispatch(setSettings({ disabledPages: ['/history'] }))
+
+    renderLayout('/history')
+
+    expect(screen.getByTestId('page-search')).toBeInTheDocument()
+    expect(screen.queryByTestId('page-history')).toBeNull()
+    await waitFor(() => expect(toast.warning).toHaveBeenCalledTimes(1))
+  })
+
+  it('treats /video-search as disabled when the popular entry is hidden', async () => {
+    // Registry semantics: secondary routes share their entry's state —
+    // hiding 動画検索 (/popular) must disable /video-search too.
+    store.dispatch(setSettings({ disabledPages: ['/popular'] }))
+
+    renderLayout('/video-search')
+
+    expect(screen.getByTestId('page-search')).toBeInTheDocument()
+    expect(screen.queryByTestId('page-video-search')).toBeNull()
+    await waitFor(() => expect(toast.warning).toHaveBeenCalledTimes(1))
+  })
+
+  it('unmounts a mounted page the moment it gets disabled', async () => {
+    const { user } = renderLayout('/search')
+
+    const historyNav = screen
+      .getAllByText('nav.downloadHistory')
+      .map((el) => el.closest('button'))
+      .find((btn): btn is HTMLButtonElement => btn !== null)!
+    await user.click(historyNav)
+    expect(await screen.findByTestId('page-history')).toBeInTheDocument()
+
+    // Toggling the page off in Settings must reclaim its memory, not
+    // just hide the nav item — and the current view redirects.
+    await act(async () => {
+      store.dispatch(setSettings({ disabledPages: ['/history'] }))
+    })
+
+    expect(await screen.findByTestId('page-search')).toBeInTheDocument()
+    expect(screen.queryByTestId('page-history')).toBeNull()
   })
 
   it('mounts a page on first visit and keeps earlier pages mounted hidden', async () => {

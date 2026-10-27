@@ -132,6 +132,7 @@ and remains available after an application update.
 - **History search & export** - Export download history to JSON/CSV
 - **Theming** - Light/dark themes, accent colors, and adjustable font size
 - **Startup page** - Choose which page opens at launch
+- **Page visibility** - Hide pages you don't use from the sidebar; hidden pages never mount, saving memory (core download pages stay fixed)
 
 ### Authentication Methods
 
