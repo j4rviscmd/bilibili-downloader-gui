@@ -57,8 +57,10 @@ fn compose_window_title(version: &str, dev: bool) -> String {
 
 // Splash window dimensions (logical). Square on all platforms for a consistent
 // Discord-style splash. Tunable; the frontend splash route fills this area.
-const SPLASH_WIDTH: f64 = 480.0;
-const SPLASH_HEIGHT: f64 = 480.0;
+// Note: The splash typography in src/features/splash/ui/SplashScreen.tsx is
+// hand-tuned to these dimensions; resize it alongside any change here.
+const SPLASH_WIDTH: f64 = 360.0;
+const SPLASH_HEIGHT: f64 = 360.0;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
