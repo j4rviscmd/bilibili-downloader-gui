@@ -13,7 +13,7 @@
 
 [![Windows](https://img.shields.io/badge/Windows-Supported-0078D6?style=flat&logo=data:image/svg%2bxml;base64,PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+V2luZG93cyAxMTwvdGl0bGU+PHBhdGggZmlsbD0iIzAwQTRFRiIgZD0iTTAsMEgxMS4zNzdWMTEuMzcySDBaTTEyLjYyMywwSDI0VjExLjM3MkgxMi42MjNaTTAsMTIuNjIzSDExLjM3N1YyNEgwWm0xMi42MjMsMEgyNFYyNEgxMi42MjMiLz48L3N2Zz4=)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Windows_x64-setup.exe)
 [![macOS](https://img.shields.io/badge/macOS-Supported-000000?style=flat&logo=apple&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_macOS_arm64.dmg)
-[![Linux](https://img.shields.io/badge/Linux-Supported-FCC624?style=flat&logo=linux&logoColor=black)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Linux_x64.deb)
+[![Linux](https://img.shields.io/badge/Linux-Community_Supported-FCC624?style=flat&logo=linux&logoColor=black)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Linux_x64.deb)
 [![Downloads](https://img.shields.io/github/downloads/j4rviscmd/bilibili-downloader-gui/total?style=flat&color=blue&logo=github&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases)<br/>
 [![Latest Release](https://img.shields.io/github/v/release/j4rviscmd/bilibili-downloader-gui?style=flat&color=green&label=Latest&logo=github&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest)
 [![Last Commit](https://img.shields.io/github/last-commit/j4rviscmd/bilibili-downloader-gui/main?style=flat&color=1F6FEB&label=Last%20Update&logo=git&logoColor=white)](https://github.com/j4rviscmd/bilibili-downloader-gui/commits/main)
@@ -53,6 +53,11 @@
 
 > [!NOTE]
 > Linux 빌드는 v1.62.0부터 Ubuntu 24.04에서 컴파일되며 glibc 2.39 이상(Debian 13+, Ubuntu 24.04+)이 필요합니다. Ubuntu 22.04, Debian 12 등 이전 배포판에서는 v1.62.0 이후 버전이 `GLIBC_2.39 not found` 오류로 시작되지 않으므로 해당 시스템에서는 업데이트하지 마세요.
+
+> [!NOTE]
+> Linux는 커뮤니티 지원 대상입니다. 유지보수자에게 Linux 환경이 없어 릴리스는 CI로만
+> 빌드되며 실제 테스트는 이루어지지 않습니다. Linux 관련 버그를 발견한 경우 직접 조사하고
+> 수정 사항을 확인한 후 풀 리퀘스트를 열어 주세요.
 
 Windows 설치 프로그램은 언어 선택 기능을 제공합니다. 첫 실행 시 FFmpeg 설정이 시작되기 전에 애플리케이션의 기본 언어를 선택하며, 초기 선택은 시스템/브라우저 언어를 따릅니다. 이후 설정에서 변경할 수 있습니다.
 
