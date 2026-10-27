@@ -297,6 +297,16 @@ pub struct Settings {
         skip_serializing_if = "Option::is_none"
     )]
     pub startup_page: Option<String>,
+    /// Entry paths of pages the user hid via the Settings page-visibility
+    /// toggles (e.g. "/gif"). Required pages ("/search", "/downloads",
+    /// "/settings") are never stored here — the frontend guards them; the
+    /// backend only stores the list.
+    #[serde(
+        rename = "disabledPages",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub disabled_pages: Option<Vec<String>>,
 }
 
 /// Trim mode for the MP4 trimming feature.
@@ -592,6 +602,15 @@ mod tests {
         let s: Settings =
             serde_json::from_str(r#"{"dlOutputPath": "/tmp/a", "language": "en"}"#).unwrap();
         assert_eq!(s.skipped_update_version, None);
+    }
+
+    #[test]
+    fn test_disabled_pages_defaults_none_for_pre_existing_settings() {
+        // Why: settings.json written before the page-visibility toggles
+        //   lacks the key; serde `default` must deserialize it as None.
+        let s: Settings =
+            serde_json::from_str(r#"{"dlOutputPath": "/tmp/a", "language": "en"}"#).unwrap();
+        assert_eq!(s.disabled_pages, None);
     }
 
     #[test]

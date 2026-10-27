@@ -37,6 +37,8 @@ const initialState: Settings = {
   downloadSpeedLimitKbps: 1000,
   // Must stay '/popular' — IndexPage falls back to it for unknown values.
   startupPage: '/popular',
+  // Page visibility: empty = all pages visible (registry default).
+  disabledPages: [],
 }
 
 export const settingsSlice = createSlice({

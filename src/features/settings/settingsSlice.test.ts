@@ -62,6 +62,16 @@ describe('settingsSlice', () => {
     expect(settingsSlice.getInitialState().startupPage).toBe('/popular')
   })
 
+  it('defaults disabledPages to empty and merges visibility patches', () => {
+    // Empty = every page visible; a regression here would hide pages on
+    // fresh installs before the persisted settings arrive.
+    expect(settingsSlice.getInitialState().disabledPages).toEqual([])
+
+    store.dispatch(setSettings({ disabledPages: ['/gif'] }))
+
+    expect(settings().disabledPages).toEqual(['/gif'])
+  })
+
   it('defaults maxConcurrentDownloads to 2 and merges field patches', () => {
     // Must match the runner's fallback (runner.ts CAP_FALLBACK) so the
     // toggle group and the effective slot count agree before the

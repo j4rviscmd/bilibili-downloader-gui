@@ -185,6 +185,13 @@ export interface Settings {
    * to '/popular'; unknown values fall back to '/popular' at redirect time.
    */
   startupPage?: string
+  /**
+   * Entry paths of pages hidden by the user via the Settings
+   * page-visibility toggles (page registry keys, e.g. '/gif'). Required
+   * pages ('/search', '/downloads', '/settings') are never listed — the
+   * frontend guards them. Defaults to empty (all pages visible).
+   */
+  disabledPages?: string[]
 }
 
 /**

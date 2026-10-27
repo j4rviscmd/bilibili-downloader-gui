@@ -356,6 +356,28 @@ mod tests {
     }
 
     #[test]
+    fn patch_settings_accepts_disabled_pages_list_and_rejects_other_types() {
+        let dir = tempdir();
+        write_settings(dir.path(), json!({"language": "en"}));
+        patch_settings_at(
+            &settings_file(dir.path()),
+            &json!({"disabledPages": ["/gif", "/trim"]}),
+        )
+        .unwrap();
+        assert_eq!(
+            read_settings(dir.path())["disabledPages"],
+            json!(["/gif", "/trim"])
+        );
+
+        let err = patch_settings_at(
+            &settings_file(dir.path()),
+            &json!({"disabledPages": "/gif"}),
+        )
+        .unwrap_err();
+        assert!(err.contains("SETTINGS_PATCH_INVALID"), "got: {err}");
+    }
+
+    #[test]
     fn patch_validates_dl_output_path_when_changed() {
         let dir = tempdir();
         write_settings(dir.path(), json!({"language": "en"}));
