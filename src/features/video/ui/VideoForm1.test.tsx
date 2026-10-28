@@ -1,9 +1,11 @@
 import { store } from '@/app/store'
 import { useVideoInfo } from '@/features/video'
 import { expandShortUrl } from '@/features/video/api/expandShortUrl'
-import { setInput } from '@/features/video/model/inputSlice'
+import { setInput, setUrl } from '@/features/video/model/inputSlice'
 import { renderWithProviders, resetQueue, seedSession } from '@/test/test-utils'
 import { screen, waitFor } from '@testing-library/react'
+import { Provider } from 'react-redux'
+import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import VideoForm1 from './VideoForm1'
@@ -20,11 +22,11 @@ vi.mock('@/features/video/api/expandShortUrl', () => ({
 const VALID_URL = 'https://www.bilibili.com/video/BV1xx411c7XD'
 
 /** Renders the form with a fresh store input and a spied onValid1. */
-function setup(isFetching = false, isSilentFetching = false) {
+function setup(isFetching = false, isSilentFetching = false, initialUrl = '') {
   const onValid1 = vi.fn()
   store.dispatch(
     setInput({
-      url: '',
+      url: initialUrl,
       partInputs: [],
       pendingDownload: null,
       batchSettings: { videoQuality: null, audioQuality: null, subtitle: null },
@@ -140,6 +142,68 @@ describe('VideoForm1', () => {
 
     // lastFetchedUrl was reset by clear, so the resubmission is not skipped
     expect(onValid1).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not resubmit a store-synced URL on blur', async () => {
+    // RecentUrls / fetch CTA / ?url= paths call onValid1 directly and only
+    // sync input.url into the field. Blur must not submit that value again:
+    // after one failed fetch (deleted video) every unrelated click re-toasts
+    // the error. Typed input still blurs into a submit (see the silent-fetch
+    // describe below).
+    const { user: actor, onValid1 } = setup(false, false, VALID_URL)
+    const input = screen.getByPlaceholderText(
+      'video.url_placeholder_example',
+    ) as HTMLInputElement
+    expect(input.value).toBe(VALID_URL)
+
+    input.focus()
+    await actor.click(document.body) // blur the input
+
+    expect(onValid1).not.toHaveBeenCalled()
+  })
+
+  it('does not resubmit on blur after clear and a store re-sync of the same URL', async () => {
+    // Regression for the lastTypedUrlRef reset in handleClear: typing set
+    // the ref to this URL, clear must drop it. When the store later
+    // re-syncs the same URL into the field (RecentUrls re-click → setUrl
+    // in onValid1's flow), blur must not submit it again. lastFetchedUrl
+    // cannot save us here — clear resets it too (a re-typed URL must
+    // resubmit), so only the typed-ref reset blocks this path.
+    const { user: actor, onValid1, rerender } = setup()
+    const input = screen.getByPlaceholderText(
+      'video.url_placeholder_example',
+    ) as HTMLInputElement
+
+    await actor.type(input, VALID_URL)
+    await actor.click(document.body) // blur submits the typed URL (call 1)
+    expect(onValid1).toHaveBeenCalledTimes(1)
+
+    await actor.click(screen.getByRole('button')) // clear (×)
+    expect(input.value).toBe('')
+
+    store.dispatch(setUrl(VALID_URL))
+    vi.mocked(useVideoInfo).mockReturnValue({
+      input: store.getState().input,
+      onValid1,
+      isFetching: false,
+      isSilentFetching: false,
+    } as unknown as ReturnType<typeof useVideoInfo>)
+    // Re-supply the same provider wrapper renderWithProviders used: a bare
+    // rerender(<VideoForm1 />) would replace the tree and remount the form,
+    // losing the very ref state this regression pins.
+    rerender(
+      <Provider store={store}>
+        <MemoryRouter>
+          <VideoForm1 />
+        </MemoryRouter>
+      </Provider>,
+    )
+    expect(input.value).toBe(VALID_URL)
+
+    input.focus()
+    await actor.click(document.body) // blur the re-synced input
+
+    expect(onValid1).toHaveBeenCalledTimes(1)
   })
 
   describe('short-URL expansion', () => {

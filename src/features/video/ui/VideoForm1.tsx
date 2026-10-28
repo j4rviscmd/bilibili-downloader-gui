@@ -57,6 +57,12 @@ function VideoForm1({
   // URL of an in-flight silent fetch, so blur/Enter during the flight does
   // not fire a duplicate request.
   const silentInFlightRef = useRef<string | null>(null)
+  // Last URL the user actually typed (trimmed). Blur auto-submit must only
+  // commit typed input: a value synced from the store (RecentUrls re-fetch,
+  // fetch CTA, ?url= effect) already ran its own onValid1, and re-submitting
+  // one of those after a failure re-toasts the error on every unrelated
+  // blur (settings click, another recent-URL click).
+  const lastTypedUrlRef = useRef('')
 
   // Why a ref alongside the state value: the debounce timer's callback
   // closes over the value from the render that armed it. A timer armed just
@@ -215,6 +221,8 @@ function VideoForm1({
     form.setValue('url', '', { shouldValidate: false })
     form.clearErrors('url')
     onChange('')
+    // The field no longer holds a typed value; blur must not submit.
+    lastTypedUrlRef.current = ''
     markFetched('')
     onClearUrl?.()
   }
@@ -264,6 +272,7 @@ function VideoForm1({
   const handleUrlChange = useCallback(
     (value: string, onChange: (value: string) => void) => {
       onChange(value)
+      lastTypedUrlRef.current = value.trim()
       setExpandError(null)
 
       // Clear previous debounce timer
@@ -284,13 +293,19 @@ function VideoForm1({
 
   /**
    * Handles blur event on the form.
-   * Skips submission for short URLs since they will be auto-expanded.
+   * Skips submission for short URLs since they will be auto-expanded, and
+   * for URLs the user did not type (store-synced values already ran their
+   * own fetch — re-submitting a failed one re-toasts the error on every
+   * unrelated blur).
    */
   const handleFormBlur = useCallback(() => {
     const currentUrl = form.getValues('url').trim()
     // Skip empty (nothing to validate or fetch) and short URLs (they
     // auto-expand) — blur alone must not surface an error.
     if (!currentUrl || isShortUrl(currentUrl)) return
+    // Only commit typed input: programmatic values already went through
+    // onValid1 on their own path.
+    if (currentUrl !== lastTypedUrlRef.current) return
     form.handleSubmit(onSubmit)()
   }, [form, isShortUrl, onSubmit])
 
