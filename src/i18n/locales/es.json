@@ -489,7 +489,6 @@
     "output_dir_changing": "Seleccionando...",
     "output_dir_dialog_title": "Seleccionar directorio de salida",
     "auto_save_note": "Los cambios se guardan automáticamente.",
-    "save_success": "Configuración guardada",
     "save_failed": "Error al guardar la configuración",
     "patch_invalid": "Cambio de ajustes no válido. Revisa si settings.json tiene valores con tipos incorrectos.",
     "save_failed_generic": "Error al guardar la configuración",

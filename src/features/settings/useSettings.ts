@@ -34,7 +34,7 @@ import { useCallback } from 'react'
  * // Save settings from form
  * await saveByForm({ dlOutputPath: '/downloads', language: 'en' })
  *
- * // Save settings silently (no toast notifications)
+ * // Save silently (suppresses the error toast too)
  * await saveByForm({ theme: 'dark' }, true)
  * ```
  */
@@ -42,17 +42,18 @@ export const useSettings = () => {
   const settings = useSelector((state) => state.settings)
 
   /**
-   * Saves a settings patch from the form with optional toast notifications.
+   * Saves a settings patch from the form with a localized error toast on
+   * failure.
    *
    * Attempts to save via `updateSettings` (a field patch — issue #563: only
    * the changed fields are sent, so a parallel app instance's saves are never
-   * overwritten). On success, displays a success toast (unless silent mode is
-   * enabled). On failure, parses backend error codes and displays localized
-   * error messages (e.g., 'ERR:SETTINGS_PATH_NOT_DIRECTORY').
+   * overwritten). Success is silent — the updated controls are the feedback.
+   * On failure, parses backend error codes and displays localized error
+   * messages (e.g., 'ERR:SETTINGS_PATH_NOT_DIRECTORY').
    *
    * @param patch - The settings fields to change
-   * @param silent - If true, suppresses toast notifications for both
-   *   success and error cases. Errors are still logged to console.
+   * @param silent - If true, suppresses the error toast as well. Errors are
+   *   still logged to console.
    */
   const saveByForm = async (
     patch: SettingsPatch,
@@ -60,9 +61,6 @@ export const useSettings = () => {
   ): Promise<void> => {
     try {
       await updateSettings(patch)
-      if (!silent) {
-        toast.success(staticT('settings.save_success', 'Settings saved'))
-      }
     } catch (e) {
       const raw = String(e)
       logger.error('Failed to save settings', e)
@@ -99,13 +97,13 @@ export const useSettings = () => {
    * Changes the application language and persists the setting.
    *
    * First applies the language change via i18n, then saves just the
-   * `language` field as a patch via `saveByForm`. Defaults to the same
-   * success/error toasts as every other settings control (the toast
-   * renders in the newly selected language); the app-bar quick switcher
-   * passes silent=true to match the quick theme toggle's silent save.
+   * `language` field as a patch via `saveByForm`. Success is silent (the
+   * language switch is its own feedback); failures surface the standard
+   * error toast. The app-bar quick switcher passes silent=true to match the
+   * quick theme toggle's silent save.
    *
    * @param lang - The target language code
-   * @param silent - If true, suppresses toast notifications (quick switcher)
+   * @param silent - If true, suppresses the error toast (quick switcher)
    */
   const updateLanguage = async (lang: SupportedLang, silent = false) => {
     await changeLanguage(lang)
