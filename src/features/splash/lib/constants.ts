@@ -1,5 +1,3 @@
-/** Minimum time (ms) the splash screen stays visible regardless of init speed. */
-export const MIN_DISPLAY_MS = 2_000
 /** Duration (ms) of the CSS opacity fade-out transition. */
 export const FADE_DURATION_MS = 700
 /**

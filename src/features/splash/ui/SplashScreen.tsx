@@ -48,18 +48,13 @@ export function SplashScreen() {
   const isDark = params.get('theme') === 'dark'
   const accent: SplashAccent = params.get('accent') === 'blue' ? 'blue' : 'pink'
   const domColors = SPLASH_DOM_COLORS[accent]
-  const { phase, onFadeComplete, skipMode } = useSplashLifecycle(!needsLanguage)
+  const { phase, onFadeComplete } = useSplashLifecycle(!needsLanguage)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [stepLabel, setStepLabel] = useState<string>('')
   const [ffmpegProgress, setFfmpegProgress] = useState<number | null>(null)
   const { t } = useTranslation()
 
-  useThreeScene(
-    canvasRef,
-    skipMode === false && phase !== 'done',
-    isDark,
-    accent,
-  )
+  useThreeScene(canvasRef, phase !== 'done', isDark, accent)
 
   // Show the splash window once React has mounted. The window is created
   // hidden (visible(false)) to avoid a black frame during webview load; this
@@ -93,44 +88,8 @@ export function SplashScreen() {
     return <SetupLanguage onComplete={() => setNeedsLanguage(false)} />
   }
 
-  // Settings still loading: blank splash background to prevent a flash before
-  // the 3D animation is ready to mount.
-  if (skipMode === null) {
-    return (
-      <div
-        data-testid="splash-screen"
-        data-tauri-drag-region
-        className="fixed inset-0 z-50"
-      >
-        {/* Inner container carries the rounded background; the outer wrapper
-            stays transparent so the area outside the corners shows through. */}
-        <div className="h-full w-full rounded-2xl bg-[#f5f7fa] dark:bg-[#0f172a]" />
-      </div>
-    )
-  }
-
-  // Skip mode: minimal CSS spinner + step label instead of the full animation.
-  if (skipMode === true) {
-    return (
-      <div
-        data-testid="splash-screen"
-        data-tauri-drag-region
-        className="fixed inset-0 z-50"
-      >
-        <div className="flex h-full w-full flex-col items-center justify-center rounded-2xl bg-[#f5f7fa] dark:bg-[#0f172a]">
-          <div className="border-foreground/20 border-t-foreground h-8 w-8 animate-spin rounded-full border-2" />
-          {stepLabel && (
-            <p className="text-muted-foreground mt-4 text-sm select-none">
-              {t(stepLabel)}
-            </p>
-          )}
-        </div>
-      </div>
-    )
-  }
-
-  // Full animation mode: Three.js particle animation + title + bottom label
-  // and, only while ffmpeg is installing, a determinate progress bar.
+  // Three.js particle animation + title + bottom label and, only while
+  // ffmpeg is installing, a determinate progress bar.
   const showFfmpegBar =
     stepLabel === 'init.installing_ffmpeg' && ffmpegProgress !== null
 

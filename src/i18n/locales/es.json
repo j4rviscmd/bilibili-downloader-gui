@@ -505,8 +505,6 @@
     "lib_path_error": "Error al obtener la ruta",
     "lib_path_change_success": "Ubicación de almacenamiento de biblioteca actualizada correctamente",
     "lib_path_change_error": "Error al cambiar la ubicación de almacenamiento de biblioteca",
-    "skip_splash_animation_label": "Omitir animación de inicio",
-    "skip_splash_animation_description": "Mostrar un indicador de carga mínimo en lugar de la animación 3D para un inicio más rápido",
     "trim_mode_label": "Modo de recorte predeterminado",
     "trim_mode_description": "Selecciona el método de recorte predeterminado para archivos MP4",
     "trim_mode_copy": "Rápido (Copiar)",

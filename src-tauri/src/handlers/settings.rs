@@ -420,4 +420,22 @@ mod tests {
         let merged = read_settings(dir.path());
         assert_eq!(merged["futureField"]["nested"], json!(true));
     }
+
+    #[test]
+    fn stale_skip_splash_animation_key_deserializes_and_survives_patches() {
+        // settings.json written by an older release may still carry the
+        // removed skipSplashAnimation key. It must not break Settings
+        // deserialization (unknown fields are ignored) nor later patches.
+        let dir = tempdir();
+        write_settings(
+            dir.path(),
+            json!({"language": "en", "skipSplashAnimation": true, "fontSize": 14}),
+        );
+
+        let settings: Settings = serde_json::from_value(read_settings(dir.path())).unwrap();
+        assert_eq!(settings.font_size, Some(14));
+
+        patch_settings_at(&settings_file(dir.path()), &json!({"fontSize": 16})).unwrap();
+        assert_eq!(read_settings(dir.path())["fontSize"], json!(16));
+    }
 }

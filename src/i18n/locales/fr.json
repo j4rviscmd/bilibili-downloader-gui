@@ -505,8 +505,6 @@
     "lib_path_error": "Échec de l'obtention du chemin",
     "lib_path_change_success": "Emplacement de stockage de la bibliothèque mis à jour avec succès",
     "lib_path_change_error": "Échec de la modification de l'emplacement de stockage de la bibliothèque",
-    "skip_splash_animation_label": "Ignorer l'animation de démarrage",
-    "skip_splash_animation_description": "Afficher un indicateur de chargement minimal au lieu de l'animation 3D pour un démarrage plus rapide",
     "trim_mode_label": "Mode de découpe par défaut",
     "trim_mode_description": "Sélectionnez la méthode de découpe par défaut pour les fichiers MP4",
     "trim_mode_copy": "Rapide (Copie)",
