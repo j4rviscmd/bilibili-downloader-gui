@@ -97,13 +97,13 @@ describe('useSettings', () => {
   })
 
   describe('saveByForm', () => {
-    it('toasts settings.save_success on success', async () => {
+    it('does not toast on success', async () => {
       mockCommands({ patch_settings: undefined })
       const { result } = renderHookWithStore(() => useSettings())
 
       await result.current.saveByForm({ dlOutputPath: '/downloads' })
 
-      expect(toastSuccess).toHaveBeenCalledWith('settings.save_success')
+      expect(toastSuccess).not.toHaveBeenCalled()
       expect(toastError).not.toHaveBeenCalled()
     })
 
@@ -147,7 +147,7 @@ describe('useSettings', () => {
       })
     })
 
-    it('silent mode suppresses both success and error toasts', async () => {
+    it('silent mode suppresses the error toast', async () => {
       mockCommands({ patch_settings: new Error('ERR::SAVE_FAILED') })
       const { result } = renderHookWithStore(() => useSettings())
 
@@ -159,7 +159,7 @@ describe('useSettings', () => {
   })
 
   describe('updateLanguage', () => {
-    it('changes i18n language, persists the settings, and toasts success', async () => {
+    it('changes i18n language and persists the settings without a toast', async () => {
       mockCommands({ patch_settings: undefined })
       const { result } = renderHookWithStore(() => useSettings())
 
@@ -170,7 +170,7 @@ describe('useSettings', () => {
         patch: { language: 'ja' },
       })
       expect(store.getState().settings.language).toBe('ja')
-      expect(toastSuccess).toHaveBeenCalledWith('settings.save_success')
+      expect(toastSuccess).not.toHaveBeenCalled()
     })
 
     it('toasts an error instead of rejecting when the backend save fails', async () => {

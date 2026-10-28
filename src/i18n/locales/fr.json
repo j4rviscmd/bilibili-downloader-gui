@@ -489,7 +489,6 @@
     "output_dir_changing": "Sélection...",
     "output_dir_dialog_title": "Sélectionner le répertoire de sortie",
     "auto_save_note": "Les modifications sont enregistrées automatiquement.",
-    "save_success": "Paramètres enregistrés",
     "save_failed": "Échec de l'enregistrement des paramètres",
     "patch_invalid": "Modification des paramètres invalide. Vérifiez si settings.json contient des valeurs au type incorrect.",
     "save_failed_generic": "Échec de l'enregistrement des paramètres",

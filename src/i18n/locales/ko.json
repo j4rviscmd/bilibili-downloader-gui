@@ -489,7 +489,6 @@
     "output_dir_changing": "선택 중...",
     "output_dir_dialog_title": "출력 디렉터리 선택",
     "auto_save_note": "변경 사항은 자동 저장됩니다.",
-    "save_success": "설정을 저장했습니다",
     "save_failed": "설정 저장 실패",
     "patch_invalid": "설정 변경이 잘못되었습니다. settings.json에 잘못된 타입의 값이 있는지 확인하세요.",
     "save_failed_generic": "설정 저장 실패",
