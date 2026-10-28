@@ -48,7 +48,8 @@ export function WatchHistoryItem({ entry, onDownload, disabled }: Props) {
 
   return (
     <div className="border-border hover:bg-accent/50 flex items-center gap-3 rounded-lg border p-3">
-      <div className="relative size-20 shrink-0 overflow-hidden rounded select-none">
+      {/* Why: landscape (aspect-video) thumb at a fixed h-20 keeps the former size-20 square's 80px height, so row heights in WatchHistoryList's Virtuoso list (and its infinite-scroll paging) are unchanged. */}
+      <div className="relative aspect-video h-20 shrink-0 overflow-hidden rounded select-none">
         <ThumbImage
           src={entry.cover}
           alt={entry.title}

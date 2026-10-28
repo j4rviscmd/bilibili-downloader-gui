@@ -99,6 +99,18 @@ describe('HistoryItem', () => {
     expect(screen.queryByRole('img')).toBeNull()
   })
 
+  it('frames the thumbnail 16:9 at a fixed h-20 height', () => {
+    renderEntry()
+
+    // Design constraint: landscape (aspect-video) thumb while h-20 (and
+    // shrink-0 in the flex row) keeps the row height unchanged from the
+    // former size-20 square.
+    const frame = screen
+      .getByRole('img', { name: 'Sample Video' })
+      .closest('div')
+    expect(frame).toHaveClass('aspect-video', 'h-20', 'shrink-0')
+  })
+
   it('copies the URL to the clipboard and toasts success', async () => {
     const { user } = renderEntry()
     // Clipboard stub must be installed AFTER render (happy-dom quirk)

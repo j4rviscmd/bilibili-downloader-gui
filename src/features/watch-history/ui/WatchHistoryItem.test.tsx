@@ -61,6 +61,18 @@ describe('WatchHistoryItem', () => {
     )
   })
 
+  it('frames the thumbnail 16:9 at a fixed h-20 height', () => {
+    renderEntry()
+
+    // Design constraint: landscape (aspect-video) thumb while h-20 (and
+    // shrink-0 in the flex row) keeps the row height unchanged from the
+    // former size-20 square.
+    const frame = screen
+      .getByRole('img', { name: 'Watched Video' })
+      .closest('div')
+    expect(frame).toHaveClass('aspect-video', 'h-20', 'shrink-0')
+  })
+
   it('shows the short duration and the relative view time', () => {
     renderEntry()
 
