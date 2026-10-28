@@ -46,7 +46,10 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      // Why: vitest 4 loads this file through vite's config loader, so the
+      // same vite 8 native-loader warning applies to `__dirname` here as in
+      // vite.config.ts (PR #875).
+      '@': path.resolve(import.meta.dirname, './src'),
     },
   },
   define: {
