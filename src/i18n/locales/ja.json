@@ -489,7 +489,6 @@
     "output_dir_changing": "選択中...",
     "output_dir_dialog_title": "出力ディレクトリを選択",
     "auto_save_note": "変更は自動的に保存されます。",
-    "save_success": "設定を保存しました",
     "save_failed": "設定の保存に失敗しました",
     "patch_invalid": "設定の変更が無効です。settings.json に不正な型の値がないか確認してください。",
     "save_failed_generic": "設定の保存に失敗しました",

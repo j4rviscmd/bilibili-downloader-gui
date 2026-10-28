@@ -59,7 +59,7 @@ describe('GeneralSection', () => {
     ).toHaveTextContent('日本語')
   })
 
-  it('changing the language persists exactly one {language} patch and toasts', async () => {
+  it('changing the language persists exactly one {language} patch', async () => {
     seedSettings()
     const { user } = renderWithProviders(<GeneralSection />)
 
@@ -78,12 +78,11 @@ describe('GeneralSection', () => {
       (c: unknown[]) => c[0] === 'patch_settings',
     )
     expect(patches).toHaveLength(1)
-    // Toast parity with every other settings control: the language change
-    // used to persist without any feedback.
-    expect(toastSuccess).toHaveBeenCalledWith('settings.save_success')
+    // Success is silent across all settings controls — no toast.
+    expect(toastSuccess).not.toHaveBeenCalled()
   })
 
-  it('saves the startup page choice and toasts', async () => {
+  it('saves the startup page choice without a success toast', async () => {
     seedSettings()
     const { user } = renderWithProviders(<GeneralSection />)
 
@@ -95,8 +94,7 @@ describe('GeneralSection', () => {
     await waitFor(() =>
       expect(lastSetSettings()).toMatchObject({ startupPage: '/downloads' }),
     )
-    // Not silent: same success toast as the other General settings.
-    expect(toastSuccess).toHaveBeenCalledWith('settings.save_success')
+    expect(toastSuccess).not.toHaveBeenCalled()
   })
 
   it('shows the video-search entry as the startup page when unset or legacy', () => {

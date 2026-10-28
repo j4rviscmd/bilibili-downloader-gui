@@ -489,7 +489,6 @@
     "output_dir_changing": "Selecting...",
     "output_dir_dialog_title": "Select Output Directory",
     "auto_save_note": "Changes are saved automatically.",
-    "save_success": "Settings saved",
     "save_failed": "Failed to save settings",
     "patch_invalid": "Invalid settings change. Check settings.json for ill-typed values.",
     "save_failed_generic": "Failed to save settings",

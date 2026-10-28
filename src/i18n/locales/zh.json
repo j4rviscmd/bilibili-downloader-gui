@@ -489,7 +489,6 @@
     "output_dir_changing": "选择中...",
     "output_dir_dialog_title": "选择输出目录",
     "auto_save_note": "更改会自动保存。",
-    "save_success": "设置已保存",
     "save_failed": "保存设置失败",
     "patch_invalid": "设置更改无效。请检查 settings.json 中是否存在类型错误的值。",
     "save_failed_generic": "保存设置失败",
