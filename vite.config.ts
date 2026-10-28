@@ -11,7 +11,11 @@ export default defineConfig(async () => ({
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      // Why: `__dirname` still resolves only because the default "bundle"
+      // config loader shims it; vite 8 warns it is unsupported by the native
+      // config loader (planned default in a future major) and prescribes
+      // `import.meta.dirname` instead (vite 8 landed via PR #875).
+      '@': path.resolve(import.meta.dirname, './src'),
     },
   },
 
