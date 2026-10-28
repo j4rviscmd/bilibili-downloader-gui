@@ -87,20 +87,25 @@ impl WindowGeometry {
     };
 }
 
-/// Builds the splash route URL with the language/theme query params.
+/// Builds the splash route URL with the language/theme/accent query params.
 ///
 /// - No saved language (first run): `splashscreen?setup=1` for the language
 ///   selection screen.
 /// - Otherwise: `splashscreen?lang={lang}` plus `&theme=dark` when the saved
 ///   theme is dark, so the splash renders light/dark from the first frame
 ///   (the frontend treats a missing param as light).
-fn splash_url(language: Option<&str>, theme: Option<Theme>) -> String {
+/// - `&accent=blue` when the saved accent is blue, mirroring the theme
+///   convention: the frontend defaults to pink when the param is absent.
+fn splash_url(language: Option<&str>, theme: Option<Theme>, accent: Option<&str>) -> String {
     let Some(lang) = language else {
         return "splashscreen?setup=1".to_string();
     };
     let mut url = format!("splashscreen?lang={lang}");
     if matches!(theme, Some(Theme::Dark)) {
         url.push_str("&theme=dark");
+    }
+    if matches!(accent, Some("blue")) {
+        url.push_str("&accent=blue");
     }
     url
 }
@@ -123,8 +128,9 @@ pub fn create_splash_window(
     app: &AppHandle,
     theme: Option<Theme>,
     language: Option<String>,
+    accent: Option<&str>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let url = splash_url(language.as_deref(), theme);
+    let url = splash_url(language.as_deref(), theme, accent);
     let _splash = WebviewWindowBuilder::new(app, "splash", WebviewUrl::App(url.into()))
         .title(window_title(&app.package_info().version.to_string()))
         .theme(theme.or(Some(Theme::Light)))
@@ -885,23 +891,40 @@ mod tests {
 
     #[test]
     fn splash_url_first_run_uses_setup_mode() {
-        assert_eq!(splash_url(None, None), "splashscreen?setup=1");
-        // Setup mode wins over a saved theme (first run has no theme anyway).
-        assert_eq!(splash_url(None, Some(Theme::Dark)), "splashscreen?setup=1");
+        assert_eq!(splash_url(None, None, None), "splashscreen?setup=1");
+        // Setup mode wins over saved theme/accent (first run has neither).
+        assert_eq!(
+            splash_url(None, Some(Theme::Dark), Some("blue")),
+            "splashscreen?setup=1"
+        );
     }
 
     #[test]
     fn splash_url_appends_theme_only_for_dark() {
         assert_eq!(
-            splash_url(Some("ja"), Some(Theme::Dark)),
+            splash_url(Some("ja"), Some(Theme::Dark), None),
             "splashscreen?lang=ja&theme=dark"
         );
         // Light / unset theme omit the param: the frontend defaults to light.
         assert_eq!(
-            splash_url(Some("ja"), Some(Theme::Light)),
+            splash_url(Some("ja"), Some(Theme::Light), None),
             "splashscreen?lang=ja"
         );
-        assert_eq!(splash_url(Some("en"), None), "splashscreen?lang=en");
+        assert_eq!(splash_url(Some("en"), None, None), "splashscreen?lang=en");
+    }
+
+    #[test]
+    fn splash_url_appends_accent_only_for_blue() {
+        // Unset accent omits the param: the frontend defaults to pink.
+        assert_eq!(splash_url(Some("ja"), None, None), "splashscreen?lang=ja");
+        assert_eq!(
+            splash_url(Some("ja"), Some(Theme::Dark), Some("blue")),
+            "splashscreen?lang=ja&theme=dark&accent=blue"
+        );
+        assert_eq!(
+            splash_url(Some("ja"), Some(Theme::Light), Some("blue")),
+            "splashscreen?lang=ja&accent=blue"
+        );
     }
 
     #[test]

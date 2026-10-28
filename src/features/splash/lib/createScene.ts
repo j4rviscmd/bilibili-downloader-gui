@@ -28,7 +28,6 @@ import {
   BOLT_REFRESH_SEC,
   BOLTS_PER_ANTENNA,
   BOUNDS,
-  COLORS,
   CONNECTION_DISTANCE,
   PARTICLE_COUNT,
   resolveSplashPalette,
@@ -40,6 +39,7 @@ import {
   TV_DEPTH,
   TV_HEIGHT,
   TV_WIDTH,
+  type SplashAccent,
 } from './constants'
 
 /**
@@ -66,16 +66,19 @@ export interface SplashSceneHandle {
  *
  * @param canvas - The `<canvas>` element to render into.
  * @param dark   - Whether to use the dark-theme palette (background clear
- *   color + brightened particle shades). Accent blues stay shared.
+ *   color + brightened particle shades).
+ * @param accent - Accent family ('pink' | 'blue') for the TV/lightning
+ *   fills and particle shades.
  * @returns A handle with `dispose()` and `resize()` methods.
  */
 export function createSplashScene(
   canvas: HTMLCanvasElement,
   dark = false,
+  accent: SplashAccent = 'pink',
 ): SplashSceneHandle {
   const width = canvas.clientWidth || window.innerWidth
   const height = canvas.clientHeight || window.innerHeight
-  const palette = resolveSplashPalette(dark)
+  const palette = resolveSplashPalette(dark, accent)
 
   const renderer = new WebGLRenderer({
     canvas,
@@ -161,7 +164,7 @@ export function createSplashScene(
   // ── Little TV shape ──
   const topY = TV_HEIGHT / 2
 
-  // Rounded body - pink filled mesh
+  // Rounded body - accent filled mesh
   const bodyGeo = new RoundedBoxGeometry(
     TV_WIDTH,
     TV_HEIGHT,
@@ -170,7 +173,7 @@ export function createSplashScene(
     TV_CORNER_RADIUS,
   )
   const bodyMat = new MeshBasicMaterial({
-    color: COLORS.tvBody,
+    color: palette.accent,
     transparent: true,
     opacity: 0.15,
     side: DoubleSide,
@@ -180,13 +183,13 @@ export function createSplashScene(
   // Edge outline
   const edgesGeo = new EdgesGeometry(bodyGeo, 15)
   const edgeMat = new LineBasicMaterial({
-    color: COLORS.tvEdge,
+    color: palette.accent,
     transparent: true,
     opacity: 0.6,
   })
   const edges = new LineSegments(edgesGeo, edgeMat)
 
-  // Screen overlay (blue tint on front face)
+  // Screen overlay (accent tint on front face)
   const screenGeo = new RoundedBoxGeometry(
     TV_WIDTH - 1.2,
     TV_HEIGHT - 1.2,
@@ -195,7 +198,7 @@ export function createSplashScene(
     0.4,
   )
   const screenMat = new MeshBasicMaterial({
-    color: COLORS.tvScreen,
+    color: palette.accent,
     transparent: true,
     opacity: 0.1,
     side: DoubleSide,
@@ -205,7 +208,7 @@ export function createSplashScene(
 
   // Curved antennae (TubeGeometry for thickness)
   const antMat = new MeshBasicMaterial({
-    color: COLORS.tvBody,
+    color: palette.accent,
     transparent: true,
     opacity: 0.6,
   })
@@ -224,10 +227,10 @@ export function createSplashScene(
   const leftAnt = new Mesh(leftAntGeo, antMat)
   const rightAnt = new Mesh(rightAntGeo, antMat)
 
-  // Antenna tip spheres (pink accent)
+  // Antenna tip spheres (accent fill)
   const tipGeo = new SphereGeometry(TIP_RADIUS, 12, 12)
   const tipMat = new MeshBasicMaterial({
-    color: COLORS.tipAccent,
+    color: palette.accent,
     transparent: true,
     opacity: 0.6,
   })
@@ -256,7 +259,7 @@ export function createSplashScene(
     new Float32BufferAttribute(lightningArr, 3),
   )
   const lightningMat = new LineBasicMaterial({
-    color: COLORS.lightning,
+    color: palette.accent,
     transparent: true,
     opacity: 0.8,
   })
@@ -339,7 +342,7 @@ export function createSplashScene(
     // Antenna tip pulse - peak flashes white
     const tipGlow = 0.4 + 0.5 * Math.sin(elapsed * 3)
     tipMat.opacity = tipGlow
-    tipMat.color.setHex(tipGlow > 0.8 ? 0xffffff : COLORS.tipAccent)
+    tipMat.color.setHex(tipGlow > 0.8 ? 0xffffff : palette.accent)
 
     // Lightning flicker
     const flicker = Math.random() > 0.15 ? 0.7 + Math.random() * 0.3 : 0.1

@@ -5,9 +5,14 @@ import { useTranslation } from 'react-i18next'
 
 import { cn } from '@/shared/lib/utils'
 
+import {
+  FADE_DURATION_MS,
+  SPLASH_DOM_COLORS,
+  type SplashAccent,
+} from '../lib/constants'
+
 import { useSplashLifecycle } from '../hooks/useSplashLifecycle'
 import { useThreeScene } from '../hooks/useThreeScene'
-import { FADE_DURATION_MS } from '../lib/constants'
 import { SetupLanguage } from './SetupLanguage'
 
 /**
@@ -28,22 +33,33 @@ import { SetupLanguage } from './SetupLanguage'
  * settings.json (mirroring the lang param), and main.tsx syncs the html
  * theme class to it so `dark:` variants resolve correctly. `light` is the
  * fallback when the param is absent (first run / unset).
+ *
+ * Accent: same pattern — `&accent=blue` is appended when the saved accent is
+ * blue; a missing param means pink (the app default).
  */
 export function SplashScreen() {
   const [needsLanguage, setNeedsLanguage] = useState(
     () => new URLSearchParams(window.location.search).get('setup') === '1',
   )
-  // The theme param never changes during the splash lifetime, so a plain
-  // per-render read is enough (matches the showFfmpegBar derivation below).
-  const isDark =
-    new URLSearchParams(window.location.search).get('theme') === 'dark'
+  // The theme/accent params never change during the splash lifetime, so a
+  // plain per-render read is enough (matches the showFfmpegBar derivation
+  // below).
+  const params = new URLSearchParams(window.location.search)
+  const isDark = params.get('theme') === 'dark'
+  const accent: SplashAccent = params.get('accent') === 'blue' ? 'blue' : 'pink'
+  const domColors = SPLASH_DOM_COLORS[accent]
   const { phase, onFadeComplete, skipMode } = useSplashLifecycle(!needsLanguage)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [stepLabel, setStepLabel] = useState<string>('')
   const [ffmpegProgress, setFfmpegProgress] = useState<number | null>(null)
   const { t } = useTranslation()
 
-  useThreeScene(canvasRef, skipMode === false && phase !== 'done', isDark)
+  useThreeScene(
+    canvasRef,
+    skipMode === false && phase !== 'done',
+    isDark,
+    accent,
+  )
 
   // Show the splash window once React has mounted. The window is created
   // hidden (visible(false)) to avoid a black frame during webview load; this
@@ -153,18 +169,20 @@ export function SplashScreen() {
           )}
           style={{
             color: isDark ? '#e5e7ebee' : '#333333ee',
-            textShadow: isDark
-              ? '0 0 40px rgba(0,161,214,0.35)'
-              : '0 0 40px rgba(0,161,214,0.2)',
+            textShadow: `0 0 40px rgba(${domColors.glowRgb},${isDark ? '0.35' : '0.2'})`,
           }}
         >
-          <span style={{ color: '#00A1D6' }}>Bilibili</span> Downloader
+          <span style={{ color: domColors.hex }}>Bilibili</span> Downloader
         </h1>
         {showFfmpegBar && (
           <div className="absolute right-6 bottom-14 left-6 z-10 h-1 overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
             <div
-              className="h-full rounded-full bg-[#00A1D6] transition-all duration-300"
-              style={{ width: `${ffmpegProgress}%` }}
+              data-testid="splash-progress-fill"
+              className="h-full rounded-full transition-all duration-300"
+              style={{
+                width: `${ffmpegProgress}%`,
+                backgroundColor: domColors.hex,
+              }}
             />
           </div>
         )}
