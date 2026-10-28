@@ -1,6 +1,6 @@
 /**
  * useThreeScene suite. The scene module is mocked (happy-dom has no WebGL
- * context): these tests verify the wiring — dark-flag propagation to
+ * context): these tests verify the wiring — dark/accent flag propagation to
  * createSplashScene and scene recreation when the theme flips.
  */
 
@@ -14,10 +14,10 @@ import { useThreeScene } from './useThreeScene'
 const { createSplashScene } = vi.hoisted(() => ({ createSplashScene: vi.fn() }))
 vi.mock('../lib/createScene', () => ({ createSplashScene }))
 
-function renderScene(dark?: boolean) {
+function renderScene(dark?: boolean, accent?: 'pink' | 'blue') {
   const canvas = document.createElement('canvas')
   const canvasRef = { current: canvas }
-  renderHookWithStore(() => useThreeScene(canvasRef, true, dark))
+  renderHookWithStore(() => useThreeScene(canvasRef, true, dark, accent))
   return canvas
 }
 
@@ -30,18 +30,25 @@ describe('useThreeScene', () => {
     }))
   })
 
-  it('defaults the scene to the light palette', async () => {
+  it('defaults the scene to the light pink palette', async () => {
     const canvas = renderScene()
 
     await waitFor(() => expect(createSplashScene).toHaveBeenCalledTimes(1))
-    expect(createSplashScene).toHaveBeenCalledWith(canvas, false)
+    expect(createSplashScene).toHaveBeenCalledWith(canvas, false, 'pink')
   })
 
   it('passes the dark flag to the scene', async () => {
     const canvas = renderScene(true)
 
     await waitFor(() => expect(createSplashScene).toHaveBeenCalledTimes(1))
-    expect(createSplashScene).toHaveBeenCalledWith(canvas, true)
+    expect(createSplashScene).toHaveBeenCalledWith(canvas, true, 'pink')
+  })
+
+  it('passes the blue accent to the scene', async () => {
+    const canvas = renderScene(false, 'blue')
+
+    await waitFor(() => expect(createSplashScene).toHaveBeenCalledTimes(1))
+    expect(createSplashScene).toHaveBeenCalledWith(canvas, false, 'blue')
   })
 
   it('recreates the scene when the theme flips', async () => {
@@ -61,6 +68,6 @@ describe('useThreeScene', () => {
     // The light scene is disposed and a dark one takes its place.
     await waitFor(() => expect(createSplashScene).toHaveBeenCalledTimes(2))
     expect(first.dispose).toHaveBeenCalled()
-    expect(createSplashScene).toHaveBeenLastCalledWith(canvas, true)
+    expect(createSplashScene).toHaveBeenLastCalledWith(canvas, true, 'pink')
   })
 })

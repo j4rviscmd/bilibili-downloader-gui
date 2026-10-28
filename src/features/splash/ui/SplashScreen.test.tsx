@@ -87,11 +87,12 @@ describe('SplashScreen', () => {
     expect(screen.getByText('Downloader')).toBeInTheDocument()
     // Full mode mounts the Three.js canvas and starts the scene.
     expect(vi.mocked(useThreeScene)).toHaveBeenCalled()
-    // Without a theme param the scene runs in light mode.
+    // Without theme/accent params the scene runs light pink (app defaults).
     expect(vi.mocked(useThreeScene)).toHaveBeenCalledWith(
       expect.anything(),
       true,
       false,
+      'pink',
     )
   })
 
@@ -106,11 +107,44 @@ describe('SplashScreen', () => {
       expect.anything(),
       true,
       true,
+      'pink',
     )
-    // Background and title switch to the dark variants.
+    // Background and title switch to the dark variants; the glow keeps the
+    // stronger dark opacity with the pink accent rgb.
     expect(document.querySelector('.dark\\:bg-\\[\\#0f172a\\]')).not.toBeNull()
     const title = screen.getByRole('heading', { level: 1 })
     expect(title.style.color).toBe('#e5e7ebee')
+    expect(title.style.textShadow).toBe('0 0 40px rgba(251,114,153,0.35)')
+  })
+
+  it('renders pink DOM colors by default and passes pink to the scene', () => {
+    renderWithProviders(<SplashScreen />)
+
+    expect(vi.mocked(useThreeScene)).toHaveBeenCalledWith(
+      expect.anything(),
+      true,
+      false,
+      'pink',
+    )
+    const title = screen.getByRole('heading', { level: 1 })
+    expect(title.querySelector('span')!.style.color).toBe('#fb7299')
+    expect(title.style.textShadow).toBe('0 0 40px rgba(251,114,153,0.2)')
+  })
+
+  it('renders blue DOM colors and passes blue to the scene when accent=blue', () => {
+    window.history.pushState({}, '', '/splashscreen?accent=blue')
+
+    renderWithProviders(<SplashScreen />)
+
+    expect(vi.mocked(useThreeScene)).toHaveBeenCalledWith(
+      expect.anything(),
+      true,
+      false,
+      'blue',
+    )
+    const title = screen.getByRole('heading', { level: 1 })
+    expect(title.querySelector('span')!.style.color).toBe('#00A1D6')
+    expect(title.style.textShadow).toBe('0 0 40px rgba(0,161,214,0.2)')
   })
 
   it('shows the ffmpeg determinate progress bar during ffmpeg install', async () => {
@@ -122,12 +156,10 @@ describe('SplashScreen', () => {
     expect(
       await screen.findByText('init.installing_ffmpeg'),
     ).toBeInTheDocument()
-    // The determinate bar's fill width is driven by the progress percentage.
-    const fill = document.querySelector(
-      '.bg-\\[\\#00A1D6\\]',
-    ) as HTMLElement | null
-    expect(fill).not.toBeNull()
-    expect(fill).toHaveStyle({ width: '42%' })
+    // The determinate bar's fill width and color are driven by the
+    // progress percentage and the accent.
+    const fill = screen.getByTestId('splash-progress-fill')
+    expect(fill).toHaveStyle({ width: '42%', backgroundColor: '#fb7299' })
   })
 
   it('ignores progress events for other downloads', async () => {
@@ -137,6 +169,6 @@ describe('SplashScreen', () => {
     emitTauriEvent('progress', { downloadId: 'some-video', percentage: 42 })
 
     await screen.findByText('init.installing_ffmpeg')
-    expect(document.querySelector('.bg-\\[\\#00A1D6\\]')).toBeNull()
+    expect(screen.queryByTestId('splash-progress-fill')).toBeNull()
   })
 })
