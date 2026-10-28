@@ -505,8 +505,6 @@
     "lib_path_error": "パスの取得に失敗しました",
     "lib_path_change_success": "ライブラリ保存先を変更しました",
     "lib_path_change_error": "ライブラリ保存先の変更に失敗しました",
-    "skip_splash_animation_label": "起動アニメーションをスキップ",
-    "skip_splash_animation_description": "3Dアニメーションの代わりに最小限のローディング表示で高速起動",
     "trim_mode_label": "デフォルトのトリム方式",
     "trim_mode_description": "MP4ファイルのトリム時の既定の方式を選択",
     "trim_mode_copy": "高速（コピー）",

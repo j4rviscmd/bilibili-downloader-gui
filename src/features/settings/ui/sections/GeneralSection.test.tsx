@@ -199,21 +199,31 @@ describe('GeneralSection', () => {
     )
   })
 
-  it.each([
-    ['settings.show_github_stars_label', { showGithubStars: false }],
-    ['settings.skip_splash_animation_label', { skipSplashAnimation: true }],
-  ])('toggling %s persists it', async (labelKey, expected) => {
+  it('toggling settings.show_github_stars_label persists it', async () => {
     seedSettings()
     const { user } = renderWithProviders(<GeneralSection />)
 
     const section = screen
-      .getByText(labelKey)
+      .getByText('settings.show_github_stars_label')
       .closest('div.flex.items-center.justify-between')!
     await user.click(
       section.querySelector('button[role="switch"]') as HTMLElement,
     )
 
-    await waitFor(() => expect(lastSetSettings()).toMatchObject(expected))
+    await waitFor(() =>
+      expect(lastSetSettings()).toMatchObject({ showGithubStars: false }),
+    )
+  })
+
+  it('no longer renders the removed skip-splash-animation row', () => {
+    seedSettings()
+    renderWithProviders(<GeneralSection />)
+
+    // The setting was removed wholesale (key gone from all locales); if the
+    // row ever came back, t() would echo the deleted key verbatim.
+    expect(
+      screen.queryByText('settings.skip_splash_animation_label'),
+    ).toBeNull()
   })
 
   it('renders one divider per group boundary', () => {
