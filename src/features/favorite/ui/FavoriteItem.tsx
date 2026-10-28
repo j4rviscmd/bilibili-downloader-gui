@@ -66,7 +66,8 @@ function FavoriteItem({ video, onDownload, disabled }: Props) {
         isDeleted && 'opacity-60',
       )}
     >
-      <div className="bg-muted relative flex size-20 shrink-0 items-center justify-center overflow-hidden rounded">
+      {/* Why: landscape (aspect-video) thumb at a fixed h-20 keeps the former size-20 square's 80px height, so row heights in FavoriteList's Virtuoso list (and its infinite-scroll paging) are unchanged. */}
+      <div className="bg-muted relative flex aspect-video h-20 shrink-0 items-center justify-center overflow-hidden rounded">
         <ThumbImage
           src={video.cover}
           alt={video.title}

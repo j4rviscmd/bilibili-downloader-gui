@@ -83,6 +83,18 @@ describe('FavoriteItem', () => {
     )
   })
 
+  it('frames the thumbnail 16:9 at a fixed h-20 height', () => {
+    renderVideo()
+
+    // Design constraint: landscape (aspect-video) thumb while h-20 (and
+    // shrink-0 in the flex row) keeps the row height unchanged from the
+    // former size-20 square.
+    const frame = screen
+      .getByRole('img', { name: 'Sample Favorite' })
+      .closest('div')
+    expect(frame).toHaveClass('aspect-video', 'h-20', 'shrink-0')
+  })
+
   it('falls back to placeholders when cover and avatar are missing', () => {
     renderVideo({ cover: '', upper: { ...video.upper, face: '' } })
 

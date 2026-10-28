@@ -153,7 +153,8 @@ function HistoryItem({ entry, onDelete, onDownload, disabled }: Props) {
 
   return (
     <div className="border-border hover:bg-accent/50 group flex items-center gap-3 rounded-lg border p-3 transition-colors">
-      <div className="bg-muted relative flex size-20 shrink-0 items-center justify-center overflow-hidden rounded select-none">
+      {/* Why: landscape (aspect-video) thumb at a fixed h-20 keeps the former size-20 square's 80px height, so row heights in HistoryList's Virtuoso list (and its infinite-scroll paging) are unchanged. */}
+      <div className="bg-muted relative flex aspect-video h-20 shrink-0 items-center justify-center overflow-hidden rounded select-none">
         <ThumbImage
           src={entry.thumbnailUrl}
           alt={entry.title}
