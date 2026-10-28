@@ -395,6 +395,7 @@
     "subtitle_description": "选择将字幕嵌入视频的方式。",
     "subtitle_note": "※ 软字幕可以在播放器中开关。硬字幕会烧录到视频中。",
     "options": "个别设置",
+    "copy_part_url": "复制该分P链接",
     "subtitle_select_required": "请选择至少一种语言",
     "subtitle_n_languages": "{{count}}种语言",
     "subtitle_login_required": "字幕需要登录bilibili后才能获取。",

@@ -128,12 +128,26 @@ function createMockVideoInfo(
   } as ReturnType<typeof useVideoInfo>
 }
 
+/** Installs a clipboard.writeText spy. Must run AFTER render: happy-dom
+ * installs its real clipboard during render, shadowing an earlier stub
+ * (see toast.test). */
+function stubClipboard(): Mock {
+  const writeText = vi.fn().mockResolvedValue(undefined)
+  Object.defineProperty(navigator, 'clipboard', {
+    value: { writeText },
+    configurable: true,
+  })
+  return writeText
+}
+
 type SetupOptions = {
   partInput?: Partial<PartInput>
   status?: Partial<PartQueueStatus>
   isDuplicate?: boolean
   /** Overrides the default single-part video fixture. */
   video?: Video
+  /** Card page number (1-based) — defaults to 1. */
+  page?: number
   /** onValid2 spy installed into the mocked useVideoInfo value. */
   onValid2?: Mock
   /** Preview-dialog opener passed down to the card (page-owned). */
@@ -148,6 +162,7 @@ function setup({
   video: videoFixture,
   onValid2,
   onThumbnailClick = vi.fn(),
+  page = 1,
 }: SetupOptions = {}) {
   store.dispatch(
     setInput({
@@ -167,7 +182,7 @@ function setup({
     <TooltipProvider>
       <VideoPartCard
         video={videoFixture ?? video}
-        page={1}
+        page={page}
         isDuplicate={isDuplicate}
         onThumbnailClick={onThumbnailClick}
       />
@@ -225,6 +240,15 @@ const vipStatusBangumiVideo: Video = {
   ...video,
   contentType: 'bangumi',
   parts: [{ ...video.parts[0]!, status: 13 }],
+}
+
+/** Two-part video: gives page 2 a distinct cid and part name. */
+const twoPartVideo: Video = {
+  ...video,
+  parts: [
+    video.parts[0]!,
+    { ...video.parts[0]!, part: 'Part 2', page: 2, cid: 222 },
+  ],
 }
 
 describe('VideoPartCard', () => {
@@ -1131,6 +1155,38 @@ describe('VideoPartCard', () => {
     expect(badge.closest('[data-status]')).toHaveAttribute(
       'data-status',
       'running',
+    )
+  })
+
+  it('copies the part URL to the clipboard with a success toast', async () => {
+    setup()
+    const writeText = stubClipboard()
+
+    const copyButton = screen.getByRole('button', {
+      name: 'video.copy_part_url',
+    })
+    fireEvent.click(copyButton)
+
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith(
+        'https://www.bilibili.com/video/BV1xx411c7XD',
+      ),
+    )
+    expect(toast.success).toHaveBeenCalledWith('history.copySuccess')
+    // Copied feedback: the icon swaps to Check
+    expect(copyButton.querySelector('.lucide-check')).not.toBeNull()
+  })
+
+  it('copies page-aware URLs (?p=N) for multi-part videos', async () => {
+    setup({ video: twoPartVideo, page: 2 })
+    const writeText = stubClipboard()
+
+    fireEvent.click(screen.getByRole('button', { name: 'video.copy_part_url' }))
+
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith(
+        'https://www.bilibili.com/video/BV1xx411c7XD?p=2',
+      ),
     )
   })
 })

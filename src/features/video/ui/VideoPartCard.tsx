@@ -31,6 +31,7 @@ import {
   TITLE_MAX_LENGTH,
 } from '@/features/video/lib/formSchema'
 import { getStatusVisual } from '@/features/video/lib/statusVisual'
+import { buildVideoUrl } from '@/features/video/lib/utils'
 import {
   defaultSubtitleConfig,
   setAccordionOpen,
@@ -69,8 +70,8 @@ import { Skeleton } from '@/shared/ui/skeleton'
 import { ThumbImage } from '@/shared/ui/ThumbImage'
 import { toast } from '@/shared/ui/toast'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ChevronDown, Info, Play, RotateCcw } from 'lucide-react'
-import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
+import { Check, ChevronDown, Copy, Info, Play, RotateCcw } from 'lucide-react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { useDispatch, useSelector } from 'react-redux'
@@ -613,6 +614,25 @@ const VideoPartCard = memo(function VideoPartCard({
     [page, subtitle?.mode, scrollCardIntoView],
   )
 
+  // Per-part URL copy (mockup plan C): one quiet icon at the row's right
+  // end. The full URL lives in the tooltip; "open in browser" deliberately
+  // stays in the preview dialog (VideoPreviewDialog) instead of the row.
+  const partUrl = buildVideoUrl(video.bvid, page)
+  const [urlCopied, setUrlCopied] = useState(false)
+  // Note: mirrors the copy-URL handlers in FavoriteItem/HistoryItem/
+  // WatchHistoryItem — history.* toast keys are shared across features
+  // (exception to CLAUDE.md's {feature}.* naming), as is the 2000ms reset.
+  const handleCopyPartUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(partUrl)
+      setUrlCopied(true)
+      toast.success(t('history.copySuccess'))
+      setTimeout(() => setUrlCopied(false), 2000)
+    } catch {
+      toast.error(t('history.copyFailed'))
+    }
+  }
+
   const schema2 = useMemo(() => buildVideoFormSchema2(t), [t])
 
   // Why: defaultTitle is assembled by the backend (build_default_part_title in
@@ -801,7 +821,7 @@ const VideoPartCard = memo(function VideoPartCard({
                 P badge, 104px thumbnail, inline title + pills, per-part
                 toggle. min-w-0 on the title column keeps long filenames
                 from stretching the row past the list width. */}
-            <div className="flex items-center gap-2.5 px-2.5 py-2">
+            <div className="group/row flex items-center gap-2.5 px-2.5 py-2">
               <span className="flex size-11 shrink-0 items-center justify-center">
                 <Checkbox
                   checked={selected}
@@ -965,6 +985,31 @@ const VideoPartCard = memo(function VideoPartCard({
                     </Tooltip>
                   )}
                 </div>
+              </div>
+
+              {/* Per-part URL copy: dimmed until row hover/focus (opacity
+                  transition only — no layout shift). Inherits the fieldset
+                  disabled state (no parts resolved). */}
+              <div className="shrink-0">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={handleCopyPartUrl}
+                      aria-label={t('video.copy_part_url')}
+                      className="text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-ring/50 inline-flex size-7 items-center justify-center rounded-lg opacity-45 transition-opacity outline-none group-focus-within/row:opacity-100 group-hover/row:opacity-100 focus-visible:opacity-100 focus-visible:ring-[3px]"
+                    >
+                      {urlCopied ? (
+                        <Check className="size-3.5" aria-hidden />
+                      ) : (
+                        <Copy className="size-3.5" aria-hidden />
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <p className="max-w-96 truncate text-sm">{partUrl}</p>
+                  </TooltipContent>
+                </Tooltip>
               </div>
 
               <div className="shrink-0">

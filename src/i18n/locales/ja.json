@@ -395,6 +395,7 @@
     "subtitle_description": "動画に字幕を埋め込む方法を選択します。",
     "subtitle_note": "※ ソフトサブは再生プレイヤーで字幕のON/OFFが可能。ハードサブは動画に焼き付けられます。",
     "options": "個別設定",
+    "copy_part_url": "このパートのURLをコピー",
     "subtitle_select_required": "字幕を使用する場合は言語を選択してください",
     "subtitle_n_languages": "{{count}}言語",
     "subtitle_login_required": "字幕の取得にはbilibiliへのログインが必要です。",

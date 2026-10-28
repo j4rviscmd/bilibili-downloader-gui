@@ -395,6 +395,7 @@
     "subtitle_description": "Choose how to embed subtitles into the video.",
     "subtitle_note": "※ Soft sub allows toggling subtitles in the player. Hard sub burns subtitles into the video.",
     "options": "Per-part settings",
+    "copy_part_url": "Copy this part's URL",
     "subtitle_select_required": "Please select at least one language",
     "subtitle_n_languages": "{{count}} languages",
     "subtitle_login_required": "Subtitles are only available when logged in to Bilibili.",
