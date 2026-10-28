@@ -70,14 +70,6 @@ export interface Settings {
    */
   fontSize?: FontSizePreset
   /**
-   * Whether to skip the splash screen animation on startup.
-   *
-   * When enabled, a minimal loading indicator is shown instead
-   * of the 3D animation for fastest possible startup.
-   * Defaults to false if not specified.
-   */
-  skipSplashAnimation?: boolean
-  /**
    * Default trim mode for the MP4 trimming feature.
    * Defaults to 'copy' if not specified.
    */

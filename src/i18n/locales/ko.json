@@ -505,8 +505,6 @@
     "lib_path_error": "경로를 가져오지 못했습니다",
     "lib_path_change_success": "라이브러리 저장 위치가 성공적으로 업데이트되었습니다",
     "lib_path_change_error": "라이브러리 저장 위치 변경 실패",
-    "skip_splash_animation_label": "시작 애니메이션 건너뛰기",
-    "skip_splash_animation_description": "3D 애니메이션 대신 최소 로딩 표시로 빠른 시작",
     "trim_mode_label": "기본 트림 방식",
     "trim_mode_description": "MP4 파일 트림 시 기본 방식을 선택합니다",
     "trim_mode_copy": "빠른 속도 (복사)",

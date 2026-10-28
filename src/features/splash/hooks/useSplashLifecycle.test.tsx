@@ -1,6 +1,6 @@
 /**
- * useSplashLifecycle suite (fake timers): normal fade path, skip mode,
- * finish_splash on done, disposed-before-fade guard.
+ * useSplashLifecycle suite (fake timers): language gate, fade path
+ * (font-stall timeout), finish_splash on done.
  *
  * document.fonts.load is stubbed because happy-dom provides no FontFaceSet.
  */
@@ -35,14 +35,6 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-function settingsPayload(skip: boolean) {
-  mockInvoke.mockImplementation((cmd: string) =>
-    Promise.resolve(
-      cmd === 'get_settings' ? { skipSplashAnimation: skip } : undefined,
-    ),
-  )
-}
-
 async function flush(ms: number) {
   await act(async () => {
     await vi.advanceTimersByTimeAsync(ms)
@@ -51,7 +43,6 @@ async function flush(ms: number) {
 
 describe('useSplashLifecycle', () => {
   it('waits for first-run language selection before initializing', async () => {
-    settingsPayload(true)
     let enabled = false
     const { result, rerender } = renderHookWithStore(() =>
       useSplashLifecycle(enabled),
@@ -61,36 +52,64 @@ describe('useSplashLifecycle', () => {
     expect(result.current.phase).toBe('active')
     enabled = true
     rerender()
-    await flush(10)
+    await flush(2_100)
     expect(mockInvoke).toHaveBeenCalledWith('initialize')
-    expect(result.current.phase).toBe('done')
+    expect(result.current.phase).toBe('fading')
   })
 
-  it('normal mode: active → fading after initialize + font + MIN_DISPLAY', async () => {
-    settingsPayload(false)
+  it('transitions active → fading as soon as initialize and the font resolve', async () => {
     const { result } = renderHookWithStore(() => useSplashLifecycle())
     expect(result.current.phase).toBe('active')
 
-    await flush(2_100)
-    expect(mockInvoke).toHaveBeenCalledWith('get_settings')
+    // No minimum display floor: the splash shows exactly as long as the real
+    // work takes, and no settings round-trip gates the lifecycle.
+    await flush(50)
+    expect(mockInvoke).not.toHaveBeenCalledWith('get_settings')
     expect(mockInvoke).toHaveBeenCalledWith('initialize')
     expect(result.current.phase).toBe('fading')
-    expect(result.current.skipMode).toBe(false)
   })
 
-  it('skip mode: done immediately without the MIN_DISPLAY wait', async () => {
-    settingsPayload(true)
+  it('fades as soon as a slow init completes, with no added display floor', async () => {
+    mockInvoke.mockImplementation((cmd: string) =>
+      cmd === 'initialize'
+        ? new Promise((resolve) => setTimeout(resolve, 3_000))
+        : Promise.resolve(undefined),
+    )
     const { result } = renderHookWithStore(() => useSplashLifecycle())
 
-    await flush(10)
-    expect(result.current.phase).toBe('done')
-    expect(result.current.skipMode).toBe(true)
+    // While init (3s) still runs the splash stays; fading starts at init
+    // completion, not init + some floor.
+    await flush(2_100)
+    expect(result.current.phase).toBe('active')
+    await flush(1_050)
+    expect(result.current.phase).toBe('fading')
+  })
+
+  it('proceeds to fading when the font load stalls until its timeout', async () => {
+    vi.stubGlobal(
+      'document',
+      Object.assign(document, {
+        fonts: {
+          load: vi.fn().mockImplementation(() => new Promise(() => {})),
+        },
+      }),
+    )
+    const { result } = renderHookWithStore(() => useSplashLifecycle())
+
+    // With no minimum display floor, FONT_LOAD_TIMEOUT_MS (4s) is the only
+    // remaining bound: a slow network cannot stall startup past its timeout.
+    await flush(3_900)
+    expect(result.current.phase).toBe('active')
+    await flush(4_100)
+    expect(result.current.phase).toBe('fading')
   })
 
   it('done phase invokes finish_splash exactly once', async () => {
-    settingsPayload(true)
     const { result } = renderHookWithStore(() => useSplashLifecycle())
-    await flush(10)
+    await flush(2_100)
+    act(() => {
+      result.current.onFadeComplete()
+    })
 
     expect(mockInvoke).toHaveBeenCalledWith('finish_splash')
     const calls = mockInvoke.mock.calls.filter((c) => c[0] === 'finish_splash')
@@ -105,7 +124,6 @@ describe('useSplashLifecycle', () => {
   })
 
   it('onFadeComplete transitions fading → done', async () => {
-    settingsPayload(false)
     const { result } = renderHookWithStore(() => useSplashLifecycle())
     await flush(2_100)
     expect(result.current.phase).toBe('fading')
@@ -116,16 +134,7 @@ describe('useSplashLifecycle', () => {
     expect(result.current.phase).toBe('done')
   })
 
-  it('get_settings rejection defaults to the normal splash', async () => {
-    mockInvoke.mockRejectedValue(new Error('no store'))
-    const { result } = renderHookWithStore(() => useSplashLifecycle())
-    await flush(2_100)
-    expect(result.current.skipMode).toBe(false)
-    expect(result.current.phase).toBe('fading')
-  })
-
   it('does not lock the native window theme (the Rust side sets it)', async () => {
-    settingsPayload(false)
     renderHookWithStore(() => useSplashLifecycle())
     await flush(2_100)
 

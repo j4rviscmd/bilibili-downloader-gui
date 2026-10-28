@@ -505,8 +505,6 @@
     "lib_path_error": "Failed to get path",
     "lib_path_change_success": "Library storage location updated successfully",
     "lib_path_change_error": "Failed to change library storage location",
-    "skip_splash_animation_label": "Skip Startup Animation",
-    "skip_splash_animation_description": "Show a minimal loading indicator instead of the 3D animation for faster startup",
     "trim_mode_label": "Default Trim Mode",
     "trim_mode_description": "Select the default trimming method for MP4 files",
     "trim_mode_copy": "Fast (Copy)",

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { sleep } from '@/shared/lib/utils'
 
-import { FONT_LOAD_TIMEOUT_MS, MIN_DISPLAY_MS } from '../lib/constants'
+import { FONT_LOAD_TIMEOUT_MS } from '../lib/constants'
 
 /** Represents the current visual state of the splash screen. */
 type SplashPhase = 'active' | 'fading' | 'done'
@@ -14,8 +14,6 @@ interface SplashLifecycle {
   phase: SplashPhase
   /** Callback to invoke when the CSS fade-out transition finishes. */
   onFadeComplete: () => void
-  /** Whether the minimal (skip-animation) mode is active. Null while loading. */
-  skipMode: boolean | null
 }
 
 /**
@@ -25,19 +23,14 @@ interface SplashLifecycle {
  * it cannot share Redux state with the main window. Instead it:
  * 1. invokes the backend `initialize` command (the real step sequence lands
  *    in Phase B-2; currently a skeleton that returns immediately),
- * 2. waits for the minimum display time (unless skip mode),
- * 3. fades out, then on fade completion invokes `finish_splash`, which closes
+ * 2. fades out, then on fade completion invokes `finish_splash`, which closes
  *    the splash and creates the main window.
  *
  * The window's native theme is set by the Rust side at creation from
  * settings.json (see create_splash_window), so no theme lock is needed here.
- *
- * When `skipSplashAnimation` is enabled in settings, the minimum display time
- * and fade animation are skipped for fastest possible startup.
  */
 export function useSplashLifecycle(enabled = true): SplashLifecycle {
   const [phase, setPhase] = useState<SplashPhase>('active')
-  const [skipMode, setSkipMode] = useState<boolean | null>(null)
   const disposedRef = useRef(false)
 
   useEffect(() => {
@@ -45,39 +38,25 @@ export function useSplashLifecycle(enabled = true): SplashLifecycle {
     disposedRef.current = false
 
     const run = async () => {
-      let skip = false
-      try {
-        const s = await invoke<{ skipSplashAnimation?: boolean }>(
-          'get_settings',
-        )
-        skip = s.skipSplashAnimation ?? false
-      } catch {
-        // default to normal splash on error
-      }
-      if (disposedRef.current) return
-      setSkipMode(skip)
-
       // Run backend initialization in parallel with the web font preload.
       // Loading Noto Sans JP during splash lets the main window (a separate
       // webview sharing this Tauri process's HTTP cache) render the same font
-      // without FOUT. Skip mode bypasses the font wait for fastest startup,
-      // symmetric with the MIN_DISPLAY_MS skip below. The timeout guards
-      // against slow networks; on expiry the font-family fallback still applies.
-      const fontReady = skip
-        ? Promise.resolve()
-        : Promise.race([
-            document.fonts.load('400 16px "Noto Sans JP"'),
-            sleep(FONT_LOAD_TIMEOUT_MS),
-          ]).catch(() => {})
+      // without FOUT. The timeout guards against slow networks; on
+      // expiry the font-family fallback still applies.
+      const fontReady = Promise.race([
+        document.fonts.load('400 16px "Noto Sans JP"'),
+        sleep(FONT_LOAD_TIMEOUT_MS),
+      ]).catch(() => {})
 
       await Promise.all([invoke('initialize').catch(() => {}), fontReady])
-
-      if (!skip) {
-        await sleep(MIN_DISPLAY_MS)
-      }
       if (disposedRef.current) return
 
-      setPhase(skip ? 'done' : 'fading')
+      // Why: no minimum display floor here — MIN_DISPLAY_MS was removed
+      // together with the skipSplashAnimation setting so the splash lasts
+      // exactly as long as the real init work; a brief splash on fast
+      // startups is intended behavior, not a bug (asserted in
+      // useSplashLifecycle.test.tsx).
+      setPhase('fading')
     }
 
     run()
@@ -97,5 +76,5 @@ export function useSplashLifecycle(enabled = true): SplashLifecycle {
     invoke('finish_splash').catch(() => {})
   }, [phase])
 
-  return { phase, onFadeComplete, skipMode }
+  return { phase, onFadeComplete }
 }

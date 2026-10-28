@@ -210,17 +210,6 @@ export function GeneralSection() {
           }}
         />
       </SettingRow>
-      <SettingRow
-        label={t('settings.skip_splash_animation_label')}
-        description={t('settings.skip_splash_animation_description')}
-      >
-        <Switch
-          checked={settings.skipSplashAnimation ?? false}
-          onCheckedChange={(checked) => {
-            saveByForm({ skipSplashAnimation: checked })
-          }}
-        />
-      </SettingRow>
       <Separator />
       <div className="space-y-1">
         <Label>{t('settings.page_visibility_label')}</Label>

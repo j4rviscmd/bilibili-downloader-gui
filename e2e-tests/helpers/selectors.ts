@@ -15,8 +15,7 @@
  * Splash screen overlay container shown during app initialization.
  *
  * Uses `data-testid` so the selector is decoupled from CSS classes that vary
- * across the splash screen's rendering modes (settings-loading, skip-mode,
- * full-animation).
+ * across the splash screen's rendering states (language setup, animation).
  */
 export const INIT_CONTAINER = '[data-testid="splash-screen"]'
 

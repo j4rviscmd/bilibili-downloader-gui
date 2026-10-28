@@ -142,14 +142,6 @@ pub struct Settings {
     /// Defaults to 14 if not specified.
     #[serde(rename = "fontSize", default, skip_serializing_if = "Option::is_none")]
     pub font_size: Option<u8>,
-    /// Whether to skip the splash screen animation on startup.
-    /// When true, a minimal loading indicator is shown instead of the 3D animation.
-    #[serde(
-        rename = "skipSplashAnimation",
-        default,
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub skip_splash_animation: Option<bool>,
     /// Default trim mode for the MP4 trimming feature.
     /// Defaults to "copy" (stream copy) if not specified.
     #[serde(rename = "trimMode", default, skip_serializing_if = "Option::is_none")]

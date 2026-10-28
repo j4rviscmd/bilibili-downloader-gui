@@ -26,7 +26,6 @@ function mockLifecycle(overrides: Partial<SplashLifecycle>) {
   const value: SplashLifecycle = {
     phase: 'active',
     onFadeComplete: vi.fn(),
-    skipMode: false,
     ...overrides,
   }
   vi.mocked(useSplashLifecycle).mockReturnValue(value)
@@ -53,41 +52,26 @@ describe('SplashScreen', () => {
     const { container } = renderWithProviders(<SplashScreen />)
 
     expect(container).toBeEmptyDOMElement()
+    // The scene runs iff phase !== 'done' (the coupling that used to
+    // include skipMode): once done, the canvas unmounts and the scene stops.
+    expect(vi.mocked(useThreeScene)).toHaveBeenCalledWith(
+      expect.anything(),
+      false,
+      false,
+      'pink',
+    )
   })
 
-  it('renders a blank background while settings are still loading', () => {
-    mockLifecycle({ skipMode: null })
-
-    renderWithProviders(<SplashScreen />)
-
-    // No title or step label until skip mode is resolved.
-    expect(screen.getByTestId('splash-screen')).toBeInTheDocument()
-    expect(screen.queryByText('Bilibili')).not.toBeInTheDocument()
-  })
-
-  it('renders the CSS spinner and step label in skip mode', async () => {
-    mockLifecycle({ skipMode: true })
-
-    renderWithProviders(<SplashScreen />)
-
-    expect(screen.getByTestId('splash-screen')).toBeInTheDocument()
-    // No step label before any init_step event.
-    expect(screen.queryByText('init.checking_ffmpeg')).not.toBeInTheDocument()
-
-    emitTauriEvent('init_step', { labelKey: 'init.checking_ffmpeg' })
-    expect(await screen.findByText('init.checking_ffmpeg')).toBeInTheDocument()
-  })
-
-  it('renders the title in full animation mode and reveals the window', () => {
+  it('renders the title and reveals the window', () => {
     renderWithProviders(<SplashScreen />)
 
     // show_splash is invoked after mount to reveal the hidden window.
     expect(mockInvoke).toHaveBeenCalledWith('show_splash')
     expect(screen.getByText('Bilibili')).toBeInTheDocument()
     expect(screen.getByText('Downloader')).toBeInTheDocument()
-    // Full mode mounts the Three.js canvas and starts the scene.
+    // The Three.js canvas mounts and the scene starts; without theme/accent
+    // params the scene runs light pink (app defaults).
     expect(vi.mocked(useThreeScene)).toHaveBeenCalled()
-    // Without theme/accent params the scene runs light pink (app defaults).
     expect(vi.mocked(useThreeScene)).toHaveBeenCalledWith(
       expect.anything(),
       true,
