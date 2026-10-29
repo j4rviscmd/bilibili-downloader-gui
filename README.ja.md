@@ -5,8 +5,13 @@
 # Bilibili Downloader GUI
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./public/app-image(searched)_en.png">
-  <img src="./public/app-image(searched)_en_light.png" alt="App Image">
+  <source media="(prefers-color-scheme: dark)" srcset="./public/app-image(searched)_ja.png">
+  <img src="./public/app-image(searched)_ja_light.png" alt="App Image">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./public/app-image(url)_ja.png">
+  <img src="./public/app-image(url)_ja_light.png" alt="App Image (Fetch by URL)">
 </picture>
 
 <img src="./public/app-demo_en.webp" alt="App Demo">
