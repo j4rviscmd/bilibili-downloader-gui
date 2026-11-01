@@ -28,6 +28,10 @@ describe('buildVideoFormSchema1 — url', () => {
     ['https://www.bilibili.com/video/BV1xx411c7XD'],
     ['https://www.bilibili.com/video/BV1xx411c7Xd?p=2'],
     ['https://www.bilibili.com/bangumi/play/ep3051843'],
+    ['https://www.bilibili.com/ja/video/BV18znn6fENL'],
+    ['https://www.bilibili.com/en/bangumi/play/ep3051843'],
+    ['https://www.bilibili.com/zh-Hans/video/BV1xx411c7XD'],
+    ['https://www.bilibili.com/zh-CN/video/BV1xx411c7XD?p=2'],
     ['https://b23.tv/BV1xx411c7XD'],
   ])('accepts %s', (url) => {
     expect(parseUrl(url).success).toBe(true)
@@ -66,6 +70,18 @@ describe('buildVideoFormSchema1 — url', () => {
   })
 
   it.each([
+    ['https://www.bilibili.com/foo/bar/video/BV1xx'],
+    ['https://www.bilibili.com/ja/en/video/BV1xx'],
+  ])(
+    'rejects extra segments before /video/ (single-segment strip only): %s',
+    (url) => {
+      const result = parseUrl(url)
+      expect(result.success).toBe(false)
+      expect(issueKeys(result)).toContain('validation.video.url.format')
+    },
+  )
+
+  it.each([
     ['https://space.bilibili.com/12345', 'validation.video.url.space'],
     ['https://member.bilibili.com/2', 'validation.video.url.member'],
     ['https://live.bilibili.com/6', 'validation.video.url.live'],
@@ -84,6 +100,7 @@ describe('buildVideoFormSchema1 — url', () => {
     ['https://www.bilibili.com/cheese/play/ep1', 'validation.video.url.cheese'],
     ['https://www.bilibili.com/audio/au123', 'validation.video.url.audio'],
     ['https://www.bilibili.com/read/cv123', 'validation.video.url.article'],
+    ['https://www.bilibili.com/ja/read/cv123', 'validation.video.url.article'],
   ])('rejects unsupported pathname %s with a specific key', (url, key) => {
     const result = parseUrl(url)
     expect(result.success).toBe(false)

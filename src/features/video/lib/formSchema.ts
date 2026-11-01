@@ -124,7 +124,15 @@ export const buildVideoFormSchema1 = (t: TFunction) =>
           return
         }
         try {
-          const { hostname, pathname } = new URL(value)
+          const { hostname, pathname: rawPathname } = new URL(value)
+          // Bilibili serves localized pages under /{locale}/ (e.g.
+          // /ja/video/BV…; 2-letter language, optional region or
+          // script subtag: zh-CN, zh-Hans).
+          // Strip it so every rule below sees the canonical path.
+          const pathname = rawPathname.replace(
+            /^\/[a-z]{2}(?:-[a-zA-Z]{2,4})?(?=\/)/,
+            '',
+          )
 
           // Check for known unsupported patterns first (better UX)
           const unsupportedError = getUnsupportedUrlError(hostname, pathname, t)
