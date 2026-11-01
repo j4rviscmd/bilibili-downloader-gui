@@ -39,6 +39,18 @@ describe('extractContentId', () => {
     })
   })
 
+  // Note: extractContentId needs no locale stripping of its own — its
+  // regexes match mid-path, so /{locale}/ prefixes pass through
+  // (parity with the locale strip in formSchema.ts superRefine).
+  it('extracts through a locale path prefix (/ja/, /en/)', () => {
+    expect(
+      extractContentId('https://www.bilibili.com/ja/video/BV18znn6fENL'),
+    ).toEqual({ type: 'video', id: 'BV18znn6fENL' })
+    expect(
+      extractContentId('https://www.bilibili.com/en/bangumi/play/ep3051843'),
+    ).toEqual({ type: 'bangumi', epId: '3051843' })
+  })
+
   it('returns null for a URL without video/bangumi segments', () => {
     expect(extractContentId('https://www.bilibili.com/space/12345')).toBeNull()
   })
