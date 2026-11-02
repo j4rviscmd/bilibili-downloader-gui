@@ -457,7 +457,7 @@ jobs:
         uses: dtolnay/rust-toolchain@2c76c034f9e32a5d6e2c104dc4df23a22476db04 # nightly
 
       - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2
+        uses: taiki-e/install-action@1919c4a95903d2c33e4a221102edca87309fc14b # v2
         with:
           tool: cargo-llvm-cov
 
