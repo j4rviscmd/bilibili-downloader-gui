@@ -42,11 +42,24 @@ const video: Video = {
   contentType: 'video',
 }
 
-function seed(selected: boolean[]) {
-  store.dispatch(setVideo(video))
+// 25 parts → 3 pages of PARTS_PER_PAGE(10), the last page short — enough
+// to prove the page-scoped toggle touches only the visible slice.
+const manyPartVideo: Video = {
+  ...video,
+  parts: Array.from({ length: 25 }, (_, i) => ({
+    ...video.parts[0]!,
+    part: `Part ${i + 1}`,
+    defaultTitle: `Part ${i + 1}`,
+    page: i + 1,
+    cid: 1000 + i,
+  })),
+}
+
+function seed(selected: boolean[], v: Video = video) {
+  store.dispatch(setVideo(v))
   store.dispatch(
     initPartInputs(
-      video.parts.map((p, i) => ({
+      v.parts.map((p, i) => ({
         cid: p.cid,
         page: p.page,
         title: p.part,
@@ -86,15 +99,15 @@ function menuItem(menu: HTMLElement, text: string) {
 }
 
 /** Harness: the bar needs the video-info context (useVideoInfo). */
-function Harness() {
+function Harness({ currentPage = 1 }: { currentPage?: number }) {
   useVideoInfo()
-  return <BatchSettingsBar />
+  return <BatchSettingsBar currentPage={currentPage} />
 }
 
-function renderBar() {
+function renderBar(currentPage = 1) {
   return renderWithProviders(
     <VideoInfoProvider>
-      <Harness />
+      <Harness currentPage={currentPage} />
     </VideoInfoProvider>,
     { route: '/search' },
   )
@@ -228,6 +241,63 @@ describe('BatchSettingsBar', () => {
     expect(store.getState().input.partInputs.some((p) => p.selected)).toBe(
       false,
     )
+  })
+
+  it('hides the page-scoped toggle on single-page videos', () => {
+    seed([true, true])
+    renderBar()
+
+    // 2 parts = 1 page: the whole-video toggle already covers the range
+    expect(
+      screen.queryByRole('button', { name: 'video.select_page' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('selects only the visible page via the page-scoped toggle', async () => {
+    // Everything starts deselected; page 2 covers part indices 10-19
+    seed(
+      Array.from({ length: 25 }, () => false),
+      manyPartVideo,
+    )
+    const { user } = renderBar(2)
+
+    await user.click(screen.getByRole('button', { name: 'video.select_page' }))
+    const selected = store.getState().input.partInputs.map((p) => p.selected)
+    expect(selected.slice(10, 20).every(Boolean)).toBe(true)
+    // Other pages keep their (empty) selection
+    expect(selected.slice(0, 10).some(Boolean)).toBe(false)
+    expect(selected.slice(20).some(Boolean)).toBe(false)
+  })
+
+  it('deselects only the visible page when the page toggle swaps to Deselect', async () => {
+    // Page 2 fully selected, one stray selection on page 1
+    seed(
+      Array.from({ length: 25 }, (_, i) => i === 3 || (i >= 10 && i < 20)),
+      manyPartVideo,
+    )
+    const { user } = renderBar(2)
+
+    await user.click(
+      screen.getByRole('button', { name: 'video.deselect_page' }),
+    )
+    const selected = store.getState().input.partInputs.map((p) => p.selected)
+    expect(selected.slice(10, 20).some(Boolean)).toBe(false)
+    // The page-1 selection survives the page-2 clear
+    expect(selected[3]).toBe(true)
+  })
+
+  it('handles the short last page: selects exactly its remaining parts', async () => {
+    // Page 3 of 3 holds only indices 20-24 (5 of PARTS_PER_PAGE)
+    seed(
+      Array.from({ length: 25 }, () => false),
+      manyPartVideo,
+    )
+    const { user } = renderBar(3)
+
+    await user.click(screen.getByRole('button', { name: 'video.select_page' }))
+    const selected = store.getState().input.partInputs.map((p) => p.selected)
+    expect(selected.slice(20).every(Boolean)).toBe(true)
+    expect(selected.slice(0, 20).some(Boolean)).toBe(false)
   })
 
   it('stores a batch quality target without touching parts', async () => {

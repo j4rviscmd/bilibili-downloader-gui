@@ -342,6 +342,8 @@
     "reload_after_error": "Reload page to retry",
     "select_all": "Select All",
     "deselect_all": "Deselect All",
+    "select_page": "Select This Page",
+    "deselect_page": "Deselect This Page",
     "pagination_previous": "Previous",
     "pagination_next": "Next",
     "no_parts_selected": "No parts selected for download",
