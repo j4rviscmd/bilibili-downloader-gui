@@ -70,7 +70,15 @@ import { Skeleton } from '@/shared/ui/skeleton'
 import { ThumbImage } from '@/shared/ui/ThumbImage'
 import { toast } from '@/shared/ui/toast'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Check, ChevronDown, Copy, Info, Play, RotateCcw } from 'lucide-react'
+import {
+  Check,
+  ChevronDown,
+  Copy,
+  Info,
+  Play,
+  RotateCcw,
+  TriangleAlert,
+} from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -920,10 +928,13 @@ const VideoPartCard = memo(function VideoPartCard({
                       </div>
                       {selected && <FormMessage />}
                       {field.value.length > TITLE_MAX_LENGTH && (
-                        <p className="px-2 text-xs text-amber-700 dark:text-amber-400">
-                          {/* ⚠ prefix mirrors the quality warn pill so
+                        <p className="flex items-center gap-1 px-2 text-xs text-amber-700 dark:text-amber-400">
+                          {/* Warning icon mirrors the quality warn pill so
                               both download-affecting notices read alike. */}
-                          ⚠{' '}
+                          <TriangleAlert
+                            className="size-3 shrink-0"
+                            aria-hidden
+                          />
                           {t('validation.video.title.trim_notice', {
                             count: TITLE_MAX_LENGTH,
                           })}
@@ -957,8 +968,8 @@ const VideoPartCard = memo(function VideoPartCard({
                   )}
                   {(predictedAdjustment != null ||
                     resolvedVideoActual != null) && (
-                    <span className="inline-flex shrink-0 items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800 tabular-nums dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300">
-                      ⚠{' '}
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800 tabular-nums dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                      <TriangleAlert className="size-3 shrink-0" aria-hidden />
                       {VIDEO_QUALITIES_MAP[
                         Number(effectiveVideoQuality ?? partInput?.videoQuality)
                       ] ?? effectiveVideoQuality}
@@ -972,10 +983,20 @@ const VideoPartCard = memo(function VideoPartCard({
                   )}
                   {isPreview && previewBadge}
                   {queueBadge}
+                  {/* Why: the trigger is icon-only, so the accessible name
+                      reuses the tooltip string — otherwise the fallback
+                      warning is silent to screen readers and has no stable
+                      hook for tests. */}
                   {hasFallback && (
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <span className="text-xs text-amber-500">⚠️</span>
+                        <span
+                          className="text-amber-500"
+                          role="img"
+                          aria-label={t('video.quality_fallback_tooltip')}
+                        >
+                          <TriangleAlert className="size-3.5" aria-hidden />
+                        </span>
                       </TooltipTrigger>
                       <TooltipContent side="top">
                         <p className="text-sm">
