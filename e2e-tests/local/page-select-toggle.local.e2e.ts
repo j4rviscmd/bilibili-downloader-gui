@@ -83,6 +83,32 @@ async function waitForPageStart(start: number): Promise<void> {
   )
 }
 
+/**
+ * waitForPageStart, pinned to a FULL page: also requires exactly
+ * PARTS_PER_PAGE visible cards. The identity guard this spec needs in
+ * its second test: the previous test's part list stays mounted until
+ * the blur-triggered fetch flips the page to the skeleton, and a
+ * start-only wait can match that STALE list (CodeRabbit, PR #933) —
+ * the previous fixture (3-part CM) can never satisfy the full-page
+ * count, so this wait only passes on the requested video's cards.
+ */
+async function waitForFullPage(start: number): Promise<void> {
+  await browser.waitUntil(
+    async () => {
+      const first = await browser.$('[data-part-list] [data-part-index]')
+      const cards = await browser.$$('[data-part-list] [data-part-index]')
+      return (
+        (await first.getAttribute('data-part-index')) === String(start) &&
+        cards.length === PARTS_PER_PAGE
+      )
+    },
+    {
+      timeout: 15_000,
+      timeoutMsg: `full page starting at part ${start} never rendered`,
+    },
+  )
+}
+
 /** Clicks pager page `page` (digit link — locale-neutral numerals). */
 async function clickPagerPage(page: number): Promise<void> {
   await browser.waitUntil(
@@ -131,7 +157,7 @@ describe('local real app: batch bar page-scoped select toggle', () => {
   it('selects/deselects only the visible page, leaving other pages intact', async () => {
     await loadRealVideo(MULTIPART_VIDEO_URL)
     // 41 parts: first page = exactly PARTS_PER_PAGE cards + pager
-    await waitForPageStart(0)
+    await waitForFullPage(0)
     // Default selection is FIRST PAGE ONLY (partSelection.ts: a plain
     // URL never queues every part of a large multi-part video)
     expectAll(await pageCardStates(), true, 'page 1 selected by default')
@@ -142,7 +168,7 @@ describe('local real app: batch bar page-scoped select toggle', () => {
 
     // Page 2: deselected by default AND untouched by page 1's toggle
     await clickPagerPage(2)
-    await waitForPageStart(PARTS_PER_PAGE)
+    await waitForFullPage(PARTS_PER_PAGE)
     expectAll(
       await pageCardStates(),
       false,
@@ -157,7 +183,7 @@ describe('local real app: batch bar page-scoped select toggle', () => {
 
     // Back on page 1: still deselected — page 2's toggles never leaked
     await clickPagerPage(1)
-    await waitForPageStart(0)
+    await waitForFullPage(0)
     expectAll(
       await pageCardStates(),
       false,
