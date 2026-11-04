@@ -485,12 +485,15 @@ describe('local real API: default subtitle mode setting', () => {
     })
     const { trigger, menu } = await openBatchSubtitleMenu()
     // Before any batch pick the trigger mirrors the settings default
-    // (T1 left it on soft): the ✓ sits on the soft mode item, not off.
+    // (T1 left it on soft): the check icon sits on the soft mode item,
+    // not off.
+    // Note: the check is an aria-hidden SVG with no text, so `getText` can
+    // never see it — match lucide's generated `lucide-check` class instead.
     await browser.waitUntil(
       async () =>
         (
-          await (await menu.$('[data-testid="batch-submode-soft"]')).getText()
-        ).includes('✓'),
+          await menu.$('[data-testid="batch-submode-soft"] .lucide-check')
+        ).isExisting(),
       {
         timeout: 5_000,
         timeoutMsg: 'batch trigger should default to the settings soft mode',

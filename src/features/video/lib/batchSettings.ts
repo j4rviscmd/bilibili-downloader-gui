@@ -198,7 +198,7 @@ export function resolveTarget(
 
 /**
  * Predicts whether a part would be auto-adjusted below the batch target
- * (drives the per-row ⚠ pill before download).
+ * (drives the per-row warning pill before download).
  *
  * @param targetId - Batch target quality id
  * @param availableIds - The part's fetched quality ids

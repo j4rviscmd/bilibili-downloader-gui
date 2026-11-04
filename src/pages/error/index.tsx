@@ -3,6 +3,7 @@ import { logger } from '@/shared/lib/logger'
 import { Button } from '@/shared/ui/button'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { relaunch } from '@tauri-apps/plugin-process'
+import { TriangleAlert } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router'
@@ -111,8 +112,8 @@ function ErrorPage() {
   return (
     <div className="flex h-full w-full flex-col items-center justify-center gap-3">
       <div className="text-muted-foreground text-center text-2xl font-bold">
-        <div>
-          <span className="text-red-500">🚨</span>
+        <div className="flex items-center justify-center gap-2">
+          <TriangleAlert className="size-6 text-red-500" aria-hidden />
           <span>{t('errorPage.title')}</span>
         </div>
         <div>

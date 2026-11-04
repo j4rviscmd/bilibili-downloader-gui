@@ -10,8 +10,16 @@ import { mapBackendError } from '@/shared/lib/mapBackendError'
 import type { Progress } from '@/shared/ui/Progress'
 import { Button } from '@/shared/ui/button'
 import { invoke } from '@tauri-apps/api/core'
-import { CheckCircle2, FilePlay, FolderOpen } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  Captions,
+  CheckCircle2,
+  Clapperboard,
+  FilePlay,
+  FolderOpen,
+  Merge,
+  Volume2,
+} from 'lucide-react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Mosaic } from 'react-loading-indicators'
 
@@ -84,7 +92,7 @@ function formatMb(mb: number): string {
 }
 
 type StageProgressProps = {
-  icon: string
+  icon: ReactNode
   labelKey: string
   progressEntries: Progress[]
   stageName: string
@@ -95,7 +103,7 @@ type StageProgressProps = {
    * downloading but THIS stage has not emitted its first progress event
    * yet. Covers the per-stage lag (stream fetch / speed-check window)
    * between the invoke-time 'running' flip (downloadVideo.ts) and each
-   * stage's first event — otherwise the column shows only a bare emoji
+   * stage's first event — otherwise the column shows only a bare icon
    * and reads as stuck. The meaningful signal is per-stage entry absence.
    */
   startingIndicator?: boolean
@@ -103,14 +111,14 @@ type StageProgressProps = {
 
 /**
  * Tooltip wrapper for stage icons.
- * Displays an emoji icon with a hover tooltip showing the stage label.
+ * Displays a lucide icon with a hover tooltip showing the stage label.
  */
 function StageIcon({
   icon,
   label,
   fontWeight,
 }: {
-  icon: string
+  icon: ReactNode
   label: string
   fontWeight?: 'medium'
 }) {
@@ -233,7 +241,11 @@ function MergeStageProgress({ progressEntries, t }: MergeStageProgressProps) {
         className={`flex ${MIN_HEIGHT} items-center gap-1`}
         aria-label={`${mergeLabel}: ${mergeProgress.percentage.toFixed(0)}%`}
       >
-        <StageIcon icon="🔄" label={mergeLabel} fontWeight="medium" />
+        <StageIcon
+          icon={<Merge className="size-4" />}
+          label={mergeLabel}
+          fontWeight="medium"
+        />
         <span className="font-medium"> {mergeLabel}</span>
         <span>{mergeProgress.percentage.toFixed(0)}%</span>
       </div>
@@ -249,7 +261,11 @@ function MergeStageProgress({ progressEntries, t }: MergeStageProgressProps) {
         className={`flex ${MIN_HEIGHT} items-center gap-1`}
         aria-label={`${mergeLabel}: ${t('video.stage_merging')}`}
       >
-        <StageIcon icon="🔄" label={mergeLabel} fontWeight="medium" />
+        <StageIcon
+          icon={<Merge className="size-4" />}
+          label={mergeLabel}
+          fontWeight="medium"
+        />
         <span className="font-medium"> {mergeLabel}</span>
         <span>{t('video.stage_merging')}</span>
       </div>
@@ -262,7 +278,7 @@ function MergeStageProgress({ progressEntries, t }: MergeStageProgressProps) {
         className={`flex ${MIN_HEIGHT} items-center`}
         aria-label={`${mergeLabel}: ${t('video.stage_waiting')}`}
       >
-        <StageIcon icon="🔄" label={mergeLabel} />
+        <StageIcon icon={<Merge className="size-4" />} label={mergeLabel} />
         <span>
           {mergeLabel}: {t('video.stage_waiting')}
         </span>
@@ -292,7 +308,11 @@ function SubtitleStageProgress({ t }: SubtitleStageProgressProps) {
       className={`flex ${MIN_HEIGHT} items-center gap-1`}
       aria-label={`${label}: ${t('video.stage_subtitle_downloading')}`}
     >
-      <StageIcon icon="💬" label={label} fontWeight="medium" />
+      <StageIcon
+        icon={<Captions className="size-4" />}
+        label={label}
+        fontWeight="medium"
+      />
       <span className="font-medium">
         {' '}
         {t('video.stage_subtitle_downloading')}
@@ -509,7 +529,7 @@ export function PartDownloadProgress({
           >
             <div className="flex-1">
               <StageProgress
-                icon="🔊"
+                icon={<Volume2 className="size-4" />}
                 labelKey="video.stage_audio"
                 progressEntries={progressEntries}
                 stageName="audio"
@@ -519,7 +539,7 @@ export function PartDownloadProgress({
             </div>
             <div className="flex-1">
               <StageProgress
-                icon="🎬"
+                icon={<Clapperboard className="size-4" />}
                 labelKey="video.stage_video"
                 progressEntries={progressEntries}
                 stageName="video"
@@ -540,7 +560,7 @@ export function PartDownloadProgress({
             <>
               <div className="flex-1">
                 <StageProgress
-                  icon="🎬"
+                  icon={<Clapperboard className="size-4" />}
                   labelKey="video.stage_video"
                   progressEntries={progressEntries}
                   stageName="video"

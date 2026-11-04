@@ -41,7 +41,13 @@ import {
 } from '@/features/video/model/inputSlice'
 import { cn } from '@/lib/utils'
 import { Button } from '@/shared/ui/button'
-import { ChevronDown, FolderOpen, Info, SlidersVertical } from 'lucide-react'
+import {
+  Check,
+  ChevronDown,
+  FolderOpen,
+  Info,
+  SlidersVertical,
+} from 'lucide-react'
 import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -53,7 +59,7 @@ import { useTranslation } from 'react-i18next'
  * - Options are the UNION of the selected parts' fetched availability —
  *   the batch UI cannot know per-part causes, so it only offers what at
  *   least one selected part can use. Part-dependent gaps surface later as
- *   the existing download-time fallback + ⚠.
+ *   the existing download-time fallback + warning pill.
  * - The only static annotation is the login band (1080p+/1080p60) shown
  *   as disabled with a reason while logged out. VIP gating is NOT
  *   annotated: the app has no vip status, so VIP tiers simply appear in
@@ -176,7 +182,7 @@ export function BatchSettingsBar() {
   const defaultMode = settings.defaultSubtitleMode ?? 'off'
   const displaySubMode = batch.subtitle?.mode ?? defaultMode
   // Note: language items below derive their next selection from THIS
-  // list — their ✓/priority badges render from it, so under the fallback
+  // list — their check/priority badges render from it, so under the fallback
   // the first click turns the mirrored default into the stored pick;
   // only the mode items re-derive from the stored target instead.
   const displaySubLangs =
@@ -315,7 +321,7 @@ export function BatchSettingsBar() {
         {/* Compound subtitle menu: mode section + separator + language
             section. Language items keep the menu open (multi-select in
             one visit); mode changes update the language display
-            immediately (✓ for soft, 優先度 N for hard). */}
+            immediately (check icon for soft, 優先度 N for hard). */}
         <div className="flex flex-col">
           <span className="text-muted-foreground mb-1 text-[11px] font-semibold">
             {t('video.subtitle')}
@@ -339,7 +345,7 @@ export function BatchSettingsBar() {
                   data-testid={`batch-submode-${mode}`}
                   onSelect={(e) => {
                     // Keep the menu open: switching the mode immediately
-                    // re-renders the language section (✓ ↔ 優先度 N).
+                    // re-renders the language section (check icon ↔ 優先度 N).
                     e.preventDefault()
                   }}
                   onClick={() => {
@@ -385,7 +391,7 @@ export function BatchSettingsBar() {
                   </span>
                   {displaySubMode === mode && (
                     <span className="text-muted-foreground text-[10px] font-semibold">
-                      ✓
+                      <Check className="size-3" aria-hidden />
                     </span>
                   )}
                 </DropdownMenuItem>
@@ -416,7 +422,7 @@ export function BatchSettingsBar() {
                   <span>{t('search.subtitle_all_langs')}</span>
                   {displaySubLangs.includes(LAN_ALL) && (
                     <span className="text-muted-foreground text-[10px] font-semibold">
-                      ✓
+                      <Check className="size-3" aria-hidden />
                     </span>
                   )}
                 </DropdownMenuItem>
@@ -478,11 +484,13 @@ export function BatchSettingsBar() {
                     <span>{label}</span>
                     {selected && (
                       <span className="text-muted-foreground text-[10px] font-semibold">
-                        {displaySubMode === 'soft'
-                          ? '✓'
-                          : t('search.subtitle_priority', {
-                              count: idx + 1,
-                            })}
+                        {displaySubMode === 'soft' ? (
+                          <Check className="size-3" aria-hidden />
+                        ) : (
+                          t('search.subtitle_priority', {
+                            count: idx + 1,
+                          })
+                        )}
                       </span>
                     )}
                   </DropdownMenuItem>

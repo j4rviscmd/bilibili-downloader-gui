@@ -274,7 +274,7 @@ describe('BatchSettingsBar', () => {
     const { user } = renderBar()
 
     // Open the compound subtitle menu. Mode items keep the menu open
-    // (the display switches ✓ ↔ 優先度 N in place).
+    // (the display switches check icon ↔ 優先度 N in place).
     const subtitleTrigger = await screen.findByRole('button', {
       name: 'video.subtitle',
     })
