@@ -59,6 +59,32 @@ function seed(selected: boolean[]) {
   )
 }
 
+/** Overwrites the beforeEach logged-out user with a logged-in one
+ *  (VIP entitlement per the nav API's vipStatus flag). */
+function loginAs(vipStatus = false) {
+  act(() => {
+    store.dispatch(
+      setUser({
+        code: 0,
+        message: '',
+        ttl: 0,
+        data: {
+          uname: 'u',
+          isLogin: true,
+          vipStatus,
+          wbiImg: { imgUrl: '', subUrl: '' },
+        },
+        hasCookie: true,
+      }),
+    )
+  })
+}
+
+/** Menu item whose label text matches (first match). */
+function menuItem(menu: HTMLElement, text: string) {
+  return within(menu).getAllByText(text)[0]!.closest('[role=menuitem]')!
+}
+
 /** Harness: the bar needs the video-info context (useVideoInfo). */
 function Harness() {
   useVideoInfo()
@@ -107,39 +133,29 @@ describe('BatchSettingsBar', () => {
     )
   })
 
-  it('defaults the quality targets to the best tier of the login state, not per-part data', async () => {
+  it('shows the auto target until an explicit pick, regardless of login', async () => {
     seed([true, true])
     renderBar()
 
-    // Anonymous → platform cap is 480p, even though the selected parts'
-    // ladders (fetched sample) top out at 1080p+/1080p60.
+    // No-pick state: the target is the auto sentinel — the trigger must
+    // not claim a fixed tier, because downloads resolve per part to the
+    // highest quality each account can fetch.
     expect(
       await screen.findByRole('button', { name: 'video.quality_label' }),
-    ).toHaveTextContent('480p')
+    ).toHaveTextContent('search.quality_auto')
 
-    // Logged in → the standard top tier (1080p). Enhanced tiers (1080p+/
-    // 1080p60) are explicit picks: videos without them would leave the
-    // trigger pointing at an option the list marks unavailable.
-    store.dispatch(
-      setUser({
-        code: 0,
-        message: '',
-        ttl: 0,
-        data: { uname: 'u', isLogin: true, wbiImg: { imgUrl: '', subUrl: '' } },
-        hasCookie: true,
-      }),
-    )
+    loginAs()
     expect(
-      await screen.findByRole('button', { name: 'video.quality_label' }),
-    ).toHaveTextContent('1080p')
+      screen.getByRole('button', { name: 'video.quality_label' }),
+    ).toHaveTextContent('search.quality_auto')
   })
 
   it('keeps the batch target when every part is deselected (and stays editable)', async () => {
     seed([true, true])
     const { user } = renderBar()
 
-    // Pick a value that is not the login-state default so the retention is
-    // distinguishable (the anonymous default is 480p).
+    // Pick an explicit tier so retention is distinguishable from the
+    // no-pick auto state.
     const trigger = await screen.findByRole('button', {
       name: 'video.quality_label',
     })
@@ -250,7 +266,74 @@ describe('BatchSettingsBar', () => {
     expect(store.getState().input.batchSettings.videoQuality).toBe('80')
   })
 
-  it('gates quality options by static login-state rules, not per-video availability', async () => {
+  it('gates quality options by static account rules, not per-video availability', async () => {
+    seed([true, true])
+    const { user } = renderBar()
+
+    const trigger = await screen.findByRole('button', {
+      name: 'video.quality_label',
+    })
+
+    // Logged out: VIP tiers and the login band (1080p+/1080p60) disabled
+    // with their reasons; standard tiers pickable even though no per-part
+    // ladder was ever fetched (backend resolves best-effort).
+    await user.click(trigger)
+    let menu = await screen.findByRole('menu')
+    expect(menuItem(menu, '8K')).toHaveAttribute('aria-disabled', 'true')
+    expect(menuItem(menu, '1080p60')).toHaveAttribute('aria-disabled', 'true')
+    expect(within(menu).getByText('1080p')).toBeEnabled()
+    await user.keyboard('{Escape}')
+
+    // Logged in without VIP: the login band opens up but the VIP tiers
+    // stay gated.
+    loginAs()
+    await user.click(trigger)
+    menu = await screen.findByRole('menu')
+    expect(within(menu).getByText('1080p60')).toBeEnabled()
+    expect(menuItem(menu, '8K')).toHaveAttribute('aria-disabled', 'true')
+    await user.keyboard('{Escape}')
+
+    // VIP (nav vipStatus = 1): every tier including 8K opens up.
+    loginAs(true)
+    await user.click(trigger)
+    menu = await screen.findByRole('menu')
+    expect(menuItem(menu, '8K')).not.toHaveAttribute('aria-disabled')
+    await user.keyboard('{Escape}')
+  })
+
+  it('gates Hi-Res Lossless behind VIP and enables it for VIP accounts', async () => {
+    seed([true, true])
+    const { user } = renderBar()
+    const trigger = await screen.findByRole('button', {
+      name: 'video.audio_quality_label',
+    })
+
+    // Logged in without VIP: audio has no login band — the only gate is
+    // the VIP entitlement, so Hi-Res/Dolby stay disabled.
+    loginAs()
+    await user.click(trigger)
+    let menu = await screen.findByRole('menu')
+    expect(menuItem(menu, 'Hi-Res Lossless')).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    )
+    expect(menuItem(menu, 'Dolby Atmos')).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    )
+    await user.keyboard('{Escape}')
+
+    // VIP (nav vipStatus = 1): the lossless tiers open up.
+    loginAs(true)
+    await user.click(trigger)
+    menu = await screen.findByRole('menu')
+    expect(menuItem(menu, 'Hi-Res Lossless')).not.toHaveAttribute(
+      'aria-disabled',
+    )
+    await user.keyboard('{Escape}')
+  })
+
+  it('re-clears the batch target back to auto via the sentinel option', async () => {
     seed([true, true])
     const { user } = renderBar()
 
@@ -258,15 +341,42 @@ describe('BatchSettingsBar', () => {
       name: 'video.quality_label',
     })
     await user.click(trigger)
-    const menu = await screen.findByRole('menu')
+    let menu = await screen.findByRole('menu')
+    await user.click(within(menu).getByText('1080p'))
+    expect(store.getState().input.batchSettings.videoQuality).toBe('80')
 
-    // VIP tiers disabled with their reason; standard tiers pickable even
-    // though no per-part ladder was ever fetched (backend resolves
-    // best-effort).
-    const vip = within(menu).getAllByText('8K')[0]!.closest('[role=menuitem]')!
-    expect(vip).toHaveAttribute('aria-disabled', 'true')
-    expect(within(menu).getByText('1080p')).toBeEnabled()
-    await user.keyboard('{Escape}')
+    // Picking the auto sentinel clears the stored target: parts without
+    // an explicit choice go back to per-part best resolution.
+    await user.click(trigger)
+    menu = await screen.findByRole('menu')
+    await user.click(within(menu).getByText('search.quality_auto'))
+    expect(store.getState().input.batchSettings.videoQuality).toBeNull()
+  })
+
+  it('shows the auto audio target and re-clears it via the sentinel', async () => {
+    seed([true, true])
+    const { user } = renderBar()
+
+    const trigger = await screen.findByRole('button', {
+      name: 'video.audio_quality_label',
+    })
+    expect(trigger).toHaveTextContent('search.quality_auto')
+
+    await user.click(trigger)
+    let menu = await screen.findByRole('menu')
+    await user.click(within(menu).getByText('192K'))
+    expect(store.getState().input.batchSettings.audioQuality).toBe('30280')
+    expect(trigger).toHaveTextContent('192K')
+
+    // The sentinel clears the stored audio target the same way as video:
+    // parts go back to per-part best resolution.
+    await user.click(trigger)
+    menu = await screen.findByRole('menu')
+    await user.click(within(menu).getByText('search.quality_auto'))
+    expect(store.getState().input.batchSettings.audioQuality).toBeNull()
+    expect(
+      screen.getByRole('button', { name: 'video.audio_quality_label' }),
+    ).toHaveTextContent('search.quality_auto')
   })
 
   it('applies subtitle mode changes and shows the language list', async () => {

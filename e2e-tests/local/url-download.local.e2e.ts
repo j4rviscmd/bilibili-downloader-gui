@@ -391,6 +391,62 @@ describe('local real API: URL fetch to download', () => {
     )
   })
 
+  it('shows the auto pills before any pick, then the fetched top tier', async () => {
+    // Parts 1 and 2 were never opened: no fetched ladder and no resolved
+    // download yet — both pills must read the localized auto label. The
+    // state is asserted through data-auto (rendered exactly when the auto
+    // fallback is), keeping the check locale-agnostic.
+    for (const index of [1, 2]) {
+      const card = `[data-part-index="${index}"]`
+      const video = await browser.$(`${card} [data-testid="pill-video"]`)
+      await video.waitForExist({ timeout: 10_000 })
+      expect(
+        await video.getAttribute('data-auto'),
+        `part ${index + 1} video pill auto state`,
+      ).to.equal('true')
+      const audio = await browser.$(`${card} [data-testid="pill-audio"]`)
+      await audio.waitForExist({ timeout: 10_000 })
+      expect(
+        await audio.getAttribute('data-auto'),
+        `part ${index + 1} audio pill auto state`,
+      ).to.equal('true')
+    }
+
+    // Opening part 1's options fetches its real ladder: the pill states
+    // the tier auto would download — the highest AVAILABLE radio's label
+    // (tiers the account cannot fetch render disabled).
+    await openPartOptions(1)
+    const scope = `[data-part-index="1"]`
+    await (
+      await browser.$(`${scope} [id^="vq-"]`)
+    ).waitForExist({
+      timeout: 15_000,
+    })
+    let topId = -1
+    let topLabel = ''
+    for (const radio of await browser.$$(`${scope} [id^="vq-"]`)) {
+      const id = (await radio.getAttribute('id')) ?? ''
+      const qualityId = Number(id.split('-').pop())
+      const disabled =
+        (await radio.getAttribute('disabled')) !== null ||
+        (await radio.getAttribute('aria-disabled')) === 'true'
+      if (disabled || !Number.isFinite(qualityId)) continue
+      if (qualityId > topId) {
+        topId = qualityId
+        topLabel = (
+          await (await browser.$(`label[for="${id}"]`)).getText()
+        ).trim()
+      }
+    }
+    expect(topId, 'highest available radio').to.be.greaterThan(-1)
+    const pill = await browser.$(`${scope} [data-testid="pill-video"]`)
+    await browser.waitUntil(async () => (await pill.getText()) === topLabel, {
+      timeout: 15_000,
+      timeoutMsg: 'auto preview pill never matched the top available radio',
+    })
+    expect(await pill.getAttribute('data-auto')).to.equal(null)
+  })
+
   // -- Phase 2: real download pipeline (playurl → CDN → ffmpeg merge) --
 
   it('enqueues all three parts and navigates to the queue', async () => {
@@ -498,6 +554,44 @@ describe('local real API: URL fetch to download', () => {
       `stream height for quality id ${qualityId}`,
     ).to.be.at.most(maxHeight)
     await saveScreenshot('local', '07-quality-done')
+  })
+
+  it('flips unopened parts to the resolved quality once downloads drain', async () => {
+    // Same back() entry restore as above. Part 3's panel was NEVER
+    // opened, yet Phase 2 downloaded it: the download-quality-resolved
+    // event outranks the auto label — the pill must state the backend's
+    // actual tiers. Tier labels are fixed strings (not localized), so
+    // the regexes are locale-proof.
+    await browser.execute(() => window.history.back())
+    const list = await browser.$(S.DATA_PART_LIST)
+    await list.waitForExist({ timeout: 15_000 })
+
+    const video = await browser.$(
+      '[data-part-index="2"] [data-testid="pill-video"]',
+    )
+    await video.waitForExist({ timeout: 10_000 })
+    await browser.waitUntil(
+      async () => (await video.getAttribute('data-auto')) === null,
+      {
+        timeout: 30_000,
+        timeoutMsg: 'part 3 video pill never left the auto label',
+      },
+    )
+    expect(await video.getText()).to.match(
+      /^(8K|Dolby Vision|HDR10|4K|1080p60|1080p\+|1080p|720p60|720p|480p|360p)$/,
+    )
+    const audio = await browser.$(
+      '[data-part-index="2"] [data-testid="pill-audio"]',
+    )
+    // CM is DASH (separate audio track): the audio pill exists and shows
+    // the resolved tier. Guarded anyway — a durl part would embed audio.
+    if (await audio.isExisting()) {
+      expect(await audio.getText()).to.match(
+        /^(Hi-Res Lossless|Dolby Atmos|192K|132K|64K)$/,
+      )
+      expect(await audio.getAttribute('data-auto')).to.equal(null)
+    }
+    await saveScreenshot('local', '07b-resolved-pills')
   })
 
   it('loads a video through a ?p= URL variant', async () => {

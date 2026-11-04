@@ -1566,7 +1566,7 @@ mod tests {
             .respond_with(
                 wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
                     "code": 0, "message": "0", "ttl": 1,
-                    "data": {"mid": 42, "uname": "tester", "isLogin": true,
+                    "data": {"mid": 42, "uname": "tester", "isLogin": true, "vipStatus": 1,
                              "wbi_img": {"img_url": "i", "sub_url": "s"}}
                 })),
             )
@@ -1581,6 +1581,7 @@ mod tests {
         assert!(user.data.is_login);
         assert_eq!(user.data.uname.as_deref(), Some("tester"));
         assert_eq!(user.data.mid, Some(42));
+        assert!(user.data.vip_status);
     }
 
     #[tokio::test]
@@ -1602,6 +1603,35 @@ mod tests {
             .unwrap();
         assert!(!user.data.is_login);
         assert!(user.has_cookie, "has_cookie reflects transport, not login");
+        assert!(!user.data.vip_status, "absent vipStatus defaults to false");
+    }
+
+    #[tokio::test]
+    async fn fetch_user_info_with_treats_expired_vip_as_non_vip() {
+        // Expired 大会員 keeps its vipType but nav reports vipStatus 0
+        // while logged in: the gate must read vipStatus alone, so an
+        // expired member is NOT VIP.
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/x/web-interface/nav"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "code": 0, "message": "0", "ttl": 1,
+                    "data": {"mid": 42, "uname": "tester", "isLogin": true, "vipStatus": 0,
+                             "wbi_img": {"img_url": "i", "sub_url": "s"}}
+                })),
+            )
+            .mount(&server)
+            .await;
+
+        let user = fetch_user_info_with(&bili_api_mock(&server.uri(), "SESSDATA=x"))
+            .await
+            .unwrap();
+        assert!(user.data.is_login);
+        assert!(
+            !user.data.vip_status,
+            "expired membership (vipStatus 0) is not VIP"
+        );
     }
 
     #[tokio::test]
@@ -5569,6 +5599,7 @@ pub async fn fetch_user_info(app: &AppHandle) -> Result<User, String> {
                 mid: None,
                 uname: None,
                 is_login: false,
+                vip_status: false,
             },
             has_cookie: false,
         });
@@ -5600,6 +5631,7 @@ async fn fetch_user_info_with(api: &BiliApi) -> Result<User, String> {
             mid: body.data.mid,
             uname: body.data.uname,
             is_login: body.data.is_login,
+            vip_status: body.data.vip_status == 1,
         },
         has_cookie: true,
     })

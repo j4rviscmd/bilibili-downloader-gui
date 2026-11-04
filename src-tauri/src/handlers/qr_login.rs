@@ -169,6 +169,7 @@ async fn verify_session_with_header_in(
                 mid: None,
                 uname: None,
                 is_login: false,
+                vip_status: false,
             },
             has_cookie: false,
         });
@@ -189,6 +190,7 @@ async fn verify_session_with_header_in(
             mid: body.data.mid,
             uname: body.data.uname,
             is_login: body.data.is_login,
+            vip_status: body.data.vip_status == 1,
         },
         has_cookie: true,
     })
@@ -1716,7 +1718,7 @@ mod tests {
             "/x/web-interface/nav",
             200,
             serde_json::json!({"code": 0, "message": "0", "ttl": 1, "data": {
-                "mid": 42, "uname": "tester", "isLogin": true, "wbi_img": {"img_url": "", "sub_url": ""},
+                "mid": 42, "uname": "tester", "isLogin": true, "vipStatus": 1, "wbi_img": {"img_url": "", "sub_url": ""},
             }}),
         )
         .await;
@@ -2020,6 +2022,50 @@ mod tests {
         assert!(!user.data.is_login);
         assert!(!user.has_cookie);
         assert!(user.data.mid.is_none());
+    }
+
+    #[tokio::test]
+    async fn verify_session_maps_nav_vip_status() {
+        // The QR-login verification surfaces the same gate as
+        // fetch_user_info: only an ACTIVE 大会員 (nav vipStatus == 1)
+        // counts — an expired membership reports 0 while logged in and
+        // must stay non-VIP.
+        let server = wiremock::MockServer::start().await;
+        mount_json(
+            &server,
+            "/x/web-interface/nav",
+            200,
+            serde_json::json!({"code": 0, "message": "0", "ttl": 1, "data": {
+                "mid": 42, "uname": "tester", "isLogin": true, "vipStatus": 1,
+                "wbi_img": {"img_url": "", "sub_url": ""},
+            }}),
+        )
+        .await;
+        let user = verify_session_with_header_in(&wiremock_api(&server), "SESSDATA=x")
+            .await
+            .unwrap();
+        assert!(user.data.is_login);
+        assert!(user.data.vip_status, "vipStatus 1 maps to VIP");
+
+        let expired = wiremock::MockServer::start().await;
+        mount_json(
+            &expired,
+            "/x/web-interface/nav",
+            200,
+            serde_json::json!({"code": 0, "message": "0", "ttl": 1, "data": {
+                "mid": 42, "uname": "tester", "isLogin": true, "vipStatus": 0,
+                "wbi_img": {"img_url": "", "sub_url": ""},
+            }}),
+        )
+        .await;
+        let user = verify_session_with_header_in(&wiremock_api(&expired), "SESSDATA=x")
+            .await
+            .unwrap();
+        assert!(user.data.is_login);
+        assert!(
+            !user.data.vip_status,
+            "expired membership (vipStatus 0) is not VIP"
+        );
     }
 
     #[test]

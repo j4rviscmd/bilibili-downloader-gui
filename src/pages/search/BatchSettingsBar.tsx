@@ -19,11 +19,10 @@ import { useVideoInfo } from '@/features/video'
 import {} from '@/features/video/api/fetchVideoInfo'
 import {
   AUDIO_LADDER_IDS,
-  bestAudioForLogin,
-  bestVideoForLogin,
   HARD_DEFAULT_LANS_UI,
   LAN_ALL,
   LOGIN_REQUIRED_VIDEO_IDS,
+  QUALITY_AUTO,
   SUBTITLE_LANGUAGES,
   VIDEO_LADDER_IDS,
   VIP_AUDIO_IDS,
@@ -56,22 +55,26 @@ import { useTranslation } from 'react-i18next'
  * selected part at once.
  *
  * Data honesty rules (see the design spec):
- * - Options are the UNION of the selected parts' fetched availability —
- *   the batch UI cannot know per-part causes, so it only offers what at
- *   least one selected part can use. Part-dependent gaps surface later as
- *   the existing download-time fallback + warning pill.
- * - The only static annotation is the login band (1080p+/1080p60) shown
- *   as disabled with a reason while logged out. VIP gating is NOT
- *   annotated: the app has no vip status, so VIP tiers simply appear in
- *   the union only when the account can actually fetch them.
- * - Changing a value overwrites the selected parts' partInputs
- *   (individual overrides lose to an explicit batch change, per spec).
+ * - Options come from the static ladder, gated only by static platform
+ *   rules: the login band (1080p+/1080p60) while logged out, and the VIP
+ *   tiers (4K/HDR10/Dolby Vision/8K, Hi-Res/Dolby Atmos) without an
+ *   active VIP (大会員) entitlement from the nav API. Per-video
+ *   availability never disables a tier — the backend resolves each part
+ *   best-effort and warns on adjustment.
+ * - No-pick state is the QUALITY_AUTO sentinel: each part downloads at
+ *   the highest quality its account allows, so the trigger never claims
+ *   a fixed tier the selected videos may not have.
+ * - Changing a value never writes to parts: batch targets apply at
+ *   enqueue time (explicit per-part pick > batch > part default).
  */
 export function BatchSettingsBar() {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const { input } = useVideoInfo()
   const isLoggedIn = useSelector((state: RootState) => state.user.data.isLogin)
+  const isVip = useSelector(
+    (state: RootState) => state.user.data.vipStatus === true,
+  )
 
   const selectedIndices = useMemo(
     () =>
@@ -108,42 +111,39 @@ export function BatchSettingsBar() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [toggleAllParts])
-  // No eager per-part fetching: under the enqueue-resolution model the
-  // batch targets derive from the static login-state ladder, unfetched
-  // parts resolve best-effort in the backend, and subtitle tracks are
-  // refetched there when the frontend passes none. Parts fetch lazily
-  // when their own panel opens.
+  // No eager per-part fetching: under the enqueue-resolution model
+  // unfetched parts resolve best-effort in the backend, and subtitle
+  // tracks are refetched there when the frontend passes none. Parts
+  // fetch lazily when their own panel opens.
 
-  // An explicit dropdown pick stores an override in state AND dispatches
-  // to every selected part; merely changing the selection never dispatches.
-  // Login-state best-effort defaults. Per-part ladders must NOT drive the
-  // trigger: the eager fetch samples only a few parts, and select-all can
-  // span hundreds (a per-part fetch of all of them would trip rate limits).
-  // The static ladder + gates answer "best tier this login state can use";
-  // the download itself falls back per part to the nearest available tier.
-  // Enhanced tiers (1080p+/1080p60) and VIP tiers are explicit picks, not
-  // defaults: many videos lack them, and a default pointing at a tier the
-  // option list marks 利用不可 reads as a contradiction.
-  const bestVideo = useMemo(() => bestVideoForLogin(isLoggedIn), [isLoggedIn])
-  const bestAudio = useMemo(() => bestAudioForLogin(), [])
+  // An explicit dropdown pick stores an override in redux; merely
+  // changing the selection never dispatches. Per-part ladders must NOT
+  // drive the options: select-all can span hundreds of parts and a
+  // per-part fetch of all of them would trip rate limits.
 
   // Batch targets live in redux and are applied at ENQUEUE time to parts
   // without an explicit per-part choice (resolution: explicit per-part >
   // batch > part default). Changing them never writes to parts — which is
   // why the triggers stay enabled with zero parts selected.
   const batch = useSelector((state: RootState) => state.input.batchSettings)
-  const targetVideo = batch.videoQuality
-    ? Number(batch.videoQuality)
-    : bestVideo
-  const targetAudio = batch.audioQuality
-    ? Number(batch.audioQuality)
-    : bestAudio
+  const targetVideo = batch.videoQuality ? Number(batch.videoQuality) : null
+  const targetAudio = batch.audioQuality ? Number(batch.audioQuality) : null
   const applyVideo = useCallback(
-    (id: number) => dispatch(setBatchSettings({ videoQuality: String(id) })),
+    (id: number) =>
+      dispatch(
+        setBatchSettings({
+          videoQuality: id === QUALITY_AUTO ? null : String(id),
+        }),
+      ),
     [dispatch],
   )
   const applyAudio = useCallback(
-    (id: number) => dispatch(setBatchSettings({ audioQuality: String(id) })),
+    (id: number) =>
+      dispatch(
+        setBatchSettings({
+          audioQuality: id === QUALITY_AUTO ? null : String(id),
+        }),
+      ),
     [dispatch],
   )
   const applySubtitle = useCallback(
@@ -284,38 +284,48 @@ export function BatchSettingsBar() {
       <div className="flex flex-wrap gap-x-5 gap-y-2.5 border-t px-4 py-2.5">
         <BatchDropdown
           label={t('video.quality_label')}
-          value={targetVideo != null ? label(targetVideo) : ''}
-          options={VIDEO_LADDER_IDS.map((id) => {
-            const isVip = VIP_VIDEO_IDS.has(id)
-            const needsLogin = !isLoggedIn && LOGIN_REQUIRED_VIDEO_IDS.has(id)
-            return {
-              id,
-              label: label(id),
-              // Static gating only: the option list is a target picker and
-              // the backend resolves each part best-effort, so per-video
-              // availability no longer disables tiers.
-              disabled: isVip || needsLogin,
-              disabledReason: isVip
-                ? t('search.reason_vip')
-                : needsLogin
-                  ? t('search.reason_login')
-                  : undefined,
-            }
-          })}
+          value={
+            targetVideo != null ? label(targetVideo) : t('search.quality_auto')
+          }
+          options={[
+            { id: QUALITY_AUTO, label: t('search.quality_auto') },
+            ...VIDEO_LADDER_IDS.map((id) => {
+              const vipGated = !isVip && VIP_VIDEO_IDS.has(id)
+              const needsLogin = !isLoggedIn && LOGIN_REQUIRED_VIDEO_IDS.has(id)
+              return {
+                id,
+                label: label(id),
+                // Static gating only: the option list is a target picker and
+                // the backend resolves each part best-effort, so per-video
+                // availability never disables tiers.
+                disabled: vipGated || needsLogin,
+                disabledReason: vipGated
+                  ? t('search.reason_vip')
+                  : needsLogin
+                    ? t('search.reason_login')
+                    : undefined,
+              }
+            }),
+          ]}
           onSelect={(id) => applyVideo(id)}
         />
         <BatchDropdown
           label={t('video.audio_quality_label')}
-          value={targetAudio != null ? label(targetAudio) : ''}
-          options={AUDIO_LADDER_IDS.map((id) => {
-            const isVip = VIP_AUDIO_IDS.has(id)
-            return {
-              id,
-              label: label(id),
-              disabled: isVip,
-              disabledReason: isVip ? t('search.reason_vip') : undefined,
-            }
-          })}
+          value={
+            targetAudio != null ? label(targetAudio) : t('search.quality_auto')
+          }
+          options={[
+            { id: QUALITY_AUTO, label: t('search.quality_auto') },
+            ...AUDIO_LADDER_IDS.map((id) => {
+              const vipGated = !isVip && VIP_AUDIO_IDS.has(id)
+              return {
+                id,
+                label: label(id),
+                disabled: vipGated,
+                disabledReason: vipGated ? t('search.reason_vip') : undefined,
+              }
+            }),
+          ]}
           onSelect={(id) => applyAudio(id)}
         />
         {/* Compound subtitle menu: mode section + separator + language

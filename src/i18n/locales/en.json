@@ -57,6 +57,7 @@
     "reason_vip": "VIP",
     "reason_login": "Login",
     "reason_unavailable": "N/A",
+    "quality_auto": "Auto (highest)",
     "subtitle_priority": "#{{count}}",
     "help_label": "How batch settings work",
     "help_quality_title": "Quality & audio",
