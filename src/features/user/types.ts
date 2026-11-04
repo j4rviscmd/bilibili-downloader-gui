@@ -26,6 +26,9 @@ type UserData = {
   uname: string
   /** Whether the user is currently logged in */
   isLogin: boolean
+  /** Active VIP (大会員) entitlement (nav vipStatus == 1); undefined only
+   *  for session-derived placeholders before the first nav fetch */
+  vipStatus?: boolean
   /** WBI signature images (for API request signing) */
   wbiImg: UserDataImg
 }

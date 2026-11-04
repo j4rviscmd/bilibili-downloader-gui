@@ -24,42 +24,20 @@ export const AUDIO_LADDER_IDS: readonly number[] = AUDIO_QUALITIES_ORDER
 export const LOGIN_REQUIRED_VIDEO_IDS: ReadonlySet<number> = new Set([112, 116])
 
 /**
- * Quality ids that require a VIP (大会員) membership per Bilibili
- * platform rules. Annotated on batch options as "大会員" — static ladder
- * knowledge, not from the API (the app has no vip status field).
+ * Quality ids that require an active VIP (大会員) membership per Bilibili
+ * platform rules. Annotated as "大会員" while the account has no VIP
+ * entitlement; the gate reads the nav vipStatus flag (expired memberships
+ * keep their vipType but report vipStatus 0, so the type is never used).
  */
 export const VIP_VIDEO_IDS: ReadonlySet<number> = new Set([127, 126, 125, 120])
 export const VIP_AUDIO_IDS: ReadonlySet<number> = new Set([30251, 30250])
 
 /**
- * Best video tier the login state can use from the static ladder.
- * Enhanced tiers (1080p+/1080p60) and VIP tiers are explicit picks, not
- * defaults: many videos lack them, and a default pointing at a tier the
- * option list marks 利用不可 reads as a contradiction.
+ * Sentinel batch target meaning "no explicit pick": every part downloads
+ * at the highest quality its account entitlement allows (enqueue passes
+ * null and the backend resolves the manifest's top stream per part).
  */
-export function bestVideoForLogin(isLoggedIn: boolean): number | null {
-  return (
-    VIDEO_LADDER_IDS.find(
-      (id) =>
-        !VIP_VIDEO_IDS.has(id) &&
-        !LOGIN_REQUIRED_VIDEO_IDS.has(id) &&
-        (isLoggedIn || id <= ANON_MAX_VIDEO_ID),
-    ) ?? null
-  )
-}
-
-/** Best audio tier any non-VIP account can use (192K). */
-export function bestAudioForLogin(): number | null {
-  return AUDIO_LADDER_IDS.find((id) => !VIP_AUDIO_IDS.has(id)) ?? null
-}
-
-/**
- * Highest video tier an anonymous (logged-out) session can use: 32 = 480p.
- * Same platform rule the login notice quotes ("画質は480p以下に制限されます").
- * Used by the batch bar's login-state default, which must not depend on
- * per-part fetched ladders (select-all can span hundreds of parts).
- */
-export const ANON_MAX_VIDEO_ID = 32
+export const QUALITY_AUTO = -1
 
 /**
  * Sentinel selection meaning "every fetched subtitle language". bilibili's

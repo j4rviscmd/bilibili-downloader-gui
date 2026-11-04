@@ -11,12 +11,13 @@ import {
   usePartDownloadStatus,
   type PartQueueStatus,
 } from '@/features/video/hooks/usePartDownloadStatus'
-import { setInput } from '@/features/video/model/inputSlice'
+import { setBatchSettings, setInput } from '@/features/video/model/inputSlice'
 import type { Input, PartInput, Video } from '@/features/video/types'
 import { TooltipProvider } from '@/shared/animate-ui/radix/tooltip'
 import { toast } from '@/shared/ui/toast'
 import { renderWithProviders, resetQueue, seedSession } from '@/test/test-utils'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { act } from 'react'
 import { Provider } from 'react-redux'
 import { MemoryRouter } from 'react-router'
 import type { Mock } from 'vitest'
@@ -814,8 +815,8 @@ describe('VideoPartCard', () => {
     expect(screen.getByRole('radio', { name: 'Dolby Atmos' })).toBeDisabled()
     // Options follow the quality ladder, not numeric id order (numeric
     // order would list 192K above Hi-Res Lossless)
-    // The audio pill also renders 192K (login default); the option is the
-    // one wrapped in a <label>.
+    // The audio pill also renders 192K (auto resolves to the fetched top
+    // tier); the option is the one wrapped in a <label>.
     const radio192k = screen
       .getAllByText('192K')
       .map((el) => el.closest('label'))
@@ -841,6 +842,102 @@ describe('VideoPartCard', () => {
     })
 
     expect(screen.getByRole('radio', { name: '30255' })).toBeEnabled()
+  })
+
+  it('shows the auto quality pills until a batch target exists', () => {
+    setup()
+
+    // No batch target and no explicit pick: both pills read auto — the
+    // enqueue passes no quality and the backend resolves each part's
+    // highest available stream.
+    expect(screen.getAllByText('search.quality_auto')).toHaveLength(2)
+    // The auto state is exposed for locale-agnostic E2E (data-auto).
+    expect(screen.getByTestId('pill-video')).toHaveAttribute(
+      'data-auto',
+      'true',
+    )
+    expect(screen.getByTestId('pill-audio')).toHaveAttribute(
+      'data-auto',
+      'true',
+    )
+
+    // A batch target fills its pill without touching the part itself
+    act(() => {
+      store.dispatch(setBatchSettings({ videoQuality: '80' }))
+    })
+    expect(screen.getByText('1080p')).toBeInTheDocument()
+    expect(screen.getAllByText('search.quality_auto')).toHaveLength(1)
+  })
+
+  it('previews the auto resolution as the fetched top tier once loaded', () => {
+    setup({
+      partInput: {
+        videoQualities: [
+          { id: 120, quality: '4K' },
+          { id: 80, quality: '1080p' },
+        ],
+        audioQualities: [
+          { id: 30280, quality: '192K' },
+          { id: 30216, quality: '64K' },
+        ],
+        subtitles: [],
+      },
+    })
+
+    // Auto means "each manifest's top stream": with the lists fetched
+    // (highest first, convert_qualities), the pills state the tier the
+    // download will actually use instead of the generic auto label.
+    expect(screen.getByText('4K')).toBeInTheDocument()
+    expect(screen.getByText('192K')).toBeInTheDocument()
+    expect(screen.queryByText('search.quality_auto')).not.toBeInTheDocument()
+  })
+
+  it('shows the backend-resolved tiers once a download starts, even unfetched', () => {
+    // Panel never opened (no fetched lists) and no explicit/batch pick:
+    // the download-quality-resolved event is the only source — its
+    // actual tiers must land on the pills at download start.
+    setup({
+      partInput: {
+        resolvedQuality: {
+          videoQuality: 80,
+          videoQualityFallback: false,
+          videoCodecid: 7,
+          videoCodecFallback: false,
+          audioQuality: 30280,
+          audioQualityFallback: false,
+          audioAbsent: false,
+          isPreview: null,
+        },
+      },
+    })
+
+    expect(screen.getByText('1080p')).toBeInTheDocument()
+    expect(screen.getByText('192K')).toBeInTheDocument()
+    expect(screen.queryByText('search.quality_auto')).not.toBeInTheDocument()
+    expect(screen.getByTestId('pill-video')).not.toHaveAttribute('data-auto')
+    expect(screen.getByTestId('pill-audio')).not.toHaveAttribute('data-auto')
+  })
+  it('prefers an explicit per-part pick over the batch target in the pills', () => {
+    setup({
+      partInput: {
+        videoQuality: '64',
+        videoQualityExplicit: true,
+        audioQuality: '30216',
+        audioQualityExplicit: true,
+      },
+    })
+
+    act(() => {
+      store.dispatch(
+        setBatchSettings({ videoQuality: '80', audioQuality: '30280' }),
+      )
+    })
+    // Explicit per-part (720p / 64K) beats the batch target (1080p /
+    // 192K) — the same resolution the enqueue applies.
+    expect(screen.getByText('720p')).toBeInTheDocument()
+    expect(screen.getByText('64K')).toBeInTheDocument()
+    expect(screen.queryByText('1080p')).not.toBeInTheDocument()
+    expect(screen.queryByText('192K')).not.toBeInTheDocument()
   })
 
   it('explains unavailable options with the logged-in reason when signed in', async () => {

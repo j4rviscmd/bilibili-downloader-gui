@@ -20,7 +20,7 @@ import { cancelDownload } from '@/shared/queue'
 import { Button } from '@/shared/ui/button'
 import { ThumbImage } from '@/shared/ui/ThumbImage'
 import { invoke } from '@tauri-apps/api/core'
-import { FilePlay, FolderOpen } from 'lucide-react'
+import { AudioLines, Clapperboard, FilePlay, FolderOpen } from 'lucide-react'
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -179,18 +179,23 @@ export function QueuePartRow({ row, position }: Props) {
   const qualityBadge = (() => {
     const vq = item.resolvedVideoQuality
     if (vq == null) return null
-    const parts = [
-      VIDEO_QUALITIES_MAP[vq] ?? String(vq),
-      ...(item.resolvedAudioQuality != null
-        ? [
-            AUDIO_QUALITIES_MAP[item.resolvedAudioQuality] ??
-              String(item.resolvedAudioQuality),
-          ]
-        : []),
-    ]
+    const audio =
+      item.resolvedAudioQuality != null
+        ? (AUDIO_QUALITIES_MAP[item.resolvedAudioQuality] ??
+          String(item.resolvedAudioQuality))
+        : null
     return (
-      <span className="bg-muted text-muted-foreground inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-xs font-medium tabular-nums">
-        {parts.join(' / ')}
+      <span className="bg-muted text-muted-foreground inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium tabular-nums">
+        {/* Same tier icons as the search page pills (Clapperboard =
+            video, AudioLines = audio) so both pages read identically. */}
+        <Clapperboard className="size-3 shrink-0" aria-hidden />
+        {VIDEO_QUALITIES_MAP[vq] ?? String(vq)}
+        {audio != null && (
+          <>
+            <AudioLines className="size-3 shrink-0" aria-hidden />
+            {audio}
+          </>
+        )}
       </span>
     )
   })()

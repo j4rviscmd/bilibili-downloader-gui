@@ -57,6 +57,7 @@
     "reason_vip": "대회원",
     "reason_login": "로그인",
     "reason_unavailable": "사용 불가",
+    "quality_auto": "자동(최고 화질)",
     "subtitle_priority": "순위 {{count}}",
     "help_label": "일괄 설정 작동 방식",
     "help_quality_title": "화질·음질",

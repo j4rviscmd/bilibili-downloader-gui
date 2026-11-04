@@ -20,6 +20,10 @@ pub struct UserApiResponseData {
     pub uname: Option<String>,
     #[serde(rename = "isLogin")]
     pub is_login: bool,
+    /// VIP (大会員) entitlement, 0/1. Judged on this field alone: an
+    /// expired membership keeps its vipType but reports 0 here.
+    #[serde(rename = "vipStatus", default)]
+    pub vip_status: i32,
     pub wbi_img: UserApiResponseDataImg,
 }
 

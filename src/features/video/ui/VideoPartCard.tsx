@@ -14,12 +14,7 @@ import {
   fetchSubtitlesForPart,
 } from '@/features/video/api/fetchVideoInfo'
 import { usePartDownloadStatus } from '@/features/video/hooks/usePartDownloadStatus'
-import {
-  bestAudioForLogin,
-  bestVideoForLogin,
-  LAN_ALL,
-  resolveTarget,
-} from '@/features/video/lib/batchSettings'
+import { LAN_ALL, resolveTarget } from '@/features/video/lib/batchSettings'
 import {
   AUDIO_QUALITIES_MAP,
   audioOptionIds,
@@ -71,8 +66,10 @@ import { ThumbImage } from '@/shared/ui/ThumbImage'
 import { toast } from '@/shared/ui/toast'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
+  AudioLines,
   Check,
   ChevronDown,
+  Clapperboard,
   Copy,
   Info,
   Play,
@@ -265,23 +262,36 @@ const VideoPartCard = memo(function VideoPartCard({
   const emptyAudioList =
     audioQualities !== undefined && audioQualities.length === 0
   // Effective per-part targets (mockup .pmeta pills): an explicit user
-  // choice beats the batch target, which beats the login-state default —
-  // the same resolution the enqueue applies. Pure state: the pills render
-  // immediately for every part, with no per-part fetch behind them.
+  // choice beats the batch target; with neither, undefined means "auto" —
+  // the enqueue passes no quality and the backend picks each part's
+  // highest available stream (the same resolution the enqueue applies).
+  // Pure state: the pills render immediately for every part, with no
+  // per-part fetch behind them.
   const batch = useSelector((state: RootState) => state.input.batchSettings)
-  const loginBestVideo = useMemo(
-    () => bestVideoForLogin(isLoggedIn),
-    [isLoggedIn],
-  )
-  const loginBestAudio = useMemo(() => bestAudioForLogin(), [])
   const effectiveVideoQuality = partInput?.videoQualityExplicit
     ? partInput?.videoQuality
-    : (batch?.videoQuality ??
-      (loginBestVideo != null ? String(loginBestVideo) : undefined))
+    : batch?.videoQuality
   const effectiveAudioQuality = partInput?.audioQualityExplicit
     ? partInput?.audioQuality
-    : (batch?.audioQuality ??
-      (loginBestAudio != null ? String(loginBestAudio) : undefined))
+    : batch?.audioQuality
+  // Auto preview: with no explicit pick and no batch target the backend
+  // takes each manifest's top stream; the fetched lists are sorted
+  // highest-first (convert_qualities), so [0] is the tier the download
+  // will actually use. Unfetched parts keep the generic auto label.
+  const autoVideoTier = videoQualities?.[0]?.id
+  const autoAudioTier = audioQualities?.[0]?.id
+  // Once a download starts, the backend reports the actual tiers it
+  // selected (download-quality-resolved). Those outrank the auto preview:
+  // authoritative even for parts whose panel never opened (no fetched
+  // list to preview from) and the value the file will really have.
+  const resolvedVideoTier = resolvedQuality?.videoQuality
+  const resolvedAudioTier = resolvedQuality?.audioQuality
+  // True when the pill falls back to the generic auto label — exposed as
+  // data-auto so locale-agnostic E2E can tell the auto state from a tier.
+  const videoAuto =
+    !effectiveVideoQuality && resolvedVideoTier == null && autoVideoTier == null
+  const audioAuto =
+    !effectiveAudioQuality && resolvedAudioTier == null && autoAudioTier == null
   const effectiveSubtitle = partInput?.subtitleExplicit
     ? partInput?.subtitle
     : batch?.subtitle
@@ -944,16 +954,40 @@ const VideoPartCard = memo(function VideoPartCard({
                   )}
                 />
                 <div className="flex flex-wrap items-center gap-1.5 px-2">
-                  {effectiveVideoQuality && (
-                    <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[11px] font-medium">
-                      {VIDEO_QUALITIES_MAP[Number(effectiveVideoQuality)] ??
-                        effectiveVideoQuality}
-                    </span>
-                  )}
-                  {effectiveAudioQuality && !isSilentVideo && (
-                    <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[11px] font-medium">
-                      {AUDIO_QUALITIES_MAP[Number(effectiveAudioQuality)] ??
-                        effectiveAudioQuality}
+                  <span
+                    data-testid="pill-video"
+                    data-auto={videoAuto ? 'true' : undefined}
+                    className="bg-muted text-muted-foreground inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
+                  >
+                    <Clapperboard className="size-3 shrink-0" aria-hidden />
+                    {effectiveVideoQuality
+                      ? (VIDEO_QUALITIES_MAP[Number(effectiveVideoQuality)] ??
+                        effectiveVideoQuality)
+                      : resolvedVideoTier != null
+                        ? (VIDEO_QUALITIES_MAP[resolvedVideoTier] ??
+                          String(resolvedVideoTier))
+                        : autoVideoTier != null
+                          ? (VIDEO_QUALITIES_MAP[autoVideoTier] ??
+                            String(autoVideoTier))
+                          : t('search.quality_auto')}
+                  </span>
+                  {!isSilentVideo && (
+                    <span
+                      data-testid="pill-audio"
+                      data-auto={audioAuto ? 'true' : undefined}
+                      className="bg-muted text-muted-foreground inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
+                    >
+                      <AudioLines className="size-3 shrink-0" aria-hidden />
+                      {effectiveAudioQuality
+                        ? (AUDIO_QUALITIES_MAP[Number(effectiveAudioQuality)] ??
+                          effectiveAudioQuality)
+                        : resolvedAudioTier != null
+                          ? (AUDIO_QUALITIES_MAP[resolvedAudioTier] ??
+                            String(resolvedAudioTier))
+                          : autoAudioTier != null
+                            ? (AUDIO_QUALITIES_MAP[autoAudioTier] ??
+                              String(autoAudioTier))
+                            : t('search.quality_auto')}
                     </span>
                   )}
                   {effectiveSubtitle && effectiveSubtitle.mode !== 'off' && (

@@ -57,6 +57,7 @@
     "reason_vip": "VIP",
     "reason_login": "Iniciar sesión",
     "reason_unavailable": "N/D",
+    "quality_auto": "Auto (máxima)",
     "subtitle_priority": "#{{count}}",
     "help_label": "Cómo funcionan los ajustes por lote",
     "help_quality_title": "Calidad y audio",

@@ -32,6 +32,10 @@ pub struct UserData {
     /// Authentication status flag
     #[serde(rename = "isLogin")]
     pub is_login: bool,
+    /// Active VIP (大会員) entitlement (nav vipStatus == 1); gates the
+    /// VIP quality tiers in the batch settings UI
+    #[serde(rename = "vipStatus", default)]
+    pub vip_status: bool,
 }
 
 /// Video metadata structure sent to the frontend.
