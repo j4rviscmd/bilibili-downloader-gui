@@ -415,13 +415,18 @@ async fn unpack_archive(archive_path: &Path, dest: &Path) -> Result<bool> {
         // Extract each file from the archive
         for i in 0..archive.len() {
             let mut file = archive.by_index(i)?;
-            let relative = file
-                .enclosed_name()
-                .ok_or_else(|| anyhow::anyhow!("Unsafe ZIP entry: {}", file.name()))?;
+            let relative = file.enclosed_name().ok_or_else(|| {
+                // zip v9: name() is fallible; use raw bytes for the error message
+                anyhow::anyhow!(
+                    "Unsafe ZIP entry: {}",
+                    String::from_utf8_lossy(file.name_raw())
+                )
+            })?;
             let outpath = dest.join(relative);
 
             // Skip directories
-            if file.name().ends_with('/') {
+            // Why: is_dir() replaces the pre-v9 name().ends_with('/') check, since v9's name() is fallible and is_dir() reads the raw name bytes instead (src-tauri/Cargo.toml: zip = "9")
+            if file.is_dir() {
                 continue;
             }
 
@@ -1349,6 +1354,26 @@ mod tests {
             assert_eq!(sources[0].sha256, sources[1].sha256);
         }
         assert!(download_sources("windows", "arm").unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn unpack_archive_skips_directory_entries() {
+        use std::io::Write;
+        let tmp = tempfile::tempdir().unwrap();
+        let zip_path = tmp.path().join("payload.zip");
+        let mut w = zip::ZipWriter::new(File::create(&zip_path).unwrap());
+        let opts = zip::write::SimpleFileOptions::default();
+        w.add_directory("bin/", opts).unwrap();
+        w.start_file("bin/ffmpeg", opts).unwrap();
+        w.write_all(b"#!/bin/sh\nexit 0\n").unwrap();
+        w.finish().unwrap();
+
+        let dest = tmp.path().join("dest");
+
+        assert!(unpack_archive(&zip_path, &dest).await.unwrap());
+        assert!(dest.join("bin").join("ffmpeg").is_file());
+        // The directory entry must be skipped, not extracted as a file
+        assert!(!dest.join("bin").is_file());
     }
 
     #[cfg(unix)]
