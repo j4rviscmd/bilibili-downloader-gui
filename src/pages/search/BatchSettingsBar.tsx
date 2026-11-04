@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/popover'
 import { openDirectoryDialog } from '@/features/settings/lib/directoryDialog'
 import { useSettings } from '@/features/settings/useSettings'
-import { useVideoInfo } from '@/features/video'
+import { PARTS_PER_PAGE, useVideoInfo } from '@/features/video'
 import {} from '@/features/video/api/fetchVideoInfo'
 import {
   AUDIO_LADDER_IDS,
@@ -37,6 +37,7 @@ import {
   selectAll,
   setBatchSettings,
   setOutputDirOverride,
+  updatePartSelected,
 } from '@/features/video/model/inputSlice'
 import { cn } from '@/lib/utils'
 import { Button } from '@/shared/ui/button'
@@ -66,8 +67,11 @@ import { useTranslation } from 'react-i18next'
  *   a fixed tier the selected videos may not have.
  * - Changing a value never writes to parts: batch targets apply at
  *   enqueue time (explicit per-part pick > batch > part default).
+ *
+ * @param currentPage Visible parts page (search page pager state) — the
+ *   page-scoped select toggle only ever touches this slice.
  */
-export function BatchSettingsBar() {
+export function BatchSettingsBar({ currentPage }: { currentPage: number }) {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const { input } = useVideoInfo()
@@ -95,6 +99,24 @@ export function BatchSettingsBar() {
   const toggleAllParts = useCallback(() => {
     dispatch(allSelected ? deselectAll() : selectAll())
   }, [dispatch, allSelected])
+  // Page-scoped twin of the whole-video toggle: selecting just the parts
+  // of the visible page (a PARTS_PER_PAGE slice) without disturbing other
+  // pages' selections. Rendered only on multi-page videos — with a single
+  // page the whole-video button already covers the exact same range.
+  // Note: this slice math duplicates the pager's pageRange in
+  // src/pages/search/index.tsx — only currentPage crosses the prop
+  // boundary, so the two sites must stay in sync when paging changes.
+  const pageStart = (currentPage - 1) * PARTS_PER_PAGE
+  const pageEnd = Math.min(pageStart + PARTS_PER_PAGE, input.partInputs.length)
+  const pageAllSelected = input.partInputs
+    .slice(pageStart, pageEnd)
+    .every((pi) => pi.selected)
+  const togglePageParts = () => {
+    const selected = !pageAllSelected
+    for (let i = pageStart; i < pageEnd; i++) {
+      dispatch(updatePartSelected({ index: i, selected }))
+    }
+  }
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!event.ctrlKey || !/^a$/i.test(event.key)) return
@@ -222,6 +244,31 @@ export function BatchSettingsBar() {
           {t('search.batch_applies', { count: selectedIndices.length })}
         </span>
         <div className="ml-auto flex items-center gap-1.5">
+          {/* Page-scoped toggle (narrower range) before the whole-video
+              one. */}
+          {input.partInputs.length > PARTS_PER_PAGE && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={togglePageParts}
+              data-testid="page-select-toggle"
+            >
+              {/* Same width-pinning stacked labels as the whole-video
+                  toggle below. */}
+              <span className="grid">
+                <span aria-hidden="true" className="invisible [grid-area:1/1]">
+                  {pageAllSelected
+                    ? t('video.select_page')
+                    : t('video.deselect_page')}
+                </span>
+                <span className="[grid-area:1/1]">
+                  {pageAllSelected
+                    ? t('video.deselect_page')
+                    : t('video.select_page')}
+                </span>
+              </span>
+            </Button>
+          )}
           {/* Whole-video range, regardless of the visible page: the batch
               bar applies to every selected part, and paging through to
               select each page's parts first would defeat the point. */}

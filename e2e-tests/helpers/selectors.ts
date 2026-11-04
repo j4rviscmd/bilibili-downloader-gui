@@ -142,3 +142,12 @@ export const QUEUE_ROW_CANCEL = 'button=Cancel'
  * search-page cards carry only a status badge — issue #691).
  */
 export const PART_COMPLETE = '[data-testid="part-download-complete"]'
+
+// -- Search Page: Batch Bar --
+
+/**
+ * Page-scoped select toggle in the batch settings bar (multi-page videos
+ * only). Carries a testid because both toolbar toggles are otherwise
+ * distinguishable only by localized text (local-e2e suite rule).
+ */
+export const PAGE_SELECT_TOGGLE = '[data-testid="page-select-toggle"]'
