@@ -294,7 +294,7 @@ describe('VideoPartCard', () => {
     ).toBeInTheDocument()
   })
 
-  it('shows the over-cap trim notice (⚠-prefixed) regardless of selection', () => {
+  it('shows the over-cap trim notice with the warning icon regardless of selection', () => {
     const matchNotice = { exact: false }
     const first = setup({ partInput: { title: 'a'.repeat(101) } })
     expect(
@@ -346,7 +346,10 @@ describe('VideoPartCard', () => {
     // The pill states the transition: requested 1080p → predicted 720p60.
     const pill = document.querySelector('.border-amber-300')
     expect(pill).not.toBeNull()
-    expect(pill?.textContent?.replace(/\s+/g, '')).toBe('⚠1080p→720p60')
+    expect(pill?.textContent?.replace(/\s+/g, '')).toBe('1080p→720p60')
+    // Note: the pill's icon is aria-hidden, so it never shows up in
+    // textContent — assert it through lucide's class instead.
+    expect(pill?.querySelector('.lucide-triangle-alert')).not.toBeNull()
   })
 
   it('hides the auto-adjust pill while qualities are unfetched', () => {
@@ -696,7 +699,11 @@ describe('VideoPartCard', () => {
       },
     })
 
-    expect(screen.getByText('⚠️')).toBeInTheDocument()
+    // Note: the warning is icon-only, so it is queried by the accessible
+    // name its role="img" wrapper sets, not by visible text.
+    expect(
+      screen.getByRole('img', { name: 'video.quality_fallback_tooltip' }),
+    ).toBeInTheDocument()
   })
 
   it('hides the fallback warning without a substitution', () => {
@@ -710,7 +717,9 @@ describe('VideoPartCard', () => {
       },
     })
 
-    expect(screen.queryByText('⚠️')).toBeNull()
+    expect(
+      screen.queryByRole('img', { name: 'video.quality_fallback_tooltip' }),
+    ).toBeNull()
   })
 
   it('requires at least one subtitle language when a mode is active', () => {
