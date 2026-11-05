@@ -813,15 +813,16 @@ const VideoPartCard = memo(function VideoPartCard({
   )
 
   return (
-    // Compact part card (mockup .part): the border gains the brand ring
-    // while selected.
+    // Compact part card (mockup .part): while selected, an inner brand ring
+    // marks the state. It is drawn INSIDE the border box (inset shadow) so
+    // no selection ink ever paints outside the card — the sticky
+    // BatchSettingsBar is the same width as the cards, and any outside ink
+    // would leak past its edges while cards scroll under it.
     <div
       ref={cardRef}
       className={cn(
-        'bg-card mb-2 rounded-xl border transition-shadow',
-        selected
-          ? 'border-brand/40 shadow-[0_0_0_1px_var(--brand)]'
-          : 'border-border',
+        'bg-card border-border mb-2 rounded-xl border transition-shadow',
+        selected && 'shadow-[inset_0_0_0_1px_var(--brand)]',
       )}
     >
       <Form {...form}>
