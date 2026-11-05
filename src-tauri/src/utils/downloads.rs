@@ -2657,17 +2657,17 @@ mod tests {
     #[test]
     fn apply_cookie_sets_header_only_when_present() {
         let client = reqwest::Client::new();
-        let with = apply_cookie(client.get("http://x/"), &Some("SESSDATA=y".into()))
+        let with = apply_cookie(client.get("https://x/"), &Some("SESSDATA=y".into()))
             .build()
             .unwrap();
         assert_eq!(with.headers().get(header::COOKIE).unwrap(), "SESSDATA=y");
 
-        let without = apply_cookie(client.get("http://x/"), &None)
+        let without = apply_cookie(client.get("https://x/"), &None)
             .build()
             .unwrap();
         assert!(without.headers().get(header::COOKIE).is_none());
 
-        let empty = apply_cookie(client.get("http://x/"), &Some(String::new()))
+        let empty = apply_cookie(client.get("https://x/"), &Some(String::new()))
             .build()
             .unwrap();
         assert!(empty.headers().get(header::COOKIE).is_none());
