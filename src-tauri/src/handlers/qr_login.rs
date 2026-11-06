@@ -503,11 +503,13 @@ async fn poll_qr_status_with<R: tauri::Runtime>(
 
         // Diagnostic: log extracted cookie lengths for troubleshooting
         // (do not log values themselves to avoid leaking tokens)
+        // Why: dede_user_id is left out entirely, not even as a length —
+        // CodeQL's rust/cleartext-logging query still flags this statement
+        // through .len() (alert #14); do not re-add it here.
         log::info!(
-            "[BE] poll_qr_status: extracted sessdata {} bytes, bili_jct {} bytes, dede_user_id {} bytes",
+            "[BE] poll_qr_status: extracted sessdata {} bytes, bili_jct {} bytes",
             session.sessdata.len(),
-            session.bili_jct.len(),
-            session.dede_user_id.len()
+            session.bili_jct.len()
         );
 
         // Fetch buvid3/buvid4 for WBI authentication
