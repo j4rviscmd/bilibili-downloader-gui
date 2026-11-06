@@ -1,6 +1,7 @@
 import { interceptInvokeError } from '@/app/lib/invokeErrorHandler'
 import type { RootState } from '@/app/store'
 import { store } from '@/app/store'
+import { IconButton } from '@/components/animate-ui/components/buttons/icon'
 import {
   Accordion,
   AccordionContent,
@@ -65,12 +66,14 @@ import { Skeleton } from '@/shared/ui/skeleton'
 import { ThumbImage } from '@/shared/ui/ThumbImage'
 import { toast } from '@/shared/ui/toast'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { invoke } from '@tauri-apps/api/core'
 import {
   AudioLines,
   Check,
   ChevronDown,
   Clapperboard,
   Copy,
+  FilePlay,
   Info,
   Play,
   RotateCcw,
@@ -364,6 +367,14 @@ const VideoPartCard = memo(function VideoPartCard({
       {t(getStatusVisual(downloadStatus.status).labelKey)}
     </span>
   ) : null
+  const handleOpenFile = useCallback(async () => {
+    if (!downloadStatus.outputPath) return
+    await invoke('open_file', { path: downloadStatus.outputPath }).catch(
+      (e) => {
+        logger.error('Failed to open file', e)
+      },
+    )
+  }, [downloadStatus.outputPath])
 
   /**
    * Duration overlay on the thumbnail (m:ss, e.g. 2:05). Standard video-card
@@ -1018,6 +1029,30 @@ const VideoPartCard = memo(function VideoPartCard({
                   )}
                   {isPreview && previewBadge}
                   {queueBadge}
+                  {/* Why: deliberately mirrors finishedExtras in
+                      src/pages/downloads/QueuePartRow.tsx but omits its
+                      reveal-in-folder button — every part of this download
+                      lands in the same folder, so a per-part folder shortcut
+                      would be redundant. */}
+                  {downloadStatus.status === 'done' &&
+                    downloadStatus.outputPath && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <IconButton
+                            variant="ghost"
+                            size="xs"
+                            onClick={handleOpenFile}
+                            aria-label={t('video.open_file')}
+                            className="text-muted-foreground hover:text-foreground"
+                          >
+                            <FilePlay className="size-3.5" />
+                          </IconButton>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" arrow>
+                          {t('video.open_file')}
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
                   {/* Why: the trigger is icon-only, so the accessible name
                       reuses the tooltip string — otherwise the fallback
                       warning is silent to screen readers and has no stable
