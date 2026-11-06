@@ -15,7 +15,13 @@ import { setBatchSettings, setInput } from '@/features/video/model/inputSlice'
 import type { Input, PartInput, Video } from '@/features/video/types'
 import { TooltipProvider } from '@/shared/animate-ui/radix/tooltip'
 import { toast } from '@/shared/ui/toast'
-import { renderWithProviders, resetQueue, seedSession } from '@/test/test-utils'
+import {
+  mockInvoke,
+  renderWithProviders,
+  resetQueue,
+  seedSession,
+} from '@/test/test-utils'
+import { error as logError } from '@tauri-apps/plugin-log'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { act } from 'react'
 import { Provider } from 'react-redux'
@@ -1293,6 +1299,67 @@ describe('VideoPartCard', () => {
       expect(writeText).toHaveBeenCalledWith(
         'https://www.bilibili.com/video/BV1xx411c7XD?p=2',
       ),
+    )
+  })
+
+  it('opens the finished file once the part is done with an output path', async () => {
+    mockInvoke.mockResolvedValue(undefined)
+    const { user: actor } = setup({
+      status: {
+        downloadId: 'dl-1',
+        status: 'done',
+        isDone: true,
+        outputPath: '/downloads/video.mp4',
+      },
+    })
+
+    await actor.click(screen.getByRole('button', { name: 'video.open_file' }))
+
+    expect(mockInvoke).toHaveBeenCalledWith('open_file', {
+      path: '/downloads/video.mp4',
+    })
+  })
+
+  it('hides the open-file button without an output path or before done', () => {
+    const doneNoPath = setup({
+      status: { downloadId: 'dl-1', status: 'done', isDone: true },
+    })
+    expect(
+      screen.queryByRole('button', { name: 'video.open_file' }),
+    ).not.toBeInTheDocument()
+    doneNoPath.unmount()
+
+    const pending = setup({
+      status: { downloadId: 'dl-1', status: 'pending', isPending: true },
+    })
+    expect(
+      screen.queryByRole('button', { name: 'video.open_file' }),
+    ).not.toBeInTheDocument()
+    pending.unmount()
+
+    setup({
+      status: { downloadId: 'dl-1', status: 'running', isDownloading: true },
+    })
+    expect(
+      screen.queryByRole('button', { name: 'video.open_file' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('swallows an open_file rejection through the logger', async () => {
+    mockInvoke.mockRejectedValueOnce(new Error('no association'))
+    const { user: actor } = setup({
+      status: {
+        downloadId: 'dl-1',
+        status: 'done',
+        isDone: true,
+        outputPath: '/downloads/video.mp4',
+      },
+    })
+
+    await actor.click(screen.getByRole('button', { name: 'video.open_file' }))
+
+    expect(logError).toHaveBeenCalledWith(
+      '[FE] Failed to open file: Error: no association',
     )
   })
 })
