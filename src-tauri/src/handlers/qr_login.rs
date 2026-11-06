@@ -533,11 +533,15 @@ async fn poll_qr_status_with<R: tauri::Runtime>(
         let temp_cookie_header = build_cookie_header_from_session(&session);
         match verify_session_with_header_in(api, &temp_cookie_header).await {
             Ok(user) => {
+                // Why: uname is intentionally absent — it identifies the
+                // bilibili account and app.log gets attached to issue
+                // reports; the central home-path redaction cannot cover
+                // non-path values, so do not re-add it (issue #941, same
+                // treatment as dede_user_id in #943).
                 log::info!(
-                    "[BE] poll_qr_status: verification is_login={}, has_cookie={}, uname={:?}, sessdata_len={}, bili_jct_len={}",
+                    "[BE] poll_qr_status: verification is_login={}, has_cookie={}, sessdata_len={}, bili_jct_len={}",
                     user.data.is_login,
                     user.has_cookie,
-                    user.data.uname,
                     session.sessdata.len(),
                     session.bili_jct.len()
                 );

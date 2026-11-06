@@ -5618,11 +5618,11 @@ async fn fetch_user_info_with(api: &BiliApi) -> Result<User, String> {
         .await
         .map_err(|e| format!("UserApi Failed to parse response JSON:: {e}"))?;
 
-    log::info!(
-        "[BE] fetch_user_info: is_login={}, uname={}",
-        body.data.is_login,
-        body.data.uname.as_deref().unwrap_or("N/A")
-    );
+    // Why: uname is intentionally absent — it identifies the bilibili
+    // account (often a nickname or real-ish name) and this fires on every
+    // login-status check; app.log gets attached to issue reports, so do
+    // not re-add it for diagnostics (issue #941).
+    log::info!("[BE] fetch_user_info: is_login={}", body.data.is_login);
 
     Ok(User {
         code: body.code,
