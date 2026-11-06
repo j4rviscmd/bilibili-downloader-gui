@@ -397,11 +397,19 @@ pub fn run() {
 
             // Register log plugin dynamically with custom path
             // Stdout is disabled by default; uncomment if needed for debugging
+            // Why: users attach app.log to issue reports and home-relative
+            // paths embed the OS account name, so redaction is central in
+            // the format hook — new log statements cannot reintroduce the
+            // leak (issue #941).
+            let home_dir = std::env::home_dir()
+                .map(|p| p.to_string_lossy().into_owned())
+                .unwrap_or_default();
             let log_plugin = tauri_plugin_log::Builder::new()
                 .level(log::LevelFilter::Info)
                 .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepSome(30))
                 .max_file_size(10_000_000) // 10MB
                 .timezone_strategy(tauri_plugin_log::TimezoneStrategy::UseLocal)
+                .format(crate::utils::log_redact::home_redaction_formatter(home_dir))
                 .targets([
                     // Mirror only WARN-and-above logs to stderr so the dev
                     // terminal surfaces warnings/errors without flooding it

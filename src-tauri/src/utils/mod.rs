@@ -12,6 +12,7 @@ pub mod ffmpeg_probe;
 pub mod ffmpeg_progress;
 pub mod locked_json;
 pub mod log_cleanup;
+pub mod log_redact;
 pub mod paths;
 pub mod sanitize;
 pub mod secure_storage;
