@@ -1,0 +1,53 @@
+# Auto-close stale issues: 60 days without
+# activity marks an issue stale with a warning comment; 14 more days
+# without activity closes it as not planned. Any comment or edit removes
+# `stale` and restarts the clock.
+name: stale
+
+on:
+  schedule:
+    - cron: '17 16 * * *' # daily at 01:17 JST
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Why top-level read-only: Scorecard Token-Permissions max pattern
+# (issue #677); the job below declares its own write scope
+permissions:
+  contents: read
+
+jobs:
+  stale:
+    name: Close stale issues
+    runs-on: ubuntu-latest
+    # Why issues write: label/comment/close all need it. PRs are fully
+    # disabled below (Renovate PRs are managed separately), so no
+    # pull-requests scope.
+    permissions:
+      issues: write
+    timeout-minutes: 10
+    steps:
+      - name: Mark and close stale issues
+        uses: actions/stale@4391f3da665fdf50b6810c1a66712fb9ba21aa93 # v11.0.0
+        with:
+          # Issues only — PRs are never marked or closed
+          days-before-pr-stale: '-1'
+          days-before-pr-close: '-1'
+          days-before-issue-stale: '60'
+          days-before-issue-close: '14'
+          stale-issue-label: 'stale'
+          # Exemptions: keep-worthy labels + any assigned issue
+          exempt-issue-labels: 'pinned,security,priority: high,priority: medium'
+          exempt-all-assignees: 'true'
+          close-issue-reason: 'not_planned'
+          stale-issue-message: |-
+            This issue has been inactive for 60 days, so it has been marked as stale.
+            It will be automatically closed in 14 days if no further activity occurs.
+
+            If this issue is still relevant, please leave a comment — that will keep it open. Maintainers can also add the `pinned` label to exclude it from auto-closing.
+          close-issue-message: |-
+            This issue was automatically closed because it received no activity within 14 days after being marked stale.
+
+            If it is still relevant, please open a new issue with the updated details. Thanks for contributing!
