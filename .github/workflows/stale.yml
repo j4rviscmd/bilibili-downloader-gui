@@ -39,7 +39,7 @@ jobs:
           days-before-issue-close: '14'
           stale-issue-label: 'stale'
           # Exemptions: keep-worthy labels + any assigned issue
-          exempt-issue-labels: 'pinned,security,priority: high,priority: medium'
+          exempt-issue-labels: 'pinned,security'
           exempt-all-assignees: 'true'
           close-issue-reason: 'not_planned'
           stale-issue-message: |-
