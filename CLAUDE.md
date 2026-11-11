@@ -183,6 +183,14 @@ into the **required** `ci-status` status check. The `coverage` job
   `Socket Security: Pull Request Alerts`) is sufficient to treat CI
   as green. Treat E2E as informational (screenshots are still useful
   for visual review).
+- **stale** (`.github/workflows/stale.yml`) auto-closes inactive issues:
+  after 60 days without activity an issue is marked `stale` with a
+  warning comment; 14 more days without activity closes it as not
+  planned. Any comment or edit removes the `stale` label and restarts
+  the clock. Exempt: issues labeled `pinned`, `security`,
+  `priority: high`, or `priority: medium`, and any issue with an
+  assignee. PRs are never touched (`days-before-pr-stale`/
+  `days-before-pr-close` are `-1`).
 
 ## Releases (release-please)
 
