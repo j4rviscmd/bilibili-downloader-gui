@@ -187,9 +187,8 @@ into the **required** `ci-status` status check. The `coverage` job
   after 60 days without activity an issue is marked `stale` with a
   warning comment; 14 more days without activity closes it as not
   planned. Any comment or edit removes the `stale` label and restarts
-  the clock. Exempt: issues labeled `pinned`, `security`,
-  `priority: high`, or `priority: medium`, and any issue with an
-  assignee. PRs are never touched (`days-before-pr-stale`/
+  the clock. Exempt: the `pinned` or `security` labels, or any issue
+  with an assignee. PRs are never touched (`days-before-pr-stale`/
   `days-before-pr-close` are `-1`).
 
 ## Releases (release-please)
