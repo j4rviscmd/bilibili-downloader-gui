@@ -21,7 +21,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
       - run: npm ci
       - run: npm run tauri build -- --no-bundle
       - name: Build ZIP editions and validate bundled FFmpeg
