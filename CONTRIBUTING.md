@@ -217,6 +217,11 @@ Two policies to know:
 - Every new or changed testable logic ships with unit tests
 - Tests never hit live Bilibili APIs — network code is tested against
   a local [wiremock](https://crates.io/crates/wiremock) server
+- Tests that spawn a child process (fake ffmpeg executors, `chmod`, the
+  functional AAC probe) must be annotated `#[serial]`
+  ([serial_test](https://crates.io/crates/serial_test)) — parallel
+  single-thread tokio runtimes race on SIGCHLD child reaping, which
+  intermittently fails spawn-requiring tests on CI
 
 ---
 

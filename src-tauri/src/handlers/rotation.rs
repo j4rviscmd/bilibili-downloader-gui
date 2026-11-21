@@ -567,6 +567,8 @@ mod tests {
 
     #[cfg(unix)]
     use crate::utils::ffmpeg_probe::write_fake_ffmpeg_executor;
+    #[cfg(unix)]
+    use serial_test::serial;
 
     fn rotation_options(input: &str, output: &str) -> RotationOptions {
         RotationOptions {
@@ -579,6 +581,7 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    #[serial]
     async fn rotate_video_with_ffmpeg_writes_output_on_success() {
         let dir = tempfile::tempdir().unwrap();
         let ffmpeg = write_fake_ffmpeg_executor(dir.path(), 0, false);
@@ -601,6 +604,7 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    #[serial]
     async fn rotate_video_with_ffmpeg_maps_failure_to_err_code() {
         let dir = tempfile::tempdir().unwrap();
         let ffmpeg = write_fake_ffmpeg_executor(dir.path(), 1, false);

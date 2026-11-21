@@ -573,6 +573,8 @@ mod tests {
 
     #[cfg(unix)]
     use crate::utils::ffmpeg_probe::write_fake_ffmpeg_executor;
+    #[cfg(unix)]
+    use serial_test::serial;
 
     #[cfg(unix)]
     fn concat_fixture(dir: &std::path::Path, count: usize) -> Vec<String> {
@@ -595,6 +597,7 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    #[serial]
     async fn concat_videos_with_ffmpeg_copy_success_writes_output() {
         let dir = tempfile::tempdir().unwrap();
         let ffmpeg = write_fake_ffmpeg_executor(dir.path(), 0, false);
@@ -616,6 +619,7 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    #[serial]
     async fn concat_videos_with_ffmpeg_falls_back_to_reencode() {
         // copy fails -> fallback event + re-encode attempt (which succeeds
         // because its args carry -c:v, not " copy ").
@@ -639,6 +643,7 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    #[serial]
     async fn concat_videos_with_ffmpeg_both_attempts_failing_errors() {
         let dir = tempfile::tempdir().unwrap();
         // copy fails (fail_on_copy) and re-encode fails (exit 1).

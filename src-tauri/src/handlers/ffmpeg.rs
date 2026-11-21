@@ -1324,6 +1324,8 @@ async fn run_merge_ffmpeg<R: Runtime>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
+    use serial_test::serial;
 
     #[test]
     fn all_download_sources_match_platform_and_have_pinned_checksums() {
@@ -1378,6 +1380,7 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    #[serial]
     async fn unavailable_primary_switches_to_verified_mirror() {
         let server = wiremock::MockServer::start().await;
         let body = fake_ffmpeg_zip(0);
@@ -1438,6 +1441,7 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    #[serial]
     async fn corrupt_primary_switches_to_verified_mirror() {
         let primary = wiremock::MockServer::start().await;
         let mirror = wiremock::MockServer::start().await;
@@ -1465,6 +1469,7 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    #[serial]
     async fn bundled_ffmpeg_is_copied_without_removing_distribution() {
         let tmp = tempfile::tempdir().unwrap();
         let bundled = tmp.path().join("bundled");
@@ -1931,6 +1936,7 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    #[serial]
     async fn validate_ffmpeg_in_dir_failing_probe_cleans_root() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path().join("ffmpeg");
@@ -1942,6 +1948,7 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    #[serial]
     async fn validate_ffmpeg_in_dir_passing_probe_keeps_tree() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path().join("ffmpeg");
@@ -1954,6 +1961,7 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    #[serial]
     async fn install_ffmpeg_in_dir_downloads_unpacks_and_validates() {
         let server = wiremock::MockServer::start().await;
         let body = fake_ffmpeg_zip(0);
@@ -1975,6 +1983,7 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    #[serial]
     async fn install_ffmpeg_in_dir_invalid_binary_removes_root() {
         let server = wiremock::MockServer::start().await;
         let body = fake_ffmpeg_zip(1);
@@ -2041,6 +2050,7 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    #[serial]
     async fn move_ffmpeg_copies_validates_and_removes_source() {
         let tmp = tempfile::tempdir().unwrap();
         let from = tmp.path().join("old-ffmpeg");
@@ -2098,6 +2108,7 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    #[serial]
     async fn merge_avs_copy_success_completes() {
         let app = tauri::test::mock_app();
         let tmp = tempfile::tempdir().unwrap();
@@ -2122,6 +2133,7 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    #[serial]
     async fn merge_avs_copy_failure_falls_back_to_aac_and_succeeds() {
         // Copy attempt fails (exit 1), the AAC re-encode succeeds: the
         // fallback must transparently complete the merge.
@@ -2148,6 +2160,7 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    #[serial]
     async fn merge_avs_both_attempts_fail_returns_error() {
         let app = tauri::test::mock_app();
         let tmp = tempfile::tempdir().unwrap();
@@ -2171,6 +2184,7 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    #[serial]
     async fn merge_avs_video_only_failure_is_final() {
         // Video-only merges have no AAC fallback shape: the single failure
         // must surface directly.
@@ -2196,6 +2210,7 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    #[serial]
     async fn merge_avs_cancelled_copy_skips_aac_fallback() {
         // Cancellation is a user action, not a transcode failure: the
         // pre-cancelled token must abort the copy attempt AND skip the AAC
@@ -2242,6 +2257,7 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    #[serial]
     async fn move_ffmpeg_invalid_source_bin_errors() {
         let tmp = tempfile::tempdir().unwrap();
         let from = tmp.path().join("old-ffmpeg");
@@ -2259,6 +2275,7 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    #[serial]
     async fn move_ffmpeg_replaces_existing_target() {
         let tmp = tempfile::tempdir().unwrap();
         let from = tmp.path().join("old-ffmpeg");
@@ -2275,6 +2292,7 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    #[serial]
     async fn move_ffmpeg_copied_bin_invalid_cleans_target() {
         // The script succeeds only when invoked from the source path ($0),
         // so validation passes on the original and fails on the copy —

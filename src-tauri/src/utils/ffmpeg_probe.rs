@@ -198,6 +198,14 @@ exit {exit_code}
 #[cfg(test)]
 mod tests {
     use super::*;
+    // Why: cargo test runs these single-thread #[tokio::test] runtimes in
+    // parallel; concurrent child spawn/reap raced on SIGCHLD (ECHILD) and
+    // intermittently failed spawn-based tests on CI (PR #962 — same-commit
+    // rerun was green; same flake class as the PR #619/#624 lesson above).
+    // #[serial] serializes spawn-based tests crate-wide; production code
+    // runs one runtime and is unaffected.
+    #[cfg(unix)]
+    use serial_test::serial;
 
     #[test]
     fn parse_resolution_finds_width_x_height_token() {
@@ -242,6 +250,7 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    #[serial]
     async fn probe_duration_parses_ffmpeg_stderr_line() {
         let dir = tempfile::tempdir().unwrap();
         let ffmpeg = write_fake_ffmpeg(
@@ -254,6 +263,7 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    #[serial]
     async fn probe_duration_missing_line_yields_none() {
         let dir = tempfile::tempdir().unwrap();
         let ffmpeg = write_fake_ffmpeg(dir.path(), "no duration info here\n");

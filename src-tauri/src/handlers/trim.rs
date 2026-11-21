@@ -533,6 +533,8 @@ mod tests {
 
     #[cfg(unix)]
     use crate::utils::ffmpeg_probe::write_fake_ffmpeg_executor;
+    #[cfg(unix)]
+    use serial_test::serial;
 
     fn trim_fixture(dir: &std::path::Path, name: &str) -> String {
         let input = dir.join(name);
@@ -552,6 +554,7 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    #[serial]
     async fn trim_video_with_ffmpeg_writes_output_on_success() {
         let dir = tempfile::tempdir().unwrap();
         let ffmpeg = write_fake_ffmpeg_executor(dir.path(), 0, false);
@@ -577,6 +580,7 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    #[serial]
     async fn trim_video_with_ffmpeg_start_only_probes_duration() {
         // start-only range: the flow probes input duration for the progress
         // bar before spawning the encode.
@@ -596,6 +600,7 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    #[serial]
     async fn trim_video_with_ffmpeg_maps_failure_to_err_code() {
         let dir = tempfile::tempdir().unwrap();
         let ffmpeg = write_fake_ffmpeg_executor(dir.path(), 1, false);
