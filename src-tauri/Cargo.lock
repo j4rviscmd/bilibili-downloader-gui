@@ -645,7 +645,7 @@ dependencies = [
  "windows-core 0.62.2",
  "wiremock",
  "xz2",
- "zip 9.8.0",
+ "zip 9.8.1",
 ]
 
 [[package]]
@@ -3640,7 +3640,7 @@ dependencies = [
  "png 0.18.1",
  "serde",
  "thiserror 2.0.12",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -7659,7 +7659,7 @@ dependencies = [
  "png 0.18.1",
  "serde",
  "thiserror 2.0.12",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -8208,7 +8208,7 @@ dependencies = [
  "objc2-foundation 0.3.2",
  "objc2-quartz-core 0.3.2",
  "raw-window-handle",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
  "windows-version",
 ]
 
@@ -9026,9 +9026,9 @@ dependencies = [
 
 [[package]]
 name = "zip"
-version = "9.8.0"
+version = "9.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "721c8158b9503b2660291ad3056a20f722deaeed21bb908a9a363d7e17b34f0e"
+checksum = "a9534624d547e3f516ecde0ed9a70d37788f01d340efcfdd03bf3ea8e163c1d0"
 dependencies = [
  "aes 0.9.3",
  "bzip2",
@@ -9048,7 +9048,7 @@ dependencies = [
  "sha1 0.11.0",
  "time",
  "typed-path",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
  "zeroize",
  "zopfli",
  "zstd",
