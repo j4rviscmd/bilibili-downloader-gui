@@ -103,6 +103,14 @@ describe('useThemeEffect', () => {
     expect(window.localStorage.getItem('ui-accent')).toBe('blue')
   })
 
+  it('applies a hue accent attribute and storage', () => {
+    store.dispatch(setSettings({ ...baseline, accentColor: 'violet' }))
+    renderHook(() => useThemeEffect(), { wrapper })
+
+    expect(root().dataset.accent).toBe('violet')
+    expect(window.localStorage.getItem('ui-accent')).toBe('violet')
+  })
+
   it('removes the accent attribute when falling back to pink', () => {
     store.dispatch(setSettings({ ...baseline, accentColor: 'blue' }))
     const { rerender } = renderHook(() => useThemeEffect(), { wrapper })

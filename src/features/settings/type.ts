@@ -113,8 +113,8 @@ export interface Settings {
    */
   theme?: Theme
   /**
-   * Brand accent color: 'pink' (default) or 'blue'.
-   * Persisted to settings.json via the Tauri backend.
+   * Brand accent color: 'pink' (default), 'blue', or a shadcn hue
+   * accent. Persisted to settings.json via the Tauri backend.
    */
   accentColor?: AccentColor
   /**
@@ -213,8 +213,35 @@ export type Theme = 'light' | 'dark'
  * Brand accent color for UI highlights.
  * - pink: bilibili pink (default)
  * - blue: bilibili blue (#00AEEC)
+ * - others: shadcn/Tailwind hue accents
  */
-export type AccentColor = 'pink' | 'blue'
+export type AccentColor =
+  | 'pink'
+  | 'blue'
+  | 'red'
+  | 'orange'
+  | 'amber'
+  | 'yellow'
+  | 'lime'
+  | 'green'
+  | 'emerald'
+  | 'teal'
+  | 'cyan'
+  | 'sky'
+  | 'indigo'
+  | 'violet'
+  | 'purple'
+  | 'fuchsia'
+  | 'rose'
+  | 'slate'
+  | 'gray'
+  | 'zinc'
+  | 'neutral'
+  | 'stone'
+  | 'mauve'
+  | 'olive'
+  | 'mist'
+  | 'taupe'
 
 /**
  * Trim mode for MP4 trimming.

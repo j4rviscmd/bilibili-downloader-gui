@@ -34,8 +34,8 @@ import { SetupLanguage } from './SetupLanguage'
  * theme class to it so `dark:` variants resolve correctly. `light` is the
  * fallback when the param is absent (first run / unset).
  *
- * Accent: same pattern — `&accent=blue` is appended when the saved accent is
- * blue; a missing param means pink (the app default).
+ * Accent: same pattern — `&accent={accent}` is appended when the saved
+ * accent is non-default; a missing/unknown param means pink.
  */
 export function SplashScreen() {
   const [needsLanguage, setNeedsLanguage] = useState(
@@ -46,7 +46,16 @@ export function SplashScreen() {
   // below).
   const params = new URLSearchParams(window.location.search)
   const isDark = params.get('theme') === 'dark'
-  const accent: SplashAccent = params.get('accent') === 'blue' ? 'blue' : 'pink'
+  // Why: the accent param comes from the URL, so the whitelist check uses
+  // Object.hasOwn — a plain `in`/truthiness lookup would also match prototype
+  // keys ('constructor', 'toString') and then crash on the SPLASH_DOM_COLORS
+  // lookup (src/features/splash/lib/constants.ts); anything unknown falls
+  // back to pink.
+  const rawAccent = params.get('accent')
+  const accent: SplashAccent =
+    rawAccent !== null && Object.hasOwn(SPLASH_DOM_COLORS, rawAccent)
+      ? (rawAccent as SplashAccent)
+      : 'pink'
   const domColors = SPLASH_DOM_COLORS[accent]
   const { phase, onFadeComplete } = useSplashLifecycle(!needsLanguage)
   const canvasRef = useRef<HTMLCanvasElement>(null)

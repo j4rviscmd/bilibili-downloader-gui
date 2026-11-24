@@ -189,13 +189,14 @@ describe('SearchContent', () => {
   it('renders the bilibili brand icon in the default pink colorway', () => {
     renderWithProviders(<SearchContent />, { route: '/search' })
 
-    // CommandBar (real in this file) renders the mark as an aria-hidden
-    // img; vitest inlines SVG imports as data URIs, so assert the
-    // colorway by the tile fill (#EC5D85 = pink original).
-    const img = document.querySelector<HTMLImageElement>('img[aria-hidden]')
-    expect(img).toBeTruthy()
-    expect(img!.getAttribute('src')).toContain('EC5D85')
-    expect(img!.getAttribute('src')).not.toContain('5DC6EC')
+    // CommandBar (real in this file) renders the mark as an inline
+    // aria-hidden svg; assert the colorway by the tile fill
+    // (#EC5D85 = pink original).
+    const svg = document.querySelector<SVGElement>(
+      'svg[viewBox="0 0 1024 1024"][aria-hidden]',
+    )
+    expect(svg).toBeTruthy()
+    expect(svg!.querySelector('path')!.getAttribute('fill')).toBe('#EC5D85')
   })
 
   it('swaps the brand icon to the blue colorway with the accent setting', () => {
@@ -204,10 +205,12 @@ describe('SearchContent', () => {
     )
     renderWithProviders(<SearchContent />, { route: '/search' })
 
-    const img = document.querySelector<HTMLImageElement>('img[aria-hidden]')
-    expect(img).toBeTruthy()
+    const svg = document.querySelector<SVGElement>(
+      'svg[viewBox="0 0 1024 1024"][aria-hidden]',
+    )
+    expect(svg).toBeTruthy()
     // Blue colorway tile fill: #5DC6EC (hue-rotated accent family).
-    expect(img!.getAttribute('src')).toContain('5DC6EC')
+    expect(svg!.querySelector('path')!.getAttribute('fill')).toBe('#5DC6EC')
   })
 
   it('hides the login benefits alert once the user is logged in', () => {

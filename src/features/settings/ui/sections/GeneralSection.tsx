@@ -8,6 +8,7 @@ import {
   parseFontSize,
 } from '@/features/settings/lib/fontSize'
 import type { FontSizePreset, SupportedLang } from '@/features/settings/type'
+import { AccentColorPicker } from '@/features/settings/ui/AccentColorPicker'
 import { SettingRow } from '@/features/settings/ui/SettingRow'
 import { SettingToggleGroup } from '@/features/settings/ui/SettingToggleGroup'
 import { useSettings } from '@/features/settings/useSettings'
@@ -162,15 +163,11 @@ export function GeneralSection() {
         />
       </SettingRow>
       <SettingRow label={t('settings.accent_label')}>
-        <SettingToggleGroup
+        <AccentColorPicker
           value={settings.accentColor ?? 'pink'}
           onValueChange={(value) => {
-            saveByForm({ accentColor: value as 'pink' | 'blue' })
+            saveByForm({ accentColor: value })
           }}
-          options={[
-            { value: 'pink', label: t('settings.accent_pink') },
-            { value: 'blue', label: t('settings.accent_blue') },
-          ]}
         />
       </SettingRow>
       <div className="space-y-3">

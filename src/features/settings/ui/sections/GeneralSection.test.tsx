@@ -177,11 +177,27 @@ describe('GeneralSection', () => {
     seedSettings()
     const { user } = renderWithProviders(<GeneralSection />)
 
+    const trigger = screen.getByText('settings.accent_pink').closest('button')!
+    await user.click(trigger as HTMLElement)
     const blue = screen.getByText('settings.accent_blue').closest('button')!
     await user.click(blue as HTMLElement)
 
     await waitFor(() =>
       expect(lastSetSettings()).toMatchObject({ accentColor: 'blue' }),
+    )
+  })
+
+  it('persists a shadcn hue accent selection', async () => {
+    seedSettings({ accentColor: 'blue' })
+    const { user } = renderWithProviders(<GeneralSection />)
+
+    const trigger = screen.getByText('settings.accent_blue').closest('button')!
+    await user.click(trigger as HTMLElement)
+    const violet = screen.getByText('settings.accent_violet').closest('button')!
+    await user.click(violet as HTMLElement)
+
+    await waitFor(() =>
+      expect(lastSetSettings()).toMatchObject({ accentColor: 'violet' }),
     )
   })
 

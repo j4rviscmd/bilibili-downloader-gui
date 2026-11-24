@@ -1,12 +1,11 @@
 import { useSelector, type RootState } from '@/app/store'
-import bilibiliTvMarkBlue from '@/assets/bilibili-tv-mark-blue.svg'
-import bilibiliTvMark from '@/assets/bilibili-tv-mark.svg'
+import { BilibiliTvMark } from '@/shared/ui/BilibiliTvMark'
 import { Button } from '@/shared/ui/button'
 
 /**
  * App-icon button prefixing a page title (bilibili-style home shortcut).
- * The icon follows the accent setting: pink by default, blue with the
- * blue accent. The parent page owns what the click does.
+ * The icon follows the accent setting. The parent page owns what the
+ * click does.
  */
 export function AppIconButton({
   label,
@@ -34,12 +33,7 @@ export function AppIconButton({
       aria-label={label}
       onClick={onClick}
     >
-      <img
-        src={accent === 'blue' ? bilibiliTvMarkBlue : bilibiliTvMark}
-        alt=""
-        aria-hidden
-        className="size-8"
-      />
+      <BilibiliTvMark accent={accent} className="size-8" />
     </Button>
   )
 }

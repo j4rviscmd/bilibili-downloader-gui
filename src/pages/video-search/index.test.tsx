@@ -187,20 +187,18 @@ describe('VideoSearchContent', () => {
     expect(await screen.findByText('popular-route')).toBeInTheDocument()
   })
 
-  // Vitest inlines SVG imports as data URIs, so the icon colorway is
-  // asserted via the tile fill in src (#EC5D85 = pink, #5DC6EC = blue);
-  // search-page precedent. Scoped to the popular button because the
-  // results grid also renders (thumbnail) imgs.
+  // The icon colorway is asserted via the tile fill on the inline svg
+  // (#EC5D85 = pink, #5DC6EC = blue); search-page precedent. Scoped to
+  // the popular button because the results grid also renders svgs.
   it('renders the popular shortcut icon in the default pink colorway', () => {
     seedFinishedSearch()
     renderWithProviders(<Harness />, { route: '/video-search' })
 
-    const img = screen
+    const svg = screen
       .getByRole('button', { name: 'popular.title' })
-      .querySelector('img')
-    expect(img).toBeTruthy()
-    expect(img!.getAttribute('src')).toContain('EC5D85')
-    expect(img!.getAttribute('src')).not.toContain('5DC6EC')
+      .querySelector('svg')
+    expect(svg).toBeTruthy()
+    expect(svg!.querySelector('path')!.getAttribute('fill')).toBe('#EC5D85')
   })
 
   it('swaps the popular shortcut icon to blue with the accent setting', () => {
@@ -210,11 +208,11 @@ describe('VideoSearchContent', () => {
     )
     renderWithProviders(<Harness />, { route: '/video-search' })
 
-    const img = screen
+    const svg = screen
       .getByRole('button', { name: 'popular.title' })
-      .querySelector('img')
-    expect(img).toBeTruthy()
-    expect(img!.getAttribute('src')).toContain('5DC6EC')
+      .querySelector('svg')
+    expect(svg).toBeTruthy()
+    expect(svg!.querySelector('path')!.getAttribute('fill')).toBe('#5DC6EC')
   })
 
   it('searches and renders results, card click navigates to /search', async () => {

@@ -94,7 +94,7 @@ impl WindowGeometry {
 /// - Otherwise: `splashscreen?lang={lang}` plus `&theme=dark` when the saved
 ///   theme is dark, so the splash renders light/dark from the first frame
 ///   (the frontend treats a missing param as light).
-/// - `&accent=blue` when the saved accent is blue, mirroring the theme
+/// - `&accent={accent}` for any non-default accent, mirroring the theme
 ///   convention: the frontend defaults to pink when the param is absent.
 fn splash_url(language: Option<&str>, theme: Option<Theme>, accent: Option<&str>) -> String {
     let Some(lang) = language else {
@@ -104,8 +104,9 @@ fn splash_url(language: Option<&str>, theme: Option<Theme>, accent: Option<&str>
     if matches!(theme, Some(Theme::Dark)) {
         url.push_str("&theme=dark");
     }
-    if matches!(accent, Some("blue")) {
-        url.push_str("&accent=blue");
+    if let Some(accent) = accent.filter(|a| *a != "pink") {
+        url.push_str("&accent=");
+        url.push_str(accent);
     }
     url
 }
@@ -914,9 +915,14 @@ mod tests {
     }
 
     #[test]
-    fn splash_url_appends_accent_only_for_blue() {
-        // Unset accent omits the param: the frontend defaults to pink.
+    fn splash_url_appends_accent_for_non_default_accents() {
+        // Unset or pink accent omits the param: the frontend defaults
+        // to pink.
         assert_eq!(splash_url(Some("ja"), None, None), "splashscreen?lang=ja");
+        assert_eq!(
+            splash_url(Some("ja"), None, Some("pink")),
+            "splashscreen?lang=ja"
+        );
         assert_eq!(
             splash_url(Some("ja"), Some(Theme::Dark), Some("blue")),
             "splashscreen?lang=ja&theme=dark&accent=blue"
@@ -924,6 +930,10 @@ mod tests {
         assert_eq!(
             splash_url(Some("ja"), Some(Theme::Light), Some("blue")),
             "splashscreen?lang=ja&accent=blue"
+        );
+        assert_eq!(
+            splash_url(Some("ja"), None, Some("violet")),
+            "splashscreen?lang=ja&accent=violet"
         );
     }
 

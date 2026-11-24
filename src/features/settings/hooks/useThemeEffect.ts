@@ -24,9 +24,9 @@ export function useThemeEffect() {
     // Accent: the data attribute drives the CSS token swap; localStorage
     // lets index.html's inline script apply it before React mounts (the
     // same anti-flash pattern as ui-theme). Pink is the CSS default, so
-    // only blue carries the attribute.
-    if (accent === 'blue') {
-      root.dataset.accent = 'blue'
+    // every other accent carries the attribute.
+    if (accent && accent !== 'pink') {
+      root.dataset.accent = accent
     } else {
       delete root.dataset.accent
     }

@@ -25,8 +25,17 @@ describe('resolveSplashPalette', () => {
     expect(palette.particleShades[0]).toEqual([0, 161 / 255, 214 / 255])
   })
 
+  it('derives the palette for a shadcn hue accent from its DOM hex', () => {
+    const palette = resolveSplashPalette(false, 'violet')
+    expect(palette.accent).toBe(0x8e51ff)
+    expect(palette.background).toBe(0xf5f7fa)
+    expect(palette.particleShades[0]).toEqual([142 / 255, 81 / 255, 1])
+    expect(palette.particleShades).toHaveLength(4)
+    expect(resolveSplashPalette(true, 'violet').background).toBe(0x0f172a)
+  })
+
   it('keeps the shared shades identical across themes per accent', () => {
-    for (const accent of ['pink', 'blue'] as const) {
+    for (const accent of ['pink', 'blue', 'violet', 'stone'] as const) {
       const light = resolveSplashPalette(false, accent)
       const dark = resolveSplashPalette(true, accent)
       // Base and darker shades are shared (#fb7299/#d84f7d, #00A1D6/#0088BB);
@@ -39,7 +48,7 @@ describe('resolveSplashPalette', () => {
   })
 
   it('brightens the pale particle shades for the dark backdrop', () => {
-    for (const accent of ['pink', 'blue'] as const) {
+    for (const accent of ['pink', 'blue', 'violet', 'stone'] as const) {
       const light = resolveSplashPalette(false, accent)
       const dark = resolveSplashPalette(true, accent)
       // The two pale shades get a higher green channel on the dark backdrop.
@@ -53,7 +62,7 @@ describe('resolveSplashPalette', () => {
   })
 
   it('keeps all shades within the normalized 0-1 range', () => {
-    for (const accent of ['pink', 'blue'] as const) {
+    for (const accent of ['pink', 'blue', 'violet', 'stone'] as const) {
       for (const dark of [false, true]) {
         for (const [r, g, b] of resolveSplashPalette(dark, accent)
           .particleShades) {
@@ -71,5 +80,7 @@ describe('resolveSplashPalette', () => {
     expect(SPLASH_DOM_COLORS.pink.glowRgb).toBe('251,114,153')
     expect(SPLASH_DOM_COLORS.blue.hex).toBe('#00A1D6')
     expect(SPLASH_DOM_COLORS.blue.glowRgb).toBe('0,161,214')
+    expect(SPLASH_DOM_COLORS.violet.hex).toBe('#8E51FF')
+    expect(SPLASH_DOM_COLORS.violet.glowRgb).toBe('142,81,255')
   })
 })

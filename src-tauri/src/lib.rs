@@ -312,14 +312,13 @@ pub fn run() {
                 }
                 .to_string()
             });
-            // Mirror of the theme param convention: only the non-default
-            // accent (blue) reaches the splash URL; a missing param means
+            // Mirror of the theme param convention: only non-default
+            // accents reach the splash URL; a missing param means
             // pink on the frontend.
-            let splash_accent = matches!(
-                settings.as_ref().and_then(|s| s.accent_color.as_ref()),
-                Some(AccentColor::Blue)
-            )
-            .then_some("blue");
+            let splash_accent = settings
+                .as_ref()
+                .and_then(|s| s.accent_color.as_ref())
+                .map(AccentColor::as_str);
 
             // Seed the aggregate speed limiter from persisted settings
             // (issue #421) so downloads started before the settings page is
