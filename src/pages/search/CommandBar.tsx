@@ -1,9 +1,8 @@
 import { useAppDispatch, useSelector, type RootState } from '@/app/store'
-import bilibiliTvMarkBlue from '@/assets/bilibili-tv-mark-blue.svg'
-import bilibiliTvMark from '@/assets/bilibili-tv-mark.svg'
 import { Kbd } from '@/components/ui/kbd'
 import { resetVideo, resetVideoView, useVideoInfo } from '@/features/video'
 import VideoForm1 from '@/features/video/ui/VideoForm1'
+import { BilibiliTvMark } from '@/shared/ui/BilibiliTvMark'
 import { Link2, RefreshCw } from 'lucide-react'
 import { useEffect } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
@@ -107,18 +106,12 @@ export function CommandBar({ variant }: { variant: 'hero' | 'compact' }) {
     return (
       <div className="w-full max-w-2xl text-center">
         {/* Bilibili icon (dashboard-icons, Apache-2.0): the squircle
-            tile is part of the asset, so no wrapper tile — drop-shadow
-            hugs the squircle. Pink/blue colorway follows the accent
-            setting (same HSL structure, hue-rotated). */}
-        <img
-          src={accent === 'blue' ? bilibiliTvMarkBlue : bilibiliTvMark}
-          alt=""
-          aria-hidden
-          className={
-            accent === 'blue'
-              ? 'mx-auto mb-4 block size-13 drop-shadow-[0_6px_20px_-6px_rgb(93_198_236/0.4)]'
-              : 'mx-auto mb-4 block size-13 drop-shadow-[0_6px_20px_-6px_rgb(236_93_133/0.4)]'
-          }
+            tile is part of the mark, so no wrapper tile — drop-shadow
+            hugs the squircle and follows the accent setting. */}
+        <BilibiliTvMark
+          accent={accent}
+          className="mx-auto mb-4 block size-13"
+          withHeroShadow
         />
         <h2 data-hero-title className="text-xl font-bold tracking-tight">
           {t('search.hero_title')}

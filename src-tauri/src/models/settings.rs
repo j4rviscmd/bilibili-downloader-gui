@@ -372,7 +372,8 @@ pub enum UiTheme {
     Dark,
 }
 
-/// UI accent color: bilibili pink (default) or bilibili blue.
+/// UI accent color: bilibili pink (default), bilibili blue, or a shadcn
+/// hue accent.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum AccentColor {
@@ -381,6 +382,64 @@ pub enum AccentColor {
     Pink,
     /// Bilibili blue (#00AEEC family).
     Blue,
+    Red,
+    Orange,
+    Amber,
+    Yellow,
+    Lime,
+    Green,
+    Emerald,
+    Teal,
+    Cyan,
+    Sky,
+    Indigo,
+    Violet,
+    Purple,
+    Fuchsia,
+    Rose,
+    Slate,
+    Gray,
+    Zinc,
+    Neutral,
+    Stone,
+    Mauve,
+    Olive,
+    Mist,
+    Taupe,
+}
+
+impl AccentColor {
+    /// Serde-stable slug used for the splash `accent` URL param.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            AccentColor::Pink => "pink",
+            AccentColor::Blue => "blue",
+            AccentColor::Red => "red",
+            AccentColor::Orange => "orange",
+            AccentColor::Amber => "amber",
+            AccentColor::Yellow => "yellow",
+            AccentColor::Lime => "lime",
+            AccentColor::Green => "green",
+            AccentColor::Emerald => "emerald",
+            AccentColor::Teal => "teal",
+            AccentColor::Cyan => "cyan",
+            AccentColor::Sky => "sky",
+            AccentColor::Indigo => "indigo",
+            AccentColor::Violet => "violet",
+            AccentColor::Purple => "purple",
+            AccentColor::Fuchsia => "fuchsia",
+            AccentColor::Rose => "rose",
+            AccentColor::Slate => "slate",
+            AccentColor::Gray => "gray",
+            AccentColor::Zinc => "zinc",
+            AccentColor::Neutral => "neutral",
+            AccentColor::Stone => "stone",
+            AccentColor::Mauve => "mauve",
+            AccentColor::Olive => "olive",
+            AccentColor::Mist => "mist",
+            AccentColor::Taupe => "taupe",
+        }
+    }
 }
 
 /// Supported UI languages.
@@ -492,6 +551,44 @@ mod tests {
     fn test_resolve_segment_concurrency_default() {
         // None → 8
         assert_eq!(Settings::resolve_segment_concurrency(&None), 8);
+    }
+
+    #[test]
+    fn test_accent_color_as_str_matches_serde_slug() {
+        let accents = [
+            AccentColor::Pink,
+            AccentColor::Blue,
+            AccentColor::Red,
+            AccentColor::Orange,
+            AccentColor::Amber,
+            AccentColor::Yellow,
+            AccentColor::Lime,
+            AccentColor::Green,
+            AccentColor::Emerald,
+            AccentColor::Teal,
+            AccentColor::Cyan,
+            AccentColor::Sky,
+            AccentColor::Indigo,
+            AccentColor::Violet,
+            AccentColor::Purple,
+            AccentColor::Fuchsia,
+            AccentColor::Rose,
+            AccentColor::Slate,
+            AccentColor::Gray,
+            AccentColor::Zinc,
+            AccentColor::Neutral,
+            AccentColor::Stone,
+            AccentColor::Mauve,
+            AccentColor::Olive,
+            AccentColor::Mist,
+            AccentColor::Taupe,
+        ];
+        for accent in accents {
+            assert_eq!(
+                serde_json::to_string(&accent).unwrap(),
+                format!("\"{}\"", accent.as_str())
+            );
+        }
     }
 
     #[test]

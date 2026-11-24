@@ -159,6 +159,303 @@
   --brand-foreground: #021a23;
 }
 
+/* Shadcn/Tailwind hue accents (settings ≫ accentColor). Same token
+   pattern as the blue block: light = 600 fill + 700 CTA (white-on-brand
+   AA), dark = 500 fill with a 950 label. */
+/* Why: static per-accent blocks instead of runtime-generated CSS — the
+   data-accent attribute is set by index.html's inline script before React
+   mounts (anti-flash), so the tokens must resolve from this stylesheet at
+   first paint. */
+:root[data-accent='red'] {
+  --brand: oklch(57.7% 0.245 27.325);
+  --brand-strong: oklch(50.5% 0.213 27.518);
+  --brand-foreground: #ffffff;
+}
+
+:root.dark[data-accent='red'] {
+  --brand: oklch(63.7% 0.237 25.331);
+  --brand-strong: oklch(63.7% 0.237 25.331);
+  --brand-foreground: oklch(25.8% 0.092 26.042);
+}
+
+:root[data-accent='orange'] {
+  --brand: oklch(64.6% 0.222 41.116);
+  --brand-strong: oklch(55.3% 0.195 38.402);
+  --brand-foreground: #ffffff;
+}
+
+:root.dark[data-accent='orange'] {
+  --brand: oklch(70.5% 0.213 47.604);
+  --brand-strong: oklch(70.5% 0.213 47.604);
+  --brand-foreground: oklch(26.6% 0.079 36.259);
+}
+
+:root[data-accent='amber'] {
+  --brand: oklch(66.6% 0.179 58.318);
+  --brand-strong: oklch(55.5% 0.163 48.998);
+  --brand-foreground: #ffffff;
+}
+
+:root.dark[data-accent='amber'] {
+  --brand: oklch(76.9% 0.188 70.08);
+  --brand-strong: oklch(76.9% 0.188 70.08);
+  --brand-foreground: oklch(27.9% 0.077 45.635);
+}
+
+:root[data-accent='yellow'] {
+  --brand: oklch(68.1% 0.162 75.834);
+  --brand-strong: oklch(55.4% 0.135 66.442);
+  --brand-foreground: #ffffff;
+}
+
+:root.dark[data-accent='yellow'] {
+  --brand: oklch(79.5% 0.184 86.047);
+  --brand-strong: oklch(79.5% 0.184 86.047);
+  --brand-foreground: oklch(28.6% 0.066 53.813);
+}
+
+:root[data-accent='lime'] {
+  --brand: oklch(64.8% 0.2 131.684);
+  --brand-strong: oklch(53.2% 0.157 131.589);
+  --brand-foreground: #ffffff;
+}
+
+:root.dark[data-accent='lime'] {
+  --brand: oklch(76.8% 0.233 130.85);
+  --brand-strong: oklch(76.8% 0.233 130.85);
+  --brand-foreground: oklch(27.4% 0.072 132.109);
+}
+
+:root[data-accent='green'] {
+  --brand: oklch(62.7% 0.194 149.214);
+  --brand-strong: oklch(52.7% 0.154 150.069);
+  --brand-foreground: #ffffff;
+}
+
+:root.dark[data-accent='green'] {
+  --brand: oklch(72.3% 0.219 149.579);
+  --brand-strong: oklch(72.3% 0.219 149.579);
+  --brand-foreground: oklch(26.6% 0.065 152.934);
+}
+
+:root[data-accent='emerald'] {
+  --brand: oklch(59.6% 0.145 163.225);
+  --brand-strong: oklch(50.8% 0.118 165.612);
+  --brand-foreground: #ffffff;
+}
+
+:root.dark[data-accent='emerald'] {
+  --brand: oklch(69.6% 0.17 162.48);
+  --brand-strong: oklch(69.6% 0.17 162.48);
+  --brand-foreground: oklch(26.2% 0.051 172.552);
+}
+
+:root[data-accent='teal'] {
+  --brand: oklch(60% 0.118 184.704);
+  --brand-strong: oklch(51.1% 0.096 186.391);
+  --brand-foreground: #ffffff;
+}
+
+:root.dark[data-accent='teal'] {
+  --brand: oklch(70.4% 0.14 182.503);
+  --brand-strong: oklch(70.4% 0.14 182.503);
+  --brand-foreground: oklch(27.7% 0.046 192.524);
+}
+
+:root[data-accent='cyan'] {
+  --brand: oklch(60.9% 0.126 221.723);
+  --brand-strong: oklch(52% 0.105 223.128);
+  --brand-foreground: #ffffff;
+}
+
+:root.dark[data-accent='cyan'] {
+  --brand: oklch(71.5% 0.143 215.221);
+  --brand-strong: oklch(71.5% 0.143 215.221);
+  --brand-foreground: oklch(30.2% 0.056 229.695);
+}
+
+:root[data-accent='sky'] {
+  --brand: oklch(58.8% 0.158 241.966);
+  --brand-strong: oklch(50% 0.134 242.749);
+  --brand-foreground: #ffffff;
+}
+
+:root.dark[data-accent='sky'] {
+  --brand: oklch(68.5% 0.169 237.323);
+  --brand-strong: oklch(68.5% 0.169 237.323);
+  --brand-foreground: oklch(29.3% 0.066 243.157);
+}
+
+:root[data-accent='indigo'] {
+  --brand: oklch(51.1% 0.262 276.966);
+  --brand-strong: oklch(45.7% 0.24 277.023);
+  --brand-foreground: #ffffff;
+}
+
+:root.dark[data-accent='indigo'] {
+  --brand: oklch(58.5% 0.233 277.117);
+  --brand-strong: oklch(58.5% 0.233 277.117);
+  --brand-foreground: oklch(25.7% 0.09 281.288);
+}
+
+:root[data-accent='violet'] {
+  --brand: oklch(54.1% 0.281 293.009);
+  --brand-strong: oklch(49.1% 0.27 292.581);
+  --brand-foreground: #ffffff;
+}
+
+:root.dark[data-accent='violet'] {
+  --brand: oklch(60.6% 0.25 292.717);
+  --brand-strong: oklch(60.6% 0.25 292.717);
+  --brand-foreground: oklch(28.3% 0.141 291.089);
+}
+
+:root[data-accent='purple'] {
+  --brand: oklch(55.8% 0.288 302.321);
+  --brand-strong: oklch(49.6% 0.265 301.924);
+  --brand-foreground: #ffffff;
+}
+
+:root.dark[data-accent='purple'] {
+  --brand: oklch(62.7% 0.265 303.9);
+  --brand-strong: oklch(62.7% 0.265 303.9);
+  --brand-foreground: oklch(29.1% 0.149 302.717);
+}
+
+:root[data-accent='fuchsia'] {
+  --brand: oklch(59.1% 0.293 322.896);
+  --brand-strong: oklch(51.8% 0.253 323.949);
+  --brand-foreground: #ffffff;
+}
+
+:root.dark[data-accent='fuchsia'] {
+  --brand: oklch(66.7% 0.295 322.15);
+  --brand-strong: oklch(66.7% 0.295 322.15);
+  --brand-foreground: oklch(29.3% 0.136 325.661);
+}
+
+:root[data-accent='rose'] {
+  --brand: oklch(58.6% 0.253 17.585);
+  --brand-strong: oklch(51.4% 0.222 16.935);
+  --brand-foreground: #ffffff;
+}
+
+:root.dark[data-accent='rose'] {
+  --brand: oklch(64.5% 0.246 16.439);
+  --brand-strong: oklch(64.5% 0.246 16.439);
+  --brand-foreground: oklch(27.1% 0.105 12.094);
+}
+
+/* Shadcn/Tailwind base scales as accents (settings ≫ accentColor) for a
+   classic monochrome look. Same 600/700 + 500/950 token pattern. */
+:root[data-accent='slate'] {
+  --brand: oklch(44.6% 0.043 257.281);
+  --brand-strong: oklch(37.2% 0.044 257.287);
+  --brand-foreground: #ffffff;
+}
+
+:root.dark[data-accent='slate'] {
+  --brand: oklch(55.4% 0.046 257.417);
+  --brand-strong: oklch(55.4% 0.046 257.417);
+  --brand-foreground: oklch(12.9% 0.042 264.695);
+}
+
+:root[data-accent='gray'] {
+  --brand: oklch(44.6% 0.03 256.802);
+  --brand-strong: oklch(37.3% 0.034 259.733);
+  --brand-foreground: #ffffff;
+}
+
+:root.dark[data-accent='gray'] {
+  --brand: oklch(55.1% 0.027 264.364);
+  --brand-strong: oklch(55.1% 0.027 264.364);
+  --brand-foreground: oklch(13% 0.028 261.692);
+}
+
+:root[data-accent='zinc'] {
+  --brand: oklch(44.2% 0.017 285.786);
+  --brand-strong: oklch(37% 0.013 285.805);
+  --brand-foreground: #ffffff;
+}
+
+:root.dark[data-accent='zinc'] {
+  --brand: oklch(55.2% 0.016 285.938);
+  --brand-strong: oklch(55.2% 0.016 285.938);
+  --brand-foreground: oklch(14.1% 0.005 285.823);
+}
+
+:root[data-accent='neutral'] {
+  --brand: oklch(43.9% 0 none);
+  --brand-strong: oklch(37.1% 0 none);
+  --brand-foreground: #ffffff;
+}
+
+:root.dark[data-accent='neutral'] {
+  --brand: oklch(55.6% 0 none);
+  --brand-strong: oklch(55.6% 0 none);
+  --brand-foreground: oklch(14.5% 0 none);
+}
+
+:root[data-accent='stone'] {
+  --brand: oklch(44.4% 0.011 73.639);
+  --brand-strong: oklch(37.4% 0.01 67.558);
+  --brand-foreground: #ffffff;
+}
+
+:root.dark[data-accent='stone'] {
+  --brand: oklch(55.3% 0.013 58.071);
+  --brand-strong: oklch(55.3% 0.013 58.071);
+  --brand-foreground: oklch(14.7% 0.004 49.25);
+}
+
+:root[data-accent='mauve'] {
+  --brand: oklch(43.5% 0.029 321.78);
+  --brand-strong: oklch(36.4% 0.029 323.89);
+  --brand-foreground: #ffffff;
+}
+
+:root.dark[data-accent='mauve'] {
+  --brand: oklch(54.2% 0.034 322.5);
+  --brand-strong: oklch(54.2% 0.034 322.5);
+  --brand-foreground: oklch(14.5% 0.008 326);
+}
+
+:root[data-accent='olive'] {
+  --brand: oklch(46.6% 0.025 107.3);
+  --brand-strong: oklch(39.4% 0.023 107.4);
+  --brand-foreground: #ffffff;
+}
+
+:root.dark[data-accent='olive'] {
+  --brand: oklch(58% 0.031 107.3);
+  --brand-strong: oklch(58% 0.031 107.3);
+  --brand-foreground: oklch(15.3% 0.006 107.1);
+}
+
+:root[data-accent='mist'] {
+  --brand: oklch(45% 0.017 213.2);
+  --brand-strong: oklch(37.8% 0.015 216);
+  --brand-foreground: #ffffff;
+}
+
+:root.dark[data-accent='mist'] {
+  --brand: oklch(56% 0.021 213.5);
+  --brand-strong: oklch(56% 0.021 213.5);
+  --brand-foreground: oklch(14.8% 0.004 228.8);
+}
+
+:root[data-accent='taupe'] {
+  --brand: oklch(43.8% 0.017 39.3);
+  --brand-strong: oklch(36.7% 0.016 35.7);
+  --brand-foreground: #ffffff;
+}
+
+:root.dark[data-accent='taupe'] {
+  --brand: oklch(54.7% 0.021 43.1);
+  --brand-strong: oklch(54.7% 0.021 43.1);
+  --brand-foreground: oklch(14.7% 0.004 49.3);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
