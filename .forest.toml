@@ -1,11 +1,11 @@
 [start]
-commands = ["npm ci", "codebase-memory-mcp cli --quiet index_repository '{\"repo_path\": \".\", \"mode\": \"fast\"}' || true"]
+commands = ["npm ci", "codebase-memory-mcp cli --quiet index_repository --repo-path . --mode fast || true"]
 share = ["references/"]
 
 [finish]
 commands = [
   # Why: `|| true` keeps a missing codebase-memory-mcp CLI from failing `forest finish` (PR #771)
-  "codebase-memory-mcp cli --quiet index_repository '{\"repo_path\": \".\"}' || true",
+  "codebase-memory-mcp cli --quiet index_repository --repo-path . || true",
   # Why: the excalidraw MCP server (not this repo) scatters excalidraw.log into the
   # session cwd, .worktrees/, and public/ (Vite publicDir — a stray log there
   # ships in release builds); `*.log` is already gitignored.
