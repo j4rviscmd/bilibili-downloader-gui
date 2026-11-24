@@ -8,6 +8,7 @@
   "lockFileMaintenance": {
     "enabled": true
   },
+  "npmrc": "allow-remote=all",
   "packageRules": [
     {
       "description": "Group @tauri-apps npm packages (api, cli, plugins) so JS-side versions stay in sync",
