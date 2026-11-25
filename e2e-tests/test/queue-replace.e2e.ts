@@ -28,6 +28,7 @@
  */
 import { browser } from '@wdio/globals'
 import {
+  dismissThemeOnboardingIfPresent,
   loadFixtureVideo,
   saveScreenshot,
   setupDownloadEnv,
@@ -113,6 +114,7 @@ describe('queue replace semantics', () => {
 
   before(async () => {
     await waitForMainUI()
+    await dismissThemeOnboardingIfPresent()
     downloadEnv = await setupDownloadEnv()
     // Pin the serial slot through the real Settings UI: the queue runner
     // reads the FRONTEND settings store, which only reloads persisted

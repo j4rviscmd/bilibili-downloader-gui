@@ -95,6 +95,22 @@ export async function waitForMainUI(): Promise<void> {
   )
 }
 
+export async function dismissThemeOnboardingIfPresent(): Promise<void> {
+  const cta = await browser.$(S.THEME_ONBOARDING_CTA)
+  if (!(await cta.isExisting())) return
+  await browser.execute((selector: string) => {
+    const btn = document.querySelector(selector)
+    if (btn instanceof HTMLElement) btn.click()
+  }, S.THEME_ONBOARDING_CTA)
+  await browser.waitUntil(
+    async () => !(await (await browser.$(S.THEME_ONBOARDING_CTA)).isExisting()),
+    {
+      timeout: 10_000,
+      timeoutMsg: 'Theme onboarding dialog did not dismiss after confirm',
+    },
+  )
+}
+
 /**
  * Wait for the URL input field to be visible and
  * interactable.

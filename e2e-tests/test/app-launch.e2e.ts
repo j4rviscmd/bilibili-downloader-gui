@@ -21,6 +21,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import {
+  dismissThemeOnboardingIfPresent,
   ensureScreenshotDir,
   FIXTURE_VIDEO_URL,
   navigateToUrlFetchPage,
@@ -76,6 +77,7 @@ describe('bilibili-downloader-gui E2E', () => {
 
   it('should complete initialization and land on the default startup page', async () => {
     await waitForMainUI()
+    await dismissThemeOnboardingIfPresent()
 
     // Fresh E2E sessions have no stored startupPage, so the app lands on
     // the /popular default (video search entry view).
