@@ -62,6 +62,14 @@ describe('settingsSlice', () => {
     expect(settingsSlice.getInitialState().startupPage).toBe('/popular')
   })
 
+  it('defaults themePreset to unset and the app-bar palette button to shown', () => {
+    // Unset preset = "the user has not chosen a theme yet": the onboarding
+    // dialog keys off it, so a concrete default here would silently skip
+    // it. The palette button ships visible so the feature is discoverable.
+    expect(settingsSlice.getInitialState().themePreset).toBeUndefined()
+    expect(settingsSlice.getInitialState().showAppBarThemePreset).toBe(true)
+  })
+
   it('defaults disabledPages to empty and merges visibility patches', () => {
     // Empty = every page visible; a regression here would hide pages on
     // fresh installs before the persisted settings arrive.

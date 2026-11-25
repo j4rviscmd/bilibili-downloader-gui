@@ -8,7 +8,9 @@ import { cn } from '@/shared/lib/utils'
 import {
   FADE_DURATION_MS,
   SPLASH_DOM_COLORS,
-  type SplashAccent,
+  splashBackgroundCss,
+  splashDomColor,
+  type SplashPreset,
 } from '../lib/constants'
 
 import { useSplashLifecycle } from '../hooks/useSplashLifecycle'
@@ -34,36 +36,36 @@ import { SetupLanguage } from './SetupLanguage'
  * theme class to it so `dark:` variants resolve correctly. `light` is the
  * fallback when the param is absent (first run / unset).
  *
- * Accent: same pattern — `&accent={accent}` is appended when the saved
- * accent is non-default; a missing/unknown param means pink.
+ * Preset: same pattern — `&preset={preset}` is appended when the saved
+ * theme preset is non-default; a missing/unknown param means bilibili.
  */
 export function SplashScreen() {
   const [needsLanguage, setNeedsLanguage] = useState(
     () => new URLSearchParams(window.location.search).get('setup') === '1',
   )
-  // The theme/accent params never change during the splash lifetime, so a
+  // The theme/preset params never change during the splash lifetime, so a
   // plain per-render read is enough (matches the showFfmpegBar derivation
   // below).
   const params = new URLSearchParams(window.location.search)
   const isDark = params.get('theme') === 'dark'
-  // Why: the accent param comes from the URL, so the whitelist check uses
-  // Object.hasOwn — a plain `in`/truthiness lookup would also match prototype
-  // keys ('constructor', 'toString') and then crash on the SPLASH_DOM_COLORS
-  // lookup (src/features/splash/lib/constants.ts); anything unknown falls
-  // back to pink.
-  const rawAccent = params.get('accent')
-  const accent: SplashAccent =
-    rawAccent !== null && Object.hasOwn(SPLASH_DOM_COLORS, rawAccent)
-      ? (rawAccent as SplashAccent)
-      : 'pink'
-  const domColors = SPLASH_DOM_COLORS[accent]
+  // Why: the preset param comes from the URL, so the whitelist check uses
+  // Object.hasOwn — a plain `in`/truthiness lookup would also match
+  // prototype keys ('constructor', 'toString') and then crash on the
+  // SPLASH_DOM_COLORS lookup (src/features/splash/lib/constants.ts);
+  // anything unknown falls back to bilibili.
+  const rawPreset = params.get('preset')
+  const preset: SplashPreset =
+    rawPreset !== null && Object.hasOwn(SPLASH_DOM_COLORS, rawPreset)
+      ? (rawPreset as SplashPreset)
+      : 'bilibili'
+  const domColors = splashDomColor(isDark, preset)
   const { phase, onFadeComplete } = useSplashLifecycle(!needsLanguage)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [stepLabel, setStepLabel] = useState<string>('')
   const [ffmpegProgress, setFfmpegProgress] = useState<number | null>(null)
   const { t } = useTranslation()
 
-  useThreeScene(canvasRef, phase !== 'done', isDark, accent)
+  useThreeScene(canvasRef, phase !== 'done', isDark, preset)
 
   // Show the splash window once React has mounted. The window is created
   // hidden (visible(false)) to avoid a black frame during webview load; this
@@ -121,7 +123,10 @@ export function SplashScreen() {
       {/* Inner container: rounded background + overflow-hidden clips the
           Three.js canvas to the rounded corners. The outer wrapper stays
           transparent so the native window shadow follows the rounded shape. */}
-      <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-2xl bg-[#f5f7fa] dark:bg-[#0f172a]">
+      <div
+        className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-2xl"
+        style={{ backgroundColor: splashBackgroundCss(isDark, preset) }}
+      >
         <canvas
           ref={canvasRef}
           data-tauri-drag-region

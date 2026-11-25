@@ -99,7 +99,7 @@ async function waitForFullPage(start: number): Promise<void> {
       const cards = await browser.$$('[data-part-list] [data-part-index]')
       return (
         (await first.getAttribute('data-part-index')) === String(start) &&
-        cards.length === PARTS_PER_PAGE
+        (await cards.length) === PARTS_PER_PAGE
       )
     },
     {

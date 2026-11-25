@@ -67,6 +67,8 @@ export const DIALOG_CONTENT = '[data-slot="dialog-content"]'
 /** Title element inside a shadcn/ui dialog. */
 export const DIALOG_TITLE = '[data-slot="dialog-title"]'
 
+export const THEME_ONBOARDING_CTA = '[data-testid="theme-onboarding-cta"]'
+
 // -- Home Page: URL Entry (hero / compact command bar) --
 
 /** Text input field for entering a Bilibili video URL. */

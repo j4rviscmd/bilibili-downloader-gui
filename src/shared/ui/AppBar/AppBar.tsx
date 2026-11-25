@@ -1,5 +1,6 @@
 import { useSelector } from '@/app/store'
 import { QRCodeLoginDialog } from '@/features/login'
+import AppBarThemePresetButton from '@/features/preference/ui/AppBarThemePresetButton'
 import LanguageSwitcher from '@/features/preference/ui/LanguageSwitcher'
 import ToggleThemeButton from '@/features/preference/ui/ToggleThemeButton'
 import { UpdateAvailableButton } from '@/features/updater'
@@ -118,6 +119,7 @@ function AppBar({ user, theme, setTheme }: Props) {
             </>
           )}
           <LanguageSwitcher />
+          <AppBarThemePresetButton />
           <ToggleThemeButton theme={theme} setTheme={setTheme} />
         </div>
       </div>

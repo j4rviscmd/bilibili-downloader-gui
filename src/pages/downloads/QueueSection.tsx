@@ -13,7 +13,7 @@ export type SectionKey =
 /**
  * Visual tone of one section card (2026-10-13 mockup approval; accent
  * rollout 2026-10-21 mockup approval: running tint follows the brand
- * token family, so settings ≫ accentColor recolors it).
+ * token family, so settings ≫ themePreset recolors it).
  *
  * Tint only where the tone is unambiguous: downloading = brand (running),
  * queued = muted gray. The settled section mixes done/error/cancelled

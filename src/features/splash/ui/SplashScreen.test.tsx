@@ -58,7 +58,7 @@ describe('SplashScreen', () => {
       expect.anything(),
       false,
       false,
-      'pink',
+      'bilibili',
     )
   })
 
@@ -69,14 +69,14 @@ describe('SplashScreen', () => {
     expect(mockInvoke).toHaveBeenCalledWith('show_splash')
     expect(screen.getByText('Bilibili')).toBeInTheDocument()
     expect(screen.getByText('Downloader')).toBeInTheDocument()
-    // The Three.js canvas mounts and the scene starts; without theme/accent
-    // params the scene runs light pink (app defaults).
+    // The Three.js canvas mounts and the scene starts; without theme/preset
+    // params the scene runs light bilibili (app defaults).
     expect(vi.mocked(useThreeScene)).toHaveBeenCalled()
     expect(vi.mocked(useThreeScene)).toHaveBeenCalledWith(
       expect.anything(),
       true,
       false,
-      'pink',
+      'bilibili',
     )
   })
 
@@ -91,32 +91,35 @@ describe('SplashScreen', () => {
       expect.anything(),
       true,
       true,
-      'pink',
+      'bilibili',
     )
     // Background and title switch to the dark variants; the glow keeps the
-    // stronger dark opacity with the pink accent rgb.
-    expect(document.querySelector('.dark\\:bg-\\[\\#0f172a\\]')).not.toBeNull()
+    // stronger dark opacity with the bilibili rgb.
+    expect(
+      (document.querySelector('.rounded-2xl') as HTMLElement)!.style
+        .backgroundColor,
+    ).toBe('#0f172a')
     const title = screen.getByRole('heading', { level: 1 })
     expect(title.style.color).toBe('#e5e7ebee')
     expect(title.style.textShadow).toBe('0 0 40px rgba(251,114,153,0.35)')
   })
 
-  it('renders pink DOM colors by default and passes pink to the scene', () => {
+  it('renders bilibili DOM colors by default and passes bilibili to the scene', () => {
     renderWithProviders(<SplashScreen />)
 
     expect(vi.mocked(useThreeScene)).toHaveBeenCalledWith(
       expect.anything(),
       true,
       false,
-      'pink',
+      'bilibili',
     )
     const title = screen.getByRole('heading', { level: 1 })
     expect(title.querySelector('span')!.style.color).toBe('#fb7299')
     expect(title.style.textShadow).toBe('0 0 40px rgba(251,114,153,0.2)')
   })
 
-  it('renders blue DOM colors and passes blue to the scene when accent=blue', () => {
-    window.history.pushState({}, '', '/splashscreen?accent=blue')
+  it('renders blue DOM colors and passes blue to the scene when preset=bilibili-blue', () => {
+    window.history.pushState({}, '', '/splashscreen?preset=bilibili-blue')
 
     renderWithProviders(<SplashScreen />)
 
@@ -124,11 +127,40 @@ describe('SplashScreen', () => {
       expect.anything(),
       true,
       false,
-      'blue',
+      'bilibili-blue',
     )
     const title = screen.getByRole('heading', { level: 1 })
     expect(title.querySelector('span')!.style.color).toBe('#00A1D6')
     expect(title.style.textShadow).toBe('0 0 40px rgba(0,161,214,0.2)')
+    // The bilibili pair keeps the established light backdrop.
+    expect(
+      (document.querySelector('.rounded-2xl') as HTMLElement)!.style
+        .backgroundColor,
+    ).toBe('#f5f7fa')
+  })
+
+  it('follows the preset background for catppuccin', () => {
+    window.history.pushState({}, '', '/splashscreen?preset=catppuccin')
+
+    renderWithProviders(<SplashScreen />)
+
+    expect(
+      (document.querySelector('.rounded-2xl') as HTMLElement)!.style
+        .backgroundColor,
+    ).toBe('#eff1f5')
+  })
+
+  it('renders the per-mode vercel primary (white on the dark backdrop)', () => {
+    window.history.pushState({}, '', '/splashscreen?theme=dark&preset=vercel')
+
+    renderWithProviders(<SplashScreen />)
+
+    const title = screen.getByRole('heading', { level: 1 })
+    expect(title.querySelector('span')!.style.color).toBe('#ffffff')
+    expect(
+      (document.querySelector('.rounded-2xl') as HTMLElement)!.style
+        .backgroundColor,
+    ).toBe('#000000')
   })
 
   it('shows the ffmpeg determinate progress bar during ffmpeg install', async () => {
@@ -141,7 +173,7 @@ describe('SplashScreen', () => {
       await screen.findByText('init.installing_ffmpeg'),
     ).toBeInTheDocument()
     // The determinate bar's fill width and color are driven by the
-    // progress percentage and the accent.
+    // progress percentage and the preset.
     const fill = screen.getByTestId('splash-progress-fill')
     expect(fill).toHaveStyle({ width: '42%', backgroundColor: '#fb7299' })
   })

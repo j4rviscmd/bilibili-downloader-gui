@@ -16,8 +16,8 @@ export function AppIconButton({
   label: string
   onClick: () => void
 }) {
-  const accent = useSelector(
-    (state: RootState) => state.settings.accentColor ?? 'pink',
+  const preset = useSelector(
+    (state: RootState) => state.settings.themePreset ?? 'bilibili',
   )
   return (
     // Why -my-2: net 28px layout height (44px button - 16px margins)
@@ -33,7 +33,7 @@ export function AppIconButton({
       aria-label={label}
       onClick={onClick}
     >
-      <BilibiliTvMark accent={accent} className="size-8" />
+      <BilibiliTvMark preset={preset} className="size-8" />
     </Button>
   )
 }

@@ -1,4 +1,5 @@
 import { useSettings } from '@/features/settings'
+import { ThemeOnboardingDialog } from '@/features/settings/ui/ThemeOnboardingDialog'
 import { useUser } from '@/features/user'
 import { Settings } from '@/shared/animate-ui/icons/settings'
 import {
@@ -90,6 +91,7 @@ export function PageLayoutShell({ children }: PageLayoutShellProps) {
 
   return (
     <>
+      <ThemeOnboardingDialog />
       {/*
         CONSTRAINT: Bound the app shell to viewport height so the flex chain
         (SidebarInset -> h-full wrappers -> flex-1 min-h-0 scroll regions)

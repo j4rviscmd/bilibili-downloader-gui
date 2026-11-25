@@ -39,7 +39,7 @@ import {
   TV_DEPTH,
   TV_HEIGHT,
   TV_WIDTH,
-  type SplashAccent,
+  type SplashPreset,
 } from './constants'
 
 /**
@@ -67,18 +67,18 @@ export interface SplashSceneHandle {
  * @param canvas - The `<canvas>` element to render into.
  * @param dark   - Whether to use the dark-theme palette (background clear
  *   color + brightened particle shades).
- * @param accent - Accent family ('pink' | 'blue') for the TV/lightning
- *   fills and particle shades.
+ * @param preset - Theme preset family for the TV/lightning fills and
+ *   particle shades.
  * @returns A handle with `dispose()` and `resize()` methods.
  */
 export function createSplashScene(
   canvas: HTMLCanvasElement,
   dark = false,
-  accent: SplashAccent = 'pink',
+  preset: SplashPreset = 'bilibili',
 ): SplashSceneHandle {
   const width = canvas.clientWidth || window.innerWidth
   const height = canvas.clientHeight || window.innerHeight
-  const palette = resolveSplashPalette(dark, accent)
+  const palette = resolveSplashPalette(dark, preset)
 
   const renderer = new WebGLRenderer({
     canvas,

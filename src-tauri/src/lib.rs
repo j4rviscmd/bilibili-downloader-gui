@@ -52,7 +52,6 @@ use crate::models::qr_login::QrCodeResult;
 use crate::models::qr_login::QrPollResult;
 use crate::models::qr_login::Session;
 use crate::models::search_history::SearchHistoryEntry;
-use crate::models::settings::AccentColor;
 use crate::models::settings::Language;
 use crate::models::settings::Settings;
 use crate::models::settings::UiTheme;
@@ -313,12 +312,10 @@ pub fn run() {
                 .to_string()
             });
             // Mirror of the theme param convention: only non-default
-            // accents reach the splash URL; a missing param means
-            // pink on the frontend.
-            let splash_accent = settings
-                .as_ref()
-                .and_then(|s| s.accent_color.as_ref())
-                .map(AccentColor::as_str);
+            // presets reach the splash URL; a missing param means
+            // bilibili on the frontend (the legacy accentColor alias is
+            // resolved by Settings::splash_preset).
+            let splash_preset = Settings::splash_preset(&settings);
 
             // Seed the aggregate speed limiter from persisted settings
             // (issue #421) so downloads started before the settings page is
@@ -377,7 +374,7 @@ pub fn run() {
                     app.handle(),
                     window_theme,
                     if first_run { None } else { language },
-                    splash_accent,
+                    splash_preset,
                 )?;
             }
 

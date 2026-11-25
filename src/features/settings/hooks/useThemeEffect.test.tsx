@@ -29,7 +29,7 @@ const baseline: Settings = {
   trimMode: 'copy',
   audioFormat: 'mp3',
   theme: 'light',
-  accentColor: 'pink',
+  themePreset: 'bilibili',
 }
 
 const wrapper = ({ children }: { children: ReactNode }) => (
@@ -42,9 +42,9 @@ describe('useThemeEffect', () => {
   beforeEach(() => {
     root().classList.remove('light', 'dark')
     root().style.colorScheme = ''
-    delete root().dataset.accent
+    delete root().dataset.themePreset
     window.localStorage.removeItem('ui-theme')
-    window.localStorage.removeItem('ui-accent')
+    window.localStorage.removeItem('ui-theme-preset')
     vi.clearAllMocks()
   })
 
@@ -95,31 +95,31 @@ describe('useThemeEffect', () => {
     expect(mockSetTheme).toHaveBeenCalledWith('light')
   })
 
-  it('applies the blue accent attribute and storage', () => {
-    store.dispatch(setSettings({ ...baseline, accentColor: 'blue' }))
+  it('applies the bilibili-blue preset attribute and storage', () => {
+    store.dispatch(setSettings({ ...baseline, themePreset: 'bilibili-blue' }))
     renderHook(() => useThemeEffect(), { wrapper })
 
-    expect(root().dataset.accent).toBe('blue')
-    expect(window.localStorage.getItem('ui-accent')).toBe('blue')
+    expect(root().dataset.themePreset).toBe('bilibili-blue')
+    expect(window.localStorage.getItem('ui-theme-preset')).toBe('bilibili-blue')
   })
 
-  it('applies a hue accent attribute and storage', () => {
-    store.dispatch(setSettings({ ...baseline, accentColor: 'violet' }))
+  it('applies a tweakcn preset attribute and storage', () => {
+    store.dispatch(setSettings({ ...baseline, themePreset: 'catppuccin' }))
     renderHook(() => useThemeEffect(), { wrapper })
 
-    expect(root().dataset.accent).toBe('violet')
-    expect(window.localStorage.getItem('ui-accent')).toBe('violet')
+    expect(root().dataset.themePreset).toBe('catppuccin')
+    expect(window.localStorage.getItem('ui-theme-preset')).toBe('catppuccin')
   })
 
-  it('removes the accent attribute when falling back to pink', () => {
-    store.dispatch(setSettings({ ...baseline, accentColor: 'blue' }))
+  it('removes the preset attribute when falling back to bilibili', () => {
+    store.dispatch(setSettings({ ...baseline, themePreset: 'bilibili-blue' }))
     const { rerender } = renderHook(() => useThemeEffect(), { wrapper })
-    expect(root().dataset.accent).toBe('blue')
+    expect(root().dataset.themePreset).toBe('bilibili-blue')
 
-    store.dispatch(setSettings({ ...baseline, accentColor: undefined }))
+    store.dispatch(setSettings({ ...baseline, themePreset: undefined }))
     rerender()
 
-    expect(root().dataset.accent).toBeUndefined()
-    expect(window.localStorage.getItem('ui-accent')).toBe('pink')
+    expect(root().dataset.themePreset).toBeUndefined()
+    expect(window.localStorage.getItem('ui-theme-preset')).toBe('bilibili')
   })
 })

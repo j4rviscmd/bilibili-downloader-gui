@@ -11,6 +11,7 @@
  */
 import { browser } from '@wdio/globals'
 import {
+  dismissThemeOnboardingIfPresent,
   loadFixtureVideo,
   saveScreenshot,
   setupDownloadEnv,
@@ -33,6 +34,7 @@ describe('queue happy paths', () => {
 
   before(async () => {
     await waitForMainUI()
+    await dismissThemeOnboardingIfPresent()
     downloadEnv = await setupDownloadEnv()
     await loadFixtureVideo()
   })

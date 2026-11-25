@@ -173,31 +173,57 @@ describe('GeneralSection', () => {
     )
   })
 
-  it('changing the accent color persists the new accent', async () => {
+  it('changing the theme preset persists the new preset', async () => {
     seedSettings()
     const { user } = renderWithProviders(<GeneralSection />)
 
-    const trigger = screen.getByText('settings.accent_pink').closest('button')!
+    const trigger = screen
+      .getByText('settings.theme_bilibili')
+      .closest('button')!
     await user.click(trigger as HTMLElement)
-    const blue = screen.getByText('settings.accent_blue').closest('button')!
+    const blue = screen
+      .getByText('settings.theme_bilibili-blue')
+      .closest('button')!
     await user.click(blue as HTMLElement)
 
     await waitFor(() =>
-      expect(lastSetSettings()).toMatchObject({ accentColor: 'blue' }),
+      expect(lastSetSettings()).toMatchObject({ themePreset: 'bilibili-blue' }),
     )
   })
 
-  it('persists a shadcn hue accent selection', async () => {
-    seedSettings({ accentColor: 'blue' })
+  it('persists a tweakcn preset selection', async () => {
+    seedSettings({ themePreset: 'bilibili-blue' })
     const { user } = renderWithProviders(<GeneralSection />)
 
-    const trigger = screen.getByText('settings.accent_blue').closest('button')!
+    const trigger = screen
+      .getByText('settings.theme_bilibili-blue')
+      .closest('button')!
     await user.click(trigger as HTMLElement)
-    const violet = screen.getByText('settings.accent_violet').closest('button')!
-    await user.click(violet as HTMLElement)
+    const catppuccin = screen
+      .getByText('settings.theme_catppuccin')
+      .closest('button')!
+    await user.click(catppuccin as HTMLElement)
 
     await waitFor(() =>
-      expect(lastSetSettings()).toMatchObject({ accentColor: 'violet' }),
+      expect(lastSetSettings()).toMatchObject({ themePreset: 'catppuccin' }),
+    )
+  })
+
+  it('toggling the app-bar preset button persists the setting', async () => {
+    seedSettings()
+    const { user } = renderWithProviders(<GeneralSection />)
+
+    const section = screen
+      .getByText('settings.showAppBarThemePreset_label')
+      .closest('div.flex.items-center.justify-between')!
+    await user.click(
+      section.querySelector('button[role="switch"]') as HTMLElement,
+    )
+
+    await waitFor(() =>
+      expect(lastSetSettings()).toMatchObject({
+        showAppBarThemePreset: false,
+      }),
     )
   })
 

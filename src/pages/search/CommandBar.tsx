@@ -55,8 +55,8 @@ function FormatChip({
  * ```
  */
 export function CommandBar({ variant }: { variant: 'hero' | 'compact' }) {
-  const accent = useSelector(
-    (state: RootState) => state.settings.accentColor ?? 'pink',
+  const preset = useSelector(
+    (state: RootState) => state.settings.themePreset ?? 'bilibili',
   )
   const { t } = useTranslation()
   // Platform-native modifier for the paste hint (Cmd on macOS, Ctrl
@@ -107,9 +107,9 @@ export function CommandBar({ variant }: { variant: 'hero' | 'compact' }) {
       <div className="w-full max-w-2xl text-center">
         {/* Bilibili icon (dashboard-icons, Apache-2.0): the squircle
             tile is part of the mark, so no wrapper tile — drop-shadow
-            hugs the squircle and follows the accent setting. */}
+            hugs the squircle and follows the theme preset. */}
         <BilibiliTvMark
-          accent={accent}
+          preset={preset}
           className="mx-auto mb-4 block size-13"
           withHeroShadow
         />

@@ -199,9 +199,12 @@ describe('SearchContent', () => {
     expect(svg!.querySelector('path')!.getAttribute('fill')).toBe('#EC5D85')
   })
 
-  it('swaps the brand icon to the blue colorway with the accent setting', () => {
+  it('swaps the brand icon to the blue colorway with the theme preset', () => {
     store.dispatch(
-      setSettings({ ...store.getState().settings, accentColor: 'blue' }),
+      setSettings({
+        ...store.getState().settings,
+        themePreset: 'bilibili-blue',
+      }),
     )
     renderWithProviders(<SearchContent />, { route: '/search' })
 

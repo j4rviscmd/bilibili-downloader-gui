@@ -1,3 +1,5 @@
+import type { TweakcnPresetId } from '@/features/settings/themePresets'
+
 /**
  * Title replacement rule for filename sanitization.
  *
@@ -113,10 +115,20 @@ export interface Settings {
    */
   theme?: Theme
   /**
-   * Brand accent color: 'pink' (default), 'blue', or a shadcn hue
-   * accent. Persisted to settings.json via the Tauri backend.
+   * Theme preset applied to the whole UI. Persisted to settings.json via
+   * the Tauri backend. Defaults to 'bilibili'.
    */
-  accentColor?: AccentColor
+  themePreset?: ThemePreset
+  /**
+   * Whether the AppBar shows the theme-preset palette button.
+   * Defaults to true.
+   */
+  showAppBarThemePreset?: boolean
+  /**
+   * Legacy pre-preset accent setting ('pink' | 'blue' era). Read-only
+   * alias: 'blue' migrates to themePreset 'bilibili-blue' on load.
+   */
+  accentColor?: string
   /**
    * Whether to show download progress on the taskbar.
    * Defaults to true if not specified.
@@ -210,38 +222,13 @@ export type FontSizePreset = 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20
 export type Theme = 'light' | 'dark'
 
 /**
- * Brand accent color for UI highlights.
- * - pink: bilibili pink (default)
- * - blue: bilibili blue (#00AEEC)
- * - others: shadcn/Tailwind hue accents
+ * Theme preset for the whole UI (base palette + brand color).
+ * - bilibili: bilibili pink (default; carries no data-theme-preset
+ *   attribute)
+ * - bilibili-blue: bilibili blue brand tokens
+ * - others: tweakcn presets (see themePresets.ts)
  */
-export type AccentColor =
-  | 'pink'
-  | 'blue'
-  | 'red'
-  | 'orange'
-  | 'amber'
-  | 'yellow'
-  | 'lime'
-  | 'green'
-  | 'emerald'
-  | 'teal'
-  | 'cyan'
-  | 'sky'
-  | 'indigo'
-  | 'violet'
-  | 'purple'
-  | 'fuchsia'
-  | 'rose'
-  | 'slate'
-  | 'gray'
-  | 'zinc'
-  | 'neutral'
-  | 'stone'
-  | 'mauve'
-  | 'olive'
-  | 'mist'
-  | 'taupe'
+export type ThemePreset = 'bilibili' | 'bilibili-blue' | TweakcnPresetId
 
 /**
  * Trim mode for MP4 trimming.
