@@ -58,6 +58,15 @@ npx shadcn@latest add <component>
   - the TS `Settings` interface), read it from the settings Redux slice,
     and persist via `patch_settings` (field patches only — issue #563)
 
+### Theme Presets
+
+- `src/styles/theme-presets.css` and `src/features/settings/themePresets.ts`
+  are **generated** from `scripts/tweakcn-theme-presets.ts` (vendored
+  verbatim from tweakcn). After changing `src/styles/index.css`,
+  `scripts/generate-theme-presets.mjs`, or the vendored definitions, run
+  `node scripts/generate-theme-presets.mjs` — a unit test fails when the
+  checked-in output is out of sync. Never hand-edit the three files above.
+
 ### Tauri API Mock (tests)
 
 ```typescript
@@ -252,7 +261,7 @@ version — both are maintained by release-please, never edit by hand):
   - `npm run lint` has no errors
   - `cargo build` compiles successfully
   - The local-real E2E suite passes: `cd e2e-tests && npm run test:local`
-    (~2.5 min, 31 specs across 3 files: real Bilibili API/cookies/CDN/
+    (~2.5 min, 44 tests across 9 spec files: real Bilibili API/cookies/CDN/
     ffmpeg — the integration gate `npm test`/`cargo test` cannot
     provide). Preconditions:
     Firefox logged in to bilibili (real cookies) and no running app
