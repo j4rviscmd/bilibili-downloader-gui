@@ -26,7 +26,7 @@ const MAP: Record<DownloadPartStatus, StatusVisual> = {
   running: {
     labelKey: 'downloadStatus.status_downloading',
     // Brand token (accent rollout): the running dot follows the user's
-    // accentColor like every other active-state surface; done/error/
+    // themePreset like every other active-state surface; done/error/
     // cancelling keep their semantic colors.
     dotClass: 'bg-brand-strong',
     tone: 'active',

@@ -68,7 +68,8 @@ pub async fn patch_settings(app: &AppHandle, patch: Value) -> Result<(), String>
 ///
 /// Performs the locked shallow merge: read latest disk state, overlay the
 /// patch keys, type-check the result as `Settings`, validate `dlOutputPath`
-/// only when the patch touches it, then atomically write back.
+/// only when the patch touches it, then atomically write back the typed
+/// document (keys unknown to the type are pruned).
 fn patch_settings_at(filepath: &Path, patch: &Value) -> Result<(), String> {
     let patch_obj = patch
         .as_object()
@@ -104,7 +105,7 @@ fn patch_settings_at(filepath: &Path, patch: &Value) -> Result<(), String> {
 
         // Type-check the merged document as Settings so an ill-typed patch
         // (e.g. `fontSize: "large"`) is rejected without touching the file.
-        let merged_settings: Settings = serde_json::from_value(merged_value.clone())
+        let merged_settings: Settings = serde_json::from_value(merged_value)
             .map_err(|e| format!("ERR:SETTINGS_PATCH_INVALID: {}", e))?;
 
         // Validate dlOutputPath only when the patch changes it: re-validating
@@ -124,8 +125,14 @@ fn patch_settings_at(filepath: &Path, patch: &Value) -> Result<(), String> {
                 return Err("ERR:SETTINGS_PATH_NOT_DIRECTORY".to_string());
             }
         }
-
-        *value = merged_value;
+        // Write back the typed document instead of the raw merged map so
+        // settings.json mirrors the Settings type: keys this build does not
+        // declare (removed settings across versions, values written by
+        // newer builds) are dropped instead of riding along forever.
+        // Accepted trade-off: an older build drops keys a newer release
+        // wrote.
+        *value = serde_json::to_value(merged_settings)
+            .map_err(|e| format!("ERR:SETTINGS_PATCH_INVALID: {}", e))?;
         Ok(())
     })
     .map_err(|e| format!("Failed to write settings.json: {}", e))?;
@@ -257,9 +264,8 @@ mod tests {
     fn patch_updates_lib_path_via_serde_rename_key() {
         // Pins the contract used by update_lib_path: it patches the
         // camelCase serde rename `libPath`. If the sent key ever diverges
-        // from the rename, the patch silently no-ops (unknown keys are kept
-        // on disk but ignored by Settings), so the library path would never
-        // change.
+        // from the rename, the patch is pruned as an unknown key on write,
+        // so the library path would never change.
         let dir = tempdir();
         write_settings(dir.path(), json!({"language": "en", "libPath": "/old/lib"}));
 
@@ -406,26 +412,55 @@ mod tests {
     }
 
     #[test]
-    fn patch_keeps_unknown_disk_keys() {
-        // Hand-edited or forward-compatible keys on disk survive a patch;
-        // they are invisible to `Settings` but not the on-disk document.
+    fn patch_prunes_keys_unknown_to_the_settings_type() {
+        // settings.json mirrors the Settings type: keys this build does not
+        // declare (removed settings, forward-compatible keys) are dropped on
+        // save instead of riding along forever. Accepted trade-off (user
+        // decision 2026-11-25): an older build drops keys a newer release
+        // wrote. Declared keys are untouched.
         let dir = tempdir();
         write_settings(
             dir.path(),
-            json!({"language": "en", "futureField": {"nested": true}}),
+            json!({"language": "en", "futureField": {"nested": true}, "fontSize": 14}),
         );
 
-        patch_settings_at(&settings_file(dir.path()), &json!({"fontSize": 12})).unwrap();
+        patch_settings_at(&settings_file(dir.path()), &json!({"theme": "dark"})).unwrap();
 
         let merged = read_settings(dir.path());
-        assert_eq!(merged["futureField"]["nested"], json!(true));
+        assert!(merged.get("futureField").is_none(), "{merged}");
+        assert_eq!(merged["fontSize"], json!(14), "declared keys survive");
+        assert_eq!(merged["theme"], json!("dark"));
     }
 
     #[test]
-    fn stale_skip_splash_animation_key_deserializes_and_survives_patches() {
+    fn patch_keeps_the_declared_legacy_accent_color_key() {
+        // accentColor is still a declared field (legacy-blue preselect in
+        // the theme onboarding, splash color), so it survives saves until
+        // the field is removed from Settings (#976) — from then on the
+        // generic pruning above retires the stale key.
+        let dir = tempdir();
+        write_settings(
+            dir.path(),
+            json!({"language": "en", "accentColor": "blue", "theme": "dark"}),
+        );
+
+        patch_settings_at(
+            &settings_file(dir.path()),
+            &json!({"themePreset": "claude"}),
+        )
+        .unwrap();
+
+        let merged = read_settings(dir.path());
+        assert_eq!(merged["accentColor"], json!("blue"), "{merged}");
+        assert_eq!(merged["themePreset"], json!("claude"));
+    }
+
+    #[test]
+    fn stale_skip_splash_animation_key_deserializes_and_is_pruned() {
         // settings.json written by an older release may still carry the
         // removed skipSplashAnimation key. It must not break Settings
-        // deserialization (unknown fields are ignored) nor later patches.
+        // deserialization (unknown fields are ignored) nor later patches,
+        // and the next patch prunes it.
         let dir = tempdir();
         write_settings(
             dir.path(),
@@ -436,6 +471,8 @@ mod tests {
         assert_eq!(settings.font_size, Some(14));
 
         patch_settings_at(&settings_file(dir.path()), &json!({"fontSize": 16})).unwrap();
-        assert_eq!(read_settings(dir.path())["fontSize"], json!(16));
+        let merged = read_settings(dir.path());
+        assert_eq!(merged["fontSize"], json!(16));
+        assert!(merged.get("skipSplashAnimation").is_none(), "{merged}");
     }
 }

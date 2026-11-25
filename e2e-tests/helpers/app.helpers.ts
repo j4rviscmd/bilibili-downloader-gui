@@ -163,6 +163,38 @@ export async function loadFixtureVideo(): Promise<void> {
 /** Fixed, visible E2E download dir; wiped per run (see setupDownloadEnv)
  * and shared with wdio.local.conf.ts's interrupted-run cleanup. */
 export const E2E_DOWNLOAD_DIR = path.join(os.homedir(), 'Downloads', 'e2e_temp')
+
+/**
+ * Tauri app_data_dir() per platform — the dir holding the developer's
+ * real settings.json and login_state.json (must track
+ * src-tauri/src/utils/paths.rs; dev and release builds share it via the
+ * same bundle identifier). Shared with wdio.local.conf.ts's
+ * backup/restore so the two can never drift apart.
+ */
+export const APP_DATA_DIR = path.join(
+  process.platform === 'win32'
+    ? (process.env.APPDATA ?? path.join(os.homedir(), 'AppData', 'Roaming'))
+    : process.platform === 'darwin'
+      ? path.join(os.homedir(), 'Library', 'Application Support')
+      : (process.env.XDG_DATA_HOME ??
+        path.join(os.homedir(), '.local', 'share')),
+  'com.bilibili-downloader-gui.app',
+)
+
+/**
+ * Parses settings.json straight from disk (Node side). Unlike the typed
+ * get_settings response, this shows what is really persisted — unknown
+ * keys and legacy aliases included.
+ */
+export async function readPersistedSettings(): Promise<
+  Record<string, unknown>
+> {
+  const raw = await fs.promises.readFile(
+    path.join(APP_DATA_DIR, 'settings.json'),
+    'utf8',
+  )
+  return JSON.parse(raw) as Record<string, unknown>
+}
 /** State captured by setupDownloadEnv for the matching teardown. */
 export type DownloadEnv = {
   /** Fixed download dir the spec's downloads are patched into. */

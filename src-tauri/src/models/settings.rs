@@ -211,13 +211,36 @@ pub struct Settings {
     /// UI theme preference. Defaults to system preference if not set.
     #[serde(rename = "theme", default, skip_serializing_if = "Option::is_none")]
     pub theme: Option<UiTheme>,
-    /// UI accent color (bilibili pink or blue). Defaults to pink.
+    /// UI theme preset (base palette + brand color; "bilibili" default,
+    /// "bilibili-blue", or a tweakcn preset id). Validated by the
+    /// frontend against its preset list; unknown ids fall back to
+    /// bilibili.
+    #[serde(
+        rename = "themePreset",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub theme_preset: Option<String>,
+    /// Legacy pre-preset accent slug ("pink" | "blue" era, plus dev-era
+    /// hue slugs). Still read by the splash alias and the theme
+    /// onboarding's legacy-blue preselect. Slated for removal together
+    /// with those two readers (#976); once the field is gone,
+    /// `patch_settings` prunes the stale key from settings.json on the
+    /// next save.
     #[serde(
         rename = "accentColor",
         default,
         skip_serializing_if = "Option::is_none"
     )]
-    pub accent_color: Option<AccentColor>,
+    pub accent_color: Option<String>,
+    /// Whether the AppBar shows the theme-preset palette button.
+    /// Defaults to true.
+    #[serde(
+        rename = "showAppBarThemePreset",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub show_app_bar_theme_preset: Option<bool>,
     /// Video codec priority preference. Defaults to AV1-first if not set.
     #[serde(
         rename = "videoCodecPriority",
@@ -372,76 +395,6 @@ pub enum UiTheme {
     Dark,
 }
 
-/// UI accent color: bilibili pink (default), bilibili blue, or a shadcn
-/// hue accent.
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum AccentColor {
-    /// Bilibili pink (default).
-    #[default]
-    Pink,
-    /// Bilibili blue (#00AEEC family).
-    Blue,
-    Red,
-    Orange,
-    Amber,
-    Yellow,
-    Lime,
-    Green,
-    Emerald,
-    Teal,
-    Cyan,
-    Sky,
-    Indigo,
-    Violet,
-    Purple,
-    Fuchsia,
-    Rose,
-    Slate,
-    Gray,
-    Zinc,
-    Neutral,
-    Stone,
-    Mauve,
-    Olive,
-    Mist,
-    Taupe,
-}
-
-impl AccentColor {
-    /// Serde-stable slug used for the splash `accent` URL param.
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            AccentColor::Pink => "pink",
-            AccentColor::Blue => "blue",
-            AccentColor::Red => "red",
-            AccentColor::Orange => "orange",
-            AccentColor::Amber => "amber",
-            AccentColor::Yellow => "yellow",
-            AccentColor::Lime => "lime",
-            AccentColor::Green => "green",
-            AccentColor::Emerald => "emerald",
-            AccentColor::Teal => "teal",
-            AccentColor::Cyan => "cyan",
-            AccentColor::Sky => "sky",
-            AccentColor::Indigo => "indigo",
-            AccentColor::Violet => "violet",
-            AccentColor::Purple => "purple",
-            AccentColor::Fuchsia => "fuchsia",
-            AccentColor::Rose => "rose",
-            AccentColor::Slate => "slate",
-            AccentColor::Gray => "gray",
-            AccentColor::Zinc => "zinc",
-            AccentColor::Neutral => "neutral",
-            AccentColor::Stone => "stone",
-            AccentColor::Mauve => "mauve",
-            AccentColor::Olive => "olive",
-            AccentColor::Mist => "mist",
-            AccentColor::Taupe => "taupe",
-        }
-    }
-}
-
 /// Supported UI languages.
 ///
 /// Each variant maps to a locale file in `src/i18n/locales/`.
@@ -512,6 +465,23 @@ impl Settings {
         }
     }
 
+    /// Resolves the theme preset the splash window should render.
+    ///
+    /// `themePreset` wins; a pre-preset user's legacy `accentColor`
+    /// alias maps `"blue"` → `"bilibili-blue"` so their splash keeps its
+    /// colorway until the onboarding persists a preset. Anything else
+    /// yields `None` (the frontend's bilibili default).
+    pub fn splash_preset(settings: &Option<Settings>) -> Option<&str> {
+        settings.as_ref().and_then(|s| {
+            s.theme_preset
+                .as_deref()
+                .or(match s.accent_color.as_deref() {
+                    Some("blue") => Some("bilibili-blue"),
+                    _ => None,
+                })
+        })
+    }
+
     /// Resolves the aggregate download speed limit (issue #421).
     ///
     /// Returns the cap in **bytes per second** for
@@ -554,41 +524,21 @@ mod tests {
     }
 
     #[test]
-    fn test_accent_color_as_str_matches_serde_slug() {
-        let accents = [
-            AccentColor::Pink,
-            AccentColor::Blue,
-            AccentColor::Red,
-            AccentColor::Orange,
-            AccentColor::Amber,
-            AccentColor::Yellow,
-            AccentColor::Lime,
-            AccentColor::Green,
-            AccentColor::Emerald,
-            AccentColor::Teal,
-            AccentColor::Cyan,
-            AccentColor::Sky,
-            AccentColor::Indigo,
-            AccentColor::Violet,
-            AccentColor::Purple,
-            AccentColor::Fuchsia,
-            AccentColor::Rose,
-            AccentColor::Slate,
-            AccentColor::Gray,
-            AccentColor::Zinc,
-            AccentColor::Neutral,
-            AccentColor::Stone,
-            AccentColor::Mauve,
-            AccentColor::Olive,
-            AccentColor::Mist,
-            AccentColor::Taupe,
-        ];
-        for accent in accents {
-            assert_eq!(
-                serde_json::to_string(&accent).unwrap(),
-                format!("\"{}\"", accent.as_str())
-            );
-        }
+    fn test_theme_preset_and_legacy_accent_roundtrip() {
+        let s: Settings = serde_json::from_str(
+            r#"{"dlOutputPath": "/tmp/a", "language": "en", "themePreset": "catppuccin", "accentColor": "blue", "showAppBarThemePreset": false}"#,
+        )
+        .unwrap();
+        assert_eq!(s.theme_preset.as_deref(), Some("catppuccin"));
+        assert_eq!(s.accent_color.as_deref(), Some("blue"));
+        assert_eq!(s.show_app_bar_theme_preset, Some(false));
+
+        // Dev-era hue slugs must not fail deserialization.
+        let legacy: Settings = serde_json::from_str(
+            r#"{"dlOutputPath": "/tmp/a", "language": "en", "accentColor": "violet"}"#,
+        )
+        .unwrap();
+        assert_eq!(legacy.accent_color.as_deref(), Some("violet"));
     }
 
     #[test]
@@ -700,24 +650,6 @@ mod tests {
         let s: Settings =
             serde_json::from_str(r#"{"dlOutputPath": "/tmp/a", "language": "en"}"#).unwrap();
         assert_eq!(s.disabled_pages, None);
-    }
-
-    #[test]
-    fn test_accent_color_defaults_and_roundtrip() {
-        // Why: settings.json written before the accent option lacks the
-        //   key; serde `default` must deserialize it as None (pink UI).
-        let legacy: Settings =
-            serde_json::from_str(r#"{"dlOutputPath": "/tmp/a", "language": "en"}"#).unwrap();
-        assert_eq!(legacy.accent_color, None);
-
-        // serde camelCase roundtrip: the frontend sends "blue".
-        let with_blue: Settings = serde_json::from_str(
-            r#"{"dlOutputPath": "/tmp/a", "language": "en", "accentColor": "blue"}"#,
-        )
-        .unwrap();
-        assert_eq!(with_blue.accent_color, Some(AccentColor::Blue));
-        let json = serde_json::to_value(&with_blue).unwrap();
-        assert_eq!(json["accentColor"], "blue");
     }
 
     #[test]
@@ -866,6 +798,40 @@ mod tests {
             Settings::resolve_download_speed_limit_bps(&Some(settings)),
             u64::from(SPEED_LIMIT_MAX_KBPS) * 1000
         );
+    }
+
+    #[test]
+    fn test_splash_preset_prefers_theme_preset_over_the_legacy_alias() {
+        let settings = Settings {
+            theme_preset: Some("claude".to_string()),
+            accent_color: Some("blue".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(Settings::splash_preset(&Some(settings)), Some("claude"));
+
+        // The bilibili default is a real value here; splash_url filters it.
+        let settings = Settings {
+            theme_preset: Some("bilibili".to_string()),
+            accent_color: Some("blue".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(Settings::splash_preset(&Some(settings)), Some("bilibili"));
+    }
+
+    #[test]
+    fn test_splash_preset_maps_only_the_legacy_blue_alias() {
+        for (accent, expected) in [
+            ("blue", Some("bilibili-blue")),
+            ("pink", None),
+            ("violet", None),
+        ] {
+            let settings = Settings {
+                accent_color: Some(accent.to_string()),
+                ..Default::default()
+            };
+            assert_eq!(Settings::splash_preset(&Some(settings)), expected);
+        }
+        assert_eq!(Settings::splash_preset(&None), None);
     }
 
     #[test]

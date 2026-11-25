@@ -17,6 +17,9 @@ vi.mock('@/features/login', () => ({
 vi.mock('@/features/preference/ui/LanguageSwitcher', () => ({
   default: () => <div>language-switcher</div>,
 }))
+vi.mock('@/features/preference/ui/AppBarThemePresetButton', () => ({
+  default: () => <div>appbar-theme-preset</div>,
+}))
 vi.mock('@/features/preference/ui/ToggleThemeButton', () => ({
   default: (props: { theme: string }) => <div>theme-{props.theme}</div>,
 }))

@@ -124,9 +124,9 @@ describe('VideoSearchContent', () => {
     store.dispatch(clearFeeds())
     // Nor a tail-error state (set by the later-page failure test below).
     store.dispatch(setError(null))
-    // Nor a leaked accent override (the blue-swap test below).
+    // Nor a leaked preset override (the blue-swap test below).
     store.dispatch(
-      setSettings({ ...store.getState().settings, accentColor: 'pink' }),
+      setSettings({ ...store.getState().settings, themePreset: 'bilibili' }),
     )
   })
 
@@ -201,10 +201,13 @@ describe('VideoSearchContent', () => {
     expect(svg!.querySelector('path')!.getAttribute('fill')).toBe('#EC5D85')
   })
 
-  it('swaps the popular shortcut icon to blue with the accent setting', () => {
+  it('swaps the popular shortcut icon to blue with the theme preset', () => {
     seedFinishedSearch()
     store.dispatch(
-      setSettings({ ...store.getState().settings, accentColor: 'blue' }),
+      setSettings({
+        ...store.getState().settings,
+        themePreset: 'bilibili-blue',
+      }),
     )
     renderWithProviders(<Harness />, { route: '/video-search' })
 

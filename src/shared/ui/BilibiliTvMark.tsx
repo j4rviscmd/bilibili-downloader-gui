@@ -1,4 +1,4 @@
-import type { AccentColor } from '@/features/settings/type'
+import type { ThemePreset } from '@/features/settings/type'
 
 // Note: path data is homarr-labs/dashboard-icons "bilibili" (Apache-2.0);
 // attribution carried over from the deleted src/assets/bilibili-tv-mark(-blue).svg.
@@ -26,15 +26,15 @@ interface BrandFills {
 }
 
 // Verbatim colorways from the original bilibili-tv-mark(-blue).svg assets
-// so pink/blue users see no visual change.
-const VERBATIM_FILLS: Record<'pink' | 'blue', BrandFills> = {
-  pink: { base: '#EC5D85', light: '#EF85A7', dark: '#EB5480' },
-  blue: { base: '#5DC6EC', light: '#85D3EF', dark: '#54C3EB' },
+// so bilibili/bilibili-blue users see no visual change.
+const VERBATIM_FILLS: Record<'bilibili' | 'bilibili-blue', BrandFills> = {
+  bilibili: { base: '#EC5D85', light: '#EF85A7', dark: '#EB5480' },
+  'bilibili-blue': { base: '#5DC6EC', light: '#85D3EF', dark: '#54C3EB' },
 }
 
-// Why: the other accents have no original colorway asset, so their fills ride
-// the data-accent-driven `--brand` token (src/styles/index.css) to stay in
-// sync with the rest of the UI.
+// Why: the tweakcn presets have no original colorway asset, so their fills
+// ride the data-theme-preset-driven `--brand` token (src/styles) to stay
+// in sync with the rest of the UI.
 const VAR_FILLS: BrandFills = {
   base: 'var(--brand)',
   light: 'color-mix(in oklab, var(--brand) 84%, white)',
@@ -42,21 +42,23 @@ const VAR_FILLS: BrandFills = {
 }
 
 interface BilibiliTvMarkProps {
-  accent: AccentColor
+  preset: ThemePreset
   className?: string
   withHeroShadow?: boolean
 }
 
 export function BilibiliTvMark({
-  accent,
+  preset,
   className,
   withHeroShadow = false,
 }: BilibiliTvMarkProps) {
   const fills =
-    accent === 'pink' || accent === 'blue' ? VERBATIM_FILLS[accent] : VAR_FILLS
+    preset === 'bilibili' || preset === 'bilibili-blue'
+      ? VERBATIM_FILLS[preset]
+      : VAR_FILLS
   let shadowColor: string
-  if (accent === 'pink') shadowColor = 'rgb(236 93 133/0.4)'
-  else if (accent === 'blue') shadowColor = 'rgb(93 198 236/0.4)'
+  if (preset === 'bilibili') shadowColor = 'rgb(236 93 133/0.4)'
+  else if (preset === 'bilibili-blue') shadowColor = 'rgb(93 198 236/0.4)'
   else shadowColor = 'color-mix(in oklab, var(--brand) 40%, transparent)'
   return (
     <svg

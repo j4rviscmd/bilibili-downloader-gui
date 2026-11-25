@@ -19,11 +19,10 @@ import type { ChildProcess } from 'node:child_process'
 import { execSync, spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import net from 'node:net'
-import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { E2E_DOWNLOAD_DIR } from './helpers/app.helpers'
+import { APP_DATA_DIR, E2E_DOWNLOAD_DIR } from './helpers/app.helpers'
 import {
   config as baseConfig,
   killTree,
@@ -131,30 +130,14 @@ function killPortListener(port: number): void {
 // restore an unset path — patch_settings rejects a null dlOutputPath —
 // and a hard-killed run restores nothing, so the temp path lingers and
 // later runs record it as the "original". Restore at the file level.
-// Note: must track the backend's get_settings_path() — app_data_dir()/
-// settings.json (src-tauri/src/utils/paths.rs; dev and release builds
-// share the dir via the same bundle identifier). A drift makes existsSync
-// false and silently no-ops backup/restore instead of erroring — the
-// previous macOS-only hardcode did exactly that on Windows.
-const APP_ID = 'com.bilibili-downloader-gui.app'
-// Tauri app_data_dir() per platform: %APPDATA%/<id> on Windows,
-// ~/Library/Application Support/<id> on macOS, XDG data dir on Linux.
-const appDataDir =
-  process.platform === 'win32'
-    ? path.join(
-        process.env.APPDATA ?? path.join(os.homedir(), 'AppData', 'Roaming'),
-        APP_ID,
-      )
-    : process.platform === 'darwin'
-      ? path.join(os.homedir(), 'Library', 'Application Support', APP_ID)
-      : path.join(
-          process.env.XDG_DATA_HOME ??
-            path.join(os.homedir(), '.local', 'share'),
-          APP_ID,
-        )
-const settingsPath = path.join(appDataDir, 'settings.json')
+// Note: the path must track the backend's get_settings_path() — the
+// shared APP_DATA_DIR (helpers/app.helpers.ts) mirrors it. A drift makes
+// existsSync false and silently no-ops backup/restore instead of
+// erroring — the previous macOS-only hardcode did exactly that on
+// Windows.
+const settingsPath = path.join(APP_DATA_DIR, 'settings.json')
 const settingsBackupPath = `${settingsPath}.e2e-bak`
-const loginStatePath = path.join(appDataDir, 'login_state.json')
+const loginStatePath = path.join(APP_DATA_DIR, 'login_state.json')
 const loginStateBackupPath = `${loginStatePath}.e2e-bak`
 
 // undefined = backupSettings never ran (onPrepare aborted at preflight);
@@ -250,6 +233,35 @@ function restoreSettings(): void {
 // fixed E2E download dir would linger under ~/Downloads until this
 // heal-on-next-completed-run removal. Concurrent runs cannot exist
 // (port preflight).
+
+/**
+ * Per-run settings seed for the theme-onboarding spec (the first spec of
+ * the run, see local/00-theme-onboarding.local.e2e.ts). Every spec file
+ * launches a fresh app instance that reads settings.json at startup, so
+ * the seeded state has to be on disk before the first launch — here, in
+ * onPrepare. It rewrites the "pre-preset legacy user" the onboarding
+ * targets: accentColor without themePreset, plus an unknown key to prove
+ * the save-time pruning. The onboarding spec must run first and complete
+ * the dialog, or every later spec's instance opens blocked by it.
+ * restoreSettings puts the original file back.
+ */
+function seedLegacyThemeUser(): void {
+  try {
+    const json = (
+      fs.existsSync(settingsPath)
+        ? JSON.parse(fs.readFileSync(settingsPath, 'utf8'))
+        : { language: 'en' }
+    ) as Record<string, unknown>
+    delete json.themePreset
+    json.accentColor = 'blue'
+    json.e2eStaleKey = true
+    fs.writeFileSync(settingsPath, JSON.stringify(json, null, 2))
+    console.log('[e2e-local] seeded legacy accentColor user for this run')
+  } catch (err) {
+    console.warn('[e2e-local] theme seed skipped:', err)
+  }
+}
+
 function cleanupDownloadDir(): void {
   fs.rmSync(E2E_DOWNLOAD_DIR, { recursive: true, force: true })
 }
@@ -268,6 +280,7 @@ export const config = {
     // dangling backup.
     backupSettings()
     backupLoginState()
+    seedLegacyThemeUser()
 
     viteProcess = spawnWithLogging('npm', ['run', 'dev'], 'vite', {
       cwd: projectRoot,

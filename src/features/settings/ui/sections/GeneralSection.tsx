@@ -8,9 +8,9 @@ import {
   parseFontSize,
 } from '@/features/settings/lib/fontSize'
 import type { FontSizePreset, SupportedLang } from '@/features/settings/type'
-import { AccentColorPicker } from '@/features/settings/ui/AccentColorPicker'
 import { SettingRow } from '@/features/settings/ui/SettingRow'
 import { SettingToggleGroup } from '@/features/settings/ui/SettingToggleGroup'
+import { ThemePresetPicker } from '@/features/settings/ui/ThemePresetPicker'
 import { useSettings } from '@/features/settings/useSettings'
 import {
   isPageEnabled,
@@ -162,11 +162,23 @@ export function GeneralSection() {
           ]}
         />
       </SettingRow>
-      <SettingRow label={t('settings.accent_label')}>
-        <AccentColorPicker
-          value={settings.accentColor ?? 'pink'}
+      <SettingRow label={t('settings.themePreset_label')}>
+        <ThemePresetPicker
+          value={settings.themePreset ?? 'bilibili'}
           onValueChange={(value) => {
-            saveByForm({ accentColor: value })
+            saveByForm({ themePreset: value })
+          }}
+        />
+      </SettingRow>
+
+      <SettingRow
+        label={t('settings.showAppBarThemePreset_label')}
+        description={t('settings.showAppBarThemePreset_description')}
+      >
+        <Switch
+          checked={settings.showAppBarThemePreset ?? true}
+          onCheckedChange={(checked) => {
+            saveByForm({ showAppBarThemePreset: checked })
           }}
         />
       </SettingRow>

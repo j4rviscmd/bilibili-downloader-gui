@@ -135,7 +135,7 @@ and remains available after an application update.
 - **One-click setup** - FFmpeg auto-install with functionality validation, no manual configuration needed
 - **Auto-update** - Built-in updater with signed release verification and release notes
 - **History search & export** - Export download history to JSON/CSV
-- **Theming** - Light/dark themes, accent colors, and adjustable font size
+- **Theming** - Light/dark themes, 44 theme presets (incl. tweakcn), and adjustable font size
 - **Startup page** - Choose which page opens at launch
 - **Page visibility** - Hide pages you don't use from the sidebar; hidden pages never mount, saving memory (core download pages stay fixed)
 

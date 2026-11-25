@@ -87,16 +87,17 @@ impl WindowGeometry {
     };
 }
 
-/// Builds the splash route URL with the language/theme/accent query params.
+/// Builds the splash route URL with the language/theme/preset query params.
 ///
 /// - No saved language (first run): `splashscreen?setup=1` for the language
 ///   selection screen.
 /// - Otherwise: `splashscreen?lang={lang}` plus `&theme=dark` when the saved
 ///   theme is dark, so the splash renders light/dark from the first frame
 ///   (the frontend treats a missing param as light).
-/// - `&accent={accent}` for any non-default accent, mirroring the theme
-///   convention: the frontend defaults to pink when the param is absent.
-fn splash_url(language: Option<&str>, theme: Option<Theme>, accent: Option<&str>) -> String {
+/// - `&preset={preset}` for any non-default theme preset, mirroring the
+///   theme convention: the frontend defaults to bilibili when the param
+///   is absent.
+fn splash_url(language: Option<&str>, theme: Option<Theme>, preset: Option<&str>) -> String {
     let Some(lang) = language else {
         return "splashscreen?setup=1".to_string();
     };
@@ -104,9 +105,9 @@ fn splash_url(language: Option<&str>, theme: Option<Theme>, accent: Option<&str>
     if matches!(theme, Some(Theme::Dark)) {
         url.push_str("&theme=dark");
     }
-    if let Some(accent) = accent.filter(|a| *a != "pink") {
-        url.push_str("&accent=");
-        url.push_str(accent);
+    if let Some(preset) = preset.filter(|p| *p != "bilibili") {
+        url.push_str("&preset=");
+        url.push_str(preset);
     }
     url
 }
@@ -129,9 +130,9 @@ pub fn create_splash_window(
     app: &AppHandle,
     theme: Option<Theme>,
     language: Option<String>,
-    accent: Option<&str>,
+    preset: Option<&str>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let url = splash_url(language.as_deref(), theme, accent);
+    let url = splash_url(language.as_deref(), theme, preset);
     let _splash = WebviewWindowBuilder::new(app, "splash", WebviewUrl::App(url.into()))
         .title(window_title(&app.package_info().version.to_string()))
         .theme(theme.or(Some(Theme::Light)))
@@ -893,9 +894,9 @@ mod tests {
     #[test]
     fn splash_url_first_run_uses_setup_mode() {
         assert_eq!(splash_url(None, None, None), "splashscreen?setup=1");
-        // Setup mode wins over saved theme/accent (first run has neither).
+        // Setup mode wins over saved theme/preset (first run has neither).
         assert_eq!(
-            splash_url(None, Some(Theme::Dark), Some("blue")),
+            splash_url(None, Some(Theme::Dark), Some("catppuccin")),
             "splashscreen?setup=1"
         );
     }
@@ -915,25 +916,25 @@ mod tests {
     }
 
     #[test]
-    fn splash_url_appends_accent_for_non_default_accents() {
-        // Unset or pink accent omits the param: the frontend defaults
-        // to pink.
+    fn splash_url_appends_preset_for_non_default_presets() {
+        // Unset or bilibili preset omits the param: the frontend
+        // defaults to bilibili.
         assert_eq!(splash_url(Some("ja"), None, None), "splashscreen?lang=ja");
         assert_eq!(
-            splash_url(Some("ja"), None, Some("pink")),
+            splash_url(Some("ja"), None, Some("bilibili")),
             "splashscreen?lang=ja"
         );
         assert_eq!(
-            splash_url(Some("ja"), Some(Theme::Dark), Some("blue")),
-            "splashscreen?lang=ja&theme=dark&accent=blue"
+            splash_url(Some("ja"), Some(Theme::Dark), Some("bilibili-blue")),
+            "splashscreen?lang=ja&theme=dark&preset=bilibili-blue"
         );
         assert_eq!(
-            splash_url(Some("ja"), Some(Theme::Light), Some("blue")),
-            "splashscreen?lang=ja&accent=blue"
+            splash_url(Some("ja"), Some(Theme::Light), Some("bilibili-blue")),
+            "splashscreen?lang=ja&preset=bilibili-blue"
         );
         assert_eq!(
-            splash_url(Some("ja"), None, Some("violet")),
-            "splashscreen?lang=ja&accent=violet"
+            splash_url(Some("ja"), None, Some("catppuccin")),
+            "splashscreen?lang=ja&preset=catppuccin"
         );
     }
 
