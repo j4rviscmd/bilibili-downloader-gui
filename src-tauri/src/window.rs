@@ -29,9 +29,13 @@ use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_SHOWNOACTIVATE};
 
 const WINDOW_STATE_FILE: &str = "window-state.json";
 const DEFAULT_WIDTH: f64 = 980.0;
-const DEFAULT_HEIGHT: f64 = 609.0;
+// Why: the expanded sidebar outgrew 609 (41.75rem + 3px = 629.25px at a
+// 15px root font; issue #979). 640 is near the ceiling too: Full HD at 150%
+// scaling on Windows 11 leaves ~641px of inner height (672px work area,
+// 30px title bar, 1px border), so larger root fonts scroll the nav.
+const DEFAULT_HEIGHT: f64 = 640.0;
 const MIN_WIDTH: f64 = 980.0;
-const MIN_HEIGHT: f64 = 609.0;
+const MIN_HEIGHT: f64 = 640.0;
 const WINDOW_TITLE: &str = "Bilibili Downloader";
 const GEOMETRY_STORE_KEY: &str = "windowGeometry";
 
