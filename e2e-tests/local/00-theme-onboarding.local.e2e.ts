@@ -1,10 +1,11 @@
 /**
- * LOCAL-REAL E2E: theme onboarding for a pre-preset (legacy accentColor)
- * user, and the AppBar palette button — end to end against the real
- * backend (settings.json via patch_settings).
+ * LOCAL-REAL E2E: theme onboarding for a pre-preset user whose
+ * settings.json still carries the removed `accentColor` key, and the
+ * AppBar palette button — end to end against the real backend
+ * (settings.json via patch_settings).
  *
  * MUST stay the first spec of the run (00- prefix): wdio.local.conf.ts
- * seeds the legacy user into the live settings.json in onPrepare, and
+ * seeds the pre-preset user into the live settings.json in onPrepare, and
  * every spec file launches a fresh app instance that opens with the
  * mandatory onboarding dialog until this spec completes it. The `after`
  * hook force-confirms a dialog a failed test left open.
@@ -45,7 +46,6 @@ const APPBAR_PALETTE = '[data-testid="appbar-theme-preset-button"]'
 type Persisted = {
   themePreset?: string
   theme?: string
-  accentColor?: string
 }
 
 async function persisted(): Promise<Persisted> {
@@ -57,7 +57,7 @@ async function isPressed(selector: string): Promise<boolean> {
   return (await el.getAttribute('aria-pressed')) === 'true'
 }
 
-describe('local real app: theme onboarding (legacy accentColor user)', () => {
+describe('local real app: theme onboarding (pre-preset user)', () => {
   before(async function () {
     this.timeout(180_000)
     await waitForMainUI()
@@ -72,26 +72,30 @@ describe('local real app: theme onboarding (legacy accentColor user)', () => {
     }
   })
 
-  it('opens as a mandatory dialog with the legacy blue preselected', async () => {
+  it('opens as a mandatory dialog with Bilibili preselected', async () => {
     const dialog = await browser.$(S.DIALOG_CONTENT)
     await dialog.waitForExist({ timeout: 15_000 })
 
-    // Pre-preset state: no themePreset, the legacy alias still there.
+    // Pre-preset state: no themePreset, and the legacy file still carries
+    // the removed accentColor key.
     expect((await persisted()).themePreset).to.be.undefined
-    expect((await persisted()).accentColor).to.equal('blue')
+    expect(await readPersistedSettings()).to.have.property(
+      'accentColor',
+      'blue',
+    )
 
-    expect(await isPressed(presetCard('bilibili-blue'))).to.be.true
-    expect(await isPressed(presetCard('bilibili'))).to.be.false
+    expect(await isPressed(presetCard('bilibili'))).to.be.true
+    expect(await isPressed(presetCard('bilibili-blue'))).to.be.false
     expect(
       await (await browser.$(PREVIEW)).getAttribute('data-theme-preset'),
-    ).to.equal('bilibili-blue')
+    ).to.equal('bilibili')
 
     // Mandatory: no close button, and Escape does not dismiss it.
     expect(await (await browser.$(DIALOG_CLOSE)).isExisting()).to.be.false
     await browser.keys(['Escape'])
     await browser.pause(500)
     expect(await dialog.isExisting()).to.be.true
-    await saveScreenshot('theme-onboarding', 'legacy-blue-preselected')
+    await saveScreenshot('theme-onboarding', 'bilibili-preselected')
   })
 
   it('live-updates the preview for preset and light/dark picks', async () => {
@@ -103,7 +107,7 @@ describe('local real app: theme onboarding (legacy accentColor user)', () => {
       { timeout: 5_000, timeoutMsg: 'preview never switched to claude' },
     )
     expect(await isPressed(presetCard('claude'))).to.be.true
-    expect(await isPressed(presetCard('bilibili-blue'))).to.be.false
+    expect(await isPressed(presetCard('bilibili'))).to.be.false
 
     await (await browser.$(MODE_DARK)).click()
     expect(await isPressed(MODE_DARK)).to.be.true
@@ -141,11 +145,11 @@ describe('local real app: theme onboarding (legacy accentColor user)', () => {
     expect(settings.themePreset).to.equal('claude')
     expect(settings.theme).to.equal('dark')
 
-    // settings.json mirrors the type: the seeded unknown key is pruned,
-    // the declared legacy alias stays until its field is removed.
+    // settings.json mirrors the type: the seeded unknown key and the
+    // removed accentColor key are pruned.
     const disk = await readPersistedSettings()
     expect(disk).not.to.have.property('e2eStaleKey')
-    expect(disk.accentColor).to.equal('blue')
+    expect(disk).not.to.have.property('accentColor')
     expect(disk.themePreset).to.equal('claude')
   })
 

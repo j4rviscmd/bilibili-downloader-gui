@@ -62,16 +62,23 @@ describe('ThemeOnboardingDialog', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('preselects bilibili-blue for the legacy blue accent', () => {
-    seedSettings({ accentColor: 'blue' })
+  it('preselects bilibili and persists it on a plain confirm', async () => {
+    seedSettings()
+    const user = userEvent.setup()
     renderWithProviders(<ThemeOnboardingDialog />)
 
     const dialog = screen.getByRole('dialog')
     expect(
-      within(dialog)
-        .getByText('settings.theme_bilibili-blue')
-        .closest('button'),
+      within(dialog).getByText('settings.theme_bilibili').closest('button'),
     ).toHaveAttribute('aria-pressed', 'true')
+    await user.click(within(dialog).getByText('settings.themeOnboarding_cta'))
+
+    await waitFor(() =>
+      expect(lastPatch()).toMatchObject({
+        themePreset: 'bilibili',
+        theme: 'light',
+      }),
+    )
   })
 
   it('persists the picked preset and mode on confirm', async () => {

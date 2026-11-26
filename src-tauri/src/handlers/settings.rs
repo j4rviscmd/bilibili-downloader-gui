@@ -26,9 +26,12 @@ use tauri::{AppHandle, Manager};
 /// (camelCase, as serialized). Only the top-level keys present in the patch
 /// are replaced; every other field keeps its latest on-disk value — fields
 /// another app instance saved in the meantime are preserved (issue #563).
-/// Unknown top-level keys on disk also survive the merge (they are dropped by
-/// `Settings` (de)serialization otherwise, but the on-disk document keeps
-/// them so hand-edited or forward-compatible entries are not destroyed).
+/// The merged document is written back through `Settings`, so top-level
+/// keys the type does not declare — on disk or in the patch — are pruned
+/// on save instead of riding along forever.
+/// Why: pruning is what retires a settings key once its field is removed
+/// (#976); the earlier policy of preserving unknown keys (commit 6976295f)
+/// would keep such stale entries in settings.json forever.
 ///
 /// # Arguments
 ///
@@ -39,7 +42,7 @@ use tauri::{AppHandle, Manager};
 ///
 /// Returns an error if:
 /// - The patch is not a JSON object (`ERR:SETTINGS_PATCH_INVALID`)
-/// - The merged document fails `Settings` validation (unknown/ill-typed fields)
+/// - The merged document fails `Settings` validation (ill-typed fields)
 /// - The patch changes `dlOutputPath` and the new path is invalid
 ///   (`ERR:SETTINGS_PATH_NOT_SET` / `ERR:SETTINGS_PATH_NOT_EXIST` /
 ///   `ERR::SETTINGS_PATH_NOT_DIRECTORY`)
@@ -424,35 +427,17 @@ mod tests {
             json!({"language": "en", "futureField": {"nested": true}, "fontSize": 14}),
         );
 
-        patch_settings_at(&settings_file(dir.path()), &json!({"theme": "dark"})).unwrap();
-
-        let merged = read_settings(dir.path());
-        assert!(merged.get("futureField").is_none(), "{merged}");
-        assert_eq!(merged["fontSize"], json!(14), "declared keys survive");
-        assert_eq!(merged["theme"], json!("dark"));
-    }
-
-    #[test]
-    fn patch_keeps_the_declared_legacy_accent_color_key() {
-        // accentColor is still a declared field (legacy-blue preselect in
-        // the theme onboarding, splash color), so it survives saves until
-        // the field is removed from Settings (#976) — from then on the
-        // generic pruning above retires the stale key.
-        let dir = tempdir();
-        write_settings(
-            dir.path(),
-            json!({"language": "en", "accentColor": "blue", "theme": "dark"}),
-        );
-
         patch_settings_at(
             &settings_file(dir.path()),
-            &json!({"themePreset": "claude"}),
+            &json!({"theme": "dark", "notASetting": true}),
         )
         .unwrap();
 
         let merged = read_settings(dir.path());
-        assert_eq!(merged["accentColor"], json!("blue"), "{merged}");
-        assert_eq!(merged["themePreset"], json!("claude"));
+        assert!(merged.get("futureField").is_none(), "{merged}");
+        assert!(merged.get("notASetting").is_none(), "{merged}");
+        assert_eq!(merged["fontSize"], json!(14), "declared keys survive");
+        assert_eq!(merged["theme"], json!("dark"));
     }
 
     #[test]

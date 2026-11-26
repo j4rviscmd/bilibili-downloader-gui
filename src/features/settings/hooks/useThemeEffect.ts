@@ -31,12 +31,6 @@ export function useThemeEffect() {
       delete root.dataset.themePreset
     }
     localStorage.setItem('ui-theme-preset', preset ?? 'bilibili')
-    // Why: retire the pre-preset anti-flash key — index.html's inline
-    // script reads ui-accent only while ui-theme-preset is absent, and
-    // this hook now writes ui-theme-preset on every run, so the stale
-    // legacy value would never be read again and no longer tracks the
-    // persisted preset.
-    localStorage.removeItem('ui-accent')
 
     // The splash now lives in its own window with its own light theme lock,
     // so the main window can apply the saved theme immediately on mount.

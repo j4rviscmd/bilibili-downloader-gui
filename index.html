@@ -40,13 +40,8 @@
         // Theme-preset anti-flash: same pattern as ui-theme above, read
         // before React mounts (settings load is async). Bilibili is the
         // CSS default, so any other preset carries the attribute (kept
-        // in sync by useThemeEffect). Falls back to the legacy ui-accent
-        // key written by pre-preset builds.
-        var p =
-          localStorage.getItem('ui-theme-preset') ||
-          (localStorage.getItem('ui-accent') === 'blue'
-            ? 'bilibili-blue'
-            : null)
+        // in sync by useThemeEffect).
+        var p = localStorage.getItem('ui-theme-preset')
         if (p && p !== 'bilibili')
           document.documentElement.setAttribute('data-theme-preset', p)
       })()

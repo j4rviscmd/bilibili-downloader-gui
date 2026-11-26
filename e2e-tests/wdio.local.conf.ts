@@ -239,9 +239,10 @@ function restoreSettings(): void {
  * the run, see local/00-theme-onboarding.local.e2e.ts). Every spec file
  * launches a fresh app instance that reads settings.json at startup, so
  * the seeded state has to be on disk before the first launch — here, in
- * onPrepare. It rewrites the "pre-preset legacy user" the onboarding
- * targets: accentColor without themePreset, plus an unknown key to prove
- * the save-time pruning. The onboarding spec must run first and complete
+ * onPrepare. It rewrites the pre-preset user the onboarding targets: no
+ * themePreset, the `accentColor` key that pre-preset releases wrote (it
+ * must be ignored and pruned), plus an unknown key to prove the
+ * save-time pruning. The onboarding spec must run first and complete
  * the dialog, or every later spec's instance opens blocked by it.
  * restoreSettings puts the original file back.
  */
@@ -256,7 +257,7 @@ function seedLegacyThemeUser(): void {
     json.accentColor = 'blue'
     json.e2eStaleKey = true
     fs.writeFileSync(settingsPath, JSON.stringify(json, null, 2))
-    console.log('[e2e-local] seeded legacy accentColor user for this run')
+    console.log('[e2e-local] seeded pre-preset theme user for this run')
   } catch (err) {
     console.warn('[e2e-local] theme seed skipped:', err)
   }

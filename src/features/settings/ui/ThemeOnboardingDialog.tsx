@@ -9,11 +9,11 @@ import { useTranslation } from 'react-i18next'
 
 /**
  * Mandatory one-time theme onboarding shown once the app is initialized
- * but no persisted themePreset exists — first runs, and pre-preset users
- * still on the legacy accentColor (their effective preset is preselected).
- * Confirming persists themePreset (and the picked light/dark mode), so
- * the dialog never appears again. There is intentionally no dismiss path:
- * the grid's first entry (Bilibili) IS "keep the current look".
+ * but no persisted themePreset exists (first runs and pre-preset users).
+ * Bilibili is preselected; confirming persists themePreset (and the picked
+ * light/dark mode), so the dialog never appears again. There is
+ * intentionally no dismiss path: the grid's first entry (Bilibili) IS
+ * "keep the current look".
  */
 export function ThemeOnboardingDialog() {
   const { t } = useTranslation()
@@ -23,11 +23,9 @@ export function ThemeOnboardingDialog() {
 
   const open = initiated && settings.themePreset === undefined
 
-  const defaultPreset: ThemePreset =
-    settings.accentColor === 'blue' ? 'bilibili-blue' : 'bilibili'
   const [picked, setPicked] = useState<ThemePreset | null>(null)
   const [darkOverride, setDarkOverride] = useState<boolean | null>(null)
-  const preset = picked ?? defaultPreset
+  const preset = picked ?? 'bilibili'
   const dark = darkOverride ?? settings.theme === 'dark'
 
   // Reset the local overrides whenever the dialog (re)opens.

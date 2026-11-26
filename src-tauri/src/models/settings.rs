@@ -221,18 +221,6 @@ pub struct Settings {
         skip_serializing_if = "Option::is_none"
     )]
     pub theme_preset: Option<String>,
-    /// Legacy pre-preset accent slug ("pink" | "blue" era, plus dev-era
-    /// hue slugs). Still read by the splash alias and the theme
-    /// onboarding's legacy-blue preselect. Slated for removal together
-    /// with those two readers (#976); once the field is gone,
-    /// `patch_settings` prunes the stale key from settings.json on the
-    /// next save.
-    #[serde(
-        rename = "accentColor",
-        default,
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub accent_color: Option<String>,
     /// Whether the AppBar shows the theme-preset palette button.
     /// Defaults to true.
     #[serde(
@@ -467,19 +455,10 @@ impl Settings {
 
     /// Resolves the theme preset the splash window should render.
     ///
-    /// `themePreset` wins; a pre-preset user's legacy `accentColor`
-    /// alias maps `"blue"` → `"bilibili-blue"` so their splash keeps its
-    /// colorway until the onboarding persists a preset. Anything else
-    /// yields `None` (the frontend's bilibili default).
+    /// Returns the persisted `themePreset`, or `None` when none is stored
+    /// (the frontend's bilibili default).
     pub fn splash_preset(settings: &Option<Settings>) -> Option<&str> {
-        settings.as_ref().and_then(|s| {
-            s.theme_preset
-                .as_deref()
-                .or(match s.accent_color.as_deref() {
-                    Some("blue") => Some("bilibili-blue"),
-                    _ => None,
-                })
-        })
+        settings.as_ref().and_then(|s| s.theme_preset.as_deref())
     }
 
     /// Resolves the aggregate download speed limit (issue #421).
@@ -524,21 +503,13 @@ mod tests {
     }
 
     #[test]
-    fn test_theme_preset_and_legacy_accent_roundtrip() {
+    fn test_theme_preset_roundtrip() {
         let s: Settings = serde_json::from_str(
-            r#"{"dlOutputPath": "/tmp/a", "language": "en", "themePreset": "catppuccin", "accentColor": "blue", "showAppBarThemePreset": false}"#,
+            r#"{"dlOutputPath": "/tmp/a", "language": "en", "themePreset": "catppuccin", "showAppBarThemePreset": false}"#,
         )
         .unwrap();
         assert_eq!(s.theme_preset.as_deref(), Some("catppuccin"));
-        assert_eq!(s.accent_color.as_deref(), Some("blue"));
         assert_eq!(s.show_app_bar_theme_preset, Some(false));
-
-        // Dev-era hue slugs must not fail deserialization.
-        let legacy: Settings = serde_json::from_str(
-            r#"{"dlOutputPath": "/tmp/a", "language": "en", "accentColor": "violet"}"#,
-        )
-        .unwrap();
-        assert_eq!(legacy.accent_color.as_deref(), Some("violet"));
     }
 
     #[test]
@@ -801,10 +772,9 @@ mod tests {
     }
 
     #[test]
-    fn test_splash_preset_prefers_theme_preset_over_the_legacy_alias() {
+    fn test_splash_preset_returns_the_persisted_preset() {
         let settings = Settings {
             theme_preset: Some("claude".to_string()),
-            accent_color: Some("blue".to_string()),
             ..Default::default()
         };
         assert_eq!(Settings::splash_preset(&Some(settings)), Some("claude"));
@@ -812,25 +782,11 @@ mod tests {
         // The bilibili default is a real value here; splash_url filters it.
         let settings = Settings {
             theme_preset: Some("bilibili".to_string()),
-            accent_color: Some("blue".to_string()),
             ..Default::default()
         };
         assert_eq!(Settings::splash_preset(&Some(settings)), Some("bilibili"));
-    }
 
-    #[test]
-    fn test_splash_preset_maps_only_the_legacy_blue_alias() {
-        for (accent, expected) in [
-            ("blue", Some("bilibili-blue")),
-            ("pink", None),
-            ("violet", None),
-        ] {
-            let settings = Settings {
-                accent_color: Some(accent.to_string()),
-                ..Default::default()
-            };
-            assert_eq!(Settings::splash_preset(&Some(settings)), expected);
-        }
+        assert_eq!(Settings::splash_preset(&Some(Settings::default())), None);
         assert_eq!(Settings::splash_preset(&None), None);
     }
 
