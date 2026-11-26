@@ -103,8 +103,13 @@ export function PageLayoutShell({ children }: PageLayoutShellProps) {
       */}
       <SidebarProvider defaultOpen={true} className="h-svh min-h-0">
         <Sidebar collapsible="icon">
-          <NavigationSidebarHeader />
-          <SidebarContent />
+          {/* Why: the nav sits in SidebarContent so only the nav scrolls and
+              the footer (Settings, collapse toggle) stays pinned (issue #979).
+              The className overrides the overflow-hidden the vendored
+              SidebarContent applies when icon-collapsed; cn() lets it win. */}
+          <SidebarContent className="group-data-[collapsible=icon]:overflow-auto">
+            <NavigationSidebarHeader />
+          </SidebarContent>
           <SidebarFooter>
             <SidebarMenu>
               <SidebarMenuItem>
