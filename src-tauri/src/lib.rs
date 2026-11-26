@@ -313,8 +313,7 @@ pub fn run() {
             });
             // Mirror of the theme param convention: only non-default
             // presets reach the splash URL; a missing param means
-            // bilibili on the frontend (the legacy accentColor alias is
-            // resolved by Settings::splash_preset).
+            // bilibili on the frontend.
             let splash_preset = Settings::splash_preset(&settings);
 
             // Seed the aggregate speed limiter from persisted settings
@@ -912,8 +911,8 @@ async fn update_lib_path(app: AppHandle, new_path: String) -> Result<(), String>
     // saved in the meantime.
     // Note: the key must be the literal serde name "libPath" (see
     // models/settings.rs). Patch keys bypass struct (de)serialization, so a
-    // mistyped key is silently kept as an unknown on-disk field and the save
-    // has no effect.
+    // mistyped key goes unnoticed here: it is pruned as unknown on save and
+    // the save has no effect.
     let patch = serde_json::json!({
         "libPath": new_lib_path.to_str().map(|s| s.to_string()),
     });

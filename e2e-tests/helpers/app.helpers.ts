@@ -200,7 +200,7 @@ export const APP_DATA_DIR = path.join(
 /**
  * Parses settings.json straight from disk (Node side). Unlike the typed
  * get_settings response, this shows what is really persisted — unknown
- * keys and legacy aliases included.
+ * keys included.
  */
 export async function readPersistedSettings(): Promise<
   Record<string, unknown>

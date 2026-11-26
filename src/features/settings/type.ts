@@ -125,11 +125,6 @@ export interface Settings {
    */
   showAppBarThemePreset?: boolean
   /**
-   * Legacy pre-preset accent setting ('pink' | 'blue' era). Read-only
-   * alias: 'blue' migrates to themePreset 'bilibili-blue' on load.
-   */
-  accentColor?: string
-  /**
    * Whether to show download progress on the taskbar.
    * Defaults to true if not specified.
    */
