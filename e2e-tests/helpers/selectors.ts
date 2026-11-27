@@ -19,6 +19,13 @@
  */
 export const INIT_CONTAINER = '[data-testid="splash-screen"]'
 
+// Why: structural hooks for the splash language setup, added for the
+// first-run local E2E (issue #977) — the local suite matches structural
+// attributes only and the UI renders in the OS/dev language, so text
+// matching is unusable here.
+export const SETUP_LANGUAGE_SELECT = '[data-testid="setup-language-select"]'
+export const SETUP_LANGUAGE_CONTINUE = '[data-testid="setup-language-continue"]'
+
 // -- Sidebar --
 
 /** Root sidebar element rendered by shadcn/ui. */

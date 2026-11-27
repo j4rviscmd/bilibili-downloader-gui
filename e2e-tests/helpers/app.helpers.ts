@@ -95,6 +95,20 @@ export async function waitForMainUI(): Promise<void> {
   )
 }
 
+// Why: the webdriver session stays pinned to the window it was created on
+// (splash), so switching means polling handles only — any command routed at
+// the closing splash window fails with "no such window" (issue #977).
+export async function switchToWindow(label: string): Promise<void> {
+  await browser.waitUntil(
+    async () => (await browser.getWindowHandles()).includes(label),
+    {
+      timeout: 180_000,
+      timeoutMsg: `Window "${label}" did not appear within 180s`,
+    },
+  )
+  await browser.switchToWindow(label)
+}
+
 export async function dismissThemeOnboardingIfPresent(): Promise<void> {
   const cta = await browser.$(S.THEME_ONBOARDING_CTA)
   if (!(await cta.isExisting())) return
@@ -197,6 +211,8 @@ export const APP_DATA_DIR = path.join(
   'com.bilibili-downloader-gui.app',
 )
 
+export const SETTINGS_PATH = path.join(APP_DATA_DIR, 'settings.json')
+
 /**
  * Parses settings.json straight from disk (Node side). Unlike the typed
  * get_settings response, this shows what is really persisted — unknown
@@ -205,10 +221,7 @@ export const APP_DATA_DIR = path.join(
 export async function readPersistedSettings(): Promise<
   Record<string, unknown>
 > {
-  const raw = await fs.promises.readFile(
-    path.join(APP_DATA_DIR, 'settings.json'),
-    'utf8',
-  )
+  const raw = await fs.promises.readFile(SETTINGS_PATH, 'utf8')
   return JSON.parse(raw) as Record<string, unknown>
 }
 /** State captured by setupDownloadEnv for the matching teardown. */

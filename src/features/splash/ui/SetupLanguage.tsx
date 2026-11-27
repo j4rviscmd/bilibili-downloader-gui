@@ -40,6 +40,10 @@ export function SetupLanguage({ onComplete }: { onComplete: () => void }) {
       <label className="w-full max-w-sm">
         <span className="sr-only">{t('init.choose_language')}</span>
         <select
+          // Why: structural selector for the local first-run E2E (issue
+          // #977) — text matching is unusable, the UI renders in the
+          // OS/dev language.
+          data-testid="setup-language-select"
           className="w-full rounded-md border bg-white p-3 dark:bg-[#1e293b]"
           value={language}
           disabled={saving}
@@ -53,7 +57,12 @@ export function SetupLanguage({ onComplete }: { onComplete: () => void }) {
         </select>
       </label>
       {error && <p role="alert">{t('init.language_save_failed')}</p>}
-      <Button disabled={saving} onClick={() => void submit()}>
+      <Button
+        // Why: first-run E2E target — same rationale as the select above.
+        data-testid="setup-language-continue"
+        disabled={saving}
+        onClick={() => void submit()}
+      >
         {t('init.continue_setup')}
       </Button>
     </div>

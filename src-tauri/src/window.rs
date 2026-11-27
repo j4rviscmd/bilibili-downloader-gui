@@ -22,7 +22,7 @@ use crate::models::settings::{Settings, UiTheme};
 use crate::utils::locked_json;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, Theme, WebviewUrl, WebviewWindowBuilder};
-// Local E2E background mode: raw SW_SHOWNOACTIVATE show in show_main
+// Local E2E background mode: raw SW_SHOWNOACTIVATE show in reveal_without_focus
 // (same 0.62 crate copy tauri itself compiles).
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_SHOWNOACTIVATE};
@@ -152,6 +152,10 @@ pub fn create_splash_window(
         // React has mounted, so the user never sees the blank/black loading
         // frame.
         .visible(false)
+        // Why: wry activates a window at creation time on Windows
+        // (MoveFocus); in E2E background mode even that single activation
+        // must not happen for the splash (issue #977).
+        .focused(!is_e2e_background())
         .build()?;
     Ok(())
 }
@@ -164,6 +168,12 @@ pub fn create_splash_window(
 #[cfg_attr(coverage, coverage(off))]
 pub fn show_splash(app: AppHandle) -> Result<(), String> {
     if let Some(splash) = app.get_webview_window("splash") {
+        // Why: show() + set_focus() below activates the splash — background
+        // mode must reveal it without activation, same as show_main
+        // (issue #977).
+        if is_e2e_background() {
+            return reveal_without_focus(&splash);
+        }
         splash.show().map_err(|e| format!("{e}"))?;
         splash.set_focus().map_err(|e| format!("{e}"))?;
     }
@@ -180,6 +190,46 @@ pub(crate) fn is_e2e_background() -> bool {
         .unwrap_or(false)
 }
 
+pub(crate) fn e2e_keeps_splash(first_run: bool) -> bool {
+    keeps_splash_in_e2e(is_e2e_background(), first_run)
+}
+
+// Why: keep the splash only for a brand-new user under the local harness —
+// the language-setup UI lives solely in the splash webview, but keying on
+// E2E_TESTING alone would boot every CI fixture spec (they run without
+// settings.json) from the splash and break them (issue #977).
+fn keeps_splash_in_e2e(background: bool, first_run: bool) -> bool {
+    background && first_run
+}
+
+#[cfg_attr(coverage, coverage(off))]
+fn reveal_without_focus(window: &tauri::WebviewWindow) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        // Why raw ShowWindow and not show(): tao's set_visible
+        // resolves to ShowWindow(SW_SHOW) on Windows — the
+        // MARKER_DONT_FOCUS escape hatch only covers the
+        // creation-time show — which ACTIVATES the window and
+        // steals keyboard focus on every call. SW_SHOWNOACTIVATE
+        // displays the window (still required: a hidden webview
+        // gets throttled) in its saved/maximized placement without
+        // activating it. Bypassing tao's VISIBLE flag is safe:
+        // tao's is_visible() reads IsWindowVisible live.
+        let hwnd = window.hwnd().map_err(|e| format!("{e}"))?;
+        unsafe {
+            let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+        }
+        Ok(())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        // Show without focusing: on macOS the Accessory policy (see
+        // setup) means the app can never become active, so plain show()
+        // cannot take keyboard/menu-bar focus from the foreground app.
+        window.show().map_err(|e| format!("{e}"))
+    }
+}
+
 /// Shows the main window after its frontend has mounted. Called via
 /// `show_main` from App's first effect — the window is created hidden by
 /// `create_main_window`, so without this call it never appears.
@@ -188,9 +238,10 @@ pub(crate) fn is_e2e_background() -> bool {
 /// NEVER re-focused after boot: on macOS the Accessory activation policy
 /// (see setup) keeps the keyboard/menu bar with the developer's foreground
 /// app; on Windows the show below uses raw SW_SHOWNOACTIVATE so the reveal
-/// itself never steals focus (the window is activated exactly once, at app
-/// start, by wry's creation-time MoveFocus — see the E2E branch below for
-/// why full no-activation is not viable on Windows).
+/// itself never steals focus (in the main-window-only E2E launch the
+/// window is activated exactly once, at app start, by wry's creation-time
+/// MoveFocus — see the E2E branch below for why full no-activation is not
+/// viable on Windows).
 /// Why show at all:
 /// a never-shown window is never drawn, and WebKit suspends/throttles it
 /// in ways the private-API tweaks cannot fully disable — measured
@@ -216,27 +267,7 @@ pub fn show_main(app: AppHandle) -> Result<(), String> {
             // Accessory policy + occlusion tweaks keep WKWebView JS fully
             // live; WebView2 has no equivalent. So on Windows the E2E
             // window takes focus exactly once, at app start.
-            #[cfg(target_os = "windows")]
-            {
-                // Why raw ShowWindow and not show(): tao's set_visible
-                // resolves to ShowWindow(SW_SHOW) on Windows — the
-                // MARKER_DONT_FOCUS escape hatch only covers the
-                // creation-time show — which ACTIVATES the window and
-                // steals keyboard focus on every call. SW_SHOWNOACTIVATE
-                // displays the window (still required: a hidden webview
-                // gets throttled) in its saved/maximized placement without
-                // activating it. Bypassing tao's VISIBLE flag is safe:
-                // tao's is_visible() reads IsWindowVisible live.
-                let hwnd = main.hwnd().map_err(|e| format!("{e}"))?;
-                unsafe {
-                    let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
-                }
-            }
-            // Show without focusing: on macOS the Accessory policy (see
-            // setup) means the app can never become active, so plain show()
-            // cannot take keyboard/menu-bar focus from the foreground app.
-            #[cfg(not(target_os = "windows"))]
-            main.show().map_err(|e| format!("{e}"))?;
+            reveal_without_focus(&main)?;
         }
         log::info!("[BE] show_main: shown without focus (E2E_BACKGROUND)");
         return Ok(());
@@ -332,12 +363,13 @@ pub(crate) fn apply_e2e_background_tweaks(app: &AppHandle) {
 ///
 /// Built resizable (no splash-time lock) so the OS-native maximize clamps to
 /// the work area on Windows. Call this from `finish_splash` after the splash
-/// window is done.
+/// window is done. `focused`: whether wry activates the window at creation.
 // Why coverage(off): OS window creation with platform-specific maximize branches — injection cost outweighs value (issue #646 policy 4).
 #[cfg_attr(coverage, coverage(off))]
 pub fn create_main_window(
     app: &AppHandle,
     theme: Option<Theme>,
+    focused: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let geometry = read_saved_geometry(app);
     let should_maximize = geometry.as_ref().map(|g| g.maximized).unwrap_or(false);
@@ -351,7 +383,8 @@ pub fn create_main_window(
         // the splash closing and the app UI appearing. The frontend reveals
         // the window via `show_main` once React has mounted (same pattern as
         // the splash window's `show_splash`).
-        .visible(false);
+        .visible(false)
+        .focused(focused);
 
     // Maximized restoration branches by platform because the correct approach
     // differs between Windows and macOS.
@@ -427,12 +460,25 @@ pub async fn finish_splash(app: AppHandle) -> Result<(), String> {
     // event loop. A synchronous command occupies the main thread and deadlocks
     // the window creation. An async command runs on a worker thread, freeing
     // the main thread so build() can proceed.
-    create_main_window(&app, theme).map_err(|e| {
+    // Why: the only E2E path reaching finish_splash is the splash-keeping
+    // first run (issue #977) — its main window must not take focus; the
+    // main-window-only E2E launch never comes through here (setup creates
+    // the main window directly with focused=true).
+    // Note: if clicks get swallowed on this route (known focused(false)
+    // risk, see show_main's doc), the sanctioned fallback is focused=true
+    // here — accepting one activation at the handoff (issue #977 design).
+    create_main_window(&app, theme, !is_e2e_background()).map_err(|e| {
         log::error!("[BE] finish_splash: create_main_window error: {e}");
         format!("{e}")
     })?;
     log::info!("[BE] finish_splash: main window created");
     register_main_window_events(&app);
+
+    // Why: this route bypasses setup's E2E branch, where these tweaks run
+    // right after main-window creation (lib.rs); the fn self-gates on
+    // E2E_BACKGROUND, so normal launches are untouched (issue #977).
+    #[cfg(target_os = "macos")]
+    apply_e2e_background_tweaks(&app);
     // Close the splash AFTER the main window is up. Closing it first can leave
     // zero windows momentarily and trigger process exit before main is shown.
     if let Some(splash) = app.get_webview_window("splash") {
@@ -445,8 +491,8 @@ pub async fn finish_splash(app: AppHandle) -> Result<(), String> {
 /// Registers close/resize/move handlers (and opens devtools in debug) on the
 /// main window. Must run AFTER the main window is created. In normal mode this
 /// is called from `finish_splash` (after the splash creates the main window);
-/// in E2E mode it is called directly from `setup` because the splash window is
-/// skipped.
+/// in the main-window-only E2E launch it is called directly from `setup`
+/// because the splash window is skipped.
 // Why coverage(off): registers OS event-loop handlers on a live window — injection cost outweighs value (issue #646 policy 4).
 #[cfg_attr(coverage, coverage(off))]
 pub(crate) fn register_main_window_events(app: &AppHandle) {
@@ -1165,5 +1211,12 @@ mod tests {
         if std::env::var("E2E_BACKGROUND").is_err() {
             assert!(!is_e2e_background());
         }
+    }
+
+    #[test]
+    fn keeps_splash_in_e2e_only_for_a_first_run_under_the_local_harness() {
+        assert!(keeps_splash_in_e2e(true, true));
+        assert!(!keeps_splash_in_e2e(true, false));
+        assert!(!keeps_splash_in_e2e(false, true));
     }
 }
