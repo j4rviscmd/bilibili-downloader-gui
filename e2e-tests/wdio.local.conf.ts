@@ -12,7 +12,7 @@
 //   (observed 2026-10-18: 3-day-old leftover instance made the whole
 //   suite query a blank page)
 //
-// Run with: npm run test:local (from e2e-tests/). Requires a logged-in
+// Run with: npm run test:local (repo root or e2e-tests/). Requires a logged-in
 // Firefox profile (real cookies) — the specs fail fast when not.
 
 import type { ChildProcess } from 'node:child_process'
@@ -22,7 +22,11 @@ import net from 'node:net'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { APP_DATA_DIR, E2E_DOWNLOAD_DIR } from './helpers/app.helpers'
+import {
+  APP_DATA_DIR,
+  E2E_DOWNLOAD_DIR,
+  SETTINGS_PATH,
+} from './helpers/app.helpers'
 import {
   config as baseConfig,
   killTree,
@@ -135,10 +139,27 @@ function killPortListener(port: number): void {
 // existsSync false and silently no-ops backup/restore instead of
 // erroring — the previous macOS-only hardcode did exactly that on
 // Windows.
-const settingsPath = path.join(APP_DATA_DIR, 'settings.json')
+const settingsPath = SETTINGS_PATH
 const settingsBackupPath = `${settingsPath}.e2e-bak`
 const loginStatePath = path.join(APP_DATA_DIR, 'login_state.json')
 const loginStateBackupPath = `${loginStatePath}.e2e-bak`
+
+// Why: the first-run spec needs a settings-less launch, so its session
+// moves the live file here (beforeSession) and gets it back afterwards.
+// The hold is the previous run's seeded state, NOT the user's original —
+// recovery always restores from .e2e-bak (issue #977).
+const settingsHoldPath = `${settingsPath}.e2e-hold`
+const FIRST_RUN_SPEC = '00-first-run.local.e2e.ts'
+
+// Why: any live settings.json at this point was created by the held
+// (settings-less) session and is discarded by design — only the hold
+// content is put back (issue #977).
+function releaseHeldSettings(): void {
+  if (!fs.existsSync(settingsHoldPath)) return
+  fs.rmSync(settingsPath, { force: true })
+  fs.renameSync(settingsHoldPath, settingsPath)
+  console.log(`[e2e-local] put back ${settingsPath}`)
+}
 
 // undefined = backupSettings never ran (onPrepare aborted at preflight);
 // false = no original settings.json, so restore must also remove a file
@@ -235,15 +256,15 @@ function restoreSettings(): void {
 // (port preflight).
 
 /**
- * Per-run settings seed for the theme-onboarding spec (the first spec of
- * the run, see local/00-theme-onboarding.local.e2e.ts). Every spec file
+ * Per-run settings seed for the theme-onboarding spec (see
+ * local/00-theme-onboarding.local.e2e.ts). Every spec file
  * launches a fresh app instance that reads settings.json at startup, so
  * the seeded state has to be on disk before the first launch — here, in
  * onPrepare. It rewrites the pre-preset user the onboarding targets: no
  * themePreset, the `accentColor` key that pre-preset releases wrote (it
  * must be ignored and pruned), plus an unknown key to prove the
- * save-time pruning. The onboarding spec must run first and complete
- * the dialog, or every later spec's instance opens blocked by it.
+ * save-time pruning. The onboarding spec must complete the dialog before
+ * the other specs' instances launch, or they open blocked by it.
  * restoreSettings puts the original file back.
  */
 function seedLegacyThemeUser(): void {
@@ -277,6 +298,22 @@ export const config = {
     await assertPortFree(1420, 'Vite dev server')
     await assertPortFree(4444, 'tauri-webdriver')
     await assertPortFree(4445, 'app webdriver bridge')
+    // Why: recover BEFORE backupSettings, or the leftover run-created file
+    // gets backed up as if it were the user's original. Restore from
+    // .e2e-bak, not the hold — the hold is the previous run's seeded
+    // state; no backup means the developer originally had no
+    // settings.json, so remove the leftover (issue #977).
+    if (fs.existsSync(settingsHoldPath)) {
+      fs.rmSync(settingsHoldPath)
+      if (fs.existsSync(settingsBackupPath)) {
+        fs.copyFileSync(settingsBackupPath, settingsPath)
+      } else {
+        fs.rmSync(settingsPath, { force: true })
+      }
+      console.warn(
+        '[e2e-local] recovered settings.json after an interrupted run',
+      )
+    }
     // After preflight so a fast-fail abort (occupied port) leaves no
     // dangling backup.
     backupSettings()
@@ -355,6 +392,33 @@ export const config = {
     } catch (err) {
       console.error('[e2e-local] download dir cleanup failed:', err)
     }
+  },
+
+  async beforeSession(
+    _config: unknown,
+    _capabilities: unknown,
+    specs: string[],
+  ) {
+    // Why: a crashed earlier session can leave the hold behind; releasing
+    // first keeps one spec's failure from cascading into the next
+    // (issue #977).
+    releaseHeldSettings()
+    const firstRun = specs.some(
+      (spec) => path.basename(spec) === FIRST_RUN_SPEC,
+    )
+    // Why: the first-run spec must see a settings-less app (splash
+    // language setup), so the developer's file moves aside just before
+    // that app launch and returns when the session ends (issue #977).
+    if (firstRun && fs.existsSync(settingsPath)) {
+      fs.renameSync(settingsPath, settingsHoldPath)
+      console.log(
+        `[e2e-local] moved ${settingsPath} aside for ${FIRST_RUN_SPEC}`,
+      )
+    }
+  },
+
+  async afterSession() {
+    releaseHeldSettings()
   },
 
   // Real-network downloads + hard-subtitle burn-ins can each run for

@@ -338,7 +338,20 @@ pub fn run() {
             // this guarantees the heavy init runs at most once per process.
             app.manage(std::sync::atomic::AtomicBool::new(false));
 
-            if crate::handlers::qr_login::is_e2e_testing() {
+            // Why hoisted out of the E2E branch below: the splash-keeping
+            // first-run route (issue #977) never enters it, and the policy
+            // must precede window creation on both routes.
+            // Local E2E background mode (E2E_BACKGROUND, macOS): an
+            // Accessory app can never be activated, so nothing — not
+            // even a stray set_focus — steals keyboard/menu-bar focus
+            // from the developer's foreground app. Must run before any
+            // window is created.
+            #[cfg(target_os = "macos")]
+            if crate::handlers::qr_login::is_e2e_testing() && window::is_e2e_background() {
+                app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            }
+
+            if crate::handlers::qr_login::is_e2e_testing() && !window::e2e_keeps_splash(first_run) {
                 // E2E mode: skip the standalone splash window. tauri-plugin-
                 // webdriver v0.2 pins the WebDriver session to whichever window
                 // exists at session creation and never switches when that
@@ -349,16 +362,14 @@ pub fn run() {
                 // session valid for the whole test suite. Backend init then
                 // runs from the main window via useInit.initApp
                 // (→ invoke('initialize')) instead of from the splash.
-                // Local E2E background mode (E2E_BACKGROUND, macOS): an
-                // Accessory app can never be activated, so nothing — not
-                // even a stray set_focus — steals keyboard/menu-bar focus
-                // from the developer's foreground app. Must run before any
-                // window is created.
-                #[cfg(target_os = "macos")]
-                if window::is_e2e_background() {
-                    app.set_activation_policy(tauri::ActivationPolicy::Accessory);
-                }
-                window::create_main_window(app.handle(), window_theme)?;
+                // Exception (issue #977): a brand-new user under E2E_BACKGROUND
+                // keeps the splash (e2e_keeps_splash) and the spec switches to
+                // "main" itself.
+                // Why focused=true: preserves the main-window-only E2E launch's
+                // single creation-time activation — focused(false) is a known
+                // click-swallow risk for the url-download specs (see show_main's
+                // doc).
+                window::create_main_window(app.handle(), window_theme, true)?;
                 window::register_main_window_events(app.handle());
                 // Keep the shown-but-unfocused webview fully live when it
                 // gets covered or the machine idles (occlusion/inactivity

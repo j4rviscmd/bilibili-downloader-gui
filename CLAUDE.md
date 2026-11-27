@@ -14,6 +14,7 @@ CONTRIBUTING.md.
 | `npm run typecheck`   | TypeScript type check        |
 | `npm run lint`        | ESLint                       |
 | `npm run test`        | Run Vitest                   |
+| `npm run test:local`  | Local-real E2E, real cookies |
 | `npm run tauri build` | Build distributable binaries |
 | `cargo build` / `fmt` | Rust (run in `src-tauri/`)   |
 
@@ -260,8 +261,8 @@ version — both are maintained by release-please, never edit by hand):
 - Before user verification, check the following:
   - `npm run lint` has no errors
   - `cargo build` compiles successfully
-  - The local-real E2E suite passes: `cd e2e-tests && npm run test:local`
-    (~2.5 min, 44 tests across 9 spec files: real Bilibili API/cookies/CDN/
+  - The local-real E2E suite passes: `npm run test:local`
+    (~3 min, 48 tests across 10 spec files: real Bilibili API/cookies/CDN/
     ffmpeg — the integration gate `npm test`/`cargo test` cannot
     provide). Preconditions:
     Firefox logged in to bilibili (real cookies) and no running app

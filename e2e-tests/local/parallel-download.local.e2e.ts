@@ -49,8 +49,14 @@ async function gotoDownloadsViaBar(): Promise<void> {
   await bar.click()
   await browser.waitUntil(
     async () => {
+      // Why: a bare [data-status] selector also counts /search part-card
+      // badges (visited pages stay mounted), so this wait could pass
+      // before the /downloads transition and sample the wrong page — the
+      // issue #691-scoped QUEUE_ROW_BY_STATUS keeps that race out.
       const rows = await browser.$$(
-        '[data-status="running"], [data-status="pending"], [data-status="done"]',
+        ['running', 'pending', 'done']
+          .map((status) => S.QUEUE_ROW_BY_STATUS(status))
+          .join(', '),
       )
       return (await rows.length) > 0
     },

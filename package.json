@@ -18,7 +18,8 @@
     "test": "vitest",
     "preview": "vite preview",
     "tauri": "tauri",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:local": "cd e2e-tests && npm run test:local --"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

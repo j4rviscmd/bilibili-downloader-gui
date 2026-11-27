@@ -42,6 +42,14 @@ async function loadRealVideo(url: string): Promise<void> {
   await submitVideoUrl(url)
 }
 
+/** Waits for the concurrency row, then lets the visibility-triggered
+ * settings.json re-read (issue #560) settle before any interaction: a slow
+ * read landing after a click clobbers the just-saved value in the store. */
+async function waitForConcurrencySetting(): Promise<void> {
+  await (await browser.$(CONCURRENCY_SETTING)).waitForExist({ timeout: 15_000 })
+  await browser.pause(1_500)
+}
+
 /** Opens Settings on the download category via the sidebar. */
 async function gotoDownloadSettings(): Promise<void> {
   const btn = await browser.$('[data-testid="nav-settings"]')
@@ -50,15 +58,7 @@ async function gotoDownloadSettings(): Promise<void> {
   const cat = await browser.$('[data-category="download"]')
   await cat.waitForExist({ timeout: 15_000 })
   await cat.click()
-  await (
-    await browser.$(CONCURRENCY_SETTING)
-  ).waitForExist({
-    timeout: 15_000,
-  })
-  // Let the visibility-triggered settings.json re-read (issue #560)
-  // settle before any interaction: a slow read landing after a click
-  // clobbers the just-saved value in the store.
-  await browser.pause(1_500)
+  await waitForConcurrencySetting()
 }
 
 async function pickConcurrency(value: number): Promise<void> {
@@ -165,11 +165,10 @@ describe('local real API: live concurrency cap changes', () => {
     await badge.waitForExist({ timeout: 10_000 })
     expect(await badge.getText()).to.contain('1')
     await badge.click()
-    await (
-      await browser.$(CONCURRENCY_SETTING)
-    ).waitForExist({
-      timeout: 15_000,
-    })
+    // Why: the badge deep-link re-enters the settings view, so the
+    // visibility-triggered settings.json re-read (issue #560) fires here
+    // too — same settle requirement as gotoDownloadSettings.
+    await waitForConcurrencySetting()
 
     // Raise the cap to 3 — running downloads pick it up immediately.
     // `>= 2` (not 3): parts finished at cap 1 shrink what is left to

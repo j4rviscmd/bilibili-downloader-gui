@@ -4,17 +4,16 @@
  * AppBar palette button — end to end against the real backend
  * (settings.json via patch_settings).
  *
- * MUST stay the first spec of the run (00- prefix): wdio.local.conf.ts
- * seeds the pre-preset user into the live settings.json in onPrepare, and
- * every spec file launches a fresh app instance that opens with the
- * mandatory onboarding dialog until this spec completes it. The `after`
- * hook force-confirms a dialog a failed test left open.
+ * MUST stay ahead of every spec except the first-run one (00- prefix):
+ * wdio.local.conf.ts seeds the pre-preset user into the live settings.json
+ * in onPrepare, and every spec file launches a fresh app instance that
+ * opens with the mandatory onboarding dialog until this spec completes it.
+ * The `after` hook force-confirms a dialog a failed test left open.
  *
- * Not covered here — it needs the developer's real settings.json moved
- * aside for a launch (see the first-run E2E issue): the brand-new-user
- * route (no settings.json → language setup → onboarding with Bilibili
- * Pink preselected). The restart check lives in the next spec,
- * 01-theme-onboarding-restart.local.e2e.ts.
+ * Not covered here: the brand-new-user route (no settings.json → splash
+ * language setup → onboarding) lives in 00-first-run.local.e2e.ts, which
+ * borrows the settings.json slot for its own session. The restart check
+ * lives in the next spec, 01-theme-onboarding-restart.local.e2e.ts.
  *
  * Structural selectors only — the run shares the developer's real
  * settings.json (any language), so asserts use testids, ARIA state, the
