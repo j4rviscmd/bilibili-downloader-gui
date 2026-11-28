@@ -48,6 +48,7 @@ pub struct InitResult {
     pub user_error: Option<String>,
     /// True when ffmpeg is valid or was successfully installed.
     pub ffmpeg_success: bool,
+    pub firefox_access_denied: bool,
 }
 
 /// Runs the backend initialization sequence, emitting progress events to the
@@ -105,6 +106,8 @@ pub async fn initialize(app: AppHandle) -> Result<(), String> {
     let login_method = qr_login::get_login_method(&app)
         .await
         .unwrap_or(LoginMethod::Firefox);
+
+    let mut firefox_access_denied = false;
     match login_method {
         LoginMethod::QrCode => {
             let loaded = qr_login::load_stored_session(&app).await.unwrap_or(false);
@@ -145,7 +148,15 @@ pub async fn initialize(app: AppHandle) -> Result<(), String> {
         }
         LoginMethod::Firefox => {
             emit_step(&app, "init.reading_cookies");
-            let _ = cookie::get_cookie(&app).await;
+            if let Ok(cookie::CookieOutcome::AccessDenied) = cookie::get_cookie(&app).await {
+                // Why: macOS TCC (kTCCServiceSystemPolicyAppData) silently denies
+                // reads of Firefox's profile dir, surfacing as PermissionDenied;
+                // denials on other platforms are ordinary file permissions with no
+                // macOS recovery UI. Under E2E_TESTING (macOS CI) TCC can never be
+                // granted, so this must stay false there or every spec would hit a
+                // blocking dialog (qr_login::is_e2e_testing).
+                firefox_access_denied = cfg!(target_os = "macos") && !qr_login::is_e2e_testing();
+            }
         }
         LoginMethod::Manual => {
             // Same restore path as QR, but no refresh attempt: a manual
@@ -176,6 +187,7 @@ pub async fn initialize(app: AppHandle) -> Result<(), String> {
             guard.user = user;
             guard.user_error = user_error;
             guard.ffmpeg_success = ffmpeg_success;
+            guard.firefox_access_denied = firefox_access_denied;
         }
     }
 
@@ -337,6 +349,7 @@ mod tests {
         assert!(default.user.is_none());
         assert!(default.user_error.is_none());
         assert!(!default.ffmpeg_success);
+        assert!(!default.firefox_access_denied);
 
         let json = serde_json::to_value(InitResult {
             user_error: Some("ERR::UNAUTHORIZED".into()),
@@ -350,7 +363,8 @@ mod tests {
                 "settings": null,
                 "user": null,
                 "userError": "ERR::UNAUTHORIZED",
-                "ffmpegSuccess": true
+                "ffmpegSuccess": true,
+                "firefoxAccessDenied": false
             })
         );
     }

@@ -187,6 +187,7 @@ pub fn run() {
             validate_ffmpeg,
             install_ffmpeg,
             get_cookie,
+            open_macos_privacy_settings,
             fetch_user,
             fetch_video_info,
             fetch_bangumi_info,
@@ -566,8 +567,9 @@ async fn install_ffmpeg(app: AppHandle) -> Result<bool, String> {
 ///
 /// # Returns
 ///
-/// Returns `Ok(true)` if Bilibili cookies were found and cached successfully,
-/// `Ok(false)` if no cookies were found.
+/// Returns `Ok(loaded)` if Bilibili cookies were found and cached successfully,
+/// `Ok(noCookies)` if no cookies were found, `Ok(accessDenied)` when the OS
+/// refuses to read the Firefox data.
 ///
 /// # Errors
 ///
@@ -575,8 +577,31 @@ async fn install_ffmpeg(app: AppHandle) -> Result<bool, String> {
 /// - Firefox cookies database cannot be accessed
 /// - Database read operation fails
 #[tauri::command]
-async fn get_cookie(app: AppHandle) -> Result<bool, String> {
+async fn get_cookie(app: AppHandle) -> Result<cookie::CookieOutcome, String> {
     cookie::get_cookie(&app).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn open_macos_privacy_settings(app: AppHandle) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        use tauri_plugin_opener::OpenerExt;
+        // Why: the per-app folder grant (kTCCServiceSystemPolicyAppData) that
+        // blocks Firefox cookie reads is listed under System Settings >
+        // Privacy & Security > Files and Folders; deep-linking straight to
+        // that pane instead of the settings top page.
+        app.opener()
+            .open_url(
+                "x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders",
+                None::<&str>,
+            )
+            .map_err(|e| e.to_string())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = app;
+        Err("unsupported platform".to_string())
+    }
 }
 
 /// Fetches the logged-in user information from Bilibili.

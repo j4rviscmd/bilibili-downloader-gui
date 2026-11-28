@@ -2,7 +2,12 @@ import type { InitState } from '@/features/init/types'
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 
-const initialState: InitState = { initiated: false, processingFnc: '' }
+const initialState: InitState = {
+  initiated: false,
+  processingFnc: '',
+  firefoxAccessDenied: false,
+  firefoxPermissionDismissed: false,
+}
 
 /**
  * Redux slice for application initialization state.
@@ -32,8 +37,19 @@ export const initSlice = createSlice({
     setProcessingFnc(state, action: PayloadAction<string>) {
       state.processingFnc = action.payload
     },
+    setFirefoxAccessDenied(state, action: PayloadAction<boolean>) {
+      state.firefoxAccessDenied = action.payload
+    },
+    setFirefoxPermissionDismissed(state, action: PayloadAction<boolean>) {
+      state.firefoxPermissionDismissed = action.payload
+    },
   },
 })
 
-export const { setInitiated, setProcessingFnc } = initSlice.actions
+export const {
+  setFirefoxAccessDenied,
+  setFirefoxPermissionDismissed,
+  setInitiated,
+  setProcessingFnc,
+} = initSlice.actions
 export default initSlice.reducer

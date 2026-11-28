@@ -6,10 +6,16 @@
  * close (stopping polling), and closes itself on login success.
  */
 
-import { renderWithProviders } from '@/test/test-utils'
-import { fireEvent, screen } from '@testing-library/react'
+import { store } from '@/app/store'
+import { setFirefoxAccessDenied } from '@/features/init/model/initSlice'
+import { setUser } from '@/features/user/userSlice'
+import { mockInvoke, renderWithProviders } from '@/test/test-utils'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('@/shared/ui/toast', () => ({
+  toast: { info: vi.fn(), warning: vi.fn(), error: vi.fn(), success: vi.fn() },
+}))
 vi.mock('./FirefoxCookiePanel', () => ({
   FirefoxCookiePanel: () => <div data-testid="firefox-panel" />,
 }))
@@ -26,10 +32,30 @@ vi.mock('./QRCodeDisplay', () => ({
 
 import QRCodeLoginDialog from './QRCodeLoginDialog'
 
+const loggedOutUser = {
+  code: 0,
+  message: '',
+  ttl: 0,
+  data: { uname: '', isLogin: false, wbiImg: { imgUrl: '', subUrl: '' } },
+  hasCookie: false,
+}
+
+const loggedInUser = {
+  code: 0,
+  message: '',
+  ttl: 1,
+  data: { uname: 'tester', isLogin: true, wbiImg: { imgUrl: '', subUrl: '' } },
+  hasCookie: true,
+}
+
 describe('QRCodeLoginDialog', () => {
   let onOpenChange: (open: boolean) => void
 
   beforeEach(() => {
+    vi.clearAllMocks()
+    mockInvoke.mockResolvedValue(undefined)
+    store.dispatch(setFirefoxAccessDenied(false))
+    store.dispatch(setUser(loggedOutUser))
     onOpenChange = vi.fn<(open: boolean) => void>()
   })
 
@@ -89,5 +115,32 @@ describe('QRCodeLoginDialog', () => {
     )
 
     expect(screen.getByTestId('firefox-panel')).toBeInTheDocument()
+  })
+
+  it('mounts the permission notice and closes on a granted check', async () => {
+    store.dispatch(setFirefoxAccessDenied(true))
+    mockInvoke.mockImplementation((cmd: string) =>
+      cmd === 'get_cookie'
+        ? Promise.resolve('loaded')
+        : cmd === 'fetch_user'
+          ? Promise.resolve(loggedInUser)
+          : Promise.resolve(undefined),
+    )
+    const { user } = renderWithProviders(
+      <QRCodeLoginDialog open onOpenChange={onOpenChange} />,
+    )
+
+    expect(
+      screen.getByText('login.firefoxPermissionNotice'),
+    ).toBeInTheDocument()
+
+    await user.click(
+      screen.getByRole('button', { name: 'login.firefoxPermissionCheck' }),
+    )
+
+    await waitFor(() =>
+      expect(store.getState().init.firefoxAccessDenied).toBe(false),
+    )
+    expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 })

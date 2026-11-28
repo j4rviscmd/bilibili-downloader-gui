@@ -1,6 +1,10 @@
 import { interceptInvokeError } from '@/app/lib/invokeErrorHandler'
 import { store, type RootState } from '@/app/store'
-import { setInitiated as setValue } from '@/features/init/model/initSlice'
+import {
+  setFirefoxAccessDenied,
+  setFirefoxPermissionDismissed,
+  setInitiated as setValue,
+} from '@/features/init/model/initSlice'
 import {
   getLoginState,
   setLoginMethodAction,
@@ -36,6 +40,7 @@ export interface InitResult {
   /** Error string from user-info fetch (undefined on success). */
   userError?: string
   ffmpegSuccess: boolean
+  firefoxAccessDenied?: boolean
 }
 
 /** Result of the (now thin) frontend init. */
@@ -139,6 +144,9 @@ export const useInit = () => {
     } catch (e) {
       logger.warn(`initApp: login state hydration failed: ${String(e)}`)
     }
+
+    store.dispatch(setFirefoxAccessDenied(result.firefoxAccessDenied ?? false))
+    store.dispatch(setFirefoxPermissionDismissed(false))
 
     setInitiated(true)
 

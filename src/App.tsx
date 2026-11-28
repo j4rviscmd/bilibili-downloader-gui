@@ -1,5 +1,6 @@
 import { useSelector } from '@/app/store'
 import { MenuAboutDialog } from '@/features/about'
+import { FirefoxPermissionDialog } from '@/features/login'
 import {
   useDownloadCompletionNotifications,
   useTaskbarProgress,
@@ -46,6 +47,7 @@ function App() {
         <Route path="/*" element={<PersistentPageLayout />} />
       </Routes>
       <MenuAboutDialog />
+      <FirefoxPermissionDialog />
       <UpdateNotification />
       <Toaster richColors theme={theme} />
     </>

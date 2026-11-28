@@ -1,10 +1,15 @@
 import { store } from '@/app/store'
+import {
+  setFirefoxAccessDenied,
+  setFirefoxPermissionDismissed,
+} from '@/features/init/model/initSlice'
+import { setLoginMethod as setLoginMethodAction } from '@/features/login/model/loginSlice'
 import { setSettings } from '@/features/settings/settingsSlice'
 import type { Settings } from '@/features/settings/type'
 import type { User } from '@/features/user/types'
 import { renderWithProviders } from '@/test/test-utils'
 import { screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AppBar from './AppBar'
 
@@ -66,6 +71,12 @@ function setup(showGithubStars: boolean, user: User = createUser()) {
 }
 
 describe('AppBar', () => {
+  beforeEach(() => {
+    store.dispatch(setFirefoxAccessDenied(false))
+    store.dispatch(setFirefoxPermissionDismissed(false))
+    store.dispatch(setLoginMethodAction('firefox'))
+  })
+
   it('shows the masked username when logged in', () => {
     setup(
       true,
@@ -111,5 +122,36 @@ describe('AppBar', () => {
     setup(true)
 
     expect(screen.getByText('github-stars')).toBeInTheDocument()
+  })
+
+  it('offers a prominent permission entry while macOS denies Firefox access', async () => {
+    store.dispatch(setFirefoxAccessDenied(true))
+    store.dispatch(setFirefoxPermissionDismissed(true))
+    const { user: actor } = setup(true, createUser({ isLogin: false }))
+
+    await actor.click(
+      screen.getByRole('button', { name: 'login.firefoxPermissionAppBar' }),
+    )
+
+    expect(store.getState().init.firefoxPermissionDismissed).toBe(false)
+    expect(store.getState().init.firefoxAccessDenied).toBe(true)
+  })
+
+  it('hides the permission entry when access is not denied', () => {
+    setup(true, createUser({ isLogin: false }))
+
+    expect(
+      screen.queryByRole('button', { name: 'login.firefoxPermissionAppBar' }),
+    ).toBeNull()
+  })
+
+  it('hides the permission entry for other login methods', () => {
+    store.dispatch(setFirefoxAccessDenied(true))
+    store.dispatch(setLoginMethodAction('qrCode'))
+    setup(true, createUser({ isLogin: false }))
+
+    expect(
+      screen.queryByRole('button', { name: 'login.firefoxPermissionAppBar' }),
+    ).toBeNull()
   })
 })

@@ -8,4 +8,6 @@ export interface InitState {
   initiated: boolean
   /** Current initialization status message (e.g., 'Checking ffmpeg...') */
   processingFnc: string
+  firefoxAccessDenied: boolean
+  firefoxPermissionDismissed: boolean
 }

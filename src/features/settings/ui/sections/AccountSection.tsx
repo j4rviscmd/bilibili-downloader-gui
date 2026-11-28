@@ -10,6 +10,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import {
+  FirefoxPermissionNotice,
   getLoginState,
   getLoginStatusText,
   ManualCookieForm,
@@ -243,6 +244,7 @@ export function AccountSection() {
             )}
         </div>
       </div>
+      <FirefoxPermissionNotice />
 
       {/* Logout Confirmation Dialog */}
       <AlertDialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
