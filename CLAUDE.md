@@ -236,6 +236,19 @@ version — both are maintained by release-please, never edit by hand):
   The per-job `github.head_ref` guards (see CI section) keep an
   approved/instantiated run cheap: every job skips and `ci-status`
   goes green.
+- **macOS signing**: `publish-tauri` signs bundles with a self-signed
+  certificate (`MACOS_SIGNING_CERTIFICATE` / `MACOS_SIGNING_CERTIFICATE_PASSWORD`
+  → temporary keychain → `APPLE_SIGNING_IDENTITY`, overriding the ad-hoc
+  `"-"` in `tauri.conf.json`, kept as the local-build fallback). Its
+  designated requirement is stable across builds, so TCC grants (e.g.
+  Downloads folder access) survive updates (#985) — ad-hoc signing
+  re-keyed them to a per-build cdhash and re-prompted every update. A
+  post-build step fails the job on a cdhash-based signature. Never set
+  `APPLE_CERTIFICATE` (Tauri's import rejects non-Apple certificate
+  names); see CONTRIBUTING.md → macOS Release Signing. A Firefox-data TCC
+  record left by an ad-hoc build keeps the System Settings toggle from
+  re-granting, so the first `AccessDenied` cookie read clears it once
+  (`tccutil reset`, recorded in `firefoxPermissionResetDone`).
 - Never bump versions or create release tags/releases by hand.
 - Publish failure recovery: "Re-run failed jobs" only works when
   release-please itself failed (no draft yet), or when only

@@ -291,6 +291,12 @@ pub struct Settings {
         skip_serializing_if = "Option::is_none"
     )]
     pub enable_dev_updater: Option<bool>,
+    #[serde(
+        rename = "firefoxPermissionResetDone",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub firefox_permission_reset_done: Option<bool>,
     /// Page path the app opens on launch (e.g. "/popular", "/search").
     /// Defaults to "/popular" when absent; the frontend validates it against
     /// its route table and falls back to "/popular" for unknown values.
@@ -612,6 +618,15 @@ mod tests {
         let s: Settings =
             serde_json::from_str(r#"{"dlOutputPath": "/tmp/a", "language": "en"}"#).unwrap();
         assert_eq!(s.skipped_update_version, None);
+    }
+
+    #[test]
+    fn test_firefox_permission_reset_done_defaults_none_for_pre_existing_settings() {
+        let s: Settings =
+            serde_json::from_str(r#"{"dlOutputPath": "/tmp/a", "language": "en"}"#).unwrap();
+        assert_eq!(s.firefox_permission_reset_done, None);
+        let out = serde_json::to_value(&s).unwrap();
+        assert!(out.get("firefoxPermissionResetDone").is_none(), "{out}");
     }
 
     #[test]

@@ -11,6 +11,7 @@ code rules.
 - [Project Structure](#project-structure)
 - [Code Style](#code-style)
 - [Testing](#testing)
+- [macOS Release Signing](#macos-release-signing)
 
 ## Getting Started
 
@@ -222,6 +223,54 @@ Two policies to know:
   ([serial_test](https://crates.io/crates/serial_test)) — parallel
   single-thread tokio runtimes race on SIGCHLD child reaping, which
   intermittently fails spawn-requiring tests on CI
+
+## macOS Release Signing
+
+`release.yml` signs macOS bundles with a **self-signed certificate** (no
+Apple Developer account). Its designated requirement (`identifier … and
+certificate leaf = H"…"`) is the same for every build, so macOS keeps the
+permissions users granted to the app — such as access to the `Downloads`
+folder — across updates (#985). An ad-hoc signature (the
+`"signingIdentity": "-"` fallback in `src-tauri/tauri.conf.json`, used by
+local builds) is keyed to a per-build hash and makes macOS ask again on
+every update. The certificate does not satisfy Gatekeeper: builds are
+still not notarized.
+
+- Secrets: `MACOS_SIGNING_CERTIFICATE` (base64 `.p12`) and
+  `MACOS_SIGNING_CERTIFICATE_PASSWORD`. The workflow imports them into a
+  temporary keychain and passes the certificate's common name as
+  `APPLE_SIGNING_IDENTITY`, which overrides `tauri.conf.json`. Do not
+  switch to `APPLE_CERTIFICATE`: Tauri's built-in import only accepts
+  Apple-issued certificate names.
+- A post-build step fails the job if the bundle's designated requirement
+  is still cdhash-based — a safety net in case a build ever falls back to
+  the ad-hoc `"-"` unnoticed.
+- To create or rotate the certificate, generate a self-signed code-signing
+  certificate whose common name is exactly the `APPLE_SIGNING_IDENTITY`
+  value in `release.yml`, with a long validity (users are asked again
+  once whenever the certificate changes), then update both secrets:
+
+  ```bash
+  openssl req -x509 -newkey rsa:4096 -nodes -days 36500 \
+    -subj "/CN=bilibili-downloader-gui Release Signing" \
+    -addext "keyUsage=critical,digitalSignature" \
+    -addext "extendedKeyUsage=critical,codeSigning" \
+    -keyout key.pem -out cert.pem
+  openssl pkcs12 -export -legacy -inkey key.pem -in cert.pem -out signing.p12
+  openssl base64 -A -in signing.p12 | gh secret set MACOS_SIGNING_CERTIFICATE
+  gh secret set MACOS_SIGNING_CERTIFICATE_PASSWORD
+  ```
+
+  `-legacy` keeps the `.p12` importable by the macOS keychain (needs
+  OpenSSL 3). The last command prompts for the `.p12` password. Keep an
+  encrypted backup of `signing.p12`.
+
+- To build a signed bundle locally, import the `.p12` into a keychain and
+  run:
+
+  ```bash
+  APPLE_SIGNING_IDENTITY="bilibili-downloader-gui Release Signing" npm run tauri build
+  ```
 
 ---
 

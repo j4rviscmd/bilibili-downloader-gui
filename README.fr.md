@@ -50,7 +50,7 @@ Pas de publicités, pas de suivi. 100 % gratuit.
 | **Linux (AppImage)**      | [bilibili-downloader-gui_Linux_x64.AppImage](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Linux_x64.AppImage)       |
 
 > [!NOTE]
-> Les builds macOS utilisent la signature de code ad hoc (sans notarisation Apple). Au premier lancement, allez dans **Réglages Système > Confidentialité et sécurité** et cliquez sur **Ouvrir quand même**. Alternativement, exécutez :
+> Les builds macOS utilisent une signature de code avec un certificat auto-signé (sans notarisation Apple). Au premier lancement, allez dans **Réglages Système > Confidentialité et sécurité** et cliquez sur **Ouvrir quand même**. Alternativement, exécutez :
 >
 > ```bash
 > xattr -dr com.apple.quarantine "/Applications/bilibili-downloader-gui.app"

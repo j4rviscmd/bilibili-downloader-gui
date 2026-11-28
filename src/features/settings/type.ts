@@ -179,6 +179,10 @@ export interface Settings {
    * Release builds always run the updater flow regardless of this flag.
    */
   enableDevUpdater?: boolean
+  // Note: backend-managed one-shot marker (macOS Firefox TCC reset in
+  // src-tauri/src/handlers/cookie.rs) — the frontend never reads or writes it;
+  // kept only so this interface mirrors the Rust `Settings` / settings.json
+  firefoxPermissionResetDone?: boolean
   /**
    * Page path opened at startup (e.g. '/popular', '/search'). Defaults
    * to '/popular'; unknown values fall back to '/popular' at redirect time.
