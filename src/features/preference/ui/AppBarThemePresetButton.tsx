@@ -40,7 +40,13 @@ function AppBarThemePresetButton() {
               <button
                 type="button"
                 data-testid="appbar-theme-preset-button"
-                className="hover:bg-accent/80 text-muted-foreground hover:text-foreground flex size-7 items-center justify-center rounded-md transition-colors"
+                // Why: dark:hover:text-accent-foreground — hover paints
+                // bg-accent/80, and most tweakcn dark presets have a light
+                // accent there, so the default hover text (foreground) falls
+                // below readable contrast; accent-foreground is the token
+                // designed to pair with accent (issue #995, guarded by the
+                // hover contrast test in scripts/generate-theme-presets.test.ts).
+                className="hover:bg-accent/80 text-muted-foreground hover:text-foreground dark:hover:text-accent-foreground flex size-7 items-center justify-center rounded-md transition-colors"
                 aria-label={t('settings.themePreset_label')}
               >
                 <Palette className="size-4" />
