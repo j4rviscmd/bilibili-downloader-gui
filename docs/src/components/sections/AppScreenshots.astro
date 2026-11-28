@@ -3,9 +3,10 @@
  * AppScreenshots - Downloads screenshot and demo video.
  *
  * The search screenshot lives in the Hero; this section shows the
- * downloads/merge screen next to the demo video. Each screenshot is a
- * lazy theme pair — only the active theme's image is ever fetched (see
- * the note inside the markup).
+ * downloads/merge screen next to the demo video, followed by the
+ * theme-preset gallery. The downloads screenshot is a lazy theme pair
+ * — only the active theme's image is ever fetched (see the note inside
+ * the markup).
  */
 import { getLangFromUrl, useTranslations } from "../../i18n/ui";
 
@@ -54,5 +55,26 @@ const basePath = import.meta.env.BASE_URL;
         loop
         playsinline></video>
     </div>
+  </div>
+  <div class="mx-auto mt-12 max-w-4xl">
+    <h2 class="text-center text-2xl font-semibold tracking-tight sm:text-3xl">
+      {t("screenshots.themesTitle")}
+    </h2>
+    {
+      /* Why: no dark/-light pair unlike the screenshots above — the image is
+        itself a 2×2 gallery of theme presets. width/height are the file's
+        real pixel size: docs/public/app-themes_<lang>.webp is a copy of the
+        README's public/app-image(themes)_<lang>.webp and both must be
+        recaptured together at that size (docs/README.md,
+        "Content rules (guides)") */
+    }
+    <img
+      src={`${basePath}/app-themes_${lang}.webp`}
+      alt={t("screenshots.themesAlt")}
+      width="1976"
+      height="1296"
+      loading="lazy"
+      class="mt-6 w-full"
+    />
   </div>
 </section>

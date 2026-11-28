@@ -14,6 +14,8 @@
   <img src="./public/app-image(url)_fr_light.png" alt="App Image (Fetch by URL)">
 </picture>
 
+<img src="./public/app-image(themes)_fr.webp" alt="App Image (Theme Presets)">
+
 <img src="./public/app-demo_en.webp" alt="App Demo">
 
 [![Windows](https://img.shields.io/badge/Windows-Supported-0078D6?style=flat&logo=data:image/svg%2bxml;base64,PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+V2luZG93cyAxMTwvdGl0bGU+PHBhdGggZmlsbD0iIzAwQTRFRiIgZD0iTTAsMEgxMS4zNzdWMTEuMzcySDBaTTEyLjYyMywwSDI0VjExLjM3MkgxMi42MjNaTTAsMTIuNjIzSDExLjM3N1YyNEgwWm0xMi42MjMsMEgyNFYyNEgxMi42MjMiLz48L3N2Zz4=)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Windows_x64-setup.exe)
@@ -118,7 +120,7 @@ Extrayez l'intégralité du ZIP avant d'exécuter le programme. Les deux éditio
 - **Configuration en un clic** - Installation automatique de FFmpeg avec validation du fonctionnement, sans configuration manuelle
 - **Mise à jour automatique** - Metteur à jour intégré avec vérification des versions signées et notes de version
 - **Recherche et exportation de l'historique** - Exportez l'historique de téléchargement en JSON/CSV
-- **Thèmes** - Thèmes clair/sombre, couleurs d'accentuation et taille de police réglable
+- **Thèmes** - Thèmes clair/sombre, 44 préréglages de thème (dont tweakcn) et taille de police réglable
 - **Page de démarrage** - Choisissez la page ouverte au lancement de l'application
 
 ### Méthodes d'authentification

@@ -3,10 +3,10 @@
  * Features - Bento-grid feature showcase.
  *
  * Renders all cards statically (no client JS, no hover popovers): each
- * card shows its icon, title, and full description. The two newest
- * capabilities (in-app search, personalized recommendations) get featured
- * cards with a brand-gradient border, a "New" badge, and — for search —
- * a link to its how-to guide.
+ * card shows its icon, title, and full description. Featured cards span
+ * two columns with a brand-gradient border; the two newest capabilities
+ * (in-app search, personalized recommendations) also carry a "New" badge,
+ * and search links to its how-to guide.
  */
 import {
   AudioWaveform,
@@ -15,6 +15,7 @@ import {
   Download,
   Layers,
   Link2,
+  Palette,
   RefreshCw,
   Search,
   ShieldCheck,
@@ -37,6 +38,7 @@ const basePath = import.meta.env.BASE_URL;
 const iconMap = {
   search: Search,
   recommend: Sparkles,
+  theme: Palette,
   download: Download,
   quality: Clapperboard,
   subtitle: Captions,
@@ -72,6 +74,7 @@ const featureConfig: Partial<Record<FeatureKey, FeatureDef>> = {
         : `${basePath}/${lang}/guides/search-and-download/`,
   },
   recommend: { featured: true, isNew: true },
+  theme: { featured: true },
   localTools: { featured: true },
 };
 

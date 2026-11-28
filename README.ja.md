@@ -14,6 +14,8 @@
   <img src="./public/app-image(url)_ja_light.png" alt="App Image (Fetch by URL)">
 </picture>
 
+<img src="./public/app-image(themes)_ja.webp" alt="App Image (Theme Presets)">
+
 <img src="./public/app-demo_en.webp" alt="App Demo">
 
 [![Windows](https://img.shields.io/badge/Windows-Supported-0078D6?style=flat&logo=data:image/svg%2bxml;base64,PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+V2luZG93cyAxMTwvdGl0bGU+PHBhdGggZmlsbD0iIzAwQTRFRiIgZD0iTTAsMEgxMS4zNzdWMTEuMzcySDBaTTEyLjYyMywwSDI0VjExLjM3MkgxMi42MjNaTTAsMTIuNjIzSDExLjM3N1YyNEgwWm0xMi42MjMsMEgyNFYyNEgxMi42MjMiLz48L3N2Zz4=)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Windows_x64-setup.exe)
@@ -114,7 +116,7 @@ Releaseページでは、ポータブル版のWindows x64 ZIPエディション�
 - **ワンクリックセットアップ** - FFmpeg自動インストール（機能検証付き）、手動設定不要
 - **自動アップデート** - 署名検証付きアップデーターとリリースノートを内蔵
 - **履歴検索・エクスポート** - ダウンロード履歴をJSON/CSVにエクスポート
-- **テーマ** - ライト/ダークテーマ、アクセントカラー、フォントサイズ調整
+- **テーマ** - ライト/ダークテーマ、44種類のテーマプリセット（tweakcnテーマを含む）、フォントサイズ調整
 - **スタートアップページ** - 起動時に開くページを選択
 
 ### 認証方法

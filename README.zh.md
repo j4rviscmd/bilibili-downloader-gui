@@ -14,6 +14,8 @@
   <img src="./public/app-image(url)_zh_light.png" alt="App Image (Fetch by URL)">
 </picture>
 
+<img src="./public/app-image(themes)_zh.webp" alt="App Image (Theme Presets)">
+
 <img src="./public/app-demo_en.webp" alt="App Demo">
 
 [![Windows](https://img.shields.io/badge/Windows-Supported-0078D6?style=flat&logo=data:image/svg%2bxml;base64,PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+V2luZG93cyAxMTwvdGl0bGU+PHBhdGggZmlsbD0iIzAwQTRFRiIgZD0iTTAsMEgxMS4zNzdWMTEuMzcySDBaTTEyLjYyMywwSDI0VjExLjM3MkgxMi42MjNaTTAsMTIuNjIzSDExLjM3N1YyNEgwWm0xMi42MjMsMEgyNFYyNEgxMi42MjMiLz48L3N2Zz4=)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Windows_x64-setup.exe)
@@ -127,7 +129,7 @@ GitHub 主源和国内镜像使用同一份固定的 `ffmpeg-static` b6.1.1 构�
 - **一键安装** - FFmpeg 自动安装（含功能验证），无需手动配置
 - **自动更新** - 内置带签名验证的更新器和发布说明
 - **历史搜索与导出** - 支持将下载历史导出为 JSON/CSV
-- **主题** - 亮色/暗色主题、强调色和可调字体大小
+- **主题** - 亮色/暗色主题、44种主题预设（含tweakcn主题）和可调字体大小
 - **启动页面** - 选择应用启动时打开的页面
 
 ### 认证方式
