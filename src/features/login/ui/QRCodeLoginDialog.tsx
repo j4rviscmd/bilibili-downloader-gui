@@ -11,6 +11,7 @@
  * @module QRCodeLoginDialog
  */
 
+import { store, useSelector } from '@/app/store'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Dialog,
@@ -20,6 +21,7 @@ import {
 } from '@/shared/animate-ui/radix/dialog'
 import { ClipboardPaste, Globe, QrCode } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { setLoginMethod as setLoginMethodAction } from '../model/loginSlice'
 import { FirefoxCookiePanel } from './FirefoxCookiePanel'
 import { FirefoxPermissionNotice } from './FirefoxPermissionNotice'
 import { ManualCookieForm } from './ManualCookieForm'
@@ -57,6 +59,7 @@ export function QRCodeLoginDialog({
   onOpenChange,
 }: QRCodeLoginDialogProps) {
   const { t } = useTranslation()
+  const loginMethod = useSelector((state) => state.login.loginMethod)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -65,19 +68,34 @@ export function QRCodeLoginDialog({
           <DialogTitle>{t('login.title', 'Login to Bilibili')}</DialogTitle>
         </DialogHeader>
         <FirefoxPermissionNotice onResolved={() => onOpenChange(false)} />
-        <Tabs defaultValue="qr">
+        {/* shortcut: the default is re-read only because DialogContent
+            unmounts the tabs on close; upgrade to a controlled tab if
+            the shell starts staying mounted */}
+        <Tabs defaultValue={loginMethod === 'qrCode' ? 'qr' : loginMethod}>
           <TabsList className="w-full">
             {/* Tab order mirrors the settings account section (firefox /
                 qrCode / manual) so the two surfaces read the same way. */}
-            <TabsTrigger value="firefox" className="flex-1 gap-1">
+            <TabsTrigger
+              value="firefox"
+              className="flex-1 gap-1"
+              data-testid="login-tab-firefox"
+            >
               <Globe className="size-4" aria-hidden="true" />
               {t('login.firefoxCookieTab')}
             </TabsTrigger>
-            <TabsTrigger value="qr" className="flex-1 gap-1">
+            <TabsTrigger
+              value="qr"
+              className="flex-1 gap-1"
+              data-testid="login-tab-qr"
+            >
               <QrCode className="size-4" aria-hidden="true" />
               {t('login.qrCodeTab')}
             </TabsTrigger>
-            <TabsTrigger value="manual" className="flex-1 gap-1">
+            <TabsTrigger
+              value="manual"
+              className="flex-1 gap-1"
+              data-testid="login-tab-manual"
+            >
               <ClipboardPaste className="size-4" aria-hidden="true" />
               {t('login.manualCookieTab')}
             </TabsTrigger>
@@ -89,7 +107,18 @@ export function QRCodeLoginDialog({
             {open && <QRCodeDisplay onSuccess={() => onOpenChange(false)} />}
           </TabsContent>
           <TabsContent value="manual">
-            {open && <ManualCookieForm onApplied={() => onOpenChange(false)} />}
+            {open && (
+              <ManualCookieForm
+                onApplied={() => {
+                  // Why: commit_session already persisted method=manual
+                  // backend-side (src-tauri/src/handlers/manual_login.rs)
+                  // and Redux only re-syncs at boot (useInit) — mirror it
+                  // here so the next dialog open lands on the manual tab
+                  store.dispatch(setLoginMethodAction('manual'))
+                  onOpenChange(false)
+                }}
+              />
+            )}
           </TabsContent>
         </Tabs>
       </DialogContent>
