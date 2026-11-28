@@ -15,24 +15,30 @@ import { describe, expect, it, vi } from 'vitest'
 
 import FavoriteList from './FavoriteList'
 
-// Minimal Virtuoso stand-in: renders every item through itemContent and
-// fires endReached once so the infinite-scroll guard is exercised.
+const SKELETON = '[data-slot="skeleton"]'
+
+// Minimal Virtuoso stand-in: renders every item through itemContent,
+// mounts the Footer component and fires endReached once so the
+// infinite-scroll guard is exercised.
 vi.mock('react-virtuoso', () => ({
   Virtuoso: ({
     data,
     itemContent,
     endReached,
+    components,
     customScrollParent,
     style,
   }: {
     data: unknown[]
     itemContent: (index: number, item: unknown) => React.ReactNode
     endReached?: () => void
+    components?: { Footer?: () => React.ReactNode }
     customScrollParent?: HTMLElement | undefined
     style?: { height?: string } | undefined
   }) => {
     // Defer so React has committed the list before the callback fires.
     Promise.resolve().then(() => endReached?.())
+    const Footer = components?.Footer
     return (
       <div
         data-virtuoso-scroller
@@ -42,6 +48,7 @@ vi.mock('react-virtuoso', () => ({
         {data.map((item, i) => (
           <div key={i}>{itemContent(i, item)}</div>
         ))}
+        {Footer ? <Footer /> : null}
       </div>
     )
   },
@@ -82,17 +89,18 @@ function renderList(
 }
 
 describe('FavoriteList', () => {
-  it('shows the loading indicator while videos are still loading', () => {
-    const { container } = renderList({ loading: true })
+  it('shows a skeleton while videos are still loading', () => {
+    const { container } = renderList({ videos: [], loading: true })
 
-    expect(container.querySelector('svg')).toBeInTheDocument()
+    expect(container.querySelector(SKELETON)).toBeInTheDocument()
+    expect(screen.getByText('favorite.loading')).toBeInTheDocument()
     expect(screen.queryByText('favorite.empty')).toBeNull()
   })
 
-  it('shows the loading indicator while folders are still loading', () => {
-    const { container } = renderList({ foldersLoading: true })
+  it('shows a skeleton while folders are still loading', () => {
+    const { container } = renderList({ videos: [], foldersLoading: true })
 
-    expect(container.querySelector('svg')).toBeInTheDocument()
+    expect(container.querySelector(SKELETON)).toBeInTheDocument()
   })
 
   it('shows the empty state when there are no videos', () => {
@@ -128,6 +136,28 @@ describe('FavoriteList', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 10))
     expect(onLoadMore).not.toHaveBeenCalled()
+  })
+
+  it('shows the footer skeleton only while loading more', () => {
+    const props = {
+      videos: [video('First')],
+      loading: true,
+      foldersLoading: false,
+      hasMore: true,
+      onLoadMore: vi.fn(),
+      onDownload: vi.fn(),
+      scrollParent: null,
+    }
+    const { rerender } = renderWithProviders(<FavoriteList {...props} />)
+
+    const scroller = document.querySelector('[data-virtuoso-scroller]')!
+    expect(scroller.lastElementChild?.querySelector(SKELETON)).not.toBeNull()
+
+    rerender(<FavoriteList {...props} loading={false} />)
+
+    expect(document.querySelector(SKELETON)).toBeNull()
+    const settled = document.querySelector('[data-virtuoso-scroller]')!
+    expect(settled.lastElementChild?.textContent).toContain('First')
   })
 
   it('rides the page scroll container via customScrollParent when provided', () => {

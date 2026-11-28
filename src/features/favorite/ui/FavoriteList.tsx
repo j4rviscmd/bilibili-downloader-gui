@@ -1,6 +1,7 @@
 import type { FavoriteVideo } from '@/features/favorite/types'
 import FavoriteItem from '@/features/favorite/ui/FavoriteItem'
-import CircleIndicator from '@/shared/ui/CircleIndicator'
+import { VideoListSkeleton } from '@/shared/ui/VideoListSkeleton'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Virtuoso } from 'react-virtuoso'
 
@@ -81,17 +82,27 @@ function FavoriteList({
   disabled,
 }: Props) {
   const { t } = useTranslation()
+  // Why: `components` must keep a stable object identity — an inline literal
+  // gives Footer a new component type each render, remounting it and
+  // restarting the skeleton's animate-pulse (visible flicker).
+  // (react.dev/learn/preserving-and-resetting-state: a different component
+  // type at the same position remounts)
+  const components = useMemo(
+    () => ({
+      Footer: () =>
+        // Note: favorites expose a single `loading` flag (no dedicated
+        // load-more flag), so this footer skeleton also shows during manual
+        // refresh — refresh() sets loading while refetching page 1
+        // (src/features/favorite/hooks/useFavorite.ts).
+        loading ? (
+          <VideoListSkeleton rows={3} label={t('favorite.loading')} />
+        ) : null,
+    }),
+    [loading, t],
+  )
 
   if ((loading || foldersLoading) && videos.length === 0) {
-    // Why min-h-[50vh] instead of the old h-full: in bodyScroll mode
-    // the rail only has a min-height floor (see PageTemplate), so a
-    // percentage height collapses to content height and the spinner
-    // would hug the top instead of sitting mid-viewport.
-    return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <CircleIndicator size="lg" />
-      </div>
-    )
+    return <VideoListSkeleton label={t('favorite.loading')} />
   }
 
   if (videos.length === 0) {
@@ -131,6 +142,7 @@ function FavoriteList({
         </div>
       )}
       defaultItemHeight={DEFAULT_ITEM_HEIGHT}
+      components={components}
     />
   )
 }

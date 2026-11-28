@@ -812,6 +812,7 @@
     "plays": "plays",
     "collects": "favorites",
     "loginRequired": "Please log in to view your favorites",
+    "loading": "Loading...",
     "videoDeleted": "Deleted",
     "downloadConfirmTitle": "Download",
     "downloadConfirmMessage": "Navigating to home will clear your current input. Continue?",

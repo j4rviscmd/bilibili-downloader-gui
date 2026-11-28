@@ -812,6 +812,7 @@
     "plays": "회 재생",
     "collects": "즐겨찾기",
     "loginRequired": "즐겨찾기를 보려면 로그인해주세요",
+    "loading": "로딩 중...",
     "videoDeleted": "삭제됨",
     "downloadConfirmTitle": "다운로드",
     "downloadConfirmMessage": "홈으로 이동하면 현재 입력이 지워집니다. 계속하시겠습니까?",

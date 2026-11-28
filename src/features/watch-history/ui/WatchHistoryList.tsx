@@ -1,4 +1,5 @@
-import CircleIndicator from '@/shared/ui/CircleIndicator'
+import { VideoListSkeleton } from '@/shared/ui/VideoListSkeleton'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Virtuoso } from 'react-virtuoso'
 import type { WatchHistoryEntry } from '../types'
@@ -58,17 +59,23 @@ export function WatchHistoryList({
   disabled,
 }: Props) {
   const { t } = useTranslation()
+  // Why: `components` must keep a stable object identity — an inline literal
+  // gives Footer a new component type each render, remounting it and
+  // restarting the skeleton's animate-pulse (visible flicker).
+  // (react.dev/learn/preserving-and-resetting-state: a different component
+  // type at the same position remounts)
+  const components = useMemo(
+    () => ({
+      Footer: () =>
+        loadingMore ? (
+          <VideoListSkeleton rows={3} label={t('watchHistory.loading')} />
+        ) : null,
+    }),
+    [loadingMore, t],
+  )
 
   if (loading) {
-    // Why min-h-[50vh] instead of the old h-full: in bodyScroll mode
-    // the rail only has a min-height floor (see PageTemplate), so a
-    // percentage height collapses to content height and the spinner
-    // would hug the top instead of sitting mid-viewport.
-    return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <CircleIndicator size="lg" />
-      </div>
-    )
+    return <VideoListSkeleton label={t('watchHistory.loading')} />
   }
 
   if (entries.length === 0) {
@@ -103,14 +110,7 @@ export function WatchHistoryList({
           onLoadMore()
         }
       }}
-      components={{
-        Footer: () =>
-          loadingMore ? (
-            <div className="flex items-center justify-center py-4">
-              <CircleIndicator size="md" />
-            </div>
-          ) : null,
-      }}
+      components={components}
     />
   )
 }

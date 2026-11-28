@@ -812,6 +812,7 @@
     "plays": "vues",
     "collects": "favoris",
     "loginRequired": "Connectez-vous pour voir vos favoris",
+    "loading": "Chargement...",
     "videoDeleted": "Supprimé",
     "downloadConfirmTitle": "Télécharger",
     "downloadConfirmMessage": "Aller à l'accueil effacera votre saisie actuelle. Continuer ?",

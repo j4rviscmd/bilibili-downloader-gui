@@ -812,6 +812,7 @@
     "plays": "reproducciones",
     "collects": "favoritos",
     "loginRequired": "Inicia sesión para ver tus favoritos",
+    "loading": "Cargando...",
     "videoDeleted": "Eliminado",
     "downloadConfirmTitle": "Descargar",
     "downloadConfirmMessage": "Ir al inicio borrará tu entrada actual. ¿Continuar?",
