@@ -5,8 +5,8 @@
  */
 
 import { renderWithProviders } from '@/test/test-utils'
-import { fireEvent, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { act, fireEvent, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ThumbImage } from './ThumbImage'
 
 /** Placeholder branch: no img, but a span with the bg-muted placeholder look. */
@@ -14,6 +14,21 @@ function expectPlaceholder(container: HTMLElement) {
   expect(screen.queryByRole('img')).toBeNull()
   expect(container.querySelector('span.bg-muted')).toBeInTheDocument()
 }
+
+function deferDecode(): () => void {
+  // Manual deferred: tsconfig lib < es2024 has no Promise.withResolvers.
+  let resolveDecode!: () => void
+  vi.spyOn(HTMLImageElement.prototype, 'decode').mockReturnValue(
+    new Promise<void>((resolve) => {
+      resolveDecode = resolve
+    }),
+  )
+  return resolveDecode
+}
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
 
 describe('ThumbImage', () => {
   it('renders the img with src and passes through img attributes', () => {
@@ -72,6 +87,82 @@ describe('ThumbImage', () => {
     expectPlaceholder(container)
   })
 
+  it('pulses as a skeleton until the image is decoded', async () => {
+    renderWithProviders(<ThumbImage src="https://img.example/t.jpg" />)
+    const img = screen.getByRole('img')
+    expect(img).toHaveClass('animate-pulse', 'bg-brand/10')
+
+    await act(async () => {
+      fireEvent.load(img)
+    })
+    expect(screen.getByRole('img')).toBe(img)
+    expect(img).not.toHaveClass('animate-pulse')
+    expect(img).not.toHaveClass('bg-brand/10')
+  })
+
+  it('keeps the image content parked until decode resolves', async () => {
+    const resolveDecode = deferDecode()
+    renderWithProviders(<ThumbImage src="https://img.example/slow.jpg" />)
+    const img = screen.getByRole('img')
+    const parked = '[object-position:-10000px_0]'
+    expect(img).toHaveClass(parked)
+
+    await act(async () => {
+      fireEvent.load(img)
+    })
+    expect(img).toHaveClass('animate-pulse', parked)
+
+    await act(async () => {
+      resolveDecode()
+    })
+    expect(img).not.toHaveClass('animate-pulse')
+    expect(img).not.toHaveClass(parked)
+  })
+
+  it('shows the skeleton again when src changes after a decode', async () => {
+    const { rerender } = renderWithProviders(
+      <ThumbImage src="https://img.example/a.jpg" />,
+    )
+    const img = screen.getByRole('img')
+    await act(async () => {
+      fireEvent.load(img)
+    })
+    expect(img).not.toHaveClass('animate-pulse')
+
+    rerender(<ThumbImage src="https://img.example/b.jpg" />)
+    expect(screen.getByRole('img')).toHaveClass('animate-pulse', 'bg-brand/10')
+  })
+
+  it('reveals on a rejected decode: onError owns failure', async () => {
+    vi.spyOn(HTMLImageElement.prototype, 'decode').mockRejectedValue(
+      new Error('undecodable'),
+    )
+    renderWithProviders(<ThumbImage src="https://img.example/bad.jpg" />)
+    const img = screen.getByRole('img')
+
+    await act(async () => {
+      fireEvent.load(img)
+    })
+    expect(img).not.toHaveClass('animate-pulse')
+  })
+
+  it('ignores a decode that settles after src changed', async () => {
+    const resolveDecode = deferDecode()
+    const { rerender } = renderWithProviders(
+      <ThumbImage src="https://img.example/a.jpg" />,
+    )
+    const img = screen.getByRole('img')
+    await act(async () => {
+      fireEvent.load(img)
+    })
+
+    rerender(<ThumbImage src="https://img.example/b.jpg" />)
+    await act(async () => {
+      resolveDecode()
+    })
+    expect(screen.getByRole('img')).toHaveClass('animate-pulse', 'bg-brand/10')
+  })
+
   it('omits the ImageOff icon when showIcon is false', () => {
     const { container } = renderWithProviders(
       <ThumbImage src={undefined} showIcon={false} />,
@@ -98,5 +189,47 @@ describe('ThumbImage', () => {
     const placeholder = container.querySelector('span.bg-muted')
     expect(placeholder).toHaveClass('flex', 'items-center', 'justify-center')
     expect(placeholder).not.toHaveClass('block')
+  })
+
+  it('keeps caller className after load and on the placeholder', async () => {
+    const className = 'h-9 w-16 shrink-0 rounded-md object-cover'
+    const { container, rerender } = renderWithProviders(
+      <ThumbImage src="https://img.example/t.jpg" className={className} />,
+    )
+
+    const img = screen.getByRole('img')
+    await act(async () => {
+      fireEvent.load(img)
+    })
+    expect(img).toHaveClass('h-9', 'w-16', 'shrink-0', 'rounded-md')
+
+    rerender(<ThumbImage src={null} className={className} />)
+    expect(container.querySelector('span.bg-muted')).toHaveClass(
+      'h-9',
+      'w-16',
+      'shrink-0',
+      'rounded-md',
+    )
+  })
+
+  it('reveals the new src on its own load after a stale decode', async () => {
+    const resolveDecode = deferDecode()
+    const { rerender } = renderWithProviders(
+      <ThumbImage src="https://img.example/a.jpg" />,
+    )
+    const img = screen.getByRole('img')
+    await act(async () => {
+      fireEvent.load(img)
+    })
+    rerender(<ThumbImage src="https://img.example/b.jpg" />)
+    await act(async () => {
+      resolveDecode()
+    })
+    // Ignoring the stale settlement must not latch: the new src's own load
+    // still has to reveal, or the thumbnail pulses forever.
+    await act(async () => {
+      fireEvent.load(screen.getByRole('img'))
+    })
+    expect(screen.getByRole('img')).not.toHaveClass('animate-pulse')
   })
 })
