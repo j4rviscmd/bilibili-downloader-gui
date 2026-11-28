@@ -19,10 +19,14 @@ use rusqlite::{Connection, Result as SqlResult};
 use tauri::AppHandle;
 use tauri::Manager;
 
+#[cfg(target_os = "macos")]
+use crate::handlers::{qr_login, settings};
 use crate::models::cookie::CookieCache;
 use crate::models::cookie::CookieEntry;
 #[cfg(debug_assertions)]
 use crate::models::cookie::SimulateLogoutFlag;
+#[cfg(any(target_os = "macos", test))]
+use crate::models::settings::Settings;
 
 /// Reads cookies from the application's memory cache.
 ///
@@ -245,6 +249,86 @@ pub enum CookieOutcome {
     AccessDenied,
 }
 
+#[cfg(target_os = "macos")]
+const FIREFOX_DATA_TCC_SERVICES: [&str; 2] = ["SystemPolicyAppDataDetailed", "SystemPolicyAppData"];
+
+#[cfg(any(target_os = "macos", test))]
+fn tccutil_reset_args(service: &str, bundle_id: &str) -> [String; 3] {
+    [
+        "reset".to_string(),
+        service.to_string(),
+        bundle_id.to_string(),
+    ]
+}
+
+#[cfg(target_os = "macos")]
+async fn reset_firefox_data_grant(bundle_id: &str) {
+    for service in FIREFOX_DATA_TCC_SERVICES {
+        match tokio::process::Command::new("/usr/bin/tccutil")
+            .args(tccutil_reset_args(service, bundle_id))
+            .output()
+            .await
+        {
+            Ok(output) if output.status.success() => {
+                log::info!("[BE] reset_firefox_data_grant: tccutil reset {service} done");
+            }
+            Ok(output) => log::warn!(
+                "[BE] reset_firefox_data_grant: tccutil reset {service} failed: {}",
+                String::from_utf8_lossy(&output.stderr).trim()
+            ),
+            Err(e) => log::error!("[BE] reset_firefox_data_grant: tccutil reset {service}: {e}"),
+        }
+    }
+}
+
+// Why: the TCC reset is a one-shot migration, so it runs only until the
+// done-flag is recorded; skipping when settings are unreadable keeps a broken
+// settings store from re-running it every launch and re-clearing the grant
+// the user just approved (Issue #985)
+#[cfg(any(target_os = "macos", test))]
+fn should_reset_firefox_data_grant(settings: Option<&Settings>) -> bool {
+    settings.is_some_and(|s| s.firefox_permission_reset_done != Some(true))
+}
+
+#[cfg(any(target_os = "macos", test))]
+fn firefox_permission_reset_done_patch() -> serde_json::Value {
+    serde_json::json!({ "firefoxPermissionResetDone": true })
+}
+
+#[cfg(target_os = "macos")]
+async fn reset_stale_firefox_data_grant(app: &AppHandle) {
+    // Why: E2E runs (local-real and macOS CI) must not touch the host's real
+    // TCC database — same constraint as init.rs's access-denied flag, which
+    // stays false under E2E_TESTING or every spec hits a blocking dialog
+    if qr_login::is_e2e_testing() {
+        return;
+    }
+    let current = settings::get_settings(app).await.ok();
+    if !should_reset_firefox_data_grant(current.as_ref()) {
+        return;
+    }
+
+    reset_firefox_data_grant(&app.config().identifier).await;
+
+    if let Err(e) = settings::patch_settings(app, firefox_permission_reset_done_patch()).await {
+        log::error!("[BE] reset_stale_firefox_data_grant: failed to record the reset: {e}");
+    }
+}
+
+pub async fn get_cookie(app: &AppHandle) -> Result<CookieOutcome, String> {
+    let outcome = load_firefox_cookies(app).await?;
+    // Why: an AccessDenied is the stale ad-hoc TCC record surfacing — records
+    // minted under previous ad-hoc builds (a new designated requirement every
+    // release) void the grant under the pinned identity. Clearing them once
+    // on the first denial lets the user's next approval persist across
+    // updates (Issue #985)
+    #[cfg(target_os = "macos")]
+    if outcome == CookieOutcome::AccessDenied {
+        reset_stale_firefox_data_grant(app).await;
+    }
+    Ok(outcome)
+}
+
 /// Extracts Bilibili cookies from Firefox and caches them in memory.
 ///
 /// This function:
@@ -268,7 +352,7 @@ pub enum CookieOutcome {
 /// Returns an error if:
 /// - Firefox cookies database cannot be copied (other than a permission denial)
 /// - SQLite database cannot be opened or queried
-pub async fn get_cookie(app: &AppHandle) -> Result<CookieOutcome, String> {
+async fn load_firefox_cookies(app: &AppHandle) -> Result<CookieOutcome, String> {
     log::info!("[BE] get_cookie: reading cookies from Firefox");
     // 1) Search for local Firefox cookie DB
     let Some(firefox_root) = firefox_root_dir(app).filter(|root| root.exists()) else {
@@ -633,5 +717,38 @@ mod tests {
             .unwrap()
             .expect("Some(empty) in dev mode");
         assert!(cached.is_empty(), "simulated logout reports no cookies");
+    }
+
+    #[test]
+    fn tccutil_reset_args_targets_service_and_bundle() {
+        assert_eq!(
+            tccutil_reset_args("SystemPolicyAppDataDetailed", "com.example.app"),
+            ["reset", "SystemPolicyAppDataDetailed", "com.example.app"]
+        );
+    }
+
+    #[test]
+    fn should_reset_firefox_data_grant_runs_until_recorded_and_skips_unreadable_settings() {
+        let settings = |reset_done| Settings {
+            firefox_permission_reset_done: reset_done,
+            ..Settings::default()
+        };
+        let decide = |reset_done| should_reset_firefox_data_grant(Some(&settings(reset_done)));
+        assert!(decide(None));
+        assert!(decide(Some(false)));
+        assert!(!decide(Some(true)));
+        assert!(!should_reset_firefox_data_grant(None));
+    }
+
+    #[test]
+    fn reset_done_patch_lands_on_the_settings_field() {
+        let mut object = serde_json::to_value(Settings::default()).unwrap();
+        let patch = firefox_permission_reset_done_patch();
+        object
+            .as_object_mut()
+            .unwrap()
+            .extend(patch.as_object().unwrap().clone());
+        let settings: Settings = serde_json::from_value(object).unwrap();
+        assert_eq!(settings.firefox_permission_reset_done, Some(true));
     }
 }

@@ -141,8 +141,10 @@ jobs:
         include:
           - platform: 'macos-latest' # Apple Silicon (M1+)
             args: '--target aarch64-apple-darwin'
+            target: aarch64-apple-darwin
           - platform: 'macos-latest' # Intel
             args: '--target x86_64-apple-darwin'
+            target: x86_64-apple-darwin
           # Why pinned to 24.04 (not ubuntu-latest): the glibc baseline of the
           # Linux artifacts follows the build image (2.39 on noble), and the
           # README documents that baseline — ubuntu-latest would silently bump
@@ -197,11 +199,39 @@ jobs:
       - name: Install frontend dependencies
         run: test -f package-lock.json && npm ci || npm install
 
+      # Why: the release must carry a fixed signing identity — TCC grants
+      # (e.g. the Firefox profile access) bind to the app's designated
+      # requirement, and ad-hoc signing mints a new one per build, so every
+      # update lost the grant and re-prompted (Issue #985). APPLE_CERTIFICATE
+      # can't carry it: Tauri CLI's bundled tauri-macos-sign only accepts
+      # Apple-issued certificate names, so the self-signed cert is imported
+      # into a throwaway per-run keychain; the partition list lets codesign
+      # use the key non-interactively on the headless runner.
+      - name: Import macOS code signing certificate
+        if: runner.os == 'macOS'
+        env:
+          MACOS_SIGNING_CERTIFICATE: ${{ secrets.MACOS_SIGNING_CERTIFICATE }}
+          MACOS_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_SIGNING_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          keychain="$RUNNER_TEMP/build.keychain"
+          echo "$MACOS_SIGNING_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/signing.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$keychain"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$keychain"
+          security set-keychain-settings "$keychain"
+          security import "$RUNNER_TEMP/signing.p12" -k "$keychain" -P "$MACOS_SIGNING_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$keychain"
+          # shellcheck disable=SC2046
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '" ')
+
       - name: Build and upload with Tauri
         uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          # Note: must equal the common name of the certificate imported above
+          # — codesign selects the identity by name (Issue #985)
+          APPLE_SIGNING_IDENTITY: ${{ runner.os == 'macOS' && 'bilibili-downloader-gui Release Signing' || '' }}
         with:
           # Upload to the existing (draft) release. tagName is still passed so
           # the updater latest.json keeps its URL shape — and must be the
@@ -217,6 +247,23 @@ jobs:
           # with includeUpdaterJson: false — re-check when bumping the major.
           includeUpdaterJson: false
           args: ${{ matrix.args }}
+
+      # Why: with no usable identity the Tauri bundler silently falls back to
+      # ad-hoc signing, which reverts to a per-build designated requirement and
+      # undoes the grant-persistence fix above — fail the release unless the
+      # bundle carries a certificate-based signature (Issue #985)
+      - name: Verify macOS build is not ad-hoc signed
+        if: runner.os == 'macOS'
+        env:
+          TARGET: ${{ matrix.target }}
+        run: codesign -d -r- "src-tauri/target/$TARGET/release/bundle/macos/"*.app 2>&1 | grep -F 'certificate leaf'
+
+      - name: Remove macOS code signing keychain
+        if: always() && runner.os == 'macOS'
+        continue-on-error: true
+        run: |
+          rm -f "$RUNNER_TEMP/signing.p12"
+          security delete-keychain "$RUNNER_TEMP/build.keychain"
 
       - name: Package Windows ZIP editions
         if: runner.os == 'Windows'

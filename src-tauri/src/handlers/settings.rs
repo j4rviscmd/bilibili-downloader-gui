@@ -307,6 +307,25 @@ mod tests {
     }
 
     #[test]
+    fn patch_persists_firefox_permission_reset_done_via_serde_rename_key() {
+        let dir = tempdir();
+        write_settings(dir.path(), json!({"language": "en"}));
+
+        patch_settings_at(
+            &settings_file(dir.path()),
+            &json!({"firefoxPermissionResetDone": true}),
+        )
+        .unwrap();
+
+        assert_eq!(
+            read_settings(dir.path())["firefoxPermissionResetDone"],
+            json!(true)
+        );
+        let merged: Settings = serde_json::from_value(read_settings(dir.path())).unwrap();
+        assert_eq!(merged.firefox_permission_reset_done, Some(true));
+    }
+
+    #[test]
     fn patch_on_missing_file_creates_it_with_patch_only() {
         let dir = tempdir();
         patch_settings_at(&settings_file(dir.path()), &json!({"fontSize": 16})).unwrap();
