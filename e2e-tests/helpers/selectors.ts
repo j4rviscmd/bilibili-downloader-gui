@@ -108,6 +108,9 @@ export const LOGIN_NOTICE = '[data-login-notice]'
 /** Primary text inside the login notice. */
 export const LOGIN_NOTICE_TEXT = '[data-login-notice-text]'
 
+/** Login hyperlink inside the login notice (opens the login dialog). */
+export const LOGIN_NOTICE_LINK = `${LOGIN_NOTICE_TEXT} button`
+
 // -- Download Button --
 
 /** Ripple-effect download button (enabled after video parts are loaded and selected). */
@@ -160,3 +163,21 @@ export const PART_COMPLETE = '[data-testid="part-download-complete"]'
  * distinguishable only by localized text (local-e2e suite rule).
  */
 export const PAGE_SELECT_TOGGLE = '[data-testid="page-select-toggle"]'
+
+// -- AppBar: Login --
+
+/**
+ * AppBar login button, rendered only while logged out. Carries a testid
+ * because its label is localized (local-e2e suite rule).
+ */
+export const APPBAR_LOGIN_BUTTON = '[data-testid="appbar-login-button"]'
+
+// -- Login Dialog --
+
+/**
+ * Login dialog tab triggers (QRCodeLoginDialog), in tab order. Radix tabs
+ * render no value attribute, so each trigger carries a testid.
+ */
+export const LOGIN_TAB_FIREFOX = '[data-testid="login-tab-firefox"]'
+export const LOGIN_TAB_QR = '[data-testid="login-tab-qr"]'
+export const LOGIN_TAB_MANUAL = '[data-testid="login-tab-manual"]'

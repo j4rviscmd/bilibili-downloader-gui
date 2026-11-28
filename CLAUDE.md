@@ -262,9 +262,9 @@ version — both are maintained by release-please, never edit by hand):
   - `npm run lint` has no errors
   - `cargo build` compiles successfully
   - The local-real E2E suite passes: `npm run test:local`
-    (~3 min, 48 tests across 10 spec files: real Bilibili API/cookies/CDN/
-    ffmpeg — the integration gate `npm test`/`cargo test` cannot
-    provide). Preconditions:
+    (~3.5 min, 53 tests across 11 spec files: real Bilibili
+    API/cookies/CDN/ffmpeg — the integration gate `npm test`/`cargo test`
+    cannot provide). Preconditions:
     Firefox logged in to bilibili (real cookies) and no running app
     instances/dev servers — `wdio.local.conf.ts` fails fast on port
     conflicts (a leftover app instance hijacks the WebDriver bridge).

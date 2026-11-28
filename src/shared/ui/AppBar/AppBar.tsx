@@ -99,6 +99,7 @@ function AppBar({ user, theme, setTheme }: Props) {
                 variant="default"
                 size="sm"
                 className="h-6 gap-1 px-2 text-xs"
+                data-testid="appbar-login-button"
                 onClick={() => setIsQrLoginDialogOpen(true)}
               >
                 <LogIn className="size-3" />

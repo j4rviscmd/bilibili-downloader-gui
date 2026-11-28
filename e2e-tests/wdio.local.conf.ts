@@ -150,6 +150,7 @@ const loginStateBackupPath = `${loginStatePath}.e2e-bak`
 // recovery always restores from .e2e-bak (issue #977).
 const settingsHoldPath = `${settingsPath}.e2e-hold`
 const FIRST_RUN_SPEC = '00-first-run.local.e2e.ts'
+const LOGIN_DIALOG_SPEC = 'login-dialog-tab.local.e2e.ts'
 
 // Why: any live settings.json at this point was created by the held
 // (settings-less) session and is discarded by design — only the hold
@@ -165,6 +166,10 @@ function releaseHeldSettings(): void {
 // false = no original settings.json, so restore must also remove a file
 // the run itself created.
 let settingsExisted: boolean | undefined
+
+// shortcut: a hard-killed run leaves the seeded login_state.json behind on
+// a machine that had none; delete it by hand until onPrepare heals it
+let loginStateRestore: 'remove' | 'firefox' | undefined
 
 function backupSettings(): void {
   settingsExisted = fs.existsSync(settingsPath)
@@ -212,14 +217,19 @@ function backupLoginState(): void {
   if (!fs.existsSync(loginStateBackupPath)) {
     fs.copyFileSync(loginStatePath, loginStateBackupPath)
   }
+  pinLoginMethod('firefox')
+}
+
+function pinLoginMethod(method: string): void {
   try {
-    const json = JSON.parse(fs.readFileSync(loginStatePath, 'utf8')) as {
-      loginState?: { method?: string }
-    }
-    if (json.loginState?.method !== 'firefox') {
-      json.loginState = { ...(json.loginState ?? {}), method: 'firefox' }
+    const raw = fs.existsSync(loginStatePath)
+      ? fs.readFileSync(loginStatePath, 'utf8')
+      : '{}'
+    const json = JSON.parse(raw) as { loginState?: { method?: string } }
+    if (json.loginState?.method !== method) {
+      json.loginState = { ...(json.loginState ?? {}), method }
       fs.writeFileSync(loginStatePath, JSON.stringify(json, null, 2))
-      console.log('[e2e-local] pinned login method to firefox for this run')
+      console.log(`[e2e-local] pinned login method to ${method} for this run`)
     }
   } catch (err) {
     console.warn('[e2e-local] login_state patch skipped:', err)
@@ -415,10 +425,24 @@ export const config = {
         `[e2e-local] moved ${settingsPath} aside for ${FIRST_RUN_SPEC}`,
       )
     }
+    // Why: the spec asserts the dialog opens on the persisted method's
+    // tab while backupLoginState pinned firefox run-wide — pin manual for
+    // this session only and restore the prior state afterwards
+    // (e2e-tests/local/login-dialog-tab.local.e2e.ts)
+    if (specs.some((spec) => path.basename(spec) === LOGIN_DIALOG_SPEC)) {
+      loginStateRestore = fs.existsSync(loginStatePath) ? 'firefox' : 'remove'
+      pinLoginMethod('manual')
+    }
   },
 
   async afterSession() {
     releaseHeldSettings()
+    if (loginStateRestore === 'remove') {
+      fs.rmSync(loginStatePath, { force: true })
+    } else if (loginStateRestore === 'firefox') {
+      pinLoginMethod('firefox')
+    }
+    loginStateRestore = undefined
   },
 
   // Real-network downloads + hard-subtitle burn-ins can each run for
