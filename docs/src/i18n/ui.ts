@@ -144,6 +144,7 @@ const translations: Record<Lang, Record<string, unknown>> = {
       guides: "Guides",
       faq: "FAQ",
       architecture: "Architecture",
+      github: "GitHub repository",
     },
     guides: {
       title: "Bilibili Download Guides & How-tos",
@@ -225,7 +226,7 @@ const translations: Record<Lang, Record<string, unknown>> = {
         "Video search screen of Bilibili Downloader GUI showing keyword search results and the popular feed",
       downloadsAlt:
         "Downloads screen of Bilibili Downloader GUI with an active download and automatic audio/video merge",
-      themesTitle: "The same search screen in four of the 44 theme presets",
+      themesTitle: "A wide choice of 44 themes",
       themesAlt:
         "Bilibili Downloader GUI search screen shown four times, each with a different theme preset",
     },
@@ -248,6 +249,7 @@ const translations: Record<Lang, Record<string, unknown>> = {
       guides: "ガイド",
       faq: "よくある質問",
       architecture: "アーキテクチャ",
+      github: "GitHubリポジトリ",
     },
     guides: {
       title: "bilibiliダウンロードの使い方とガイド",
@@ -328,7 +330,7 @@ const translations: Record<Lang, Record<string, unknown>> = {
         "Bilibili Downloader GUIの動画検索画面。キーワード検索結果と人気フィードの表示",
       downloadsAlt:
         "Bilibili Downloader GUIのダウンロード画面。ダウンロードの進行と音声・動画の自動結合の様子",
-      themesTitle: "同じ検索画面を、44種類あるテーマプリセットのうち4つで表示",
+      themesTitle: "44種類の豊富なテーマ",
       themesAlt:
         "Bilibili Downloader GUIの検索画面を4種類のテーマプリセットで並べた画像",
     },
@@ -350,6 +352,7 @@ const translations: Record<Lang, Record<string, unknown>> = {
       guides: "指南",
       faq: "常见问题",
       architecture: "架构",
+      github: "GitHub仓库",
     },
     guides: {
       title: "bilibili下载使用指南",
@@ -427,7 +430,7 @@ const translations: Record<Lang, Record<string, unknown>> = {
         "Bilibili Downloader GUI的视频搜索界面,显示关键词搜索结果与热门内容流",
       downloadsAlt:
         "Bilibili Downloader GUI的下载界面,显示下载进度与音视频自动合并",
-      themesTitle: "同一个搜索界面在44种主题预设中4种的显示效果",
+      themesTitle: "丰富多样的44种主题",
       themesAlt: "Bilibili Downloader GUI的搜索界面以4种主题预设并列展示",
     },
     faqSection: {
@@ -448,6 +451,7 @@ const translations: Record<Lang, Record<string, unknown>> = {
       guides: "가이드",
       faq: "자주 묻는 질문",
       architecture: "아키텍처",
+      github: "GitHub 저장소",
     },
     guides: {
       title: "bilibili 다운로드 가이드",
@@ -528,7 +532,7 @@ const translations: Record<Lang, Record<string, unknown>> = {
         "Bilibili Downloader GUI 동영상 검색 화면. 키워드 검색 결과와 인기 피드 표시",
       downloadsAlt:
         "Bilibili Downloader GUI 다운로드 화면. 진행 중인 다운로드와 오디오·비디오 자동 병합",
-      themesTitle: "같은 검색 화면을 44가지 테마 프리셋 중 4가지로 표시",
+      themesTitle: "풍부한 44가지 테마",
       themesAlt:
         "Bilibili Downloader GUI 검색 화면을 서로 다른 4가지 테마 프리셋으로 나타낸 이미지",
     },
@@ -551,6 +555,7 @@ const translations: Record<Lang, Record<string, unknown>> = {
       guides: "Guías",
       faq: "Preguntas frecuentes",
       architecture: "Arquitectura",
+      github: "Repositorio de GitHub",
     },
     guides: {
       title: "Guías para descargar de Bilibili",
@@ -632,8 +637,7 @@ const translations: Record<Lang, Record<string, unknown>> = {
         "Pantalla de búsqueda de vídeos de Bilibili Downloader GUI con resultados de palabras clave y el feed popular",
       downloadsAlt:
         "Pantalla de descargas de Bilibili Downloader GUI con una descarga activa y fusión automática de audio/vídeo",
-      themesTitle:
-        "La misma pantalla de búsqueda en cuatro de los 44 presets de tema",
+      themesTitle: "Una amplia variedad de 44 temas",
       themesAlt:
         "Pantalla de búsqueda de Bilibili Downloader GUI repetida cuatro veces, cada una con un preset de tema distinto",
     },
@@ -656,6 +660,7 @@ const translations: Record<Lang, Record<string, unknown>> = {
       guides: "Guides",
       faq: "FAQ",
       architecture: "Architecture",
+      github: "Dépôt GitHub",
     },
     guides: {
       title: "Guides de téléchargement Bilibili",
@@ -737,8 +742,7 @@ const translations: Record<Lang, Record<string, unknown>> = {
         "Écran de recherche vidéo de Bilibili Downloader GUI avec les résultats de mots-clés et le fil populaire",
       downloadsAlt:
         "Écran de téléchargements de Bilibili Downloader GUI avec un téléchargement actif et la fusion automatique audio/vidéo",
-      themesTitle:
-        "Le même écran de recherche dans quatre des 44 préréglages de thème",
+      themesTitle: "Un large choix de 44 thèmes",
       themesAlt:
         "Écran de recherche de Bilibili Downloader GUI répété quatre fois, chacun avec un préréglage de thème différent",
     },

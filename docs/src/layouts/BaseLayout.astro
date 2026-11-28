@@ -8,6 +8,7 @@
  */
 import "../styles/global.css";
 import Footer from "../components/layouts/Footer.astro";
+import { Github } from "lucide-react";
 import {
   getLangFromUrl,
   useTranslations,
@@ -276,6 +277,24 @@ const pathWithoutLang =
               ))
             }
           </select>
+
+          <!--
+            shortcut: hidden below md because the nav is a single
+            non-wrapping row that is already at its min-content width on
+            phones (#999) — show at all widths once it has a mobile layout.
+            shortcut: lucide v1 removes the Github brand icon — swap to an
+            inline SVG when bumping lucide-react to v1.
+          -->
+          <a
+            href="https://github.com/j4rviscmd/bilibili-downloader-gui"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={t("nav.github")}
+            title={t("nav.github")}
+            class="hover:bg-accent hidden rounded-md p-2 md:inline-flex"
+          >
+            <Github className="h-5 w-5" aria-hidden="true" />
+          </a>
 
           <!-- Dark Mode Toggle -->
           <button id="theme-toggle" class="hover:bg-accent rounded-md p-2">
