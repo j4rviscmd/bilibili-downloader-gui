@@ -1,4 +1,6 @@
 import App from '@/App'
+import { store } from '@/app/store'
+import { setFirefoxAccessDenied } from '@/features/init/model/initSlice'
 import { mockInvoke, renderWithProviders } from '@/test/test-utils'
 import { screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -64,6 +66,7 @@ beforeEach(() => {
       ? Promise.resolve(1234)
       : Promise.resolve(undefined),
   )
+  store.dispatch(setFirefoxAccessDenied(false))
 })
 
 describe('App routing', () => {
@@ -102,5 +105,16 @@ describe('App window reveal', () => {
     // App's useRevealMainWindow is the only reveal path — without this
     // invoke the app never becomes visible.
     expect(mockInvoke).toHaveBeenCalledWith('show_main')
+  })
+})
+
+describe('App Firefox permission dialog', () => {
+  it('mounts the dialog behind the init flag', async () => {
+    store.dispatch(setFirefoxAccessDenied(true))
+    renderWithProviders(<App />)
+
+    expect(
+      await screen.findByText('login.firefoxPermissionTitle'),
+    ).toBeInTheDocument()
   })
 })

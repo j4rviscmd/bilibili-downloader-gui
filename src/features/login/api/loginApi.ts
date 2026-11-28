@@ -63,6 +63,8 @@ export type QrSession = Session
 /** Available login methods. */
 export type LoginMethod = 'firefox' | 'qrCode' | 'manual'
 
+export type CookieOutcome = 'loaded' | 'noCookies' | 'accessDenied'
+
 /** Current login state. */
 export interface LoginState {
   /** Currently selected login method */
@@ -203,6 +205,16 @@ export async function refreshCookie(): Promise<QrSession> {
     logger.error('refreshCookie: Failed to refresh cookie', error)
     throw error
   }
+}
+
+export async function getCookie(): Promise<CookieOutcome> {
+  const result = await invoke<CookieOutcome>('get_cookie')
+  logger.debug(`getCookie: outcome=${result}`)
+  return result
+}
+
+export async function openMacosPrivacySettings(): Promise<void> {
+  await invoke('open_macos_privacy_settings')
 }
 
 /** Cookie refresh info from Bilibili API. */

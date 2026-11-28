@@ -4,9 +4,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   checkCookieRefresh,
   generateQrCode,
+  getCookie,
   getLoginMethod,
   getLoginState,
   loadQrSession,
+  openMacosPrivacySettings,
   pollQrStatus,
   qrLogout,
   refreshCookie,
@@ -204,5 +206,32 @@ describe('refreshCookie', () => {
     mockInvoke.mockRejectedValue(new Error('Refresh token expired'))
 
     await expect(refreshCookie()).rejects.toThrow('Refresh token expired')
+  })
+})
+
+describe('getCookie', () => {
+  it('should call invoke with get_cookie command', async () => {
+    mockInvoke.mockResolvedValue('accessDenied')
+
+    const result = await getCookie()
+
+    expect(mockInvoke).toHaveBeenCalledWith('get_cookie')
+    expect(result).toBe('accessDenied')
+  })
+
+  it('should propagate errors from backend', async () => {
+    mockInvoke.mockRejectedValue(new Error('Read failed'))
+
+    await expect(getCookie()).rejects.toThrow('Read failed')
+  })
+})
+
+describe('openMacosPrivacySettings', () => {
+  it('should call invoke with open_macos_privacy_settings command', async () => {
+    mockInvoke.mockResolvedValue(undefined)
+
+    await openMacosPrivacySettings()
+
+    expect(mockInvoke).toHaveBeenCalledWith('open_macos_privacy_settings')
   })
 })

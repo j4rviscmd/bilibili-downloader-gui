@@ -21,6 +21,7 @@ import {
 import { ClipboardPaste, Globe, QrCode } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { FirefoxCookiePanel } from './FirefoxCookiePanel'
+import { FirefoxPermissionNotice } from './FirefoxPermissionNotice'
 import { ManualCookieForm } from './ManualCookieForm'
 import { QRCodeDisplay } from './QRCodeDisplay'
 
@@ -63,6 +64,7 @@ export function QRCodeLoginDialog({
         <DialogHeader>
           <DialogTitle>{t('login.title', 'Login to Bilibili')}</DialogTitle>
         </DialogHeader>
+        <FirefoxPermissionNotice onResolved={() => onOpenChange(false)} />
         <Tabs defaultValue="qr">
           <TabsList className="w-full">
             {/* Tab order mirrors the settings account section (firefox /

@@ -94,12 +94,11 @@ fn firefox_root_dir(app: &AppHandle) -> Option<PathBuf> {
 /// Returns the directory that directly contains profile folders on the
 /// current platform. Used by the filesystem-scan fallback when `profiles.ini`
 /// cannot be parsed.
-fn firefox_profiles_container(app: &AppHandle) -> Option<PathBuf> {
-    let root = firefox_root_dir(app)?;
+fn firefox_profiles_container(firefox_root: &std::path::Path) -> PathBuf {
     if cfg!(target_os = "linux") {
-        Some(root)
+        firefox_root.to_path_buf()
     } else {
-        Some(root.join("Profiles"))
+        firefox_root.join("Profiles")
     }
 }
 
@@ -198,39 +197,52 @@ fn find_active_firefox_profile(firefox_root: &std::path::Path) -> Option<PathBuf
 ///
 /// # Arguments
 ///
-/// * `app` - Tauri application handle for resolving home directory paths
+/// * `firefox_root` - directory containing `profiles.ini`
+/// * `profiles_container` - directory holding the profile folders
 ///
 /// # Returns
 ///
-/// Returns `Some(PathBuf)` pointing to the cookies.sqlite file if found,
-/// or `None` if Firefox is not installed or the file cannot be located.
-fn find_firefox_cookie_file(app: &AppHandle) -> Option<PathBuf> {
-    let firefox_root = firefox_root_dir(app)?;
-
-    if !firefox_root.exists() {
-        return None;
+/// Returns `Ok(PathBuf)` pointing to the cookies.sqlite file if found,
+/// `Err(NoCookies)` if Firefox is not installed or the file cannot be
+/// located, or `Err(AccessDenied)` when the OS refuses to read the Firefox
+/// data.
+fn find_cookie_file(
+    firefox_root: &std::path::Path,
+    profiles_container: &std::path::Path,
+) -> Result<PathBuf, CookieOutcome> {
+    if let Some(profile) = find_active_firefox_profile(firefox_root) {
+        return Ok(profile.join("cookies.sqlite"));
     }
 
-    if let Some(profile) = find_active_firefox_profile(&firefox_root) {
-        let cookiefile = profile.join("cookies.sqlite");
-        if cookiefile.is_file() {
-            return Some(cookiefile);
+    log::warn!("[BE] find_cookie_file: profiles.ini lookup failed, falling back to directory scan");
+    let entries = fs::read_dir(profiles_container).map_err(|e| match e.kind() {
+        std::io::ErrorKind::PermissionDenied => CookieOutcome::AccessDenied,
+        _ => CookieOutcome::NoCookies,
+    })?;
+    let mut denied = false;
+    for entry in entries.flatten() {
+        let p = entry.path().join("cookies.sqlite");
+        // Why: Path::is_file() folds metadata errors (incl. PermissionDenied)
+        // into `false`, silently downgrading a TCC denial to NoCookies;
+        // fs::metadata() keeps the denial visible (see `denied` below).
+        match fs::metadata(&p) {
+            Ok(meta) if meta.is_file() => return Ok(p),
+            Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => denied = true,
+            _ => {}
         }
     }
-
-    log::warn!(
-        "[BE] find_firefox_cookie_file: profiles.ini lookup failed, falling back to directory scan"
-    );
-    let container = firefox_profiles_container(app)?;
-    if let Ok(entries) = fs::read_dir(&container) {
-        for entry in entries.flatten() {
-            let p = entry.path().join("cookies.sqlite");
-            if p.is_file() {
-                return Some(p);
-            }
-        }
+    if denied {
+        return Err(CookieOutcome::AccessDenied);
     }
-    None
+    Err(CookieOutcome::NoCookies)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CookieOutcome {
+    Loaded,
+    NoCookies,
+    AccessDenied,
 }
 
 /// Extracts Bilibili cookies from Firefox and caches them in memory.
@@ -247,26 +259,39 @@ fn find_firefox_cookie_file(app: &AppHandle) -> Option<PathBuf> {
 ///
 /// # Returns
 ///
-/// Returns `Ok(true)` if Bilibili cookies were found and cached,
-/// `Ok(false)` if no Bilibili cookies were found.
+/// Returns `Ok(Loaded)` if Bilibili cookies were found and cached,
+/// `Ok(NoCookies)` if none were found, and `Ok(AccessDenied)` when the OS
+/// refuses to read the Firefox data.
 ///
 /// # Errors
 ///
 /// Returns an error if:
-/// - Firefox cookies database cannot be copied
+/// - Firefox cookies database cannot be copied (other than a permission denial)
 /// - SQLite database cannot be opened or queried
-pub async fn get_cookie(app: &AppHandle) -> Result<bool, String> {
+pub async fn get_cookie(app: &AppHandle) -> Result<CookieOutcome, String> {
     log::info!("[BE] get_cookie: reading cookies from Firefox");
     // 1) Search for local Firefox cookie DB
-    let Some(cookiefile) = find_firefox_cookie_file(app) else {
-        log::warn!("[BE] get_cookie: Firefox cookie file not found");
-        return Ok(false);
+    let Some(firefox_root) = firefox_root_dir(app).filter(|root| root.exists()) else {
+        return Ok(CookieOutcome::NoCookies);
     };
+    let cookiefile =
+        match find_cookie_file(&firefox_root, &firefox_profiles_container(&firefox_root)) {
+            Ok(path) => path,
+            Err(outcome) => {
+                log::warn!("[BE] get_cookie: Firefox cookie file not found ({outcome:?})");
+                return Ok(outcome);
+            }
+        };
 
     // 2) Copy to temp directory (to avoid lock while Firefox is running)
     let tmp_dir = std::env::temp_dir();
     let tmp_cookie = tmp_dir.join("temp_cookiefile.sqlite");
-    fs::copy(&cookiefile, &tmp_cookie).map_err(|e| format!("failed to copy cookie db: {e}"))?;
+    if let Err(e) = fs::copy(&cookiefile, &tmp_cookie) {
+        return match e.kind() {
+            std::io::ErrorKind::PermissionDenied => Ok(CookieOutcome::AccessDenied),
+            _ => Err(format!("failed to copy cookie db: {e}")),
+        };
+    }
 
     // 3) Open SQLite and read host, name, value from moz_cookies (for debug display)
     let mut cookies = HashMap::<String, String>::new();
@@ -293,7 +318,11 @@ pub async fn get_cookie(app: &AppHandle) -> Result<bool, String> {
         }
     }
 
-    Ok(has_any)
+    Ok(if has_any {
+        CookieOutcome::Loaded
+    } else {
+        CookieOutcome::NoCookies
+    })
 }
 
 /// Reads Bilibili cookies from the copied SQLite database into the given map.
@@ -403,6 +432,106 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         write_ini(root.path(), "not an ini file at all\n[broken\n");
         assert_eq!(find_active_firefox_profile(root.path()), None);
+    }
+
+    #[test]
+    fn scan_fallback_returns_first_profile_cookie_file() {
+        let root = tempfile::tempdir().unwrap();
+        let container = root.path().join("Profiles");
+        let profile = make_profile(&container, "first.default");
+        assert_eq!(
+            find_cookie_file(root.path(), &container),
+            Ok(profile.join("cookies.sqlite"))
+        );
+    }
+
+    #[test]
+    fn missing_profiles_container_reports_no_cookies() {
+        let root = tempfile::tempdir().unwrap();
+        assert_eq!(
+            find_cookie_file(root.path(), &root.path().join("Profiles")),
+            Err(CookieOutcome::NoCookies)
+        );
+    }
+
+    #[test]
+    fn profile_without_cookie_file_reports_no_cookies() {
+        let root = tempfile::tempdir().unwrap();
+        let container = root.path().join("Profiles");
+        std::fs::create_dir_all(container.join("empty.profile")).unwrap();
+        assert_eq!(
+            find_cookie_file(root.path(), &container),
+            Err(CookieOutcome::NoCookies)
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unreadable_profiles_dir_reports_access_denied() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = tempfile::tempdir().unwrap();
+        let container = root.path().join("Profiles");
+        make_profile(&container, "locked.default");
+        write_ini(root.path(), "[InstallX]\nDefault=Profiles/locked.default\n");
+        std::fs::set_permissions(&container, std::fs::Permissions::from_mode(0o000)).unwrap();
+
+        assert_eq!(
+            find_cookie_file(root.path(), &container),
+            Err(CookieOutcome::AccessDenied)
+        );
+
+        std::fs::set_permissions(&container, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unreadable_profile_dir_reports_access_denied() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = tempfile::tempdir().unwrap();
+        let container = root.path().join("Profiles");
+        let profile = make_profile(&container, "locked.default");
+        std::fs::set_permissions(&profile, std::fs::Permissions::from_mode(0o000)).unwrap();
+
+        assert_eq!(
+            find_cookie_file(root.path(), &container),
+            Err(CookieOutcome::AccessDenied)
+        );
+
+        std::fs::set_permissions(&profile, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unreadable_profile_dir_does_not_mask_readable_profile() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = tempfile::tempdir().unwrap();
+        let container = root.path().join("Profiles");
+        let locked = make_profile(&container, "locked.default");
+        let readable = make_profile(&container, "readable.default");
+        std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o000)).unwrap();
+
+        assert_eq!(
+            find_cookie_file(root.path(), &container),
+            Ok(readable.join("cookies.sqlite"))
+        );
+
+        std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    #[test]
+    fn cookie_outcome_serializes_camel_case() {
+        assert_eq!(
+            serde_json::to_value(CookieOutcome::Loaded).unwrap(),
+            serde_json::json!("loaded")
+        );
+        assert_eq!(
+            serde_json::to_value(CookieOutcome::NoCookies).unwrap(),
+            serde_json::json!("noCookies")
+        );
+        assert_eq!(
+            serde_json::to_value(CookieOutcome::AccessDenied).unwrap(),
+            serde_json::json!("accessDenied")
+        );
     }
 
     /// Creates a SQLite db with a moz_cookies table and the given

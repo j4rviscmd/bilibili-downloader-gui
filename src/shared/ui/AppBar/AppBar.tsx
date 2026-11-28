@@ -1,4 +1,5 @@
-import { useSelector } from '@/app/store'
+import { store, useSelector } from '@/app/store'
+import { setFirefoxPermissionDismissed } from '@/features/init'
 import { QRCodeLoginDialog } from '@/features/login'
 import AppBarThemePresetButton from '@/features/preference/ui/AppBarThemePresetButton'
 import LanguageSwitcher from '@/features/preference/ui/LanguageSwitcher'
@@ -14,7 +15,7 @@ import {
 import { Button } from '@/shared/ui/button'
 import { GitHubStars } from '@/shared/ui/GitHubStars'
 import { Separator } from '@/shared/ui/separator'
-import { LogIn, UserRound } from 'lucide-react'
+import { LogIn, TriangleAlert, UserRound } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -57,10 +58,16 @@ function AppBar({ user, theme, setTheme }: Props) {
   const showGithubStars = useSelector(
     (state) => state.settings.showGithubStars ?? true,
   )
+  const firefoxAccessDenied = useSelector(
+    (state) => state.init.firefoxAccessDenied,
+  )
+  const loginMethod = useSelector((state) => state.login.loginMethod)
 
   const maskedUserName = user.data.isLogin ? maskUserName(user.data.uname) : ''
   const hasUsername = user.data.isLogin && user.data.uname
   const isLoggedIn = user.hasCookie && user.data.isLogin
+  const needsFirefoxPermission =
+    firefoxAccessDenied && loginMethod === 'firefox' && !isLoggedIn
 
   return (
     <>
@@ -97,6 +104,28 @@ function AppBar({ user, theme, setTheme }: Props) {
                 <LogIn className="size-3" />
                 {t('login.loginButton')}
               </Button>
+              {needsFirefoxPermission && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="h-6 gap-1 px-2 text-xs"
+                        onClick={() =>
+                          store.dispatch(setFirefoxPermissionDismissed(false))
+                        }
+                      >
+                        <TriangleAlert className="size-3" aria-hidden="true" />
+                        {t('login.firefoxPermissionAppBar')}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{t('login.firefoxPermissionAppBarTooltip')}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
             </>
           )}
         </div>

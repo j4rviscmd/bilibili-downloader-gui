@@ -1,16 +1,26 @@
 /**
  * initSlice minimal roundtrip suite.
  *
- * The slice is two plain setters, so coverage is a set/restore roundtrip
- * against the real singleton store.
+ * The slice is a set of plain setters, so coverage is a set/restore
+ * roundtrip against the real singleton store.
  */
 
 import { store } from '@/app/store'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { setInitiated, setProcessingFnc } from './initSlice'
+import {
+  setFirefoxAccessDenied,
+  setFirefoxPermissionDismissed,
+  setInitiated,
+  setProcessingFnc,
+} from './initSlice'
 
-const initialState = { initiated: false, processingFnc: '' }
+const initialState = {
+  initiated: false,
+  processingFnc: '',
+  firefoxAccessDenied: false,
+  firefoxPermissionDismissed: false,
+}
 
 function initState() {
   return store.getState().init
@@ -20,6 +30,8 @@ describe('initSlice', () => {
   beforeEach(() => {
     store.dispatch(setInitiated(false))
     store.dispatch(setProcessingFnc(''))
+    store.dispatch(setFirefoxAccessDenied(false))
+    store.dispatch(setFirefoxPermissionDismissed(false))
   })
 
   it('setInitiated flips the completion flag', () => {
@@ -39,5 +51,18 @@ describe('initSlice', () => {
     store.dispatch(setInitiated(false))
 
     expect(initState()).toEqual(initialState)
+  })
+
+  it('setFirefoxAccessDenied toggles the Firefox permission prompt', () => {
+    store.dispatch(setFirefoxAccessDenied(true))
+    expect(initState().firefoxAccessDenied).toBe(true)
+  })
+
+  it('setFirefoxPermissionDismissed hides the prompt without forgetting the denial', () => {
+    store.dispatch(setFirefoxAccessDenied(true))
+    store.dispatch(setFirefoxPermissionDismissed(true))
+
+    expect(initState().firefoxAccessDenied).toBe(true)
+    expect(initState().firefoxPermissionDismissed).toBe(true)
   })
 })

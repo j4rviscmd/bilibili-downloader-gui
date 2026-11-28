@@ -28,6 +28,8 @@ export { useLogin } from './model/useLogin'
 
 // Components
 export { FirefoxCookiePanel } from './ui/FirefoxCookiePanel'
+export { FirefoxPermissionDialog } from './ui/FirefoxPermissionDialog'
+export { FirefoxPermissionNotice } from './ui/FirefoxPermissionNotice'
 export { ManualCookieForm } from './ui/ManualCookieForm'
 export { QRCodeDisplay } from './ui/QRCodeDisplay'
 export { QRCodeLoginDialog } from './ui/QRCodeLoginDialog'

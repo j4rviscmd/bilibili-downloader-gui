@@ -9,7 +9,11 @@
 
 import { store } from '@/app/store'
 import { useInit, type InitResult } from '@/features/init/hooks/useInit'
-import { setInitiated } from '@/features/init/model/initSlice'
+import {
+  setFirefoxAccessDenied,
+  setFirefoxPermissionDismissed,
+  setInitiated,
+} from '@/features/init/model/initSlice'
 import { setSettings } from '@/features/settings/settingsSlice'
 import type { Settings } from '@/features/settings/type'
 import type { User } from '@/features/user/types'
@@ -72,6 +76,8 @@ describe('useInit', () => {
   beforeEach(() => {
     store.dispatch(setSettings(baseline))
     store.dispatch(setInitiated(false))
+    store.dispatch(setFirefoxAccessDenied(false))
+    store.dispatch(setFirefoxPermissionDismissed(false))
     store.dispatch(setUser(loggedOutUser))
     document.documentElement.style.fontSize = ''
     vi.clearAllMocks()
@@ -169,6 +175,29 @@ describe('useInit', () => {
     const code = await hook.current.initApp()
 
     expect(code).toEqual({ code: 0 })
+  })
+
+  it('reflects firefoxAccessDenied from the init result', async () => {
+    store.dispatch(setFirefoxPermissionDismissed(true))
+    mockCommands({
+      get_init_result: { ffmpegSuccess: true, firefoxAccessDenied: true },
+    })
+    const { result: hook } = renderHook(() => useInit(), { wrapper })
+
+    await hook.current.initApp()
+
+    expect(store.getState().init.firefoxAccessDenied).toBe(true)
+    expect(store.getState().init.firefoxPermissionDismissed).toBe(false)
+  })
+
+  it('clears firefoxAccessDenied when the init result reports no denial', async () => {
+    store.dispatch(setFirefoxAccessDenied(true))
+    mockCommands({ get_init_result: { ffmpegSuccess: true } })
+    const { result: hook } = renderHook(() => useInit(), { wrapper })
+
+    await hook.current.initApp()
+
+    expect(store.getState().init.firefoxAccessDenied).toBe(false)
   })
 
   it('setInitiated dispatches to the init slice', () => {

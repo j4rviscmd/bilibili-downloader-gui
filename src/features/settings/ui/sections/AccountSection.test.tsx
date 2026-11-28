@@ -9,6 +9,7 @@
  */
 
 import { store } from '@/app/store'
+import { setFirefoxAccessDenied } from '@/features/init/model/initSlice'
 import type { Session } from '@/features/login'
 import type { User } from '@/features/user'
 import { setUser } from '@/features/user/userSlice'
@@ -141,6 +142,7 @@ describe('AccountSection', () => {
     // Reset the login slice to the init-hydrated firefox default
     store.dispatch(setLoginMethodAction('firefox'))
     store.dispatch(setSession(null))
+    store.dispatch(setFirefoxAccessDenied(false))
   })
 
   it('renders the store-hydrated method on first paint, before the mount fetch lands', async () => {
@@ -172,6 +174,19 @@ describe('AccountSection', () => {
     // Section still renders with the logged-out default state
     expect(
       await waitFor(() => screen.getByText('login.notLoggedIn')),
+    ).toBeInTheDocument()
+  })
+
+  it('mounts the Firefox permission notice while access is denied', () => {
+    store.dispatch(setFirefoxAccessDenied(true))
+
+    renderWithProviders(<AccountSection />)
+
+    expect(
+      screen.getByText('login.firefoxPermissionNotice'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'login.firefoxPermissionCheck' }),
     ).toBeInTheDocument()
   })
 
