@@ -135,7 +135,13 @@ export function PageLayoutShell({ children }: PageLayoutShellProps) {
         </Sidebar>
         <SidebarInset>
           <div className="flex h-full w-full flex-col">
-            <header className="bg-accent shadow-md">
+            {/* Why: a card surface, not the old bg-accent: most tweakcn dark
+                presets pair a light --accent with mid-tone text tokens, which
+                left AppBar text at ~1:1 contrast (issue #995). card-foreground
+                is designed for the card surface, so the pair stays readable in
+                every preset (asserted in
+                scripts/generate-theme-presets.test.ts). */}
+            <header className="bg-card text-card-foreground shadow-md">
               {/* Why: the header contents must ride the same centered rail
                   as PageTemplate.tsx / QueueBottomBar.tsx (max-w-[104rem],
                   issue #804 follow-up): with the AppBar's old narrower cap

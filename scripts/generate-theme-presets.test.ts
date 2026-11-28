@@ -27,6 +27,34 @@ const declarations = [...built.css.matchAll(/^ {2}--([\w-]+): (.*);$/gm)].map(
   ([, key, value]) => ({ key, value }) as { key: string; value: string },
 )
 
+function contrastRatio(a: string, b: string): number {
+  const linear = (hex: string, offset: number) => {
+    const channel = Number.parseInt(hex.slice(offset, offset + 2), 16) / 255
+    return channel <= 0.04045
+      ? channel / 12.92
+      : ((channel + 0.055) / 1.055) ** 2.4
+  }
+  const luminance = (hex: string) =>
+    0.2126 * linear(hex, 1) + 0.7152 * linear(hex, 3) + 0.0722 * linear(hex, 5)
+  const [lighter, darker] = [luminance(a), luminance(b)].sort((x, y) => y - x)
+  return (lighter + 0.05) / (darker + 0.05)
+}
+
+// Why: the AppBar icon buttons hover-paint bg-accent/80, i.e. accent at 80%
+// alpha composited over the card surface — hover contrast must be measured
+// against that composite, not raw accent (AppBarThemePresetButton.tsx /
+// LanguageSwitcher.tsx, issue #995).
+function alphaOver(fg: string, bg: string, alpha: number): string {
+  const channel = (offset: number) => {
+    const mixed = Math.round(
+      alpha * Number.parseInt(fg.slice(offset, offset + 2), 16) +
+        (1 - alpha) * Number.parseInt(bg.slice(offset, offset + 2), 16),
+    )
+    return mixed.toString(16).padStart(2, '0')
+  }
+  return `#${channel(1)}${channel(3)}${channel(5)}`
+}
+
 describe('generate-theme-presets', () => {
   it('checked-in outputs are in sync with the generator and vendored source', () => {
     // If this fails, run `node scripts/generate-theme-presets.mjs`.
@@ -111,5 +139,46 @@ describe('generate-theme-presets', () => {
     expect(() => buildThemePresets('')).toThrow(
       'expected ~42 presets, parsed 0',
     )
+  })
+
+  // Why: regression guard for issue #995 (AppBar text unreadable in most
+  // tweakcn dark presets): presets are regenerated wholesale, so every
+  // card/text pair is re-checked on each generation. Thresholds are WCAG AA:
+  // 4.5:1 for normal text, 3:1 for icons (the only remaining muted-foreground
+  // use on the app bar).
+  it('keeps the app-bar token pairs readable in every preset', () => {
+    const unreadable = built.presets.flatMap(({ id, styles }) =>
+      ['light', 'dark'].flatMap((mode) => {
+        const {
+          card,
+          'card-foreground': text,
+          'muted-foreground': muted,
+        } = styles[mode]
+        return [
+          ...(contrastRatio(text, card) < 4.5 ? [`${mode} card text`] : []),
+          ...(contrastRatio(muted, card) < 3 ? [`${mode} muted icon`] : []),
+        ].map((pair) => `${id} ${pair}`)
+      }),
+    )
+    expect(unreadable).toEqual([])
+  })
+
+  it('keeps the app-bar icon hover text readable in every preset', () => {
+    const unreadable = built.presets.flatMap(({ id, styles }) =>
+      ['light', 'dark'].flatMap((mode) => {
+        const { accent, card } = styles[mode]
+        // Note: must mirror the AppBar icon buttons' hover classes —
+        // hover:text-foreground dark:hover:text-accent-foreground
+        // (AppBarThemePresetButton.tsx, LanguageSwitcher.tsx); change the
+        // classes and this line together.
+        const hoverText = mode === 'dark' ? 'accent-foreground' : 'foreground'
+        const ratio = contrastRatio(
+          styles[mode][hoverText],
+          alphaOver(accent, card, 0.8),
+        )
+        return ratio < 3 ? [`${id} ${mode} hover icon`] : []
+      }),
+    )
+    expect(unreadable).toEqual([])
   })
 })

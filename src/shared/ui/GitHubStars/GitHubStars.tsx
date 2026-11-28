@@ -111,7 +111,12 @@ export function GitHubStars({ owner, repo, className = '' }: Props) {
             href={`https://github.com/${owner}/${repo}/stargazers`}
             target="_blank"
             rel="noopener noreferrer"
-            className={`text-muted-foreground hover:text-primary flex items-center gap-1 text-sm transition-colors ${className}`}
+            // Why: no text-muted-foreground — this link renders only in the
+            // AppBar (AppBar.tsx) on its card surface, and the star count is
+            // body text needing WCAG AA 4.5:1, while muted-foreground is only
+            // asserted at 3:1 (icon tier) in scripts/generate-theme-presets.test.ts
+            // (issue #995); it inherits card-foreground instead.
+            className={`hover:text-primary flex items-center gap-1 text-sm transition-colors ${className}`}
             aria-label={tooltipContent}
           >
             <GitHubIcon className="size-4" />
