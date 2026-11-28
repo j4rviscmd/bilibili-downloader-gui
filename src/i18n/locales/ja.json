@@ -812,6 +812,7 @@
     "plays": "回視聴",
     "collects": "お気に入り",
     "loginRequired": "お気に入りを見るにはログインしてください",
+    "loading": "読み込み中...",
     "videoDeleted": "削除済み",
     "downloadConfirmTitle": "ダウンロード",
     "downloadConfirmMessage": "ホームに移動すると現在の入力がクリアされます。続けますか？",

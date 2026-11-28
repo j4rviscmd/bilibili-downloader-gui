@@ -812,6 +812,7 @@
     "plays": "次播放",
     "collects": "收藏",
     "loginRequired": "请登录后查看收藏",
+    "loading": "加载中...",
     "videoDeleted": "已删除",
     "downloadConfirmTitle": "下载",
     "downloadConfirmMessage": "前往主页将清除当前输入，确定继续吗？",

@@ -14,6 +14,8 @@ import { beforeAll, describe, expect, it, vi } from 'vitest'
 import type { WatchHistoryEntry } from '../types'
 import { WatchHistoryList } from './WatchHistoryList'
 
+const SKELETON = '[data-slot="skeleton"]'
+
 // Minimal Virtuoso stand-in: renders every item through itemContent,
 // mounts the Footer component and fires endReached once (deferred so
 // React has committed first).
@@ -94,11 +96,13 @@ beforeAll(() => {
 })
 
 describe('WatchHistoryList', () => {
-  it('shows the loading spinner while the initial fetch runs', () => {
+  it('shows a skeleton while the initial fetch runs', () => {
     renderList({ loading: true })
 
     expect(document.querySelector('[data-virtuoso-scroller]')).toBeNull()
-    expect(document.querySelector('svg')).not.toBeNull()
+    expect(document.querySelector(SKELETON)).not.toBeNull()
+    expect(document.querySelector('svg')).toBeNull()
+    expect(screen.getByText('watchHistory.loading')).toBeInTheDocument()
   })
 
   it('shows the empty state when there are no entries', () => {
@@ -132,7 +136,7 @@ describe('WatchHistoryList', () => {
     expect(onLoadMore).not.toHaveBeenCalled()
   })
 
-  it('shows the footer spinner only while loading more', () => {
+  it('shows the footer skeleton only while loading more', () => {
     const props = {
       entries: [entry],
       loading: false,
@@ -144,15 +148,16 @@ describe('WatchHistoryList', () => {
     }
     const { rerender } = renderWithProviders(<WatchHistoryList {...props} />)
 
-    // Footer renders a centered spinner block while loadingMore
-    expect(document.querySelector('.py-4')).not.toBeNull()
+    // Footer renders the skeleton rows while loadingMore
+    const scroller = document.querySelector('[data-virtuoso-scroller]')!
+    expect(scroller.lastElementChild?.querySelector(SKELETON)).not.toBeNull()
 
     rerender(<WatchHistoryList {...props} loadingMore={false} />)
 
     // Footer returns null otherwise: last child is the entry row itself
-    expect(document.querySelector('.py-4')).toBeNull()
-    const scroller = document.querySelector('[data-virtuoso-scroller]')!
-    expect(scroller.lastElementChild?.textContent).toContain('A watched video')
+    expect(document.querySelector(SKELETON)).toBeNull()
+    const settled = document.querySelector('[data-virtuoso-scroller]')!
+    expect(settled.lastElementChild?.textContent).toContain('A watched video')
   })
 
   it('rides the page scroll container via customScrollParent when provided', () => {
