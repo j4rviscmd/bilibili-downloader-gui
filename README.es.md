@@ -14,6 +14,8 @@
   <img src="./public/app-image(url)_es_light.png" alt="App Image (Fetch by URL)">
 </picture>
 
+<img src="./public/app-image(themes)_es.webp" alt="App Image (Theme Presets)">
+
 <img src="./public/app-demo_en.webp" alt="App Demo">
 
 [![Windows](https://img.shields.io/badge/Windows-Supported-0078D6?style=flat&logo=data:image/svg%2bxml;base64,PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+V2luZG93cyAxMTwvdGl0bGU+PHBhdGggZmlsbD0iIzAwQTRFRiIgZD0iTTAsMEgxMS4zNzdWMTEuMzcySDBaTTEyLjYyMywwSDI0VjExLjM3MkgxMi42MjNaTTAsMTIuNjIzSDExLjM3N1YyNEgwWm0xMi42MjMsMEgyNFYyNEgxMi42MjMiLz48L3N2Zz4=)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Windows_x64-setup.exe)
@@ -117,7 +119,7 @@ Extrae el ZIP completo antes de ejecutar el programa. Ambas ediciones requieren 
 - **Configuración con un clic** - Instalación automática de FFmpeg con validación de funcionamiento, sin configuración manual
 - **Actualización automática** - Actualizador integrado con verificación de versiones firmadas y notas de versión
 - **Búsqueda y exportación de historial** - Exporta el historial de descargas a JSON/CSV
-- **Temas** - Temas claro/oscuro, colores de acento y tamaño de fuente ajustable
+- **Temas** - Temas claro/oscuro, 44 presets de tema (incl. tweakcn) y tamaño de fuente ajustable
 - **Página de inicio** - Elige qué página se abre al iniciar la aplicación
 
 ### Métodos de autenticación

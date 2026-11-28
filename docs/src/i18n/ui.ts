@@ -171,6 +171,7 @@ const translations: Record<Lang, Record<string, unknown>> = {
       list: {
         search: "In-App Video Search",
         recommend: "Personalized Recommendations",
+        theme: "44 Theme Presets",
         download: "Video & Audio Download",
         quality: "Multiple Quality Options",
         subtitle: "Subtitle Download",
@@ -188,6 +189,8 @@ const translations: Record<Lang, Record<string, unknown>> = {
           "Search bilibili right inside the app — keyword search with suggestions, an infinite-scroll popular feed, and hover previews. No URL copying needed.",
         recommend:
           'Signed in? A "For you" shelf surfaces bilibili\'s real recommendation engine in 12 large cards, each tagged with why it was recommended.',
+        theme:
+          "Light and dark themes with 44 presets, including tweakcn themes. Switch presets from the palette button in the toolbar, and adjust the font size to taste.",
         download:
           "Save your favorite videos and music from Bilibili to watch offline anytime, anywhere.",
         quality:
@@ -222,6 +225,9 @@ const translations: Record<Lang, Record<string, unknown>> = {
         "Video search screen of Bilibili Downloader GUI showing keyword search results and the popular feed",
       downloadsAlt:
         "Downloads screen of Bilibili Downloader GUI with an active download and automatic audio/video merge",
+      themesTitle: "The same search screen in four of the 44 theme presets",
+      themesAlt:
+        "Bilibili Downloader GUI search screen shown four times, each with a different theme preset",
     },
     faqSection: {
       viewAll: "View all FAQs",
@@ -269,6 +275,7 @@ const translations: Record<Lang, Record<string, unknown>> = {
       list: {
         search: "アプリ内動画検索",
         recommend: "あなたへのおすすめ",
+        theme: "44種類のテーマプリセット",
         download: "動画・音声ダウンロード",
         quality: "複数の画質オプション",
         subtitle: "字幕ダウンロード",
@@ -286,6 +293,8 @@ const translations: Record<Lang, Record<string, unknown>> = {
           "URLをコピーせず、アプリの中でそのままbilibiliを検索。サジェスト付きキーワード検索、無限スクロールの人気フィード、ホバープレビューに対応しています。",
         recommend:
           "ログイン中は、bilibiliのレコメンドエンジンによる「あなたへのおすすめ」を大型カード12件で表示。おすすめの理由もバッジでわかります。",
+        theme:
+          "ライト/ダークに加えてtweakcnテーマを含む44種類のプリセットを搭載。ツールバーのパレットボタンから切り替えられ、文字サイズも調整できます。",
         download:
           "お気に入りの動画や音楽をBilibiliから保存して、いつでもどこでもオフラインで視聴できます。",
         quality:
@@ -319,6 +328,9 @@ const translations: Record<Lang, Record<string, unknown>> = {
         "Bilibili Downloader GUIの動画検索画面。キーワード検索結果と人気フィードの表示",
       downloadsAlt:
         "Bilibili Downloader GUIのダウンロード画面。ダウンロードの進行と音声・動画の自動結合の様子",
+      themesTitle: "同じ検索画面を、44種類あるテーマプリセットのうち4つで表示",
+      themesAlt:
+        "Bilibili Downloader GUIの検索画面を4種類のテーマプリセットで並べた画像",
     },
     faqSection: {
       viewAll: "よくある質問をすべて見る",
@@ -365,6 +377,7 @@ const translations: Record<Lang, Record<string, unknown>> = {
       list: {
         search: "应用内视频搜索",
         recommend: "专属推荐",
+        theme: "44种主题预设",
         download: "视频和音频下载",
         quality: "多种画质选项",
         subtitle: "字幕下载",
@@ -382,6 +395,8 @@ const translations: Record<Lang, Record<string, unknown>> = {
           "无需复制链接,直接在应用内搜索bilibili。支持带联想的关键词搜索、无限滚动的热门内容流和悬停预览。",
         recommend:
           "登录后,「为你推荐」版块以12张大卡片呈现bilibili真实推荐引擎的结果,每张卡片都标注推荐理由。",
+        theme:
+          "明暗双主题，并内置含tweakcn主题在内的44种预设。点击工具栏的调色板按钮即可切换，字体大小也可以调整。",
         download: "从Bilibili保存您喜爱的视频和音乐，随时随地离线观看。",
         quality:
           "从360p到4K画质任您选择。根据您的设备和网络速度选择最佳画质。\n最高可用画质取决于您的Bilibili会员等级。",
@@ -412,6 +427,8 @@ const translations: Record<Lang, Record<string, unknown>> = {
         "Bilibili Downloader GUI的视频搜索界面,显示关键词搜索结果与热门内容流",
       downloadsAlt:
         "Bilibili Downloader GUI的下载界面,显示下载进度与音视频自动合并",
+      themesTitle: "同一个搜索界面在44种主题预设中4种的显示效果",
+      themesAlt: "Bilibili Downloader GUI的搜索界面以4种主题预设并列展示",
     },
     faqSection: {
       viewAll: "查看全部常见问题",
@@ -458,6 +475,7 @@ const translations: Record<Lang, Record<string, unknown>> = {
       list: {
         search: "앱 내 동영상 검색",
         recommend: "맞춤 추천",
+        theme: "44가지 테마 프리셋",
         download: "비디오 및 오디오 다운로드",
         quality: "다양한 화질 옵션",
         subtitle: "자막 다운로드",
@@ -475,6 +493,8 @@ const translations: Record<Lang, Record<string, unknown>> = {
           "URL을 복사하지 않고 앱 안에서 바로 bilibili를 검색하세요. 자동완성 키워드 검색, 무한 스크롤 인기 피드, 마우스 오버 미리보기를 지원합니다.",
         recommend:
           "로그인하면 '당신을 위한 추천' 코너가 bilibili 추천 엔진의 결과를 12개의 큰 카드로 보여줍니다. 추천 이유 배지도 함께 표시됩니다.",
+        theme:
+          "라이트/다크 테마와 tweakcn 테마를 포함한 44가지 프리셋을 제공합니다. 툴바의 팔레트 버튼에서 전환할 수 있고 글자 크기도 조절할 수 있습니다.",
         download:
           "Bilibili에서 좋아하는 비디오와 음악을 저장하여 언제 어디서나 오프라인으로 시청하세요.",
         quality:
@@ -508,6 +528,9 @@ const translations: Record<Lang, Record<string, unknown>> = {
         "Bilibili Downloader GUI 동영상 검색 화면. 키워드 검색 결과와 인기 피드 표시",
       downloadsAlt:
         "Bilibili Downloader GUI 다운로드 화면. 진행 중인 다운로드와 오디오·비디오 자동 병합",
+      themesTitle: "같은 검색 화면을 44가지 테마 프리셋 중 4가지로 표시",
+      themesAlt:
+        "Bilibili Downloader GUI 검색 화면을 서로 다른 4가지 테마 프리셋으로 나타낸 이미지",
     },
     faqSection: {
       viewAll: "전체 FAQ 보기",
@@ -555,6 +578,7 @@ const translations: Record<Lang, Record<string, unknown>> = {
       list: {
         search: "Búsqueda de vídeos en la app",
         recommend: "Recomendaciones personalizadas",
+        theme: "44 presets de tema",
         download: "Descarga de video y audio",
         quality: "Múltiples opciones de calidad",
         subtitle: "Descarga de subtítulos",
@@ -572,6 +596,8 @@ const translations: Record<Lang, Record<string, unknown>> = {
           "Busca en Bilibili directamente en la app: búsqueda por palabra clave con sugerencias, feed popular con desplazamiento infinito y vistas previas al pasar el cursor. Sin copiar URLs.",
         recommend:
           "Con sesión iniciada, un estante «Para ti» muestra el motor de recomendaciones real de Bilibili en 12 tarjetas grandes, cada una con la razón de la recomendación.",
+        theme:
+          "Temas claro y oscuro con 44 presets, incluidos temas de tweakcn. Cambia de preset desde el botón de paleta de la barra de herramientas y ajusta el tamaño de la fuente.",
         download:
           "Guarda tus videos y música favoritos de Bilibili para verlos sin conexión en cualquier momento y lugar.",
         quality:
@@ -606,6 +632,10 @@ const translations: Record<Lang, Record<string, unknown>> = {
         "Pantalla de búsqueda de vídeos de Bilibili Downloader GUI con resultados de palabras clave y el feed popular",
       downloadsAlt:
         "Pantalla de descargas de Bilibili Downloader GUI con una descarga activa y fusión automática de audio/vídeo",
+      themesTitle:
+        "La misma pantalla de búsqueda en cuatro de los 44 presets de tema",
+      themesAlt:
+        "Pantalla de búsqueda de Bilibili Downloader GUI repetida cuatro veces, cada una con un preset de tema distinto",
     },
     faqSection: {
       viewAll: "Ver todas las preguntas frecuentes",
@@ -653,6 +683,7 @@ const translations: Record<Lang, Record<string, unknown>> = {
       list: {
         search: "Recherche vidéo dans l'app",
         recommend: "Recommandations personnalisées",
+        theme: "44 préréglages de thème",
         download: "Téléchargement vidéo et audio",
         quality: "Plusieurs options de qualité",
         subtitle: "Téléchargement de sous-titres",
@@ -670,6 +701,8 @@ const translations: Record<Lang, Record<string, unknown>> = {
           "Cherchez sur Bilibili directement dans l'app : recherche par mot-clé avec suggestions, fil populaire en défilement infini et aperçus au survol. Sans copier d'URL.",
         recommend:
           "Connecté, une étagère « Pour vous » affiche le vrai moteur de recommandations de Bilibili en 12 grandes cartes, chacune avec la raison de la recommandation.",
+        theme:
+          "Thèmes clair et sombre avec 44 préréglages, dont les thèmes tweakcn. Changez de préréglage depuis le bouton palette de la barre d'outils et ajustez la taille du texte.",
         download:
           "Enregistrez vos vidéos et musiques préférées de Bilibili pour les regarder hors ligne quand vous voulez.",
         quality:
@@ -704,6 +737,10 @@ const translations: Record<Lang, Record<string, unknown>> = {
         "Écran de recherche vidéo de Bilibili Downloader GUI avec les résultats de mots-clés et le fil populaire",
       downloadsAlt:
         "Écran de téléchargements de Bilibili Downloader GUI avec un téléchargement actif et la fusion automatique audio/vidéo",
+      themesTitle:
+        "Le même écran de recherche dans quatre des 44 préréglages de thème",
+      themesAlt:
+        "Écran de recherche de Bilibili Downloader GUI répété quatre fois, chacun avec un préréglage de thème différent",
     },
     faqSection: {
       viewAll: "Voir toutes les questions fréquentes",

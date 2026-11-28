@@ -63,10 +63,16 @@ npm run build && node scripts/check-seo.mjs
   locales in `src/i18n/ui.ts`
 - Screenshots ship as WebP pairs in `public/`: `app-search`(-light).webp
   (Hero) and `app-downloads`(-light).webp (screenshots section) — the
-  no-suffix file is the dark theme, `-light` the light one. Regenerate
-  both variants together (`magick <src>.png -resize 1600x <name>.webp`)
-  and keep `og-image.png` (1200px wide, PNG for OGP crawler compatibility)
-  in sync with the search screenshot
+  no-suffix file is the dark theme, `-light` the light one. Capture the
+  macOS window including its title bar (1200×652 pt at 2x) so the traffic
+  lights stay in the image, regenerate both variants together
+  (`magick <src>.png -resize 1600x869! -quality 92 <name>.webp`), and keep
+  `og-image.png` (1200px wide, PNG for OGP crawler compatibility) in sync
+  with the light search screenshot
+- `app-themes_<lang>.webp` (theme-preset gallery, 2×2, 1976×1296) is a copy
+  of the README's `public/app-image(themes)_<lang>.webp`; recapture both
+  together at the same size — `AppScreenshots.astro` hard-codes it as the
+  `width`/`height` attributes
 
 ### Search Console setup (one-time, manual)
 

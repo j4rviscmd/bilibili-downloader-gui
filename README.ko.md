@@ -14,6 +14,8 @@
   <img src="./public/app-image(url)_ko_light.png" alt="App Image (Fetch by URL)">
 </picture>
 
+<img src="./public/app-image(themes)_ko.webp" alt="App Image (Theme Presets)">
+
 <img src="./public/app-demo_en.webp" alt="App Demo">
 
 [![Windows](https://img.shields.io/badge/Windows-Supported-0078D6?style=flat&logo=data:image/svg%2bxml;base64,PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+V2luZG93cyAxMTwvdGl0bGU+PHBhdGggZmlsbD0iIzAwQTRFRiIgZD0iTTAsMEgxMS4zNzdWMTEuMzcySDBaTTEyLjYyMywwSDI0VjExLjM3MkgxMi42MjNaTTAsMTIuNjIzSDExLjM3N1YyNEgwWm0xMi42MjMsMEgyNFYyNEgxMi42MjMiLz48L3N2Zz4=)](https://github.com/j4rviscmd/bilibili-downloader-gui/releases/latest/download/bilibili-downloader-gui_Windows_x64-setup.exe)
@@ -114,7 +116,7 @@ Release 페이지에서는 포터블 Windows x64 ZIP 에디션 두 가지를 제
 - **원클릭 설정** - FFmpeg 자동 설치(기능 검증 포함), 수동 설정 불필요
 - **자동 업데이트** - 서명 검증 업데이터 및 릴리스 노트 내장
 - **기록 검색 및 내보내기** - 다운로드 기록을 JSON/CSV로 내보내기
-- **테마** - 라이트/다크 테마, 강조색, 글자 크기 조절
+- **테마** - 라이트/다크 테마, 44가지 테마 프리셋(tweakcn 테마 포함), 글자 크기 조절
 - **시작 페이지** - 앱 시작 시 열리는 페이지 선택
 
 ### 인증 방법
